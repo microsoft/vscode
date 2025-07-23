@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -23,7 +23,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -32,7 +31,7 @@ import { mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 
-const enum AddConfigurationType {
+export const enum AddConfigurationType {
 	Stdio,
 	HTTP,
 
@@ -44,34 +43,34 @@ const enum AddConfigurationType {
 
 type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.NuGetPackage | AddConfigurationType.DockerImage;
 
-const assistedTypes = {
+export const AssistedTypes = {
 	[AddConfigurationType.NpmPackage]: {
 		title: localize('mcp.npm.title', "Enter NPM Package Name"),
 		placeholder: localize('mcp.npm.placeholder', "Package name (e.g., @org/package)"),
 		pickLabel: localize('mcp.serverType.npm', "NPM Package"),
 		pickDescription: localize('mcp.serverType.npm.description', "Install from an NPM package name"),
-		experimentName: null,
+		enabledConfigKey: null, // always enabled
 	},
 	[AddConfigurationType.PipPackage]: {
 		title: localize('mcp.pip.title', "Enter Pip Package Name"),
 		placeholder: localize('mcp.pip.placeholder', "Package name (e.g., package-name)"),
 		pickLabel: localize('mcp.serverType.pip', "Pip Package"),
 		pickDescription: localize('mcp.serverType.pip.description', "Install from a Pip package name"),
-		experimentName: null,
+		enabledConfigKey: null, // always enabled
 	},
 	[AddConfigurationType.NuGetPackage]: {
 		title: localize('mcp.nuget.title', "Enter NuGet Package Name"),
 		placeholder: localize('mcp.nuget.placeholder', "Package name (e.g., Package.Name)"),
 		pickLabel: localize('mcp.serverType.nuget', "NuGet Package"),
 		pickDescription: localize('mcp.serverType.nuget.description', "Install from a NuGet package name"),
-		experimentName: 'mcp.assistedConfiguration.nuget',
+		enabledConfigKey: 'chat.mcp.assisted.nuget.enabled',
 	},
 	[AddConfigurationType.DockerImage]: {
 		title: localize('mcp.docker.title', "Enter Docker Image Name"),
 		placeholder: localize('mcp.docker.placeholder', "Image name (e.g., mcp/imagename)"),
 		pickLabel: localize('mcp.serverType.docker', "Docker Image"),
 		pickDescription: localize('mcp.serverType.docker.description', "Install from a Docker image"),
-		experimentName: null,
+		enabledConfigKey: null, // always enabled
 	},
 };
 
@@ -125,7 +124,7 @@ export class McpAddConfigurationCommand {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILabelService private readonly _label: ILabelService,
-		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -144,9 +143,9 @@ export class McpAddConfigurationCommand {
 		if (aiSupported) {
 			items.unshift({ type: 'separator', label: localize('mcp.serverType.manual', "Manual Install") });
 
-			const elligableTypes = await Promise.all(Object.entries(assistedTypes).map(async ([type, { pickLabel, pickDescription, experimentName }]) => {
-				if (experimentName) {
-					const enabled = await this._assignmentService?.getTreatment<boolean>(experimentName) ?? false;
+			const elligableTypes = Object.entries(AssistedTypes).map(([type, { pickLabel, pickDescription, enabledConfigKey }]) => {
+				if (enabledConfigKey) {
+					const enabled = this._configurationService.getValue<boolean>(enabledConfigKey) ?? false;
 					if (!enabled) {
 						return;
 					}
@@ -156,11 +155,11 @@ export class McpAddConfigurationCommand {
 					label: pickLabel,
 					description: pickDescription,
 				};
-			}));
+			}).filter(x => !!x);
 
 			items.push(
 				{ type: 'separator', label: localize('mcp.serverType.copilot', "Model-Assisted") },
-				...elligableTypes.filter(x => !!x)
+				...elligableTypes
 			);
 		}
 
@@ -272,8 +271,8 @@ export class McpAddConfigurationCommand {
 	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; server: Omit<IMcpStdioServerConfiguration, 'type'>; inputs?: IMcpServerVariable[]; inputValues?: Record<string, string> } | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
-			title: assistedTypes[type].title,
-			placeHolder: assistedTypes[type].placeholder,
+			title: AssistedTypes[type].title,
+			placeHolder: AssistedTypes[type].placeholder,
 		});
 
 		if (!packageName) {

@@ -116,6 +116,7 @@ import { registerLanguageModelActions } from './actions/chatLanguageModelActions
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ChatTaskServiceImpl, IChatTasksService } from '../common/chatTasksService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
+import { AssistedTypes, AddConfigurationType } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -319,6 +320,12 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			},
+		},
+		[AssistedTypes[AddConfigurationType.NuGetPackage].enabledConfigKey]: {
+			type: 'boolean',
+			description: nls.localize('chat.mcp.assisted.nuget.enabled.description', "Enables NuGet packages for AI-assisted MCP server installation. Used to install MCP servers by name from NuGet packages from the central registry for .NET packages."),
+			default: false,
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.UseFileStorage]: {
 			type: 'boolean',
