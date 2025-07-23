@@ -24,6 +24,11 @@ import { AbstractMcpManagementService, AbstractMcpResourceManagementService, ILo
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 
+export const USER_CONFIG_ID = 'usrlocal';
+export const REMOTE_USER_CONFIG_ID = 'usrremote';
+export const WORKSPACE_CONFIG_ID = 'workspace';
+export const WORKSPACE_FOLDER_CONFIG_ID_PREFIX = 'ws';
+
 export interface IWorkbencMcpServerInstallOptions extends InstallOptions {
 	target?: ConfigurationTarget | IWorkspaceFolder;
 }
@@ -35,6 +40,7 @@ export const enum LocalMcpServerScope {
 }
 
 export interface IWorkbenchLocalMcpServer extends ILocalMcpServer {
+	readonly id: string;
 	readonly scope: LocalMcpServerScope;
 }
 
@@ -288,7 +294,33 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	}
 
 	private toWorkspaceMcpServer(server: ILocalMcpServer, scope: LocalMcpServerScope): IWorkbenchLocalMcpServer {
-		return { ...server, scope };
+		return { ...server, id: `mcp.config.${this.getConfigId(server, scope)}.${server.name}`, scope };
+	}
+
+	private getConfigId(server: ILocalMcpServer, scope: LocalMcpServerScope): string {
+		if (scope === LocalMcpServerScope.User) {
+			return USER_CONFIG_ID;
+		}
+
+		if (scope === LocalMcpServerScope.RemoteUser) {
+			return REMOTE_USER_CONFIG_ID;
+		}
+
+		if (scope === LocalMcpServerScope.Workspace) {
+			const workspace = this.workspaceContextService.getWorkspace();
+			if (workspace.configuration && this.uriIdentityService.extUri.isEqual(workspace.configuration, server.mcpResource)) {
+				return WORKSPACE_CONFIG_ID;
+			}
+
+			const workspaceFolders = workspace.folders;
+			for (let index = 0; index < workspaceFolders.length; index++) {
+				const workspaceFolder = workspaceFolders[index];
+				if (this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), server.mcpResource)) {
+					return `${WORKSPACE_FOLDER_CONFIG_ID_PREFIX}${index}`;
+				}
+			}
+		}
+		return 'unknown';
 	}
 
 	async install(server: IInstallableMcpServer, options?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchLocalMcpServer> {
