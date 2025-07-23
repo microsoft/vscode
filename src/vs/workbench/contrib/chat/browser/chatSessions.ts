@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatSessions.css';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -514,10 +515,13 @@ class SessionsViewPane extends ViewPane {
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatSessionItem) => element.label,
 					getWidgetAriaLabel: () => nls.localize('chatSessions.treeAriaLabel', "Chat Sessions")
-				}
+				},
+				hideTwistiesOfChildlessElements: true,
+				allowNonCollapsibleParents: true  // Allow nodes to be non-collapsible even if they have children
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
 
+		console.log('Tree created with hideTwistiesOfChildlessElements: true');
 		this._register(this.tree);
 
 		// Handle double-click and keyboard selection to open editors
