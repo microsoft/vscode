@@ -12,7 +12,7 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling } from '../bufferOutputPolling.js';
+import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
 import { getOutput } from '../outputHelpers.js';
 import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -77,14 +77,16 @@ export class RunTaskTool implements IToolImpl {
 		}
 
 		_progress.report({ message: new MarkdownString(localize('copilotChat.checkingOutput', 'Checking output for `{0}`', taskDefinition.taskLabel)) });
-
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			const extendPolling = await promptForMorePolling(taskDefinition.taskLabel, invocation.context, this._chatService);
-			if (extendPolling) {
-				_progress.report({ message: new MarkdownString(`Checking output for \`${taskDefinition.taskLabel}\``) });
-				outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
-			}
+			outputAndIdle = await racePollingOrPrompt(
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
+				() => promptForMorePolling(taskDefinition.taskLabel, invocation.context!, this._chatService),
+				outputAndIdle,
+				token,
+				this._languageModelsService,
+				{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
+			);
 		}
 		let output = '';
 		if (result?.exitCode) {
@@ -103,7 +105,6 @@ export class RunTaskTool implements IToolImpl {
 		});
 		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: output };
 	}
-
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
 		const activeTasks = await this._tasksService.getActiveTasks();
