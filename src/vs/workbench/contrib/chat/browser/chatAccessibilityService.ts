@@ -14,6 +14,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IChatElicitationRequest } from '../common/chatService.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -51,8 +52,10 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			status(plainTextResponse + errorDetails);
 		}
 	}
-	acceptElicitation(message: string): void {
-		alert('User input required: ' + message);
+	acceptElicitation(elicitation: IChatElicitationRequest): void {
+		const title = typeof elicitation.title === 'string' ? elicitation.title : elicitation.title.value;
+		const message = typeof elicitation.message === 'string' ? elicitation.message : elicitation.message.value;
+		alert(title + ' ' + message);
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
 	}
 }
