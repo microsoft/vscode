@@ -221,7 +221,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			this.registerCommandDecoration(command);
 		}
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
-			this.registerCommandDecoration(command);
+			if (command.exitCode !== 130) {
+				// Don't show decoration when exiting out via ctrl+c
+				this.registerCommandDecoration(command);
+			}
 			if (command.exitCode) {
 				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
 			} else {

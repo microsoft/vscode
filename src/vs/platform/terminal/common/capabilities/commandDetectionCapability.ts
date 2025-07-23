@@ -172,7 +172,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY < this._currentCommand.commandStartMarker.line) {
 				this._clearCommandsInViewport();
 				this._currentCommand.isInvalid = true;
-				this._clearDecorationsInViewport();
 				this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
 			}
 		}
@@ -191,6 +190,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// Remove them
 		if (count > 0) {
 			this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
+			this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.NoProblemsReported });
 		}
 	}
 
@@ -198,33 +198,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._promptInputModel.setContinuationPrompt(value);
 	}
 
-	private _clearDecorationsInViewport(): void {
-		// Reset the current command's decorations by disposing markers
-		this._currentCommand.commandStartMarker?.dispose();
-		this._currentCommand.commandStartMarker = undefined;
-
-		// Above two line was enough to remove stale decorations.
-		// Should we still be disposing other "related"
-		this._currentCommand.commandExecutedMarker?.dispose();
-		this._currentCommand.commandExecutedMarker = undefined;
-
-		this._currentCommand.promptStartMarker?.dispose();
-		this._currentCommand.promptStartMarker = undefined;
-
-		this._currentCommand.currentContinuationMarker?.dispose();
-		this._currentCommand.currentContinuationMarker = undefined;
-
-		this._currentCommand.commandFinishedMarker?.dispose();
-		this._currentCommand.commandFinishedMarker = undefined;
-
-		// the lists goes on with commandLines..commandRightPromptStartX and commandRightPromptEndX... etc
-
-		// Should we be removing all markets in commandMarkers?
-		for (const marker of this._commandMarkers) {
-			marker.dispose();
-		}
-		this._commandMarkers.length = 0;
-	}
 
 	// TODO: Simplify this, can everything work off the last line?
 	setPromptTerminator(promptTerminator: string, lastPromptLine: string) {
