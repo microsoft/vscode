@@ -80,10 +80,21 @@ export class RunTaskTool implements IToolImpl {
 
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			const extendPolling = await promptForMorePolling(taskDefinition.taskLabel, invocation.context, this._chatService);
-			if (extendPolling) {
-				_progress.report({ message: new MarkdownString(`Checking output for \`${taskDefinition.taskLabel}\``) });
-				outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
+			// Use Promise.race to resolve as soon as either polling or prompt completes
+			const pollPromise = pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
+			const promptPromise = promptForMorePolling(taskDefinition.taskLabel, invocation.context, this._chatService);
+			const raceResult = await Promise.race([
+				pollPromise.then(result => ({ type: 'poll', result })),
+				promptPromise.then(result => ({ type: 'prompt', result }))
+			]);
+			if (raceResult.type === 'poll') {
+				outputAndIdle = raceResult.result as typeof outputAndIdle;
+			} else if (raceResult.type === 'prompt') {
+				const promptResult = raceResult.result as boolean;
+				if (promptResult) {
+					_progress.report({ message: new MarkdownString(`Checking output for \`${taskDefinition.taskLabel}\``) });
+					outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
+				}
 			}
 		}
 		let output = '';
@@ -103,7 +114,6 @@ export class RunTaskTool implements IToolImpl {
 		});
 		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: output };
 	}
-
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
 		const activeTasks = await this._tasksService.getActiveTasks();

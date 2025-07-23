@@ -296,9 +296,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					const extendPolling = await promptForMorePolling(command, invocation.context, this._chatService);
-					if (extendPolling) {
-						outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
+					// Use Promise.race to resolve as soon as either polling or prompt completes
+					const pollPromise = pollForOutputAndIdle(execution, true, token, this._languageModelsService);
+					const promptPromise = promptForMorePolling(command, invocation.context!, this._chatService);
+					const raceResult = await Promise.race([
+						pollPromise.then(result => ({ type: 'poll', result })),
+						promptPromise.then(result => ({ type: 'prompt', result }))
+					]);
+					if (raceResult.type === 'poll') {
+						// Only assign if result is a poll result
+						outputAndIdle = raceResult.result as typeof outputAndIdle;
+					} else if (raceResult.type === 'prompt') {
+						const promptResult = raceResult.result as boolean;
+						if (promptResult) {
+							outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
+						}
 					}
 				}
 				let resultText = (
@@ -308,7 +320,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				resultText += outputAndIdle.modelOutputEvalResponse ? `\n\ The command became idle with output:\n${outputAndIdle.modelOutputEvalResponse}` : `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				if (outputAndIdle && outputAndIdle.modelOutputEvalResponse) {
+					resultText += `\n\ The command became idle with output:\n${outputAndIdle.modelOutputEvalResponse}`;
+				} else if (outputAndIdle) {
+					resultText += `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				}
 				return {
 					content: [{
 						kind: 'text',
