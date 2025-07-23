@@ -4767,7 +4767,7 @@ export class ChatToolInvocationPart {
 	pastTenseMessage?: string | vscode.MarkdownString;
 	isConfirmed?: boolean;
 	isComplete?: boolean;
-	toolSpecificData?: ChatTerminalToolInvocationData | ChatTerminalToolInvocationData2;
+	toolSpecificData?: ChatTerminalToolInvocationData2;
 
 	constructor(toolName: string,
 		toolCallId: string,
