@@ -131,7 +131,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return Array.from(this._contributions.values());
 	}
 
-	async canResolve(chatViewType: string) {
+	async canResolveItemProvider(chatViewType: string) {
 		if (this._itemsProviders.has(chatViewType)) {
 			return true;
 		}
@@ -142,8 +142,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._itemsProviders.has(chatViewType);
 	}
 
+	async canResolveContentProvider(chatViewType: string) {
+		if (this._contentProviders.has(chatViewType)) {
+			return true;
+		}
+
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
+
+		return this._contentProviders.has(chatViewType);
+	}
+
 	public async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
-		if (!(await this.canResolve(chatSessionType))) {
+		if (!(await this.canResolveItemProvider(chatSessionType))) {
 			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
 
@@ -176,13 +187,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
-		for (const provider of this._contentProviders.values()) {
-			if (provider.chatSessionType === chatSessionType) {
-				return provider.provideChatSessionContent(id, token);
-			}
+		if (!(await this.canResolveContentProvider(chatSessionType))) {
+			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
 
-		throw new Error(`No chat session content provider found for type: ${chatSessionType}`);
+		const provider = this._contentProviders.get(chatSessionType);
+
+		if (!provider) {
+			throw Error(`Can not find provider for ${chatSessionType}`);
+		}
+
+		return provider.provideChatSessionContent(id, token);
 	}
 
 	public get hasChatSessionItemProviders(): boolean {
