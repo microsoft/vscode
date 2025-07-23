@@ -8,7 +8,7 @@ import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -43,7 +43,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ChatEditorInput } from './chatEditorInput.js';
-import { IMenuService, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -575,25 +575,14 @@ class SessionsViewPane extends ViewPane {
 	}
 }
 
-// Register action for "Open in Editor" command in Local Chat Sessions view
-registerAction2(class OpenChatInEditorAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chatSessions.openInEditor',
-			title: nls.localize2('chatSessions.openInEditor', "Open in Editor"),
-			icon: Codicon.plus,
-			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
-				group: 'navigation',
-				order: 1
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand('workbench.action.chat.openInEditor');
-	}
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	command: {
+		id: 'workbench.action.openChat',
+		title: nls.localize2('interactiveSession.open', "New Chat Editor"),
+		icon: Codicon.plus
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
 });
 
