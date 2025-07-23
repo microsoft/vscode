@@ -314,7 +314,7 @@ export class StartServerAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -361,7 +361,7 @@ export class StopServerAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -410,7 +410,7 @@ export class RestartServerAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -483,7 +483,7 @@ export class AuthServerAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 
 	private getAccountQuery(): IAccountQuery | undefined {
@@ -550,7 +550,7 @@ export class ShowServerOutputAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -626,7 +626,7 @@ export class ConfigureModelAccessAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -680,7 +680,7 @@ export class ShowSamplingRequestsAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -731,7 +731,7 @@ export class BrowseResourcesAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -769,7 +769,7 @@ export class McpServerStatusAction extends McpServerAction {
 			return;
 		}
 
-		if (this.mcpServer.installState === McpServerInstallState.Uninstalled) {
+		if ((this.mcpServer.gallery || this.mcpServer.installable) && this.mcpServer.installState === McpServerInstallState.Uninstalled) {
 			const result = this.mcpWorkbenchService.canInstall(this.mcpServer);
 			if (result !== true) {
 				this.updateStatus({ icon: warningIcon, message: result }, true);

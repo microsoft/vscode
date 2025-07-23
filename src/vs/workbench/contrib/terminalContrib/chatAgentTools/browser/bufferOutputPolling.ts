@@ -44,7 +44,7 @@ export async function pollForOutputAndIdle(
 	extendedPolling: boolean,
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService,
-): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number }> {
+): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 	let currentInterval = PollingConsts.MinPollingDuration;
@@ -89,13 +89,17 @@ export async function pollForOutputAndIdle(
 		}
 
 		if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
-			terminalExecutionIdleBeforeTimeout = await assessOutputForFinishedState(buffer, execution, token, languageModelsService);
-			if (terminalExecutionIdleBeforeTimeout) {
-				return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+			if (execution.isActive && ((await execution.isActive()) === true)) {
+				noNewDataCount = 0;
+				lastBufferLength = currentBufferLength;
+				continue;
 			}
+			terminalExecutionIdleBeforeTimeout = true;
+			const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
+			return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 		}
 	}
-	return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
 export async function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService): Promise<boolean> {
@@ -125,16 +129,13 @@ export async function promptForMorePolling(command: string, context: IToolInvoca
 	return false; // Fallback to not waiting if we can't prompt the user
 }
 
-export async function assessOutputForFinishedState(buffer: string, execution: { getOutput: () => string; isActive?: () => Promise<boolean> }, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<boolean> {
-	if (execution.isActive && ((await execution.isActive()) === false)) {
-		return true;
-	}
+export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<string> {
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
-		return false;
+		return 'No models available';
 	}
 
-	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if the command is finished or still in process: ${buffer}. Return the word true if finished and false if still in process.` }] }], {}, token);
+	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
 
 	let responseText = '';
 
@@ -154,8 +155,8 @@ export async function assessOutputForFinishedState(buffer: string, execution: { 
 
 	try {
 		await Promise.all([response.result, streaming]);
-		return responseText.includes('true');
+		return response.result;
 	} catch (err) {
-		return false;
+		return 'Error occurred ' + err;
 	}
 }
