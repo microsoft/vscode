@@ -230,6 +230,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		this._register(this.tree.onDidChangeSelection(this.onTreeSelectionChange, this));
 		this._register(this.tree.onDidChangeFocus(this.onTreeDidChangeFocus, this));
+		this._register(this.tree.onDidFocus(this.onDidTreeFocus, this));
 		this._register(this.tree.onContextMenu(this.onTreeContextMenu, this));
 		this._register(this.tree.onDidChangeContentHeight(this.onTreeContentHeightChange, this));
 	}
@@ -271,6 +272,13 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	private onTreeDidChangeFocus(e: ITreeEvent<ISCMRepository>): void {
 		if (e.browserEvent && e.elements.length > 0) {
 			this.scmViewService.focus(e.elements[0]);
+		}
+	}
+
+	private onDidTreeFocus(): void {
+		const focused = this.tree.getFocus();
+		if (focused.length > 0) {
+			this.scmViewService.focus(focused[0]);
 		}
 	}
 
