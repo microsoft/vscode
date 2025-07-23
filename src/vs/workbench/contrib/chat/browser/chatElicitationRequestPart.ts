@@ -28,7 +28,7 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 		super();
 	}
 
-	removePart(): void {
+	hide(): void {
 		this._onDidRequestHide.fire();
 	}
 

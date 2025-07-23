@@ -43,7 +43,7 @@ export async function racePollingOrPrompt(
 	const pollPromiseWrapped = pollPromise.then(async result => {
 		if (!promptResolved && part) {
 			// The terminal polling is finished, no need to show the prompt
-			part.removePart();
+			part.hide();
 		}
 		return { type: 'poll', result };
 	});
@@ -164,14 +164,16 @@ export function promptForMorePolling(command: string, context: IToolInvocationCo
 					localize('poll.terminal.reject', 'No'),
 					async () => {
 						thePart.state = 'accepted';
+						thePart.hide();
 						resolve(true);
 					},
 					async () => {
 						thePart.state = 'rejected';
+						thePart.hide();
 						resolve(false);
 					}
 				);
-				chatModel.acceptResponseProgress(request, part);
+				chatModel.acceptResponseProgress(request, thePart);
 			});
 			return { promise, part };
 		}
