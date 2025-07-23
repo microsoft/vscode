@@ -103,7 +103,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectLines(action => {
-			this._notifyAction({ kind: 'chatEditingHunkAction', uri: this.modifiedURI, action: action.state, lineCount: action.lineCount, fullFile: !!action.fullFile });
+			this._notifyAction({ kind: 'chatEditingHunkAction', uri: this.modifiedURI, outcome: action.state, lineCount: action.lineCount, hasRemainingEdits: action.hasRemainingEdits });
 		}));
 
 		// Create a reference to this model to avoid it being disposed from under our nose

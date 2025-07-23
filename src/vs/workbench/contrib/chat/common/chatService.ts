@@ -460,8 +460,8 @@ export interface IChatEditingHunkAction {
 	kind: 'chatEditingHunkAction';
 	uri: URI;
 	lineCount: number;
-	action: 'keep' | 'undo';
-	fullFile: boolean;
+	outcome: 'accepted' | 'rejected';
+	hasRemainingEdits: boolean;
 }
 
 export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction | IChatEditingHunkAction;

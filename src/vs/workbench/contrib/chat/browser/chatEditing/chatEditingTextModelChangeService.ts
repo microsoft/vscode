@@ -33,7 +33,7 @@ import { IChatResponseModel } from '../../common/chatModel.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
-type acceptedOrRejectedLines = { state: 'keep' | 'undo'; lineCount: number; fullFile?: boolean };
+type acceptedOrRejectedLines = { state: 'accepted' | 'rejected'; lineCount: number; hasRemainingEdits: boolean };
 
 export class ChatEditingTextModelChangeService extends Disposable {
 
@@ -250,7 +250,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 * Keeps the current modified document as the final contents.
 	 */
 	public keep() {
-		this._didAcceptOrRejectLines.fire({ state: 'keep', lineCount: this.lineChangeCount, fullFile: true });
+		this._didAcceptOrRejectLines.fire({ state: 'accepted', lineCount: this.lineChangeCount, hasRemainingEdits: false });
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
 		this._diffInfo.set(nullDocumentDiff, undefined);
 		this._originalToModifiedEdit = StringEdit.empty;
@@ -260,7 +260,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 * Undoes the current modified document as the final contents.
 	 */
 	public undo() {
-		this._didAcceptOrRejectLines.fire({ state: 'undo', lineCount: this.lineChangeCount, fullFile: true });
+		this._didAcceptOrRejectLines.fire({ state: 'rejected', lineCount: this.lineChangeCount, hasRemainingEdits: false });
 		this.modifiedModel.pushStackElement();
 		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
@@ -341,7 +341,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			edits.push(EditOperation.replace(edit.originalRange, newText));
 		}
 		this.originalModel.pushEditOperations(null, edits, _ => null);
-		await this._updateDiffInfoSeq('keep');
+		await this._updateDiffInfoSeq('accepted');
 		if (this._diffInfo.get().identical) {
 			this._didAcceptOrRejectAllHunks.fire(ModifiedFileEntryState.Accepted);
 		}
@@ -359,7 +359,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			edits.push(EditOperation.replace(edit.modifiedRange, newText));
 		}
 		this.modifiedModel.pushEditOperations(null, edits, _ => null);
-		await this._updateDiffInfoSeq('undo');
+		await this._updateDiffInfoSeq('rejected');
 		if (this._diffInfo.get().identical) {
 			this._didAcceptOrRejectAllHunks.fire(ModifiedFileEntryState.Rejected);
 		}
@@ -368,7 +368,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 
-	private async _updateDiffInfoSeq(notifyAction: 'keep' | 'undo' | undefined = undefined) {
+	private async _updateDiffInfoSeq(notifyAction: 'accepted' | 'rejected' | undefined = undefined) {
 		const myDiffOperationId = ++this._diffOperationIds;
 		await Promise.resolve(this._diffOperation);
 		const originalLinesChanged = this.lineChangeCount;
@@ -377,7 +377,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			this._diffOperation = thisDiffOperation;
 			await thisDiffOperation;
 			if (notifyAction) {
-				this._didAcceptOrRejectLines.fire({ state: notifyAction, lineCount: originalLinesChanged - this.lineChangeCount });
+				this._didAcceptOrRejectLines.fire({ state: notifyAction, lineCount: originalLinesChanged - this.lineChangeCount, hasRemainingEdits: this.lineChangeCount > 0 });
 			}
 		}
 	}

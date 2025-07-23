@@ -110,16 +110,16 @@ type ChatFollowupsRetrievedClassification = {
 
 type ChatEditHunkEvent = {
 	agentId: string;
-	action: 'keep' | 'undo';
+	outcome: 'accepted' | 'rejected';
 	lineCount: number;
-	fullFile: boolean;
+	hasRemainingEdits: boolean;
 };
 
 type ChatEditHunkClassification = {
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action taken on the edit hunk.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of the edit hunk action.' };
 	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the relevant change.' };
-	fullFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action was taken on the full file rather than an individual hunk.' };
+	hasRemainingEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there are remaining edits in the file after this action.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
@@ -171,9 +171,9 @@ export class ChatServiceTelemetry {
 		} else if (action.action.kind === 'chatEditingHunkAction') {
 			this.telemetryService.publicLog2<ChatEditHunkEvent, ChatEditHunkClassification>('chatEditHunk', {
 				agentId: action.agentId ?? '',
-				action: action.action.action,
+				outcome: action.action.outcome,
 				lineCount: action.action.lineCount,
-				fullFile: action.action.fullFile,
+				hasRemainingEdits: action.action.hasRemainingEdits,
 			});
 		}
 	}
