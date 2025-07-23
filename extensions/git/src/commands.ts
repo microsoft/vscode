@@ -340,6 +340,7 @@ class StashItem implements QuickPickItem {
 
 interface ScmCommandOptions {
 	repository?: boolean;
+	repositoryFilter?: ('repository' | 'submodule' | 'worktree')[];
 }
 
 interface ScmCommand {
@@ -1681,7 +1682,11 @@ export class CommandCenter {
 
 	@command('git.diff.stageHunk')
 	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
-		this.diffStageHunkOrSelection(changes);
+		if (changes) {
+			this.diffStageHunkOrSelection(changes);
+		} else {
+			await this.stageHunkAtCursor();
+		}
 	}
 
 	@command('git.diff.stageSelection')
@@ -1717,6 +1722,36 @@ export class CommandCenter {
 		const result = changes.originalWithModifiedChanges;
 		await this.runByRepository(modifiedUri, async (repository, resource) =>
 			await repository.stage(resource, result, modifiedDocument.encoding));
+	}
+
+	private async stageHunkAtCursor(): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor) {
+			return;
+		}
+
+		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
+		if (!workingTreeDiffInformation) {
+			return;
+		}
+
+		const workingTreeLineChanges = toLineChanges(workingTreeDiffInformation);
+		const modifiedDocument = textEditor.document;
+		const cursorPosition = textEditor.selection.active;
+
+		// Find the hunk that contains the cursor position
+		const hunkAtCursor = workingTreeLineChanges.find(change => {
+			const hunkRange = getModifiedRange(modifiedDocument, change);
+			return hunkRange.contains(cursorPosition);
+		});
+
+		if (!hunkAtCursor) {
+			window.showInformationMessage(l10n.t('No hunk found at cursor position.'));
+			return;
+		}
+
+		await this._stageChanges(textEditor, [hunkAtCursor]);
 	}
 
 	@command('git.stageSelectedRanges')
@@ -2882,8 +2917,13 @@ export class CommandCenter {
 			try {
 				await item.run(repository, opts);
 			} catch (err) {
-				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
+				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree && err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
 					throw err;
+				}
+
+				if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+					this.handleWorktreeError(err);
+					return false;
 				}
 
 				const stash = l10n.t('Stash & Checkout');
@@ -3351,33 +3391,45 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.createWorktree', { repository: true })
+	@command('git.createWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async createWorktree(repository: Repository): Promise<void> {
-		await this._createWorktree(repository, undefined, undefined);
+		await this._createWorktree(repository);
 	}
 
-	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string): Promise<void> {
+	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string, newBranch?: boolean): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
 		if (!name) {
+			const createBranch = new CreateBranchItem();
 			const getBranchPicks = async () => {
-				const refs = await repository.getRefs({
-					pattern: 'refs/heads',
-					includeCommitDetails: showRefDetails
-				});
-				const processors = [new RefProcessor(RefType.Head, BranchItem)];
-				const itemsProcessor = new RefItemsProcessor(repository, processors);
-				return itemsProcessor.processRefs(refs);
+				const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+				const itemsProcessor = new RefItemsProcessor(repository, [
+					new RefProcessor(RefType.Head),
+					new RefProcessor(RefType.RemoteHead),
+					new RefProcessor(RefType.Tag)
+				]);
+				const branchItems = itemsProcessor.processRefs(refs);
+				return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
 			};
 
 			const placeHolder = l10n.t('Select a branch to create the new worktree from');
 			const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
-			if (!(choice instanceof BranchItem) || !choice.refName) {
+			if (choice === createBranch) {
+				const branchName = await this.promptForBranchName(repository);
+
+				if (!branchName) {
+					return;
+				}
+
+				newBranch = true;
+				name = branchName;
+			} else if (choice instanceof BranchItem && choice.refName) {
+				name = choice.refName;
+			} else {
 				return;
 			}
-			name = choice.refName;
 		}
 
 		const disposables: Disposable[] = [];
@@ -3394,6 +3446,10 @@ export class CommandCenter {
 
 		dispose(disposables);
 		inputBox.dispose();
+
+		if (!worktreeName) {
+			return;
+		}
 
 		// Default to view parent directory of repository root
 		const defaultUri = Uri.file(path.dirname(repository.root));
@@ -3416,10 +3472,48 @@ export class CommandCenter {
 
 		worktreePath = path.join(uris[0].fsPath, worktreeName);
 
-		await repository.worktree({
-			name: name,
-			path: worktreePath,
-		});
+		try {
+			await repository.worktree({ name: name, path: worktreePath, newBranch: newBranch });
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
+				throw err;
+			}
+
+			this.handleWorktreeError(err);
+			return;
+
+		}
+	}
+
+	private async handleWorktreeError(err: any): Promise<void> {
+		const errorMessage = err.stderr;
+		const match = errorMessage.match(/worktree at '([^']+)'/) || errorMessage.match(/'([^']+)'/);
+		const path = match ? match[1] : undefined;
+
+		if (!path) {
+			return;
+		}
+
+		const worktreeRepository = this.model.getRepository(path) || this.model.getRepository(Uri.file(path));
+
+		if (!worktreeRepository) {
+			return;
+		}
+
+		const openWorktree = l10n.t('Open in current window');
+		const openWorktreeInNewWindow = l10n.t('Open in new window');
+		const message = l10n.t(errorMessage);
+		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
+
+
+
+		if (choice === openWorktree) {
+			await this.openWorktreeInCurrentWindow(worktreeRepository);
+		} else if (choice === openWorktreeInNewWindow) {
+			await this.openWorktreeInNewWindow(worktreeRepository);
+		}
+
+		return;
 	}
 
 	@command('git.deleteWorktree', { repository: true })
@@ -3456,18 +3550,10 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.deleteWorktreeFromPalette')
-	async deleteWorktreeFromPalette(): Promise<void> {
-		const mainRepository = this.model.repositories.find(repo =>
-			!repo.dotGit.commonPath
-		);
-
-		if (!mainRepository) {
-			return;
-		}
-
+	@command('git.deleteWorktreeFromPalette', { repository: true, repositoryFilter: ['repository', 'submodule'] })
+	async deleteWorktreeFromPalette(repository: Repository): Promise<void> {
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
-			const worktrees = await mainRepository.getWorktrees();
+			const worktrees = await repository.getWorktrees();
 			return worktrees.length === 0
 				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
 				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
@@ -3477,14 +3563,13 @@ export class CommandCenter {
 		const choice = await this.pickRef<WorktreeDeleteItem | QuickPickItem>(worktreePicks(), placeHolder);
 
 		if (choice instanceof WorktreeDeleteItem) {
-			await choice.run(mainRepository);
+			await choice.run(repository);
 		}
 	}
 
 	@command('git.openWorktree', { repository: true })
-	async openWorktreeInCurrentWindow(repository: Repository, ...args: SourceControl[]): Promise<void> {
-		// If multiple repositories are selected, no action is taken
-		if (args.length > 0) {
+	async openWorktreeInCurrentWindow(repository: Repository): Promise<void> {
+		if (!repository) {
 			return;
 		}
 
@@ -3493,9 +3578,8 @@ export class CommandCenter {
 	}
 
 	@command('git.openWorktreeInNewWindow', { repository: true })
-	async openWorktreeInNewWindow(repository: Repository, ...args: SourceControl[]): Promise<void> {
-		// If multiple repositories are selected, no action is taken
-		if (args.length > 0) {
+	async openWorktreeInNewWindow(repository: Repository): Promise<void> {
+		if (!repository) {
 			return;
 		}
 
@@ -4863,10 +4947,8 @@ export class CommandCenter {
 
 				if (repository) {
 					repositoryPromise = Promise.resolve(repository);
-				} else if (this.model.repositories.length === 1) {
-					repositoryPromise = Promise.resolve(this.model.repositories[0]);
 				} else {
-					repositoryPromise = this.model.pickRepository();
+					repositoryPromise = this.model.pickRepository(options.repositoryFilter);
 				}
 
 				result = repositoryPromise.then(repository => {

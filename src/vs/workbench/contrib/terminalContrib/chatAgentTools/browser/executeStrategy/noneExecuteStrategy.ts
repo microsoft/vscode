@@ -8,7 +8,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { waitForIdle, type ITerminalExecuteStrategy } from './executeStrategy.js';
+import { waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -25,7 +25,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 	) {
 	}
 
-	async execute(commandLine: string, token: CancellationToken): Promise<{ result: string; exitCode?: number; error?: string }> {
+	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
 			if (token.isCancellationRequested) {
@@ -68,16 +68,18 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			const endMarker = store.add(xterm.raw.registerMarker());
 
 			// Assemble final result - exit code is not available without shell integration
-			let result: string;
+			let output: string | undefined;
+			const additionalInformationLines: string[] = [];
 			try {
-				result = xterm.getContentsAsText(startMarker, endMarker);
+				output = xterm.getContentsAsText(startMarker, endMarker);
 				this._logService.debug('RunInTerminalTool#None: Fetched output via markers');
 			} catch {
 				this._logService.debug('RunInTerminalTool#None: Failed to fetch output via markers');
-				result = 'Failed to retrieve command output';
+				additionalInformationLines.push('Failed to retrieve command output');
 			}
 			return {
-				result,
+				output,
+				additionalInformation: additionalInformationLines.length > 0 ? additionalInformationLines.join('\n') : undefined,
 				exitCode: undefined,
 			};
 		} finally {

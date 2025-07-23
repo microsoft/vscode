@@ -837,6 +837,10 @@ export class Repository implements Disposable {
 		return this.repository.dotGit;
 	}
 
+	get kind(): 'repository' | 'submodule' | 'worktree' {
+		return this.repository.kind;
+	}
+
 	private _historyProvider: GitHistoryProvider;
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
@@ -1724,7 +1728,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async worktree(options: { path: string; name: string }): Promise<void> {
+	async worktree(options: { path: string; name: string; newBranch?: boolean }): Promise<void> {
 		await this.run(Operation.Worktree, () => this.repository.worktree(options));
 	}
 
