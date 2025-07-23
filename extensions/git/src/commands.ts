@@ -3409,7 +3409,7 @@ export class CommandCenter {
 					new RefProcessor(RefType.RemoteHead),
 					new RefProcessor(RefType.Tag)
 				]);
-        const branchItems = itemsProcessor.processRefs(refs);
+                                const branchItems = itemsProcessor.processRefs(refs);
 				return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
 			};
 
