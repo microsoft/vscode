@@ -124,9 +124,10 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	private editorOrder: string[] = [];
 
 	constructor(
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super();
+
 		this.initializeCurrentEditorSet();
 		this.registerEditorListeners();
 	}
@@ -218,7 +219,6 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 	async provideChatSessionItems(token: CancellationToken): Promise<ILocalChatSessionItem[]> {
 		const sessions: ILocalChatSessionItem[] = [];
-
 		// Create a map to quickly find editors by their key
 		const editorMap = new Map<string, { editor: EditorInput; group: IEditorGroup }>();
 
@@ -291,12 +291,12 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 		// Create and register the local chat sessions provider
 		this.localProvider = this._register(this.instantiationService.createInstance(LocalChatSessionsProvider));
-		this._register(this.chatSessionsService.registerChatSessionItemProvider(0, this.localProvider));
+		this._register(this.chatSessionsService.registerChatSessionItemProvider(this.localProvider));
 
 		this.updateViewRegistration();
 
 		// Listen for provider changes and register/unregister views accordingly
-		this._register(this.chatSessionsService.onDidChangeProviders(() => {
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => {
 			this.updateViewRegistration();
 		}));
 
@@ -307,8 +307,16 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		return title;
 	}
 
+	private getAllChatSessionProviders(): IChatSessionItemProvider[] {
+		if (this.localProvider) {
+			return [this.localProvider, ...this.chatSessionsService.getChatSessionItemProviders()];
+		} else {
+			return this.chatSessionsService.getChatSessionItemProviders();
+		}
+	}
+
 	private updateViewRegistration(): void {
-		const currentProviders = this.chatSessionsService.providers;
+		const currentProviders = this.getAllChatSessionProviders();
 		const currentProviderIds = new Set(currentProviders.map(p => p.chatSessionType));
 
 		// Find views that need to be unregistered (providers that are no longer available)
@@ -334,7 +342,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 	private async registerViews() {
 		const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(VIEWLET_ID);
-		const providers = this.chatSessionsService.providers;
+		const providers = this.getAllChatSessionProviders();
 
 		if (container && providers.length > 0) {
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
@@ -345,7 +353,6 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
 					const viewDescriptor: IViewDescriptor = {
 						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
-						// TODO: localization?
 						name: {
 							value: provider.label,
 							original: provider.label,
