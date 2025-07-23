@@ -42,16 +42,14 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ChatEditorInput } from './chatEditorInput.js';
+import { ChatEditorInput, ChatUri } from './chatEditorInput.js';
 import { IChatWidgetService, IChatWidget } from './chat.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
-import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IChatEditorOptions } from './chatEditor.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -580,9 +578,7 @@ class SessionsViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -654,18 +650,12 @@ class SessionsViewPane extends ViewPane {
 				}
 			} else {
 				const ckey = this.contextKeyService.createKey('chatSessionType', element.provider.chatSessionType);
-				const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.contextKeyService);
-				const menuActions = getContextMenuActions(actions, 'navigation');
 				ckey.reset();
 
-				const allActions = [...menuActions.primary, ...menuActions.secondary];
-				const mainAction = allActions[0];
-				if (mainAction) {
-					this.commandService.executeCommand(mainAction.id, {
-						id: element.id,
-						$mid: MarshalledId.ChatSessionContext
-					});
-				}
+				await this.editorService.openEditor({
+					resource: ChatUri.generateForSession(element.provider.chatSessionType, element.id),
+					options: {} satisfies IChatEditorOptions
+				});
 			}
 		}));
 
