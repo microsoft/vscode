@@ -39,7 +39,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
