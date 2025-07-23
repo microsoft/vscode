@@ -7,7 +7,7 @@ import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay, safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -21,7 +21,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
-import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -55,9 +54,8 @@ import { IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
-import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { ChatRequestTextPart, extractAgentAndCommand, IParsedChatRequest } from '../../common/chatParserTypes.js';
+import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatProgress, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -67,7 +65,7 @@ import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { ChatEditorInput, ChatUri, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -810,7 +808,7 @@ export function registerChatActions() {
 						// TODO: This is a temporary change that will be replaced by opening a new chat instance
 						const codingAgentItem = item as ICodingAgentPickerItem;
 						if (codingAgentItem.session) {
-							await this.showChatSessionInEditor(chatSessionsService, codingAgentItem.session.providerType, codingAgentItem.session.session, editorService, chatWidgetService);
+							await this.showChatSessionInEditor(codingAgentItem.session.providerType, codingAgentItem.session.session, editorService);
 						}
 					}
 
@@ -873,83 +871,12 @@ export function registerChatActions() {
 			}
 		}
 
-		private async showChatSessionInEditor(chatSessionService: IChatSessionsService, providerType: string, session: IChatSessionItem, editorService: IEditorService, chatWidgetService: IChatWidgetService) {
+		private async showChatSessionInEditor(providerType: string, session: IChatSessionItem, editorService: IEditorService) {
 			// Open the chat editor
 			await editorService.openEditor({
-				resource: ChatEditorInput.getNewEditorUri(),
+				resource: ChatUri.generateForSession(providerType, session.id),
 				options: {} satisfies IChatEditorOptions
 			});
-
-			const content = await chatSessionService.provideChatSessionContent(providerType, session.id, CancellationToken.None);
-
-			// Wait a bit for the editor to be ready, then get the widget
-			setTimeout(() => {
-				const widget = chatWidgetService.lastFocusedWidget;
-				if (widget) {
-					const agentMessage = `@${providerType} `;
-					widget.setInput(agentMessage);
-
-					const model = widget.viewModel?.model;
-
-					if (!model) {
-						return;
-					}
-
-					let lastRequest: IChatRequestModel | undefined;
-					content.history.forEach(message => {
-						if (message.type === 'request') {
-							const requestText = message.prompt;
-
-							const parsedRequest: IParsedChatRequest = {
-								text: requestText,
-								parts: [new ChatRequestTextPart(
-									new OffsetRange(0, requestText.length),
-									{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
-									requestText
-								)]
-							};
-							lastRequest = model.addRequest(parsedRequest,
-								{ variables: [] }, // variableData
-								0, // attempt
-								undefined, // chatAgent - will use default
-								undefined, // slashCommand
-								undefined, // confirmation
-								undefined, // locationData
-								undefined, // attachments
-								true // isCompleteAddedRequest - this indicates it's a complete request, not user input
-							);
-						} else {
-							// response
-							if (lastRequest) {
-								for (const part of message.parts) {
-									model.acceptResponseProgress(lastRequest, part);
-								}
-							}
-						}
-					});
-
-					if (content.progressEvent) {
-						content.progressEvent(e => {
-							if (lastRequest) {
-								for (const progress of e) {
-
-									if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
-										model.completeResponse(lastRequest);
-									} else {
-										model.acceptResponseProgress(lastRequest, progress);
-									}
-								}
-							}
-						});
-					} else {
-						if (lastRequest) {
-							model.completeResponse(lastRequest);
-						}
-					}
-
-					// widget.lockToCodingAgent(selectedAgent);
-				}
-			}, 100);
 		}
 	});
 

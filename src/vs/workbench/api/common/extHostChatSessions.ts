@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import { coalesce } from '../../../base/common/arrays.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
+import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { coalesce } from '../../../base/common/arrays.js';
-import { ChatAgentResponseStream } from './extHostChatAgents2.js';
-import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
-import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -82,29 +82,29 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		this._chatSessionItemProviders.set(handle, { provider, extension, disposable: disposables });
 		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType);
 
-		return {
-			dispose: () => {
-				this._chatSessionItemProviders.delete(handle);
-				disposables.dispose();
-				this._proxy.$unregisterChatSessionItemProvider(handle);
-			}
-		};
+		return new extHostTypes.Disposable(() => {
+			this._chatSessionItemProviders.delete(handle);
+			disposables.dispose();
+			this._proxy.$unregisterChatSessionItemProvider(handle);
+		});
 	}
 
-	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, provider: vscode.ChatSessionContentProvider) {
+	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, provider: vscode.ChatSessionContentProvider): vscode.Disposable {
 		const handle = this._nextChatSessionContentProviderHandle++;
 		const disposables = new DisposableStore();
 
 		this._chatSessionContentProviders.set(handle, { provider, extension, disposable: disposables });
 		this._proxy.$registerChatSessionContentProvider(handle, chatSessionType);
 
-		return {
-			dispose: () => {
-				this._chatSessionContentProviders.delete(handle);
-				disposables.dispose();
-				this._proxy.$unregisterChatSessionContentProvider(handle);
-			}
-		};
+		return new extHostTypes.Disposable(() => {
+			this._chatSessionContentProviders.delete(handle);
+			disposables.dispose();
+			this._proxy.$unregisterChatSessionContentProvider(handle);
+		});
+	}
+
+	async showChatSession(_extension: IExtensionDescription, chatSessionType: string, sessionId: string, options: vscode.ChatSessionShowOptions | undefined): Promise<void> {
+		await this._proxy.$showChatSession(chatSessionType, sessionId, typeConvert.ViewColumn.from(options?.viewColumn));
 	}
 
 	async $provideChatSessionItems(handle: number, token: vscode.CancellationToken): Promise<IChatSessionItem[]> {

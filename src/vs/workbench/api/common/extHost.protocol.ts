@@ -3126,11 +3126,11 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$handleProgressChunk(handle: number, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
 	$handleProgressComplete(handle: number, requestId: string): void;
-
+	$showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void>;
 }
 
 export interface ExtHostChatSessionsShape {
-	$provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]>;
+	$provideChatSessionItems(handle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
 	$provideChatSessionContent(handle: number, id: string, token: CancellationToken): Promise<ChatSessionDto>;
 }
 

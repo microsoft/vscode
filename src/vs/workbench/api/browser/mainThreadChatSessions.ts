@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Event, Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { ChatUri } from '../../contrib/chat/browser/chatEditorInput.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, IChatProgressDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatSessions)
 export class MainThreadChatSessions extends Disposable implements MainThreadChatSessionsShape {
@@ -26,12 +29,17 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	// Store completion emitters for sessions: key is `${handle}_${requestId}`
 	private readonly _completionEmitters = new Map<string, Emitter<void>>();
 
+	private readonly _proxy: ExtHostChatSessionsShape;
+
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 	}
 
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
@@ -45,11 +53,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private async _provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]> {
-		const proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
-
 		try {
 			// Get all results as an array from the RPC call
-			const sessions = await proxy.$provideChatSessionItems(handle, token);
+			const sessions = await this._proxy.$provideChatSessionItems(handle, token);
 			return sessions.map(session => ({
 				...session,
 				id: session.id,
@@ -62,10 +68,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private async _provideChatSessionContent(handle: number, id: string, token: CancellationToken): Promise<ChatSession> {
-		const proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
-
 		try {
-			const sessionContent = await proxy.$provideChatSessionContent(handle, id, token);
+			const sessionContent = await this._proxy.$provideChatSessionContent(handle, id, token);
 			const _progressEmitter = new Emitter<IChatProgress[]>;
 			const _completionEmitter = new Emitter<void>();
 			let progressEvent: Event<IChatProgress[]> | undefined = undefined;
@@ -202,5 +206,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			};
 		}
 		return undefined;
+	}
+
+	async $showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void> {
+		// TODO: support open in panel
+		await this._editorService.openEditor({
+			resource: ChatUri.generateForSession(chatSessionType, sessionId),
+			options: {},
+		}, position);
 	}
 }

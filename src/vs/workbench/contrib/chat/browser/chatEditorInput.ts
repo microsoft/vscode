@@ -16,12 +16,16 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import type { IChatEditorOptions } from './chatEditor.js';
-import { IChatModel } from '../common/chatModel.js';
+import { IChatModel, IChatRequestModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
+import { IParsedChatRequest, ChatRequestTextPart } from '../common/chatParserTypes.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
@@ -35,6 +39,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	public sessionId: string | undefined;
 
 	private model: IChatModel | undefined;
+
+	private readonly parsedResource: ChatSessionIdentifier;
 
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
@@ -55,13 +61,15 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		readonly options: IChatEditorOptions,
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
 		const parsed = ChatUri.parse(resource);
-		if (typeof parsed?.handle !== 'number') {
+		if (!parsed || (parsed.type === 'handle' && typeof parsed.handle !== 'number')) {
 			throw new Error('Invalid chat URI');
 		}
+		this.parsedResource = parsed;
 
 		this.sessionId = (options.target && 'sessionId' in options.target) ?
 			options.target.sessionId :
@@ -129,7 +137,69 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		this.sessionId = this.model.sessionId;
 		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
 
-		return this._register(new ChatEditorModel(this.model));
+		const chatEditorModel = this._register(new ChatEditorModel(this.model));
+
+		// TODO: This should not live here
+		if (this.parsedResource.type === 'session') {
+			const chatSessionType = this.parsedResource.chatSessionType;
+			const content = await this.chatSessionsService.provideChatSessionContent(chatSessionType, this.parsedResource.sessionId, CancellationToken.None);
+
+			let lastRequest: IChatRequestModel | undefined;
+			for (const message of content.history) {
+				if (message.type === 'request') {
+					const requestText = message.prompt;
+
+					const parsedRequest: IParsedChatRequest = {
+						text: requestText,
+						parts: [new ChatRequestTextPart(
+							new OffsetRange(0, requestText.length),
+							{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
+							requestText
+						)]
+					};
+					lastRequest = this.model.addRequest(parsedRequest,
+						{ variables: [] }, // variableData
+						0, // attempt
+						undefined, // chatAgent - will use default
+						undefined, // slashCommand
+						undefined, // confirmation
+						undefined, // locationData
+						undefined, // attachments
+						true // isCompleteAddedRequest - this indicates it's a complete request, not user input
+					);
+				} else {
+					// response
+					if (lastRequest) {
+						for (const part of message.parts) {
+							this.model.acceptResponseProgress(lastRequest, part);
+						}
+					}
+				}
+			}
+
+			if (content.progressEvent) {
+				content.progressEvent(e => {
+					if (lastRequest) {
+						for (const progress of e) {
+
+							if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
+								this.model?.completeResponse(lastRequest);
+							} else {
+								this.model?.acceptResponseProgress(lastRequest, progress);
+							}
+						}
+					}
+				});
+			} else {
+				if (lastRequest) {
+					this.model.completeResponse(lastRequest);
+				}
+			}
+
+
+		}
+
+		return chatEditorModel;
 	}
 
 	override dispose(): void {
@@ -169,18 +239,44 @@ export class ChatEditorModel extends Disposable {
 	}
 }
 
+type ChatSessionIdentifier = {
+	type: 'handle';
+	handle: number;
+} | {
+	type: 'session';
+	chatSessionType: string;
+	sessionId: string;
+};
+
 export namespace ChatUri {
 
-	export const scheme = Schemas.vscodeChatSesssion;
+	export const scheme = Schemas.vscodeChatEditor;
+	export const customSessionAuthority = 'custom-session';
 
 
 	export function generate(handle: number): URI {
 		return URI.from({ scheme, path: `chat-${handle}` });
 	}
 
-	export function parse(resource: URI): { handle: number } | undefined {
+	export function generateForSession(chatSessionType: string, id: string): URI {
+		const encodedId = encodeBase64(VSBuffer.wrap(new TextEncoder().encode(id)), false, true);
+		return URI.from({ scheme, authority: customSessionAuthority, path: '/' + chatSessionType + '/' + encodedId });
+	}
+
+	export function parse(resource: URI): ChatSessionIdentifier | undefined {
 		if (resource.scheme !== scheme) {
 			return undefined;
+		}
+
+		if (resource.authority === customSessionAuthority) {
+			const parts = resource.path.split('/');
+			if (parts.length !== 3) {
+				return undefined;
+			}
+
+			const chatSessionType = parts[1];
+			const decodedSessionId = decodeBase64(parts[2]);
+			return { type: 'session', chatSessionType, sessionId: new TextDecoder().decode(decodedSessionId.buffer) };
 		}
 
 		const match = resource.path.match(/chat-(\d+)/);
@@ -194,7 +290,7 @@ export namespace ChatUri {
 			return undefined;
 		}
 
-		return { handle };
+		return { type: 'handle', handle };
 	}
 }
 

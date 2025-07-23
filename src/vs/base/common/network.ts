@@ -82,7 +82,7 @@ export namespace Schemas {
 	export const vscodeChatCodeCompareBlock = 'vscode-chat-code-compare-block';
 
 	/** Scheme used for the chat input editor. */
-	export const vscodeChatSesssion = 'vscode-chat-editor';
+	export const vscodeChatEditor = 'vscode-chat-editor';
 
 	/** Scheme used for the chat input part */
 	export const vscodeChatInput = 'chatSessionInput';
