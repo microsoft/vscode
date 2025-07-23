@@ -48,6 +48,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatConfiguration } from '../common/constants.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -461,6 +462,7 @@ class SessionsViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 	) {
@@ -531,8 +533,12 @@ class SessionsViewPane extends ViewPane {
 				ckey.reset();
 
 				const allActions = [...menuActions.primary, ...menuActions.secondary];
-				if (allActions.length === 0) {
-					// TODO: This doesn't work
+				const mainAction = allActions[0];
+				if (mainAction) {
+					this.commandService.executeCommand(mainAction.id, {
+						id: element.id,
+						$mid: MarshalledId.ChatSessionContext
+					});
 				}
 			}
 		}));
