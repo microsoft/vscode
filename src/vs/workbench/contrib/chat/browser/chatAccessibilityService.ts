@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { alert, status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -51,7 +51,8 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			status(plainTextResponse + errorDetails);
 		}
 	}
-	acceptElicitation(): void {
+	acceptElicitation(message: string): void {
+		alert('User input required: ' + message);
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
 	}
 }

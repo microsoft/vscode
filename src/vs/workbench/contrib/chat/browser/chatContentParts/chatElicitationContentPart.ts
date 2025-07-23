@@ -9,6 +9,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
+import { IChatAccessibilityService } from '../chat.js';
 import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
@@ -22,6 +23,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		elicitation: IChatElicitationRequest,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService
 	) {
 		super();
 
@@ -47,6 +49,8 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			this._onDidChangeHeight.fire();
 		}));
 
+
+		this.chatAccessibilityService.acceptElicitation(typeof elicitation.message === 'string' ? elicitation.message : elicitation.message.value);
 		this.domNode = confirmationWidget.domNode;
 	}
 

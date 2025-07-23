@@ -92,7 +92,7 @@ export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(): number;
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
-	acceptElicitation(): void;
+	acceptElicitation(message: string): void;
 }
 
 export interface IChatCodeBlockInfo {
