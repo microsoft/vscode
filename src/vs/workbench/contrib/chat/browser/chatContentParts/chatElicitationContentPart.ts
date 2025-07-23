@@ -34,6 +34,8 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
+		const messageToRender = this.getMessageToRender(elicitation);
+
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (e.data) {
 				await elicitation.accept();
@@ -42,12 +44,14 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			}
 
 			confirmationWidget.setShowButtons(false);
-			confirmationWidget.updateMessage(this.getMessageToRender(elicitation));
+			confirmationWidget.updateMessage(messageToRender);
 
 			this._onDidChangeHeight.fire();
 		}));
 
 		this.domNode = confirmationWidget.domNode;
+		this.domNode.tabIndex = 0;
+		this.domNode.ariaLabel = typeof messageToRender === 'string' ? messageToRender : messageToRender.value || '';
 	}
 
 	private getMessageToRender(elicitation: IChatElicitationRequest): IMarkdownString | string {
