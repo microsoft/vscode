@@ -10,6 +10,9 @@ async function getSessionContent(id: string, _token: vscode.CancellationToken): 
 	return await sessionManager.getSessionContent(id, _token);
 }
 
+// Must match package.json's "contributes.chatSessions.[0].id"
+const CHAT_SESSION_TYPE = 'josh-bot';
+
 export function activate(context: vscode.ExtensionContext) {
 	console.log('JoshBot extension is now active!');
 
@@ -33,12 +36,12 @@ export function activate(context: vscode.ExtensionContext) {
 	};
 
 	context.subscriptions.push(vscode.chat.registerChatSessionItemProvider(
-		'josh-bot',
+		CHAT_SESSION_TYPE,
 		provider
 	));
 
 	context.subscriptions.push(vscode.chat.registerChatSessionContentProvider(
-		'josh-bot',
+		CHAT_SESSION_TYPE,
 		provider
 	));
 
