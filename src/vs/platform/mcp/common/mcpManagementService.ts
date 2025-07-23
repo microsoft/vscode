@@ -181,7 +181,6 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 			mcpResource: this.mcpResource,
 			version: mcpServerInfo.version,
 			location: mcpServerInfo.location,
-			id: mcpServerInfo.id,
 			displayName: mcpServerInfo.displayName,
 			description: mcpServerInfo.description,
 			publisher: mcpServerInfo.publisher,

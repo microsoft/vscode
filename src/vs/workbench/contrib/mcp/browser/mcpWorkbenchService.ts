@@ -31,7 +31,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, LocalMcpServerScope, REMOTE_USER_CONFIG_ID, USER_CONFIG_ID, WORKSPACE_CONFIG_ID, WORKSPACE_FOLDER_CONFIG_ID_PREFIX } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerInstallState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
@@ -55,7 +55,7 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 	}
 
 	get id(): string {
-		return this.gallery?.id ?? this.local?.id ?? this.installable?.name ?? '';
+		return this.local?.id ?? this.gallery?.id ?? this.installable?.name ?? this.name;
 	}
 
 	get name(): string {
@@ -462,7 +462,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private getUserMcpConfigPath(mcpResource: URI): IMcpConfigPath {
 		return {
-			id: 'usrlocal',
+			id: USER_CONFIG_ID,
 			key: 'userLocalValue',
 			target: ConfigurationTarget.USER_LOCAL,
 			label: localize('mcp.configuration.userLocalValue', 'Global in {0}', this.productService.nameShort),
@@ -475,7 +475,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private getRemoteMcpConfigPath(mcpResource: URI): IMcpConfigPath {
 		return {
-			id: 'usrremote',
+			id: REMOTE_USER_CONFIG_ID,
 			key: 'userRemoteValue',
 			target: ConfigurationTarget.USER_REMOTE,
 			label: this.environmentService.remoteAuthority ? this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority) : 'Remote',
@@ -491,7 +491,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		const workspace = this.workspaceService.getWorkspace();
 		if (workspace.configuration && this.uriIdentityService.extUri.isEqual(workspace.configuration, mcpResource)) {
 			return {
-				id: 'workspace',
+				id: WORKSPACE_CONFIG_ID,
 				key: 'workspaceValue',
 				target: ConfigurationTarget.WORKSPACE,
 				label: basename(mcpResource),
@@ -508,7 +508,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			const workspaceFolder = workspaceFolders[index];
 			if (this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), mcpResource)) {
 				return {
-					id: `wf${index}`,
+					id: `${WORKSPACE_FOLDER_CONFIG_ID_PREFIX}${index}`,
 					key: 'workspaceFolderValue',
 					target: ConfigurationTarget.WORKSPACE_FOLDER,
 					label: `${workspaceFolder.name}/.vscode/mcp.json`,
