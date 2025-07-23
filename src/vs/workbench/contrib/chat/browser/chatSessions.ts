@@ -46,6 +46,8 @@ import { IMenuService, MenuId, registerAction2, Action2 } from '../../../../plat
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ChatConfiguration } from '../common/constants.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -53,6 +55,56 @@ export const VIEWLET_ID = 'workbench.view.chat.sessions';
 interface ILocalChatSessionItem extends IChatSessionItem {
 	editor: EditorInput;
 	group: IEditorGroup;
+}
+
+export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.chatSessions';
+
+	private isViewContainerRegistered = false;
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+
+		// Initial check
+		this.updateViewContainerRegistration();
+
+		// Listen for configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentSessionsViewLocation)) {
+				this.updateViewContainerRegistration();
+			}
+		}));
+	}
+
+	private updateViewContainerRegistration(): void {
+		const location = this.configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
+
+		if (location === 'view' && !this.isViewContainerRegistered) {
+			this.registerViewContainer();
+		} else if (location !== 'view' && this.isViewContainerRegistered) {
+			// Note: VS Code doesn't support unregistering view containers
+			// Once registered, they remain registered for the session
+			// but you could hide them or make them conditional through 'when' clauses
+		}
+	}
+
+	private registerViewContainer(): void {
+		if (this.isViewContainerRegistered) {
+			return;
+		}
+
+		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+			{
+				id: VIEWLET_ID,
+				title: nls.localize2('chat.sessions', "Chat Sessions"),
+				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
+				hideIfEmpty: false,
+				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussion, 'Icon for Chat Sessions View'),
+				order: 10
+			}, ViewContainerLocation.Sidebar);
+	}
 }
 
 // Local Chat Sessions Provider - tracks open editors as chat sessions
@@ -170,8 +222,10 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 		this.editorGroupService.groups.forEach(group => {
 			group.editors.forEach(editor => {
-				const key = this.getEditorKey(editor, group);
-				editorMap.set(key, { editor, group });
+				if (editor instanceof ChatEditorInput) {
+					const key = this.getEditorKey(editor, group);
+					editorMap.set(key, { editor, group });
+				}
 			});
 		});
 
@@ -234,14 +288,17 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			viewDescriptorService,
 			logService
 		);
-		// Listen for provider changes and register/unregister views accordingly
-		this._register(this.chatSessionsService.onDidChangeProviders(() => {
-			this.updateViewRegistration();
-		}));
 
 		// Create and register the local chat sessions provider
 		this.localProvider = this._register(this.instantiationService.createInstance(LocalChatSessionsProvider));
 		this._register(this.chatSessionsService.registerChatSessionItemProvider(0, this.localProvider));
+
+		this.updateViewRegistration();
+
+		// Listen for provider changes and register/unregister views accordingly
+		this._register(this.chatSessionsService.onDidChangeProviders(() => {
+			this.updateViewRegistration();
+		}));
 
 	}
 
@@ -261,7 +318,8 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		const providers = this.chatSessionsService.providers;
 		const viewDescriptors: IViewDescriptor[] = [];
 		if (container && providers.length > 0) {
-			providers.forEach((provider, index) => {
+			let index = 1;
+			providers.forEach(provider => {
 				viewDescriptors.push({
 					id: `${VIEWLET_ID}.${provider.chatSessionType}`,
 					// TODO: localization?
@@ -272,7 +330,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider]),
 					canToggleVisibility: true,
 					canMoveView: true,
-					order: index,
+					order: provider.chatSessionType === 'local' ? 0 : index++,
 				});
 			});
 			Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptors, container);
@@ -506,16 +564,6 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 }
-
-Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
-	{
-		id: VIEWLET_ID,
-		title: nls.localize2('chat.sessions', "Chat Sessions"),
-		ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
-		hideIfEmpty: false,
-		icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussion, 'Icon for Chat Sessions View'),
-		order: 10
-	}, ViewContainerLocation.Sidebar);
 
 // Register action for "Open in Editor" command in Local Chat Sessions view
 registerAction2(class OpenChatInEditorAction extends Action2 {
