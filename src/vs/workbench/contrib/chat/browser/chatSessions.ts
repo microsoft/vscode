@@ -43,20 +43,24 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ChatEditorInput } from './chatEditorInput.js';
+import { IChatWidgetService, IChatWidget } from './chat.js';
+import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ChatConfiguration } from '../common/constants.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
-// Extended interface for local chat session items that includes editor information
+// Extended interface for local chat session items that includes editor information or widget information
 interface ILocalChatSessionItem extends IChatSessionItem {
-	editor: EditorInput;
-	group: IEditorGroup;
+	editor?: EditorInput;
+	group?: IEditorGroup;
+	widget?: IChatWidget;
+	sessionType: 'editor' | 'widget';
 }
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
@@ -111,6 +115,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 
 // Local Chat Sessions Provider - tracks open editors as chat sessions
 class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider {
+	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
 	readonly chatSessionType = 'local';
 	readonly label = 'Local Chat Sessions';
 
@@ -125,11 +130,26 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
 		this.initializeCurrentEditorSet();
 		this.registerEditorListeners();
+		this.registerWidgetListeners();
+	}
+
+	private registerWidgetListeners(): void {
+		// Listen for new chat widgets being added/removed
+		this._register(this.chatWidgetService.onDidAddWidget(widget => {
+			// Only fire for chat view instance
+			if (widget.location === ChatAgentLocation.Panel &&
+				typeof widget.viewContext === 'object' &&
+				'viewId' in widget.viewContext &&
+				widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
+				this._onDidChange.fire();
+			}
+		}));
 	}
 
 	private initializeCurrentEditorSet(): void {
@@ -231,18 +251,31 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			});
 		});
 
-		// Build sessions in the order specified by editorOrder
+		// Add chat view instance
+		const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)
+			.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
+		if (chatWidget) {
+			sessions.push({
+				id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
+				label: `Chat View`,
+				iconPath: Codicon.chatSparkle,
+				widget: chatWidget,
+				sessionType: 'widget'
+			});
+		}
+
+		// Build editor-based sessions in the order specified by editorOrder
 		this.editorOrder.forEach((editorKey, index) => {
 			const editorInfo = editorMap.get(editorKey);
 			if (editorInfo) {
 				const sessionId = `local-${editorInfo.group.id}-${index}`;
-
 				sessions.push({
 					id: sessionId,
 					label: editorInfo.editor.getName(),
 					iconPath: Codicon.commentDiscussion,
 					editor: editorInfo.editor,
-					group: editorInfo.group
+					group: editorInfo.group,
+					sessionType: 'editor'
 				});
 			}
 		});
@@ -269,7 +302,6 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@ILogService logService: ILogService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-
 	) {
 		super(
 			VIEWLET_ID,
@@ -515,6 +547,7 @@ class SessionsViewPane extends ViewPane {
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -529,7 +562,7 @@ class SessionsViewPane extends ViewPane {
 	}
 
 	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
-		return 'editor' in item && 'group' in item;
+		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -577,8 +610,12 @@ class SessionsViewPane extends ViewPane {
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element as IChatSessionItem & { provider: IChatSessionItemProvider };
 			if (element && this.isLocalChatSessionItem(element)) {
-				// Open the editor
-				await this.editorService.openEditor(element.editor, element.group);
+				if (element.sessionType === 'editor' && element.editor && element.group) {
+					// Open the chat editor
+					await this.editorService.openEditor(element.editor, element.group);
+				} else if (element.sessionType === 'widget' && element.widget) {
+					this.viewsService.openView(element.id, true);
+				}
 			} else {
 				const ckey = this.contextKeyService.createKey('chatSessionType', element.provider.chatSessionType);
 				const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.contextKeyService);
