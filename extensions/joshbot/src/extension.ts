@@ -33,7 +33,12 @@ export function activate(context: vscode.ExtensionContext) {
 	};
 
 	context.subscriptions.push(vscode.chat.registerChatSessionItemProvider(
-		'joshbot',
+		'josh-bot',
+		provider
+	));
+
+	context.subscriptions.push(vscode.chat.registerChatSessionContentProvider(
+		'josh-bot',
 		provider
 	));
 
@@ -70,10 +75,16 @@ class JoshBotSessionManager {
 	}
 
 	private createDemoSession(): void {
+		const currentResponseParts: Array<vscode.ChatResponseMarkdownPart | vscode.ChatToolInvocationPart> = [];
+		currentResponseParts.push(new vscode.ChatResponseMarkdownPart('hey'));
+		const response2 = new vscode.ChatResponseTurn2(currentResponseParts, {}, 'joshbot');
 		const defaultSession: JoshBotSession = {
 			id: 'default-session',
 			name: 'JoshBot Chat',
-			history: [],
+			history: [
+				new vscode.ChatRequestTurn2('hello', undefined, [], 'joshbot', [], []),
+				response2 as vscode.ChatResponseTurn
+			],
 			requestHandler: async (request, _context, stream, _token) => {
 				// Simple echo bot for demo purposes
 				stream.markdown(`You said: "${request.prompt}"`);

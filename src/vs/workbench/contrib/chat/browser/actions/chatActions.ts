@@ -856,7 +856,7 @@ export function registerChatActions() {
 			}
 
 			const showAgentSessionsMenuConfig = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
-			if (showAgentSessionsMenuConfig === 'showChatsMenu' && chatSessionsService.hasChatSessionItemProviders) {
+			if (showAgentSessionsMenuConfig === 'showChatsMenu') {
 				await this.showIntegratedPicker(
 					chatService,
 					quickInputService,
