@@ -257,7 +257,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		if (chatWidget) {
 			sessions.push({
 				id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
-				label: `Chat View`,
+				label: chatWidget.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat View").value,
 				iconPath: Codicon.chatSparkle,
 				widget: chatWidget,
 				sessionType: 'widget'
