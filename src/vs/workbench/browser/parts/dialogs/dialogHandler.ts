@@ -102,7 +102,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		);
 
 		if (button === 0) {
-			this.clipboardService.writeText('BrowserDialogHandler', detailToCopy);
+			this.clipboardService.writeText(detailToCopy);
 		}
 	}
 

@@ -122,7 +122,7 @@ class ShareWorkbenchContribution extends Disposable {
 					if (result) {
 						const uriText = result.toString();
 						const isResultText = typeof result === 'string';
-						await clipboardService.writeText('Share', uriText);
+						await clipboardService.writeText(uriText);
 
 						dialogService.prompt(
 							{

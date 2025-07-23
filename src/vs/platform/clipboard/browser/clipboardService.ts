@@ -119,8 +119,8 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
-	async writeText(reason: string, text: string, type?: string): Promise<void> {
-		this.logService.trace('BrowserClipboardService#writeText called with reason:', reason, ' and type:', type, ' and text:', text);
+	async writeText(text: string, type?: string): Promise<void> {
+		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' and text:', text);
 		// Clear resources given we are writing text
 		this.clearResourcesState();
 
@@ -175,8 +175,8 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		textArea.remove();
 	}
 
-	async readText(reason: string, type?: string): Promise<string> {
-		this.logService.trace('BrowserClipboardService#readText called with reason ', reason, ' and type:', type);
+	async readText(type?: string): Promise<string> {
+		this.logService.trace('BrowserClipboardService#readText called with type:', type);
 		// With type: only in-memory is supported
 		if (type) {
 			const readText = this.mapTextToType.get(type) || '';
@@ -277,7 +277,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// As such, we compute the hash of the current clipboard
 		// and use that to later validate the resources clipboard.
 
-		const clipboardText = await this.readText('computeResourcesStateHash');
+		const clipboardText = await this.readText();
 		return hash(clipboardText.substring(0, BrowserClipboardService.MAX_RESOURCE_STATE_SOURCE_LENGTH));
 	}
 

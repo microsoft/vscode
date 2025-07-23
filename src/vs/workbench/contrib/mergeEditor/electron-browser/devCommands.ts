@@ -51,7 +51,7 @@ export class MergeEditorOpenContentsFromJSON extends Action2 {
 		if (!args.data) {
 			const result = await quickInputService.input({
 				prompt: localize('mergeEditor.enterJSON', 'Enter JSON'),
-				value: await clipboardService.readText('MergeEditorOpenContentsFromJSON'),
+				value: await clipboardService.readText(),
 			});
 			if (result === undefined) {
 				return;

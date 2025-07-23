@@ -292,17 +292,17 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		if (keybinding.keybindingItem.when) {
 			userFriendlyKeybinding.when = keybinding.keybindingItem.when;
 		}
-		await this.clipboardService.writeText('KeybindingsEditor', JSON.stringify(userFriendlyKeybinding, null, '  '));
+		await this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
 	}
 
 	async copyKeybindingCommand(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		await this.clipboardService.writeText('KeybindingsEditor', keybinding.keybindingItem.command);
+		await this.clipboardService.writeText(keybinding.keybindingItem.command);
 	}
 
 	async copyKeybindingCommandTitle(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		await this.clipboardService.writeText('KeybindingsEditor', keybinding.keybindingItem.commandLabel);
+		await this.clipboardService.writeText(keybinding.keybindingItem.commandLabel);
 	}
 
 	focusSearch(): void {

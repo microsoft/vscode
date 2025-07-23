@@ -109,7 +109,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		});
 
 		if (response === 0) {
-			this.clipboardService.writeText('DialogHandler', detailToCopy);
+			this.clipboardService.writeText(detailToCopy);
 		}
 	}
 }

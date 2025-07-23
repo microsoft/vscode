@@ -428,7 +428,7 @@ export abstract class ProcessExplorerControl extends Disposable {
 				const rows = selectionPids?.map(e => getDocument(container).getElementById(`pid-${e}`)).filter(e => !!e);
 				if (rows) {
 					const text = rows.map(e => e.innerText).filter(e => !!e);
-					this.clipboardService.writeText('ProcessExplorer', text.join('\n'));
+					this.clipboardService.writeText(text.join('\n'));
 				}
 			}
 		}));
@@ -439,7 +439,7 @@ export abstract class ProcessExplorerControl extends Disposable {
 			run: () => {
 				const processList = getDocument(container).getElementById('process-explorer');
 				if (processList) {
-					this.clipboardService.writeText('ProcessExplorer', processList.innerText);
+					this.clipboardService.writeText(processList.innerText);
 				}
 			}
 		}));

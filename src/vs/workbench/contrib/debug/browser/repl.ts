@@ -997,7 +997,7 @@ class ReplCopyAllAction extends EditorAction {
 		const clipboardService = accessor.get(IClipboardService);
 		const repl = getReplView(accessor.get(IViewsService));
 		if (repl) {
-			return clipboardService.writeText('ReplCopyAllAction', repl.getVisibleContent());
+			return clipboardService.writeText(repl.getVisibleContent());
 		}
 	}
 }
@@ -1136,7 +1136,7 @@ registerAction2(class extends ViewAction<Repl> {
 
 	async runInView(accessor: ServicesAccessor, view: Repl): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		const clipboardText = await clipboardService.readText('ReplPasteAction');
+		const clipboardText = await clipboardService.readText();
 		if (clipboardText) {
 			const replInput = view.getReplInput();
 			replInput.setValue(replInput.getValue().concat(clipboardText));
@@ -1167,7 +1167,7 @@ registerAction2(class extends ViewAction<Repl> {
 
 	async runInView(accessor: ServicesAccessor, view: Repl): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		await clipboardService.writeText('ReplCopyAllAction', view.getVisibleContent());
+		await clipboardService.writeText(view.getVisibleContent());
 	}
 });
 
@@ -1190,9 +1190,9 @@ registerAction2(class extends Action2 {
 		const nativeSelection = dom.getActiveWindow().getSelection();
 		const selectedText = nativeSelection?.toString();
 		if (selectedText && selectedText.length > 0) {
-			return clipboardService.writeText('ReplCopyAction', selectedText);
+			return clipboardService.writeText(selectedText);
 		} else if (element) {
-			return clipboardService.writeText('ReplCopyAction', await this.tryEvaluateAndCopy(debugService, element) || element.toString());
+			return clipboardService.writeText(await this.tryEvaluateAndCopy(debugService, element) || element.toString());
 		}
 	}
 

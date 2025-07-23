@@ -169,7 +169,7 @@ export class TabCompletionController implements IEditorContribution {
 			let clipboardText: string | undefined;
 			if (snippet.needsClipboard) {
 				const state = new EditorState(this._editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-				clipboardText = await this._clipboardService.readText('TabCompletionController');
+				clipboardText = await this._clipboardService.readText();
 				if (!state.validate(this._editor)) {
 					return;
 				}

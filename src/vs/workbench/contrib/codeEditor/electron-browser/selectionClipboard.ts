@@ -68,7 +68,7 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				}
 
 				const textToCopy = result.join(model.getEOL());
-				clipboardService.writeText('SelectionClipboard', textToCopy, 'selection');
+				clipboardService.writeText(textToCopy, 'selection');
 			}, 100));
 
 			this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {

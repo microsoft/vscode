@@ -31,13 +31,13 @@ export class NativeClipboardService implements IClipboardService {
 		return this.nativeHostService.readImage();
 	}
 
-	async writeText(reason: string, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
-		this.logService.trace('NativeClipboardService#writeText called with reason:', reason, ' and type:', type, ' and text:', text);
+	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
+		this.logService.trace('NativeClipboardService#writeText called with type:', type, ' and text:', text);
 		return this.nativeHostService.writeClipboardText(text, type);
 	}
 
-	async readText(reason: string, type?: 'selection' | 'clipboard'): Promise<string> {
-		this.logService.trace('NativeClipboardService#readText called with reason:', reason, ' and type:', type);
+	async readText(type?: 'selection' | 'clipboard'): Promise<string> {
+		this.logService.trace('NativeClipboardService#readText called with type:', type);
 		return this.nativeHostService.readClipboardText(type);
 	}
 

@@ -607,7 +607,7 @@ registerAction2(class CopyExpression extends ViewAction<WatchExpressionsView> {
 			value = view.treeSelection.at(-1);
 		}
 		if (value) {
-			clipboardService.writeText('WatchExpressionsView', value.name);
+			clipboardService.writeText(value.name);
 		}
 	}
 });

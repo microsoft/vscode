@@ -435,7 +435,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			const labelCopy = localize("terminal.copyCommand", 'Copy Command');
 			actions.push({
 				class: undefined, tooltip: labelCopy, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
-				run: () => this._clipboardService.writeText('DecorationAddon', command.command)
+				run: () => this._clipboardService.writeText(command.command)
 			});
 		}
 		if (command.hasOutput()) {
@@ -445,7 +445,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				run: () => {
 					const output = command.getOutput();
 					if (typeof output === 'string') {
-						this._clipboardService.writeText('DecorationAddon', `${command.command !== '' ? command.command + '\n' : ''}${output}`);
+						this._clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
 					}
 				}
 			});
@@ -455,7 +455,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				run: () => {
 					const text = command.getOutput();
 					if (typeof text === 'string') {
-						this._clipboardService.writeText('DecorationAddon', text);
+						this._clipboardService.writeText(text);
 					}
 				}
 			});

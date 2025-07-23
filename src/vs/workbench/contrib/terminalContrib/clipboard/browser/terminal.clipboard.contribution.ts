@@ -81,7 +81,7 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
 	 */
 	async paste(): Promise<void> {
-		await this._paste(await this._clipboardService.readText('TerminalClipboardContribution'));
+		await this._paste(await this._clipboardService.readText());
 	}
 
 	/**
@@ -189,7 +189,7 @@ registerActiveInstanceAction({
 		if (!command.command) {
 			return;
 		}
-		await clipboardService.writeText('Terminal', command.command);
+		await clipboardService.writeText(command.command);
 	}
 });
 
@@ -209,7 +209,7 @@ registerActiveInstanceAction({
 		}
 		const output = command.getOutput();
 		if (isString(output)) {
-			await clipboardService.writeText('Terminal', output);
+			await clipboardService.writeText(output);
 		}
 	}
 });
@@ -230,7 +230,7 @@ registerActiveInstanceAction({
 		}
 		const output = command.getOutput();
 		if (isString(output)) {
-			await clipboardService.writeText('Terminal', `${command.command !== '' ? command.command + '\n' : ''}${output}`);
+			await clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
 		}
 	}
 });

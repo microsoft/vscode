@@ -95,7 +95,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					{
 						label: localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, '&&Copy'),
 						run: () => {
-							this._clipboardService.writeText('TrustedDomainsValidator', typeof originalResource === 'string' ? originalResource : resourceUri.toString(true));
+							this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resourceUri.toString(true));
 							return false;
 						}
 					},

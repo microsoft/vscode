@@ -18,6 +18,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 
 export function createTextInputActions(clipboardService: IClipboardService, logService: ILogService): IAction[] {
 	return [
+
 		toAction({ id: 'undo', label: localize('undo', "Undo"), run: () => getActiveDocument().execCommand('undo') }),
 		toAction({ id: 'redo', label: localize('redo', "Redo"), run: () => getActiveDocument().execCommand('redo') }),
 		new Separator(),
@@ -38,7 +39,7 @@ export function createTextInputActions(clipboardService: IClipboardService, logS
 			label: localize('paste', "Paste"),
 			run: async (element: unknown) => {
 				logService.trace('TextInputActionsProvider#paste');
-				const clipboardText = await clipboardService.readText('createTextInputActions');
+				const clipboardText = await clipboardService.readText();
 				if (isHTMLTextAreaElement(element) || isHTMLInputElement(element)) {
 					const selectionStart = element.selectionStart || 0;
 					const selectionEnd = element.selectionEnd || 0;

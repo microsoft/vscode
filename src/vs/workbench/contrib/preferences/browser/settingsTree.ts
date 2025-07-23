@@ -2643,7 +2643,7 @@ class CopySettingIdAction extends Action {
 
 	override async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
-			await this.clipboardService.writeText('SettingsTree', context.setting.key);
+			await this.clipboardService.writeText(context.setting.key);
 		}
 
 		return Promise.resolve(undefined);
@@ -2663,7 +2663,7 @@ class CopySettingAsJSONAction extends Action {
 	override async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
-			await this.clipboardService.writeText('SettingsTree', jsonResult);
+			await this.clipboardService.writeText(jsonResult);
 		}
 
 		return Promise.resolve(undefined);
@@ -2686,7 +2686,7 @@ class CopySettingAsURLAction extends Action {
 			const settingKey = context.setting.key;
 			const product = this.productService.urlProtocol;
 			const uri = URI.from({ scheme: product, authority: SETTINGS_AUTHORITY, path: `/${settingKey}` }, true);
-			await this.clipboardService.writeText('SettingsTree', uri.toString());
+			await this.clipboardService.writeText(uri.toString());
 		}
 
 		return Promise.resolve(undefined);

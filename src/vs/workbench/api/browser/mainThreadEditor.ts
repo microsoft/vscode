@@ -520,7 +520,7 @@ export class MainThreadTextEditor {
 		const needsTemplate = SnippetParser.guessNeedsClipboard(template);
 		if (needsTemplate) {
 			const state = new EditorState(this._codeEditor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-			clipboardText = await this._clipboardService.readText('MainThreadTextEditor');
+			clipboardText = await this._clipboardService.readText();
 			if (!state.validate(this._codeEditor)) {
 				return false;
 			}

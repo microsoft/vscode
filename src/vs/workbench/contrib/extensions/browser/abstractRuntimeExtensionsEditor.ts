@@ -476,7 +476,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				undefined,
 				true,
 				() => {
-					this._clipboardService.writeText('RuntimeExtensionsEditor', e.element!.description.identifier.value);
+					this._clipboardService.writeText(e.element!.description.identifier.value);
 				}
 			));
 

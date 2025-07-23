@@ -387,7 +387,7 @@ registerAction2(class extends MarkersViewAction {
 		const clipboardService = serviceAccessor.get(IClipboardService);
 		const markers = this.getSelectedMarkers(markersView);
 		if (markers.length) {
-			await clipboardService.writeText('MarkersViewAction', `[${markers}]`);
+			await clipboardService.writeText(`[${markers}]`);
 		}
 	}
 });
@@ -410,7 +410,7 @@ registerAction2(class extends MarkersViewAction {
 
 		const markers = this.getSelectedMarkers(markersView);
 		if (markers.length) {
-			await clipboardService.writeText('MarkersViewAction', markers.map(m => m.marker.message).join('\n'));
+			await clipboardService.writeText(markers.map(m => m.marker.message).join('\n'));
 		}
 	}
 });
@@ -432,7 +432,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
 		const element = markersView.getFocusElement();
 		if (element instanceof RelatedInformation) {
-			await clipboardService.writeText('MarkersViewAction', element.raw.message);
+			await clipboardService.writeText(element.raw.message);
 		}
 	}
 });

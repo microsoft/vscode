@@ -28,16 +28,16 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		super(layoutService, logService);
 	}
 
-	override async writeText(reason: string, text: string, type?: string): Promise<void> {
+	override async writeText(text: string, type?: string): Promise<void> {
 		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' and text:', text);
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
 		}
 		this.logService.trace('BrowserClipboardService#super.writeText');
-		return super.writeText(reason, text, type);
+		return super.writeText(text, type);
 	}
 
-	override async readText(reason: string, type?: string): Promise<string> {
+	override async readText(type?: string): Promise<string> {
 		this.logService.trace('BrowserClipboardService#readText called with type:', type);
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
@@ -45,7 +45,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 
 		if (type) {
 			this.logService.trace('BrowserClipboardService#super.readText');
-			return super.readText(reason, type);
+			return super.readText(type);
 		}
 
 		try {
@@ -64,7 +64,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 						label: localize('retry', "Retry"),
 						run: async () => {
 							listener.dispose();
-							resolve(await this.readText(reason, type));
+							resolve(await this.readText(type));
 						}
 					}, {
 						label: localize('learnMore', "Learn More"),

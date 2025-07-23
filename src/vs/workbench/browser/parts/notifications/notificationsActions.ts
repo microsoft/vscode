@@ -189,6 +189,6 @@ export class CopyNotificationMessageAction extends Action {
 	}
 
 	override run(notification: INotificationViewItem): Promise<void> {
-		return this.clipboardService.writeText('CopyNotificationMessageAction', notification.message.raw);
+		return this.clipboardService.writeText(notification.message.raw);
 	}
 }

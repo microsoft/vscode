@@ -549,7 +549,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 				commandId: 'workbench.scm.action.graph.copyHistoryItemId',
 				iconClass: 'codicon.codicon-copy',
 				label: historyItem.displayId ?? historyItem.id,
-				run: () => this._clipboardService.writeText('SCMHistoryViewPane', historyItem.id)
+				run: () => this._clipboardService.writeText(historyItem.id)
 			},
 			...actions.map(action => {
 				const iconClass = ThemeIcon.isThemeIcon(action.item.icon)

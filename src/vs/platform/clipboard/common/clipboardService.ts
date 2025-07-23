@@ -20,12 +20,12 @@ export interface IClipboardService {
 	/**
 	 * Writes text to the system clipboard.
 	 */
-	writeText(reason: string, text: string, type?: string): Promise<void>;
+	writeText(text: string, type?: string): Promise<void>;
 
 	/**
 	 * Reads the content of the clipboard in plain text
 	 */
-	readText(reason: string, type?: string): Promise<string>;
+	readText(type?: string): Promise<string>;
 
 	/**
 	 * Reads text from the system find pasteboard.
