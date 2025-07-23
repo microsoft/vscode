@@ -21,7 +21,7 @@ import { TerminalCapability } from '../../../../../platform/terminal/common/capa
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { IChatService, type IChatTerminalToolInvocationData, type IChatTerminalToolInvocationData2 } from '../../../chat/common/chatService.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
@@ -36,7 +36,7 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getOutput, pollForOutputAndIdle, promptForMorePolling } from './bufferOutputPolling.js';
+import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -122,7 +122,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	// HACK: Per-tool call state, saved globally
 	// TODO: These should not be part of the state as different sessions could get confused https://github.com/microsoft/vscode/issues/255889
 	private _alternativeRecommendation?: IToolResult;
-	private _rewrittenCommand?: string;
 
 	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
 	public static getBackgroundOutput(id: string): string {
@@ -222,7 +221,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationMessages,
 			presentation,
 			toolSpecificData: {
-				kind: 'terminal2',
+				kind: 'terminal',
 				commandLine: {
 					original: args.command,
 					toolEdited: toolEditedCommand
@@ -241,7 +240,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 
-		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | undefined;
+		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
@@ -251,25 +250,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			throw new Error('A chat session ID is required for this tool');
 		}
 
-		let command: string | undefined;
-		let didUserEditCommand: boolean;
-		let didToolEditCommand: boolean;
-		if (toolSpecificData.kind === 'terminal') {
-			command = toolSpecificData.command ?? this._rewrittenCommand ?? args.command;
-			didUserEditCommand = typeof toolSpecificData?.command === 'string' && toolSpecificData.command !== args.command;
-			didToolEditCommand = !didUserEditCommand && this._rewrittenCommand !== undefined;
-		} else {
-			command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
-			didUserEditCommand = (
-				toolSpecificData.commandLine.userEdited !== undefined &&
-				toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
-			);
-			didToolEditCommand = (
-				!didUserEditCommand &&
-				toolSpecificData.commandLine.toolEdited !== undefined &&
-				toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
-			);
-		}
+		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const didUserEditCommand = (
+			toolSpecificData.commandLine.userEdited !== undefined &&
+			toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
+		);
+		const didToolEditCommand = (
+			!didUserEditCommand &&
+			toolSpecificData.commandLine.toolEdited !== undefined &&
+			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
+		);
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -281,7 +271,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const termId = generateUuid();
 
 		if (args.isBackground) {
-			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number } | undefined = undefined;
+			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } | undefined = undefined;
 
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
@@ -303,14 +293,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
-
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					const extendPolling = await promptForMorePolling(command, invocation.context, this._chatService);
-					if (extendPolling) {
-						outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
-					}
+					outputAndIdle = await racePollingOrPrompt(
+						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
+						() => promptForMorePolling(command, invocation.context!, this._chatService),
+						outputAndIdle,
+						token,
+						this._languageModelsService,
+						execution
+					);
 				}
+
 				let resultText = (
 					didUserEditCommand
 						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
@@ -318,7 +312,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				resultText += outputAndIdle.terminalExecutionIdleBeforeTimeout ? `\n\ The command became idle with output:\n${outputAndIdle.output}` : `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				if (outputAndIdle && outputAndIdle.modelOutputEvalResponse) {
+					resultText += `\n\ The command became idle with output:\n${outputAndIdle.modelOutputEvalResponse}`;
+				} else if (outputAndIdle) {
+					resultText += `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				}
 				return {
 					content: [{
 						kind: 'text',
@@ -400,15 +398,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				const executeResult = await strategy.execute(command, token);
-				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.result.length}\`, error \`${executeResult.error}\``);
-				outputLineCount = count(executeResult.result, '\n');
+				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
 				exitCode = executeResult.exitCode;
 				error = executeResult.error;
-				if (typeof executeResult.result === 'string') {
-					terminalResult = executeResult.result;
-				} else {
-					return executeResult.result;
+
+				const resultArr: string[] = [];
+				if (executeResult.output !== undefined) {
+					resultArr.push(executeResult.output);
 				}
+				if (executeResult.additionalInformation) {
+					resultArr.push(executeResult.additionalInformation);
+				}
+				terminalResult = resultArr.join('\n\n');
+
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
 				toolTerminal.instance.dispose();

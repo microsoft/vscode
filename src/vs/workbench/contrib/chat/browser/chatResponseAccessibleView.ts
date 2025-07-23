@@ -75,14 +75,12 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					let input = '';
 					if (toolInvocation.toolSpecificData) {
 						input = toolInvocation.toolSpecificData?.kind === 'terminal'
-							? toolInvocation.toolSpecificData.command
-							: toolInvocation.toolSpecificData?.kind === 'terminal2'
-								? toolInvocation.toolSpecificData.commandLine.userEdited ?? toolInvocation.toolSpecificData.commandLine.toolEdited ?? toolInvocation.toolSpecificData.commandLine.original
-								: toolInvocation.toolSpecificData?.kind === 'extensions'
-									? JSON.stringify(toolInvocation.toolSpecificData.extensions)
-									: toolInvocation.toolSpecificData?.kind === 'tasks'
-										? JSON.stringify(toolInvocation.toolSpecificData.tasks)
-										: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
+							? toolInvocation.toolSpecificData.commandLine.userEdited ?? toolInvocation.toolSpecificData.commandLine.toolEdited ?? toolInvocation.toolSpecificData.commandLine.original
+							: toolInvocation.toolSpecificData?.kind === 'extensions'
+								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
+								: toolInvocation.toolSpecificData?.kind === 'tasks'
+									? JSON.stringify(toolInvocation.toolSpecificData.tasks)
+									: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
 					}
 					responseContent += `${title}`;
 					if (input) {

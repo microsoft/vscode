@@ -363,7 +363,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			: undefined;
 
 		if (prepared?.confirmationMessages) {
-			if (prepared.toolSpecificData?.kind !== 'terminal' && prepared.toolSpecificData?.kind !== 'terminal2' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
+			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
 				prepared.confirmationMessages.allowAutoConfirm = true;
 			}
 

@@ -4883,15 +4883,6 @@ export class LanguageModelToolResultPart2 implements vscode.LanguageModelToolRes
 	}
 }
 
-export class PreparedTerminalToolInvocation {
-	constructor(
-		public readonly command: string,
-		public readonly language: string,
-		public readonly confirmationMessages?: vscode.LanguageModelToolConfirmationMessages,
-		public readonly presentation?: 'hidden'
-	) { }
-}
-
 export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,

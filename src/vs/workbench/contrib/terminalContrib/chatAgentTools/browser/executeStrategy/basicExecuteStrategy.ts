@@ -11,7 +11,7 @@ import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy } from './executeStrategy.js';
+import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -45,7 +45,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 	) {
 	}
 
-	async execute(commandLine: string, token: CancellationToken): Promise<{ result: string; exitCode?: number; error?: string }> {
+	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, 1000, store);
@@ -107,35 +107,37 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			const endMarker = store.add(xterm.raw.registerMarker());
 
 			// Assemble final result
-			let result: string | undefined;
+			let output: string | undefined;
+			const additionalInformationLines: string[] = [];
 			if (finishedCommand) {
 				const commandOutput = finishedCommand?.getOutput();
 				if (commandOutput !== undefined) {
 					this._logService.debug('RunInTerminalTool#Basic: Fetched output via finished command');
-					result = commandOutput;
+					output = commandOutput;
 				}
 			}
-			if (result === undefined) {
+			if (output === undefined) {
 				try {
-					result = xterm.getContentsAsText(startMarker, endMarker);
+					output = xterm.getContentsAsText(startMarker, endMarker);
 					this._logService.debug('RunInTerminalTool#Basic: Fetched output via markers');
 				} catch {
 					this._logService.debug('RunInTerminalTool#Basic: Failed to fetch output via markers');
-					result = 'Failed to retrieve command output';
+					additionalInformationLines.push('Failed to retrieve command output');
 				}
 			}
 
-			if (result.trim().length === 0) {
-				result = 'Command produced no output';
+			if (output !== undefined && output.trim().length === 0) {
+				additionalInformationLines.push('Command produced no output');
 			}
 
 			const exitCode = finishedCommand?.exitCode;
 			if (isNumber(exitCode) && exitCode > 0) {
-				result += `\n\nCommand exited with code ${exitCode}`;
+				additionalInformationLines.push(`Command exited with code ${exitCode}`);
 			}
 
 			return {
-				result,
+				output,
+				additionalInformation: additionalInformationLines.length > 0 ? additionalInformationLines.join('\n') : undefined,
 				exitCode,
 			};
 		} finally {

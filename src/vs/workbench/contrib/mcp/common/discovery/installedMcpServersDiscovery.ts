@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpServerDefinition, McpServerTransportType, IMcpWorkbenchService, IMcpConfigPath, IWorkbenchMcpServer } from '../mcpTypes.js';
+import { McpServerDefinition, McpServerTransportType, IMcpWorkbenchService, IMcpConfigPath } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { mcpConfigurationSection } from '../mcpConfiguration.js';
 import { posix as pathPosix, win32 as pathWin32, sep as pathSep } from '../../../../../base/common/path.js';
@@ -17,10 +17,10 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { ILocalMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
+import { IWorkbenchLocalMcpServer } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 
 export class InstalledMcpServersDiscovery extends Disposable implements IMcpDiscovery {
 
@@ -58,30 +58,26 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 	private async sync(): Promise<void> {
 		try {
 			const remoteEnv = await this.remoteAgentService.getEnvironment();
-			const collections = new Map<string, [IMcpConfigPath | undefined, McpServerDefinition[], IWorkbenchMcpServer]>();
+			const collections = new Map<string, [IMcpConfigPath | undefined, McpServerDefinition[]]>();
 			const mcpConfigPathInfos = new ResourceMap<Promise<IMcpConfigPath & { locations: Map<string, Location> } | undefined>>();
-			for (const server of this.mcpWorkbenchService.local) {
-				if (!server.local) {
-					continue;
-				}
-
-				let mcpConfigPathPromise = mcpConfigPathInfos.get(server.local.mcpResource);
+			for (const server of this.mcpWorkbenchService.getEnabledLocalMcpServers()) {
+				let mcpConfigPathPromise = mcpConfigPathInfos.get(server.mcpResource);
 				if (!mcpConfigPathPromise) {
-					mcpConfigPathPromise = (async (local: ILocalMcpServer) => {
+					mcpConfigPathPromise = (async (local: IWorkbenchLocalMcpServer) => {
 						const mcpConfigPath = this.mcpWorkbenchService.getMcpConfigPath(local);
 						const locations = mcpConfigPath?.uri ? await this.getServerIdMapping(mcpConfigPath?.uri, mcpConfigPath.section ? [...mcpConfigPath.section, 'servers'] : ['servers']) : new Map();
 						return mcpConfigPath ? { ...mcpConfigPath, locations } : undefined;
-					})(server.local);
-					mcpConfigPathInfos.set(server.local.mcpResource, mcpConfigPathPromise);
+					})(server);
+					mcpConfigPathInfos.set(server.mcpResource, mcpConfigPathPromise);
 				}
 
-				const config = server.local.config;
+				const config = server.config;
 				const mcpConfigPath = await mcpConfigPathPromise;
 				const collectionId = `mcp.config.${mcpConfigPath ? mcpConfigPath.id : 'unknown'}`;
 
 				let definitions = collections.get(collectionId);
 				if (!definitions) {
-					definitions = [mcpConfigPath, [], server];
+					definitions = [mcpConfigPath, []];
 					collections.set(collectionId, definitions);
 				}
 
@@ -94,8 +90,8 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 				};
 
 				definitions[1].push({
-					id: `${collectionId}.${server.local.name}`,
-					label: server.local.name,
+					id: `${collectionId}.${server.name}`,
+					label: server.name,
 					launch: config.type === 'http' ? {
 						type: McpServerTransportType.HTTP,
 						uri: URI.parse(config.url),
@@ -127,7 +123,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					devMode: config.dev,
 					presentation: {
 						order: mcpConfigPath?.order,
-						origin: mcpConfigPath?.locations.get(server.local.name)
+						origin: mcpConfigPath?.locations.get(server.name)
 					}
 				});
 			}
