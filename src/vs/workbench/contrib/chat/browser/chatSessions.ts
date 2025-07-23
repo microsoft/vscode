@@ -61,6 +61,7 @@ interface ILocalChatSessionItem extends IChatSessionItem {
 	group?: IEditorGroup;
 	widget?: IChatWidget;
 	sessionType: 'editor' | 'widget';
+	description?: string;
 }
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
@@ -290,7 +291,8 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		if (chatWidget) {
 			sessions.push({
 				id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
-				label: chatWidget.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat View").value,
+				label: chatWidget.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
+				description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 				iconPath: Codicon.chatSparkle,
 				widget: chatWidget,
 				sessionType: 'widget'
@@ -545,6 +547,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Set the resource label
 		templateData.resourceLabel.setResource({
 			name: session.label,
+			description: 'description' in session && typeof session.description === 'string' ? session.description : '',
 			resource: iconResource
 		}, {
 			fileKind: undefined,
