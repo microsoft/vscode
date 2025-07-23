@@ -59,12 +59,12 @@ export class RunTaskTool implements IToolImpl {
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
 
 		if (!task) {
-			return { content: [{ kind: 'text', value: localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id) }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
+			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
 
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.includes(task)) {
-			return { content: [{ kind: 'text', value: localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskDefinition.taskLabel) }], toolResultMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskDefinition.taskLabel)) };
+			return { content: [{ kind: 'text', value: `The task ${taskDefinition.taskLabel} is already running.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskDefinition.taskLabel)) };
 		}
 
 		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
@@ -73,7 +73,7 @@ export class RunTaskTool implements IToolImpl {
 		const resource = this._tasksService.getTerminalForTask(task);
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
-			return { content: [{ kind: 'text', value: localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskDefinition.taskLabel) }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskDefinition.taskLabel)) };
+			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskDefinition.taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskDefinition.taskLabel)) };
 		}
 
 		_progress.report({ message: new MarkdownString(localize('copilotChat.checkingOutput', 'Checking output for `{0}`', taskDefinition.taskLabel)) });
