@@ -24,6 +24,52 @@ const enum PollingConsts {
 	MaxPollingIntervalDuration = 2000, // 2 seconds
 }
 
+
+/**
+ * Waits for either polling to complete (terminal idle or timeout) or for the user to respond to a prompt.
+ * If polling completes first, the prompt is removed. If the prompt completes first and is accepted, polling continues.
+ */
+export async function racePollingOrPrompt(
+	pollFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
+	promptFn: () => { promise: Promise<boolean>; part?: ChatElicitationRequestPart },
+	token: CancellationToken,
+	languageModelsService: ILanguageModelsService,
+	execution: { getOutput: () => string; isActive?: () => Promise<boolean> }
+): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+	const pollPromise = pollFn();
+	const { promise: promptPromise, part } = promptFn();
+	let promptResolved = false;
+
+	const pollPromiseWrapped = pollPromise.then(async result => {
+		if (!promptResolved && part) {
+			part.removePart();
+		}
+		return { type: 'poll', result };
+	});
+
+	const promptPromiseWrapped = promptPromise.then(result => {
+		promptResolved = true;
+		return { type: 'prompt', result };
+	});
+
+	const raceResult = await Promise.race([
+		pollPromiseWrapped,
+		promptPromiseWrapped
+	]);
+	if (raceResult.type === 'poll') {
+		return raceResult.result as { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string };
+	} else if (raceResult.type === 'prompt') {
+		const promptResult = raceResult.result as boolean;
+		if (promptResult) {
+			// User accepted, poll again (extended)
+			return await pollForOutputAndIdle(execution, true, token, languageModelsService);
+		}
+	}
+	// If prompt was rejected or something else, return the result of the first poll
+	return await pollFn();
+}
+
+
 export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarker): string {
 	if (!instance.xterm || !instance.xterm.raw) {
 		return '';

@@ -12,7 +12,7 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling } from '../bufferOutputPolling.js';
+import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
 import { getOutput } from '../outputHelpers.js';
 import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -79,36 +79,13 @@ export class RunTaskTool implements IToolImpl {
 		_progress.report({ message: new MarkdownString(localize('copilotChat.checkingOutput', 'Checking output for `{0}`', taskDefinition.taskLabel)) });
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			const pollPromise = pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
-			const { promise: promptPromise, part } = promptForMorePolling(taskDefinition.taskLabel, invocation.context!, this._chatService);
-			let promptResolved = false;
-
-			const pollPromiseWrapped = pollPromise.then(async result => {
-				// If prompt is still pending and part exists, reject the prompt
-				if (!promptResolved && part) {
-					part.removePart();
-				}
-				return { type: 'poll', result };
-			});
-
-			const promptPromiseWrapped = promptPromise.then(result => {
-				promptResolved = true;
-				return { type: 'prompt', result };
-			});
-
-			// Use Promise.race to resolve as soon as either polling or prompt completes
-			const raceResult = await Promise.race([
-				pollPromiseWrapped,
-				promptPromiseWrapped
-			]);
-			if (raceResult.type === 'poll') {
-				outputAndIdle = raceResult.result as typeof outputAndIdle;
-			} else if (raceResult.type === 'prompt') {
-				const promptResult = raceResult.result as boolean;
-				if (promptResult) {
-					outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
-				}
-			}
+			outputAndIdle = await racePollingOrPrompt(
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
+				() => promptForMorePolling(taskDefinition.taskLabel, invocation.context!, this._chatService),
+				token,
+				this._languageModelsService,
+				{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
+			);
 		}
 		let output = '';
 		if (result?.exitCode) {

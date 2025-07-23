@@ -36,7 +36,7 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getOutput, pollForOutputAndIdle, promptForMorePolling } from './bufferOutputPolling.js';
+import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -295,36 +295,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					const pollPromise = pollForOutputAndIdle(execution, true, token, this._languageModelsService);
-					const { promise: promptPromise, part } = promptForMorePolling(command, invocation.context!, this._chatService);
-					let promptResolved = false;
-
-					const pollPromiseWrapped = pollPromise.then(async result => {
-						// If prompt is still pending and part exists, reject the prompt
-						if (!promptResolved && part) {
-							part.removePart();
-						}
-						return { type: 'poll', result };
-					});
-
-					const promptPromiseWrapped = promptPromise.then(result => {
-						promptResolved = true;
-						return { type: 'prompt', result };
-					});
-
-					// Use Promise.race to resolve as soon as either polling or prompt completes
-					const raceResult = await Promise.race([
-						pollPromiseWrapped,
-						promptPromiseWrapped
-					]);
-					if (raceResult.type === 'poll') {
-						outputAndIdle = raceResult.result as typeof outputAndIdle;
-					} else if (raceResult.type === 'prompt') {
-						const promptResult = raceResult.result as boolean;
-						if (promptResult) {
-							outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
-						}
-					}
+					outputAndIdle = await racePollingOrPrompt(
+						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
+						() => promptForMorePolling(command, invocation.context!, this._chatService),
+						token,
+						this._languageModelsService,
+						execution
+					);
 				}
 
 				let resultText = (
