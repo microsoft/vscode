@@ -6,13 +6,17 @@
 import { CspAlerter } from './csp';
 import { StyleLoadingMonitor } from './loading';
 import { SettingsManager } from './settings';
+import { CodeBlockManager } from './code';
 
 declare global {
 	interface Window {
 		cspAlerter: CspAlerter;
 		styleLoadingMonitor: StyleLoadingMonitor;
+		codeBlockManager: CodeBlockManager;
 	}
 }
 
-window.cspAlerter = new CspAlerter(new SettingsManager());
+const settingsManager = new SettingsManager();
+window.cspAlerter = new CspAlerter(settingsManager);
 window.styleLoadingMonitor = new StyleLoadingMonitor();
+window.codeBlockManager = new CodeBlockManager(settingsManager.settings);

@@ -9,10 +9,16 @@ const srcDir = path.join(__dirname, 'preview-src');
 const outDir = path.join(__dirname, 'media');
 
 require('../esbuild-webview-common').run({
-	entryPoints: [
-		path.join(srcDir, 'index.ts'),
-		path.join(srcDir, 'pre'),
-	],
+	entryPoints: {
+		'index': path.join(srcDir, 'index.ts'),
+		'pre': path.join(srcDir, 'pre'),
+		'codicon': path.join(__dirname, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
+	},
 	srcDir,
 	outdir: outDir,
+	additionalOptions: {
+		loader: {
+			'.ttf': 'dataurl',
+		}
+	}
 }, process.argv);
