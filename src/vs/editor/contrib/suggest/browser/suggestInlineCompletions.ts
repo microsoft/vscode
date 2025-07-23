@@ -198,7 +198,7 @@ export class SuggestInlineCompletions extends Disposable implements InlineComple
 
 			let clipboardText: string | undefined;
 			if (completions.needsClipboard) {
-				clipboardText = await this._clipboardService.readText();
+				clipboardText = await this._clipboardService.readText('SuggestInlineCompletions');
 			}
 
 			const completionModel = new CompletionModel(

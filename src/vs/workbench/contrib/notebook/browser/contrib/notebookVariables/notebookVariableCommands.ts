@@ -28,7 +28,7 @@ registerAction2(class extends Action2 {
 		const clipboardService = accessor.get(IClipboardService);
 
 		if (context.value) {
-			clipboardService.writeText(context.value);
+			clipboardService.writeText('NotebookVariables', context.value);
 		}
 	}
 });

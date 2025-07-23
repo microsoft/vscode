@@ -147,7 +147,7 @@ async function copyPathCommand(accessor: ServicesAccessor, fileMatch: ISearchTre
 	const labelService = accessor.get(ILabelService);
 
 	const text = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
-	await clipboardService.writeText(text);
+	await clipboardService.writeText('Search', text);
 }
 
 async function copyMatchCommand(accessor: ServicesAccessor, match: RenderableMatch | undefined) {
@@ -173,7 +173,7 @@ async function copyMatchCommand(accessor: ServicesAccessor, match: RenderableMat
 	}
 
 	if (text) {
-		await clipboardService.writeText(text);
+		await clipboardService.writeText('Search', text);
 	}
 }
 
@@ -187,7 +187,7 @@ async function copyAllCommand(accessor: ServicesAccessor) {
 		const root = searchView.searchResult;
 
 		const text = allFolderMatchesToString(root.folderMatches(), labelService);
-		await clipboardService.writeText(text);
+		await clipboardService.writeText('Search', text);
 	}
 }
 

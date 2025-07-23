@@ -19,7 +19,7 @@ export class TestClipboardService implements IClipboardService {
 		return Promise.resolve();
 	}
 
-	async writeText(text: string, type?: string): Promise<void> {
+	async writeText(reason: string, text: string, type?: string): Promise<void> {
 		this.text = text;
 	}
 

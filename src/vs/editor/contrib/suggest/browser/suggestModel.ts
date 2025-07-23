@@ -511,7 +511,7 @@ export class SuggestModel implements IDisposable {
 
 			let clipboardText = options?.clipboardText;
 			if (!clipboardText && completions.needsClipboard) {
-				clipboardText = await this._clipboardService.readText();
+				clipboardText = await this._clipboardService.readText('SuggestModel');
 			}
 
 			if (this._triggerState === undefined) {

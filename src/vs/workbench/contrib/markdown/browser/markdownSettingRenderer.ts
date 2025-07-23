@@ -273,7 +273,7 @@ export class SimpleSettingRenderer {
 			tooltip: nls.localize('copySettingId', "Copy Setting ID"),
 			label: nls.localize('copySettingId', "Copy Setting ID"),
 			run: () => {
-				this._clipboardService.writeText(settingId);
+				this._clipboardService.writeText('MarkdownSettingRenderer', settingId);
 			}
 		});
 

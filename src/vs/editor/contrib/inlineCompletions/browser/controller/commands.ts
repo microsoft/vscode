@@ -369,7 +369,7 @@ export class DevExtractReproSample extends EditorAction {
 
 		const reproStr = `${repro.documentValue}\n\n// <json>\n${json}\n// </json>\n`;
 
-		await clipboardService.writeText(reproStr);
+		await clipboardService.writeText('DevExtractReproSample', reproStr);
 
 		return { reproCase: reproStr };
 	}

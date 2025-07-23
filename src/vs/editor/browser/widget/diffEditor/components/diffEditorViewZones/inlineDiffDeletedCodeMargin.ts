@@ -86,7 +86,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 						true,
 						async () => {
 							const originalText = this._originalTextModel.getValueInRange(_diff.original.toExclusiveRange());
-							await this._clipboardService.writeText(originalText);
+							await this._clipboardService.writeText('inlineDiffDeletedCodeMargin', originalText);
 						}
 					));
 
@@ -107,7 +107,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 									const eof = this._originalTextModel.getEndOfLineSequence();
 									lineContent = eof === EndOfLineSequence.LF ? '\n' : '\r\n';
 								}
-								await this._clipboardService.writeText(lineContent);
+								await this._clipboardService.writeText('inlineDiffDeletedCodeMargin', lineContent);
 							}
 						));
 					}

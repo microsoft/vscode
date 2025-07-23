@@ -131,7 +131,7 @@ registerTerminalAction({
 			const events: unknown[] = [];
 			const endRecording = () => {
 				const session = JSON.stringify(events, null, 2);
-				clipboardService.writeText(session);
+				clipboardService.writeText('Terminal', session);
 				store.dispose();
 				resolve();
 			};

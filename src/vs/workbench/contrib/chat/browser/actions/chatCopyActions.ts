@@ -40,7 +40,7 @@ export function registerChatCopyActions() {
 					.map(item => stringifyItem(item))
 					.join('\n\n');
 				if (sessionAsText) {
-					clipboardService.writeText(sessionAsText);
+					clipboardService.writeText('ChatCopyAllAction', sessionAsText);
 				}
 			}
 		}
@@ -79,12 +79,12 @@ export function registerChatCopyActions() {
 			const nativeSelection = dom.getActiveWindow().getSelection();
 			const selectedText = nativeSelection?.toString();
 			if (widget && selectedText && selectedText.length > 0 && dom.isAncestor(dom.getActiveElement(), widget.domNode)) {
-				await clipboardService.writeText(selectedText);
+				await clipboardService.writeText('ChatCopyItemAction', selectedText);
 				return;
 			}
 
 			const text = stringifyItem(item, false);
-			await clipboardService.writeText(text);
+			await clipboardService.writeText('ChatCopyItemAction', text);
 		}
 	});
 }

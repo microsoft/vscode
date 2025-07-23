@@ -1434,7 +1434,7 @@ namespace CopyAddressAction {
 	async function copyAddress(remoteExplorerService: IRemoteExplorerService, clipboardService: IClipboardService, tunnelItem: { remoteHost: string; remotePort: number }) {
 		const address = remoteExplorerService.tunnelModel.address(tunnelItem.remoteHost, tunnelItem.remotePort);
 		if (address) {
-			await clipboardService.writeText(address.toString());
+			await clipboardService.writeText('TunnelView', address.toString());
 		}
 	}
 

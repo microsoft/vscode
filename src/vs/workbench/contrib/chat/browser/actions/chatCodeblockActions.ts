@@ -148,7 +148,7 @@ export function registerChatCodeBlockActions() {
 			}
 
 			const clipboardService = accessor.get(IClipboardService);
-			clipboardService.writeText(context.code);
+			clipboardService.writeText('ChatCodeBlockAction', context.code);
 
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
@@ -229,7 +229,7 @@ export function registerChatCodeBlockActions() {
 
 		// Copy full cell if no selection, otherwise fall back on normal editor implementation
 		if (noSelection) {
-			accessor.get(IClipboardService).writeText(context.code);
+			accessor.get(IClipboardService).writeText('ChatCodeBlockAction', context.code);
 			return true;
 		}
 

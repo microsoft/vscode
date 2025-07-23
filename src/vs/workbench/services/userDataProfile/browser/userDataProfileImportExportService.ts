@@ -283,7 +283,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					const link = this.productService.webUrl ? `${this.productService.webUrl}/${PROFILE_URL_AUTHORITY}/${id}/${saveResult.id}` : toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString();
 					buttons.push({
 						label: localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy Link"),
-						run: () => this.clipboardService.writeText(link)
+						run: () => this.clipboardService.writeText('UserDataProfileImportExportService', link)
 					});
 					if (this.productService.webUrl) {
 						buttons.push({

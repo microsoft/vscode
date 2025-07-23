@@ -1613,7 +1613,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', extension.publisherDisplayName);
 					const link = extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', `${extension.url}`) : null;
 					const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
-					await clipboardService.writeText(clipboardStr);
+					await clipboardService.writeText('ExtensionsContribution', clipboardStr);
 				}
 			}
 		});
@@ -1625,7 +1625,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: '1_copy'
 			},
-			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IClipboardService).writeText(id)
+			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IClipboardService).writeText('ExtensionsContribution', id)
 		});
 
 		this.registerExtensionAction({
@@ -1639,7 +1639,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: async (accessor: ServicesAccessor, _, extension: IExtensionArg) => {
 				const clipboardService = accessor.get(IClipboardService);
 				if (extension.galleryLink) {
-					await clipboardService.writeText(extension.galleryLink);
+					await clipboardService.writeText('ExtensionsContribution', extension.galleryLink);
 				}
 			}
 		});

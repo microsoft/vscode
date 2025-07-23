@@ -241,7 +241,7 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 		}
 
 		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, separator })).join(lineDelimiter);
-		await clipboardService.writeText(text);
+		await clipboardService.writeText('FileCommands', text);
 	}
 }
 

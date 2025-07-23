@@ -120,7 +120,7 @@ export async function copyCellOutput(mimeType: string | undefined, outputViewMod
 	const text = isTextStreamMime(mimeType) ? getOutputStreamText(outputViewModel).text : getOutputText(mimeType, output);
 
 	try {
-		await clipboardService.writeText(text);
+		await clipboardService.writeText('NotebookCellOutput', text);
 
 	} catch (e) {
 		logService.error(`Failed to copy content: ${e}`);

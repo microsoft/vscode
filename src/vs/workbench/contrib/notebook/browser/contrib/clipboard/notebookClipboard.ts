@@ -188,7 +188,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 		const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
 
 		if (!containingSelection) {
-			clipboardService.writeText(targetCell.getText());
+			clipboardService.writeText('NotebookClipboard', targetCell.getText());
 			notebookService.setToCopy([targetCell.model], true);
 			return true;
 		}
@@ -201,7 +201,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 		return false;
 	}
 
-	clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
+	clipboardService.writeText('NotebookClipboard', selectedCells.map(cell => cell.getText()).join('\n'));
 	notebookService.setToCopy(selectedCells.map(cell => cell.model), true);
 
 	return true;
@@ -222,7 +222,7 @@ export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor,
 		const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
 
 		if (!containingSelection) {
-			clipboardService.writeText(targetCell.getText());
+			clipboardService.writeText('NotebookClipboard', targetCell.getText());
 			// delete cell
 			const focus = editor.getFocus();
 			const newFocus = focus.end <= targetCellIndex ? focus : { start: focus.start - 1, end: focus.end - 1 };
@@ -243,7 +243,7 @@ export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor,
 	if (!containingSelection) {
 		// focus is out of any selection, we should only cut this cell
 		const targetCell = editor.cellAt(focus.start);
-		clipboardService.writeText(targetCell.getText());
+		clipboardService.writeText('NotebookClipboard', targetCell.getText());
 		const newFocus = focus.end === editor.getLength() ? { start: focus.start - 1, end: focus.end - 1 } : focus;
 		const newSelections = selections.map(selection => (selection.end <= focus.start ? selection : { start: selection.start - 1, end: selection.end - 1 }));
 		textModel.applyEdits([
@@ -261,7 +261,7 @@ export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor,
 		return false;
 	}
 
-	clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
+	clipboardService.writeText('NotebookClipboard', selectedCells.map(cell => cell.getText()).join('\n'));
 	const edits: ICellEditOperation[] = selectionRanges.map(range => ({ editType: CellEditType.Replace, index: range.start, count: range.end - range.start, cells: [] }));
 	const firstSelectIndex = selectionRanges[0].start;
 

@@ -357,6 +357,7 @@ export class TextAreaInput extends Disposable {
 		// --- Clipboard operations
 
 		this._register(this._textArea.onCut((e) => {
+			this._logService.trace(`TextAreaInput#onCut`, e);
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
@@ -366,10 +367,12 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
+			this._logService.trace(`TextAreaInput#onCopy`, e);
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
+			this._logService.trace(`TextAreaInput#onPaste`, e);
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
@@ -387,6 +390,8 @@ export class TextAreaInput extends Disposable {
 
 			// try the in-memory store
 			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+
+			this._logService.trace('TextAreaInput#onPaste text:', text, ' metadata:', metadata);
 
 			this._onPaste.fire({
 				text: text,
@@ -617,7 +622,7 @@ export class TextAreaInput extends Disposable {
 			(this._browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
 			storedMetadata
 		);
-
+		this._logService.trace('TextAreaInput#ensureClipboardGetsEditorSelection  text:', dataToCopy.text, ' html:', dataToCopy.html, ' metadata:', storedMetadata);
 		e.preventDefault();
 		if (e.clipboardData) {
 			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);

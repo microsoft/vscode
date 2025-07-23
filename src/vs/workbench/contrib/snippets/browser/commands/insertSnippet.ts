@@ -142,7 +142,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 		}
 		let clipboardText: string | undefined;
 		if (snippet.needsClipboard) {
-			clipboardText = await clipboardService.readText();
+			clipboardText = await clipboardService.readText('InsertSnippetAction');
 		}
 		editor.focus();
 		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });

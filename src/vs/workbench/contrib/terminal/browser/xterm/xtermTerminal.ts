@@ -289,7 +289,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 					return _clipboardService.readText(type === 'p' ? 'selection' : 'clipboard');
 				},
 				async writeText(type: ClipboardSelectionType, text: string): Promise<void> {
-					return _clipboardService.writeText(text, type === 'p' ? 'selection' : 'clipboard');
+					return _clipboardService.writeText('XTermTerminal', text, type === 'p' ? 'selection' : 'clipboard');
 				}
 			});
 			this.raw.loadAddon(this._clipboardAddon);
@@ -684,7 +684,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				doc.execCommand('copy');
 				doc.removeEventListener('copy', listener);
 			} else {
-				await this._clipboardService.writeText(this.raw.getSelection());
+				await this._clipboardService.writeText('XTermTerminal', this.raw.getSelection());
 			}
 		} else {
 			this._notificationService.warn(localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));

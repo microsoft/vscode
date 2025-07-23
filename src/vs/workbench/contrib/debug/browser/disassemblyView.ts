@@ -1046,7 +1046,7 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, entry?: IDisassembledInstructionEntry) => {
 		if (entry?.instruction?.address) {
 			const clipboardService = accessor.get(IClipboardService);
-			clipboardService.writeText(entry.instruction.address);
+			clipboardService.writeText('DisassemblyView', entry.instruction.address);
 		}
 	}
 });

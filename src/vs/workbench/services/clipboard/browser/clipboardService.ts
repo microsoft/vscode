@@ -28,25 +28,30 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		super(layoutService, logService);
 	}
 
-	override async writeText(text: string, type?: string): Promise<void> {
+	override async writeText(reason: string, text: string, type?: string): Promise<void> {
+		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' and text:', text);
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
 		}
-
-		return super.writeText(text, type);
+		this.logService.trace('BrowserClipboardService#super.writeText');
+		return super.writeText(reason, text, type);
 	}
 
-	override async readText(type?: string): Promise<string> {
+	override async readText(reason: string, type?: string): Promise<string> {
+		this.logService.trace('BrowserClipboardService#readText called with type:', type);
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
 		}
 
 		if (type) {
-			return super.readText(type);
+			this.logService.trace('BrowserClipboardService#super.readText');
+			return super.readText(reason, type);
 		}
 
 		try {
-			return await getActiveWindow().navigator.clipboard.readText();
+			const readText = await getActiveWindow().navigator.clipboard.readText();
+			this.logService.trace('BrowserClipboardService#readText returning:', readText);
+			return readText;
 		} catch (error) {
 			return new Promise<string>(resolve => {
 
@@ -59,7 +64,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 						label: localize('retry', "Retry"),
 						run: async () => {
 							listener.dispose();
-							resolve(await this.readText(type));
+							resolve(await this.readText(reason, type));
 						}
 					}, {
 						label: localize('learnMore', "Learn More"),

@@ -66,7 +66,7 @@ export class SurroundWithSnippetEditorAction extends SnippetEditorAction {
 
 		let clipboardText: string | undefined;
 		if (snippet.needsClipboard) {
-			clipboardText = await clipboardService.readText();
+			clipboardText = await clipboardService.readText('SurroundWithSnippetEditorAction');
 		}
 
 		editor.focus();

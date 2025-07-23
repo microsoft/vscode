@@ -60,7 +60,7 @@ export class MergeEditorCopyContentsToJSON extends Action2 {
 			initialResult: model.getInitialResultValue(),
 		};
 		const jsonStr = JSON.stringify(contents, undefined, 4);
-		clipboardService.writeText(jsonStr);
+		clipboardService.writeText('MergeEditor', jsonStr);
 
 		notificationService.info({
 			name: localize('mergeEditor.name', 'Merge Editor'),

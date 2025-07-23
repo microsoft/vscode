@@ -536,7 +536,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (result) {
 			// Open verification URI
 			try {
-				await this.clipboardService.writeText(userCode);
+				await this.clipboardService.writeText('MainThreadAuthentication', userCode);
 				return await this.openerService.open(URI.parse(verificationUri));
 			} catch (error) {
 				this.notificationService.error(nls.localize('failedToOpenUri', "Failed to open {0}", verificationUri));

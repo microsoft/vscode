@@ -6,6 +6,7 @@
 import { extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { MainContext, MainThreadClipboardShape } from '../common/extHost.protocol.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 @extHostNamedCustomer(MainContext.MainThreadClipboard)
 export class MainThreadClipboard implements MainThreadClipboardShape {
@@ -13,6 +14,7 @@ export class MainThreadClipboard implements MainThreadClipboardShape {
 	constructor(
 		_context: any,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ILogService private readonly _logService: ILogService
 	) { }
 
 	dispose(): void {
@@ -20,10 +22,14 @@ export class MainThreadClipboard implements MainThreadClipboardShape {
 	}
 
 	$readText(): Promise<string> {
-		return this._clipboardService.readText();
+		this._logService.trace('MainThreadClipboard#readText called');
+		const readText = this._clipboardService.readText('MainThreadClipboard');
+		this._logService.trace('MainThreadClipboard#readText returning:', readText);
+		return readText;
 	}
 
 	$writeText(value: string): Promise<void> {
-		return this._clipboardService.writeText(value);
+		this._logService.trace('MainThreadClipboard#writeText called with value:', value);
+		return this._clipboardService.writeText('MainThreadClipboard', value);
 	}
 }

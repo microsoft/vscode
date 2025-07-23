@@ -28,7 +28,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@ILogService private readonly logService: ILogService
+		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 
@@ -46,6 +46,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	triggerPaste(): Promise<void> | undefined {
+		this.logService.trace('BrowserClipboardService#triggerPaste called');
 		return undefined;
 	}
 
@@ -118,15 +119,15 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
-	async writeText(text: string, type?: string): Promise<void> {
-
+	async writeText(reason: string, text: string, type?: string): Promise<void> {
+		this.logService.trace('BrowserClipboardService#writeText called with reason:', reason, ' and type:', type, ' and text:', text);
 		// Clear resources given we are writing text
 		this.clearResourcesState();
 
 		// With type: only in-memory is supported
 		if (type) {
 			this.mapTextToType.set(type, text);
-
+			this.logService.trace('BrowserClipboardService#writeText storing in-memory text:', text);
 			return;
 		}
 
@@ -141,6 +142,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
+			this.logService.trace('before navigator.clipboard.writeText');
 			return await getActiveWindow().navigator.clipboard.writeText(text);
 		} catch (error) {
 			console.error(error);
@@ -151,6 +153,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	private fallbackWriteText(text: string): void {
+		this.logService.trace('BrowserClipboardService#fallbackWriteText called with text:', text);
 		const activeDocument = getActiveDocument();
 		const activeElement = activeDocument.activeElement;
 
@@ -172,18 +175,22 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		textArea.remove();
 	}
 
-	async readText(type?: string): Promise<string> {
-
+	async readText(reason: string, type?: string): Promise<string> {
+		this.logService.trace('BrowserClipboardService#readText called with reason ', reason, ' and type:', type);
 		// With type: only in-memory is supported
 		if (type) {
-			return this.mapTextToType.get(type) || '';
+			const readText = this.mapTextToType.get(type) || '';
+			this.logService.trace('BrowserClipboardService#readText returning in-memory text:', readText);
+			return readText;
 		}
 
 		// Guard access to navigator.clipboard with try/catch
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
-			return await getActiveWindow().navigator.clipboard.readText();
+			const readText = await getActiveWindow().navigator.clipboard.readText();
+			this.logService.trace('BrowserClipboardService#readText returning clipboard text:', readText);
+			return readText;
 		} catch (error) {
 			console.error(error);
 		}
@@ -270,7 +277,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// As such, we compute the hash of the current clipboard
 		// and use that to later validate the resources clipboard.
 
-		const clipboardText = await this.readText();
+		const clipboardText = await this.readText('computeResourcesStateHash');
 		return hash(clipboardText.substring(0, BrowserClipboardService.MAX_RESOURCE_STATE_SOURCE_LENGTH));
 	}
 

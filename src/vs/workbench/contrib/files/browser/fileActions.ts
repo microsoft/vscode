@@ -888,7 +888,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel> {
-		const text = await this.clipboardService.readText();
+		const text = await this.clipboardService.readText('ClipboardContentProvider');
 		const model = this.modelService.createModel(text, this.languageService.createByFilepathOrFirstLine(resource), resource);
 
 		return model;

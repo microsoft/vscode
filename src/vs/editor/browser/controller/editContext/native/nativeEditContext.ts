@@ -31,6 +31,7 @@ import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 import { IME } from '../../../../../base/common/ime.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -75,7 +76,8 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		private readonly _viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(context);
 
@@ -108,12 +110,17 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._screenReaderSupport = this._register(instantiationService.createInstance(ScreenReaderSupport, this.domNode, context, this._viewController));
 
-		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
+		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => {
+			this.logService.trace('NativeEditContext#copy');
+			this._ensureClipboardGetsEditorSelection(e);
+		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			this.logService.trace('NativeEditContext#cut');
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.onWillCut();
 			this._ensureClipboardGetsEditorSelection(e);
+			this.logService.trace('NativeEditContext#cut before viewController.cut');
 			this._viewController.cut();
 		}));
 
@@ -127,11 +134,13 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
+			console.log('NativeEditContext#paste');
 			e.preventDefault();
 			if (!e.clipboardData) {
 				return;
 			}
 			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			this.logService.trace('NativeEditContext#paste with text: ', text);
 			if (!text) {
 				return;
 			}
@@ -146,6 +155,7 @@ export class NativeEditContext extends AbstractEditContext {
 				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
 				mode = metadata.mode;
 			}
+			this.logService.trace('NativeEditContext#paste before viewController.paste');
 			this._viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 
@@ -533,6 +543,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
+		this.logService.trace('NativeEditContext#_ensureClipboardGetsEditorSelection');
 		const options = this._context.configuration.options;
 		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
@@ -544,6 +555,8 @@ export class NativeEditContext extends AbstractEditContext {
 			multicursorText: dataToCopy.multicursorText,
 			mode: dataToCopy.mode
 		};
+		this.logService.trace('NativeEditContext#_ensureClipboardGetsEditorSelection dataToCopy.text : ', dataToCopy.text);
+		this.logService.trace('NativeEditContext#_ensureClipboardGetsEditorSelection dataToCopy.html : ', dataToCopy.html);
 		InMemoryClipboardMetadataManager.INSTANCE.set(
 			// When writing "LINE\r\n" to the clipboard and then pasting,
 			// Firefox pastes "LINE\n", so let's work around this quirk

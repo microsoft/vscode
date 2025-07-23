@@ -318,7 +318,7 @@ CommandsRegistry.registerCommand({
 		const frame = getFrame(debugService, context);
 		if (frame) {
 			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
-			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
+			await clipboardService.writeText('CopyStackTraceAction', frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
 		}
 	}
 });

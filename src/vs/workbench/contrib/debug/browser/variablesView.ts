@@ -705,11 +705,11 @@ CommandsRegistry.registerCommand({
 			const evaluations = await Promise.all(toEvaluate.map(expr => session.evaluate(expr, stackFrame.frameId, evalContext)));
 			const result = coalesce(evaluations).map(evaluation => evaluation.body.result);
 			if (result.length) {
-				clipboardService.writeText(result.join('\n'));
+				clipboardService.writeText('DebugCopyAction', result.join('\n'));
 			}
 		} catch (e) {
 			const result = elements.map(element => element.value);
-			clipboardService.writeText(result.join('\n'));
+			clipboardService.writeText('DebugCopyAction', result.join('\n'));
 		}
 	}
 });
@@ -826,7 +826,7 @@ CommandsRegistry.registerCommand({
 	id: COPY_EVALUATE_PATH_ID,
 	handler: async (accessor: ServicesAccessor, context: IVariablesContext) => {
 		const clipboardService = accessor.get(IClipboardService);
-		await clipboardService.writeText(context.variable.evaluateName!);
+		await clipboardService.writeText('DebugCopyAction', context.variable.evaluateName!);
 	}
 });
 
