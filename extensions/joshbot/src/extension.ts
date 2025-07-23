@@ -40,12 +40,12 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(disposable);
 }
 
-interface JoshBotSession {
+interface JoshBotSession extends vscode.ChatSession {
 	id: string;
 	name: string;
 	iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri };
 	history: ReadonlyArray<vscode.ChatRequestTurn | vscode.ChatResponseTurn>;
-	requestHandler?: vscode.ChatRequestHandler;
+	requestHandler: vscode.ChatRequestHandler;
 	activeResponseCallback?: (stream: vscode.ChatResponseStream, token: vscode.CancellationToken) => Thenable<void>;
 }
 
