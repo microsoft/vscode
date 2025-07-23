@@ -108,6 +108,22 @@ type ChatFollowupsRetrievedClassification = {
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
+type ChatEditHunkEvent = {
+	agentId: string;
+	action: 'keep' | 'undo';
+	lineCount: number;
+	fullFile: boolean;
+};
+
+type ChatEditHunkClassification = {
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action taken on the edit hunk.' };
+	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the relevant change.' };
+	fullFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action was taken on the full file rather than an individual hunk.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of Chat features.';
+};
+
 export class ChatServiceTelemetry {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -151,6 +167,13 @@ export class ChatServiceTelemetry {
 			this.telemetryService.publicLog2<ChatFollowupEvent, ChatFollowupClassification>('chatFollowupClicked', {
 				agentId: action.agentId ?? '',
 				command: action.command,
+			});
+		} else if (action.action.kind === 'chatEditingHunkAction') {
+			this.telemetryService.publicLog2<ChatEditHunkEvent, ChatEditHunkClassification>('chatEditHunk', {
+				agentId: action.agentId ?? '',
+				action: action.action.action,
+				lineCount: action.action.lineCount,
+				fullFile: action.action.fullFile,
 			});
 		}
 	}
