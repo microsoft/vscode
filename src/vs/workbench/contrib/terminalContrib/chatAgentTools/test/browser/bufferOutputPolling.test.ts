@@ -30,7 +30,7 @@ suite('racePollingOrPrompt', () => {
 		execution?: typeof defaultExecution;
 	}) {
 		return {
-			pollFn: overrides?.pollFn ?? (async () => ({ terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 100 })),
+			pollFn: overrides?.pollFn ?? (async () => ({ terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 0 })),
 			promptFn: overrides?.promptFn ?? (() => ({ promise: new Promise<boolean>(() => { }), part: undefined })),
 			originalResult: overrides?.originalResult ?? defaultOriginalResult,
 			token: overrides?.token ?? defaultToken,
@@ -44,17 +44,17 @@ suite('racePollingOrPrompt', () => {
 		const args = getArgs({
 			pollFn: async () => {
 				pollResolved = true;
-				return { terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 100 };
+				return { terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 0 };
 			}
 		});
 		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.execution);
 		assert.ok(pollResolved);
-		assert.deepEqual(result, { terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 100 });
+		assert.deepEqual(result, { terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 0 });
 	});
 
 	test('should resolve with poll result if prompt is rejected', async () => {
 		const args = getArgs({
-			pollFn: async () => ({ terminalExecutionIdleBeforeTimeout: false, output: 'output', pollDurationMs: 100 }),
+			pollFn: async () => ({ terminalExecutionIdleBeforeTimeout: false, output: 'output', pollDurationMs: 0 }),
 			promptFn: () => ({ promise: Promise.resolve(false), part: undefined }),
 			originalResult: { terminalExecutionIdleBeforeTimeout: false, output: 'original', pollDurationMs: PollingConsts.FirstPollingMaxDuration }
 		});
@@ -67,7 +67,7 @@ suite('racePollingOrPrompt', () => {
 		const args = getArgs({
 			pollFn: async () => {
 				extraPollCount++;
-				return { terminalExecutionIdleBeforeTimeout: false, output: 'output', pollDurationMs: 100 };
+				return { terminalExecutionIdleBeforeTimeout: false, output: 'output', pollDurationMs: 0 };
 			},
 			promptFn: () => ({ promise: Promise.resolve(true), part: undefined }),
 			originalResult: { terminalExecutionIdleBeforeTimeout: false, output: 'original', pollDurationMs: PollingConsts.FirstPollingMaxDuration },
@@ -85,7 +85,7 @@ suite('racePollingOrPrompt', () => {
 		let hideCalled = false;
 		const part: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide'> = { hide: () => { hideCalled = true; }, onDidRequestHide: () => new Emitter() };
 		const args = getArgs({
-			pollFn: async () => ({ terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 100 }),
+			pollFn: async () => ({ terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 0 }),
 			promptFn: () => ({
 				promise: new Promise<boolean>(() => { }),
 				part
@@ -93,7 +93,7 @@ suite('racePollingOrPrompt', () => {
 		});
 		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.execution);
 		assert.strictEqual(hideCalled, true);
-		assert.deepEqual(result, { terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 100 });
+		assert.deepEqual(result, { terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 0 });
 	});
 
 	test('should return promptly if cancellation is requested', async () => {
@@ -101,7 +101,7 @@ suite('racePollingOrPrompt', () => {
 		const args = getArgs({
 			pollFn: async () => {
 				pollCalled = true;
-				return { terminalExecutionIdleBeforeTimeout: false, output: 'output', pollDurationMs: 100 };
+				return { terminalExecutionIdleBeforeTimeout: false, output: 'output', pollDurationMs: 0 };
 			},
 			promptFn: () => ({
 				promise: new Promise<boolean>(() => { }),
