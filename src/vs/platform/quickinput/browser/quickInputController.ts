@@ -23,7 +23,7 @@ import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPi
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { QuickInputTree } from './quickInputTree.js';
+import { QuickInputList } from './quickInputList.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
@@ -33,7 +33,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { Platform, platform } from '../../../base/common/platform.js';
 import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
-import { Checkbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 
 const $ = dom.$;
@@ -154,11 +154,11 @@ export class QuickInputController extends Disposable {
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
-		const checkAll = this._register(new Checkbox(localize('quickInput.checkAll', "Toggle all checkboxes"), false, { ...defaultCheckboxStyles, size: 15 }));
+		const checkAll = this._register(new TriStateCheckbox(localize('quickInput.checkAll', "Toggle all checkboxes"), false, { ...defaultCheckboxStyles, size: 15 }));
 		dom.append(headerContainer, checkAll.domNode);
 		this._register(checkAll.onChange(() => {
 			const checked = checkAll.checked;
-			list.setAllVisibleChecked(checked);
+			list.setAllVisibleChecked(checked === true);
 		}));
 		this._register(dom.addDisposableListener(checkAll.domNode, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
@@ -210,7 +210,7 @@ export class QuickInputController extends Disposable {
 		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const listId = this.idPrefix + 'list';
-		const list = this._register(this.instantiationService.createInstance(QuickInputTree, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
+		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
@@ -218,6 +218,7 @@ export class QuickInputController extends Disposable {
 			}
 		}));
 		this._register(list.onChangedAllVisibleChecked(checked => {
+			// TODO: Support tri-state checkbox when we remove the .indent property that is faking tree structure.
 			checkAll.checked = checked;
 		}));
 		this._register(list.onChangedVisibleCount(c => {

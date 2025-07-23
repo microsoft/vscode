@@ -35,7 +35,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.NewTaskToolsEnabled]: {
 		markdownDescription: localize('newTaskToolsEnabled.description', "Whether the new task tools are enabled."),
 		type: 'boolean',
-		default: false
+		default: true
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
 		markdownDescription: [

@@ -16,7 +16,7 @@ import { ContextKeyExpression } from '../../../../platform/contextkey/common/con
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
-import { IChatExtensionsContent, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatTasksContent, type IChatTerminalToolInvocationData2 } from './chatService.js';
+import { IChatExtensionsContent, IChatToolInputInvocationData, IChatTasksContent, type IChatTerminalToolInvocationData } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
@@ -113,7 +113,7 @@ export interface IToolInvocation {
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
 	chatInteractionId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
 	modelId?: string;
 }
 
@@ -156,14 +156,22 @@ export interface IToolResultInputOutputDetails {
 	readonly isError?: boolean;
 }
 
+export interface IToolResultOutputDetails {
+	readonly output: { type: 'data'; mimeType: string; value: VSBuffer };
+}
+
 export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
 	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
+}
+
+export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDetails {
+	return typeof obj === 'object' && typeof obj?.output === 'object' && typeof obj?.output?.mimeType === 'string' && obj?.output?.type === 'data';
 }
 
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
-	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
+	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
 }
 
@@ -206,7 +214,7 @@ export interface IPreparedToolInvocation {
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2 | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
 }
 
 export interface IToolImpl {

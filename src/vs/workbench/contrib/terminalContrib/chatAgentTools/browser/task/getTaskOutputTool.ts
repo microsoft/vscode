@@ -7,6 +7,7 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITaskService } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
@@ -48,6 +49,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 	constructor(
 		@ITaskService private readonly _tasksService: ITaskService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -55,7 +57,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const args = context.parameters as IGetTaskOutputInputParams;
 
 		const taskDefinition = getTaskDefinition(args.id);
-		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
 		if (!task) {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
@@ -65,28 +67,28 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		}
 
 		return {
-			invocationMessage: new MarkdownString(localize('copilotChat.checkingTerminalOutput', 'Checking terminal output for `{0}`', taskDefinition.taskLabel)),
-			pastTenseMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked terminal output for `{0}`', taskDefinition.taskLabel)),
+			invocationMessage: new MarkdownString(localize('copilotChat.checkingTerminalOutput', 'Checking output for task `{0}`', taskDefinition.taskLabel)),
+			pastTenseMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskDefinition.taskLabel)),
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTaskOutputInputParams;
 		const taskDefinition = getTaskDefinition(args.id);
-		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._tasksService);
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
 		if (!task) {
-			return { content: [], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
+			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
 
 		const resource = this._tasksService.getTerminalForTask(task);
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
-			return { content: [], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskDefinition?.taskLabel)) };
+			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskDefinition?.taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskDefinition?.taskLabel)) };
 		}
 		return {
 			content: [{
 				kind: 'text',
-				value: localize('copilotChat.taskOutput', 'Output of task `{0}`:\n{1}', taskDefinition.taskLabel, getOutput(terminal))
+				value: `Output of task ${taskDefinition.taskLabel}: ${getOutput(terminal)}`
 			}]
 		};
 	}
