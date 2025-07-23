@@ -11,6 +11,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRequestPart.js';
 import { IChatAccessibilityService } from '../../chat/browser/chat.js';
 import { ChatModel } from '../../chat/common/chatModel.js';
@@ -63,6 +64,8 @@ export class McpElicitationService implements IMcpElicitationService {
 					);
 					chatModel.acceptResponseProgress(request, part);
 					this._chatAccessibilityService.acceptElicitation();
+					// Alert screen readers about the elicitation content
+					alert(localize('mcp.elicit.alert', 'Request for input: {0}', elicitation.message));
 				}
 			} else {
 				const handle = this._notificationService.notify({
