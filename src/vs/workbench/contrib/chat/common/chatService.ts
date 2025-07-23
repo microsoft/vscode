@@ -238,6 +238,7 @@ export interface IChatElicitationRequest {
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
 	reject(): Promise<void>;
+	onDidRequestRemovePart: Event<void>;
 }
 
 export interface IChatTerminalToolInvocationData {

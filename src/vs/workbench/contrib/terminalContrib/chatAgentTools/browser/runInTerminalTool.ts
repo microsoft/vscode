@@ -293,19 +293,33 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
-
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					// Use Promise.race to resolve as soon as either polling or prompt completes
 					const pollPromise = pollForOutputAndIdle(execution, true, token, this._languageModelsService);
-					const promptPromise = promptForMorePolling(command, invocation.context!, this._chatService);
+					const { promise: promptPromise, part } = promptForMorePolling(command, invocation.context!, this._chatService);
+					let promptResolved = false;
+
+					const pollPromiseWrapped = pollPromise.then(async result => {
+						// If prompt is still pending and part exists, reject the prompt
+						if (!promptResolved && part) {
+							part.removePart();
+						}
+						return { type: 'poll', result };
+					});
+
+					const promptPromiseWrapped = promptPromise.then(result => {
+						promptResolved = true;
+						return { type: 'prompt', result };
+					});
+
+					// Use Promise.race to resolve as soon as either polling or prompt completes
 					const raceResult = await Promise.race([
-						pollPromise.then(result => ({ type: 'poll', result })),
-						promptPromise.then(result => ({ type: 'prompt', result }))
+						pollPromiseWrapped,
+						promptPromiseWrapped
 					]);
 					if (raceResult.type === 'poll') {
-						// Only assign if result is a poll result
 						outputAndIdle = raceResult.result as typeof outputAndIdle;
+						await part?.removePart();
 					} else if (raceResult.type === 'prompt') {
 						const promptResult = raceResult.result as boolean;
 						if (promptResult) {
@@ -313,6 +327,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						}
 					}
 				}
+
 				let resultText = (
 					didUserEditCommand
 						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`

@@ -32,6 +32,8 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, elicitation.title, elicitation.originMessage, this.getMessageToRender(elicitation), buttons, context.container));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
+		this._register(elicitation.onDidRequestRemovePart(() => this.domNode.remove()));
+
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this._register(confirmationWidget.onDidClick(async e => {

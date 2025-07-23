@@ -102,31 +102,34 @@ export async function pollForOutputAndIdle(
 	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
-export async function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService): Promise<boolean> {
+export function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
 	const chatModel = chatService.getSession(context.sessionId);
 	if (chatModel instanceof ChatModel) {
 		const request = chatModel.getRequests().at(-1);
 		if (request) {
-			const waitPromise = new Promise<boolean>(resolve => {
-				const part = new ChatElicitationRequestPart(
+			let part: ChatElicitationRequestPart | undefined = undefined;
+			const promise = new Promise<boolean>(resolve => {
+				part = new ChatElicitationRequestPart(
 					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
 					new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
 					'',
 					localize('poll.terminal.accept', 'Yes'),
 					localize('poll.terminal.reject', 'No'),
 					async () => {
+						part!.state = 'accepted';
 						resolve(true);
 					},
 					async () => {
+						part!.state = 'rejected';
 						resolve(false);
 					}
 				);
 				chatModel.acceptResponseProgress(request, part);
 			});
-			return waitPromise;
+			return { promise, part };
 		}
 	}
-	return false; // Fallback to not waiting if we can't prompt the user
+	return { promise: Promise.resolve(false) };
 }
 
 export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<string> {

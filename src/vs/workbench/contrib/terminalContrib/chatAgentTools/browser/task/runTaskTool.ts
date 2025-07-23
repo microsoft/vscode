@@ -77,22 +77,36 @@ export class RunTaskTool implements IToolImpl {
 		}
 
 		_progress.report({ message: new MarkdownString(localize('copilotChat.checkingOutput', 'Checking output for `{0}`', taskDefinition.taskLabel)) });
-
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			// Use Promise.race to resolve as soon as either polling or prompt completes
 			const pollPromise = pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
-			const promptPromise = promptForMorePolling(taskDefinition.taskLabel, invocation.context, this._chatService);
+			const { promise: promptPromise, part } = promptForMorePolling(taskDefinition.taskLabel, invocation.context!, this._chatService);
+			let promptResolved = false;
+
+			const pollPromiseWrapped = pollPromise.then(async result => {
+				// If prompt is still pending and part exists, reject the prompt
+				if (!promptResolved && part) {
+					part.removePart();
+				}
+				return { type: 'poll', result };
+			});
+
+			const promptPromiseWrapped = promptPromise.then(result => {
+				promptResolved = true;
+				return { type: 'prompt', result };
+			});
+
+			// Use Promise.race to resolve as soon as either polling or prompt completes
 			const raceResult = await Promise.race([
-				pollPromise.then(result => ({ type: 'poll', result })),
-				promptPromise.then(result => ({ type: 'prompt', result }))
+				pollPromiseWrapped,
+				promptPromiseWrapped
 			]);
 			if (raceResult.type === 'poll') {
 				outputAndIdle = raceResult.result as typeof outputAndIdle;
+				await part?.removePart();
 			} else if (raceResult.type === 'prompt') {
 				const promptResult = raceResult.result as boolean;
 				if (promptResult) {
-					_progress.report({ message: new MarkdownString(`Checking output for \`${taskDefinition.taskLabel}\``) });
 					outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService);
 				}
 			}
