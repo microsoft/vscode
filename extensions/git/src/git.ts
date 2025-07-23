@@ -867,6 +867,7 @@ export class GitStatusParser {
 export interface Worktree {
 	readonly name: string;
 	readonly path: string;
+	readonly ref: string;
 }
 
 export interface Submodule {
@@ -2805,13 +2806,20 @@ export class Repository {
 					continue;
 				}
 
-				const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
-
 				try {
+					const headPath = path.join(worktreesPath, dirent.name, 'HEAD');
+					const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+
+					const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
 					const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
-					// Remove trailing '/.git'
-					const gitdirTrimmed = gitdirContent.replace(/\.git.*$/, '');
-					result.push({ name: dirent.name, path: gitdirTrimmed });
+
+					result.push({
+						name: dirent.name,
+						// Remove '/.git' suffix
+						path: gitdirContent.replace(/\.git.*$/, ''),
+						// Remove 'ref: ' prefix
+						ref: headContent.replace(/^ref: /, ''),
+					});
 				} catch (err) {
 					if (/ENOENT/.test(err.message)) {
 						continue;

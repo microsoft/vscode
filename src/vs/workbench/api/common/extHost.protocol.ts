@@ -3128,7 +3128,7 @@ export interface ChatSessionDto {
 
 
 export interface MainThreadChatSessionsShape extends IDisposable {
-	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void;
+	$registerChatSessionItemProvider(handle: number, chatSessionType: string, label: string): void;
 	$unregisterChatSessionItemProvider(handle: number): void;
 	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;

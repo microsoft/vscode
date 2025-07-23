@@ -80,7 +80,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const disposables = new DisposableStore();
 
 		this._chatSessionItemProviders.set(handle, { provider, extension, disposable: disposables });
-		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType);
+		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType, provider.label);
 
 		return new extHostTypes.Disposable(() => {
 			this._chatSessionItemProviders.delete(handle);

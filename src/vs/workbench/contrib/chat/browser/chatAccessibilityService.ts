@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { alert, status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,6 +14,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IChatElicitationRequest } from '../common/chatService.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -50,5 +51,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
 			status(plainTextResponse + errorDetails);
 		}
+	}
+	acceptElicitation(elicitation: IChatElicitationRequest): void {
+		const title = typeof elicitation.title === 'string' ? elicitation.title : elicitation.title.value;
+		const message = typeof elicitation.message === 'string' ? elicitation.message : elicitation.message.value;
+		alert(title + ' ' + message);
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
 	}
 }
