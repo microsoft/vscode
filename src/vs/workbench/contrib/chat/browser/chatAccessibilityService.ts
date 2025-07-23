@@ -51,4 +51,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			status(plainTextResponse + errorDetails);
 		}
 	}
+	acceptElicitation(): void {
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
+	}
 }

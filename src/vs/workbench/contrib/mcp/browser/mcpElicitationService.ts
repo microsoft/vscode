@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRequestPart.js';
+import { IChatAccessibilityService } from '../../chat/browser/chat.js';
 import { ChatModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
@@ -27,6 +28,7 @@ export class McpElicitationService implements IMcpElicitationService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 	) { }
 
 	public elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult> {
@@ -60,6 +62,7 @@ export class McpElicitationService implements IMcpElicitationService {
 						}
 					);
 					chatModel.acceptResponseProgress(request, part);
+					this._chatAccessibilityService.acceptElicitation();
 				}
 			} else {
 				const handle = this._notificationService.notify({
