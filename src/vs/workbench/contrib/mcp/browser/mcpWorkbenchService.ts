@@ -18,7 +18,8 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, IMcpGalleryService, InstallMcpServerResult, IQueryOptions, IInstallableMcpServer, IMcpServerManifest, ILocalMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IMcpServerManifest, ILocalMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -30,7 +31,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerInstallState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
@@ -167,6 +168,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		@IProductService private readonly productService: IProductService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
 		@IURLService urlService: IURLService,
 	) {
 		super();
@@ -184,19 +186,28 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._onReset.fire();
 	}
 
-	private onDidUninstallMcpServer(e: DidUninstallMcpServerEvent) {
+	private areSameMcpServers(a: { name: string; scope: LocalMcpServerScope } | undefined, b: { name: string; scope: LocalMcpServerScope } | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.name === b.name && a.scope === b.scope;
+	}
+
+	private onDidUninstallMcpServer(e: DidUninstallWorkbenchMcpServerEvent) {
 		if (e.error) {
 			return;
 		}
-		const server = this._local.find(server => server.local?.name === e.name);
-		if (server) {
-			this._local = this._local.filter(server => server.local?.name !== e.name);
-			server.local = undefined;
-			this._onChange.fire(server);
+		const uninstalled = this._local.find(server => this.areSameMcpServers(server.local, e));
+		if (uninstalled) {
+			this._local = this._local.filter(server => server !== uninstalled);
+			this._onChange.fire(uninstalled);
 		}
 	}
 
-	private onDidInstallMcpServers(e: readonly InstallMcpServerResult[]) {
+	private onDidInstallMcpServers(e: readonly IWorkbenchMcpServerInstallResult[]) {
 		const servers: IWorkbenchMcpServer[] = [];
 		for (const result of e) {
 			if (!result.local) {
@@ -210,25 +221,25 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private onDidInstallMcpServer(local: IWorkbenchLocalMcpServer, gallery?: IGalleryMcpServer): IWorkbenchMcpServer {
-		let server = this.installing.find(server => server.name === local.name);
+		let server = this.installing.find(server => server.local ? this.areSameMcpServers(server.local, local) : server.name === local.name);
 		this.installing = server ? this.installing.filter(e => e !== server) : this.installing;
 		if (server) {
 			server.local = local;
 		} else {
 			server = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), local, gallery, undefined);
 		}
-		this._local = this._local.filter(e => e.name !== local.name);
+		this._local = this._local.filter(server => !this.areSameMcpServers(server.local, local));
 		this._local.push(server);
 		this._onChange.fire(server);
 		return server;
 	}
 
-	private onDidUpdateMcpServers(e: readonly InstallMcpServerResult[]) {
+	private onDidUpdateMcpServers(e: readonly IWorkbenchMcpServerInstallResult[]) {
 		for (const result of e) {
 			if (!result.local) {
 				continue;
 			}
-			const serverIndex = this._local.findIndex(server => server.local?.name === result.name);
+			const serverIndex = this._local.findIndex(server => this.areSameMcpServers(server.local, result.local));
 			let server: McpWorkbenchServer;
 			if (serverIndex !== -1) {
 				this._local[serverIndex].local = result.local;
@@ -301,12 +312,46 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	async queryLocal(): Promise<IWorkbenchMcpServer[]> {
 		const installed = await this.mcpManagementService.getInstalled();
 		this._local = installed.map(i => {
-			const local = this._local.find(server => server.name === i.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, undefined, undefined);
+			const local = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, undefined, undefined);
 			local.local = i;
 			return local;
 		});
 		this._onChange.fire(undefined);
 		return [...this.local];
+	}
+
+	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[] {
+		const result = new Map<string, IWorkbenchLocalMcpServer>();
+		const userRemote: IWorkbenchLocalMcpServer[] = [];
+		const workspace: IWorkbenchLocalMcpServer[] = [];
+
+		for (const server of this.local) {
+			if (server.local?.scope === LocalMcpServerScope.User) {
+				result.set(server.name, server.local);
+			} else if (server.local?.scope === LocalMcpServerScope.RemoteUser) {
+				userRemote.push(server.local);
+			} else if (server.local?.scope === LocalMcpServerScope.Workspace) {
+				workspace.push(server.local);
+			}
+		}
+
+		for (const server of userRemote) {
+			const existing = result.get(server.name);
+			if (existing) {
+				this.logService.warn(localize('overwriting', "Overwriting mcp server '{0}' from {1} with {2}.", server.name, server.mcpResource.path, existing.mcpResource.path));
+			}
+			result.set(server.name, server);
+		}
+
+		for (const server of workspace) {
+			const existing = result.get(server.name);
+			if (existing) {
+				this.logService.warn(localize('overwriting', "Overwriting mcp server '{0}' from {1} with {2}.", server.name, server.mcpResource.path, existing.mcpResource.path));
+			}
+			result.set(server.name, server);
+		}
+
+		return [...result.values()];
 	}
 
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString {
