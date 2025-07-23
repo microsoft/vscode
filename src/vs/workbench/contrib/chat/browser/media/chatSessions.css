@@ -1,0 +1,17 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-sessions-tree .monaco-tl-twistie {
+	display: none !important;
+}
+
+.chat-sessions-tree {
+	line-height: 22px;
+}
+
+/* Ensure consistent title background regardless of number of views */
+.composite.viewlet[id="workbench.view.chat.sessions"] .pane-header.expanded.not-collapsible {
+	background-color: var(--vscode-sideBarSectionHeader-background) !important;
+}

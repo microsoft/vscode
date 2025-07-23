@@ -10,6 +10,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 
 export interface IChatSessionsExtensionPoint {
@@ -31,13 +32,16 @@ export interface IChatSessionItem {
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
+	readonly label: string;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 }
 
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
 	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
 	getChatSessionProviders(): IChatSessionsExtensionPoint[];
+	getChatSessionItemProviders(): IChatSessionItemProvider[];
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	hasChatSessionItemProviders: boolean;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
@@ -48,6 +52,9 @@ export const IChatSessionsService = createDecorator<IChatSessionsService>('chatS
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
 	private _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
+
+	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
+	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
 	private _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
 
 	constructor(
@@ -74,6 +81,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	getChatSessionProviders(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values());
+	}
+
+	getChatSessionItemProviders(): IChatSessionItemProvider[] {
+		return [...this._itemsProviders.values()];
 	}
 
 	async canResolve(chatViewType: string) {
@@ -103,10 +114,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable {
-		this._itemsProviders.set(provider.chatSessionType, provider);
+		const chatSessionType = provider.chatSessionType;
+		this._itemsProviders.set(chatSessionType, provider);
+		this._onDidChangeItemsProviders.fire(provider);
+
 		return {
 			dispose: () => {
-				this._itemsProviders.delete(provider.chatSessionType);
+				const provider = this._itemsProviders.get(chatSessionType);
+				if (provider) {
+					this._itemsProviders.delete(chatSessionType);
+					this._onDidChangeItemsProviders.fire(provider);
+				}
 			}
 		};
 	}
