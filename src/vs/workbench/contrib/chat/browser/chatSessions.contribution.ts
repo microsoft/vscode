@@ -59,7 +59,7 @@ export class ChatSessionsContribution extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		extensionPoint.setHandler(extensions => {
+		extensionPoint.setHandler(async extensions => {
 			for (const ext of extensions) {
 				if (!isProposedApiEnabled(ext.description, 'chatSessionsProvider')) {
 					continue;

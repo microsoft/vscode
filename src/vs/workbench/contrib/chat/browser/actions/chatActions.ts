@@ -982,7 +982,7 @@ export function registerChatActions() {
 				title: localize2('codingAgentSession.open', "New Coding Agent Editor"),
 				f1: true,
 				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasRemoteCodingAgent),
+				precondition: ChatContextKeys.enabled,
 				icon: Codicon.cloud,
 				menu: {
 					id: MenuId.ViewTitle,

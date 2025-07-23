@@ -17,7 +17,7 @@ import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { coalesce } from '../../../base/common/arrays.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
-import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 
@@ -25,6 +25,7 @@ class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
 
 	constructor(
+		public readonly session: vscode.ChatSession,
 		extension: IExtensionDescription,
 		request: IChatAgentRequest,
 		proxy: IChatAgentProgressShape,
@@ -136,6 +137,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return response;
 	}
 
+	private _map = new Map<string, ExtHostChatSession>();
+
 	async $provideChatSessionContent(handle: number, id: string, token: CancellationToken): Promise<ChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
@@ -148,7 +151,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const sessionDisposables = new DisposableStore();
 
 		const sessionId = ExtHostChatSessions._sessionHandlePool++;
-		const chatSession = new ExtHostChatSession(provider.extension, {
+		const chatSession = new ExtHostChatSession(session, provider.extension, {
 			sessionId: `${id}.${sessionId}`,
 			requestId: id,
 			agentId: id,
@@ -171,9 +174,15 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			});
 		}
 
+		if (session.requestHandler) {
+			// it can handle request
+			this._map.set(`${handle}_${id}`, chatSession);
+		}
+
 		return {
 			id: sessionId + '',
 			activeResponseCallback: !!session.activeResponseCallback,
+			supportRequestHandler: !!session.requestHandler,
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
 					return { type: 'request', prompt: turn.prompt };
@@ -188,5 +197,86 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}
 			})
 		};
+	}
+
+	async $invokeChatSessionRequestHandler(handle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
+		const chatSession = this._map.get(`${handle}_${id}`);
+		if (!chatSession) {
+			throw new Error(`No session found for handle ${handle} and id ${id}`);
+		}
+
+		// Convert IChatAgentRequest to compatible object for the request handler
+		// We need to create an object that has the expected properties the requestHandler expects
+		const chatRequest = {
+			prompt: request.message,
+			command: request.command,
+			references: []
+		} as any; // Using 'as any' to work around strict type requirements
+
+		// Create context object with history
+		const context = { history };
+
+		// Create a new session disposables for this request
+		const sessionDisposables = new DisposableStore();
+
+		// Get the provider info to access the extension
+		const contentProviderEntry = Array.from(this._chatSessionContentProviders.entries())
+			.find(([h]) => h === handle);
+
+		if (!contentProviderEntry) {
+			throw new Error(`No content provider found for handle ${handle}`);
+		}
+
+		const [, { extension }] = contentProviderEntry;
+
+		// Create a new stream specifically for THIS request
+		// The key issue is that we need a stream that uses the current request ID
+		const newStream = new ChatAgentResponseStream(
+			extension,
+			// Use the current request from the invocation
+			request,
+			{
+				$handleProgressChunk: (requestId, chunks) => {
+					return this._proxy.$handleProgressChunk(handle, requestId, chunks);
+				},
+				$handleAnchorResolve: (requestId, requestHandle, anchor) => {
+					this._proxy.$handleAnchorResolve(handle, requestId, requestHandle, anchor);
+				},
+			},
+			this.commands.converter,
+			sessionDisposables
+		);
+
+		try {
+			// Call the request handler with the NEW stream that is tied to this specific request
+			const result = await chatSession.session.requestHandler!(
+				chatRequest,
+				context,
+				newStream.apiObject,
+				token
+			);
+
+			// Signal completion when done
+			this._proxy.$handleProgressComplete(handle, id);
+
+			// Clean up
+			sessionDisposables.dispose();
+
+			// Return a simple result structure
+			return {
+				errorDetails: result?.errorDetails ? {
+					message: result.errorDetails.message
+				} : undefined
+			};
+		} catch (error) {
+			// Handle any errors
+			sessionDisposables.dispose();
+
+			return {
+				errorDetails: {
+					message: error instanceof Error ? error.message : String(error)
+				}
+			};
+		}
 	}
 }

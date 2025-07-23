@@ -13,11 +13,15 @@ async function getSessionContent(id: string, _token: vscode.CancellationToken): 
 // Must match package.json's "contributes.chatSessions.[0].id"
 const CHAT_SESSION_TYPE = 'josh-bot';
 
+const output = vscode.window.createOutputChannel('JoshBot');
+
 export function activate(context: vscode.ExtensionContext) {
 	console.log('JoshBot extension is now active!');
+	output.appendLine('JoshBot extension is now active!');
 
 	const disposable = vscode.commands.registerCommand('joshbot.hello', () => {
 		vscode.window.showInformationMessage('Hello from JoshBot!');
+		output.appendLine('Hello command executed');
 	});
 
 	const sessionManager = JoshBotSessionManager.getInstance();
@@ -26,9 +30,11 @@ export function activate(context: vscode.ExtensionContext) {
 	const provider = new class implements vscode.ChatSessionItemProvider, vscode.ChatSessionContentProvider {
 		label = vscode.l10n.t('JoshBot');
 		provideChatSessionItems = async (_token: vscode.CancellationToken) => {
+			output.appendLine('Providing chat session items');
 			return await sessionManager.getSessionItems(_token);
 		};
 		provideChatSessionContent = async (id: string, token: vscode.CancellationToken) => {
+			output.appendLine(`Providing chat session content for id: ${id}`);
 			return await getSessionContent(id, token);
 		};
 		// Events not used yet, but required by interface.
@@ -46,6 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
 	));
 
 	context.subscriptions.push(disposable);
+	context.subscriptions.push(output);
 }
 
 interface JoshBotSession extends vscode.ChatSession {
@@ -90,6 +97,7 @@ class JoshBotSessionManager {
 			],
 			requestHandler: async (request, _context, stream, _token) => {
 				// Simple echo bot for demo purposes
+				output.appendLine(`(default-session) Request received: ${request.prompt}`);
 				stream.markdown(`You said: "${request.prompt}"`);
 				return { metadata: { command: '', sessionId: 'default-session' } };
 			}
@@ -105,8 +113,9 @@ class JoshBotSessionManager {
 				response2 as vscode.ChatResponseTurn
 			],
 			requestHandler: async (request, _context, stream, _token) => {
-				// Simple echo bot for demo purposes
-				stream.markdown(`You said: "${request.prompt}"`);
+				output.appendLine(`(ongoing-session) Request received: ${request.prompt}`);
+				stream.markdown(`Processing your request: "${request.prompt}"`);
+				output.appendLine(`(ongoing-session) Completed response for: ${request.prompt}`);
 				return { metadata: { command: '', sessionId: 'ongoing-session' } };
 			}
 		};
@@ -114,9 +123,12 @@ class JoshBotSessionManager {
 	}
 
 	async getSessionContent(id: string, _token: vscode.CancellationToken): Promise<vscode.ChatSession> {
-		const session = this._sessions.get(id);
+		// Remove the chat session type prefix if present
+		const actualId = id.includes(':') ? id.split(':')[1] : id;
+
+		const session = this._sessions.get(actualId);
 		if (!session) {
-			throw new Error(`Session with id ${id} not found`);
+			throw new Error(`Session with id ${actualId} not found`);
 		}
 
 		if (session.id === 'ongoing-session') {
@@ -125,6 +137,7 @@ class JoshBotSessionManager {
 				requestHandler: session.requestHandler,
 				activeResponseCallback: async (stream) => {
 					// loop 1 to 5
+					output.appendLine(`Active response callback for session ${session.id}`);
 					for (let i = 0; i < 5; i++) {
 						stream.markdown(`\nthinking step ${i + 1}... \n`);
 						await new Promise(resolve => setTimeout(resolve, 1000));
@@ -143,6 +156,7 @@ class JoshBotSessionManager {
 	}
 
 	async createNewSession(name?: string): Promise<string> {
+		output.appendLine(`Creating new session with name: ${name}`);
 		const sessionId = `session-${Date.now()}`;
 		const newSession: JoshBotSession = {
 			id: sessionId,
@@ -159,8 +173,9 @@ class JoshBotSessionManager {
 	}
 
 	async getSessionItems(_token: vscode.CancellationToken): Promise<vscode.ChatSessionItem[]> {
+		output.appendLine(`Providing chat session items`);
 		return Array.from(this._sessions.values()).map(session => ({
-			id: session.id,
+			id: `${CHAT_SESSION_TYPE}:${session.id}`,
 			label: session.name,
 			iconPath: session.iconPath
 		}));

@@ -5,10 +5,12 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event, Emitter } from '../../../base/common/event.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -78,7 +80,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				this._completionEmitters.set(progressKey, _completionEmitter);
 			}
 
-			return {
+			const result: ChatSession = {
 				id: sessionContent.id,
 				history: sessionContent.history.map(turn => {
 					if (turn.type === 'request') {
@@ -92,6 +94,41 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				}),
 				progressEvent: progressEvent
 			};
+
+			// Only add the requestHandler if the session supports it
+			if (sessionContent.supportRequestHandler) {
+				result.requestHandler = async (request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any, token: CancellationToken) => {
+					// store the progress
+					const requestId = request.requestId;
+					const progressKey = `${handle}_${requestId}`; // TODO: KEY???
+					const _progressEmitter = new Emitter<IChatProgress[]>();
+					this._activeProgressEmitters.set(progressKey, _progressEmitter);
+					this._completionEmitters.set(progressKey, _completionEmitter);
+
+					progress([{
+						kind: 'markdownContent',
+						content: new MarkdownString('osvaldo!')
+					}]);
+
+					// Set up the progress event listener
+					const progressListener = _progressEmitter.event(e => {
+						// progress(e);  // TODO:
+						progress([{
+							kind: 'markdownContent',
+							content: new MarkdownString('josh!')
+						}]);
+					});
+
+					// Invoke the request handler on the extension host
+					try {
+						return await proxy.$invokeChatSessionRequestHandler(handle, id, request, history, token);
+					} finally {
+						progressListener.dispose();
+					}
+				};
+			}
+
+			return result;
 		} catch (error) {
 			this._logService.error(`Error providing chat session content for handle ${handle} and id ${id}:`, error);
 			throw error; // Re-throw to propagate the error

@@ -11,7 +11,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IChatProgress, IChatService } from './chatService.js';
+import { IChatProgress } from './chatService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -43,6 +43,12 @@ export interface ChatSession {
 		| { type: 'response'; parts: IChatProgress[] }>;
 
 	progressEvent?: Event<IChatProgress[]>;
+	requestHandler?: (
+		request: any,
+		context: any,
+		progress: any,
+		token: CancellationToken
+	) => Promise<any>;
 }
 
 export interface IChatSessionItemProvider {
@@ -122,7 +128,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			extensionPublisherId: nullExtensionDescription.publisher,
 		};
 
-		const agentImpl = this._instantiationService.createInstance(CodingAgentChatImplementation, contribution);
+		// TODO: Somehow correlate existing (and eventually new) chats with data tracked in IChatAgentRequest
+		// // Parse sessionId which should be in format "chatSessionType:id"
+		// const parts = sessionId.split(':');
+		// if (parts.length !== 2) {
+		// 	throw new Error(`Invalid session ID format: ${sessionId}`);
+		// }
+		// const [chatSessionType, id] = parts;
+
+		// IGNORE THIS VALUE BEING HARDCODED. HARDCODING THIS VALUE IS OK AND HERE FOR TESTING. IT SHOULD BE HARDCODED.
+		const [chatSessionType, chatId] = ['josh-bot', 'ongoing-session'];
+
+		const agentImpl = this._instantiationService.createInstance(CodingAgentChatImplementation, chatSession);
 		const disposable = this._chatAgentService.registerDynamicAgent(agentData, agentImpl);
 		return disposable;
 	}
@@ -199,20 +216,28 @@ registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.D
 class CodingAgentChatImplementation extends Disposable implements IChatAgentImplementation {
 
 	constructor(
-		private readonly chatSession: IChatSessionsExtensionPoint,
-		@IChatService private readonly chatService: IChatService
+		private readonly chatSession: ChatSession,
+		// @IChatSessionsService private readonly chatSessionsService: IChatSessionsService
 	) {
 		super();
 	}
 
 	async invoke(request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
-		const message = request.message.trim();
+		const { sessionId } = request;
+
 		try {
-			if (history.length === 0) {
-				return this.handleNew(request, message, progress, token);
-			} else {
-				return this.handleExisting(request, message, progress, token);
+			if (!this.chatSession.requestHandler) {
+				throw new Error(`Chat session ${sessionId} does not support request handling`);
 			}
+
+			progress([{
+				kind: 'markdownContent',
+				content: new MarkdownString('peng')
+			}]);
+
+			// Invoke the request handler
+			const r = await this.chatSession.requestHandler(request, { history }, progress, token);
+			return r;
 		} catch (error) {
 			progress([{
 				kind: 'markdownContent',
@@ -222,23 +247,4 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		}
 	}
 
-	private async handleExisting(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
-		const { displayName } = this.chatSession;
-		progress([{
-			kind: 'progressMessage',
-			content: new MarkdownString(localize('chatAgent.working', '{0} queued your request', displayName))
-		}]);
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		return {};
-	}
-
-	private async handleNew(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
-
-		// Get the chat model for this session so we can add requests over time
-		const chatModel = this.chatService.getSession(request.sessionId);
-		if (!chatModel) {
-			throw new Error(`Chat session ${request.sessionId} not found`);
-		}
-		return {};
-	}
 }
