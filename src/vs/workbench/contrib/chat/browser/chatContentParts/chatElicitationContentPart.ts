@@ -57,7 +57,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		this.chatAccessibilityService.acceptElicitation(elicitation);
 		this.domNode = confirmationWidget.domNode;
 		this.domNode.tabIndex = 0;
-		this.domNode.ariaLabel = typeof messageToRender === 'string' ? messageToRender : messageToRender.value || '';
+		this.domNode.ariaLabel = elicitation.title + ' ' + (typeof messageToRender === 'string' ? messageToRender : messageToRender.value || '');
 	}
 
 	private getMessageToRender(elicitation: IChatElicitationRequest): IMarkdownString | string {
