@@ -323,7 +323,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AssistedTypes[AddConfigurationType.NuGetPackage].enabledConfigKey]: {
 			type: 'boolean',
-			description: nls.localize('chat.mcp.assisted.nuget.enabled.description', "Enables NuGet packages for AI-assisted MCP server installation. Used to install MCP servers by name from NuGet packages from the central registry for .NET packages."),
+			description: nls.localize('chat.mcp.assisted.nuget.enabled.description', "Enables NuGet packages for AI-assisted MCP server installation. Used to install MCP servers by name from the central registry for .NET packages (NuGet.org)."),
 			default: false,
 			tags: ['experimental'],
 		},
