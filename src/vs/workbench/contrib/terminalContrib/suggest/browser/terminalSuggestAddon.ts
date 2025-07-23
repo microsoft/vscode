@@ -21,8 +21,9 @@ import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalS
 import { LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService } from './terminalCompletionService.js';
-import { TerminalSettingId, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { createCancelablePromise, CancelablePromise, IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -31,7 +32,6 @@ import { ITerminalConfigurationService } from '../../../terminal/browser/termina
 import { GOLDEN_LINE_HEIGHT_RATIO, MINIMUM_LINE_HEIGHT } from '../../../../../editor/common/config/fontInfo.js';
 import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
-import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
 import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon } from './terminalSymbolIcons.js';
@@ -88,6 +88,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 
 	private _discoverability: TerminalSuggestShownTracker | undefined;
+
+	// Terminal suggest resolution tracking (similar to editor's suggest widget)
+	private _currentSuggestionDetails?: CancelablePromise<void>;
+	private _focusedItem?: TerminalCompletionItem;
+	private _ignoreFocusEvents: boolean = false;
 
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
@@ -161,7 +166,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
 
@@ -753,6 +759,53 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 			}
 			));
+
+			this._register(this._suggestWidget.onDidFocus(async e => {
+				if (this._ignoreFocusEvents) {
+					return;
+				}
+
+				const focusedItem = e.item;
+				const focusedIndex = e.index;
+
+				if (focusedItem === this._focusedItem) {
+					return;
+				}
+
+				// Cancel any previous resolution
+				this._currentSuggestionDetails?.cancel();
+				this._currentSuggestionDetails = undefined;
+				this._focusedItem = focusedItem;
+
+				// Check if the item needs resolution and hasn't been resolved yet
+				if (focusedItem && (!focusedItem.completion.documentation || !focusedItem.completion.detail)) {
+
+					this._currentSuggestionDetails = createCancelablePromise(async token => {
+						try {
+							await focusedItem.resolve(token);
+						} catch (error) {
+							// Silently fail - the item is still usable without details
+							this._logService.warn(`Failed to resolve suggestion details for item ${focusedItem} at index ${focusedIndex}`, error);
+						}
+					});
+
+					this._currentSuggestionDetails.then(() => {
+						// Check if this is still the focused item and it's still in the list
+						if (focusedItem !== this._focusedItem || !this._suggestWidget?.list || focusedIndex >= this._suggestWidget.list.length) {
+							return;
+						}
+
+						// Re-render the specific item to show resolved details (like editor does)
+						this._ignoreFocusEvents = true;
+						// Use splice to replace the item and trigger re-render
+						this._suggestWidget.list.splice(focusedIndex, 1, [focusedItem]);
+						this._suggestWidget.list.setFocus([focusedIndex]);
+						this._ignoreFocusEvents = false;
+					});
+				}
+
+			}));
+
 			const element = this._terminal?.element?.querySelector('.xterm-helper-textarea');
 			if (element) {
 				this._register(dom.addDisposableListener(dom.getActiveDocument(), 'click', (event) => {
@@ -912,9 +965,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (cancelAnyRequest) {
 			this._cancellationTokenSource?.cancel();
 			this._cancellationTokenSource = undefined;
+			// Also cancel any pending resolution requests
+			this._currentSuggestionDetails?.cancel();
+			this._currentSuggestionDetails = undefined;
 		}
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
+		this._focusedItem = undefined;
 		this._suggestWidget?.hide();
 	}
 }

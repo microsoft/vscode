@@ -121,7 +121,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					extensionId: string | undefined;
 					extensionVersion: string | undefined;
 					opportunityId: string | undefined;
-					sessionId: string | undefined;
+					editSessionId: string | undefined;
 					requestId: string | undefined;
 					modelId: string | undefined;
 
@@ -141,7 +141,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id (copilot or copilot-chat); which provided this inline completion.' };
 					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 					opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES.' };
-					sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session id.' };
+					editSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session id.' };
 					requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request id.' };
 					modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
 
@@ -164,7 +164,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					extensionId: data.props.$extensionId,
 					extensionVersion: data.props.$extensionVersion,
 					opportunityId: data.props.$$requestUuid,
-					sessionId: data.props.$$sessionId,
+					editSessionId: data.props.$$sessionId,
 					requestId: data.props.$$requestId,
 					modelId: data.props.$modelId,
 
