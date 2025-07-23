@@ -12,26 +12,19 @@ import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatChangesSummary, IChatService } from '../../common/chatService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IEditSessionEntryDiff, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IListOptions } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ResourcePool } from './chatCollections.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
-import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
-import { localize } from '../../../../../nls.js';
-import { Event } from '../../../../../base/common/event.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -120,9 +113,8 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		fileChangesSummary.style.justifyContent = 'space-between';
 
 		this.changes = content.changes;
-		this.listPool = this._register(instantiationService.createInstance(CollapsibleChangesSummaryListPool, () => Disposable.None, undefined, undefined));
-		const list = this.listPool.get().object;
-		list.splice(0, list.length, this.changes);
+		this.listPool = this._register(instantiationService.createInstance(CollapsibleChangesSummaryListPool));
+		const list = this.listPool.get();
 
 		this.domNode = $('.chat-file-changes-summary', undefined, fileChangesSummary);
 		this.domNode.tabIndex = 0;
@@ -170,7 +162,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			}
 			const modifiedChange: IChatChangesSummaryItem = {
 				...change,
-				additionalData
+				additionalLabels: additionalData
 			};
 			items.push(modifiedChange);
 		}
@@ -181,10 +173,6 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	private getInsertionsAndDeletions(change: IChatChangesSummary): { insertions: number; deletions: number } | undefined {
 		console.log('getInsertionsAndDeletions change : ', change);
 		const sessionId = change.sessionId;
-		if (!sessionId) {
-			console.log('return 1');
-			return;
-		}
 		const session = this.chatService.getSession(sessionId);
 		if (!session || !session.editingSessionObs) {
 			console.log('return 2');
@@ -204,10 +192,6 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			return;
 		}
 		const requestId = change.requestId;
-		if (!requestId) {
-			console.log('return 5');
-			return;
-		}
 		const undoStops = this.context.content.filter(e => e.kind === 'undoStop');
 		const undoStopsMapped = undoStops.map(e => e.id);
 		console.log('undoStopsMapped : ', undoStopsMapped);
@@ -248,10 +232,6 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 				return;
 			}
 			const sessionId = e.element.sessionId;
-			if (!sessionId) {
-				console.log('return 2');
-				return;
-			}
 			const session = this.chatService.getSession(sessionId);
 			if (!session || !session.editingSessionObs) {
 				console.log('return 3');
@@ -269,10 +249,6 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 				return;
 			}
 			const requestId = e.element.requestId;
-			if (!requestId) {
-				console.log('return 6');
-				return;
-			}
 			console.log('this.context.content : ', this.context.content);
 			console.log('this.context.contentIndex : ', this.context.contentIndex);
 			console.log('modifiedEntry.modifiedURI : ', modifiedEntry.modifiedURI);
@@ -306,25 +282,14 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 }
 
 export interface IChatChangesSummaryItem extends IChatChangesSummary {
-	title?: string;
-	description?: string;
-	state?: ModifiedFileEntryState;
-	additionalData?: { description: string; className: string }[];
-	excluded?: boolean;
+	additionalLabels: { description: string; className: string }[];
 }
 
 export class CollapsibleChangesSummaryListPool extends Disposable {
 
 	private _pool: ResourcePool<WorkbenchList<IChatChangesSummaryItem>>;
 
-	public get inUse(): ReadonlySet<WorkbenchList<IChatChangesSummaryItem>> {
-		return this._pool.inUse;
-	}
-
 	constructor(
-		private _onDidChangeVisibility: Event<boolean>,
-		private readonly menuId: MenuId | undefined,
-		private readonly listOptions: IListOptions<IChatChangesSummaryItem> | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
@@ -333,8 +298,7 @@ export class CollapsibleChangesSummaryListPool extends Disposable {
 	}
 
 	private listFactory(): WorkbenchList<IChatChangesSummaryItem> {
-		const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
-
+		const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: () => Disposable.None }));
 		const container = $('.chat-used-context-list');
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
@@ -343,45 +307,23 @@ export class CollapsibleChangesSummaryListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleChangesSummaryListRenderer, resourceLabels, this.menuId)],
-			{
-				...this.listOptions,
-				alwaysConsumeMouseWheel: false,
-				accessibilityProvider: {
-					getAriaLabel: (element: IChatChangesSummaryItem) => {
-						return '';
-					},
-
-					getWidgetAriaLabel: () => localize('chatCollapsibleList', "Collapsible Chat References List")
-				}
-			});
-
+			[this.instantiationService.createInstance(CollapsibleChangesSummaryListRenderer, resourceLabels)],
+			{ alwaysConsumeMouseWheel: false });
 		return list;
 	}
 
-	get(): IDisposableReference<WorkbenchList<IChatChangesSummaryItem>> {
-		const object = this._pool.get();
-		let stale = false;
-		return {
-			object,
-			isStale: () => stale,
-			dispose: () => {
-				stale = true;
-				this._pool.release(object);
-			}
-		};
+	get(): WorkbenchList<IChatChangesSummaryItem> {
+		return this._pool.get();
 	}
 }
 
-interface ICollapsibleListTemplate {
-	readonly contextKeyService?: IContextKeyService;
+interface ICollapsibleChangesSummaryListTemplate {
 	readonly label: IResourceLabel;
-	readonly templateDisposables: DisposableStore;
-	toolbar: MenuWorkbenchToolBar | undefined;
-	actionBarContainer?: HTMLElement;
+	readonly disposables: DisposableStore;
 }
 
 class CollapsibleListDelegate implements IListVirtualDelegate<IChatChangesSummaryItem> {
+
 	getHeight(element: IChatChangesSummaryItem): number {
 		return 22;
 	}
@@ -391,54 +333,36 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatChangesSummar
 	}
 }
 
-class CollapsibleChangesSummaryListRenderer implements IListRenderer<IChatChangesSummaryItem, ICollapsibleListTemplate> {
-	static TEMPLATE_ID = 'chatCollapsibleListRenderer';
+class CollapsibleChangesSummaryListRenderer implements IListRenderer<IChatChangesSummaryItem, ICollapsibleChangesSummaryListTemplate> {
+
+	static TEMPLATE_ID = 'collapsibleChangesSummaryListRenderer';
+
 	readonly templateId: string = CollapsibleChangesSummaryListRenderer.TEMPLATE_ID;
 
 	constructor(
-		private labels: ResourceLabels,
-		private menuId: MenuId | undefined,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		private labels: ResourceLabels
 	) { }
 
-	renderTemplate(container: HTMLElement): ICollapsibleListTemplate {
-		const templateDisposables = new DisposableStore();
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
-
-		let toolbar;
-		let actionBarContainer;
-		let contextKeyService;
-		if (this.menuId) {
-			actionBarContainer = $('.chat-collapsible-list-action-bar');
-			contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
-			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined } }));
-			label.element.appendChild(actionBarContainer);
-		}
-
-		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService };
+	renderTemplate(container: HTMLElement): ICollapsibleChangesSummaryListTemplate {
+		const disposables = new DisposableStore();
+		const label = disposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
+		return { disposables, label };
 	}
 
-	renderElement(data: IChatChangesSummaryItem, index: number, templateData: ICollapsibleListTemplate): void {
-		templateData.label.element.style.display = 'flex';
-		templateData.label.setFile(data.reference, {
+	renderElement(data: IChatChangesSummaryItem, index: number, templateData: ICollapsibleChangesSummaryListTemplate): void {
+		const label = templateData.label;
+		label.element.style.display = 'flex';
+		label.setFile(data.reference, {
 			fileKind: FileKind.FILE,
-			// Should not have this live-updating data on a historical reference
-			fileDecorations: undefined,
-			range: undefined,
-			title: data.options?.status?.description,
-			strikethrough: false
+			title: data.reference.path
 		});
-		if ('additionalData' in data && data.additionalData) {
-			data.additionalData.forEach(additionalData => {
-				const element = templateData.label.element.appendChild($(`.${additionalData.className}`));
-				element.textContent = additionalData.description;
-			});
-		}
+		data.additionalLabels.forEach(additionalLabel => {
+			const element = label.element.appendChild($(`.${additionalLabel.className}`));
+			element.textContent = additionalLabel.description;
+		});
 	}
 
-	disposeTemplate(templateData: ICollapsibleListTemplate): void {
-		templateData.templateDisposables.dispose();
+	disposeTemplate(templateData: ICollapsibleChangesSummaryListTemplate): void {
+		templateData.disposables.dispose();
 	}
 }

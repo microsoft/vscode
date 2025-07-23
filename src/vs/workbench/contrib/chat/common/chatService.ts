@@ -111,10 +111,8 @@ export interface IChatContentReference {
 
 export interface IChatChangesSummary {
 	reference: URI;
-	iconPath?: ThemeIcon | { light: URI; dark?: URI };
-	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
-	sessionId?: string;
-	requestId?: string;
+	sessionId: string;
+	requestId: string;
 	kind: 'changesSummary';
 }
 
