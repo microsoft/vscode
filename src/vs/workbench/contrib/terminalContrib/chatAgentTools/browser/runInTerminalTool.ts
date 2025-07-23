@@ -390,15 +390,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				const executeResult = await strategy.execute(command, token);
-				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.result.length}\`, error \`${executeResult.error}\``);
-				outputLineCount = count(executeResult.result, '\n');
+				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output, '\n') + 1;
 				exitCode = executeResult.exitCode;
 				error = executeResult.error;
-				if (typeof executeResult.result === 'string') {
-					terminalResult = executeResult.result;
-				} else {
-					return executeResult.result;
+
+				const resultArr: string[] = [];
+				if (executeResult.output !== undefined) {
+					resultArr.push(executeResult.output);
 				}
+				if (executeResult.additionalInformation) {
+					resultArr.push(executeResult.additionalInformation);
+				}
+				terminalResult = resultArr.join('\n\n');
+
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
 				toolTerminal.instance.dispose();
