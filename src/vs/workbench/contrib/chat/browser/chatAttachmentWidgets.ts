@@ -279,24 +279,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				await this.openResource(resource, false, undefined);
 			}
 		};
-		type AttachImageEvent = {
-			currentModel: string;
-			supportsVision: boolean;
-		};
-		type AttachImageEventClassification = {
-			currentModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model at the point of attaching the image.' };
-			supportsVision: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the current model supports vision or not.' };
-			owner: 'justschen';
-			comment: 'Event used to gain insights when images are attached, and if the model supported vision or not.';
-		};
 
-		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'unknown';
-		const supportsVision = this.modelSupportsVision();
-
-		this.telemetryService.publicLog2<AttachImageEvent, AttachImageEventClassification>('copilot.attachImage', {
-			currentModel: currentLanguageModelName,
-			supportsVision: supportsVision
-		});
+		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
 		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
