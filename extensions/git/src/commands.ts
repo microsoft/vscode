@@ -3393,7 +3393,7 @@ export class CommandCenter {
 
 	@command('git.createWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async createWorktree(repository: Repository): Promise<void> {
-		await this._createWorktree(repository, undefined, undefined, undefined);
+		await this._createWorktree(repository);
 	}
 
 	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string, newBranch?: boolean): Promise<void> {
