@@ -162,6 +162,7 @@ export interface IChatAgentResult {
 	timings?: IChatAgentResultTimings;
 	/** Extra properties that the agent can use to identify a result */
 	readonly metadata?: { readonly [key: string]: any };
+	readonly details?: string;
 	nextQuestion?: IChatQuestion;
 }
 

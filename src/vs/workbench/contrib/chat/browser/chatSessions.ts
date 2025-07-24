@@ -33,9 +33,8 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { ResourceLabels, IResourceLabel } from '../../../browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { append, $ } from '../../../../base/browser/dom.js';
+import { append, $, getActiveWindow } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -49,6 +48,7 @@ import { MenuId, MenuRegistry } from '../../../../platform/actions/common/action
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 
@@ -524,11 +524,60 @@ interface ISessionTemplateData {
 // Renderer for session items in the tree
 class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionItem, FuzzyScore, ISessionTemplateData> {
 	static readonly TEMPLATE_ID = 'session';
+	private appliedIconColorStyles = new Set<string>();
 
 	constructor(
-		private readonly labels: ResourceLabels
+		private readonly labels: ResourceLabels,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
+
+		// Listen for theme changes to clear applied styles
+		this._register(this.themeService.onDidColorThemeChange(() => {
+			this.appliedIconColorStyles.clear();
+		}));
+	}
+
+	private applyIconColorStyle(iconId: string, colorId: string): void {
+		const styleKey = `${iconId}-${colorId}`;
+		if (this.appliedIconColorStyles.has(styleKey)) {
+			return; // Already applied
+		}
+
+		const colorTheme = this.themeService.getColorTheme();
+		const color = colorTheme.getColor(colorId);
+
+		if (color) {
+			// Target the ::before pseudo-element where the actual icon is rendered
+			const css = `.monaco-workbench .chat-session-item .monaco-icon-label.codicon-${iconId}::before { color: ${color} !important; }`;
+			const activeWindow = getActiveWindow();
+
+			const styleId = `chat-sessions-icon-${styleKey}`;
+			const existingStyle = activeWindow.document.getElementById(styleId);
+			if (existingStyle) {
+				existingStyle.textContent = css;
+			} else {
+				const styleElement = activeWindow.document.createElement('style');
+				styleElement.id = styleId;
+				styleElement.textContent = css;
+				activeWindow.document.head.appendChild(styleElement);
+
+				// Clean up on dispose
+				this._register({
+					dispose: () => {
+						const activeWin = getActiveWindow();
+						const style = activeWin.document.getElementById(styleId);
+						if (style) {
+							style.remove();
+						}
+					}
+				});
+			}
+
+			this.appliedIconColorStyles.add(styleKey);
+		} else {
+			console.log('No color found for colorId:', colorId);
+		}
 	}
 
 	get templateId(): string {
@@ -563,6 +612,10 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 				// Handle {light, dark} structure
 				iconResource = session.iconPath.light;
 			}
+		}
+		// Apply color styling if specified
+		if (iconTheme?.color?.id) {
+			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
 		// Set the resource label
@@ -638,7 +691,7 @@ class SessionsViewPane extends ViewPane {
 		this.dataSource = new SessionsDataSource(this.provider);
 
 		const delegate = new SessionsDelegate();
-		const renderer = new SessionsRenderer(this.labels);
+		const renderer = new SessionsRenderer(this.labels, this.themeService);
 		this._register(renderer);
 
 		this.tree = this.instantiationService.createInstance(
