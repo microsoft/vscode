@@ -36,7 +36,7 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getExpectedUserInputKind, getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
+import { getExpectedUserInputKind, getOutput, pollForOutputAndIdle, promptForMorePolling, promptForYesNo, racePollingOrPrompt } from './bufferOutputPolling.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -304,9 +304,19 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						execution
 					);
 				}
-				const userInputKind = getExpectedUserInputKind(outputAndIdle.output);
+				const userInputKind = await getExpectedUserInputKind(outputAndIdle.output);
 				if (userInputKind) {
-					return { content: [{ kind: 'text', value: `The terminal command is still running and requires user input of ${userInputKind}. Ask the user which input they'd like to provide.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The terminal command `{0}` is still running and requires user input. {1}', command, userInputKind)) };
+					if (userInputKind !== 'choice' && userInputKind !== 'key') {
+						const options = userInputKind.split('/');
+						const response = await promptForYesNo(invocation.context, this._chatService);
+						const result = await response.promise;
+						if (result) {
+							await toolTerminal.instance.sendText(options[0] === 'y' ? 'y' : 'yes', true);
+						} else {
+							await toolTerminal.instance.sendText(options[0] === 'n' ? 'n' : 'no', true);
+						}
+					}
+					return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}. Ask the user which input they'd like to provide.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', command, userInputKind)) };
 				}
 				let resultText = (
 					didUserEditCommand

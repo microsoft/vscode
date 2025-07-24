@@ -184,6 +184,40 @@ export function promptForMorePolling(command: string, context: IToolInvocationCo
 	return { promise: Promise.resolve(false) };
 }
 
+
+export function promptForYesNo(context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
+	const chatModel = chatService.getSession(context.sessionId);
+	if (chatModel instanceof ChatModel) {
+		const request = chatModel.getRequests().at(-1);
+		if (request) {
+			let part: ChatElicitationRequestPart | undefined = undefined;
+			const promise = new Promise<boolean>(resolve => {
+				const thePart = part = new ChatElicitationRequestPart(
+					new MarkdownString(localize('poll.terminal.yes', 'Respond yes in the terminal?')),
+					new MarkdownString(localize('poll.terminal.yesNo', 'Copilot will run the reply in the terminal.')),
+					'',
+					localize('poll.terminal.accept', 'Yes'),
+					localize('poll.terminal.reject', 'No'),
+					async () => {
+						thePart.state = 'accepted';
+						thePart.hide();
+						resolve(true);
+					},
+					async () => {
+						thePart.state = 'rejected';
+						thePart.hide();
+						resolve(false);
+					}
+				);
+				chatModel.acceptResponseProgress(request, thePart);
+			});
+			return { promise, part };
+		}
+	}
+	return { promise: Promise.resolve(false) };
+}
+
+
 export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<string> {
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
@@ -228,24 +262,22 @@ export function getExpectedUserInputKind(output: string): string | undefined {
 	if (!output) {
 		return undefined;
 	}
-	const lines = output.split(/\r?\n/);
-	const lastLine = lines[lines.length - 1].trim();
 
 	const patterns: { regex: RegExp; kind: string }[] = [
-		{ regex: /\bdo you want to continue\b.*\(y\/n\)/i, kind: 'y/n' },
-		{ regex: /\bcontinue\? \(y\/n\)/i, kind: 'y/n' },
-		{ regex: /\bproceed\? \(y\/n\)/i, kind: 'y/n' },
-		{ regex: /\btype yes or no\b/i, kind: 'yes/no' },
-		{ regex: /\b\(yes\/no\)/i, kind: 'yes/no' },
-		{ regex: /\b\[y\/n\]/i, kind: 'y/n' },
-		{ regex: /\benter your choice\b/i, kind: 'choice' },
-		{ regex: /\bselect an option\b/i, kind: 'choice' },
-		{ regex: /\bplease respond\b/i, kind: 'response' },
-		{ regex: /\bpress (enter|return|any key)\b/i, kind: 'press key' }
+		{ regex: /\bdo you want to continue\b.*\(y\/n\)/ig, kind: 'y/n' },
+		{ regex: /\bcontinue\? \(y\/n\)/ig, kind: 'y/n' },
+		{ regex: /\bproceed\? \(y\/n\)/ig, kind: 'y/n' },
+		{ regex: /\btype yes or no\b/ig, kind: 'yes/no' },
+		{ regex: /\b\(yes\/no\)/ig, kind: 'yes/no' },
+		{ regex: /\b\[y\/n\]/ig, kind: 'y/n' },
+		{ regex: /\benter your choice\b/ig, kind: 'choice' },
+		{ regex: /\bselect an option\b/ig, kind: 'choice' },
+		{ regex: /\bplease respond\b/ig, kind: 'response' },
+		{ regex: /\bpress (enter|return|any key)\b/ig, kind: 'press key' }
 	];
 
 	for (const { regex, kind } of patterns) {
-		if (regex.test(lastLine)) {
+		if (regex.test(output)) {
 			return kind;
 		}
 	}
