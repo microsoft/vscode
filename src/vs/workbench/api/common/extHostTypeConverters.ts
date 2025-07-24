@@ -3259,6 +3259,21 @@ export namespace ChatAgentUserActionEvent {
 					hasRemainingEdits: event.action.hasRemainingEdits
 				}, result: ehResult
 			};
+		} else if (event.action.kind === 'chatEditingHunkAction') {
+			const outcomes = new Map([
+				['accepted', types.ChatEditingSessionActionOutcome.Accepted],
+				['rejected', types.ChatEditingSessionActionOutcome.Rejected],
+			]);
+
+			return {
+				action: {
+					kind: 'chatEditingHunkAction',
+					outcome: outcomes.get(event.action.outcome) ?? types.ChatEditingSessionActionOutcome.Rejected,
+					uri: URI.revive(event.action.uri),
+					hasRemainingEdits: event.action.hasRemainingEdits,
+					lineCount: event.action.lineCount
+				}, result: ehResult
+			};
 		} else {
 			return { action: event.action, result: ehResult };
 		}
