@@ -137,7 +137,31 @@ declare module 'vscode' {
 		/**
 		 * @hidden
 		 */
-		private constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+	}
+
+	export class ChatResponseTurn2 {
+		/**
+		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 */
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart | ChatToolInvocationPart>;
+
+		/**
+		 * The result that was received from the chat participant.
+		 */
+		readonly result: ChatResult;
+
+		/**
+		 * The id of the chat participant that this response came from.
+		 */
+		readonly participant: string;
+
+		/**
+		 * The name of the command that this response came from.
+		 */
+		readonly command?: string;
+
+		constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart>, result: ChatResult, participant: string);
 	}
 
 	export interface ChatParticipant {
