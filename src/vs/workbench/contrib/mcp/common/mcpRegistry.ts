@@ -287,7 +287,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return !!trustedDefinitionIds?.includes(definition.id);
 	}
 
-	private async _promptForTrustOpenDialog(definitions: { definition: McpServerDefinition; collection: McpCollectionDefinition }[]): Promise<string[] | undefined> {
+	/**
+	 * Confirms with the user which of the provided definitions should be trusted.
+	 * Returns undefined if the user cancelled the flow, or the list of trusted
+	 * definition IDs otherwise.
+	 */
+	protected async _promptForTrustOpenDialog(definitions: { definition: McpServerDefinition; collection: McpCollectionDefinition }[]): Promise<string[] | undefined> {
 		function labelFor(r: { definition: McpServerDefinition; collection: McpCollectionDefinition }) {
 			const originURI = r.definition.presentation?.origin?.uri || r.collection.presentation?.origin;
 			let labelWithOrigin = originURI ? `[\`${r.definition.label}\`](${originURI})` : '`' + r.definition.label + '`';

@@ -40,8 +40,19 @@ export interface IMcpResolveConnectionOptions {
 	collectionRef: McpCollectionReference;
 	definitionRef: McpDefinitionReference;
 
+	/** A reference (on the server) to its last nonce where trust was given. */
 	trustNonceBearer: { trustedAtNonce: string | undefined };
+	/**
+	 * When to trigger the trust prompt.
+	 * - only-new: only prompt for servers that are not previously explicitly untrusted (default)
+	 * - all-untrusted: prompt for all servers that are not trusted
+	 * - never: don't prompt, fail silently when trying to start an untrusted server
+	 */
 	promptType?: 'only-new' | 'all-untrusted' | 'never';
+	/**
+	 * Automatically trust if changed. This should ONLY be set for afforances that
+	 * ensure the user sees the config before it gets started (e.g. code lenses)
+	 */
 	autoTrustChanges?: boolean;
 
 	/** If set, try to launch with debugging when dev mode is configured */

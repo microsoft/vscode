@@ -78,6 +78,8 @@ import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponse
 import { TestWorkerService } from './testWorkerService.js';
 import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 
 suite('InlineChatController', function () {
 
@@ -160,6 +162,7 @@ suite('InlineChatController', function () {
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatTransferService, new SyncDescriptor(ChatTransferService)],
 			[IChatService, new SyncDescriptor(ChatService)],
+			[IMcpService, new TestMcpService()],
 			[IChatAgentNameService, new class extends mock<IChatAgentNameService>() {
 				override getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
 					return false;

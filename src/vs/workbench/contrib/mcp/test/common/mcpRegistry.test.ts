@@ -27,7 +27,7 @@ import { TestLoggerService, TestStorageService } from '../../../../test/common/w
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerTransportStdio, McpServerTransportType, McpServerTrust } from '../../common/mcpTypes.js';
+import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 
 class TestConfigurationResolverService implements Partial<IConfigurationResolverService> {
@@ -114,10 +114,18 @@ class TestDialogService implements Partial<IDialogService> {
 	}
 }
 
+class TestMcpRegistry extends McpRegistry {
+	public nextDefinitionIdsToTrust: string[] | undefined;
+
+	protected override _promptForTrustOpenDialog(): Promise<string[] | undefined> {
+		return Promise.resolve(this.nextDefinitionIdsToTrust);
+	}
+}
+
 suite('Workbench - MCP - Registry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let registry: McpRegistry;
+	let registry: TestMcpRegistry;
 	let testStorageService: TestStorageService;
 	let testConfigResolverService: TestConfigurationResolverService;
 	let testDialogService: TestDialogService;
@@ -149,7 +157,7 @@ suite('Workbench - MCP - Registry', () => {
 		logger = new NullLogger();
 
 		const instaService = store.add(new TestInstantiationService(services));
-		registry = store.add(instaService.createInstance(McpRegistry));
+		registry = store.add(instaService.createInstance(TestMcpRegistry));
 
 		// Create test collection that can be reused
 		testCollection = {
@@ -402,4 +410,323 @@ suite('Workbench - MCP - Registry', () => {
 			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.HasUnknown);
 		});
 	});
+
+	suite('Trust Flow', () => {
+		/**
+		 * Helper to create a test MCP collection with a specific trust behavior
+		 */
+		function createTestCollection(trustBehavior: McpServerTrust.Kind.Trusted | McpServerTrust.Kind.TrustedOnNonce, id = 'test-collection'): McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> } {
+			return {
+				id,
+				label: 'Test Collection',
+				remoteAuthority: null,
+				serverDefinitions: observableValue('serverDefs', []),
+				trustBehavior,
+				scope: StorageScope.APPLICATION,
+				configTarget: ConfigurationTarget.USER,
+			};
+		}
+
+		/**
+		 * Helper to create a test server definition with a specific cache nonce
+		 */
+		function createTestDefinition(id = 'test-server', cacheNonce = 'nonce-a'): McpServerDefinition {
+			return {
+				id,
+				label: 'Test Server',
+				cacheNonce,
+				launch: {
+					type: McpServerTransportType.Stdio,
+					command: 'test-command',
+					args: [],
+					env: {},
+					envFile: undefined,
+					cwd: '/test',
+				}
+			};
+		}
+
+		/**
+		 * Helper to set up a basic registry with delegate and collection
+		 */
+		function setupRegistry(trustBehavior: McpServerTrust.Kind.Trusted | McpServerTrust.Kind.TrustedOnNonce = McpServerTrust.Kind.TrustedOnNonce, cacheNonce = 'nonce-a') {
+			const delegate = new TestMcpHostDelegate();
+			store.add(registry.registerDelegate(delegate));
+
+			const collection = createTestCollection(trustBehavior);
+			const definition = createTestDefinition('test-server', cacheNonce);
+			collection.serverDefinitions.set([definition], undefined);
+			store.add(registry.registerCollection(collection));
+
+			return { collection, definition, delegate };
+		}
+
+		test('trusted collection allows connection without prompting', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.Trusted);
+
+			const connection = await registry.resolveConnection({
+				collectionRef: collection,
+				definitionRef: definition,
+				logger,
+				trustNonceBearer,
+			});
+
+			assert.ok(connection, 'Connection should be created for trusted collection');
+			assert.strictEqual(registry.nextDefinitionIdsToTrust, undefined, 'Trust dialog should not have been called');
+			connection!.dispose();
+		});
+
+		test('nonce-based trust allows connection when nonce matches', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-a');
+			trustNonceBearer.trustedAtNonce = 'nonce-a';
+
+			const connection = await registry.resolveConnection({
+				collectionRef: collection,
+				definitionRef: definition,
+				logger,
+				trustNonceBearer,
+			});
+
+			assert.ok(connection, 'Connection should be created when nonce matches');
+			assert.strictEqual(registry.nextDefinitionIdsToTrust, undefined, 'Trust dialog should not have been called');
+			connection!.dispose();
+		});
+
+		test('nonce-based trust prompts when nonce changes', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-b');
+			trustNonceBearer.trustedAtNonce = 'nonce-a'; // Different nonce
+			registry.nextDefinitionIdsToTrust = [definition.id]; // User trusts the server
+
+			const connection = await registry.resolveConnection({
+				collectionRef: collection,
+				definitionRef: definition,
+				logger,
+				trustNonceBearer,
+			});
+
+			assert.ok(connection, 'Connection should be created when user trusts');
+			assert.strictEqual(trustNonceBearer.trustedAtNonce, 'nonce-b', 'Nonce should be updated');
+			connection!.dispose();
+		});
+
+		test('nonce-based trust denies connection when user rejects', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-b');
+			trustNonceBearer.trustedAtNonce = 'nonce-a'; // Different nonce
+			registry.nextDefinitionIdsToTrust = []; // User does not trust the server
+
+			const connection = await registry.resolveConnection({
+				collectionRef: collection,
+				definitionRef: definition,
+				logger,
+				trustNonceBearer,
+			});
+
+			assert.strictEqual(connection, undefined, 'Connection should not be created when user rejects');
+			assert.strictEqual(trustNonceBearer.trustedAtNonce, '__vscode_not_trusted', 'Should mark as explicitly not trusted');
+		});
+
+		test('autoTrustChanges bypasses prompt when nonce changes', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-b');
+			trustNonceBearer.trustedAtNonce = 'nonce-a'; // Different nonce
+
+			const connection = await registry.resolveConnection({
+				collectionRef: collection,
+				definitionRef: definition,
+				logger,
+				trustNonceBearer,
+				autoTrustChanges: true,
+			});
+
+			assert.ok(connection, 'Connection should be created with autoTrustChanges');
+			assert.strictEqual(trustNonceBearer.trustedAtNonce, 'nonce-b', 'Nonce should be updated');
+			assert.strictEqual(registry.nextDefinitionIdsToTrust, undefined, 'Trust dialog should not have been called');
+			connection!.dispose();
+		});
+
+		test('promptType "never" skips prompt and fails silently', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-b');
+			trustNonceBearer.trustedAtNonce = 'nonce-a'; // Different nonce
+
+			const connection = await registry.resolveConnection({
+				collectionRef: collection,
+				definitionRef: definition,
+				logger,
+				trustNonceBearer,
+				promptType: 'never',
+			});
+
+			assert.strictEqual(connection, undefined, 'Connection should not be created with promptType "never"');
+			assert.strictEqual(registry.nextDefinitionIdsToTrust, undefined, 'Trust dialog should not have been called');
+		});
+
+		test('promptType "only-new" skips previously untrusted servers', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-b');
+			trustNonceBearer.trustedAtNonce = '__vscode_not_trusted'; // Previously explicitly denied
+
+			const connection = await registry.resolveConnection({
+				collectionRef: collection,
+				definitionRef: definition,
+				logger,
+				trustNonceBearer,
+				promptType: 'only-new',
+			});
+
+			assert.strictEqual(connection, undefined, 'Connection should not be created for previously untrusted server');
+			assert.strictEqual(registry.nextDefinitionIdsToTrust, undefined, 'Trust dialog should not have been called');
+		});
+
+		test('promptType "all-untrusted" prompts for previously untrusted servers', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-b');
+			trustNonceBearer.trustedAtNonce = '__vscode_not_trusted'; // Previously explicitly denied
+			registry.nextDefinitionIdsToTrust = [definition.id]; // User now trusts the server
+
+			const connection = await registry.resolveConnection({
+				collectionRef: collection,
+				definitionRef: definition,
+				logger,
+				trustNonceBearer,
+				promptType: 'all-untrusted',
+			});
+
+			assert.ok(connection, 'Connection should be created when user trusts previously untrusted server');
+			assert.strictEqual(trustNonceBearer.trustedAtNonce, 'nonce-b', 'Nonce should be updated');
+			connection!.dispose();
+		});
+
+		test('concurrent resolveConnection calls with same interaction are grouped', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-b');
+			trustNonceBearer.trustedAtNonce = 'nonce-a'; // Different nonce
+
+			// Create a second definition that also needs trust
+			const definition2 = createTestDefinition('test-server-2', 'nonce-c');
+			collection.serverDefinitions.set([definition, definition2], undefined);
+
+			// Create shared interaction
+			const interaction = new McpStartServerInteraction();
+
+			// Manually set participants as mentioned in the requirements
+			interaction.participants.set(definition.id, { s: 'unknown' });
+			interaction.participants.set(definition2.id, { s: 'unknown' });
+
+			const trustNonceBearer2 = { trustedAtNonce: 'nonce-b' }; // Different nonce for second server
+
+			// Trust both servers
+			registry.nextDefinitionIdsToTrust = [definition.id, definition2.id];
+
+			// Start both connections concurrently with the same interaction
+			const [connection1, connection2] = await Promise.all([
+				registry.resolveConnection({
+					collectionRef: collection,
+					definitionRef: definition,
+					logger,
+					trustNonceBearer,
+					interaction,
+				}),
+				registry.resolveConnection({
+					collectionRef: collection,
+					definitionRef: definition2,
+					logger,
+					trustNonceBearer: trustNonceBearer2,
+					interaction,
+				})
+			]);
+
+			assert.ok(connection1, 'First connection should be created');
+			assert.ok(connection2, 'Second connection should be created');
+			assert.strictEqual(trustNonceBearer.trustedAtNonce, 'nonce-b', 'First nonce should be updated');
+			assert.strictEqual(trustNonceBearer2.trustedAtNonce, 'nonce-c', 'Second nonce should be updated');
+
+			connection1!.dispose();
+			connection2!.dispose();
+		});
+
+		test('user cancelling trust dialog returns undefined for all pending connections', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-b');
+			trustNonceBearer.trustedAtNonce = 'nonce-a'; // Different nonce
+
+			// Create a second definition that also needs trust
+			const definition2 = createTestDefinition('test-server-2', 'nonce-c');
+			collection.serverDefinitions.set([definition, definition2], undefined);
+
+			// Create shared interaction
+			const interaction = new McpStartServerInteraction();
+
+			// Manually set participants as mentioned in the requirements
+			interaction.participants.set(definition.id, { s: 'unknown' });
+			interaction.participants.set(definition2.id, { s: 'unknown' });
+
+			const trustNonceBearer2 = { trustedAtNonce: 'nonce-b' }; // Different nonce for second server
+
+			// User cancels the dialog
+			registry.nextDefinitionIdsToTrust = undefined;
+
+			// Start both connections concurrently with the same interaction
+			const [connection1, connection2] = await Promise.all([
+				registry.resolveConnection({
+					collectionRef: collection,
+					definitionRef: definition,
+					logger,
+					trustNonceBearer,
+					interaction,
+				}),
+				registry.resolveConnection({
+					collectionRef: collection,
+					definitionRef: definition2,
+					logger,
+					trustNonceBearer: trustNonceBearer2,
+					interaction,
+				})
+			]);
+
+			assert.strictEqual(connection1, undefined, 'First connection should not be created when user cancels');
+			assert.strictEqual(connection2, undefined, 'Second connection should not be created when user cancels');
+		});
+
+		test('partial trust selection in grouped interaction', async () => {
+			const { collection, definition } = setupRegistry(McpServerTrust.Kind.TrustedOnNonce, 'nonce-b');
+			trustNonceBearer.trustedAtNonce = 'nonce-a'; // Different nonce
+
+			// Create a second definition that also needs trust
+			const definition2 = createTestDefinition('test-server-2', 'nonce-c');
+			collection.serverDefinitions.set([definition, definition2], undefined);
+
+			// Create shared interaction
+			const interaction = new McpStartServerInteraction();
+
+			// Manually set participants as mentioned in the requirements
+			interaction.participants.set(definition.id, { s: 'unknown' });
+			interaction.participants.set(definition2.id, { s: 'unknown' });
+
+			const trustNonceBearer2 = { trustedAtNonce: 'nonce-b' }; // Different nonce for second server
+
+			// User trusts only the first server
+			registry.nextDefinitionIdsToTrust = [definition.id];
+
+			// Start both connections concurrently with the same interaction
+			const [connection1, connection2] = await Promise.all([
+				registry.resolveConnection({
+					collectionRef: collection,
+					definitionRef: definition,
+					logger,
+					trustNonceBearer,
+					interaction,
+				}),
+				registry.resolveConnection({
+					collectionRef: collection,
+					definitionRef: definition2,
+					logger,
+					trustNonceBearer: trustNonceBearer2,
+					interaction,
+				})
+			]);
+
+			assert.ok(connection1, 'First connection should be created when trusted');
+			assert.strictEqual(connection2, undefined, 'Second connection should not be created when not trusted');
+			assert.strictEqual(trustNonceBearer.trustedAtNonce, 'nonce-b', 'First nonce should be updated');
+			assert.strictEqual(trustNonceBearer2.trustedAtNonce, '__vscode_not_trusted', 'Second nonce should be marked as not trusted');
+
+			connection1!.dispose();
+		});
+	});
+
 });
