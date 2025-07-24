@@ -222,7 +222,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		}
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
 			const buffer = this._terminal?.buffer?.active;
-			const marker = command.promptStartMarker;
+			const marker = command.marker;
 
 			// Only apply cursor check for commands with exit codes (completed commands)
 			// Skip the check for incomplete commands (no exitCode) to allow placeholders
