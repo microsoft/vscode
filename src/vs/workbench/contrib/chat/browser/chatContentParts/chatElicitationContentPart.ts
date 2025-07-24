@@ -26,6 +26,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService
 	) {
 		super();
+
 		const buttons = [
 			{ label: elicitation.acceptButtonLabel, data: true },
 			{ label: elicitation.rejectButtonLabel, data: false, isSecondary: true },
