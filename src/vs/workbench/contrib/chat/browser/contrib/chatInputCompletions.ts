@@ -598,7 +598,7 @@ class StartParameterizedPromptAction extends Action2 {
 		try {
 			// start the server if not already running so that it's ready to resolve
 			// the prompt instantly when the user finishes picking arguments.
-			server.start();
+			await server.start();
 
 			const args = await pick.createArgs();
 			if (!args) {

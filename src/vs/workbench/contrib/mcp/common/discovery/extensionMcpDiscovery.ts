@@ -14,7 +14,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { mcpActivationEvent, mcpContributionPoint } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { extensionPrefixedIdentifier, McpServerDefinition } from '../mcpTypes.js';
+import { extensionPrefixedIdentifier, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 
 const cacheKey = 'mcp.extCachedServers';
@@ -84,7 +84,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 						id,
 						label: coll.label,
 						remoteAuthority: null,
-						isTrustedByDefault: true,
+						trustBehavior: McpServerTrust.Kind.TrustedOnNonce,
 						scope: StorageScope.WORKSPACE,
 						configTarget: ConfigurationTarget.USER,
 						serverDefinitions: observableValue<McpServerDefinition[]>(this, serverDefs?.map(McpServerDefinition.fromSerialized) || []),

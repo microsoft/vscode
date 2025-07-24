@@ -12,7 +12,7 @@ import { ILogger, LogLevel } from '../../../../platform/log/common/log.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpStartServerInteraction } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 export const IMcpRegistry = createDecorator<IMcpRegistry>('mcpRegistry');
@@ -36,10 +36,14 @@ export interface IMcpHostDelegate {
 
 export interface IMcpResolveConnectionOptions {
 	logger: ILogger;
+	interaction?: McpStartServerInteraction;
 	collectionRef: McpCollectionReference;
 	definitionRef: McpDefinitionReference;
-	/** If set, the user will be asked to trust the collection even if they untrusted it previously */
-	forceTrust?: boolean;
+
+	trustNonceBearer: { trustedAtNonce: string | undefined };
+	promptType?: 'only-new' | 'all-untrusted' | 'never';
+	autoTrustChanges?: boolean;
+
 	/** If set, try to launch with debugging when dev mode is configured */
 	debug?: boolean;
 }
@@ -63,12 +67,6 @@ export interface IMcpRegistry {
 
 	registerDelegate(delegate: IMcpHostDelegate): IDisposable;
 	registerCollection(collection: McpCollectionDefinition): IDisposable;
-
-	/** Resets the trust state of all collections. */
-	resetTrust(): void;
-
-	/** Gets whether the collection is trusted. */
-	getTrust(collection: McpCollectionReference): IObservable<boolean | undefined>;
 
 	/** Resets any saved inputs for the input, or globally. */
 	clearSavedInputs(scope: StorageScope, inputId?: string): Promise<void>;
