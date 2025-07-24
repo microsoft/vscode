@@ -285,30 +285,30 @@ suite('TerminalCompletionModel', function () {
 
 	suite('lsp priority sorting', () => {
 
-		suite('Sort Python provider items', () => {
-			test('Prioritize items with "python" in provider name when inside REPL', () => {
+		suite('Sort LSP provider items', () => {
+			test('Prioritize items with "lsp:" prefix in provider name', () => {
 				const items = [
 					createItem({ label: 'b_default_provider', provider: 'defaultProvider' }),
-					createItem({ label: 'a_python_provider', provider: 'ms-python.python' })
+					createItem({ label: 'a_lsp_provider', provider: 'lsp:ms-python.python' })
 				];
 				const model = new TerminalCompletionModel(items, new LineContext('', 0));
-				assertItems(model, ['a_python_provider', 'b_default_provider']);
+				assertItems(model, ['a_lsp_provider', 'b_default_provider']);
 			});
 
-			test('should sort "python" provider items above others', () => {
+			test('should sort "lsp:" provider items above others', () => {
 				const items = [
 					createItem({ label: 'z_default', provider: 'default' }),
-					createItem({ label: 'c_python', provider: 'ms-python.pylance' }),
+					createItem({ label: 'c_lsp', provider: 'lsp:ms-python.pylance' }),
 					createItem({ label: 'a_default', provider: 'default' }),
-					createItem({ label: 'b_python', provider: 'ms-python.python' })
+					createItem({ label: 'b_lsp', provider: 'lsp:ms-python.python' })
 				];
 				const model = new TerminalCompletionModel(items, new LineContext('', 0));
-				assertItems(model, ['b_python', 'c_python', 'a_default', 'z_default']);
+				assertItems(model, ['b_lsp', 'c_lsp', 'a_default', 'z_default']);
 			});
 
-			test('InlineSuggestionAlwaysOnTop should still be prioritized over "python" provider', () => {
+			test('InlineSuggestionAlwaysOnTop should still be prioritized over "lsp:" provider', () => {
 				const items = [
-					createItem({ label: 'b_python', provider: 'python_provider' }),
+					createItem({ label: 'b_lsp', provider: 'lsp:typescript-language-features' }),
 					new TerminalCompletionItem({
 						label: 'a_always_on_top',
 						provider: 'core',
@@ -319,7 +319,7 @@ suite('TerminalCompletionModel', function () {
 					createItem({ label: 'c_default', provider: 'default_provider' })
 				];
 				const model = new TerminalCompletionModel(items, new LineContext('', 0));
-				assertItems(model, ['a_always_on_top', 'b_python', 'c_default']);
+				assertItems(model, ['a_always_on_top', 'b_lsp', 'c_default']);
 			});
 		});
 
