@@ -64,6 +64,9 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			return { content: [{ kind: 'text', value: `No invocation context` }], toolResultMessage: `No invocation context` };
 		}
 
+		const tasksJsonUri = URI.file(args.workspaceFolder).with({ path: `${args.workspaceFolder}/.vscode/tasks.json` });
+		const exists = await this._fileService.exists(tasksJsonUri);
+
 		const newTask: IConfiguredTask = {
 			label: args.task.label,
 			type: args.task.type,
@@ -74,17 +77,25 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			group: args.task.group
 		};
 
-		const tasksJsonUri = URI.file(args.workspaceFolder).with({ path: `${args.workspaceFolder}/.vscode/tasks.json` });
 		const tasksJsonContent = JSON.stringify({
 			version: '2.0.0',
 			tasks: [newTask]
 		}, null, '\t');
-		await this._fileService.createFile(tasksJsonUri, VSBuffer.fromString(tasksJsonContent), { overwrite: true });
-		await timeout(200);
-
-		_progress.report({ message: 'Created tasks.json file' });
-
-		const task = (await this._tasksService.tasks({ task: args.task.label }))?.[0];
+		if (!exists) {
+			await this._fileService.createFile(tasksJsonUri, VSBuffer.fromString(tasksJsonContent), { overwrite: true });
+			_progress.report({ message: 'Created tasks.json file' });
+			await timeout(200);
+		} else {
+			// add to the existing tasks.json file
+			const content = await this._fileService.readFile(tasksJsonUri);
+			const tasksJson = JSON.parse(content.value.toString());
+			tasksJson.tasks.push(newTask);
+			await this._fileService.writeFile(tasksJsonUri, VSBuffer.fromString(JSON.stringify(tasksJson, null, '\t')));
+			_progress.report({ message: 'Updated tasks.json file' });
+			await timeout(200);
+		}
+		_progress.report({ message: new MarkdownString(localize('copilotChat.fetchingTask', 'Resolving the task')) });
+		const task = (await this._tasksService.tasks())?.find(t => t._label === args.task.label);
 		if (!task) {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.task.label)) };
 		}
@@ -138,14 +149,15 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const args = context.parameters as ICreateAndRunTaskToolInput;
 		const task = args.task;
 
-		try {
-			const tasksJsonUri = URI.file(args.workspaceFolder).with({ path: `${args.workspaceFolder}/.vscode/tasks.json` });
-			const exists = await this._fileService.exists(tasksJsonUri);
-			if (exists) {
-				return { invocationMessage: new MarkdownString(localize('tasksJsonExists', 'A `tasks.json` file already exists in the workspace folder. Guide the user to provide the name of the task they\'d like to run.')) };
-			}
-		} catch {
+		const allTasks = await this._tasksService.tasks();
+		if (allTasks?.find(t => t._label === task.label)) {
+			return {
+				invocationMessage: new MarkdownString(localize('taskExists', 'Task `{0}` already exists.', task.label)),
+				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task `{0}` already exists.', task.label)),
+				confirmationMessages: undefined
+			};
 		}
+
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.find(t => t._label === task.label)) {
 			return {
