@@ -160,7 +160,7 @@ export async function handleTerminalUserInputPrompt(
 	executableLabel: string,
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService
-): Promise<{ handled: boolean; outputAndIdle: { output: string; terminalExecutionIdleBeforeTimeout: boolean; pollDurationMs?: number; modelOutputEvalResponse?: string }; message?: IToolResult }> {
+): Promise<{ handled: boolean; userResponse?: 'accepted' | 'rejected'; outputAndIdle: { output: string; terminalExecutionIdleBeforeTimeout: boolean; pollDurationMs?: number; modelOutputEvalResponse?: string }; message?: IToolResult }> {
 	const userInputKind = await getExpectedUserInputKind(outputAndIdle.output);
 	if (userInputKind) {
 		const handleResult = await handleYesNoUserPrompt(
@@ -283,7 +283,7 @@ export async function handleYesNoUserPrompt(
 	chatService: IChatService,
 	terminal: ITerminalInstance,
 	pollForOutputAndIdleFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
-): Promise<{ handled: boolean; outputAndIdle?: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } }> {
+): Promise<{ handled: boolean; userResponse?: 'accepted' | 'rejected'; outputAndIdle?: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } }> {
 	if (userInputKind && userInputKind !== 'choice' && userInputKind !== 'key') {
 		const options = userInputKind.split('/');
 		const acceptAnswer = options[0]?.trim();
@@ -297,10 +297,10 @@ export async function handleYesNoUserPrompt(
 		if (result) {
 			await terminal.sendText(acceptAnswer, true);
 			const outputAndIdle = await pollForOutputAndIdleFn();
-			return { handled: true, outputAndIdle };
+			return { handled: true, outputAndIdle, userResponse: 'accepted' };
 		} else {
 			await terminal.sendText(rejectAnswer, true);
-			return { handled: true };
+			return { handled: true, userResponse: 'rejected' };
 		}
 	}
 	return { handled: false };

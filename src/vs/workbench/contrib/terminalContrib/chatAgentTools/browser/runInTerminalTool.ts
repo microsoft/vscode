@@ -267,6 +267,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		let error: string | undefined;
+		let userResponse: 'accepted' | 'rejected' | undefined;
 
 		const timingStart = Date.now();
 		const termId = generateUuid();
@@ -318,6 +319,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					if (handleResult.outputAndIdle) {
 						outputAndIdle = handleResult.outputAndIdle;
 					}
+					userResponse = handleResult.userResponse;
 				} else if (handleResult.message) {
 					return handleResult.message;
 				}
@@ -363,6 +365,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalExecutionIdleBeforeTimeout: outputAndIdle?.terminalExecutionIdleBeforeTimeout,
 					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
 					pollDurationMs: outputAndIdle?.pollDurationMs,
+					terminalInputPromptResponse: userResponse
 				});
 			}
 		} else {
@@ -619,6 +622,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		terminalExecutionIdleBeforeTimeout?: boolean;
 		timingExecuteMs: number;
 		exitCode: number | undefined;
+		terminalInputPromptResponse?: string;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -635,6 +639,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingConnectMs: number;
 			pollDurationMs: number;
 			terminalExecutionIdleBeforeTimeout: boolean;
+			terminalInputPromptResponse?: string;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -654,6 +659,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
 			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
+			terminalInputPromptResponse?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user response to the terminal prompt, if any. This is only set when the tool prompts the user for input.' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -668,7 +674,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
 			timingConnectMs: state.timingConnectMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
-			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false
+			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
+			terminalInputPromptResponse: state.terminalInputPromptResponse
 		});
 	}
 }
