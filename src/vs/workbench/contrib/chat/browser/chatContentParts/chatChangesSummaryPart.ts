@@ -64,8 +64,8 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		this.domNode = $('.checkpoint-file-changes-summary', undefined, headerDomNode);
 		this.domNode.tabIndex = 0;
 
-		this._register(this.renderButtons(headerDomNode));
-		this._register(this.renderList(this.domNode));
+		this._register(this.renderHeader(headerDomNode));
+		this._register(this.renderFilesList(this.domNode));
 
 		autorun((r) => {
 			this.updateList(this.fileChanges, this.fileChangesDiffsObservable.read(r));
@@ -111,7 +111,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		});
 	}
 
-	private renderButtons(container: HTMLElement): IDisposable {
+	private renderHeader(container: HTMLElement): IDisposable {
 		const viewListButtonContainer = container.appendChild($('.chat-file-changes-label'));
 		const viewListButton = this._register(new ButtonWithIcon(viewListButtonContainer, {
 			buttonBackground: undefined,
@@ -185,7 +185,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		});
 	}
 
-	private renderList(container: HTMLElement): IDisposable {
+	private renderFilesList(container: HTMLElement): IDisposable {
 		const store = new DisposableStore();
 		const listpool = store.add(this.instantiationService.createInstance(CollapsibleChangesSummaryListPool));
 		this.list = listpool.get();
@@ -208,11 +208,11 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				const input = {
 					original: { resource: diff.originalURI },
 					modified: { resource: diff.modifiedURI },
-					options: { transient: true },
+					options: { preserveFocus: true }
 				};
-				return this.editorService.openEditor(input);
+				this.editorService.openEditor(input);
 			} else {
-				return this.editorService.openEditor({ resource: element.reference });
+				this.editorService.openEditor({ resource: element.reference, options: { preserveFocus: true } });
 			}
 		}));
 		store.add(this.list.onContextMenu(e => {
@@ -289,7 +289,7 @@ export class CollapsibleChangesSummaryListPool extends Disposable {
 			container,
 			new CollapsibleChangesSummaryListDelegate(),
 			[this.instantiationService.createInstance(CollapsibleChangesSummaryListRenderer, resourceLabels)],
-			{ alwaysConsumeMouseWheel: false }));
+			{}));
 		return list;
 	}
 
