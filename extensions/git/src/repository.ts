@@ -1728,8 +1728,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async worktree(options: { path: string; name: string; newBranch?: boolean }): Promise<void> {
-		await this.run(Operation.Worktree, () => this.repository.worktree(options));
+	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
+		await this.run(Operation.Worktree, () => this.repository.addWorktree(options));
 	}
 
 	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
