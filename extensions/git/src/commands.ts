@@ -3403,6 +3403,7 @@ export class CommandCenter {
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
+		const createBranch = new CreateBranchItem();
 		const getBranchPicks = async () => {
 			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
 			const itemsProcessor = new RefItemsProcessor(repository, [
@@ -3410,32 +3411,50 @@ export class CommandCenter {
 				new RefProcessor(RefType.RemoteHead),
 				new RefProcessor(RefType.Tag)
 			]);
-			return itemsProcessor.processRefs(refs);
+			const branchItems = itemsProcessor.processRefs(refs);
+			return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
 		};
 
 		const placeHolder = l10n.t('Select a branch to create the new worktree from');
-		const choice = await this.pickRef(getBranchPicks(), placeHolder) as RefItem;
+		const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
-		if (!choice.refName) {
+		if (!choice) {
 			return;
 		}
 
 		let branch: string | undefined = undefined;
-		const isWorktreeLocked = await this.isWorktreeLocked(repository, choice);
+		let commitish: string;
 
-		// If the worktree is locked, we prompt to create a new branch
-		// otherwise we can use the existing selected branch or tag
-		if (isWorktreeLocked) {
+		if (choice === createBranch) {
 			branch = await this.promptForBranchName(repository);
 
 			if (!branch) {
 				return;
 			}
+
+			commitish = 'HEAD';
+		} else {
+			if (!(choice instanceof RefItem) || !choice.refName) {
+				return;
+			}
+
+			// If the worktree is locked, we prompt to create a new branch
+			// otherwise we can use the existing selected branch or tag
+			const isWorktreeLocked = await this.isWorktreeLocked(repository, choice);
+			if (isWorktreeLocked) {
+				branch = await this.promptForBranchName(repository);
+
+				if (!branch) {
+					return;
+				}
+			}
+			commitish = choice.refName;
 		}
 
-		const worktreeName = (branch ?? choice.refName).startsWith(branchPrefix)
-			? (branch ?? choice.refName).substring(branchPrefix.length)
-			: (branch ?? choice.refName);
+
+		const worktreeName = (branch ?? commitish).startsWith(branchPrefix)
+			? (branch ?? commitish).substring(branchPrefix.length)
+			: (branch ?? commitish);
 
 		// If user selects folder button, they manually select the worktree path through folder picker
 		const getWorktreePath = async (): Promise<string | undefined> => {
@@ -3507,7 +3526,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.addWorktree({ path: worktreePath, branch, commitish: choice.refName });
+			await repository.addWorktree({ path: worktreePath, branch, commitish: commitish });
 
 			// Update worktree root in global state
 			const worktreeRoot = path.dirname(worktreePath);

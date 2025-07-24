@@ -261,7 +261,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			this.updateCellDiffInfo([], undefined);
 			this.initializeModelsFromDiff();
-			this._notifyAction('rejected');
+			this._notifySessionAction('rejected');
 			return;
 		}
 
@@ -507,7 +507,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 				this.updateCellDiffInfo([], undefined);
 				this.initializeModelsFromDiff();
-				this._notifyAction('userModified');
+				this._notifySessionAction('userModified');
 			},
 			redo: async () => {
 				initial = createSnapshot(this.modifiedModel, transientOptions, outputSizeLimit);
@@ -521,7 +521,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				this._stateObs.set(redoState, undefined);
 				this.updateCellDiffInfo([], undefined);
 				this.initializeModelsFromDiff();
-				this._notifyAction('userModified');
+				this._notifySessionAction('userModified');
 			}
 		};
 	}
@@ -683,7 +683,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (new SnapshotComparer(currentSnapshot).isEqual(this.originalModel)) {
 			const state = accepted ? ModifiedFileEntryState.Accepted : ModifiedFileEntryState.Rejected;
 			this._stateObs.set(state, undefined);
-			this._notifyAction(accepted ? 'accepted' : 'rejected');
+			this._notifySessionAction(accepted ? 'accepted' : 'rejected');
 		}
 	}
 

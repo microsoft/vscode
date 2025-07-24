@@ -84,8 +84,30 @@ declare module 'vscode' {
 		constructor(toolName: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart;
+	export interface ChatTerminalToolInvocationData {
+		commandLine: {
+			original: string;
+			userEdited?: string;
+			toolEdited?: string;
+		};
+		language: string;
+	}
 
+	export class ChatToolInvocationPart {
+		toolName: string;
+		toolCallId: string;
+		isError?: boolean;
+		invocationMessage?: string | MarkdownString;
+		originMessage?: string | MarkdownString;
+		pastTenseMessage?: string | MarkdownString;
+		isConfirmed?: boolean;
+		isComplete?: boolean;
+		toolSpecificData?: ChatTerminalToolInvocationData;
+
+		constructor(toolName: string, toolCallId: string, isError?: boolean);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -445,6 +467,15 @@ declare module 'vscode' {
 		outcome: ChatEditingSessionActionOutcome;
 	}
 
+	export interface ChatEditingHunkAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'chatEditingHunkAction';
+		uri: Uri;
+		lineCount: number;
+		outcome: ChatEditingSessionActionOutcome;
+		hasRemainingEdits: boolean;
+	}
+
 	export enum ChatEditingSessionActionOutcome {
 		Accepted = 1,
 		Rejected = 2,
@@ -453,7 +484,7 @@ declare module 'vscode' {
 
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction | ChatEditingHunkAction;
 	}
 
 	export interface ChatPromptReference {

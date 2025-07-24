@@ -187,7 +187,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 }
 
 export const CreateAndRunTaskToolData: IToolData = {
-	id: 'create_and_run_task2',
+	id: 'create_and_run_task',
 	toolReferenceName: 'createAndRunTask2',
 	canBeReferencedInPrompt: true,
 	displayName: localize('createAndRunTask.displayName', 'Create and run Task'),
