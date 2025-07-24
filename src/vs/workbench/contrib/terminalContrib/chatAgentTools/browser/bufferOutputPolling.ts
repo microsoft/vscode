@@ -262,17 +262,26 @@ export function getExpectedUserInputKind(output: string): string | undefined {
 		if (!line) {
 			continue;
 		}
+		// Each pattern includes a comment with an example command that produces such a prompt
 		const patterns: { regex: RegExp; kind: string }[] = [
-			{ regex: /\bdo you want to continue\b.*\(y\/n\)/i, kind: 'y/n' },
-			{ regex: /\bcontinue\? \(y\/n\)/i, kind: 'y/n' },
-			{ regex: /\bproceed\? \(y\/n\)/i, kind: 'y/n' },
-			{ regex: /\btype yes or no\b/i, kind: 'yes/no' },
-			{ regex: /\b\(yes\/no\)/i, kind: 'yes/no' },
-			{ regex: /\b\[y\/n\]/i, kind: 'y/n' },
-			{ regex: /\benter your choice\b/i, kind: 'choice' },
-			{ regex: /\bselect an option\b/i, kind: 'choice' },
-			{ regex: /\bplease respond\b/i, kind: 'response' },
-			{ regex: /\bpress (enter|return|any key)\b/i, kind: 'press key' }
+			// Generic: ends with (y/n)
+			// Example: apt-get install foo, rm -i file.txt, git clean -fd, etc.
+			{ regex: /\(y\/n\)\s*$/i, kind: 'y/n' },
+			// [y/n] prompt (alternative format)
+			// Example: some package managers
+			{ regex: /\[y\/n\]/ig, kind: 'y/n' },
+			// yes/no prompt (matches most common forms)
+			// Example: sudo shutdown now, custom bash scripts
+			{ regex: /yes\/no\s*$/i, kind: 'yes/no' },
+			// PowerShell Remove-Item -Confirm
+			// Example: Remove-Item file.txt
+			{ regex: /\[Y\] Yes\s+\[A\] Yes to All\s+\[N\] No\s+\[L\] No to All\s+\[S\] Suspend\s+\[\?\] Help \(default is ".*"\):/i, kind: 'pwsh choice' },
+			// Choice prompt
+			// Example: interactive install scripts, menu-driven CLI tools
+			{ regex: /(enter your choice|select an option)/ig, kind: 'choice' },
+			// Response prompt
+			// Example: expect scripts
+			{ regex: /please respond/ig, kind: 'response' },
 		];
 		for (const { regex, kind } of patterns) {
 			if (regex.test(line) && (!nextLine || nextLine === '')) {
