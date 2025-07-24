@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
-import { PYTHON_LANGUAGE_ID, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
+import { VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
 
 export interface ILspTerminalModelContentProvider extends ITextModelContentProvider {
 	setContent(content: string): void;
@@ -52,13 +52,13 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 	/**
 	 * Sets or updates content for a terminal virtual document.
-	 * This is when user has executed succesful command in terminal.
+	 * This is when user has executed successful command in terminal.
 	 * Transfer the content to virtual document, and relocate delimiter to get terminal prompt ready for next prompt.
 	 */
 	setContent(content: string): void {
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		// Trailing coming from Python itself shouldn't be included in the REPL.
-		if (content !== 'exit()' && this._shellType === GeneralShellType.Python) {
+		// Skip tracking exit commands that could interfere with language servers
+		if (content !== 'exit()' && this._isInteractiveShell()) {
 			if (model) {
 				const existingContent = model.getValue();
 				if (existingContent === '') {
@@ -86,7 +86,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	trackPromptInputToVirtualFile(content: string): void {
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		if (content !== 'exit()' && this._shellType === GeneralShellType.Python) {
+		if (content !== 'exit()' && this._isInteractiveShell()) {
 			if (model) {
 				const existingContent = model.getValue();
 				const delimiterIndex = existingContent.lastIndexOf(VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
@@ -113,7 +113,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			// Inconsistent repro: Covering case where commandDetection is available but onCommandFinished becomes available later
 			if (this._commandDetection && this._commandDetection.onCommandFinished) {
 				this._onCommandFinishedListener.value = this._register(this._commandDetection.onCommandFinished((e) => {
-					if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
+					if (e.exitCode === 0 && this._isInteractiveShell()) {
 						this.setContent(e.command);
 					}
 
@@ -132,7 +132,15 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 	}
 
-	// TODO: Adapt to support non-python virtual document for non-python REPLs.
+	/**
+	 * Determines if the current shell supports interactive language server completion.
+	 * Currently supports Python REPL, but can be extended for other interactive shells.
+	 */
+	private _isInteractiveShell(): boolean {
+		return this._shellType === GeneralShellType.Python;
+	}
+
+	// Support for multiple virtual document types for different REPLs.
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 
@@ -146,12 +154,18 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			languageId = this._languageService.getLanguageIdByLanguageName(extension);
 
 			if (!languageId) {
-				switch (extension) {
-					case 'py': languageId = PYTHON_LANGUAGE_ID; break;
-					// case 'ps1': languageId = 'powershell'; break;
-					// case 'js': languageId = 'javascript'; break;
-					// case 'ts': languageId = 'typescript'; break; etc...
-				}
+				// Map file extensions to language IDs for REPL support
+				const extensionToLanguageMap: Record<string, string> = {
+					'py': 'python',
+					'js': 'javascript', 
+					'ts': 'typescript',
+					'ps1': 'powershell',
+					'rb': 'ruby',
+					'r': 'r',
+					'lua': 'lua',
+					'sh': 'shellscript'
+				};
+				languageId = extensionToLanguageMap[extension];
 			}
 		}
 
