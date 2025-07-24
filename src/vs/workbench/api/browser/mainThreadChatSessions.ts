@@ -261,7 +261,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// TODO: support open in panel
 		await this._editorService.openEditor({
 			resource: ChatSessionUri.forSession(chatSessionType, sessionId),
-			options: {},
+			options: { pinned: true },
 		}, position);
 	}
 }
