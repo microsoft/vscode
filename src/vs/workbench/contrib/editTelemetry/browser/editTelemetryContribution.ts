@@ -13,9 +13,7 @@ import { AnnotatedDocuments } from './helpers/annotatedDocuments.js';
 import { EditTrackingFeature } from './telemetry/editSourceTrackingFeature.js';
 import { VSCodeWorkspace } from './helpers/vscodeObservableWorkspace.js';
 import { AiStatsFeature } from './editStats/aiStatsFeature.js';
-
-export const EDIT_TELEMETRY_SETTING_ID = 'telemetry.editStats.enabled';
-export const AI_STATS_SETTING_ID = 'editor.aiStats.enabled';
+import { EDIT_TELEMETRY_SETTING_ID, AI_STATS_SETTING_ID } from './settingIds.js';
 
 export class EditTelemetryContribution extends Disposable {
 	constructor(

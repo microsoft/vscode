@@ -361,7 +361,7 @@ export class McpAddConfigurationCommand {
 					this._commandService.executeCommand(McpCommandIds.ServerOptions, name);
 				}
 
-				server.start({ isFromInteraction: true }).then(state => {
+				server.start({ promptType: 'all-untrusted' }).then(state => {
 					if (state.state === McpConnectionState.Kind.Error) {
 						server.showOutput();
 					}
