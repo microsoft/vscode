@@ -33,6 +33,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._registrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(provider));
 	}
 
+	$onDidChangeChatSessionItems(chatSessionType: string): void {
+		// Notify the provider that its chat session items have changed
+		this._chatSessionsService.notifySessionItemsChange(chatSessionType);
+	}
+
 	private async _provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]> {
 		const proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 

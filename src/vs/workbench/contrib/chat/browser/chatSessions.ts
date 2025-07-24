@@ -367,6 +367,10 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			this.updateViewRegistration();
 		}));
 
+		// Listen for session items changes and refresh the appropriate provider tree
+		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
+			this.refreshProviderTree(chatSessionType);
+		}));
 	}
 
 	override getTitle(): string {
@@ -379,6 +383,21 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			return [this.localProvider, ...this.chatSessionsService.getChatSessionItemProviders()];
 		} else {
 			return this.chatSessionsService.getChatSessionItemProviders();
+		}
+	}
+
+	private refreshProviderTree(chatSessionType: string): void {
+		// Find the provider with the matching chatSessionType
+		const providers = this.getAllChatSessionProviders();
+		const targetProvider = providers.find(provider => provider.chatSessionType === chatSessionType);
+
+		if (targetProvider) {
+			// Find the corresponding view and refresh its tree
+			const viewId = `${VIEWLET_ID}.${chatSessionType}`;
+			const view = this.getView(viewId) as SessionsViewPane | undefined;
+			if (view) {
+				view.refreshTree();
+			}
 		}
 	}
 
@@ -599,6 +618,12 @@ class SessionsViewPane extends ViewPane {
 
 	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
 		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
+	}
+
+	public refreshTree(): void {
+		if (this.tree && this.isBodyVisible()) {
+			this.tree.updateChildren(this.provider);
+		}
 	}
 
 	protected override renderBody(container: HTMLElement): void {

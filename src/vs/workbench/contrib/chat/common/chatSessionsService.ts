@@ -39,12 +39,14 @@ export interface IChatSessionItemProvider {
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
+	readonly onDidChangeSessionItems: Event<string>;
 	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
 	getChatSessionProviders(): IChatSessionsExtensionPoint[];
 	getChatSessionItemProviders(): IChatSessionItemProvider[];
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	hasChatSessionItemProviders: boolean;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
+	notifySessionItemsChange(chatSessionType: string): void;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
@@ -55,6 +57,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
+	private readonly _onDidChangeSessionItems = this._register(new Emitter<string>());
+	readonly onDidChangeSessionItems: Event<string> = this._onDidChangeSessionItems.event;
+
 	private _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
 
 	constructor(
@@ -96,6 +101,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
 
 		return this._itemsProviders.has(chatViewType);
+	}
+
+	public notifySessionItemsChange(chatSessionType: string): void {
+		this._onDidChangeSessionItems.fire(chatSessionType);
 	}
 
 	public async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
