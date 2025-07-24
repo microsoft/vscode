@@ -34,11 +34,9 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 	public readonly domNode: HTMLElement;
 
-	private listPool: CollapsibleChangesSummaryListPool | undefined;
-	private isExpanded: boolean = false;
-
 	private fileDiffs: Map<string, IEditSessionEntryDiff> = new Map();
 	private changes: readonly IChatChangesSummary[] = [];
+	private isExpanded: boolean = false;
 
 	constructor(
 		content: IChatChangesSummaryPart,
@@ -139,8 +137,8 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 	private renderList(container: HTMLElement): IDisposable {
 		const store = new DisposableStore();
-		this.listPool = store.add(this.instantiationService.createInstance(CollapsibleChangesSummaryListPool));
-		const list = this.listPool.get();
+		const listpool = store.add(this.instantiationService.createInstance(CollapsibleChangesSummaryListPool));
+		const list = listpool.get();
 		const listElement = list.getHTMLElement();
 		const itemsShown = Math.min(this.changes.length, this.MAX_ITEMS_SHOWN);
 		const height = itemsShown * this.ELEMENT_HEIGHT;
