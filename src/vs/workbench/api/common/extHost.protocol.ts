@@ -3123,7 +3123,8 @@ export interface ChatSessionDto {
 		| { type: 'request'; prompt: string }
 		| { type: 'response'; parts: IChatProgressDto[] }>;
 
-	activeResponseCallback: boolean;
+	hasActiveResponseCallback: boolean;
+	hasRequestHandler: boolean;
 }
 
 
@@ -3141,6 +3142,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(handle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
 	$provideChatSessionContent(handle: number, id: string, token: CancellationToken): Promise<ChatSessionDto>;
+	$invokeChatSessionRequestHandler(handle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;
 }
 
 // --- proxy identifiers

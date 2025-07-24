@@ -42,7 +42,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ChatEditorInput, ChatUri } from './chatEditorInput.js';
+import { ChatEditorInput } from './chatEditorInput.js';
 import { IChatWidgetService, IChatWidget } from './chat.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -50,6 +50,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatEditorOptions } from './chatEditor.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -653,7 +654,7 @@ class SessionsViewPane extends ViewPane {
 				ckey.reset();
 
 				await this.editorService.openEditor({
-					resource: ChatUri.generateForSession(element.provider.chatSessionType, element.id),
+					resource: ChatSessionUri.forSession(element.provider.chatSessionType, element.id),
 					options: {} satisfies IChatEditorOptions
 				});
 			}

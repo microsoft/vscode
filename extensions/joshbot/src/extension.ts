@@ -106,6 +106,7 @@ class JoshBotSessionManager {
 			],
 			requestHandler: async (request, _context, stream, _token) => {
 				// Simple echo bot for demo purposes
+				await new Promise(resolve => setTimeout(resolve, 2000));
 				stream.markdown(`You said: "${request.prompt}"`);
 				return { metadata: { command: '', sessionId: 'ongoing-session' } };
 			}

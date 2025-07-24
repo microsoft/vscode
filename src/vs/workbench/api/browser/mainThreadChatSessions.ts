@@ -9,6 +9,7 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatSessionUri } from '../../contrib/chat/common/chatUri.js';
@@ -74,7 +75,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			const _progressEmitter = new Emitter<IChatProgress[]>;
 			const _completionEmitter = new Emitter<void>();
 			let progressEvent: Event<IChatProgress[]> | undefined = undefined;
-			if (sessionContent.activeResponseCallback) {
+			if (sessionContent.hasActiveResponseCallback) {
 				const requestId = 'ongoing';
 				// set progress
 				progressEvent = _progressEmitter.event;
@@ -82,6 +83,22 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				const progressKey = `${handle}_${id}_${requestId}`;
 				this._activeProgressEmitters.set(progressKey, _progressEmitter);
 				this._completionEmitters.set(progressKey, _completionEmitter);
+			}
+
+			let requestHandler: ((request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any, token: CancellationToken) => Promise<void>) | undefined;
+
+			if (sessionContent.hasRequestHandler) {
+				requestHandler = async (request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any, token: CancellationToken) => {
+					const progressKey = `${handle}_${id}_${request.requestId}`;
+					const _progressEmitter = new Emitter<IChatProgress[]>;
+					this._activeProgressEmitters.set(progressKey, _progressEmitter);
+					_progressEmitter.event(e => {
+						console.log(e);
+						progress(e);
+					});
+
+					await this._proxy.$invokeChatSessionRequestHandler(handle, id, request, [], token);
+				};
 			}
 
 			return {
@@ -96,7 +113,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 						parts: turn.parts.map(part => revive(part) as IChatProgress)
 					};
 				}),
-				progressEvent: progressEvent
+				progressEvent: progressEvent,
+				requestHandler: requestHandler
 			};
 		} catch (error) {
 			this._logService.error(`Error providing chat session content for handle ${handle} and id ${id}:`, error);

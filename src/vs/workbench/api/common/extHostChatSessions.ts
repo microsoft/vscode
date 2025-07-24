@@ -10,7 +10,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
@@ -20,22 +20,28 @@ import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
 
 	constructor(
-		extension: IExtensionDescription,
+		public readonly session: vscode.ChatSession,
+		public readonly extension: IExtensionDescription,
 		request: IChatAgentRequest,
-		proxy: IChatAgentProgressShape,
-		commandsConverter: CommandsConverter,
-		sessionDisposables: DisposableStore
+		public readonly proxy: IChatAgentProgressShape,
+		public readonly commandsConverter: CommandsConverter,
+		public readonly sessionDisposables: DisposableStore
 	) {
 		this._stream = new ChatAgentResponseStream(extension, request, proxy, commandsConverter, sessionDisposables);
 	}
 
-	get stream() {
+	get activeResponseStream() {
 		return this._stream;
+	}
+
+	getActiveRequestStream(request: IChatAgentRequest) {
+		return new ChatAgentResponseStream(this.extension, request, this.proxy, this.commandsConverter, this.sessionDisposables);
 	}
 }
 
@@ -51,6 +57,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 	constructor(
 		private readonly commands: ExtHostCommands,
+		private readonly _languageModels: ExtHostLanguageModels,
 		@IExtHostRpcService private readonly _extHostRpc: IExtHostRpcService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -136,6 +143,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return response;
 	}
 
+	private _extHostChatSessions = new Map<string, ExtHostChatSession>();
+
 	async $provideChatSessionContent(handle: number, id: string, token: CancellationToken): Promise<ChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
@@ -148,7 +157,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const sessionDisposables = new DisposableStore();
 
 		const sessionId = ExtHostChatSessions._sessionHandlePool++;
-		const chatSession = new ExtHostChatSession(provider.extension, {
+		const chatSession = new ExtHostChatSession(session, provider.extension, {
 			sessionId: `${id}.${sessionId}`,
 			requestId: 'ongoing',
 			agentId: id,
@@ -164,8 +173,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			},
 		}, this.commands.converter, sessionDisposables);
 
+		this._extHostChatSessions.set(`${handle}_${id}`, chatSession);
+
 		if (session.activeResponseCallback) {
-			session.activeResponseCallback(chatSession.stream.apiObject, token).then(() => {
+			session.activeResponseCallback(chatSession.activeResponseStream.apiObject, token).then(() => {
 				// complete
 				this._proxy.$handleProgressComplete(handle, id, 'ongoing');
 			});
@@ -173,7 +184,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		return {
 			id: sessionId + '',
-			activeResponseCallback: !!session.activeResponseCallback,
+			hasActiveResponseCallback: !!session.activeResponseCallback,
+			hasRequestHandler: !!session.requestHandler,
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
 					return { type: 'request', prompt: turn.prompt };
@@ -188,5 +200,36 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}
 			})
 		};
+	}
+
+	async $invokeChatSessionRequestHandler(handle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
+		const chatSession = this._extHostChatSessions.get(`${handle}_${id}`);
+
+		if (!chatSession || !chatSession.session.requestHandler) {
+			return {};
+		}
+
+		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, chatSession.extension), [], new Map(), chatSession.extension, this._logService);
+
+		const stream = chatSession.getActiveRequestStream(request);
+		await chatSession.session.requestHandler!(chatRequest, { history: history }, stream.apiObject, token);
+
+		// TODO: do we need to dispose the stream object?
+		return {};
+	}
+
+	private async getModelForRequest(request: IChatAgentRequest, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
+		let model: vscode.LanguageModelChat | undefined;
+		if (request.userSelectedModelId) {
+			model = await this._languageModels.getLanguageModelByIdentifier(extension, request.userSelectedModelId);
+		}
+		if (!model) {
+			model = await this._languageModels.getDefaultLanguageModel(extension);
+			if (!model) {
+				throw new Error('Language model unavailable');
+			}
+		}
+
+		return model;
 	}
 }

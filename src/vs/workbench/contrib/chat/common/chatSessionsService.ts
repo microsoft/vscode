@@ -11,13 +11,11 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IChatProgress, IChatService } from './chatService.js';
+import { IChatProgress } from './chatService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { localize } from '../../../../nls.js';
 
 export interface IChatSessionsExtensionPoint {
 	id: string;
@@ -43,6 +41,12 @@ export interface ChatSession {
 		| { type: 'response'; parts: IChatProgress[] }>;
 
 	progressEvent?: Event<IChatProgress[]>;
+	requestHandler?: (
+		request: any,
+		context: any,
+		progress: any,
+		token: CancellationToken
+	) => Promise<any>;
 }
 
 export interface IChatSessionItemProvider {
@@ -204,6 +208,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
+	private _sessionMap = new Map<string, ChatSession>();
+
 	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
 			throw Error(`Can not find provider for ${chatSessionType}`);
@@ -215,7 +221,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
 
-		return provider.provideChatSessionContent(id, token);
+		if (this._sessionMap.get(`${chatSessionType}_${id}`)) {
+			return this._sessionMap.get(`${chatSessionType}_${id}`)!;
+		}
+
+		const session = await provider.provideChatSessionContent(id, token);
+		this._sessionMap.set(`${chatSessionType}_${id}`, session);
+		return session;
 	}
 
 	public get hasChatSessionItemProviders(): boolean {
@@ -233,45 +245,17 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 
 	constructor(
 		private readonly chatSession: IChatSessionsExtensionPoint,
-		@IChatService private readonly chatService: IChatService
+		@IChatSessionsService private readonly chatSessionService: IChatSessionsService
 	) {
 		super();
 	}
 
 	async invoke(request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
-		const message = request.message.trim();
-		try {
-			if (history.length === 0) {
-				return this.handleNew(request, message, progress, token);
-			} else {
-				return this.handleExisting(request, message, progress, token);
-			}
-		} catch (error) {
-			progress([{
-				kind: 'markdownContent',
-				content: new MarkdownString(localize('remoteCodingAgent.error', 'Error: {0}', error instanceof Error ? error.message : String(error)))
-			}]);
-			return { errorDetails: { message: String(error) } };
+		const session = await this.chatSessionService.provideChatSessionContent(this.chatSession.id, 'ongoing-session', token);
+		if (session.requestHandler) {
+			await session.requestHandler(request, progress, [], token);
 		}
-	}
 
-	private async handleExisting(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
-		const { displayName } = this.chatSession;
-		progress([{
-			kind: 'progressMessage',
-			content: new MarkdownString(localize('chatAgent.working', '{0} queued your request', displayName))
-		}]);
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		return {};
-	}
-
-	private async handleNew(request: IChatAgentRequest, message: string, progress: (progress: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
-
-		// Get the chat model for this session so we can add requests over time
-		const chatModel = this.chatService.getSession(request.sessionId);
-		if (!chatModel) {
-			throw new Error(`Chat session ${request.sessionId} not found`);
-		}
 		return {};
 	}
 }
