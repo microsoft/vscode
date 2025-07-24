@@ -66,6 +66,8 @@ import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 import { NullLanguageModelsService } from '../../../chat/test/common/languageModels.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 
 suite('InlineChatSession', function () {
 
@@ -102,6 +104,7 @@ suite('InlineChatSession', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[ILanguageModelToolsService, new MockLanguageModelToolsService()],
+			[IMcpService, new TestMcpService()],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
 					return {
