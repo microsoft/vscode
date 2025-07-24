@@ -404,8 +404,18 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
 
-			if (quality === 'insider') {
+			if (quality !== 'exploration') {
 				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
+				result = es.merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: 'resources/win32/appx' })
+					.pipe(replace('@@AppxPackageName@@', product.win32AppUserModelId))
+					.pipe(replace('@@AppxPackageVersion@@', version))
+					.pipe(replace('@@AppxPackageDisplayName@@', product.nameLong))
+					.pipe(replace('@@AppxPackageDescription@@', product.win32NameVersion))
+					.pipe(replace('@@ApplicationIdShort@@', product.applicationName))
+					.pipe(replace('@@ApplicationExe@@', product.nameShort + '.exe'))
+					.pipe(replace('@@FileExplorerContextMenuID@@', product.win32ContextMenu.id))
+					.pipe(replace('@@FileExplorerContextMenuCLSID@@', product.win32ContextMenu.clsid))
+					.pipe(replace('@@FileExplorerContextMenuDLL@@', product.win32ContextMenu.dllname)));
 			}
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
