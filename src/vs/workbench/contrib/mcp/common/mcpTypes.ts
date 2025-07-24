@@ -621,6 +621,7 @@ export interface IMcpWorkbenchService {
 	readonly onChange: Event<IWorkbenchMcpServer | undefined>;
 	readonly onReset: Event<void>;
 	readonly local: readonly IWorkbenchMcpServer[];
+	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
 	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString;
@@ -647,7 +648,7 @@ export class McpServerContainers extends Disposable {
 	update(server: IWorkbenchMcpServer | undefined): void {
 		for (const container of this.containers) {
 			if (server && container.mcpServer) {
-				if (server.name === container.mcpServer.name) {
+				if (server.id === container.mcpServer.id) {
 					container.mcpServer = server;
 				}
 			} else {

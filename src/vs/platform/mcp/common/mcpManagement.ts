@@ -19,7 +19,6 @@ export interface ILocalMcpServer {
 	readonly version?: string;
 	readonly mcpResource: URI;
 	readonly location?: URI;
-	readonly id?: string;
 	readonly displayName?: string;
 	readonly url?: string;
 	readonly description?: string;

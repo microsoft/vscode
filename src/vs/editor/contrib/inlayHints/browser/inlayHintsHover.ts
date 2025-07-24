@@ -143,27 +143,31 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 
 
 			// (3) Inlay Label Part Location tooltip
-			const iterable = await this._resolveInlayHintLabelPartHover(part, token);
+			const iterable = this._resolveInlayHintLabelPartHover(part, token);
 			for await (const item of iterable) {
 				executor.emitOne(item);
 			}
 		});
 	}
 
-	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableObject<MarkdownHover>> {
+	private async *_resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): AsyncIterable<MarkdownHover> {
 		if (!part.part.location) {
-			return AsyncIterableObject.EMPTY;
+			return;
 		}
+
 		const { uri, range } = part.part.location;
 		const ref = await this._resolverService.createModelReference(uri);
 		try {
 			const model = ref.object.textEditorModel;
 			if (!this._languageFeaturesService.hoverProvider.has(model)) {
-				return AsyncIterableObject.EMPTY;
+				return;
 			}
-			return getHoverProviderResultsAsAsyncIterable(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)
-				.filter(item => !isEmptyMarkdownString(item.hover.contents))
-				.map(item => new MarkdownHover(this, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal));
+
+			for await (const item of getHoverProviderResultsAsAsyncIterable(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)) {
+				if (!isEmptyMarkdownString(item.hover.contents)) {
+					yield new MarkdownHover(this, part.item.anchor.range, item.hover.contents, false, 2 + item.ordinal);
+				}
+			}
 		} finally {
 			ref.dispose();
 		}

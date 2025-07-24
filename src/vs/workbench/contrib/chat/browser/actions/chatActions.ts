@@ -57,7 +57,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntit
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -565,13 +565,18 @@ export function registerChatActions() {
 						const cancellationToken = new CancellationTokenSource();
 
 						try {
-							const sessions = await chatSessionsService.provideChatSessions(cancellationToken.token);
+							const providers = chatSessionsService.getChatSessionProviders();
+							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
 
-							for (const session of sessions) {
+							for (const provider of providers) {
+								const sessions = await chatSessionsService.provideChatSessionItems(provider.id, cancellationToken.token);
+								providerNSessions.push(...sessions.map(session => ({ providerType: provider.id, session })));
+							}
+
+							for (const session of providerNSessions) {
 								const sessionContent = session.session;
-								const provider = session.provider;
 
-								const ckey = contextKeyService.createKey('chatSessionType', provider.chatSessionType);
+								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
 								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
 								const menuActions = getContextMenuActions(actions, 'navigation');
 								ckey.reset();
@@ -588,17 +593,17 @@ export function registerChatActions() {
 									label: sessionContent.label,
 									description: '',
 									chat: {
-										sessionId: sessionContent.uri.toString(),
+										sessionId: sessionContent.id,
 										title: sessionContent.label,
 										isActive: false,
 										lastMessageDate: 0,
 									},
 									buttons,
-									uri: sessionContent.uri
+									id: sessionContent.id
 								};
 
 								// Check if this agent already exists (update existing or add new)
-								const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === sessionContent.uri.path);
+								const existingIndex = agentPicks.findIndex(pick => pick.chat.sessionId === sessionContent.id);
 								if (existingIndex >= 0) {
 									agentPicks[existingIndex] = agentPick;
 								} else {
@@ -622,7 +627,7 @@ export function registerChatActions() {
 								currentPicks.push(...agentPicks);
 
 								// Add "Show more..." if needed and not showing all agents
-								if (!showAllAgents && sessions.length > 5) {
+								if (!showAllAgents && providerNSessions.length > 5) {
 									currentPicks.push({
 										label: localize('chat.history.showMoreAgents', 'Show more...'),
 										description: '',
@@ -746,7 +751,7 @@ export function registerChatActions() {
 					if (buttonItem.id) {
 						const contextItem = context.item as ICodingAgentPickerItem;
 						commandService.executeCommand(buttonItem.id, {
-							uri: contextItem.uri,
+							id: contextItem.id,
 							$mid: MarshalledId.ChatSessionContext
 						});
 					}
@@ -790,8 +795,17 @@ export function registerChatActions() {
 							true
 						);
 						return;
-					} else if ((item as ICodingAgentPickerItem).uri !== undefined) {
-						// TODO: handle click
+					} else if ((item as ICodingAgentPickerItem).id !== undefined) {
+						// TODO: This is a temporary change that will be replaced by opening a new chat instance
+						if (item.buttons && item.buttons.length > 0) {
+							const pickedItem = (item.buttons[0] as ICodingAgentPickerItem);
+							if (pickedItem.id) {
+								commandService.executeCommand(pickedItem.id, {
+									id: (item as ICodingAgentPickerItem).id,
+									$mid: MarshalledId.ChatSessionContext
+								});
+							}
+						}
 						return;
 					}
 
@@ -836,7 +850,7 @@ export function registerChatActions() {
 			}
 
 			const showAgentSessionsMenuConfig = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
-			if (showAgentSessionsMenuConfig === 'showChatsMenu' && chatSessionsService.hasChatSessionsProviders) {
+			if (showAgentSessionsMenuConfig === 'showChatsMenu' && chatSessionsService.hasChatSessionItemProviders) {
 				await this.showIntegratedPicker(
 					chatService,
 					quickInputService,

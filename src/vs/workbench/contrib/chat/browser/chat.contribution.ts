@@ -114,6 +114,9 @@ import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
+import { ChatTaskServiceImpl, IChatTasksService } from '../common/chatTasksService.js';
+import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
+import { ChatSessionsView } from './chatSessions.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -223,6 +226,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.tools.autoApprove.description', "Controls whether tool use should be automatically approved. Allow all tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval. Use with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			markdownDescription: nls.localize('chat.tools.autoApprove.markdownDescription', "Controls whether tool use should be automatically approved.\n\nAllows _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval.\n\nUse with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental'],
 			policy: {
 				name: 'ChatToolsAutoApprove',
@@ -260,13 +264,19 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
-			tags: ['experimental', 'onExp'],
+			tags: ['experimental'],
+			experiment: {
+				mode: 'startup'
+			}
 		},
 		'chat.emptyChatState.enabled': {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.emptyChatState', "Shows a modified empty chat state with hints in the input placeholder text."),
-			tags: ['experimental', 'onExp'],
+			tags: ['experimental'],
+			experiment: {
+				mode: 'startup'
+			}
 		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
@@ -326,7 +336,9 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.edits2Enabled', "Enable the new Edits mode that is based on tool-calling. When this is enabled, models that don't support tool-calling are unavailable for Edits mode."),
 			default: true,
-			tags: ['onExp'],
+			experiment: {
+				mode: 'startup'
+			}
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
 			type: 'boolean',
@@ -342,7 +354,9 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, agent mode can be activated via the dropdown in the view.", 'Copilot Chat'),
 			default: true,
-			tags: ['onExp'],
+			experiment: {
+				mode: 'startup'
+			},
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
@@ -356,7 +370,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
-			enum: ['disabled', 'showChatsMenu'],
+			enum: ['disabled', 'showChatsMenu', 'view'],
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
 			default: 'disabled',
 			tags: ['experimental'],
@@ -408,9 +422,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatPromptFiles',
 				minimumVersion: '1.99',
-				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions."),
-				defaultValue: false,
-				tags: [PolicyTag.Account, PolicyTag.Preview]
+				description: nls.localize('chat.promptFiles.policy', "Enables reusable prompt and instruction files in Chat sessions.")
 			}
 		},
 		[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: {
@@ -504,7 +516,17 @@ configurationRegistry.registerConfiguration({
 			enum: ['default', 'apple'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
-			tags: ['onExp', 'experimental']
+			tags: ['experimental'],
+			experiment: {
+				mode: 'startup'
+			}
+		},
+		'chat.manageTasksTool.enabled': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.manageTasksTool.enabled', "Enables manageTasksTool in chat. This tool allows you to use task lists in chat."),
+			tags: ['experimental'],
+			included: false,
 		}
 	}
 });
@@ -742,6 +764,7 @@ registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribu
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatCopyActions();
@@ -787,6 +810,8 @@ registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
+registerSingleton(IChatTasksService, ChatTaskServiceImpl, InstantiationType.Delayed);
+registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 

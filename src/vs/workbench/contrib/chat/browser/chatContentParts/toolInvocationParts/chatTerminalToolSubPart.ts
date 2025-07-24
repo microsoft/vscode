@@ -17,7 +17,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatTerminalToolInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData2 } from '../../../common/chatService.js';
+import { IChatToolInvocation, type IChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
@@ -33,7 +33,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
-		terminalData: IChatTerminalToolInvocationData | IChatTerminalToolInvocationData2,
+		terminalData: IChatTerminalToolInvocationData,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: MarkdownRenderer,
 		private readonly editorPool: EditorPool,
@@ -90,7 +90,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		};
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this.modelService.createModel(
-			terminalData.kind === 'terminal' ? terminalData.command : terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
+			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
 			this.languageService.createById(langId),
 			this._getUniqueCodeBlockUri(),
 			true
@@ -122,11 +122,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			this._onDidChangeHeight.fire();
 		}));
 		this._register(model.onDidChangeContent(e => {
-			if (terminalData.kind === 'terminal') {
-				terminalData.command = model.getValue();
-			} else {
-				terminalData.commandLine.userEdited = model.getValue();
-			}
+			terminalData.commandLine.userEdited = model.getValue();
 		}));
 		const element = dom.$('');
 		dom.append(element, editor.object.element);

@@ -139,8 +139,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			if (!notebookEditor) {
 				return;
 			}
-			originalReadonly ??= notebookEditor.isReadOnly;
 			if (isReadOnly) {
+				originalReadonly ??= notebookEditor.isReadOnly;
 				notebookEditor.setOptions({ isReadOnly: true });
 			} else if (originalReadonly === false) {
 				notebookEditor.setOptions({ isReadOnly: false });
@@ -160,7 +160,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					disposable.dispose();
 				}, 100);
 				const disposable = toDisposable(() => clearTimeout(timeout));
-				this._register(disposable);
+				r.store.add(disposable);
 			}
 		}));
 

@@ -4588,11 +4588,11 @@ export class ChatResponseMarkdownWithVulnerabilitiesPart {
 
 export class ChatResponseConfirmationPart {
 	title: string;
-	message: string;
+	message: string | vscode.MarkdownString;
 	data: any;
 	buttons?: string[];
 
-	constructor(title: string, message: string, data: any, buttons?: string[]) {
+	constructor(title: string, message: string | vscode.MarkdownString, data: any, buttons?: string[]) {
 		this.title = title;
 		this.message = message;
 		this.data = data;
@@ -4837,15 +4837,6 @@ export class LanguageModelToolResultPart2 implements vscode.LanguageModelToolRes
 		this.content = content;
 		this.isError = isError ?? false;
 	}
-}
-
-export class PreparedTerminalToolInvocation {
-	constructor(
-		public readonly command: string,
-		public readonly language: string,
-		public readonly confirmationMessages?: vscode.LanguageModelToolConfirmationMessages,
-		public readonly presentation?: 'hidden'
-	) { }
 }
 
 export enum ChatErrorLevel {
