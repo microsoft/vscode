@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { ChatElicitationRequestPart } from '../../../chat/browser/chatElicitationRequestPart.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { IToolInvocationContext } from '../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext, IToolResult } from '../../../chat/common/languageModelToolsService.js';
 import { promptForYesNo } from '../../../elicitation/browser/elicitation.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
@@ -152,6 +152,41 @@ export async function pollForOutputAndIdle(
 	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
+export async function handleTerminalUserInputPrompt(
+	outputAndIdle: { output: string; terminalExecutionIdleBeforeTimeout: boolean; pollDurationMs?: number; modelOutputEvalResponse?: string },
+	invocation: any,
+	chatService: IChatService,
+	terminal: ITerminalInstance,
+	executableLabel: string,
+	token: CancellationToken,
+	languageModelsService: ILanguageModelsService
+): Promise<{ handled: boolean; outputAndIdle: { output: string; terminalExecutionIdleBeforeTimeout: boolean; pollDurationMs?: number; modelOutputEvalResponse?: string }; message?: IToolResult }> {
+	const userInputKind = await getExpectedUserInputKind(outputAndIdle.output);
+	if (userInputKind) {
+		const handleResult = await handleYesNoUserPrompt(
+			userInputKind,
+			invocation.context,
+			chatService,
+			terminal,
+			async () => await pollForOutputAndIdle({ getOutput: () => terminal.xterm?.raw?.buffer.active.toString() ?? '', isActive: undefined }, true, token, languageModelsService),
+		);
+		if (handleResult.handled) {
+			if (handleResult.outputAndIdle) {
+				return { handled: true, outputAndIdle: handleResult.outputAndIdle };
+			}
+		} else {
+			return {
+				handled: false,
+				outputAndIdle,
+				message: {
+					content: [{ kind: 'text', value: `The command is still running and requires user input of ${userInputKind}.` }],
+					toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', '`{0}` is still running and requires user input. {1}', executableLabel, userInputKind))
+				}
+			};
+		}
+	}
+	return { handled: false, outputAndIdle };
+}
 
 
 export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<string> {
@@ -209,15 +244,15 @@ export function getExpectedUserInputKind(output: string): string | undefined {
 		}
 		// Each pattern includes a comment with an example command that produces such a prompt
 		const patterns: { regex: RegExp; kind: string }[] = [
-			// Generic: ends with (y/n)
+			// Generic: contains (y/n)
 			// Example: apt-get install foo, rm -i file.txt, git clean -fd, etc.
-			{ regex: /\(y\/n\)\s*$/i, kind: 'y/n' },
+			{ regex: /\(y\/n\)/ig, kind: 'y/n' },
 			// [y/n] prompt (alternative format)
 			// Example: some package managers
 			{ regex: /\[y\/n\]/ig, kind: 'y/n' },
 			// yes/no prompt (matches most common forms)
 			// Example: sudo shutdown now, custom bash scripts
-			{ regex: /yes\/no\s*$/i, kind: 'yes/no' },
+			{ regex: /yes\/no\//ig, kind: 'yes/no' },
 			// PowerShell Remove-Item -Confirm
 			// Example: Remove-Item file.txt
 			{ regex: /\[Y\] Yes\s+\[A\] Yes to All\s+\[N\] No\s+\[L\] No to All\s+\[S\] Suspend\s+\[\?\] Help \(default is ".*"\):/i, kind: 'pwsh choice' },

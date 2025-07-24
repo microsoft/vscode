@@ -12,7 +12,7 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { getExpectedUserInputKind, pollForOutputAndIdle, racePollingOrPrompt, handleYesNoUserPrompt } from '../bufferOutputPolling.js';
+import { pollForOutputAndIdle, racePollingOrPrompt, handleTerminalUserInputPrompt } from '../bufferOutputPolling.js';
 import { getOutput } from '../outputHelpers.js';
 import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -89,22 +89,21 @@ export class RunTaskTool implements IToolImpl {
 				{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
 			);
 		}
-		const userInputKind = await getExpectedUserInputKind(outputAndIdle.output);
-		if (userInputKind) {
-			const handleResult = await handleYesNoUserPrompt(
-				userInputKind,
-				invocation.context,
-				this._chatService,
-				terminal,
-				async () => await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-			);
-			if (handleResult.handled) {
-				if (handleResult.outputAndIdle) {
-					outputAndIdle = handleResult.outputAndIdle;
-				}
-			} else {
-				return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', taskDefinition.taskLabel, userInputKind)) };
+		const handleResult = await handleTerminalUserInputPrompt(
+			outputAndIdle,
+			invocation,
+			this._chatService,
+			terminal,
+			task._label,
+			token,
+			this._languageModelsService
+		);
+		if (handleResult.handled) {
+			if (handleResult.outputAndIdle) {
+				outputAndIdle = handleResult.outputAndIdle;
 			}
+		} else if (handleResult.message) {
+			return handleResult.message;
 		}
 		let output = '';
 		if (result?.exitCode) {

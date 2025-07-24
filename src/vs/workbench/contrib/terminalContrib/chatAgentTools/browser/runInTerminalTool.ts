@@ -36,7 +36,7 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getExpectedUserInputKind, getOutput, pollForOutputAndIdle, racePollingOrPrompt, handleYesNoUserPrompt } from './bufferOutputPolling.js';
+import { getOutput, handleTerminalUserInputPrompt, pollForOutputAndIdle, racePollingOrPrompt } from './bufferOutputPolling.js';
 import { promptForMorePolling } from '../../../elicitation/browser/elicitation.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
@@ -305,22 +305,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						execution
 					);
 				}
-				const userInputKind = await getExpectedUserInputKind(outputAndIdle.output);
-				if (userInputKind) {
-					const handleResult = await handleYesNoUserPrompt(
-						userInputKind,
-						invocation.context,
-						this._chatService,
-						toolTerminal.instance,
-						async () => await pollForOutputAndIdle({ getOutput: () => getOutput(toolTerminal.instance) }, true, token, this._languageModelsService)
-					);
-					if (handleResult.handled) {
-						if (handleResult.outputAndIdle) {
-							outputAndIdle = handleResult.outputAndIdle;
-						}
-					} else {
-						return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', command, userInputKind)) };
+				const handleResult = await handleTerminalUserInputPrompt(
+					outputAndIdle,
+					invocation,
+					this._chatService,
+					toolTerminal.instance,
+					command,
+					token,
+					this._languageModelsService
+				);
+				if (handleResult.handled) {
+					if (handleResult.outputAndIdle) {
+						outputAndIdle = handleResult.outputAndIdle;
 					}
+				} else if (handleResult.message) {
+					return handleResult.message;
 				}
 				let resultText = (
 					didUserEditCommand
