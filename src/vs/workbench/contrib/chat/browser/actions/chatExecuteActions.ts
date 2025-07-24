@@ -680,9 +680,9 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			chatModel.completeResponse(addedRequest);
 
 			// Clear chat (start a new chat)
-			if (resultMarkdown) {
-				widget.clear();
-			}
+			// if (resultMarkdown) {
+			// 	widget.clear();
+			// }
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}

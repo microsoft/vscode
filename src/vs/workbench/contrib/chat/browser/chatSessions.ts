@@ -683,7 +683,7 @@ class SessionsViewPane extends ViewPane {
 
 				await this.editorService.openEditor({
 					resource: ChatSessionUri.forSession(element.provider.chatSessionType, element.id),
-					options: {} satisfies IChatEditorOptions
+					options: { pinned: true } satisfies IChatEditorOptions
 				});
 			}
 		}));
