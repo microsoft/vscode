@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { errorIcon, infoIcon, manageExtensionIcon, trustIcon, warningIcon } from '../../extensions/browser/extensionsIcons.js';
-import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
-import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab, McpServerInstallState } from '../common/mcpTypes.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
-import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Emitter } from '../../../../base/common/event.js';
 import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { errorIcon, infoIcon, manageExtensionIcon, trustIcon, warningIcon } from '../../extensions/browser/extensionsIcons.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab, McpServerInstallState } from '../common/mcpTypes.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
 
@@ -303,7 +303,7 @@ export class StartServerAction extends McpServerAction {
 		if (!server) {
 			return;
 		}
-		await server.start({ isFromInteraction: true });
+		await server.start({ promptType: 'all-untrusted' });
 		server.showOutput();
 	}
 
@@ -399,7 +399,7 @@ export class RestartServerAction extends McpServerAction {
 			return;
 		}
 		await server.stop();
-		await server.start({ isFromInteraction: true });
+		await server.start({ promptType: 'all-untrusted' });
 		server.showOutput();
 	}
 
