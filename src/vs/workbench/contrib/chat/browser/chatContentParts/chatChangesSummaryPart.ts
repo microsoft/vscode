@@ -65,10 +65,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 
 		this._register(this.renderHeader(headerDomNode));
 		this._register(this.renderFilesList(this.domNode));
-
-		autorun((r) => {
-			this.updateList(this.fileChanges, this.fileChangesDiffsObservable.read(r));
-		});
 	}
 
 	private changeID(change: IChatFileChangesSummary): string {
@@ -198,6 +194,9 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		}));
 		store.add(this.list.onContextMenu(e => {
 			dom.EventHelper.stop(e.browserEvent, true);
+		}));
+		store.add(autorun((r) => {
+			this.updateList(this.fileChanges, this.fileChangesDiffsObservable.read(r));
 		}));
 		return store;
 	}
