@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -21,6 +22,8 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { clearChatEditor } from './actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
@@ -49,6 +52,7 @@ export class ChatEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(ChatEditorInput.EditorID, group, telemetryService, themeService, storageService);
@@ -124,6 +128,17 @@ export class ChatEditor extends EditorPane {
 
 		if (!this.widget) {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
+		}
+
+		if (input.resource.scheme === Schemas.vscodeChatSession) {
+			const identifier = ChatSessionUri.parse(input.resource);
+			if (identifier) {
+				const contributions = this.chatSessionsService.getChatSessionContributions();
+				const contribution = contributions.find(c => c.id === identifier.chatSessionType);
+				if (contribution) {
+					this.widget.lockToCodingAgent(contribution.name);
+				}
+			}
 		}
 
 		this.updateModel(editorModel.model, options?.viewState ?? input.options.viewState);
