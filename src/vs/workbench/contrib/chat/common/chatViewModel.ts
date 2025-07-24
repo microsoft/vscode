@@ -176,8 +176,8 @@ export interface IChatErrorDetailsPart {
 }
 
 export interface IChatChangesSummaryPart {
-	kind: 'changesSummary';
-	fileChanges: ReadonlyArray<IChatChangesSummary>;
+	readonly kind: 'changesSummary';
+	readonly fileChanges: ReadonlyArray<IChatChangesSummary>;
 }
 
 /**

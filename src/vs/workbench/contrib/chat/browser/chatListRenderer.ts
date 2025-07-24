@@ -177,7 +177,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _diffEditorPool: DiffEditorPool;
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
-	private readonly _options: ChatEditorOptions;
 
 	private _currentLayoutWidth: number = 0;
 	private _isVisible = true;
@@ -208,7 +207,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	) {
 		super();
 
-		this._options = editorOptions;
 		this.renderer = this.instantiationService.createInstance(ChatMarkdownRenderer, undefined);
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, false));
@@ -684,7 +682,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
-		if (element.isComplete && this._options.configuration.showFileChanges) {
+		if (this.shouldShowFileChangesSummary(element)) {
 			const fileChanges: IChatChangesSummary[] = [];
 			for (const part of element.model.entireResponse.value) {
 				if (part.kind === 'textEditGroup') {
@@ -1007,7 +1005,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isPaused = element.model.isPaused.get();
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
-		if (element.isComplete && this._options.configuration.showFileChanges) {
+		if (this.shouldShowFileChangesSummary(element)) {
 			const fileChanges: IChatChangesSummary[] = [];
 			for (const part of element.model.entireResponse.value) {
 				if (part.kind === 'textEditGroup') {
@@ -1025,6 +1023,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return { content: partsToRender, moreContentAvailable };
+	}
+
+	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
+		return element.isComplete && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[]): boolean {

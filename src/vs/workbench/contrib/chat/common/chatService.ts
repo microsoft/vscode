@@ -110,10 +110,10 @@ export interface IChatContentReference {
 }
 
 export interface IChatChangesSummary {
-	reference: URI;
-	sessionId: string;
-	requestId: string;
-	kind: 'changesSummary';
+	readonly reference: URI;
+	readonly sessionId: string;
+	readonly requestId: string;
+	readonly kind: 'changesSummary';
 }
 
 export interface IChatCodeCitation {
