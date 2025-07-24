@@ -337,8 +337,7 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IChatFileCh
 		});
 		const labelElement = label.element;
 		labelElement.querySelector(`.${this.insertionAndDeletionsClassName}`)?.remove();
-		const insertionsAndDeletions = $(`.${this.insertionAndDeletionsClassName}`);
-		labelElement.appendChild(insertionsAndDeletions);
+		const insertionsAndDeletions = labelElement.appendChild($(`.${this.insertionAndDeletionsClassName}`));
 		data.additionalLabels?.forEach(additionalLabel => {
 			const element = insertionsAndDeletions.appendChild($(`.${additionalLabel.className}`));
 			element.textContent = additionalLabel.description;
