@@ -1303,7 +1303,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
-		return this.instantiationService.createInstance(ChatChangesSummaryContentPart, content, context);
+		const part = this.instantiationService.createInstance(ChatChangesSummaryContentPart, content, context);
+		part.addDisposable(part.onDidChangeHeight(() => { this.updateItemHeight(templateData); }));
+		return part;
 	}
 
 	private renderAttachments(variables: IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, templateData: IChatListItemTemplate) {

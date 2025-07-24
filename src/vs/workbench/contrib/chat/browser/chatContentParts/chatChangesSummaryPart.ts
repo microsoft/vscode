@@ -29,6 +29,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
+import { Emitter } from '../../../../../base/common/event.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -36,6 +37,9 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	public readonly MAX_ITEMS_SHOWN = 6;
 
 	public readonly domNode: HTMLElement;
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private fileDiffsObservable: IObservableWithChange<Map<string, IEditSessionEntryDiff>, void>;
 	private list: WorkbenchList<IChatChangesSummaryItem> | undefined;
@@ -127,6 +131,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		const setExpansionState = () => {
 			viewListButton.icon = this.isExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 			this.domNode.classList.toggle('chat-used-context-collapsed', !this.isExpanded);
+			this._onDidChangeHeight.fire();
 		};
 		setExpansionState();
 
@@ -253,6 +258,10 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		return other.kind === 'changesSummary' && other.changes.length === this.changes.length;
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 }
 
