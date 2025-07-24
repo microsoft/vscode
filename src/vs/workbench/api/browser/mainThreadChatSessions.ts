@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
@@ -81,27 +82,28 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		return [];
 	}
 
-	private async _provideChatSessionContent(handle: number, id: string, token: CancellationToken): Promise<ChatSession> {
+	private async _provideChatSessionContent(providerHandle: number, id: string, token: CancellationToken): Promise<ChatSession> {
 		try {
-			const sessionContent = await this._proxy.$provideChatSessionContent(handle, id, token);
-			const _progressEmitter = new Emitter<IChatProgress[]>;
-			const _completionEmitter = new Emitter<void>();
+			const sessionContent = await raceCancellationError(this._proxy.$provideChatSessionContent(providerHandle, id, token), token);
+
+			const progressEmitter = new Emitter<IChatProgress[]>;
+			const completionEmitter = new Emitter<void>();
 			let progressEvent: Event<IChatProgress[]> | undefined = undefined;
 			if (sessionContent.hasActiveResponseCallback) {
 				const requestId = 'ongoing';
 				// set progress
-				progressEvent = _progressEmitter.event;
+				progressEvent = progressEmitter.event;
 				// store the event emitter using a key that combines handle and session id
-				const progressKey = `${handle}_${id}_${requestId}`;
-				this._activeProgressEmitters.set(progressKey, _progressEmitter);
-				this._completionEmitters.set(progressKey, _completionEmitter);
+				const progressKey = `${providerHandle}_${id}_${requestId}`;
+				this._activeProgressEmitters.set(progressKey, progressEmitter);
+				this._completionEmitters.set(progressKey, completionEmitter);
 			}
 
 			let requestHandler: ((request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any, token: CancellationToken) => Promise<void>) | undefined;
 
 			if (sessionContent.hasRequestHandler) {
 				requestHandler = async (request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any, token: CancellationToken) => {
-					const progressKey = `${handle}_${id}_${request.requestId}`;
+					const progressKey = `${providerHandle}_${id}_${request.requestId}`;
 					const _progressEmitter = new Emitter<IChatProgress[]>;
 					this._activeProgressEmitters.set(progressKey, _progressEmitter);
 					_progressEmitter.event(e => {
@@ -109,7 +111,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 						progress(e);
 					});
 
-					await this._proxy.$invokeChatSessionRequestHandler(handle, id, request, [], token);
+					await this._proxy.$invokeChatSessionRequestHandler(providerHandle, id, request, [], token);
 				};
 			}
 
@@ -126,10 +128,15 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					};
 				}),
 				progressEvent: progressEvent,
-				requestHandler: requestHandler
+				requestHandler: requestHandler,
+				dispose: () => {
+					progressEmitter.dispose();
+					completionEmitter.dispose();
+					this._proxy.$disposeChatSessionContent(providerHandle, sessionContent.id);
+				},
 			};
 		} catch (error) {
-			this._logService.error(`Error providing chat session content for handle ${handle} and id ${id}:`, error);
+			this._logService.error(`Error providing chat session content for handle ${providerHandle} and id ${id}:`, error);
 			throw error; // Re-throw to propagate the error
 		}
 	}

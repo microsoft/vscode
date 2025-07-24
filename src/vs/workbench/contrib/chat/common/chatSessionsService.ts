@@ -20,6 +20,7 @@ export interface IChatSessionsExtensionPoint {
 	when?: string;
 }
 export interface IChatSessionItem {
+
 	id: string;
 	label: string;
 	iconPath?: URI | {
@@ -28,14 +29,15 @@ export interface IChatSessionItem {
 	} | ThemeIcon;
 }
 
-export interface ChatSession {
-	id: string;
+export interface ChatSession extends IDisposable {
+	readonly id: string;
 
 	history: Array<
 		| { type: 'request'; prompt: string }
 		| { type: 'response'; parts: IChatProgress[] }>;
 
-	progressEvent?: Event<IChatProgress[]>;
+	readonly progressEvent?: Event<IChatProgress[]>;
+
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,

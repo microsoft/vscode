@@ -600,6 +600,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		disposables.add(model.onDidDispose(() => {
 			this._contentProviderSessionModels?.get(chatSessionType)?.delete(parsed.sessionId);
+			content.dispose();
 		}));
 
 		let lastRequest: ChatRequestModel | undefined;
@@ -636,10 +637,9 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (content.progressEvent) {
-			content.progressEvent(e => {
+			disposables.add(content.progressEvent(e => {
 				if (lastRequest) {
 					for (const progress of e) {
-
 						if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
 							model?.completeResponse(lastRequest);
 						} else {
@@ -647,7 +647,7 @@ export class ChatService extends Disposable implements IChatService {
 						}
 					}
 				}
-			});
+			}));
 		} else {
 			if (lastRequest) {
 				model.completeResponse(lastRequest);

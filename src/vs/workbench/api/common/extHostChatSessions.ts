@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -149,7 +149,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return response;
 	}
 
-	private _extHostChatSessions = new Map<string, ExtHostChatSession>();
+	private readonly _extHostChatSessions = new Map<string, { readonly sessionObj: ExtHostChatSession; readonly disposeCts: CancellationTokenSource }>();
 
 	async $provideChatSessionContent(handle: number, id: string, token: CancellationToken): Promise<ChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
@@ -159,9 +159,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		const session = await provider.provider.provideChatSessionContent(id, token);
 
-		// TODO: leaked
 		const sessionDisposables = new DisposableStore();
-
 		const sessionId = ExtHostChatSessions._sessionHandlePool++;
 		const chatSession = new ExtHostChatSession(session, provider.extension, {
 			sessionId: `${id}.${sessionId}`,
@@ -179,9 +177,18 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			},
 		}, this.commands.converter, sessionDisposables);
 
-		this._extHostChatSessions.set(`${handle}_${id}`, chatSession);
+		const disposeCts = sessionDisposables.add(new CancellationTokenSource());
+		this._extHostChatSessions.set(`${handle}_${id}`, { sessionObj: chatSession, disposeCts });
 
-		const result: ChatSessionDto = {
+		// Call activeResponseCallback immediately for best user experience
+		if (session.activeResponseCallback) {
+			Promise.resolve(session.activeResponseCallback(chatSession.activeResponseStream.apiObject, disposeCts.token)).finally(() => {
+				// complete
+				this._proxy.$handleProgressComplete(handle, id, 'ongoing');
+			});
+		}
+
+		return {
 			id: sessionId + '',
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
@@ -199,29 +206,31 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}
 			})
 		};
+	}
 
-		// Call activeResponseCallback immediately for best user experience
-		if (session.activeResponseCallback) {
-			session.activeResponseCallback(chatSession.activeResponseStream.apiObject, token).then(() => {
-				// complete
-				this._proxy.$handleProgressComplete(handle, id, 'ongoing');
-			});
+	async $disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void> {
+		const key = `${providerHandle}_${sessionId}`;
+		const entry = this._extHostChatSessions.get(key);
+		if (!entry) {
+			this._logService.warn(`No chat session found for ID: ${key}`);
+			return;
 		}
 
-		return result;
+		entry.disposeCts.cancel();
+		entry.sessionObj.sessionDisposables.dispose();
+		this._extHostChatSessions.delete(key);
 	}
 
 	async $invokeChatSessionRequestHandler(handle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
-		const chatSession = this._extHostChatSessions.get(`${handle}_${id}`);
-
-		if (!chatSession || !chatSession.session.requestHandler) {
+		const entry = this._extHostChatSessions.get(`${handle}_${id}`);
+		if (!entry || !entry.sessionObj.session.requestHandler) {
 			return {};
 		}
 
-		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, chatSession.extension), [], new Map(), chatSession.extension, this._logService);
+		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, entry.sessionObj.extension), [], new Map(), entry.sessionObj.extension, this._logService);
 
-		const stream = chatSession.getActiveRequestStream(request);
-		await chatSession.session.requestHandler!(chatRequest, { history: history }, stream.apiObject, token);
+		const stream = entry.sessionObj.getActiveRequestStream(request);
+		await entry.sessionObj.session.requestHandler(chatRequest, { history: history }, stream.apiObject, token);
 
 		// TODO: do we need to dispose the stream object?
 		return {};

@@ -114,12 +114,12 @@ class ContributedChatSessionData implements IDisposable {
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
-	private _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
+	private readonly _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
 
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
-	private _contentProviders: Map<string, IChatSessionContentProvider> = new Map();
-	private _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
+	private readonly _contentProviders: Map<string, IChatSessionContentProvider> = new Map();
+	private readonly _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<string>());
 	readonly onDidChangeSessionItems: Event<string> = this._onDidChangeSessionItems.event;
 
@@ -245,6 +245,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return {
 			dispose: () => {
 				this._contentProviders.delete(provider.chatSessionType);
+
+				// Remove all sessions that were created by this provider
+				for (const [key, session] of this._sessions) {
+					if (session.chatSessionType === provider.chatSessionType) {
+						session.dispose();
+						this._sessions.delete(key);
+					}
+				}
 			}
 		};
 	}
@@ -257,7 +265,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		const provider = this._contentProviders.get(chatSessionType);
-
 		if (!provider) {
 			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
