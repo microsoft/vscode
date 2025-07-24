@@ -96,11 +96,19 @@ export class RunTaskTool implements IToolImpl {
 				const result = await response.promise;
 				if (result) {
 					await terminal.sendText(options[0] === 'y' ? 'y' : 'yes', true);
+					outputAndIdle = await racePollingOrPrompt(
+						() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
+						() => promptForMorePolling(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", taskDefinition.taskLabel), localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes."), invocation.context!, this._chatService),
+						outputAndIdle,
+						token,
+						this._languageModelsService,
+						{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
+					);
 				} else {
 					await terminal.sendText(options[0] === 'n' ? 'n' : 'no', true);
 				}
 			}
-			return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}. Ask the user which input they'd like to provide.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', taskDefinition.taskLabel, userInputKind)) };
+			return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', taskDefinition.taskLabel, userInputKind)) };
 		}
 		let output = '';
 		if (result?.exitCode) {
