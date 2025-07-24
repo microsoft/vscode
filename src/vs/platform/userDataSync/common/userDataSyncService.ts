@@ -38,7 +38,6 @@ import {
 	IUserData,
 	isUserDataManifest,
 } from './userDataSync.js';
-import { IProductService } from '../../product/common/productService.js';
 
 type SyncErrorClassification = {
 	owner: 'sandy081';
@@ -108,7 +107,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataSyncResourceProviderService private readonly userDataSyncResourceProviderService: IUserDataSyncResourceProviderService,
 		@IUserDataSyncLocalStoreService private readonly userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this._status = userDataSyncStoreManagementService.userDataSyncStore ? SyncStatus.Idle : SyncStatus.Uninitialized;
@@ -182,10 +180,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					executionId,
 					service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString()
 				});
-
-			if (this.productService.quality !== 'stable') {
-				throw error;
-			}
 
 			// Fallback to manifest in stable
 			try {
