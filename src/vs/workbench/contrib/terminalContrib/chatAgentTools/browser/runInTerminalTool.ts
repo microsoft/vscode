@@ -36,7 +36,7 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getExpectedUserInputKind, getOutput, pollForOutputAndIdle, promptForMorePolling, promptForYesNo, racePollingOrPrompt } from './bufferOutputPolling.js';
+import { getExpectedUserInputKind, getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt, handleYesNoUserPrompt } from './bufferOutputPolling.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -306,15 +306,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				const userInputKind = await getExpectedUserInputKind(outputAndIdle.output);
 				if (userInputKind) {
-					if (userInputKind !== 'choice' && userInputKind !== 'key') {
-						const options = userInputKind.split('/');
-						const response = await promptForYesNo(invocation.context, this._chatService);
-						const result = await response.promise;
-						if (result) {
-							await toolTerminal.instance.sendText(options[0] === 'y' ? 'y' : 'yes', true);
-							outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(toolTerminal.instance) }, true, token, this._languageModelsService);
-						} else {
-							await toolTerminal.instance.sendText(options[0] === 'n' ? 'n' : 'no', true);
+					const handleResult = await handleYesNoUserPrompt(
+						userInputKind,
+						invocation.context,
+						this._chatService,
+						toolTerminal.instance,
+						async () => await pollForOutputAndIdle({ getOutput: () => getOutput(toolTerminal.instance) }, true, token, this._languageModelsService)
+					);
+					if (handleResult.handled) {
+						if (handleResult.outputAndIdle) {
+							outputAndIdle = handleResult.outputAndIdle;
 						}
 					} else {
 						return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', command, userInputKind)) };

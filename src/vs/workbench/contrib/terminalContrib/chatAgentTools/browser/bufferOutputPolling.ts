@@ -283,3 +283,30 @@ export function getExpectedUserInputKind(output: string): string | undefined {
 	}
 	return undefined;
 }
+
+/**
+ * Handles a yes/no user prompt for terminal output, sending the appropriate response to the terminal.
+ * Returns true if a response was sent, false if not handled.
+ */
+export async function handleYesNoUserPrompt(
+	userInputKind: string,
+	context: IToolInvocationContext,
+	chatService: IChatService,
+	terminal: ITerminalInstance,
+	pollForOutputAndIdleFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
+): Promise<{ handled: boolean; outputAndIdle?: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } }> {
+	if (userInputKind && userInputKind !== 'choice' && userInputKind !== 'key') {
+		const options = userInputKind.split('/');
+		const response = await promptForYesNo(context, chatService);
+		const result = await response.promise;
+		if (result) {
+			await terminal.sendText(options[0] === 'y' ? 'y' : 'yes', true);
+			const outputAndIdle = await pollForOutputAndIdleFn();
+			return { handled: true, outputAndIdle };
+		} else {
+			await terminal.sendText(options[0] === 'n' ? 'n' : 'no', true);
+			return { handled: true };
+		}
+	}
+	return { handled: false };
+}
