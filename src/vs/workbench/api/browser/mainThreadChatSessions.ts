@@ -9,6 +9,8 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { ChatViewId } from '../../contrib/chat/browser/chat.js';
+import { ChatViewPane } from '../../contrib/chat/browser/chatViewPane.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
@@ -17,6 +19,7 @@ import { EditorGroupColumn } from '../../services/editor/common/editorGroupColum
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
 import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatSessions)
@@ -40,6 +43,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILogService private readonly _logService: ILogService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		super();
 
@@ -258,10 +262,16 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	async $showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void> {
-		// TODO: support open in panel
-		await this._editorService.openEditor({
-			resource: ChatSessionUri.forSession(chatSessionType, sessionId),
-			options: {},
-		}, position);
+		const sessionUri = ChatSessionUri.forSession(chatSessionType, sessionId);
+
+		if (typeof position === 'undefined') {
+			const chatPanel = await this._viewsService.openView<ChatViewPane>(ChatViewId);
+			await chatPanel?.loadSession(sessionUri);
+		} else {
+			await this._editorService.openEditor({
+				resource: sessionUri,
+				options: {},
+			}, position);
+		}
 	}
 }
