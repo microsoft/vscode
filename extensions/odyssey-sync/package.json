@@ -1,0 +1,62 @@
+{
+  "name": "odyssey-sync",
+  "version": "1.0.0",
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Calls an API on file save and shows toast notifications.",
+  "devDependencies": {
+    "@types/node": "^20.19.9",
+    "@types/vscode": "^1.102.0",
+    "tslint": "^6.1.3",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "vscode": ">=1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:odyssey-sync.commitFiles"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "odyssey-sync.commitFiles",
+        "title": "Commit Files"
+      },
+      {
+        "command": "odyssey-sync.manageExtension",
+        "title": "Manage Odyssey Sync Extension"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "odyssey-sync.commitFiles",
+        "key": "cmd+s",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "odyssey-sync.commitFiles",
+        "key": "ctrl+s",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "publisher": "newton-school",
+  "files": [
+    "out",
+    "src",
+    "package.json",
+    "README.md"
+  ]
+}

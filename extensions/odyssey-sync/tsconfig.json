@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "out",
+    "rootDir": "src",
+    "moduleResolution": "node",
+    "types": ["vscode", "node"],
+    "noEmit": false
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", ".vscode-test"]
+} 

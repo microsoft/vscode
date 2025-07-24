@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@parcel/watcher": "2.5.1",
+    "@types/vscode": "^1.101.0",
     "esbuild": "0.25.0",
     "vscode-grammar-updater": "^1.1.0"
   },
