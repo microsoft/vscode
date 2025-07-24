@@ -12,7 +12,7 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
+import { getExpectedUserInputKind, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
 import { getOutput } from '../outputHelpers.js';
 import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -87,6 +87,10 @@ export class RunTaskTool implements IToolImpl {
 				this._languageModelsService,
 				{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
 			);
+		}
+		const userInputKind = getExpectedUserInputKind(outputAndIdle.output);
+		if (userInputKind) {
+			return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}. Ask the user which input they'd like to provide.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', taskDefinition.taskLabel, userInputKind)) };
 		}
 		let output = '';
 		if (result?.exitCode) {

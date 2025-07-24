@@ -215,3 +215,39 @@ export async function assessOutputForErrors(buffer: string, token: CancellationT
 		return 'Error occurred ' + err;
 	}
 }
+
+/**
+ * Returns true if the last line of the output is a prompt asking for user input (e.g., "Do you want to continue? (y/n)").
+ * This is a heuristic and matches common prompt patterns.
+ */
+/**
+ * Returns the kind of input expected by the last line of the output if it appears to be a user prompt.
+ * For example, returns 'y/n', 'yes/no', 'press key', 'choice', etc., or undefined if not a prompt.
+ */
+export function getExpectedUserInputKind(output: string): string | undefined {
+	if (!output) {
+		return undefined;
+	}
+	const lines = output.split(/\r?\n/);
+	const lastLine = lines[lines.length - 1].trim();
+
+	const patterns: { regex: RegExp; kind: string }[] = [
+		{ regex: /\bdo you want to continue\b.*\(y\/n\)/i, kind: 'y/n' },
+		{ regex: /\bcontinue\? \(y\/n\)/i, kind: 'y/n' },
+		{ regex: /\bproceed\? \(y\/n\)/i, kind: 'y/n' },
+		{ regex: /\btype yes or no\b/i, kind: 'yes/no' },
+		{ regex: /\b\(yes\/no\)/i, kind: 'yes/no' },
+		{ regex: /\b\[y\/n\]/i, kind: 'y/n' },
+		{ regex: /\benter your choice\b/i, kind: 'choice' },
+		{ regex: /\bselect an option\b/i, kind: 'choice' },
+		{ regex: /\bplease respond\b/i, kind: 'response' },
+		{ regex: /\bpress (enter|return|any key)\b/i, kind: 'press key' }
+	];
+
+	for (const { regex, kind } of patterns) {
+		if (regex.test(lastLine)) {
+			return kind;
+		}
+	}
+	return undefined;
+}
