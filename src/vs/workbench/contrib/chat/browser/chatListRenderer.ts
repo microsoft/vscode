@@ -83,7 +83,7 @@ import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { CodiconActionViewItem } from '../../notebook/browser/view/cellParts/cellActionView.js';
-import { ChatChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
+import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
 
 const $ = dom.$;
 
@@ -685,19 +685,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 		if (element.isComplete && this._options.configuration.showFileChanges) {
-			const changes: IChatChangesSummary[] = [];
-			element.model.entireResponse.value.forEach(part => {
+			const fileChanges: IChatChangesSummary[] = [];
+			for (const part of element.model.entireResponse.value) {
 				if (part.kind === 'textEditGroup') {
-					changes.push({
+					fileChanges.push({
 						kind: 'changesSummary',
 						reference: part.uri,
 						sessionId: element.sessionId,
 						requestId: element.requestId,
 					});
 				}
-			});
-			if (changes.length) {
-				content.push({ kind: 'changesSummary', changes });
+			}
+			if (fileChanges.length) {
+				content.push({ kind: 'changesSummary', fileChanges });
 			}
 		}
 
@@ -1008,19 +1008,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
 		if (element.isComplete && this._options.configuration.showFileChanges) {
-			const changes: IChatChangesSummary[] = [];
-			element.model.entireResponse.value.forEach(part => {
+			const fileChanges: IChatChangesSummary[] = [];
+			for (const part of element.model.entireResponse.value) {
 				if (part.kind === 'textEditGroup') {
-					changes.push({
+					fileChanges.push({
 						kind: 'changesSummary',
 						reference: part.uri,
 						sessionId: element.sessionId,
 						requestId: element.requestId,
 					});
 				}
-			});
-			if (changes.length > 0) {
-				partsToRender.push({ kind: 'changesSummary', changes });
+			}
+			if (fileChanges.length > 0) {
+				partsToRender.push({ kind: 'changesSummary', fileChanges });
 			}
 		}
 
@@ -1303,7 +1303,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
-		const part = this.instantiationService.createInstance(ChatChangesSummaryContentPart, content, context);
+		const part = this.instantiationService.createInstance(ChatCheckpointFileChangesSummaryContentPart, content, context);
 		part.addDisposable(part.onDidChangeHeight(() => { this.updateItemHeight(templateData); }));
 		return part;
 	}
