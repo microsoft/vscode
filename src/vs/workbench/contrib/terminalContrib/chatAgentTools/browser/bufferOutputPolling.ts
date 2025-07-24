@@ -152,7 +152,13 @@ export async function pollForOutputAndIdle(
 	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
-export function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
+
+function createYesNoPrompt(
+	context: IToolInvocationContext,
+	chatService: IChatService,
+	title: string,
+	description: string
+): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
 	const chatModel = chatService.getSession(context.sessionId);
 	if (chatModel instanceof ChatModel) {
 		const request = chatModel.getRequests().at(-1);
@@ -160,8 +166,8 @@ export function promptForMorePolling(command: string, context: IToolInvocationCo
 			let part: ChatElicitationRequestPart | undefined = undefined;
 			const promise = new Promise<boolean>(resolve => {
 				const thePart = part = new ChatElicitationRequestPart(
-					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
-					new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
+					new MarkdownString(title),
+					new MarkdownString(description),
 					'',
 					localize('poll.terminal.accept', 'Yes'),
 					localize('poll.terminal.reject', 'No'),
@@ -184,37 +190,22 @@ export function promptForMorePolling(command: string, context: IToolInvocationCo
 	return { promise: Promise.resolve(false) };
 }
 
+export function promptForMorePolling(title: string, message: string, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
+	return createYesNoPrompt(
+		context,
+		chatService,
+		new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
+		new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
+	);
+}
 
 export function promptForYesNo(context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
-	const chatModel = chatService.getSession(context.sessionId);
-	if (chatModel instanceof ChatModel) {
-		const request = chatModel.getRequests().at(-1);
-		if (request) {
-			let part: ChatElicitationRequestPart | undefined = undefined;
-			const promise = new Promise<boolean>(resolve => {
-				const thePart = part = new ChatElicitationRequestPart(
-					new MarkdownString(localize('poll.terminal.yes', 'Respond yes in the terminal?')),
-					new MarkdownString(localize('poll.terminal.yesNo', 'Copilot will run the reply in the terminal.')),
-					'',
-					localize('poll.terminal.accept', 'Yes'),
-					localize('poll.terminal.reject', 'No'),
-					async () => {
-						thePart.state = 'accepted';
-						thePart.hide();
-						resolve(true);
-					},
-					async () => {
-						thePart.state = 'rejected';
-						thePart.hide();
-						resolve(false);
-					}
-				);
-				chatModel.acceptResponseProgress(request, thePart);
-			});
-			return { promise, part };
-		}
-	}
-	return { promise: Promise.resolve(false) };
+	return createYesNoPrompt(
+		context,
+		chatService,
+		localize('poll.terminal.yes', 'Respond yes in the terminal?'),
+		localize('poll.terminal.yesNo', 'Copilot will run the reply in the terminal.')
+	);
 }
 
 

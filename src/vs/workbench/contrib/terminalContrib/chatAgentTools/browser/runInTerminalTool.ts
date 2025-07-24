@@ -297,7 +297,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 					outputAndIdle = await racePollingOrPrompt(
 						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
-						() => promptForMorePolling(command, invocation.context!, this._chatService),
+						() => promptForMorePolling(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command), localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes."), invocation.context!, this._chatService),
 						outputAndIdle,
 						token,
 						this._languageModelsService,
