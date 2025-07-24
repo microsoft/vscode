@@ -16,7 +16,6 @@ import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ResourcePool } from './chatCollections.js';
@@ -26,6 +25,10 @@ import { FileKind } from '../../../../../platform/files/common/files.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { autorun, derived, IObservableWithChange } from '../../../../../base/common/observable.js';
+import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -42,9 +45,9 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	constructor(
 		content: IChatChangesSummaryPart,
 		private readonly context: IChatContentPartRenderContext,
-		@ICommandService private readonly commandService: ICommandService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -198,7 +201,21 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 					});
 				}
 			});
-			this.commandService.executeCommand('chatEditing.viewFileChangesSummary', resources);
+			const multiDiffSource = URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
+			const input = this.instantiationService.createInstance(
+				MultiDiffEditorInput,
+				multiDiffSource,
+				'File Changes',
+				resources.map(resource => {
+					return new MultiDiffEditorItem(
+						resource.originalUri,
+						resource.modifiedUri,
+						undefined,
+					);
+				}),
+				false
+			);
+			this.editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE });
 			dom.EventHelper.stop(e, true);
 		});
 	}
