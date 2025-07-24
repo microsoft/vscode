@@ -25,7 +25,7 @@ import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservableWithChange } from '../../../../../base/common/observable.js';
 
 export class ChatChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -34,7 +34,8 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 	public readonly domNode: HTMLElement;
 
-	private fileDiffs: Map<string, IEditSessionEntryDiff> = new Map();
+	private fileDiffsObservable: IObservableWithChange<Map<string, IEditSessionEntryDiff>, void>;
+	private list: WorkbenchList<IChatChangesSummaryItem> | undefined;
 	private changes: readonly IChatChangesSummary[] = [];
 	private isExpanded: boolean = false;
 
@@ -49,7 +50,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		super();
 
 		this.changes = content.changes;
-		this.computeFileDiffs(content.changes);
+		this.fileDiffsObservable = this.computeFileDiffs(content.changes);
 
 		const innerDomNode = $('.container-file-changes-summary');
 		this.domNode = $('.chat-file-changes-summary', undefined, innerDomNode);
@@ -57,43 +58,44 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 
 		this._register(this.renderButtons(innerDomNode));
 		this._register(this.renderList(this.domNode));
+
+		autorun((r) => {
+			this.updateList(this.fileDiffsObservable.read(r));
+		});
 	}
 
-	private computeFileDiffs(changes: readonly IChatChangesSummary[]): void {
-		autorun((r) => {
+	private computeFileDiffs(changes: readonly IChatChangesSummary[]): IObservableWithChange<Map<string, IEditSessionEntryDiff>, void> {
+		return derived((r) => {
+			const newDiffMap = new Map<string, IEditSessionEntryDiff>();
 			for (const change of changes) {
 				const sessionId = change.sessionId;
 				const session = this.chatService.getSession(sessionId);
 				if (!session || !session.editingSessionObs) {
-					return;
+					continue;
 				}
 				const editSession = session.editingSessionObs.promiseResult.read(r)?.data;
 				if (!editSession) {
-					return;
+					continue;
 				}
 				const uri = change.reference;
 				const modifiedEntry = editSession.getEntry(uri);
 				if (!modifiedEntry) {
-					return;
+					continue;
 				}
 				const id = this.changeID(change);
 				const requestId = change.requestId;
 				const undoStops = this.context.content.filter(e => e.kind === 'undoStop');
 
-				let madeChange = false;
 				for (let i = undoStops.length - 1; i >= 0; i--) {
 					const undoStopID = undoStops[i].id;
 					const diff: IEditSessionEntryDiff | undefined = editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, requestId, undoStopID)?.read(r);
 					if (!diff) {
 						continue;
 					}
-					this.fileDiffs.set(id, diff);
-					madeChange = true;
-				}
-				if (!madeChange) {
-					this.fileDiffs.delete(id);
+					newDiffMap.set(id, diff);
 				}
 			}
+			return newDiffMap;
 		});
 	}
 
@@ -138,21 +140,21 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 	private renderList(container: HTMLElement): IDisposable {
 		const store = new DisposableStore();
 		const listpool = store.add(this.instantiationService.createInstance(CollapsibleChangesSummaryListPool));
-		const list = listpool.get();
-		const listElement = list.getHTMLElement();
+		this.list = listpool.get();
+		const listElement = this.list.getHTMLElement();
 		const itemsShown = Math.min(this.changes.length, this.MAX_ITEMS_SHOWN);
 		const height = itemsShown * this.ELEMENT_HEIGHT;
 		listElement.style.height = `${height}px`;
-		list.layout(height);
-		list.splice(0, list.length, this.computeChangeSummaryItems(this.changes));
+		this.list.layout(height);
+		this.updateList(this.fileDiffsObservable.get());
 		container.appendChild(listElement.parentElement!);
 
-		store.add(list.onDidOpen((item) => {
+		store.add(this.list.onDidOpen((item) => {
 			if (!item.element) {
 				return;
 			}
 			const changeID = this.changeID(item.element);
-			const diff = this.fileDiffs.get(changeID);
+			const diff = this.fileDiffsObservable.get().get(changeID);
 			if (diff) {
 				const input = {
 					original: { resource: diff.originalURI },
@@ -164,10 +166,17 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 				return this.editorService.openEditor({ resource: item.element.reference });
 			}
 		}));
-		store.add(list.onContextMenu(e => {
+		store.add(this.list.onContextMenu(e => {
 			dom.EventHelper.stop(e.browserEvent, true);
 		}));
 		return store;
+	}
+
+	private updateList(fileDiffs: Map<string, IEditSessionEntryDiff>): void {
+		if (!this.list) {
+			return;
+		}
+		this.list.splice(0, this.list.length, this.computeChangeSummaryItems(this.changes, fileDiffs));
 	}
 
 	private renderViewAllFileChangesButton(container: HTMLElement): IDisposable {
@@ -177,7 +186,7 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 			const resources: { originalUri: URI; modifiedUri?: URI }[] = [];
 			this.changes.forEach(e => {
 				const changeID = this.changeID(e);
-				const diffEntry = this.fileDiffs.get(changeID);
+				const diffEntry = this.fileDiffsObservable.get().get(changeID);
 				if (diffEntry) {
 					resources.push({
 						originalUri: diffEntry.originalURI,
@@ -194,11 +203,11 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 		});
 	}
 
-	private computeChangeSummaryItems(changes: readonly IChatChangesSummary[]): IChatChangesSummaryItem[] {
+	private computeChangeSummaryItems(changes: readonly IChatChangesSummary[], fileDiffs: Map<string, IEditSessionEntryDiff>): IChatChangesSummaryItem[] {
 		const items: IChatChangesSummaryItem[] = [];
 		for (const change of changes) {
 			const changeID = this.changeID(change);
-			const diffEntry = this.fileDiffs.get(changeID);
+			const diffEntry = this.fileDiffsObservable.get().get(changeID);
 			if (diffEntry) {
 				const additionalLabels: { description: string; className: string }[] = [];
 				if (diffEntry) {
@@ -215,11 +224,13 @@ export class ChatChangesSummaryContentPart extends Disposable implements IChatCo
 					...change,
 					additionalLabels
 				};
+				console.group('additionalLabels', additionalLabels);
 				items.push(changeWithInsertionsAndDeletions);
 			} else {
 				items.push(change);
 			}
 		}
+		console.log('items : ', items);
 		return items;
 	}
 
@@ -302,8 +313,12 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IChatChange
 			fileKind: FileKind.FILE,
 			title: data.reference.path
 		});
+		label.element.querySelector('.insertions-and-deletions')?.remove();
+		const insertionsAndDeletions = $('.insertions-and-deletions');
+		insertionsAndDeletions.style.display = 'flex';
+		label.element.appendChild(insertionsAndDeletions);
 		data.additionalLabels?.forEach(additionalLabel => {
-			const element = label.element.appendChild($(`.${additionalLabel.className}`));
+			const element = insertionsAndDeletions.appendChild($(`.${additionalLabel.className}`));
 			element.textContent = additionalLabel.description;
 		});
 	}
