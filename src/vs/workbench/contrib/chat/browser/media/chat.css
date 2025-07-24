@@ -1583,7 +1583,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-header .chat-file-changes-label .monaco-button {
 	width: 100%;
-	font-size: 13px;
 }
 
 .interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-header .chat-file-changes-label .monaco-button .codicon {
@@ -1593,9 +1592,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .checkpoint-file-changes-summary .chat-summary-list {
 	width: 100%;
 	max-width: 100%;
-	box-sizing: border-box;
 	padding: 0px;
 	margin-bottom: 0px;
+	border-bottom: 0px;
+	border-left: 0px;
+	border-right: 0px;
+	box-sizing: border-box;
 }
 
 .interactive-session .checkpoint-file-changes-summary .chat-summary-list .monaco-icon-label {
@@ -1603,14 +1605,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .checkpoint-file-changes-summary .insertions {
-	color: var(--vscode-chat-linesAddedForeground);;
+	color: var(--vscode-chat-linesAddedForeground);
 	font-weight: bold;
 	padding-left: 5px;
 	padding-right: 5px;
 }
 
 .interactive-session .checkpoint-file-changes-summary .deletions {
-	color: var(--vscode-chat-linesRemovedForeground);;
+	color: var(--vscode-chat-linesRemovedForeground);
 	font-weight: bold;
 }
 
