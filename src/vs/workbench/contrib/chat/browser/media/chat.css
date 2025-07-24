@@ -1598,6 +1598,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-bottom: 0px;
 }
 
+.interactive-session .checkpoint-file-changes-summary .chat-summary-list .monaco-icon-label {
+	display: flex;
+}
+
 .interactive-session .checkpoint-file-changes-summary .insertions {
 	color: var(--vscode-chat-linesAddedForeground);;
 	font-weight: bold;
