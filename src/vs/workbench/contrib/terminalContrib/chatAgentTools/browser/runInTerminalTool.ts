@@ -312,14 +312,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						const result = await response.promise;
 						if (result) {
 							await toolTerminal.instance.sendText(options[0] === 'y' ? 'y' : 'yes', true);
-							outputAndIdle = await racePollingOrPrompt(
-								() => pollForOutputAndIdle({ getOutput: () => getOutput(toolTerminal.instance) }, true, token, this._languageModelsService),
-								() => promptForMorePolling(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command), localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes."), invocation.context!, this._chatService),
-								outputAndIdle,
-								token,
-								this._languageModelsService,
-								{ getOutput: () => getOutput(toolTerminal.instance) }
-							);
+							outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(toolTerminal.instance) }, true, token, this._languageModelsService);
 						} else {
 							await toolTerminal.instance.sendText(options[0] === 'n' ? 'n' : 'no', true);
 						}
