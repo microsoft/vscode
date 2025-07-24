@@ -3425,11 +3425,18 @@ export class CommandCenter {
 		let branch: string | undefined = undefined;
 		let commitish: string;
 
-		if (choice === createBranch) {
-			branch = await this.promptForBranchName(repository);
-			if (!branch) {
+		const newBranchName = async (): Promise<string | undefined> => {
+			const branchName = await this.promptForBranchName(repository);
+
+			if (!branchName) {
 				return;
 			}
+
+			return branchName;
+		};
+
+		if (choice === createBranch) {
+			branch = await newBranchName();
 			commitish = 'HEAD';
 		} else {
 			if (!(choice instanceof RefItem) || !choice.refName) {
@@ -3440,11 +3447,7 @@ export class CommandCenter {
 			// otherwise we can use the existing selected branch or tag
 			const isWorktreeLocked = await this.isWorktreeLocked(repository, choice);
 			if (isWorktreeLocked) {
-				branch = await this.promptForBranchName(repository);
-
-				if (!branch) {
-					return;
-				}
+				branch = await newBranchName();
 			}
 			commitish = choice.refName;
 		}
@@ -3524,7 +3527,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.addWorktree({ path: worktreePath, branch, commitish });
+			await repository.addWorktree({ path: worktreePath, branch, commitish: commitish });
 
 			// Update worktree root in global state
 			const worktreeRoot = path.dirname(worktreePath);
