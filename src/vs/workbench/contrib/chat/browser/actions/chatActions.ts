@@ -50,13 +50,13 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
-import { IChatDetail, IChatProgress, IChatService } from '../../common/chatService.js';
+import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -902,133 +902,6 @@ export function registerChatActions() {
 			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
 		}
 	});
-
-	registerAction2(class OpenCodingAgentEditorAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.openCodingAgentEditor',
-				title: localize2('codingAgentSession.open', "New Coding Agent Editor"),
-				f1: true,
-				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasRemoteCodingAgent),
-				icon: Codicon.cloud,
-				menu: {
-					id: MenuId.ViewTitle,
-					group: 'navigation',
-					order: 5,
-					when: ContextKeyExpr.equals('view', ChatViewId)
-				}
-			});
-		}
-		async run(accessor: ServicesAccessor, args?: { agentId?: string; jobId?: string }) {
-			const chatAgentService = accessor.get(IChatAgentService);
-			const editorService = accessor.get(IEditorService);
-			const quickInputService = accessor.get(IQuickInputService);
-			const chatWidgetService = accessor.get(IChatWidgetService);
-
-			const openEditor = async (agent: IChatAgentData, parts?: IChatProgress[]) => {
-				await editorService.openEditor({
-					resource: ChatEditorInput.getNewEditorUri(),
-					options: { sticky: true } satisfies IChatEditorOptions
-				});
-				const widget = chatWidgetService.lastFocusedWidget;
-				if (widget) {
-					const agentMessage = `@${agent.name} `;
-					widget.setInput(agentMessage);
-					widget.lockToCodingAgent(agent);
-
-					if (parts?.length) {
-						const chatModel = widget.viewModel?.model;
-						if (!chatModel) {
-							// Unexpected
-							return;
-						}
-
-						// Create an empty request to simulate a user submission
-						const emptyRequest = chatModel.addRequest(
-							{ text: '', parts: [] },
-							{ variables: [] },
-							0,
-							agent
-						);
-						for (const part of parts) {
-							chatModel.acceptResponseProgress(emptyRequest, part);
-						}
-
-						// TODO: For demo, wait 5 seconds before completing.
-						await timeout(5000);
-
-						chatModel.completeResponse(emptyRequest);
-					}
-				}
-			};
-
-			// TODO: Demo
-			const demoParts = async (args: { jobId: string }, agent: IChatAgentData): Promise<IChatProgress[]> => {
-				// Simulate demo parts for the coding agent
-				const parts: IChatProgress[] = [
-					{
-						kind: 'markdownContent',
-						content: new MarkdownString(`**Attaching to session...**`)
-					},
-					{
-						kind: 'codingAgentSessionBegin',
-						agentId: agent.id,
-						agentDisplayName: agent.name,
-						jobId: args.jobId,
-						title: `Coding Agent Session (${agent.name})`,
-						description: `Continuing work on coding task with job ID: ${args.jobId}`
-					},
-					{
-						kind: 'progressMessage',
-						content: new MarkdownString('Implementing changes...'),
-					}
-				];
-
-				return parts;
-			};
-
-			if (args?.agentId) {
-				const agent = chatAgentService.getAgent(args.agentId);
-				if (agent && agent.isCodingAgent) {
-
-					let parts: IChatProgress[] | undefined;
-					if (args.jobId) {
-						// TODO: Simulate restoring session from jobID
-						parts = await demoParts({ jobId: args.jobId }, agent);
-					}
-					await openEditor(agent, parts);
-					return;
-				}
-			}
-
-			// Show Picker
-			const allAgents = chatAgentService.getAgents();
-			const codingChatAgents = allAgents.filter(agent => agent.isCodingAgent);
-
-			if (codingChatAgents.length === 0) {
-				return;
-			}
-
-			const quickPickItems = codingChatAgents.map(agent => ({
-				label: agent.fullName || agent.name,
-				description: agent.description,
-				detail: `@${agent.name}`,
-				agent: agent
-			}));
-
-			const picked = await quickInputService.pick(quickPickItems, {
-				title: localize('selectCodingAgent', "Select Coding Agent"),
-				placeHolder: localize('selectCodingAgentPlaceholder', "Select your coding agent")
-			});
-
-			if (!picked) {
-				return; // User cancelled
-			}
-			await openEditor(picked.agent);
-		}
-	});
-
 
 	registerAction2(class ChatAddAction extends Action2 {
 		constructor() {

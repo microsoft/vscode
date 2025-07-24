@@ -10,6 +10,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatProgress } from './chatService.js';
+import { IChatAgentRequest } from './chatAgents.js';
 
 export interface IChatSessionsExtensionPoint {
 	id: string;
@@ -36,12 +37,13 @@ export interface ChatSession {
 
 	progressEvent?: Event<IChatProgress[]>;
 	requestHandler?: (
-		request: any,
-		context: any,
-		progress: any,
+		request: IChatAgentRequest,
+		progress: (progress: IChatProgress[]) => void,
+		history: [],
 		token: CancellationToken
-	) => Promise<any>;
+	) => Promise<void>;
 }
+
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;

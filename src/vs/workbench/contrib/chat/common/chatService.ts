@@ -324,15 +324,6 @@ export interface IChatPrepareToolInvocationPart {
 	readonly toolName: string;
 }
 
-export interface ICodingAgentSessionBegin {
-	readonly kind: 'codingAgentSessionBegin';
-	readonly agentDisplayName: string;
-	readonly agentId: string;
-	readonly jobId: string;
-	readonly title: string;
-	readonly description: string;
-	readonly command?: string;
-}
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -357,8 +348,7 @@ export type IChatProgress =
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatTaskSerialized
-	| IChatElicitationRequest
-	| ICodingAgentSessionBegin;
+	| IChatElicitationRequest;
 
 export interface IChatFollowup {
 	kind: 'reply';
