@@ -757,7 +757,7 @@ export class CommandCenter {
 	private disposables: Disposable[];
 	private commandErrors = new CommandErrorOutputTextDocumentContentProvider();
 
-	private static readonly LAST_WORKTREE_LOCATION_KEY = 'lastWorktreeLocation';
+	private static readonly WORKTREE_ROOT_KEY = 'worktreeRoot';
 
 	constructor(
 		private git: Git,
@@ -3398,7 +3398,7 @@ export class CommandCenter {
 		await this._createWorktree(repository);
 	}
 
-	private async _createWorktree(repository: Repository, worktreePath?: string, name?: string, newBranch?: boolean, commitish?: string): Promise<void> {
+	private async _createWorktree(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
@@ -3416,44 +3416,31 @@ export class CommandCenter {
 		const placeHolder = l10n.t('Select a branch to create the new worktree from');
 		const choice = await this.pickRef(getBranchPicks(), placeHolder) as RefItem;
 
-		if (!choice) {
+		if (!choice.refName) {
 			return;
 		}
 
+		let branch: string | undefined = undefined;
 		const isWorktreeLocked = await this.isWorktreeLocked(repository, choice);
 
 		// If the worktree is locked, we prompt to create a new branch
 		// otherwise we can use the existing selected branch or tag
 		if (isWorktreeLocked) {
-			const branchName = await this.promptForBranchName(repository);
+			branch = await this.promptForBranchName(repository);
 
-			if (!branchName) {
+			if (!branch) {
 				return;
 			}
-
-			newBranch = true;
-			commitish = choice.refName;
-			name = branchName;
-		} else if (choice instanceof RefItem && choice.refName) {
-			name = choice.refName;
-		} else {
-			return;
 		}
 
-		const worktreeName = await window.showInputBox({
-			placeHolder: l10n.t('Worktree name'),
-			prompt: l10n.t('Please provide a worktree name'),
-			value: name.startsWith(branchPrefix) ? name.substring(branchPrefix.length) : name
-		});
-
-		if (!worktreeName) {
-			return;
-		}
+		const worktreeName = (branch ?? choice.refName).startsWith(branchPrefix)
+			? (branch ?? choice.refName).substring(branchPrefix.length)
+			: (branch ?? choice.refName);
 
 		// If user selects folder button, they manually select the worktree path through folder picker
 		const getWorktreePath = async (): Promise<string | undefined> => {
-			const lastWorktreeLocation = this.globalState.get<string>(CommandCenter.LAST_WORKTREE_LOCATION_KEY);
-			const defaultUri = lastWorktreeLocation ? Uri.file(lastWorktreeLocation) : Uri.file(path.dirname(repository.root));
+			const worktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+			const defaultUri = worktreeRoot ? Uri.file(worktreeRoot) : Uri.file(path.dirname(repository.root));
 
 			const uris = await window.showOpenDialog({
 				defaultUri,
@@ -3480,13 +3467,14 @@ export class CommandCenter {
 		};
 
 		// Default worktree path is based on the last worktree location or a worktree folder for the repository
-		const lastWorktreeLocation = this.globalState.get<string>(CommandCenter.LAST_WORKTREE_LOCATION_KEY);
-		const defaultWorktreePath = lastWorktreeLocation
-			? path.join(lastWorktreeLocation, worktreeName)
+		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+		const defaultWorktreePath = defaultWorktreeRoot
+			? path.join(defaultWorktreeRoot, worktreeName)
 			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
 
 		const disposables: Disposable[] = [];
 		const inputBox = window.createInputBox();
+		disposables.push(inputBox);
 
 		inputBox.placeholder = l10n.t('Worktree path');
 		inputBox.prompt = l10n.t('Please provide a worktree path');
@@ -3496,14 +3484,14 @@ export class CommandCenter {
 		inputBox.buttons = [
 			{
 				iconPath: new ThemeIcon('folder'),
-				tooltip: l10n.t('Open folder picker'),
+				tooltip: l10n.t('Select Worktree Destination'),
 				location: QuickInputButtonLocation.Inline
 			}
 		];
 
 		inputBox.show();
 
-		worktreePath = await new Promise<string | undefined>((resolve) => {
+		const worktreePath = await new Promise<string | undefined>((resolve) => {
 			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
 			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
 			disposables.push(inputBox.onDidTriggerButton(async () => {
@@ -3513,20 +3501,18 @@ export class CommandCenter {
 		});
 
 		dispose(disposables);
-		inputBox.dispose();
 
 		if (!worktreePath) {
 			return;
 		}
 
 		try {
-			await repository.worktree({ name: name, path: worktreePath, newBranch: newBranch, commitish: commitish });
+			await repository.addWorktree({ path: worktreePath, branch, commitish: choice.refName });
 
-			// Update the last worktree location in global state
-			const worktreeParentPath = path.dirname(worktreePath);
-			const defaultParentPath = lastWorktreeLocation || path.dirname(repository.root);
-			if (worktreeParentPath !== defaultParentPath) {
-				this.globalState.update(CommandCenter.LAST_WORKTREE_LOCATION_KEY, worktreeParentPath);
+			// Update worktree root in global state
+			const worktreeRoot = path.dirname(worktreePath);
+			if (worktreeRoot !== defaultWorktreeRoot) {
+				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
 			}
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
@@ -3535,7 +3521,6 @@ export class CommandCenter {
 
 			this.handleWorktreeError(err);
 			return;
-
 		}
 	}
 
