@@ -41,7 +41,8 @@ export interface IChatSessionsService {
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
 	readonly onDidChangeSessionItems: Event<string>;
 	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
-	getChatSessionProviders(): IChatSessionsExtensionPoint[];
+	getChatSessionContributions(): IChatSessionsExtensionPoint[];
+	canResolve(chatSessionType: string): Promise<boolean>;
 	getChatSessionItemProviders(): IChatSessionItemProvider[];
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	hasChatSessionItemProviders: boolean;
@@ -84,7 +85,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	getChatSessionProviders(): IChatSessionsExtensionPoint[] {
+	getChatSessionContributions(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values());
 	}
 

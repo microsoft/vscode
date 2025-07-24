@@ -565,7 +565,7 @@ export function registerChatActions() {
 						const cancellationToken = new CancellationTokenSource();
 
 						try {
-							const providers = chatSessionsService.getChatSessionProviders();
+							const providers = chatSessionsService.getChatSessionContributions();
 							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
 
 							for (const provider of providers) {
