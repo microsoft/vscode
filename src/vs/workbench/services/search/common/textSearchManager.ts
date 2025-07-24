@@ -329,7 +329,7 @@ export class BatchedCollector<T> {
 	private totalNumberCompleted = 0;
 	private batch: T[] = [];
 	private batchSize = 0;
-	private timeoutHandle: any;
+	private timeoutHandle: Timeout | undefined;
 
 	constructor(private maxBatchSize: number, private cb: (items: T[]) => void) {
 	}
@@ -386,7 +386,7 @@ export class BatchedCollector<T> {
 
 			if (this.timeoutHandle) {
 				clearTimeout(this.timeoutHandle);
-				this.timeoutHandle = 0;
+				this.timeoutHandle = undefined;
 			}
 		}
 	}

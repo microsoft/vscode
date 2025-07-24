@@ -146,11 +146,12 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		let picksCts: CancellationTokenSource | undefined = undefined;
 		const picksDisposable = disposables.add(new MutableDisposable());
 		const updatePickerItems = async () => {
-			const picksDisposables = picksDisposable.value = new DisposableStore();
-
 			// Cancel any previous ask for picks and busy
 			picksCts?.dispose(true);
 			picker.busy = false;
+
+			// Setting the .value will call dispose() on the previous value, so we need to do this AFTER cancelling with dispose(true).
+			const picksDisposables = picksDisposable.value = new DisposableStore();
 
 			// Create new cancellation source for this run
 			picksCts = picksDisposables.add(new CancellationTokenSource(token));

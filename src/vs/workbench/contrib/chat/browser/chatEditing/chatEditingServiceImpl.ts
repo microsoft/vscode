@@ -21,6 +21,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -74,7 +75,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IProductService productService: IProductService,
-		@INotebookService private readonly notebookService: INotebookService
+		@INotebookService private readonly notebookService: INotebookService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this.editingSessionsObs)));
@@ -241,7 +243,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				const inactive = editorDidChange
 					|| this._editorService.activeEditorPane?.input instanceof ChatEditorInput && this._editorService.activeEditorPane.input.sessionId === session.chatSessionId
 					|| Boolean(activeUri && session.entries.get().find(entry => isEqual(activeUri, entry.modifiedURI)));
-				this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
+				if (this._configurationService.getValue('accessibility.openChatEditedFiles')) {
+					this._editorService.openEditor({ resource: uri, options: { inactive, preserveFocus: true, pinned: true } });
+				}
 			}));
 		};
 
@@ -292,18 +296,19 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				if (newEdits.length > 0 || isFirst) {
 					if (part.kind === 'notebookEditGroup') {
-						newEdits.forEach(edit => {
+						newEdits.forEach((edit, idx) => {
+							const done = part.done ? idx === newEdits.length - 1 : false;
 							if (TextEdit.isTextEdit(edit)) {
 								// Not possible, as Notebooks would have a different type.
 								return;
 							} else if (isCellTextEditOperation(edit)) {
-								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit]);
+								entry.streaming.pushNotebookCellText(edit.uri, [edit.edit], done);
 							} else {
-								entry.streaming.pushNotebook([edit]);
+								entry.streaming.pushNotebook([edit], done);
 							}
 						});
 					} else if (part.kind === 'textEditGroup') {
-						entry.streaming.pushText(newEdits as TextEdit[]);
+						entry.streaming.pushText(newEdits as TextEdit[], part.done ?? false);
 					}
 				}
 
@@ -404,16 +409,17 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
 	});
 
-	public readonly onDidChange = Event.any(
-		observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
-		observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
-	);
+	readonly onDidChange: Event<URI[]>;
 
 	constructor(
 		private readonly _sessions: IObservable<readonly IChatEditingSession[]>,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
+		this.onDidChange = Event.any(
+			observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
+			observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
+		);
 	}
 
 	provideDecorations(uri: URI, _token: CancellationToken): IDecorationData | undefined {

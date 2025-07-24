@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AutorunObserver } from '../autorun.js';
-import { IObservable, TransactionImpl } from '../base.js';
-import type { Derived } from '../derived.js';
+import { AutorunObserver } from '../reactions/autorunImpl.js';
+import { IObservable } from '../base.js';
+import { TransactionImpl } from '../transaction.js';
+import type { Derived } from '../observables/derivedImpl.js';
 
 let globalObservableLogger: IObservableLogger | undefined;
 

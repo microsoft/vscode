@@ -28,6 +28,7 @@
     "scmActionButton",
     "scmHistoryProvider",
     "scmMultiDiffEditor",
+    "scmProviderOptions",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
@@ -113,6 +114,18 @@
       {
         "command": "git.closeOtherRepositories",
         "title": "%command.closeOtherRepositories%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.openWorktree",
+        "title": "%command.openWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.openWorktreeInNewWindow",
+        "title": "%command.openWorktreeInNewWindow%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -535,6 +548,24 @@
       {
         "command": "git.deleteTag",
         "title": "%command.deleteTag%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.createWorktree",
+        "title": "%command.createWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.deleteWorktree",
+        "title": "%command.deleteWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.deleteWorktreeFromPalette",
+        "title": "%command.deleteWorktreeFromPalette%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -977,7 +1008,7 @@
         "command": "git.unstageSelectedRanges",
         "key": "ctrl+k ctrl+n",
         "mac": "cmd+k cmd+n",
-        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && (resourceScheme == file || resourceScheme == git)"
+        "when": "editorTextFocus && isInDiffEditor && isInDiffRightEditor && resourceScheme == git"
       },
       {
         "command": "git.revertSelectedRanges",
@@ -1014,6 +1045,14 @@
         },
         {
           "command": "git.closeOtherRepositories",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+        },
+        {
+          "command": "git.openWorktree",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+        },
+        {
+          "command": "git.openWorktreeInNewWindow",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
@@ -1082,7 +1121,7 @@
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && (resourceScheme == file || resourceScheme == git)"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == git"
         },
         {
           "command": "git.unstageChange",
@@ -1287,6 +1326,26 @@
         {
           "command": "git.deleteTag",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.createWorktree",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.deleteWorktree",
+          "when": "false"
+        },
+        {
+          "command": "git.openWorktree",
+          "when": "false"
+        },
+        {
+          "command": "git.openWorktreeInNewWindow",
+          "when": "false"
+        },
+        {
+          "command": "git.deleteWorktreeFromPalette",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
           "command": "git.deleteRemoteTag",
@@ -1609,6 +1668,11 @@
           "when": "scmProvider == git"
         },
         {
+          "submenu": "git.worktrees",
+          "group": "2_main@8",
+          "when": "scmProvider == git"
+        },
+        {
           "command": "git.showOutput",
           "group": "3_footer",
           "when": "scmProvider == git"
@@ -1631,6 +1695,16 @@
           "command": "git.closeOtherRepositories",
           "group": "navigation@2",
           "when": "scmProvider == git && gitOpenRepositoryCount > 1"
+        },
+        {
+          "command": "git.openWorktree",
+          "group": "1_worktree@1",
+          "when": "scmProvider == git && scmProviderContext == worktree"
+        },
+        {
+          "command": "git.openWorktreeInNewWindow",
+          "group": "1_worktree@2",
+          "when": "scmProvider == git && scmProviderContext == worktree"
         }
       ],
       "scm/resourceGroup/context": [
@@ -2238,7 +2312,7 @@
         },
         {
           "command": "git.unstageChange",
-          "when": "config.git.enabled && !git.missing && originalResource =~ /^git\\:.*%22ref%22%3A%22HEAD%22%7D$/"
+          "when": "false"
         }
       ],
       "timeline/item/context": [
@@ -2537,6 +2611,28 @@
           "command": "git.deleteRemoteTag",
           "group": "tags@3"
         }
+      ],
+      "git.worktrees": [
+        {
+          "when": "scmProviderContext == worktree",
+          "command": "git.openWorktree",
+          "group": "openWorktrees@1"
+        },
+        {
+          "when": "scmProviderContext == worktree",
+          "command": "git.openWorktreeInNewWindow",
+          "group": "openWorktrees@2"
+        },
+        {
+          "when": "scmProviderContext == repository",
+          "command": "git.createWorktree",
+          "group": "worktrees@1"
+        },
+        {
+          "when": "scmProviderContext == worktree",
+          "command": "git.deleteWorktree",
+          "group": "worktrees@2"
+        }
       ]
     },
     "submenus": [
@@ -2567,6 +2663,10 @@
       {
         "id": "git.tags",
         "label": "%submenu.tags%"
+      },
+      {
+        "id": "git.worktrees",
+        "label": "%submenu.worktrees%"
       }
     ],
     "configuration": {
@@ -2975,6 +3075,18 @@
           "scope": "resource",
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
+        },
+        "git.detectWorktrees": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.detectWorktrees%"
+        },
+        "git.detectWorktreesLimit": {
+          "type": "number",
+          "scope": "resource",
+          "default": 10,
+          "description": "%config.detectWorktreesLimit%"
         },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",
@@ -3591,7 +3703,7 @@
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"
   },

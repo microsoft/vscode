@@ -95,6 +95,40 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  # Remove once https://github.com/parcel-bundler/watcher/pull/202 is merged.
+  - pwsh: |
+      $includes = @'
+        {
+          'target_defaults': {
+            'conditions': [
+              ['OS=="win"', {
+                "msvs_settings": {
+                  "VCCLCompilerTool": {
+                    "AdditionalOptions": [
+                      "/guard:cf",
+                      "/w34244",
+                      "/w34267",
+                    ]
+                  },
+                  "VCLinkerTool": {
+                    "AdditionalOptions": [
+                      "/guard:cf",
+                    ]
+                  }
+                }
+              }]
+            ]
+          }
+        }
+      '@
+
+      if (!(Test-Path "~/.gyp")) {
+        mkdir "~/.gyp"
+      }
+      echo $includes > "~/.gyp/include.gypi"
+    displayName: Create include.gypi
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
@@ -221,10 +255,11 @@ steps:
           echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
         displayName: Find ESRP CLI
 
+      # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
+          exec { npx deemon --detach --wait -- -- npx zx build/azure-pipelines/win32/codesign.js }
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: ✍️ Codesign
@@ -243,10 +278,11 @@ steps:
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
+          exec { npx deemon --attach -- -- npx zx build/azure-pipelines/win32/codesign.js }
         condition: succeededOrFailed()
         displayName: "✍️ Post-job: Codesign"
 

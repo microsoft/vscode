@@ -15,7 +15,6 @@ const fs_1 = __importDefault(require("fs"));
 const https_1 = __importDefault(require("https"));
 const path_1 = __importDefault(require("path"));
 const crypto_1 = require("crypto");
-const ansi_colors_1 = __importDefault(require("ansi-colors"));
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
@@ -89,22 +88,22 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
                 });
                 if (assetResponse.ok && (assetResponse.status >= 200 && assetResponse.status < 300)) {
                     const assetContents = Buffer.from(await assetResponse.arrayBuffer());
-                    console.log(`Fetched response body buffer: ${ansi_colors_1.default.magenta(`${assetContents.byteLength} bytes`)}`);
+                    console.log(`Fetched response body buffer: ${assetContents.byteLength} bytes`);
                     if (options.checksumSha256) {
                         const actualSHA256Checksum = (0, crypto_1.createHash)('sha256').update(assetContents).digest('hex');
                         if (actualSHA256Checksum !== options.checksumSha256) {
-                            throw new Error(`Checksum mismatch for ${ansi_colors_1.default.cyan(asset.url)} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
+                            throw new Error(`Checksum mismatch for ${asset.url} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
                         }
                     }
-                    console.log(`Verified SHA256 checksums match for ${ansi_colors_1.default.cyan(asset.url)}`);
+                    console.log(`Verified SHA256 checksums match for ${asset.url}`);
                     const tarCommand = `tar -xz -C ${options.dest}`;
                     (0, child_process_1.execSync)(tarCommand, { input: assetContents });
                     console.log(`Fetch complete!`);
                     return;
                 }
-                throw new Error(`Request ${ansi_colors_1.default.magenta(asset.url)} failed with status code: ${assetResponse.status}`);
+                throw new Error(`Request ${asset.url} failed with status code: ${assetResponse.status}`);
             }
-            throw new Error(`Request ${ansi_colors_1.default.magenta('https://api.github.com')} failed with status code: ${response.status}`);
+            throw new Error(`Request https://api.github.com failed with status code: ${response.status}`);
         }
         finally {
             clearTimeout(timeout);
@@ -122,7 +121,7 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
 async function getVSCodeSysroot(arch, isMusl = false) {
     let expectedName;
     let triple;
-    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28-gcc-8.5.0';
+    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28-gcc-10.5.0';
     switch (arch) {
         case 'amd64':
             expectedName = `x86_64-linux-gnu${prefix}.tar.gz`;
@@ -159,7 +158,7 @@ async function getVSCodeSysroot(arch, isMusl = false) {
     }
     console.log(`Installing ${arch} root image: ${sysroot}`);
     fs_1.default.rmSync(sysroot, { recursive: true, force: true });
-    fs_1.default.mkdirSync(sysroot);
+    fs_1.default.mkdirSync(sysroot, { recursive: true });
     await fetchUrl({
         checksumSha256,
         assetName: expectedName,

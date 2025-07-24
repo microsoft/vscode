@@ -27,5 +27,5 @@ export const enum MarshalledId {
 	LanguageModelTextPart,
 	LanguageModelPromptTsxPart,
 	LanguageModelDataPart,
-	LanguageModelExtraDataPart,
+	ChatSessionContext,
 }

@@ -3,25 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IMcpConfiguration {
-	inputs?: unknown[];
-	/** @deprecated Only for rough cross-compat with other formats */
-	mcpServers?: Record<string, IMcpConfigurationStdio>;
-	servers?: Record<string, IMcpConfigurationStdio | IMcpConfigurationHTTP>;
+import { IStringDictionary } from '../../../base/common/collections.js';
+
+export interface IMcpDevModeConfig {
+	/** Pattern or list of glob patterns to watch relative to the workspace folder. */
+	watch?: string | string[];
+	/** Whether to debug the MCP server when it's started. */
+	debug?: { type: 'node' } | { type: 'debugpy'; debugpyPath?: string };
 }
 
-export type McpConfigurationServer = IMcpConfigurationStdio | IMcpConfigurationHTTP;
-
-export interface IMcpConfigurationStdio {
-	type?: 'stdio';
-	command: string;
-	args?: readonly string[];
-	env?: Record<string, string | number | null>;
-	envFile?: string;
+export const enum McpServerVariableType {
+	PROMPT = 'promptString',
+	PICK = 'pickString',
 }
 
-export interface IMcpConfigurationHTTP {
-	type?: 'http';
-	url: string;
-	headers?: Record<string, string>;
+export interface IMcpServerVariable {
+	readonly id: string;
+	readonly type: McpServerVariableType;
+	readonly description: string;
+	readonly password: boolean;
+	readonly default?: string;
+	readonly options?: readonly string[];
+	readonly serverName?: string;
+}
+
+export const enum McpServerType {
+	LOCAL = 'stdio',
+	REMOTE = 'http',
+}
+
+export interface ICommonMcpServerConfiguration {
+	readonly type: McpServerType;
+	readonly version?: string;
+	readonly gallery?: boolean;
+}
+
+export interface IMcpStdioServerConfiguration extends ICommonMcpServerConfiguration {
+	readonly type: McpServerType.LOCAL;
+	readonly command: string;
+	readonly args?: readonly string[];
+	readonly env?: Record<string, string | number | null>;
+	readonly envFile?: string;
+	readonly cwd?: string;
+	readonly dev?: IMcpDevModeConfig;
+}
+
+export interface IMcpRemoteServerConfiguration extends ICommonMcpServerConfiguration {
+	readonly type: McpServerType.REMOTE;
+	readonly url: string;
+	readonly headers?: Record<string, string>;
+	readonly dev?: IMcpDevModeConfig;
+}
+
+export type IMcpServerConfiguration = IMcpStdioServerConfiguration | IMcpRemoteServerConfiguration;
+
+export interface IMcpServersConfiguration {
+	servers?: IStringDictionary<IMcpServerConfiguration>;
+	inputs?: IMcpServerVariable[];
 }

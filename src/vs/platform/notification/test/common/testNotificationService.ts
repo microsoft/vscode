@@ -8,10 +8,6 @@ import { INotification, INotificationHandle, INotificationService, INotification
 
 export class TestNotificationService implements INotificationService {
 
-	readonly onDidAddNotification: Event<INotification> = Event.None;
-
-	readonly onDidRemoveNotification: Event<INotification> = Event.None;
-
 	readonly onDidChangeFilter: Event<void> = Event.None;
 
 	declare readonly _serviceBrand: undefined;

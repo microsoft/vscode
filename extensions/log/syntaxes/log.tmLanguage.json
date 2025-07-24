@@ -4,12 +4,12 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/fc571bd87b33bb69d3bdc0052f94face723ee4f7",
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/396c8552ff99d0e07142fdd940d75dae212dd28c",
 	"name": "Log file",
 	"scopeName": "text.log",
 	"patterns": [
 		{
-			"match": "\\b(Trace)\\b:",
+			"match": "\\b([Tt]race|TRACE)\\b:?",
 			"name": "comment log.verbose"
 		},
 		{

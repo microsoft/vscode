@@ -292,7 +292,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _innerFindDomNode: HTMLElement;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _findInputFocusTracker: dom.IFocusTracker;
-	private readonly _updateHistoryDelayer: Delayer<void>;
+	private readonly _updateFindHistoryDelayer: Delayer<void>;
 	protected readonly _matchesCount!: HTMLElement;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
@@ -301,6 +301,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _innerReplaceDomNode!: HTMLElement;
 	private _toggleReplaceBtn!: SimpleButton;
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
+	private readonly _updateReplaceHistoryDelayer: Delayer<void>;
 	protected _replaceBtn!: SimpleButton;
 	protected _replaceAllBtn!: SimpleButton;
 
@@ -427,12 +428,12 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		));
 
 		// Find History with update delayer
-		this._updateHistoryDelayer = new Delayer<void>(500);
+		this._updateFindHistoryDelayer = new Delayer<void>(500);
 
 		this.oninput(this._findInput.domNode, (e) => {
 			this.foundMatch = this.onInputChanged();
 			this.updateButtons(this.foundMatch);
-			this._delayedUpdateHistory();
+			this._delayedUpdateFindHistory();
 		});
 
 		this._register(this._findInput.inputBox.onDidChange(() => {
@@ -584,6 +585,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceInputFocusTracker = this._register(dom.trackFocus(this._replaceInput.domNode));
 		this._register(this._replaceInputFocusTracker.onDidFocus(this.onReplaceInputFocusTrackerFocus.bind(this)));
 		this._register(this._replaceInputFocusTracker.onDidBlur(this.onReplaceInputFocusTrackerBlur.bind(this)));
+
+		// Replace History with update delayer
+		this._updateReplaceHistoryDelayer = new Delayer<void>(500);
+
+		this.oninput(this._replaceInput.domNode, (e) => {
+			this._delayedUpdateReplaceHistory();
+		});
 
 		this._register(this._replaceInput.inputBox.onDidChange(() => {
 			this._state.change({ replaceString: this._replaceInput.getValue() }, true);
@@ -875,12 +883,20 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		}
 	}
 
-	protected _delayedUpdateHistory() {
-		this._updateHistoryDelayer.trigger(this._updateHistory.bind(this));
+	protected _delayedUpdateFindHistory() {
+		this._updateFindHistoryDelayer.trigger(this._updateFindHistory.bind(this));
 	}
 
-	protected _updateHistory() {
+	protected _updateFindHistory() {
 		this._findInput.inputBox.addToHistory();
+	}
+
+	protected _delayedUpdateReplaceHistory() {
+		this._updateReplaceHistoryDelayer.trigger(this._updateReplaceHistory.bind(this));
+	}
+
+	protected _updateReplaceHistory() {
+		this._replaceInput.inputBox.addToHistory();
 	}
 
 	protected _getRegexValue(): boolean {

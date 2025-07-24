@@ -62,8 +62,12 @@ import { IChatRequestModel } from '../../../chat/common/chatModel.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { IObservable, constObservable } from '../../../../../base/common/observable.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
-import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
+import { NullLanguageModelsService } from '../../../chat/test/common/languageModels.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 
 suite('InlineChatSession', function () {
 
@@ -96,9 +100,11 @@ suite('InlineChatSession', function () {
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
 			[IContextKeyService, contextKeyService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
+			[ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[ILanguageModelToolsService, new MockLanguageModelToolsService()],
+			[IMcpService, new TestMcpService()],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
 					return {
@@ -114,6 +120,7 @@ suite('InlineChatSession', function () {
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
 				override acceptRequest(): number { return -1; }
+				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
@@ -141,7 +148,7 @@ suite('InlineChatSession', function () {
 			name: 'testAgent',
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
-			modes: [ChatMode.Ask],
+			modes: [ChatModeKind.Ask],
 			metadata: {},
 			slashCommands: [],
 			disambiguation: [],
@@ -152,6 +159,7 @@ suite('InlineChatSession', function () {
 		});
 
 
+		store.add(instaService.get(IEditorWorkerService) as TestWorkerService);
 		model = store.add(instaService.get(IModelService).createModel('one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven', null));
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 	});

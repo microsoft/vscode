@@ -751,6 +751,31 @@ const configuration: IConfigurationNode = {
 				'announcement': 'never'
 			}
 		},
+		'accessibility.signals.chatUserActionRequired': {
+			...signalFeatureBase,
+			'markdownDescription': localize('accessibility.signals.chatUserActionRequired', "Plays a signal - sound (audio cue) and/or announcement (alert) - when user action is required in the chat."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatUserActionRequired.sound', "Plays a sound when user action is required in the chat."),
+					'type': 'string',
+					'enum': ['auto', 'on', 'off'],
+					'enumDescriptions': [
+						localize('sound.enabled.autoWindow', "Enable sound when a screen reader is attached."),
+						localize('sound.enabled.on', "Enable sound."),
+						localize('sound.enabled.off', "Disable sound.")
+					],
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.chatUserActionRequired.announcement', "Announces when a user action is required in the chat - including information about the action and how to take it."),
+					...announcementFeatureBase
+				},
+			},
+			default: {
+				'sound': 'auto',
+				'announcement': 'auto'
+			},
+			tags: ['accessibility']
+		},
 		'accessibility.underlineLinks': {
 			'type': 'boolean',
 			'description': localize('accessibility.underlineLinks', "Controls whether links should be underlined in the workbench."),
@@ -776,6 +801,11 @@ const configuration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': true,
 			'markdownDescription': localize('accessibility.windowTitleOptimized', "Controls whether the {0} should be optimized for screen readers when in screen reader mode. When enabled, the window title will have {1} appended to the end.", '`#window.title#`', '`activeEditorState`')
+		},
+		'accessibility.openChatEditedFiles': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.openChatEditedFiles', "Controls whether files should be opened when the chat agent has applied edits to them.")
 		},
 	}
 };

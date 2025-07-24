@@ -117,7 +117,7 @@ steps:
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  # Step will be used by both Install dependencies and building rpm package,
+  # Step will be used by both verify glibcxx version for remote server and building rpm package,
   # hence avoid adding it behind NODE_MODULES_RESTORED condition.
   - script: |
       set -e
@@ -125,34 +125,12 @@ steps:
       if [ "$SYSROOT_ARCH" == "x64" ]; then
         SYSROOT_ARCH="amd64"
       fi
-      export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
-      SYSROOT_ARCH="$SYSROOT_ARCH" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+      export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0
+      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
     env:
       VSCODE_ARCH: $(VSCODE_ARCH)
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download vscode sysroots
-
-  - ${{ if or(eq(parameters.VSCODE_ARCH, 'arm64'), eq(parameters.VSCODE_ARCH, 'armhf')) }}:
-    - script: |
-        set -e
-        includes=$(cat << 'EOF'
-        {
-          "target_defaults": {
-            "conditions": [
-              ["OS=='linux'", {
-                'cflags_cc!': [ '-std=gnu++20' ],
-                'cflags_cc': [ '-std=gnu++2a' ],
-              }]
-            ]
-          }
-        }
-        EOF
-        )
-        if [ ! -d "$HOME/.gyp" ]; then
-          mkdir -p "$HOME/.gyp"
-        fi
-        echo "$includes" > "$HOME/.gyp/include.gypi"
-      displayName: Override gnu target for arm64 and arm
 
   - script: |
       set -e
@@ -261,6 +239,7 @@ steps:
 
           EXPECTED_GLIBC_VERSION="2.28" \
           EXPECTED_GLIBCXX_VERSION="3.4.25" \
+          VSCODE_SYSROOT_DIR="$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0" \
           ./build/azure-pipelines/linux/verify-glibc-requirements.sh
         env:
           SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
@@ -274,6 +253,7 @@ steps:
 
           EXPECTED_GLIBC_VERSION="2.28" \
           EXPECTED_GLIBCXX_VERSION="3.4.26" \
+          VSCODE_SYSROOT_DIR="$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0" \
           ./build/azure-pipelines/linux/verify-glibc-requirements.sh
         env:
           SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
@@ -316,7 +296,7 @@ steps:
         elif [ "$VSCODE_ARCH" == "armhf" ]; then
           TRIPLE="arm-rpi-linux-gnueabihf"
         fi
-        export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+        export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-10.5.0
         export STRIP="$VSCODE_SYSROOT_DIR/$TRIPLE/$TRIPLE/bin/strip"
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
       env:

@@ -18,7 +18,7 @@ import { EditorPane } from './editorPane.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorProgressService, LongRunningOperation } from '../../../../platform/progress/common/progress.js';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from './editor.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from './editorPlaceholder.js';
 import { EditorOpenSource, IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -317,7 +317,7 @@ export class EditorPanes extends Disposable {
 			return WorkspaceTrustRequiredPlaceholderEditor.DESCRIPTOR;
 		}
 
-		return assertIsDefined(this.editorPanesRegistry.getEditorPane(editor));
+		return assertReturnsDefined(this.editorPanesRegistry.getEditorPane(editor));
 	}
 
 	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
@@ -337,7 +337,7 @@ export class EditorPanes extends Disposable {
 		this.doSetActiveEditorPane(editorPane);
 
 		// Show editor
-		const container = assertIsDefined(editorPane.getContainer());
+		const container = assertReturnsDefined(editorPane.getContainer());
 		this.editorPanesParent.appendChild(container);
 		show(container);
 

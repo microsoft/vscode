@@ -50,7 +50,7 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 			height: 600,
 			show: false,
 			webPreferences: {
-				javascript: false,
+				javascript: true,
 				offscreen: true,
 				sandbox: true,
 				webgl: false

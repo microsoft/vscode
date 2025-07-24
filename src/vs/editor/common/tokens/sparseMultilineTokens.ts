@@ -6,7 +6,7 @@
 import { CharCode } from '../../../base/common/charCode.js';
 import { Position } from '../core/position.js';
 import { IRange, Range } from '../core/range.js';
-import { countEOL } from '../core/eolCounter.js';
+import { countEOL } from '../core/misc/eolCounter.js';
 import { ITextModel } from '../model.js';
 import { RateLimiter } from './common.js';
 
@@ -575,9 +575,7 @@ class SparseMultilineTokensStorage {
 				SparseMultilineTokensStorage._rateLimiter.runIfNotLimited(() => {
 					console.error('Invalid Semantic Tokens Data From Extension: lineNumber > model.getLineCount()');
 				});
-			}
-
-			if (this._getEndCharacter(i) > model.getLineLength(lineNumber)) {
+			} else if (this._getEndCharacter(i) > model.getLineLength(lineNumber)) {
 				SparseMultilineTokensStorage._rateLimiter.runIfNotLimited(() => {
 					console.error('Invalid Semantic Tokens Data From Extension: end character > model.getLineLength(lineNumber)');
 				});

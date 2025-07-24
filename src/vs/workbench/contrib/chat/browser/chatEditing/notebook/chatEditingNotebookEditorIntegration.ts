@@ -7,7 +7,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../../base/co
 import { autorun, debouncedObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
-import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { PrefixSumComputer } from '../../../../../../editor/common/model/prefixSumComputer.js';
@@ -139,8 +139,8 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			if (!notebookEditor) {
 				return;
 			}
-			originalReadonly ??= notebookEditor.isReadOnly;
 			if (isReadOnly) {
+				originalReadonly ??= notebookEditor.isReadOnly;
 				notebookEditor.setOptions({ isReadOnly: true });
 			} else if (originalReadonly === false) {
 				notebookEditor.setOptions({ isReadOnly: false });
@@ -160,7 +160,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 					disposable.dispose();
 				}, 100);
 				const disposable = toDisposable(() => clearTimeout(timeout));
-				this._register(disposable);
+				r.store.add(disposable);
 			}
 		}));
 
@@ -174,7 +174,18 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && !c.diff.read(r).identical)
 			) {
 				lastModifyingRequestId = _entry.lastModifyingRequestId;
-				this.reveal(true);
+				// Check if any of the changes are visible, if not, reveal the first change.
+				const visibleChange = this.sortedCellChanges.find(c => {
+					if (c.type === 'unchanged') {
+						return false;
+					}
+					const index = c.modifiedCellIndex ?? c.originalCellIndex;
+					return this.notebookEditor.visibleRanges.some(range => index >= range.start && index < range.end);
+				});
+
+				if (!visibleChange) {
+					this.reveal(true);
+				}
 			}
 		}));
 

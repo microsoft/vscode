@@ -146,6 +146,7 @@ export interface LogOptions {
 	readonly sortByAuthorDate?: boolean;
 	readonly shortStats?: boolean;
 	readonly author?: string;
+	readonly grep?: string;
 	readonly refNames?: string[];
 	readonly maxParents?: number;
 	readonly skip?: number;
@@ -363,6 +364,7 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
+	getRepositoryRoot(uri: Uri): Promise<Uri | null>;
 	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 
@@ -395,11 +397,13 @@ export interface GitExtension {
 
 export const enum GitErrorCodes {
 	BadConfigFile = 'BadConfigFile',
+	BadRevision = 'BadRevision',
 	AuthenticationFailed = 'AuthenticationFailed',
 	NoUserNameConfigured = 'NoUserNameConfigured',
 	NoUserEmailConfigured = 'NoUserEmailConfigured',
 	NoRemoteRepositorySpecified = 'NoRemoteRepositorySpecified',
 	NotAGitRepository = 'NotAGitRepository',
+	NotASafeGitRepository = 'NotASafeGitRepository',
 	NotAtRepositoryRoot = 'NotAtRepositoryRoot',
 	Conflict = 'Conflict',
 	StashConflict = 'StashConflict',
@@ -436,5 +440,7 @@ export const enum GitErrorCodes {
 	BranchNotYetBorn = 'BranchNotYetBorn',
 	TagConflict = 'TagConflict',
 	CherryPickEmpty = 'CherryPickEmpty',
-	CherryPickConflict = 'CherryPickConflict'
+	CherryPickConflict = 'CherryPickConflict',
+	WorktreeContainsChanges = 'WorktreeContainsChanges',
+	WorktreeAlreadyExists = 'WorktreeAlreadyExists'
 }

@@ -35,6 +35,13 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		);
 	}
 
+	sendActivatedWithClassicImplementationEvent(): void {
+		/* __GDPR__
+			"activatingClassic" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the classic login flow." }
+		*/
+		this._telemetryReporter.sendTelemetryEvent('activatingClassic');
+	}
+
 	sendLoginEvent(scopes: readonly string[]): void {
 		/* __GDPR__
 			"login" : {
@@ -92,7 +99,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 	 */
 	sendAccountEvent(scopes: string[], accountType: MicrosoftAccountType): void {
 		/* __GDPR__
-			"login" : {
+			"account" : {
 				"owner": "TylerLeonhardt",
 				"comment": "Used to determine the usage of the Microsoft Auth Provider.",
 				"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." },

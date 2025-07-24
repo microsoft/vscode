@@ -14,8 +14,8 @@ export interface ThemeColor {
 }
 
 export namespace ThemeColor {
-	export function isThemeColor(obj: any): obj is ThemeColor {
-		return obj && typeof obj === 'object' && typeof (<ThemeColor>obj).id === 'string';
+	export function isThemeColor(obj: unknown): obj is ThemeColor {
+		return !!obj && typeof obj === 'object' && typeof (<ThemeColor>obj).id === 'string';
 	}
 }
 
@@ -58,8 +58,8 @@ export namespace ThemeIcon {
 		return '.' + asClassNameArray(icon).join('.');
 	}
 
-	export function isThemeIcon(obj: any): obj is ThemeIcon {
-		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
+	export function isThemeIcon(obj: unknown): obj is ThemeIcon {
+		return !!obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
 	}
 
 	const _regexFromString = new RegExp(`^\\$\\((${ThemeIcon.iconNameExpression}(?:${ThemeIcon.iconModifierExpression})?)\\)$`);

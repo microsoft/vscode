@@ -13,7 +13,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createHotClass } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, observableFromEvent } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
@@ -30,34 +30,18 @@ import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
-import { Command, InlineCompletionTriggerKind, InlineCompletionWarning } from '../../../../common/languages.js';
+import { InlineCompletionCommand, InlineCompletionTriggerKind, InlineCompletionWarning } from '../../../../common/languages.js';
 import { PositionAffinity } from '../../../../common/model.js';
 import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from '../controller/commandIds.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import './inlineCompletionsHintsWidget.css';
 
 export class InlineCompletionsHintsWidget extends Disposable {
-	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
+	private readonly alwaysShowToolbar;
 
-	private sessionPosition: Position | undefined = undefined;
+	private sessionPosition: Position | undefined;
 
-	private readonly position = derived(this, reader => {
-		const ghostText = this.model.read(reader)?.primaryGhostText.read(reader);
-
-		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
-			this.sessionPosition = undefined;
-			return null;
-		}
-
-		const firstColumn = ghostText.parts[0].column;
-		if (this.sessionPosition && this.sessionPosition.lineNumber !== ghostText.lineNumber) {
-			this.sessionPosition = undefined;
-		}
-
-		const position = new Position(ghostText.lineNumber, Math.min(firstColumn, this.sessionPosition?.column ?? Number.MAX_SAFE_INTEGER));
-		this.sessionPosition = position;
-		return position;
-	});
+	private readonly position;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -65,6 +49,25 @@ export class InlineCompletionsHintsWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		this.alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
+		this.sessionPosition = undefined;
+		this.position = derived(this, reader => {
+			const ghostText = this.model.read(reader)?.primaryGhostText.read(reader);
+
+			if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
+				this.sessionPosition = undefined;
+				return null;
+			}
+
+			const firstColumn = ghostText.parts[0].column;
+			if (this.sessionPosition && this.sessionPosition.lineNumber !== ghostText.lineNumber) {
+				this.sessionPosition = undefined;
+			}
+
+			const position = new Position(ghostText.lineNumber, Math.min(firstColumn, this.sessionPosition?.column ?? Number.MAX_SAFE_INTEGER));
+			this.sessionPosition = position;
+			return position;
+		});
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description setup content widget */
@@ -73,8 +76,8 @@ export class InlineCompletionsHintsWidget extends Disposable {
 				return;
 			}
 
-			const contentWidgetValue = derivedWithStore((reader, store) => {
-				const contentWidget = store.add(this.instantiationService.createInstance(
+			const contentWidgetValue = derived((reader) => {
+				const contentWidget = reader.store.add(this.instantiationService.createInstance(
 					InlineSuggestionHintsContentWidget.hot.read(reader),
 					this.editor,
 					true,
@@ -86,9 +89,9 @@ export class InlineCompletionsHintsWidget extends Disposable {
 					() => { },
 				));
 				editor.addContentWidget(contentWidget);
-				store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
+				reader.store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
 
-				store.add(autorun(reader => {
+				reader.store.add(autorun(reader => {
 					/** @description request explicit */
 					const position = this.position.read(reader);
 					if (!position) {
@@ -122,38 +125,15 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 
 	private static id = 0;
 
-	private readonly id = `InlineSuggestionHintsContentWidget${InlineSuggestionHintsContentWidget.id++}`;
-	public readonly allowEditorOverflow = true;
-	public readonly suppressMouseDown = false;
+	private readonly id;
+	public readonly allowEditorOverflow;
+	public readonly suppressMouseDown;
 
-	private readonly _warningMessageContentNode = derivedWithStore((reader, store) => {
-		const warning = this._warning.read(reader);
-		if (!warning) {
-			return undefined;
-		}
-		if (typeof warning.message === 'string') {
-			return warning.message;
-		}
-		const markdownElement = store.add(renderMarkdown(warning.message));
-		return markdownElement.element;
-	});
+	private readonly _warningMessageContentNode;
 
-	private readonly _warningMessageNode = n.div({
-		class: 'warningMessage',
-		style: {
-			maxWidth: 400,
-			margin: 4,
-			marginBottom: 4,
-			display: derived(reader => this._warning.read(reader) ? 'block' : 'none'),
-		}
-	}, [
-		this._warningMessageContentNode,
-	]).keepUpdated(this._store);
+	private readonly _warningMessageNode;
 
-	private readonly nodes = h('div.inlineSuggestionsHints', { className: this.withBorder ? 'monaco-hover monaco-hover-content' : '' }, [
-		this._warningMessageNode.element,
-		h('div@toolBar'),
-	]);
+	private readonly nodes;
 
 	private createCommandAction(commandId: string, label: string, iconClassName: string): Action {
 		const action = new Action(
@@ -172,25 +152,18 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		return action;
 	}
 
-	private readonly previousAction = this._register(this.createCommandAction(showPreviousInlineSuggestionActionId, localize('previous', 'Previous'), ThemeIcon.asClassName(inlineSuggestionHintsPreviousIcon)));
-	private readonly availableSuggestionCountAction = this._register(new Action('inlineSuggestionHints.availableSuggestionCount', '', undefined, false));
-	private readonly nextAction = this._register(this.createCommandAction(showNextInlineSuggestionActionId, localize('next', 'Next'), ThemeIcon.asClassName(inlineSuggestionHintsNextIcon)));
+	private readonly previousAction;
+	private readonly availableSuggestionCountAction;
+	private readonly nextAction;
 
 	private readonly toolBar: CustomizedMenuWorkbenchToolBar;
 
 	// TODO@hediet: deprecate MenuId.InlineCompletionsActions
-	private readonly inlineCompletionsActionsMenus = this._register(this._menuService.createMenu(
-		MenuId.InlineCompletionsActions,
-		this._contextKeyService
-	));
+	private readonly inlineCompletionsActionsMenus;
 
-	private readonly clearAvailableSuggestionCountLabelDebounced = this._register(new RunOnceScheduler(() => {
-		this.availableSuggestionCountAction.label = '';
-	}, 100));
+	private readonly clearAvailableSuggestionCountLabelDebounced;
 
-	private readonly disableButtonsDebounced = this._register(new RunOnceScheduler(() => {
-		this.previousAction.enabled = this.nextAction.enabled = false;
-	}, 100));
+	private readonly disableButtonsDebounced;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -198,7 +171,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		private readonly _position: IObservable<Position | null>,
 		private readonly _currentSuggestionIdx: IObservable<number>,
 		private readonly _suggestionCount: IObservable<number | undefined>,
-		private readonly _extraCommands: IObservable<Command[]>,
+		private readonly _extraCommands: IObservable<InlineCompletionCommand[]>,
 		private readonly _warning: IObservable<InlineCompletionWarning | undefined>,
 		private readonly _relayout: () => void,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -208,6 +181,48 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		@IMenuService private readonly _menuService: IMenuService,
 	) {
 		super();
+		this.id = `InlineSuggestionHintsContentWidget${InlineSuggestionHintsContentWidget.id++}`;
+		this.allowEditorOverflow = true;
+		this.suppressMouseDown = false;
+		this._warningMessageContentNode = derived((reader) => {
+			const warning = this._warning.read(reader);
+			if (!warning) {
+				return undefined;
+			}
+			if (typeof warning.message === 'string') {
+				return warning.message;
+			}
+			const markdownElement = reader.store.add(renderMarkdown(warning.message));
+			return markdownElement.element;
+		});
+		this._warningMessageNode = n.div({
+			class: 'warningMessage',
+			style: {
+				maxWidth: 400,
+				margin: 4,
+				marginBottom: 4,
+				display: derived(reader => this._warning.read(reader) ? 'block' : 'none'),
+			}
+		}, [
+			this._warningMessageContentNode,
+		]).keepUpdated(this._store);
+		this.nodes = h('div.inlineSuggestionsHints', { className: this.withBorder ? 'monaco-hover monaco-hover-content' : '' }, [
+			this._warningMessageNode.element,
+			h('div@toolBar'),
+		]);
+		this.previousAction = this._register(this.createCommandAction(showPreviousInlineSuggestionActionId, localize('previous', 'Previous'), ThemeIcon.asClassName(inlineSuggestionHintsPreviousIcon)));
+		this.availableSuggestionCountAction = this._register(new Action('inlineSuggestionHints.availableSuggestionCount', '', undefined, false));
+		this.nextAction = this._register(this.createCommandAction(showNextInlineSuggestionActionId, localize('next', 'Next'), ThemeIcon.asClassName(inlineSuggestionHintsNextIcon)));
+		this.inlineCompletionsActionsMenus = this._register(this._menuService.createMenu(
+			MenuId.InlineCompletionsActions,
+			this._contextKeyService
+		));
+		this.clearAvailableSuggestionCountLabelDebounced = this._register(new RunOnceScheduler(() => {
+			this.availableSuggestionCountAction.label = '';
+		}, 100));
+		this.disableButtonsDebounced = this._register(new RunOnceScheduler(() => {
+			this.previousAction.enabled = this.nextAction.enabled = false;
+		}, 100));
 
 		this._register(autorun(reader => {
 			this._warningMessageContentNode.read(reader);
@@ -274,12 +289,12 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			const extraCommands = this._extraCommands.read(reader);
 			const extraActions = extraCommands.map<IAction>(c => ({
 				class: undefined,
-				id: c.id,
+				id: c.command.id,
 				enabled: true,
-				tooltip: c.tooltip || '',
-				label: c.title,
+				tooltip: c.command.tooltip || '',
+				label: c.command.title,
 				run: (event) => {
-					return this._commandService.executeCommand(c.id);
+					return this._commandService.executeCommand(c.command.id);
 				},
 			}));
 
@@ -356,10 +371,10 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 }
 
 export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
-	private readonly menu = this._store.add(this.menuService.createMenu(this.menuId, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
-	private additionalActions: IAction[] = [];
-	private prependedPrimaryActions: IAction[] = [];
-	private additionalPrimaryActions: IAction[] = [];
+	private readonly menu;
+	private additionalActions: IAction[];
+	private prependedPrimaryActions: IAction[];
+	private additionalPrimaryActions: IAction[];
 
 	constructor(
 		container: HTMLElement,
@@ -373,6 +388,10 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
+		this.menu = this._store.add(this.menuService.createMenu(this.menuId, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
+		this.additionalActions = [];
+		this.prependedPrimaryActions = [];
+		this.additionalPrimaryActions = [];
 
 		this._store.add(this.menu.onDidChange(() => this.updateToolbar()));
 		this.updateToolbar();

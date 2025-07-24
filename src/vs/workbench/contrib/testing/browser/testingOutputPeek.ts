@@ -111,6 +111,8 @@ function messageItReferenceToUri({ result, test, taskIndex, messageIndex }: IMes
 type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
 
 export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
+	public static readonly ID = 'workbench.contrib.testing.peekOpener';
+
 	declare _serviceBrand: undefined;
 
 	private lastUri?: TestUriWithDocument;

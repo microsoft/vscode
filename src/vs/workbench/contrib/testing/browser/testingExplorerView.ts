@@ -71,6 +71,7 @@ import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemEx
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
+import { CountSummary, collectTestStateCounts, getTestProgressText } from '../common/testingProgressMessages.js';
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from '../common/testingStates.js';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from './explorerProjections/index.js';
 import { ListProjection } from './explorerProjections/listProjection.js';
@@ -82,7 +83,6 @@ import * as icons from './icons.js';
 import './media/testing.css';
 import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
 import { TestingExplorerFilter } from './testingExplorerFilter.js';
-import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
 
 const enum LastFocusState {
 	Input,
@@ -212,7 +212,7 @@ export class TestingExplorerView extends ViewPane {
 				!alreadyIncluded
 				// And it can be run using the current profile (if any)
 				&& isRunnableWithProfileOrBitset(element.test)
-				// And either it's a leaf node or most children are included, the  include it.
+				// And either it's a leaf node or most children are included, then include it.
 				&& (visibleRunnableChildren === 0 || visibleRunnableChildren * 2 >= inTree.children.length)
 				// And not if we're only showing a single of its children, since it
 				// probably fans out later. (Worse case we'll directly include its single child)
@@ -261,22 +261,8 @@ export class TestingExplorerView extends ViewPane {
 				continue;
 			}
 
-			// single controllers won't have visible root ID nodes, handle that  case specially
-			if (!this.viewModel.tree.hasElement(element)) {
-				const visibleChildren = [...element.children].reduce((acc, c) =>
-					this.viewModel.tree.hasElement(c) && this.viewModel.tree.getNode(c).visible ? acc + 1 : acc, 0);
-
-				// note we intentionally check children > 0 here, unlike above, since
-				// we don't want to bother dispatching to controllers who have no discovered tests
-				if (element.children.size > 0 && visibleChildren * 2 >= element.children.size) {
-					include.add(element.test);
-					element.children.forEach(c => attempt(c, true));
-				} else {
-					element.children.forEach(c => attempt(c, false));
-				}
-			} else {
-				attempt(element, false);
-			}
+			include.add(element.test);
+			element.children.forEach(c => attempt(c, true));
 		}
 
 		return { include: [...include], exclude };
@@ -1489,7 +1475,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 		if (typeof element.message === 'string') {
 			data.label.innerText = element.message;
 		} else {
-			const result = this.renderer.render(element.message, { inline: true });
+			const result = this.renderer.render(element.message, undefined, document.createElement('span'));
 			data.label.appendChild(result.element);
 		}
 		data.disposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, element.description));

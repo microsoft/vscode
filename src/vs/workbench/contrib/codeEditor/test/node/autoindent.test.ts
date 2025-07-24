@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'path';
+import { extname, join } from '../../../../../base/common/path.js';
 import assert from 'assert';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -128,10 +128,10 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			const directoriesToRecurseOn: string[] = [];
 			for (const file of files) {
 				if (file.isDirectory()) {
-					directoriesToRecurseOn.push(path.join(directory, file.name));
+					directoriesToRecurseOn.push(join(directory, file.name));
 				} else {
-					const filePathName = path.join(directory, file.name);
-					const fileExtension = path.extname(filePathName);
+					const filePathName = join(directory, file.name);
+					const fileExtension = extname(filePathName);
 					if (fileExtension !== '.ts') {
 						continue;
 					}

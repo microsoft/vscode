@@ -137,11 +137,11 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
 					continue;
 				}
-				const { defaultValue, previewFeature } = config.policy;
+				const { defaultValue, tags } = config.policy;
 				keys.push(key);
 				policyDefinitions[config.policy.name] = {
 					type: config.type === 'number' ? 'number' : config.type === 'boolean' ? 'boolean' : 'string',
-					previewFeature,
+					tags,
 					defaultValue,
 				};
 			}

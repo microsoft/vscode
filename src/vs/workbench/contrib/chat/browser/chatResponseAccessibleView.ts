@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -65,19 +66,56 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			responseContent = item.errorDetails.message;
 		}
 		if (isResponseVM(item)) {
-			const toolInvocation = item.response.value.find(item => item.kind === 'toolInvocation');
-			if (toolInvocation?.confirmationMessages) {
-				const title = toolInvocation.confirmationMessages.title;
-				const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : toolInvocation.confirmationMessages.message.value;
-				const terminalCommand = toolInvocation.toolSpecificData && 'command' in toolInvocation.toolSpecificData ? toolInvocation.toolSpecificData.command : undefined;
-				responseContent += `${title}`;
-				if (terminalCommand) {
-					responseContent += `: ${terminalCommand}`;
+			item.response.value.filter(item => item.kind === 'elicitation').forEach(elicitation => {
+				const title = elicitation.title;
+				if (typeof title === 'string') {
+					responseContent += `${title}\n`;
+				} else if (isMarkdownString(title)) {
+					responseContent += renderAsPlaintext(title, { includeCodeBlocksFences: true }) + '\n';
 				}
-				responseContent += `\n${message}`;
+				const message = elicitation.message;
+				if (isMarkdownString(message)) {
+					responseContent += renderAsPlaintext(message, { includeCodeBlocksFences: true });
+				} else {
+					responseContent += message;
+				}
+			});
+			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
+			for (const toolInvocation of toolInvocations) {
+				if (toolInvocation.confirmationMessages) {
+					const title = typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value;
+					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message));
+					let input = '';
+					if (toolInvocation.toolSpecificData) {
+						input = toolInvocation.toolSpecificData?.kind === 'terminal'
+							? toolInvocation.toolSpecificData.commandLine.userEdited ?? toolInvocation.toolSpecificData.commandLine.toolEdited ?? toolInvocation.toolSpecificData.commandLine.original
+							: toolInvocation.toolSpecificData?.kind === 'extensions'
+								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
+								: toolInvocation.toolSpecificData?.kind === 'tasks'
+									? JSON.stringify(toolInvocation.toolSpecificData.tasks)
+									: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
+					}
+					responseContent += `${title}`;
+					if (input) {
+						responseContent += `: ${input}`;
+					}
+					responseContent += `\n${message}\n`;
+				} else if (toolInvocation.isComplete && toolInvocation.resultDetails && 'input' in toolInvocation.resultDetails) {
+					responseContent += '\n' + toolInvocation.resultDetails.isError ? 'Errored ' : 'Completed ';
+					responseContent += `${`${typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : stripIcons(renderAsPlaintext(toolInvocation.invocationMessage))} with input: ${toolInvocation.resultDetails.input}`}\n`;
+				}
+			}
+
+			const pastConfirmations = item.response.value.filter(item => item.kind === 'toolInvocationSerialized');
+			for (const pastConfirmation of pastConfirmations) {
+				if (pastConfirmation.isComplete && pastConfirmation.resultDetails && 'input' in pastConfirmation.resultDetails) {
+					if (pastConfirmation.pastTenseMessage) {
+						responseContent += `\n${`${typeof pastConfirmation.pastTenseMessage === 'string' ? pastConfirmation.pastTenseMessage : stripIcons(renderAsPlaintext(pastConfirmation.pastTenseMessage))} with input: ${pastConfirmation.resultDetails.input}`}\n`;
+					}
+				}
 			}
 		}
-		return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true);
+		return renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true });
 	}
 
 	onClose(): void {

@@ -49,6 +49,16 @@
 	min-width: 40%;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value {
+	width: 60%;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
+	width: 40%;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value.no-sibling {
+	width: 100%;
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-value,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
 	width: 100%;
@@ -86,6 +96,10 @@
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	white-space: pre;
+
+	/* In case the text is too long, we don't want to block the pencil icon. */
+	box-sizing: border-box;
+	padding-right: 50px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar {

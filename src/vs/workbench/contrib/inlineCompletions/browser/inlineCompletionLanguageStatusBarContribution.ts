@@ -5,40 +5,49 @@
 
 import { createHotClass } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorunWithStore, debouncedObservable, derived } from '../../../../base/common/observable.js';
+import { autorunWithStore, debouncedObservable, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
-import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { localize } from '../../../../nls.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
 
-export class InlineCompletionLanguageStatusBarContribution extends Disposable {
+export class InlineCompletionLanguageStatusBarContribution extends Disposable implements IWorkbenchContribution {
 	public static readonly hot = createHotClass(InlineCompletionLanguageStatusBarContribution);
 
-	public static Id = 'vs.editor.contrib.inlineCompletionLanguageStatusBarContribution';
+	public static Id = 'vs.contrib.inlineCompletionLanguageStatusBarContribution';
 	public static readonly languageStatusBarDisposables = new Set<DisposableStore>();
 
-	private readonly _c = InlineCompletionsController.get(this._editor);
-
-	private readonly _state = derived(this, reader => {
-		const model = this._c?.model.read(reader);
-		if (!model) { return undefined; }
-		if (!observableCodeEditor(this._editor).isFocused.read(reader)) {
-			return undefined;
-		}
-
-		return {
-			model,
-			status: debouncedObservable(model.status, 300),
-		};
-	});
+	private _activeEditor;
+	private _state;
 
 	constructor(
-		private readonly _editor: ICodeEditor,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
+
+
+		this._activeEditor = observableFromEvent(this, _editorService.onDidActiveEditorChange, () => this._editorService.activeTextEditorControl);
+		this._state = derived(this, reader => {
+			const editor = this._activeEditor.read(reader);
+			if (!editor || !isCodeEditor(editor)) {
+				return undefined;
+			}
+
+			const c = InlineCompletionsController.get(editor);
+			const model = c?.model.read(reader);
+			if (!model) {
+				return undefined;
+			}
+
+			return {
+				model,
+				status: debouncedObservable(model.status, 300),
+			};
+		});
 
 		this._register(autorunWithStore((reader, store) => {
 			const state = this._state.read(reader);
@@ -54,15 +63,6 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable {
 				inlineEdit: { shortLabel: '$(lightbulb-sparkle)', label: '$(copilot) ' + localize('inlineEditAvailable', "Inline edit available"), loading: false, },
 				noSuggestion: { shortLabel: '$(circle-slash)', label: '$(copilot) ' + localize('noInlineSuggestionAvailable', "No inline suggestion available"), loading: false, },
 			};
-
-			// Make sure previous status is cleared before the new is registered. This works, but is a bit hacky.
-			// TODO: Use a workbench contribution to get singleton behavior.
-			InlineCompletionLanguageStatusBarContribution.languageStatusBarDisposables.forEach(d => d.clear());
-
-			InlineCompletionLanguageStatusBarContribution.languageStatusBarDisposables.add(store);
-			store.add({
-				dispose: () => InlineCompletionLanguageStatusBarContribution.languageStatusBarDisposables.delete(store)
-			});
 
 			store.add(this._languageStatusService.addStatus({
 				accessibilityInfo: undefined,

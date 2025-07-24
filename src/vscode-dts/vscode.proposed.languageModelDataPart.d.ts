@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
+// version: 3
 
 declare module 'vscode' {
 
@@ -23,7 +23,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelDataPart | LanguageModelExtraDataPart>, name?: string): LanguageModelChatMessage2;
+		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelDataPart>, name?: string): LanguageModelChatMessage2;
 
 		/**
 		 * Utility to create a new assistant message.
@@ -31,7 +31,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart>, name?: string): LanguageModelChatMessage2;
+		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart>, name?: string): LanguageModelChatMessage2;
 
 		/**
 		 * The role of this message.
@@ -42,7 +42,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart>;
+		content: Array<LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -56,7 +56,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelExtraDataPart>, name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart>, name?: string);
 	}
 
 	/**
@@ -68,11 +68,12 @@ declare module 'vscode' {
 		 * @param data Binary image data
 		 * @param mimeType The MIME type of the image
 		 */
+		// TODO@API just use string, no enum required
 		static image(data: Uint8Array, mimeType: ChatImageMimeType): LanguageModelDataPart;
 
-		static json(value: object): LanguageModelDataPart;
+		static json(value: any, mime?: string): LanguageModelDataPart;
 
-		static text(value: string): LanguageModelDataPart;
+		static text(value: string, mime?: string): LanguageModelDataPart;
 
 		/**
 		 * The mime type which determines how the data property is interpreted.
@@ -101,31 +102,6 @@ declare module 'vscode' {
 		WEBP = 'image/webp',
 		BMP = 'image/bmp',
 	}
-
-	/**
-	 * Tagging onto this proposal, because otherwise managing two different extensions of LanguageModelChatMessage could be confusing.
-	 * A language model response part containing arbitrary model-specific data, returned from a {@link LanguageModelChatResponse}.
-	 * TODO@API naming, looking at LanguageModelChatRequestOptions.modelOptions, but LanguageModelModelData is not very good.
-	 * LanguageModelOpaqueData from prompt-tsx?
-	 */
-	export class LanguageModelExtraDataPart {
-		/**
-		 * The type of data. The allowed values and data types here are model-specific.
-		 */
-		kind: string;
-
-		/**
-		 * Extra model-specific data.
-		 */
-		data: any;
-
-		/**
-		 * Construct an extra data part with the given content.
-		 * @param value The image content of the part.
-		 */
-		constructor(kind: string, data: any);
-	}
-
 
 	/**
 	 * The result of a tool call. This is the counterpart of a {@link LanguageModelToolCallPart tool call} and

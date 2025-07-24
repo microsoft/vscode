@@ -5,10 +5,11 @@
 import assert from 'assert';
 import { Position } from '../../../../common/core/position.js';
 import { getSecondaryEdits } from '../../browser/model/inlineCompletionsModel.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { TextEdit, TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { Range } from '../../../../common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isDefined } from '../../../../../base/common/types.js';
 
 suite('getSecondaryEdits', () => {
 
@@ -24,9 +25,9 @@ suite('getSecondaryEdits', () => {
 			new Position(1, 14),
 			new Position(2, 14)
 		];
-		const primaryEdit = new SingleTextEdit(new Range(1, 1, 1, 14), 'function fib() {');
+		const primaryEdit = new TextReplacement(new Range(1, 1, 1, 14), 'function fib() {');
 		const secondaryEdits = getSecondaryEdits(textModel, positions, primaryEdit);
-		assert.deepStrictEqual(secondaryEdits, [new SingleTextEdit(
+		assert.deepStrictEqual(secondaryEdits, [new TextReplacement(
 			new Range(2, 14, 2, 14),
 			') {'
 		)]);
@@ -45,18 +46,13 @@ suite('getSecondaryEdits', () => {
 			new Position(2, 1),
 			new Position(4, 1)
 		];
-		const primaryEdit = new SingleTextEdit(new Range(1, 1, 2, 1), [
+		const primaryEdit = new TextReplacement(new Range(1, 1, 2, 1), [
 			'function fib() {',
 			'	return 0;',
 			'}'
 		].join('\n'));
 		const secondaryEdits = getSecondaryEdits(textModel, positions, primaryEdit);
-		assert.deepStrictEqual(secondaryEdits, [new SingleTextEdit(
-			new Range(4, 1, 4, 1), [
-				'	return 0;',
-				'}'
-			].join('\n')
-		)]);
+		assert.deepStrictEqual(TextEdit.fromParallelReplacementsUnsorted(secondaryEdits.filter(isDefined)).toString(textModel.getValue()), "...ction fib(❰\n↦) {\n\t... 0;\n}❱");
 		textModel.dispose();
 	});
 
@@ -73,14 +69,14 @@ suite('getSecondaryEdits', () => {
 			new Position(2, 1),
 			new Position(4, 1)
 		];
-		const primaryEdit = new SingleTextEdit(new Range(1, 1, 2, 1), [
+		const primaryEdit = new TextReplacement(new Range(1, 1, 2, 1), [
 			'class A {',
 			'	public x: number = 0;',
 			'   public y: number = 0;',
 			'}'
 		].join('\n'));
 		const secondaryEdits = getSecondaryEdits(textModel, positions, primaryEdit);
-		assert.deepStrictEqual(secondaryEdits, [new SingleTextEdit(
+		assert.deepStrictEqual(secondaryEdits, [new TextReplacement(
 			new Range(4, 1, 4, 1), [
 				'	public x: number = 0;',
 				'   public y: number = 0;',

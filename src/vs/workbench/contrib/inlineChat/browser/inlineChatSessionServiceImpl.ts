@@ -93,7 +93,11 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
-		this.hideOnRequest = observableConfigValue(InlineChatConfigKeys.HideOnRequest, false, this._configurationService);
+
+		const v2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, this._configurationService);
+
+		this.hideOnRequest = observableConfigValue(InlineChatConfigKeys.HideOnRequest, false, this._configurationService)
+			.map((value, r) => v2.read(r) && value);
 	}
 
 	dispose() {

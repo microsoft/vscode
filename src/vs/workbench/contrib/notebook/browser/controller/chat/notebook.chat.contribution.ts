@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { codiconsLibrary } from '../../../../../../base/common/codiconsLibrary.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IWordAtPosition } from '../../../../../../editor/common/core/wordHelper.js';
@@ -20,7 +21,6 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/q
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService, showChatView } from '../../../../chat/browser/chat.js';
-import { ChatInputPart } from '../../../../chat/browser/chatInputPart.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
 import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
@@ -37,6 +37,8 @@ import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../contrib/chat/notebookChatUtils.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextPicker } from '../../../../chat/browser/chatContextPickService.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 
 const NotebookKernelVariableKey = 'kernelVariable';
 
@@ -52,8 +54,11 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IChatContextPickService chatContextPickService: IChatContextPickService
 	) {
 		super();
+
+		this._register(chatContextPickService.registerChatContextItem(new KernelVariableContextPicker(this.editorService, this.notebookKernelService)));
 
 		this._ctxHasProvider = CTX_NOTEBOOK_CHAT_HAS_AGENT.bindTo(contextKeyService);
 
@@ -65,7 +70,7 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 		updateNotebookAgentStatus();
 		this._register(chatAgentService.onDidChangeAgents(updateNotebookAgentStatus));
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatKernelDynamicCompletions',
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
@@ -201,7 +206,11 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 			});
 		}
 
-		const pickedVariable = await quickInputService.pick(quickPickItems, { placeHolder: 'Select a kernel variable' });
+		const placeHolder = quickPickItems.length > 0
+			? localize('selectKernelVariablePlaceholder', "Select a kernel variable")
+			: localize('noKernelVariables', "No kernel variables found");
+
+		const pickedVariable = await quickInputService.pick(quickPickItems, { placeHolder });
 		if (!pickedVariable) {
 			return;
 		}
@@ -237,6 +246,67 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 				kind: 'generic'
 			});
 		}
+	}
+}
+
+class KernelVariableContextPicker implements IChatContextPickerItem {
+
+	readonly type = 'pickerPick';
+	readonly label = localize('chatContext.notebook.kernelVariable', 'Kernel Variable...');
+	readonly icon = Codicon.serverEnvironment;
+
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
+	) { }
+
+	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
+		return widget.location === ChatAgentLocation.Notebook && Boolean(getNotebookEditorFromEditorPane(this.editorService.activeEditorPane)?.getViewModel()?.notebookDocument);
+	}
+
+	asPicker(): IChatContextPicker {
+
+		const picks = (async () => {
+
+			const notebook = getNotebookEditorFromEditorPane(this.editorService.activeEditorPane)?.getViewModel()?.notebookDocument;
+
+			if (!notebook) {
+				return [];
+			}
+
+			const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
+			const hasVariableProvider = selectedKernel?.hasVariableProvider;
+
+			if (!hasVariableProvider) {
+				return [];
+			}
+
+			const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
+
+			const result: IChatContextPickerPickItem[] = [];
+			for await (const variable of variables) {
+				result.push({
+					label: variable.name,
+					description: variable.value,
+					asAttachment: () => {
+						return {
+							kind: 'generic',
+							id: 'vscode.notebook.variable',
+							name: variable.name,
+							value: variable.value,
+							icon: codiconsLibrary.variable,
+						};
+					},
+				});
+			}
+
+			return result;
+		})();
+
+		return {
+			placeholder: localize('chatContext.notebook.kernelVariable.placeholder', 'Select a kernel variable'),
+			picks
+		};
 	}
 }
 

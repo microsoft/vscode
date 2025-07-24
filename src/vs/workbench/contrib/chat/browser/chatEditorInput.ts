@@ -20,7 +20,8 @@ import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from './actions/chatActions.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
@@ -230,4 +231,51 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 			return undefined;
 		}
 	}
+}
+
+export async function showClearEditingSessionConfirmation(editingSession: IChatEditingSession, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+	const defaultPhrase = nls.localize('chat.startEditing.confirmation.pending.message.default1', "Starting a new chat will end your current edit session.");
+	const defaultTitle = nls.localize('chat.startEditing.confirmation.title', "Start new chat?");
+	const phrase = options?.messageOverride ?? defaultPhrase;
+	const title = options?.titleOverride ?? defaultTitle;
+
+	const currentEdits = editingSession.entries.get();
+	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+
+	const { result } = await dialogService.prompt({
+		title,
+		message: phrase + ' ' + nls.localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits.length),
+		type: 'info',
+		cancelButton: true,
+		buttons: [
+			{
+				label: nls.localize('chat.startEditing.confirmation.acceptEdits', "Keep & Continue"),
+				run: async () => {
+					await editingSession.accept();
+					return true;
+				}
+			},
+			{
+				label: nls.localize('chat.startEditing.confirmation.discardEdits', "Undo & Continue"),
+				run: async () => {
+					await editingSession.reject();
+					return true;
+				}
+			}
+		],
+	});
+
+	return Boolean(result);
+}
+
+export function shouldShowClearEditingSessionConfirmation(editingSession: IChatEditingSession): boolean {
+	const currentEdits = editingSession.entries.get();
+	const currentEditCount = currentEdits.length;
+
+	if (currentEditCount) {
+		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+		return !!undecidedEdits.length;
+	}
+
+	return false;
 }
