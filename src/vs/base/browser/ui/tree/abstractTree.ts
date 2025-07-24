@@ -2198,6 +2198,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly findWidgetStyles?: IFindWidgetStyles;
 	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
 	readonly stickyScrollDelegate?: IStickyScrollDelegate<any, TFilterData>;
+	readonly disableExpandOnSpacebar?: boolean; // defaults to false
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
