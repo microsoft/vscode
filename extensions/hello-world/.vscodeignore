@@ -5,3 +5,4 @@ src/
 .gitignore
 tsconfig.json
 .vscodeignore
+validate.js

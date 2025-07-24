@@ -19,11 +19,14 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	context.subscriptions.push(disposable);
+
+	// Log successful activation
+	console.log('Hello World extension activated successfully');
 }
 
 /**
  * This method is called when your extension is deactivated
  */
 export function deactivate() {
-	// Cleanup code can go here
+	console.log('Hello World extension is deactivated');
 }
