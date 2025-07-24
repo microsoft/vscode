@@ -24,11 +24,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	private readonly _itemProvidersRegistrations = this._register(new DisposableMap<number>());
 	private readonly _contentProvidersRegisterations = this._register(new DisposableMap<number>());
 
-	// Store progress emitters for active sessions: key is `${handle}_${requestId}`
+	// Store progress emitters for active sessions: key is `${handle}_${sessionId}_${requestId}`
 	private readonly _activeProgressEmitters = new Map<string, Emitter<IChatProgress[]>>();
 
-	// Store completion emitters for sessions: key is `${handle}_${requestId}`
+	// Store completion emitters for sessions: key is `${handle}_${sessionId}_${requestId}`
 	private readonly _completionEmitters = new Map<string, Emitter<void>>();
+
+	// Store pending progress chunks for sessions that haven't set up emitters yet
+	private readonly _pendingProgressChunks = new Map<string, (IChatProgressDto | [IChatProgressDto, number])[]>();
 
 	private readonly _proxy: ExtHostChatSessionsShape;
 
@@ -144,11 +147,28 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const progressEmitter = this._activeProgressEmitters.get(progressKey);
 
 		if (!progressEmitter) {
-			this._logService.warn(`No progress emitter found for handle ${handle} and sessionId ${sessionId} and requestId ${requestId}`);
+			// If the progress emitter hasn't been set up yet, store the chunks for later
+			const existingChunks = this._pendingProgressChunks.get(progressKey) || [];
+			this._pendingProgressChunks.set(progressKey, [...existingChunks, ...chunks]);
+			this._logService.debug(`Storing pending progress chunks for handle ${handle}, sessionId ${sessionId}, requestId ${requestId}`);
 			return;
 		}
 
-		// Convert the chunks to IChatProgress[] and emit them
+		// First, flush any pending chunks that were stored before the emitter was ready
+		const pendingChunks = this._pendingProgressChunks.get(progressKey);
+		if (pendingChunks && pendingChunks.length > 0) {
+			this._logService.debug(`Flushing ${pendingChunks.length} pending progress chunks for handle ${handle}, sessionId ${sessionId}, requestId ${requestId}`);
+
+			const pendingProgressParts: IChatProgress[] = pendingChunks.map(chunk => {
+				const [progress] = Array.isArray(chunk) ? chunk : [chunk];
+				return revive(progress) as IChatProgress;
+			});
+
+			progressEmitter.fire(pendingProgressParts);
+			this._pendingProgressChunks.delete(progressKey);
+		}
+
+		// Then emit the current chunks
 		const chatProgressParts: IChatProgress[] = chunks.map(chunk => {
 			const [progress] = Array.isArray(chunk) ? chunk : [chunk];
 			return revive(progress) as IChatProgress;
@@ -179,11 +199,12 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			completionEmitter.fire();
 		}
 
-		// Clean up the emitters
+		// Clean up the emitters and any pending chunks
 		progressEmitter.dispose();
 		completionEmitter?.dispose();
 		this._activeProgressEmitters.delete(progressKey);
 		this._completionEmitters.delete(progressKey);
+		this._pendingProgressChunks.delete(progressKey);
 	}
 
 	$handleAnchorResolve(handle: number, sessionId: string, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void {
@@ -202,6 +223,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			emitter.dispose();
 		}
 		this._completionEmitters.clear();
+
+		// Clean up all pending progress chunks
+		this._pendingProgressChunks.clear();
 
 		super.dispose();
 	}

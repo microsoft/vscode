@@ -175,6 +175,26 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		this._extHostChatSessions.set(`${handle}_${id}`, chatSession);
 
+		const result: ChatSessionDto = {
+			id: sessionId + '',
+			hasActiveResponseCallback: !!session.activeResponseCallback,
+			hasRequestHandler: !!session.requestHandler,
+			history: session.history.map(turn => {
+				if (turn instanceof extHostTypes.ChatRequestTurn) {
+					return { type: 'request' as const, prompt: turn.prompt };
+				} else {
+					const responseTurn = turn as extHostTypes.ChatResponseTurn2;
+					const parts = coalesce(responseTurn.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter, sessionDisposables)));
+
+					return {
+						type: 'response' as const,
+						parts
+					};
+				}
+			})
+		};
+
+		// Call activeResponseCallback immediately for best user experience
 		if (session.activeResponseCallback) {
 			session.activeResponseCallback(chatSession.activeResponseStream.apiObject, token).then(() => {
 				// complete
@@ -182,24 +202,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			});
 		}
 
-		return {
-			id: sessionId + '',
-			hasActiveResponseCallback: !!session.activeResponseCallback,
-			hasRequestHandler: !!session.requestHandler,
-			history: session.history.map(turn => {
-				if (turn instanceof extHostTypes.ChatRequestTurn) {
-					return { type: 'request', prompt: turn.prompt };
-				} else {
-					const responseTurn = turn as extHostTypes.ChatResponseTurn2;
-					const parts = coalesce(responseTurn.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter, sessionDisposables)));
-
-					return {
-						type: 'response',
-						parts
-					};
-				}
-			})
-		};
+		return result;
 	}
 
 	async $invokeChatSessionRequestHandler(handle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
