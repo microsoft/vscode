@@ -3111,6 +3111,7 @@ export namespace ChatAgentResult {
 			errorDetails: result.errorDetails,
 			metadata: reviveMetadata(result.metadata),
 			nextQuestion: result.nextQuestion,
+			details: result.details,
 		};
 	}
 	export function from(result: vscode.ChatResult): Dto<IChatAgentResult> {
@@ -3118,6 +3119,7 @@ export namespace ChatAgentResult {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
 			nextQuestion: result.nextQuestion,
+			details: result.details
 		};
 	}
 
