@@ -67,7 +67,6 @@ export interface IChatSessionsService {
 	hasChatSessionItemProviders: boolean;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
 	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
-	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

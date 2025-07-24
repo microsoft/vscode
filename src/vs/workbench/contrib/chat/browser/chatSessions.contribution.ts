@@ -98,6 +98,19 @@ export class ChatSessionsContribution extends Disposable implements IWorkbenchCo
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ChatSessionsContribution, LifecyclePhase.Restored);
 
+class ContributedChatSessionData implements IDisposable {
+	constructor(
+		readonly session: ChatSession,
+		readonly chatSessionType: string,
+		readonly id: string,
+		onWillDispose: (session: ChatSession, chatSessionType: string, id: string) => void
+	) {
+	}
+
+	dispose(): void {
+	}
+}
+
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
@@ -231,7 +244,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	private _sessionMap = new Map<string, ChatSession>();
+	private readonly _sessions = new Map<string, ContributedChatSessionData>();
 
 	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
@@ -244,13 +257,27 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw Error(`Can not find provider for ${chatSessionType}`);
 		}
 
-		if (this._sessionMap.get(`${chatSessionType}_${id}`)) {
-			return this._sessionMap.get(`${chatSessionType}_${id}`)!;
+		const sessionKey = `${chatSessionType}_${id}`;
+		const existingSessionData = this._sessions.get(sessionKey);
+		if (existingSessionData) {
+			return existingSessionData.session;
 		}
 
 		const session = await provider.provideChatSessionContent(id, token);
-		this._sessionMap.set(`${chatSessionType}_${id}`, session);
+		const sessionData = new ContributedChatSessionData(session, chatSessionType, id, this._onWillDisposeSession.bind(this));
+
+		this._sessions.set(sessionKey, sessionData);
+
 		return session;
+	}
+
+	private _onWillDisposeSession(session: ChatSession, chatSessionType: string, id: string): void {
+		const sessionKey = `${chatSessionType}_${id}`;
+		const sessionData = this._sessions.get(sessionKey);
+		if (sessionData) {
+			this._sessions.delete(sessionKey);
+			sessionData.dispose();
+		}
 	}
 
 	public get hasChatSessionItemProviders(): boolean {
