@@ -211,10 +211,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _viewModel: ChatViewModel | undefined;
 
 	// Coding agent locking state
-	private _lockedToCodingAgent: IChatAgentData | undefined;
+	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
 	private _codingAgentPrefix: string | undefined;
-	private _prefixLockEnabled = false;
 
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
@@ -1477,6 +1476,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
+
+		// Apply any placeholder from the view model immediately
+		if (this.viewModel.inputPlaceholder) {
+			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+		}
+
 		const renderImmediately = this.configurationService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
 		const delay = renderImmediately ? MicrotaskDelay : 0;
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange, delay), (events => {
@@ -1487,6 +1492,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.requestInProgress.set(this.viewModel.requestInProgress);
 			this.isRequestPaused.set(this.viewModel.requestPausibility === ChatPauseState.Paused);
 			this.canRequestBePaused.set(this.viewModel.requestPausibility !== ChatPauseState.NotPausable);
+
+			// Update the editor's placeholder text when it changes in the view model
+			if (events?.some(e => e?.kind === 'changePlaceholder')) {
+				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+			}
 
 			this.onDidChangeItems();
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible) {
@@ -1513,6 +1523,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				c.setInputState(viewState.inputState?.[c.id]);
 			}
 		});
+
+		// Restore locked coding agent state if present
+		if (viewState.inputState?.lockedToCodingAgent) {
+			this.lockToCodingAgent(viewState.inputState.lockedToCodingAgent);
+		}
+
 		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
@@ -1570,60 +1586,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	// Coding agent locking methods
-	public lockToCodingAgent(agent: IChatAgentData): void {
-		this._lockedToCodingAgent = agent;
-		this._codingAgentPrefix = `@${agent.name} `;
-		this._prefixLockEnabled = true;
-		this.updateCodingAgentVisualState();
-		this.registerPrefixLockKeydownHandler();
+	public lockToCodingAgent(name: string): void {
+		this._lockedToCodingAgent = name;
+		this._codingAgentPrefix = `@${name} `;
 		this._lockedToCodingAgentContextKey.set(true);
 		this.renderWelcomeViewContentIfNeeded();
+
+		// Update the placeholder to show that we're locked to this agent
+		const localized = localize('chat.input.placeholder.lockedToAgent', "Chat with @{0}", name);
+		if (this.viewModel) {
+			this.viewModel.setInputPlaceholder(localized);
+		}
+		this.inputEditor.updateOptions({ placeholder: localized });
 	}
 
 	public unlockFromCodingAgent(): void {
 		this._lockedToCodingAgent = undefined;
 		this._codingAgentPrefix = undefined;
-		this._prefixLockEnabled = false;
-		this.updateCodingAgentVisualState();
-		this.unregisterPrefixLockKeydownHandler();
 		this._lockedToCodingAgentContextKey.set(false);
 		this.renderWelcomeViewContentIfNeeded();
-	}
-	private _prefixLockKeydownDisposable: IDisposable | undefined;
 
-	private registerPrefixLockKeydownHandler(): void {
-		this.unregisterPrefixLockKeydownHandler();
-		const editorDomNode = this.input.inputEditor.getDomNode();
-		if (!editorDomNode) {
-			return;
+		// Reset to default placeholder
+		if (this.viewModel) {
+			this.viewModel.resetInputPlaceholder();
 		}
-		this._prefixLockKeydownDisposable = dom.addDisposableListener(editorDomNode, 'keydown', (e: KeyboardEvent) => {
-			if (!this._lockedToCodingAgent || !this._codingAgentPrefix) {
-				return;
-			}
-			if (e.key === 'Backspace') {
-				const selection = this.input.inputEditor.getSelection();
-				const model = this.input.inputEditor.getModel();
-				if (!selection || !model) {
-					return;
-				}
-				const prefixLength = this._codingAgentPrefix.length;
-				// Only block if at start or selection includes prefix
-				if (
-					(selection.startLineNumber === 1 && selection.startColumn <= prefixLength + 1) && selection.isEmpty()
-				) {
-					e.preventDefault();
-					e.stopPropagation();
-				}
-			}
-		});
-	}
 
-	private unregisterPrefixLockKeydownHandler(): void {
-		if (this._prefixLockKeydownDisposable) {
-			this._prefixLockKeydownDisposable.dispose();
-			this._prefixLockKeydownDisposable = undefined;
-		}
+		// Also clear the editor's placeholder immediately for immediate visual feedback
+		this.inputEditor.updateOptions({ placeholder: undefined });
 	}
 
 	public get isLockedToCodingAgent(): boolean {
@@ -1664,6 +1653,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				inputState[c.id] = c.getInputState();
 			}
 		});
+
+		// Save the locked coding agent state
+		if (this._lockedToCodingAgent) {
+			inputState.lockedToCodingAgent = this._lockedToCodingAgent;
+		}
+
 		return inputState;
 	}
 
@@ -2067,9 +2062,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getViewState(): IChatViewState {
+		// Get the input state which includes our locked agent (if any)
+		const inputState = this.input.getViewState();
+
+		// Ensure the locked agent state is included
+		if (this._lockedToCodingAgent && inputState && !inputState.lockedToCodingAgent) {
+			inputState.lockedToCodingAgent = this._lockedToCodingAgent;
+		}
+
 		return {
 			inputValue: this.getInput(),
-			inputState: this.input.getViewState()
+			inputState: inputState
 		};
 	}
 
@@ -2133,14 +2136,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 		return readFileTool;
-	}
-
-	private updateCodingAgentVisualState(): void {
-		if (this._lockedToCodingAgent && this._prefixLockEnabled) {
-			this.container.classList.add('locked-to-coding-agent');
-		} else {
-			this.container.classList.remove('locked-to-coding-agent');
-		}
 	}
 
 	private removeExistingAgentPrefix(text: string): string {

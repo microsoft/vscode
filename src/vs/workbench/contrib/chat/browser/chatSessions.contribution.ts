@@ -163,7 +163,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			disambiguation: [],
 			metadata: {
 				themeIcon: Codicon.sendToRemoteAgent,
-				isSticky: true,
+				isSticky: false,
 			},
 			extensionId: nullExtensionDescription.identifier,
 			extensionDisplayName: nullExtensionDescription.name,
