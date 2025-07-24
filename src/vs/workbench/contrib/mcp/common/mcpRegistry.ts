@@ -238,8 +238,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				return false;
 			}
 
-			if (await this._promptForTrust(definition, collection, interaction, trustNonceBearer)) {
+			const didTrust = await this._promptForTrust(definition, collection, interaction, trustNonceBearer);
+			if (didTrust) {
 				return true;
+			}
+			if (didTrust === undefined) {
+				return undefined;
 			}
 
 			trustNonceBearer.trustedAtNonce = notTrustedNonce;
