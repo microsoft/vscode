@@ -18,10 +18,13 @@ import { workbenchInstantiationService, type TestTerminalConfigurationService } 
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { events as rich_windows11_pwsh7_ls_one_time } from './recordings/rich/windows11_pwsh7_ls_one_time.js';
 import { events as rich_windows11_pwsh7_echo_3_times } from './recordings/rich/windows11_pwsh7_echo_3_times.js';
+import { events as rich_windows11_pwsh7_ls_one_time } from './recordings/rich/windows11_pwsh7_ls_one_time.js';
 import { events as rich_windows11_pwsh7_type_foo } from './recordings/rich/windows11_pwsh7_type_foo.js';
 import { events as rich_windows11_pwsh7_type_foo_left_twice } from './recordings/rich/windows11_pwsh7_type_foo_left_twice.js';
+import { events as rich_macos_zsh_omz_echo_3_times } from './recordings/rich/macos_zsh_omz_echo_3_times.js';
+import { events as rich_macos_zsh_omz_ls_one_time } from './recordings/rich/macos_zsh_omz_ls_one_time.js';
+import { events as basic_macos_zsh_p10k_ls_one_time } from './recordings/basic/macos_zsh_p10k_ls_one_time.js';
 
 // These are test cases recorded with the `Developer: Record Terminal Session` command. Once that is
 // run, a terminal is created and the test case is manually executed. After nothing happens for a
@@ -52,17 +55,17 @@ type RecordedTestCase = {
 };
 const recordedTestCases: RecordedTestCase[] = [
 	{
-		name: 'rich_windows11_pwsh7_ls_one_time',
-		events: rich_windows11_pwsh7_ls_one_time as any as RecordedSessionEvent[],
-		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
-			assertCommandDetectionState(commandDetection, ['ls'], '|');
-		}
-	},
-	{
 		name: 'rich_windows11_pwsh7_echo_3_times',
 		events: rich_windows11_pwsh7_echo_3_times as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, ['echo a', 'echo b', 'echo c'], '|');
+		}
+	},
+	{
+		name: 'rich_windows11_pwsh7_ls_one_time',
+		events: rich_windows11_pwsh7_ls_one_time as any as RecordedSessionEvent[],
+		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
+			assertCommandDetectionState(commandDetection, ['ls'], '|');
 		}
 	},
 	{
@@ -77,6 +80,29 @@ const recordedTestCases: RecordedTestCase[] = [
 		events: rich_windows11_pwsh7_type_foo_left_twice as any as RecordedSessionEvent[],
 		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
 			assertCommandDetectionState(commandDetection, [], 'f|oo');
+		}
+	},
+	{
+		name: 'rich_macos_zsh_omz_echo_3_times',
+		events: rich_macos_zsh_omz_echo_3_times as any as RecordedSessionEvent[],
+		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
+			assertCommandDetectionState(commandDetection, ['echo a', 'echo b', 'echo c'], '|');
+		}
+	},
+	{
+		name: 'rich_macos_zsh_omz_ls_one_time',
+		events: rich_macos_zsh_omz_ls_one_time as any as RecordedSessionEvent[],
+		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
+			assertCommandDetectionState(commandDetection, ['ls'], '|');
+		}
+	},
+	{
+		name: 'basic_macos_zsh_p10k_ls_one_time',
+		events: basic_macos_zsh_p10k_ls_one_time as any as RecordedSessionEvent[],
+		finalAssertions: (commandDetection: ICommandDetectionCapability | undefined) => {
+			// Prompt input model doesn't work for p10k yet
+			// Assert a single command has completed
+			deepStrictEqual(commandDetection!.commands.map(e => e.command), ['']);
 		}
 	},
 ];
@@ -110,7 +136,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite.only('Terminal Contrib Shell Integration Recordings', () => {
+suite('Terminal Contrib Shell Integration Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
