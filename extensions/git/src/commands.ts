@@ -3425,18 +3425,13 @@ export class CommandCenter {
 		let branch: string | undefined = undefined;
 		let commitish: string;
 
-		const newBranchName = async (): Promise<string | undefined> => {
-			const branchName = await this.promptForBranchName(repository);
+		if (choice === createBranch) {
+			branch = await this.promptForBranchName(repository);
 
-			if (!branchName) {
+			if (!branch) {
 				return;
 			}
 
-			return branchName;
-		};
-
-		if (choice === createBranch) {
-			branch = await newBranchName();
 			commitish = 'HEAD';
 		} else {
 			if (!(choice instanceof RefItem) || !choice.refName) {
@@ -3447,7 +3442,11 @@ export class CommandCenter {
 			// otherwise we can use the existing selected branch or tag
 			const isWorktreeLocked = await this.isWorktreeLocked(repository, choice);
 			if (isWorktreeLocked) {
-				branch = await newBranchName();
+				branch = await this.promptForBranchName(repository);
+
+				if (!branch) {
+					return;
+				}
 			}
 			commitish = choice.refName;
 		}
