@@ -84,7 +84,7 @@ declare module 'vscode' {
 		constructor(toolName: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart | ChatResponseThinkingProgressPart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -95,6 +95,21 @@ declare module 'vscode' {
 		value: string;
 		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
 		constructor(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>);
+	}
+
+	/**
+	 * A specialized progress part for displaying thinking/reasoning steps.
+	 */
+	export class ChatResponseThinkingProgressPart extends ChatResponseProgressPart {
+		value: string;
+		task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>;
+
+		/**
+		 * Creates a new thinking progress part.
+		 * @param value An initial progress message
+		 * @param task A task that will emit thinking parts during its execution
+		 */
+		constructor(value: string, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>);
 	}
 
 	export class ChatResponseReferencePart2 {
@@ -182,6 +197,8 @@ declare module 'vscode' {
 		* @returns This stream.
 		*/
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
+
+		thinkingProgress(value: string, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
