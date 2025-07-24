@@ -48,9 +48,9 @@ export class QuickInputTreeController extends Disposable {
 	) {
 		super();
 		this._container = dom.append(container, $('.quick-input-tree'));
-		this._renderer = this.instantiationService.createInstance(QuickInputTreeRenderer, hoverDelegate, this._onDidTriggerButton, this.onDidChangeCheckboxState);
+		this._renderer = this._register(this.instantiationService.createInstance(QuickInputTreeRenderer, hoverDelegate, this._onDidTriggerButton, this.onDidChangeCheckboxState));
 		this._filter = this.instantiationService.createInstance(QuickInputTreeFilter);
-		this._tree = this.instantiationService.createInstance(
+		this._tree = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData>,
 			'QuickInputTree',
 			this._container,
@@ -102,7 +102,7 @@ export class QuickInputTreeController extends Disposable {
 				},
 				filter: this._filter
 			}
-		);
+		));
 		this.registerOnOpenListener();
 	}
 
