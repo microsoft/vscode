@@ -15,7 +15,7 @@ import { getOutput } from '../bufferOutputPolling.js';
 import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
-	id: 'get_task_output2',
+	id: 'get_task_output',
 	toolReferenceName: 'getTaskOutput',
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
 	modelDescription: 'Get the output of a task',

@@ -998,6 +998,20 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.win?.webContents.toggleDevTools();
 	}
 
+	async openDevToolsWindow(windowId: number | undefined, url: string): Promise<void> {
+		const parentWindow = this.codeWindowById(windowId);
+		if (!parentWindow) {
+			return;
+		}
+		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true, hideBecauseShadowWindow: false });
+		options.backgroundColor = undefined;
+
+		const devToolsWindow = new BrowserWindow(options);
+		devToolsWindow.setMenuBarVisibility(false);
+		devToolsWindow.loadURL(url);
+		devToolsWindow.once('ready-to-show', () => devToolsWindow.show());
+	}
+
 	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
 		const parentWindow = this.codeWindowById(windowId);
 		if (!parentWindow) {

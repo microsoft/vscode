@@ -42,6 +42,8 @@ import { EditOperation } from '../../../../../editor/common/core/editOperation.j
 import { Position } from '../../../../../editor/common/core/position.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -76,6 +78,7 @@ suite('ChatEditingService', function () {
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
+		collection.set(IMcpService, new TestMcpService());
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {

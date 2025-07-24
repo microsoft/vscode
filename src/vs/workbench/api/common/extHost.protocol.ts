@@ -3137,6 +3137,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$handleAnchorResolve(handle: number, sessionId: string, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
 	$handleProgressComplete(handle: number, sessionId: string, requestId: string): void;
 	$showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void>;
+	$onDidChangeChatSessionItems(chatSessionType: string): void;
 }
 
 export interface ExtHostChatSessionsShape {

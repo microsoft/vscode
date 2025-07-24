@@ -59,17 +59,18 @@ export interface IChatSessionContentProvider {
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
+	readonly onDidChangeSessionItems: Event<string>;
 	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
-	getChatSessionProviders(): IChatSessionsExtensionPoint[];
+	getChatSessionContributions(): IChatSessionsExtensionPoint[];
+	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
+	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
 	getChatSessionItemProviders(): IChatSessionItemProvider[];
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	registerChatSessionContentProvider(provider: IChatSessionContentProvider): IDisposable;
 	hasChatSessionItemProviders: boolean;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
+	notifySessionItemsChange(chatSessionType: string): void;
 	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
-
-
-

@@ -34,7 +34,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 		const store = new DisposableStore();
 		try {
 			// Ensure xterm is available
-			this._logService.debug('RunInTerminalTool#None: Waiting for xterm');
+			this._log('Waiting for xterm');
 			const xterm = await this._instance.xtermReadyPromise;
 			if (!xterm) {
 				throw new Error('Xterm is not available');
@@ -42,14 +42,14 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 
 			const onDone: Promise<ITerminalCommand | void> = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
-					this._logService.debug('RunInTerminalTool#Rich: onDone via end event');
+					this._log('onDone via end event');
 					return e;
 				}),
 				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
-					this._logService.debug('RunInTerminalTool#Rich: onDone via cancellation');
+					this._log('onDone via cancellation');
 				}),
 				trackIdleOnPrompt(this._instance, 1000, store).then(() => {
-					this._logService.debug('RunInTerminalTool#Rich: onDone via idle prompt');
+					this._log('onDone via idle prompt');
 				}),
 			]);
 
@@ -58,16 +58,16 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			// like powerlevel10k's transient prompt
 			let startMarker = store.add(xterm.raw.registerMarker());
 			store.add(startMarker.onDispose(() => {
-				this._logService.debug(`RunInTerminalTool#Rich: Start marker was disposed, recreating`);
+				this._log(`Start marker was disposed, recreating`);
 				startMarker = xterm.raw.registerMarker();
 			}));
 
 			// Execute the command
-			this._logService.debug(`RunInTerminalTool#Rich: Executing command line \`${commandLine}\``);
+			this._log(`Executing command line \`${commandLine}\``);
 			this._instance.runCommand(commandLine, true);
 
 			// Wait for the terminal to idle
-			this._logService.debug(`RunInTerminalTool#Rich: Waiting for done event`);
+			this._log('Waiting for done event');
 			const finishedCommand = await onDone;
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -80,16 +80,16 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			if (finishedCommand) {
 				const commandOutput = finishedCommand?.getOutput();
 				if (commandOutput !== undefined) {
-					this._logService.debug('RunInTerminalTool#Rich: Fetched output via finished command');
+					this._log('Fetched output via finished command');
 					output = commandOutput;
 				}
 			}
 			if (output === undefined) {
 				try {
 					output = xterm.getContentsAsText(startMarker, endMarker);
-					this._logService.debug('RunInTerminalTool#Rich: Fetched output via markers');
+					this._log('Fetched output via markers');
 				} catch {
-					this._logService.debug('RunInTerminalTool#Basic: Failed to fetch output via markers');
+					this._log('Failed to fetch output via markers');
 					additionalInformationLines.push('Failed to retrieve command output');
 				}
 			}
@@ -111,5 +111,9 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 		} finally {
 			store.dispose();
 		}
+	}
+
+	private _log(message: string) {
+		this._logService.debug(`RunInTerminalTool#Rich: ${message}`);
 	}
 }

@@ -4744,10 +4744,6 @@ export class ChatPrepareToolInvocationPart {
 	}
 }
 
-export interface ChatTerminalToolInvocationData {
-	command: string;
-	language: string;
-}
 
 export interface ChatTerminalToolInvocationData2 {
 	commandLine: {

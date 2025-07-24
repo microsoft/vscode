@@ -49,8 +49,8 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
-import { IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
@@ -83,6 +83,7 @@ import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { CodiconActionViewItem } from '../../notebook/browser/view/cellParts/cellActionView.js';
+import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
 
 const $ = dom.$;
 
@@ -681,6 +682,22 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
+		if (this.shouldShowFileChangesSummary(element)) {
+			const fileChanges: IChatChangesSummary[] = [];
+			for (const part of element.model.entireResponse.value) {
+				if (part.kind === 'textEditGroup') {
+					fileChanges.push({
+						kind: 'changesSummary',
+						reference: part.uri,
+						sessionId: element.sessionId,
+						requestId: element.requestId,
+					});
+				}
+			}
+			if (fileChanges.length) {
+				content.push({ kind: 'changesSummary', fileChanges });
+			}
+		}
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
@@ -988,8 +1005,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isPaused = element.model.isPaused.get();
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
+		if (this.shouldShowFileChangesSummary(element)) {
+			const fileChanges: IChatChangesSummary[] = [];
+			for (const part of element.model.entireResponse.value) {
+				if (part.kind === 'textEditGroup') {
+					fileChanges.push({
+						kind: 'changesSummary',
+						reference: part.uri,
+						sessionId: element.sessionId,
+						requestId: element.requestId,
+					});
+				}
+			}
+			if (fileChanges.length > 0) {
+				partsToRender.push({ kind: 'changesSummary', fileChanges });
+			}
+		}
 
 		return { content: partsToRender, moreContentAvailable };
+	}
+
+	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
+		return element.isComplete && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[]): boolean {
@@ -1084,6 +1121,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderChatErrorDetails(context, content, templateData);
 			} else if (content.kind === 'elicitation') {
 				return this.renderElicitation(context, content, templateData);
+			} else if (content.kind === 'changesSummary') {
+				return this.renderChangesSummary(content, context, templateData);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -1265,6 +1304,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return part;
 	}
 
+	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
+		const part = this.instantiationService.createInstance(ChatCheckpointFileChangesSummaryContentPart, content, context);
+		part.addDisposable(part.onDidChangeHeight(() => { this.updateItemHeight(templateData); }));
+		return part;
+	}
+
 	private renderAttachments(variables: IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, templateData: IChatListItemTemplate) {
 		return this.instantiationService.createInstance(ChatAttachmentsContentPart, variables, contentReferences, undefined);
 	}
@@ -1289,21 +1334,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && !this.disableEdits) {
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
-					if (this.viewModel?.editing?.id !== element.id) {
-						const selection = dom.getWindow(templateData.rowContainer).getSelection();
-						if (selection && !selection.isCollapsed && selection.toString().length > 0) {
-							return;
-						}
-
-						const clickedElement = e.target as HTMLElement;
-						if (clickedElement.tagName === 'A') {
-							return;
-						}
-
-						e.preventDefault();
-						e.stopPropagation();
-						this._onDidClickRequest.fire(templateData);
+					if (this.viewModel?.editing?.id === element.id) {
+						return;
 					}
+
+					// Don't handle clicks on links
+					const clickedElement = e.target as HTMLElement;
+					if (clickedElement.tagName === 'A') {
+						return;
+					}
+
+					// Don't handle if there's a text selection in the window
+					const selection = dom.getWindow(templateData.rowContainer).getSelection();
+					if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+						return;
+					}
+
+					// Don't handle if there's a selection in code block
+					const monacoEditor = dom.findParentWithClass(clickedElement, 'monaco-editor');
+					if (monacoEditor) {
+						const editorPart = Array.from(this.editorsInUse()).find(editor =>
+							editor.element.contains(monacoEditor));
+
+						if (editorPart?.editor.getSelection()?.isEmpty() === false) {
+							return;
+						}
+					}
+
+					e.preventDefault();
+					e.stopPropagation();
+					this._onDidClickRequest.fire(templateData);
 				}));
 				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
 			}

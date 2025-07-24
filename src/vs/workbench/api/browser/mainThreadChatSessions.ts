@@ -57,6 +57,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(provider));
 	}
 
+	$onDidChangeChatSessionItems(chatSessionType: string): void {
+		// Notify the provider that its chat session items have changed
+		this._chatSessionsService.notifySessionItemsChange(chatSessionType);
+	}
+
 	private async _provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]> {
 		try {
 			// Get all results as an array from the RPC call

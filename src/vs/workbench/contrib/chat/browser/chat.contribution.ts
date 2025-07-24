@@ -21,7 +21,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { mcpEnabledConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { mcpAutoStartConfig, McpAutoStartValue, mcpEnabledConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -94,7 +94,6 @@ import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatPart
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
-// import './chatSessions.js';
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
@@ -117,6 +116,7 @@ import { registerLanguageModelActions } from './actions/chatLanguageModelActions
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ChatTaskServiceImpl, IChatTasksService } from '../common/chatTasksService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
+import { AssistedTypes, AddConfigurationType } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 import { ChatSessionsView } from './chatSessions.js';
 
 // Register configuration
@@ -227,7 +227,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.tools.autoApprove.description', "Controls whether tool use should be automatically approved. Allow all tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval. Use with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			markdownDescription: nls.localize('chat.tools.autoApprove.markdownDescription', "Controls whether tool use should be automatically approved.\n\nAllows _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval.\n\nUse with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			type: 'boolean',
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental'],
 			policy: {
 				name: 'ChatToolsAutoApprove',
@@ -285,6 +285,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
 			tags: ['experimental'],
 		},
+		'chat.checkpoints.showFileChanges': {
+			type: 'boolean',
+			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
+			default: false
+		},
 		[mcpEnabledConfig]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
@@ -294,6 +299,21 @@ configurationRegistry.registerConfiguration({
 				minimumVersion: '1.99',
 				tags: [PolicyTag.Account, PolicyTag.MCP]
 			}
+		},
+		[mcpAutoStartConfig]: {
+			type: 'string',
+			description: nls.localize('chat.mcp.autostart', "Controls whether MCP servers should be automatically started when the chat messages are submitted."),
+			default: McpAutoStartValue.NewAndOutdated,
+			enum: [
+				McpAutoStartValue.Never,
+				McpAutoStartValue.OnlyNew,
+				McpAutoStartValue.NewAndOutdated
+			],
+			enumDescriptions: [
+				nls.localize('chat.mcp.autostart.never', "Never automatically start MCP servers."),
+				nls.localize('chat.mcp.autostart.onlyNew', "Only automatically start new MCP servers that have never been run."),
+				nls.localize('chat.mcp.autostart.newAndOutdated', "Automatically start new and outdated MCP servers that are not yet running.")
+			]
 		},
 		[mcpServerSamplingSection]: {
 			type: 'object',
@@ -321,6 +341,15 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			},
+		},
+		[AssistedTypes[AddConfigurationType.NuGetPackage].enabledConfigKey]: {
+			type: 'boolean',
+			description: nls.localize('chat.mcp.assisted.nuget.enabled.description', "Enables NuGet packages for AI-assisted MCP server installation. Used to install MCP servers by name from the central registry for .NET packages (NuGet.org)."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'startup'
+			}
 		},
 		[ChatConfiguration.UseFileStorage]: {
 			type: 'boolean',

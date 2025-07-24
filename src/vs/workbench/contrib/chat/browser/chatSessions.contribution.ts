@@ -120,7 +120,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
 	private _contentProviders: Map<string, IChatSessionContentProvider> = new Map();
 	private _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
-
+	private readonly _onDidChangeSessionItems = this._register(new Emitter<string>());
+	readonly onDidChangeSessionItems: Event<string> = this._onDidChangeSessionItems.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -174,7 +175,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return disposable;
 	}
 
-	getChatSessionProviders(): IChatSessionsExtensionPoint[] {
+	getChatSessionContributions(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values());
 	}
 
@@ -191,6 +192,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
 
 		return this._itemsProviders.has(chatViewType);
+	}
+
+	public notifySessionItemsChange(chatSessionType: string): void {
+		this._onDidChangeSessionItems.fire(chatSessionType);
 	}
 
 	async canResolveContentProvider(chatViewType: string) {

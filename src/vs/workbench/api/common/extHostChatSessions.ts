@@ -88,12 +88,18 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		this._chatSessionItemProviders.set(handle, { provider, extension, disposable: disposables });
 		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType, provider.label);
-
-		return new extHostTypes.Disposable(() => {
-			this._chatSessionItemProviders.delete(handle);
-			disposables.dispose();
-			this._proxy.$unregisterChatSessionItemProvider(handle);
-		});
+		if (provider.onDidChangeChatSessionItems) {
+			disposables.add(provider.onDidChangeChatSessionItems(() => {
+				this._proxy.$onDidChangeChatSessionItems(chatSessionType);
+			}));
+		}
+		return {
+			dispose: () => {
+				this._chatSessionItemProviders.delete(handle);
+				disposables.dispose();
+				this._proxy.$unregisterChatSessionItemProvider(handle);
+			}
+		};
 	}
 
 	registerChatSessionContentProvider(extension: IExtensionDescription, chatSessionType: string, provider: vscode.ChatSessionContentProvider): vscode.Disposable {
