@@ -207,5 +207,6 @@
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
 	"terminal.integrated.suggest.enabled": true,
-	"application.experimental.rendererProfiling": true
+	"application.experimental.rendererProfiling": true,
+	"chat.checkpoints.showFileChanges": true
 }
