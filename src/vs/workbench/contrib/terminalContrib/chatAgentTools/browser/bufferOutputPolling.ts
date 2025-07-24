@@ -304,7 +304,7 @@ export async function handleYesNoUserPrompt(
 			const outputAndIdle = await pollForOutputAndIdleFn();
 			return { handled: true, outputAndIdle };
 		} else {
-			await terminal.sendText(options[0] === 'n' ? 'n' : 'no', true);
+			await terminal.sendText(options[1] === 'n' ? 'n' : 'no', true);
 			return { handled: true };
 		}
 	}
