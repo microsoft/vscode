@@ -116,6 +116,7 @@ import { registerLanguageModelActions } from './actions/chatLanguageModelActions
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ChatTaskServiceImpl, IChatTasksService } from '../common/chatTasksService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
+import { ChatSessionsView } from './chatSessions.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -364,7 +365,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
-			enum: ['disabled', 'showChatsMenu'],
+			enum: ['disabled', 'showChatsMenu', 'view'],
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
 			default: 'disabled',
 			tags: ['experimental'],
@@ -758,6 +759,7 @@ registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribu
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatCopyActions();

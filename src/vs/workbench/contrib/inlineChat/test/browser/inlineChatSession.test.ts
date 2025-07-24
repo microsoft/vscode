@@ -117,6 +117,7 @@ suite('InlineChatSession', function () {
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
 				override acceptRequest(): number { return -1; }
+				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
