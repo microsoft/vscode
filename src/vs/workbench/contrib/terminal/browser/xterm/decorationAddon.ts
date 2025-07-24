@@ -224,9 +224,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			const buffer = this._terminal?.buffer?.active;
 			const marker = command.promptStartMarker;
 
-			// Only register if cursor is at or below the command start marker
-			// This prevents misplaced decorations when watch commands clear previous output
-			if (buffer && marker && buffer.cursorY >= marker.line) {
+			// Only apply cursor check for commands with exit codes (completed commands)
+			// Skip the check for incomplete commands (no exitCode) to allow placeholders
+			if (command.exitCode !== undefined && buffer && marker) {
+				// Only register if cursor is at or below the command start marker
+				// This prevents misplaced decorations when watch commands clear previous output
+				if (buffer.cursorY >= marker.line) {
+					this.registerCommandDecoration(command);
+				}
+			} else {
+				// No exit code means incomplete command - always register placeholder
 				this.registerCommandDecoration(command);
 			}
 
