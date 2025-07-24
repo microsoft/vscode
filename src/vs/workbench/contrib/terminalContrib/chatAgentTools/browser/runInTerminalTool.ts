@@ -36,7 +36,8 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getExpectedUserInputKind, getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt, handleYesNoUserPrompt } from './bufferOutputPolling.js';
+import { getExpectedUserInputKind, getOutput, pollForOutputAndIdle, racePollingOrPrompt, handleYesNoUserPrompt } from './bufferOutputPolling.js';
+import { promptForMorePolling } from '../../../elicitation/browser/elicitation.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 

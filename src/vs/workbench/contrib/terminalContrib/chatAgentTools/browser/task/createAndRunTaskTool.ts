@@ -12,13 +12,14 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { getExpectedUserInputKind, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt, handleYesNoUserPrompt } from '../bufferOutputPolling.js';
+import { getExpectedUserInputKind, pollForOutputAndIdle, racePollingOrPrompt, handleYesNoUserPrompt } from '../bufferOutputPolling.js';
 import { getOutput } from '../outputHelpers.js';
 import { IConfiguredTask } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { promptForMorePolling } from '../../../../elicitation/browser/elicitation.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
