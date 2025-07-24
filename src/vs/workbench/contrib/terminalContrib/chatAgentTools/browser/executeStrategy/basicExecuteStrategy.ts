@@ -54,31 +54,31 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 					// When shell integration is basic, it means that the end execution event is
 					// often misfired since we don't have command line verification. Because of this
 					// we make sure the prompt is idle after the end execution event happens.
-					this._logService.debug('RunInTerminalTool#Basic: onDone 1 of 2 via end event, waiting for short idle prompt');
+					this._log('onDone 1 of 2 via end event, waiting for short idle prompt');
 					return idlePromptPromise.then(() => {
-						this._logService.debug('RunInTerminalTool#Basic: onDone 2 of 2 via short idle prompt');
+						this._log('onDone 2 of 2 via short idle prompt');
 						return e;
 					});
 				}),
 				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
-					this._logService.debug('RunInTerminalTool#Basic: onDone via cancellation');
+					this._log('onDone via cancellation');
 				}),
 				// A longer idle prompt event is used here as a catch all for unexpected cases where
 				// the end event doesn't fire for some reason.
 				trackIdleOnPrompt(this._instance, 3000, store).then(() => {
-					this._logService.debug('RunInTerminalTool#Basic: onDone long idle prompt');
+					this._log('onDone long idle prompt');
 				}),
 			]);
 
 			// Ensure xterm is available
-			this._logService.debug('RunInTerminalTool#None: Waiting for xterm');
+			this._log('Waiting for xterm');
 			const xterm = await this._instance.xtermReadyPromise;
 			if (!xterm) {
 				throw new Error('Xterm is not available');
 			}
 
 			// Wait for the terminal to idle before executing the command
-			this._logService.debug('RunInTerminalTool#Basic: Waiting for idle');
+			this._log('Waiting for idle');
 			await waitForIdle(this._instance.onData, 1000);
 
 			// Record where the command started. If the marker gets disposed, re-created it where
@@ -86,12 +86,12 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			// like powerlevel10k's transient prompt
 			let startMarker = store.add(xterm.raw.registerMarker());
 			store.add(startMarker.onDispose(() => {
-				this._logService.debug(`RunInTerminalTool#Basic: Start marker was disposed, recreating`);
+				this._log(`Start marker was disposed, recreating`);
 				startMarker = xterm.raw.registerMarker();
 			}));
 
 			// Execute the command
-			this._logService.debug(`RunInTerminalTool#Basic: Executing command line \`${commandLine}\``);
+			this._log(`Executing command line \`${commandLine}\``);
 			this._instance.runCommand(commandLine, true);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
@@ -99,7 +99,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			const finishedCommand = await onDone;
 
 			// Wait for the terminal to idle
-			this._logService.debug('RunInTerminalTool#Basic: Waiting for idle');
+			this._log('Waiting for idle');
 			await waitForIdle(this._instance.onData, 1000);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -112,16 +112,16 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			if (finishedCommand) {
 				const commandOutput = finishedCommand?.getOutput();
 				if (commandOutput !== undefined) {
-					this._logService.debug('RunInTerminalTool#Basic: Fetched output via finished command');
+					this._log('Fetched output via finished command');
 					output = commandOutput;
 				}
 			}
 			if (output === undefined) {
 				try {
 					output = xterm.getContentsAsText(startMarker, endMarker);
-					this._logService.debug('RunInTerminalTool#Basic: Fetched output via markers');
+					this._log('Fetched output via markers');
 				} catch {
-					this._logService.debug('RunInTerminalTool#Basic: Failed to fetch output via markers');
+					this._log('Failed to fetch output via markers');
 					additionalInformationLines.push('Failed to retrieve command output');
 				}
 			}
@@ -143,5 +143,9 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 		} finally {
 			store.dispose();
 		}
+	}
+
+	private _log(message: string) {
+		this._logService.debug(`RunInTerminalTool#Basic: ${message}`);
 	}
 }

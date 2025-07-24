@@ -17,7 +17,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 	private readonly _proxy: Proxied<MainThreadChatSessionsShape>;
 	private readonly _statusProviders = new Map<number, { provider: vscode.ChatSessionItemProvider; disposable: DisposableStore }>();
-	private _nextHandle = 0;
+	// Starting at 1, 0 is reserved for local chat session item provider
+	private _nextHandle = 1;
 	private _sessionMap: Map<string, vscode.ChatSessionItem> = new Map();
 
 	constructor(
@@ -51,8 +52,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const disposables = new DisposableStore();
 
 		this._statusProviders.set(handle, { provider, disposable: disposables });
-		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType);
-
+		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType, provider.label);
+		if (provider.onDidChangeChatSessionItems) {
+			disposables.add(provider.onDidChangeChatSessionItems(() => {
+				this._proxy.$onDidChangeChatSessionItems(chatSessionType);
+			}));
+		}
 		return {
 			dispose: () => {
 				this._statusProviders.delete(handle);

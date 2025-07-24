@@ -36,7 +36,7 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getOutput, pollForOutputAndIdle, promptForMorePolling } from './bufferOutputPolling.js';
+import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -293,14 +293,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
-
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					const extendPolling = await promptForMorePolling(command, invocation.context, this._chatService);
-					if (extendPolling) {
-						outputAndIdle = await pollForOutputAndIdle(execution, true, token, this._languageModelsService);
-					}
+					outputAndIdle = await racePollingOrPrompt(
+						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
+						() => promptForMorePolling(command, invocation.context!, this._chatService),
+						outputAndIdle,
+						token,
+						this._languageModelsService,
+						execution
+					);
 				}
+
 				let resultText = (
 					didUserEditCommand
 						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
@@ -308,7 +312,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				resultText += outputAndIdle.modelOutputEvalResponse ? `\n\ The command became idle with output:\n${outputAndIdle.modelOutputEvalResponse}` : `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				if (outputAndIdle && outputAndIdle.modelOutputEvalResponse) {
+					resultText += `\n\ The command became idle with output:\n${outputAndIdle.modelOutputEvalResponse}`;
+				} else if (outputAndIdle) {
+					resultText += `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				}
 				return {
 					content: [{
 						kind: 'text',
@@ -391,7 +399,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				const executeResult = await strategy.execute(command, token);
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
-				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output, '\n') + 1;
+				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
 				exitCode = executeResult.exitCode;
 				error = executeResult.error;
 

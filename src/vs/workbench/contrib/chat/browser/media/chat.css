@@ -2095,7 +2095,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		position: relative;
 
 		.checkpoint-divider {
-			border-top: 1px dashed var(--vscode-editorWidget-border);
+			border-top: 1px dashed var(--vscode-chat-checkpointSeparator);
 			margin: 15px 0;
 			width: 100%;
 			height: 0;
@@ -2111,7 +2111,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.codicon-container .codicon {
 			font-size: 14px;
-			color: var(--vscode-editorWidget-border);
+			color: var(--vscode-chat-checkpointSeparator);
 		}
 
 		.monaco-toolbar {
@@ -2206,7 +2206,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding: 0px;
 
 		.interactive-input-part .chat-input-container .interactive-input-editor .monaco-editor .native-edit-context {
-			height: 0px !important;
+			opacity: 0;
 		}
 	}
 }

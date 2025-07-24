@@ -1289,21 +1289,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && !this.disableEdits) {
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
-					if (this.viewModel?.editing?.id !== element.id) {
-						const selection = dom.getWindow(templateData.rowContainer).getSelection();
-						if (selection && !selection.isCollapsed && selection.toString().length > 0) {
-							return;
-						}
-
-						const clickedElement = e.target as HTMLElement;
-						if (clickedElement.tagName === 'A') {
-							return;
-						}
-
-						e.preventDefault();
-						e.stopPropagation();
-						this._onDidClickRequest.fire(templateData);
+					if (this.viewModel?.editing?.id === element.id) {
+						return;
 					}
+
+					// Don't handle clicks on links
+					const clickedElement = e.target as HTMLElement;
+					if (clickedElement.tagName === 'A') {
+						return;
+					}
+
+					// Don't handle if there's a text selection in the window
+					const selection = dom.getWindow(templateData.rowContainer).getSelection();
+					if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+						return;
+					}
+
+					// Don't handle if there's a selection in code block
+					const monacoEditor = dom.findParentWithClass(clickedElement, 'monaco-editor');
+					if (monacoEditor) {
+						const editorPart = Array.from(this.editorsInUse()).find(editor =>
+							editor.element.contains(monacoEditor));
+
+						if (editorPart?.editor.getSelection()?.isEmpty() === false) {
+							return;
+						}
+					}
+
+					e.preventDefault();
+					e.stopPropagation();
+					this._onDidClickRequest.fire(templateData);
 				}));
 				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
 			}

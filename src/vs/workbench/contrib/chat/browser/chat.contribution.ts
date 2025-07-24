@@ -116,6 +116,7 @@ import { registerLanguageModelActions } from './actions/chatLanguageModelActions
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ChatTaskServiceImpl, IChatTasksService } from '../common/chatTasksService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
+import { ChatSessionsView } from './chatSessions.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -225,7 +226,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.tools.autoApprove.description', "Controls whether tool use should be automatically approved. Allow all tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval. Use with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			markdownDescription: nls.localize('chat.tools.autoApprove.markdownDescription', "Controls whether tool use should be automatically approved.\n\nAllows _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval.\n\nUse with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			type: 'boolean',
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental'],
 			policy: {
 				name: 'ChatToolsAutoApprove',
@@ -364,7 +365,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
-			enum: ['disabled', 'showChatsMenu'],
+			enum: ['disabled', 'showChatsMenu', 'view'],
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
 			default: 'disabled',
 			tags: ['experimental'],
@@ -758,6 +759,7 @@ registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribu
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatCopyActions();
