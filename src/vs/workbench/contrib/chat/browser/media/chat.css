@@ -204,6 +204,19 @@
 	visibility: visible;
 }
 
+.interactive-item-container .chat-footer-details {
+	display: block;
+	padding: 4px 0 2px 0;
+	font-size: 11px;
+	opacity: 0.7;
+	color: var(--vscode-descriptionForeground);
+	line-height: 16px;
+}
+
+.interactive-item-container .chat-footer-details.hidden {
+	display: none;
+}
+
 .interactive-item-container .value {
 	width: 100%;
 }

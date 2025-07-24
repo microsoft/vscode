@@ -373,6 +373,10 @@ declare module 'vscode' {
 			participant?: string;
 			command?: string;
 		};
+		/**
+		 * An optional detail string that will be rendered at the end of the response in certain UI contexts.
+		 */
+		details?: string;
 	}
 
 	export namespace chat {

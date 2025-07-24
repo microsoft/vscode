@@ -100,6 +100,7 @@ export interface IChatListItemTemplate {
 	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly header?: HTMLElement;
 	readonly footerToolbar: MenuWorkbenchToolBar;
+	readonly footerDetailsContainer: HTMLElement;
 	readonly avatarContainer: HTMLElement;
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
@@ -417,6 +418,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
+		const footerDetailsContainer = dom.append(rowContainer, $('.chat-footer-details'));
+
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
 		dom.append(codiconRestoreContainer, $('span.codicon.codicon-bookmark'));
@@ -463,7 +466,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
 		return template;
 	}
 
@@ -512,6 +515,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.titleToolbar.context = element;
 		}
 		templateData.footerToolbar.context = element;
+
+		// Render result details in footer if available
+		if (isResponseVM(element) && element.result?.details) {
+			templateData.footerDetailsContainer.textContent = element.result.details;
+			templateData.footerDetailsContainer.classList.remove('hidden');
+		} else {
+			templateData.footerDetailsContainer.classList.add('hidden');
+		}
 
 		ChatContextKeys.responseHasError.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.errorDetails);
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
