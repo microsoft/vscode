@@ -323,8 +323,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						} else {
 							await toolTerminal.instance.sendText(options[0] === 'n' ? 'n' : 'no', true);
 						}
+					} else {
+						return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', command, userInputKind)) };
 					}
-					return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', command, userInputKind)) };
 				}
 				let resultText = (
 					didUserEditCommand

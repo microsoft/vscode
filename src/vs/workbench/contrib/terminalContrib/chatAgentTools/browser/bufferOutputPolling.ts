@@ -254,23 +254,32 @@ export function getExpectedUserInputKind(output: string): string | undefined {
 		return undefined;
 	}
 
-	const patterns: { regex: RegExp; kind: string }[] = [
-		{ regex: /\bdo you want to continue\b.*\(y\/n\)/ig, kind: 'y/n' },
-		{ regex: /\bcontinue\? \(y\/n\)/ig, kind: 'y/n' },
-		{ regex: /\bproceed\? \(y\/n\)/ig, kind: 'y/n' },
-		{ regex: /\btype yes or no\b/ig, kind: 'yes/no' },
-		{ regex: /\b\(yes\/no\)/ig, kind: 'yes/no' },
-		{ regex: /\b\[y\/n\]/ig, kind: 'y/n' },
-		{ regex: /\benter your choice\b/ig, kind: 'choice' },
-		{ regex: /\bselect an option\b/ig, kind: 'choice' },
-		{ regex: /\bplease respond\b/ig, kind: 'response' },
-		{ regex: /\bpress (enter|return|any key)\b/ig, kind: 'press key' }
-	];
-
-	for (const { regex, kind } of patterns) {
-		if (regex.test(output)) {
-			return kind;
+	// Only match if the last non-empty line matches a prompt pattern and the next line is blank
+	const lines = output.split('\n');
+	for (let i = lines.length - 2; i >= 0; i--) {
+		const line = lines[i].trim();
+		const nextLine = lines[i + 1]?.trim();
+		if (!line) {
+			continue;
 		}
+		const patterns: { regex: RegExp; kind: string }[] = [
+			{ regex: /\bdo you want to continue\b.*\(y\/n\)/i, kind: 'y/n' },
+			{ regex: /\bcontinue\? \(y\/n\)/i, kind: 'y/n' },
+			{ regex: /\bproceed\? \(y\/n\)/i, kind: 'y/n' },
+			{ regex: /\btype yes or no\b/i, kind: 'yes/no' },
+			{ regex: /\b\(yes\/no\)/i, kind: 'yes/no' },
+			{ regex: /\b\[y\/n\]/i, kind: 'y/n' },
+			{ regex: /\benter your choice\b/i, kind: 'choice' },
+			{ regex: /\bselect an option\b/i, kind: 'choice' },
+			{ regex: /\bplease respond\b/i, kind: 'response' },
+			{ regex: /\bpress (enter|return|any key)\b/i, kind: 'press key' }
+		];
+		for (const { regex, kind } of patterns) {
+			if (regex.test(line) && (!nextLine || nextLine === '')) {
+				return kind;
+			}
+		}
+		break;
 	}
 	return undefined;
 }

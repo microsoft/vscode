@@ -107,8 +107,9 @@ export class RunTaskTool implements IToolImpl {
 				} else {
 					await terminal.sendText(options[0] === 'n' ? 'n' : 'no', true);
 				}
+			} else {
+				return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', taskDefinition.taskLabel, userInputKind)) };
 			}
-			return { content: [{ kind: 'text', value: `The task is still running and requires user input of ${userInputKind}.` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', 'The task `{0}` is still running and requires user input. {1}', taskDefinition.taskLabel, userInputKind)) };
 		}
 		let output = '';
 		if (result?.exitCode) {
