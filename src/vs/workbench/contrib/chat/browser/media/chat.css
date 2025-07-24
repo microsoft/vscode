@@ -1546,19 +1546,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .checkpoint-file-changes-summary {
-	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 4px;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-}
-
-.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-inner {
-	padding: 3px 3px;
-	width: 100%;
-	box-sizing: border-box;
-	display : flex;
-	justify-content: space-between;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-chat-requestBorder);
 }
 
 .interactive-session .checkpoint-file-changes-summary .chat-view-changes-icon {
@@ -1570,24 +1562,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 }
 
-.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-inner .monaco-button-mdlabel {
+.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-header {
+	padding: 3px 3px 2px 3px;
+	width: 100%;
+	display : flex;
+	box-sizing: border-box;
+	justify-content: space-between;
+}
+.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-header .monaco-button-mdlabel {
 	display: flex;
 	width: 100%;
 	text-align: left;
 	align-items: center;
 }
 
-.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-inner .chat-used-context-label {
+.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-header .chat-file-changes-label {
 	width: 100%;
 	float: left;
 }
 
-.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-inner .chat-used-context-label .monaco-button {
+.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-header .chat-file-changes-label .monaco-button {
 	width: 100%;
 	font-size: 13px;
 }
 
-.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-inner .chat-used-context-label .monaco-button .codicon {
+.interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-header .chat-file-changes-label .monaco-button .codicon {
 	font-size: 16px;
 }
 
@@ -1663,6 +1662,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 2px;
 }
 
+.interactive-session .chat-file-changes-label,
 .interactive-session .chat-used-context-label {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
@@ -1673,10 +1673,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-session .chat-file-changes-label:hover,
 .interactive-session .chat-used-context-label:hover {
 	opacity: unset;
 }
 
+.interactive-session .chat-file-changes-label .monaco-button,
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
@@ -1689,20 +1691,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: initial;
 }
 
+.interactive-session .chat-file-changes-label .monaco-button:hover,
 .interactive-session .chat-used-context-label .monaco-button:hover {
 	background-color: var(--vscode-list-hoverBackground);
 	color: var(--vscode-foreground);
 
 }
 
+.interactive-session .chat-file-changes-label .monaco-text-button:focus,
 .interactive-session .chat-used-context-label .monaco-text-button:focus {
 	outline: none;
 }
 
+.interactive-session .chat-file-changes-label .monaco-text-button:focus-visible,
 .interactive-session .chat-used-context-label .monaco-text-button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 }
 
+.interactive-session .chat-file-changes-label .monaco-button .codicon,
 .interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: 12px;
 }

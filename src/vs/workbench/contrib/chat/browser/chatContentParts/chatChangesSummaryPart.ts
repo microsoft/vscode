@@ -60,11 +60,11 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		this.fileChanges = content.fileChanges;
 		this.fileChangesDiffsObservable = this.computeFileChangesDiffs(context, content.fileChanges);
 
-		const innerDomNode = $('.checkpoint-file-changes-summary-inner');
-		this.domNode = $('.checkpoint-file-changes-summary', undefined, innerDomNode);
+		const headerDomNode = $('.checkpoint-file-changes-summary-header');
+		this.domNode = $('.checkpoint-file-changes-summary', undefined, headerDomNode);
 		this.domNode.tabIndex = 0;
 
-		this._register(this.renderButtons(innerDomNode));
+		this._register(this.renderButtons(headerDomNode));
 		this._register(this.renderList(this.domNode));
 
 		autorun((r) => {
@@ -112,7 +112,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	}
 
 	private renderButtons(container: HTMLElement): IDisposable {
-		const viewListButtonContainer = container.appendChild($('.chat-used-context-label'));
+		const viewListButtonContainer = container.appendChild($('.chat-file-changes-label'));
 		const viewListButton = this._register(new ButtonWithIcon(viewListButtonContainer, {
 			buttonBackground: undefined,
 			buttonBorder: undefined,
@@ -130,7 +130,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		}
 
 		const setExpansionState = () => {
-			viewListButton.icon = this.isCollapsed ? Codicon.chevronDown : Codicon.chevronRight;
+			viewListButton.icon = this.isCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			this.domNode.classList.toggle('chat-file-changes-collapsed', this.isCollapsed);
 			this._onDidChangeHeight.fire();
 		};
