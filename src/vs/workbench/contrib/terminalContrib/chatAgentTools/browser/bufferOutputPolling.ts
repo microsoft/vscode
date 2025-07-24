@@ -199,12 +199,12 @@ export function promptForMorePolling(title: string, message: string, context: IT
 	);
 }
 
-export function promptForYesNo(context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
+export function promptForYesNo(title: string | MarkdownString, message: string | MarkdownString, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
 	return createYesNoPrompt(
 		context,
 		chatService,
-		localize('poll.terminal.yes', 'Respond yes in the terminal?'),
-		localize('poll.terminal.yesNo', 'Copilot will run the reply in the terminal.')
+		title,
+		message
 	);
 }
 
@@ -297,14 +297,20 @@ export async function handleYesNoUserPrompt(
 ): Promise<{ handled: boolean; outputAndIdle?: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } }> {
 	if (userInputKind && userInputKind !== 'choice' && userInputKind !== 'key') {
 		const options = userInputKind.split('/');
-		const response = await promptForYesNo(context, chatService);
+		const acceptAnswer = options[0]?.trim();
+		const rejectAnswer = options[1]?.trim();
+		if (!acceptAnswer || !rejectAnswer) {
+			return { handled: false };
+		}
+		const response = await promptForYesNo(new MarkdownString(localize('poll.terminal.yes', 'Respond `{0}` in the terminal?', acceptAnswer)),
+			localize('poll.terminal.yesNo', 'Copilot will run the reply in the terminal.'), context, chatService);
 		const result = await response.promise;
 		if (result) {
-			await terminal.sendText(options[0] === 'y' ? 'y' : 'yes', true);
+			await terminal.sendText(acceptAnswer, true);
 			const outputAndIdle = await pollForOutputAndIdleFn();
 			return { handled: true, outputAndIdle };
 		} else {
-			await terminal.sendText(options[1] === 'n' ? 'n' : 'no', true);
+			await terminal.sendText(rejectAnswer, true);
 			return { handled: true };
 		}
 	}
