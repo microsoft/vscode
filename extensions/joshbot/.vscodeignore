@@ -1,5 +1,0 @@
-.vscode/**
-src/**
-out/**/*.map
-tsconfig.json
-extension-browser.webpack.config.js
