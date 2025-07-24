@@ -277,7 +277,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		} else {
 			await this._editorService.openEditor({
 				resource: sessionUri,
-				options: {},
+				options: { pinned: true },
 			}, position);
 		}
 	}
