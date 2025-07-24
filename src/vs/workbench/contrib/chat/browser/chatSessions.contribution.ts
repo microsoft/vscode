@@ -292,15 +292,19 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 
 			for (const editor of group.editors) {
 				if (editor instanceof ChatEditorInput) {
-					const chatModel = await this.chatService.loadSessionForResource(editor.resource, request.location, CancellationToken.None);
-					if (chatModel?.sessionId === request.sessionId) {
-						// this is the model
-						const identifier = ChatSessionUri.parse(editor.resource);
+					try {
+						const chatModel = await this.chatService.loadSessionForResource(editor.resource, request.location, CancellationToken.None);
+						if (chatModel?.sessionId === request.sessionId) {
+							// this is the model
+							const identifier = ChatSessionUri.parse(editor.resource);
 
-						if (identifier) {
-							chatSession = await this.chatSessionService.provideChatSessionContent(this.chatSession.id, identifier.sessionId, token);
+							if (identifier) {
+								chatSession = await this.chatSessionService.provideChatSessionContent(this.chatSession.id, identifier.sessionId, token);
+							}
+							break;
 						}
-						break;
+					} catch (error) {
+						// might not be us
 					}
 				}
 			}
