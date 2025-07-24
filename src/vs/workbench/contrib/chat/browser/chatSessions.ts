@@ -192,9 +192,11 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 		this.editorGroupService.groups.forEach(group => {
 			group.editors.forEach(editor => {
-				const key = this.getEditorKey(editor, group);
-				this.currentEditorSet.add(key);
-				this.editorOrder.push(key);
+				if (this.isLocalChatSession(editor)) {
+					const key = this.getEditorKey(editor, group);
+					this.currentEditorSet.add(key);
+					this.editorOrder.push(key);
+				}
 			});
 		});
 	}
@@ -220,9 +222,16 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		}));
 	}
 
+	private isLocalChatSession(editor?: EditorInput): boolean {
+		if (!(editor instanceof ChatEditorInput)) {
+			return false; // Only track ChatEditorInput instances
+		}
+		return editor.resource?.scheme === 'vscode-chat-editor';
+	}
+
 	private registerGroupListeners(group: IEditorGroup): void {
 		this._register(group.onDidModelChange(e => {
-			if (!(e.editor instanceof ChatEditorInput)) {
+			if (!this.isLocalChatSession(e.editor)) {
 				return;
 			}
 			switch (e.kind) {
