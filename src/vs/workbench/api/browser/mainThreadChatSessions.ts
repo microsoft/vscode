@@ -9,9 +9,9 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { ChatUri } from '../../contrib/chat/browser/chatEditorInput.js';
 import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -213,7 +213,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	async $showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void> {
 		// TODO: support open in panel
 		await this._editorService.openEditor({
-			resource: ChatUri.generateForSession(chatSessionType, sessionId),
+			resource: ChatSessionUri.forSession(chatSessionType, sessionId),
 			options: {},
 		}, position);
 	}
