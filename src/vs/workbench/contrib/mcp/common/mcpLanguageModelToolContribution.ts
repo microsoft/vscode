@@ -222,13 +222,16 @@ class McpToolImplementation implements IToolImpl {
 				}
 			}
 
-			// Rewrite image rsources to images so they are inlined nicely
-			const addAsInlineData = (mimeType: string, value: string, uri?: URI) => {
+			// Rewrite image resources to images so they are inlined nicely
+			const addAsInlineData = async (mimeType: string, value: string, uri?: URI) => {
 				details.output.push({ type: 'embed', mimeType, value, uri });
 				if (isForModel) {
+					const resized = await this.resizeImage(value, mimeType)
+						.then(data => VSBuffer.wrap(data))
+						.catch(() => decodeBase64(value));
 					result.content.push({
 						kind: 'data',
-						value: { mimeType, data: decodeBase64(value) }
+						value: { mimeType, data: resized }
 					});
 				}
 			};
@@ -304,5 +307,88 @@ class McpToolImplementation implements IToolImpl {
 
 		result.toolResultDetails = details;
 		return result;
+	}
+
+	// TODO: @justschen create media service
+	async resizeImage(data: Uint8Array | string, mimeType?: string): Promise<Uint8Array> {
+		const isGif = mimeType === 'image/gif';
+
+		if (typeof data === 'string') {
+			data = this.convertStringToUInt8Array(data);
+		}
+
+		return new Promise((resolve, reject) => {
+			const blob = new Blob([data as Uint8Array<ArrayBuffer>], { type: mimeType });
+			const img = new Image();
+			const url = URL.createObjectURL(blob);
+			img.src = url;
+
+			img.onload = () => {
+				URL.revokeObjectURL(url);
+				let { width, height } = img;
+
+				if ((width <= 768 || height <= 768) && !isGif) {
+					resolve(data);
+					return;
+				}
+
+				// Calculate the new dimensions while maintaining the aspect ratio
+				if (width > 2048 || height > 2048) {
+					const scaleFactor = 2048 / Math.max(width, height);
+					width = Math.round(width * scaleFactor);
+					height = Math.round(height * scaleFactor);
+				}
+
+				const scaleFactor = 768 / Math.min(width, height);
+				width = Math.round(width * scaleFactor);
+				height = Math.round(height * scaleFactor);
+
+				const canvas = document.createElement('canvas');
+				canvas.width = width;
+				canvas.height = height;
+				const ctx = canvas.getContext('2d');
+				if (ctx) {
+					ctx.drawImage(img, 0, 0, width, height);
+					canvas.toBlob((blob) => {
+						if (blob) {
+							const reader = new FileReader();
+							reader.onload = () => {
+								resolve(new Uint8Array(reader.result as ArrayBuffer));
+							};
+							reader.onerror = (error) => reject(error);
+							reader.readAsArrayBuffer(blob);
+						} else {
+							reject(new Error('Failed to create blob from canvas'));
+						}
+					}, 'image/png');
+				} else {
+					reject(new Error('Failed to get canvas context'));
+				}
+			};
+			img.onerror = (error) => {
+				URL.revokeObjectURL(url);
+				reject(error);
+			};
+		});
+	}
+
+	convertStringToUInt8Array(data: string): Uint8Array {
+		const base64Data = data.includes(',') ? data.split(',')[1] : data;
+		if (this.isValidBase64(base64Data)) {
+			return Uint8Array.from(atob(base64Data), char => char.charCodeAt(0));
+		}
+		return new TextEncoder().encode(data);
+	}
+
+	isValidBase64(str: string): boolean {
+		// checks if the string is a valid base64 string that is NOT encoded
+		return /^[A-Za-z0-9+/]*={0,2}$/.test(str) && (() => {
+			try {
+				atob(str);
+				return true;
+			} catch {
+				return false;
+			}
+		})();
 	}
 }

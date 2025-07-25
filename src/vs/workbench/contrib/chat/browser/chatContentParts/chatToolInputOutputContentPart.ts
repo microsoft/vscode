@@ -208,7 +208,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		const entries = parts.map(async (part): Promise<IChatRequestVariableEntry> => {
 			if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
-				const resized = part.value ? await resizeImage(part.value) : undefined;
+				const resized = part.value && await resizeImage(part.value).catch(() => part.value);
 				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value: resized, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
 			} else {
 				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
