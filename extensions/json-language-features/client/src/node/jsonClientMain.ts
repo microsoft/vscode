@@ -158,7 +158,7 @@ async function getSchemaRequestService(context: ExtensionContext, log: LogOutput
 
 	return {
 		getContent: async (uri: string) => {
-			if (cache && /^https?:\/\/json\.schemastore\.org\//.test(uri)) {
+			if (cache && /^https?:\/\/(json|www)\.schemastore\.org\//.test(uri)) {
 				const content = await cache.getSchemaIfUpdatedSince(uri, retryTimeoutInHours);
 				if (content) {
 					if (log.logLevel === LogLevel.Trace) {

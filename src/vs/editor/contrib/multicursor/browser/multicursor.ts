@@ -201,7 +201,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToBottom',
-			label: nls.localize2('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
+			label: nls.localize2('mutlicursor.addCursorsToBottom', "Add Cursors to Bottom"),
 			precondition: undefined
 		});
 	}
@@ -233,7 +233,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToTop',
-			label: nls.localize2('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
+			label: nls.localize2('mutlicursor.addCursorsToTop', "Add Cursors to Top"),
 			precondition: undefined
 		});
 	}
@@ -686,7 +686,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToNextFindMatch',
-			label: nls.localize2('addSelectionToNextFindMatch', "Add Selection To Next Find Match"),
+			label: nls.localize2('addSelectionToNextFindMatch', "Add Selection to Next Find Match"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -710,7 +710,7 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToPreviousFindMatch',
-			label: nls.localize2('addSelectionToPreviousFindMatch', "Add Selection To Previous Find Match"),
+			label: nls.localize2('addSelectionToPreviousFindMatch', "Add Selection to Previous Find Match"),
 			precondition: undefined,
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
@@ -729,7 +729,7 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToNextFindMatch',
-			label: nls.localize2('moveSelectionToNextFindMatch', "Move Last Selection To Next Find Match"),
+			label: nls.localize2('moveSelectionToNextFindMatch', "Move Last Selection to Next Find Match"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -747,7 +747,7 @@ export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelection
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToPreviousFindMatch',
-			label: nls.localize2('moveSelectionToPreviousFindMatch', "Move Last Selection To Previous Find Match"),
+			label: nls.localize2('moveSelectionToPreviousFindMatch', "Move Last Selection to Previous Find Match"),
 			precondition: undefined
 		});
 	}
@@ -803,7 +803,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 }
 
 class SelectionHighlighterState {
-	private readonly _modelVersionId: number = this._model.getVersionId();
+	private readonly _modelVersionId: number;
 	private _cachedFindMatches: Range[] | null = null;
 
 	constructor(
@@ -813,6 +813,7 @@ class SelectionHighlighterState {
 		private readonly _wordSeparators: string | null,
 		prevState: SelectionHighlighterState | null
 	) {
+		this._modelVersionId = this._model.getVersionId();
 		if (prevState
 			&& this._model === prevState._model
 			&& this._searchText === prevState._searchText
@@ -838,6 +839,8 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
+	private _isEnabledMultiline: boolean;
+	private _maxLength: number;
 	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState | null;
@@ -849,12 +852,16 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		super();
 		this.editor = editor;
 		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
+		this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
+		this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);
 		this._decorations = editor.createDecorationsCollection();
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
+			this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
+			this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);
 		}));
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 
@@ -896,20 +903,22 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 
 	private _update(): void {
-		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this.editor));
+		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this._isEnabledMultiline, this._maxLength, this.editor));
 	}
 
-	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
+	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, isEnabledMultiline: boolean, maxLength: number, editor: ICodeEditor): SelectionHighlighterState | null {
 		if (!isEnabled) {
 			return null;
 		}
 		if (!editor.hasModel()) {
 			return null;
 		}
-		const s = editor.getSelection();
-		if (s.startLineNumber !== s.endLineNumber) {
-			// multiline forbidden for perf reasons
-			return null;
+		if (!isEnabledMultiline) {
+			const s = editor.getSelection();
+			if (s.startLineNumber !== s.endLineNumber) {
+				// multiline forbidden for perf reasons
+				return null;
+			}
 		}
 		const multiCursorController = MultiCursorSelectionController.get(editor);
 		if (!multiCursorController) {
@@ -946,7 +955,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			// whitespace only selection
 			return null;
 		}
-		if (r.searchText.length > 200) {
+		if (maxLength > 0 && r.searchText.length > maxLength) {
 			// very long selection
 			return null;
 		}

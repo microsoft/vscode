@@ -3,6 +3,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.snaps = void 0;
 var snaps;
 (function (snaps) {
     const fs = require('fs');
@@ -52,5 +54,5 @@ var snaps;
         fs.writeFileSync(wrappedInputFilepath, wrappedInputFile);
         cp.execFileSync(mksnapshot, [wrappedInputFilepath, `--startup_blob`, startupBlobFilepath]);
     }
-})(snaps || (snaps = {}));
+})(snaps || (exports.snaps = snaps = {}));
 //# sourceMappingURL=snapshotLoader.js.map

@@ -7,7 +7,7 @@ import * as dom from '../../../base/browser/dom.js';
 import * as domStylesheets from '../../../base/browser/domStylesheets.js';
 import * as cssJs from '../../../base/browser/cssValue.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IDisposable, DisposableStore, Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IDisposable, DisposableStore, Disposable, toDisposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
 import * as strings from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
@@ -210,7 +210,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return provider.resolveDecorationCSSRules();
 	}
 
-	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher } = {};
+	private readonly _transientWatchers = this._register(new DisposableMap<string, ModelTransientSettingWatcher>());
 	private readonly _modelProperties = new Map<string, Map<string, any>>();
 
 	public setModelProperty(resource: URI, key: string, value: any): void {
@@ -238,12 +238,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	public setTransientModelProperty(model: ITextModel, key: string, value: any): void {
 		const uri = model.uri.toString();
 
-		let w: ModelTransientSettingWatcher;
-		if (this._transientWatchers.hasOwnProperty(uri)) {
-			w = this._transientWatchers[uri];
-		} else {
+		let w = this._transientWatchers.get(uri);
+		if (!w) {
 			w = new ModelTransientSettingWatcher(uri, model, this);
-			this._transientWatchers[uri] = w;
+			this._transientWatchers.set(uri, w);
 		}
 
 		const previousValue = w.get(key);
@@ -256,25 +254,27 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	public getTransientModelProperty(model: ITextModel, key: string): any {
 		const uri = model.uri.toString();
 
-		if (!this._transientWatchers.hasOwnProperty(uri)) {
+		const watcher = this._transientWatchers.get(uri);
+		if (!watcher) {
 			return undefined;
 		}
 
-		return this._transientWatchers[uri].get(key);
+		return watcher.get(key);
 	}
 
 	public getTransientModelProperties(model: ITextModel): [string, any][] | undefined {
 		const uri = model.uri.toString();
 
-		if (!this._transientWatchers.hasOwnProperty(uri)) {
+		const watcher = this._transientWatchers.get(uri);
+		if (!watcher) {
 			return undefined;
 		}
 
-		return this._transientWatchers[uri].keys().map(key => [key, this._transientWatchers[uri].get(key)]);
+		return watcher.keys().map(key => [key, watcher.get(key)]);
 	}
 
 	_removeWatcher(w: ModelTransientSettingWatcher): void {
-		delete this._transientWatchers[w.uri];
+		this._transientWatchers.deleteAndDispose(w.uri);
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor | null;
@@ -295,14 +295,16 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 }
 
-export class ModelTransientSettingWatcher {
+export class ModelTransientSettingWatcher extends Disposable {
 	public readonly uri: string;
 	private readonly _values: { [key: string]: any };
 
 	constructor(uri: string, model: ITextModel, owner: AbstractCodeEditorService) {
+		super();
+
 		this.uri = uri;
 		this._values = {};
-		model.onWillDispose(() => owner._removeWatcher(this));
+		this._register(model.onWillDispose(() => owner._removeWatcher(this)));
 	}
 
 	public set(key: string, value: any): void {
@@ -458,6 +460,11 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public afterContentClassName: string | undefined;
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
+	public lineHeight: number | undefined;
+	public fontSize: string | undefined;
+	public fontFamily: string | undefined;
+	public fontWeight: string | undefined;
+	public fontStyle: string | undefined;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
@@ -518,6 +525,11 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 		const options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
+		this.lineHeight = options.lineHeight;
+		this.fontFamily = options.fontFamily;
+		this.fontSize = options.fontSize;
+		this.fontWeight = options.fontWeight;
+		this.fontStyle = options.fontStyle;
 		this.stickiness = options.rangeBehavior;
 
 		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
@@ -547,6 +559,11 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			className: this.className,
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
+			lineHeight: this.lineHeight,
+			fontFamily: this.fontFamily,
+			fontSize: this.fontSize,
+			fontWeight: this.fontWeight,
+			fontStyle: this.fontStyle,
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
 			before: this.beforeInjectedText,
@@ -754,7 +771,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'fontSize', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}

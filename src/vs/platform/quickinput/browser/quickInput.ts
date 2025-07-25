@@ -13,7 +13,7 @@ import { IInputBoxStyles } from '../../../base/browser/ui/inputbox/inputBox.js';
 import { IKeybindingLabelStyles } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListStyles } from '../../../base/browser/ui/list/listWidget.js';
 import { IProgressBarStyles, ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
-import { IToggleStyles, Toggle } from '../../../base/browser/ui/toggle/toggle.js';
+import { IToggleStyles, Toggle, TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { equals } from '../../../base/common/arrays.js';
 import { TimeoutTimer } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -30,13 +30,18 @@ import { QuickInputBox } from './quickInputBox.js';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../hover/browser/hover.js';
-import { QuickInputTree } from './quickInputTree.js';
+import { QuickInputList } from './quickInputList.js';
 import type { IHoverOptions } from '../../../base/browser/ui/hover/hover.js';
 import { ContextKeyExpr, RawContextKey } from '../../contextkey/common/contextkey.js';
+import { QuickInputTreeController } from './tree/quickInputTreeController.js';
+import { observableValue } from '../../../base/common/observable.js';
 
 export const inQuickInputContextKeyValue = 'inQuickInput';
 export const InQuickInputContextKey = new RawContextKey<boolean>(inQuickInputContextKeyValue, false, localize('inQuickInput', "Whether keyboard focus is inside the quick input control"));
 export const inQuickInputContext = ContextKeyExpr.has(inQuickInputContextKeyValue);
+
+export const quickInputAlignmentContextKeyValue = 'quickInputAlignment';
+export const QuickInputAlignmentContextKey = new RawContextKey<'top' | 'center' | undefined>(quickInputAlignmentContextKeyValue, 'top', localize('quickInputAlignment', "The alignment of the quick input"));
 
 export const quickInputTypeContextKeyValue = 'quickInputType';
 export const QuickInputTypeContextKey = new RawContextKey<QuickInputType>(quickInputTypeContextKeyValue, undefined, localize('quickInputType', "The type of the currently visible quick input"));
@@ -100,7 +105,7 @@ export interface QuickInputUI {
 	widget: HTMLElement;
 	rightActionBar: ActionBar;
 	inlineActionBar: ActionBar;
-	checkAll: HTMLInputElement;
+	checkAll: TriStateCheckbox;
 	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
 	inputBox: QuickInputBox;
@@ -114,7 +119,8 @@ export interface QuickInputUI {
 	customButtonContainer: HTMLElement;
 	customButton: Button;
 	progressBar: ProgressBar;
-	list: QuickInputTree;
+	list: QuickInputList;
+	tree: QuickInputTreeController;
 	onDidAccept: Event<void>;
 	onDidCustom: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;
@@ -138,21 +144,22 @@ export type Visibilities = {
 	count?: boolean;
 	message?: boolean;
 	list?: boolean;
+	tree?: boolean;
 	ok?: boolean;
 	customButton?: boolean;
 	progressBar?: boolean;
 };
 
-abstract class QuickInput extends Disposable implements IQuickInput {
+export abstract class QuickInput extends Disposable implements IQuickInput {
 	protected static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
+	protected _visible = observableValue('visible', false);
 	private _title: string | undefined;
 	private _description: string | undefined;
 	private _widget: HTMLElement | undefined;
 	private _widgetUpdated = false;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
-	protected visible = false;
 	private _enabled = true;
 	private _contextKey: string | undefined;
 	private _busy = false;
@@ -183,6 +190,10 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 		protected ui: QuickInputUI
 	) {
 		super();
+	}
+
+	protected get visible(): boolean {
+		return this._visible.get();
 	}
 
 	get title() {
@@ -341,7 +352,7 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 		this.ui.show(this);
 
 		// update properties in the controller that get reset in the ui.show() call
-		this.visible = true;
+		this._visible.set(true, undefined);
 		// This ensures the message/prompt gets rendered
 		this._lastValidationMessage = undefined;
 		// This ensures the input box has the right severity applied
@@ -368,7 +379,7 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 	}
 
 	didHide(reason = QuickInputHideReason.Other): void {
-		this.visible = false;
+		this._visible.set(false, undefined);
 		this.visibleDisposables.clear();
 		this.onDidHideEmitter.fire({ reason });
 	}
@@ -909,7 +920,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 				this.onDidChangeActiveEmitter.fire(focusedItems as T[]);
 			}));
 			this.visibleDisposables.add(this.ui.list.onDidChangeSelection(({ items: selectedItems, event }) => {
-				if (this.canSelectMany) {
+				if (this.canSelectMany && !selectedItems.some(i => i.pickable === false)) {
 					if (selectedItems.length) {
 						this.ui.list.setSelectedElements([]);
 					}
@@ -1054,6 +1065,9 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		if (this.ui.list.ariaLabel !== ariaLabel) {
 			this.ui.list.ariaLabel = ariaLabel ?? null;
 		}
+		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+			this.ui.inputBox.ariaLabel = ariaLabel ?? 'input';
+		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.list.matchOnLabel = this.matchOnLabel;
@@ -1157,6 +1171,7 @@ export class InputBox extends QuickInput implements IInputBox {
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _placeholder: string | undefined;
+	private _ariaLabel: string | undefined;
 	private _password = false;
 	private _prompt: string | undefined;
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
@@ -1193,6 +1208,15 @@ export class InputBox extends QuickInput implements IInputBox {
 
 	set placeholder(placeholder: string | undefined) {
 		this._placeholder = placeholder;
+		this.update();
+	}
+
+	get ariaLabel() {
+		return this._ariaLabel;
+	}
+
+	set ariaLabel(ariaLabel: string | undefined) {
+		this._ariaLabel = ariaLabel;
 		this.update();
 	}
 
@@ -1266,6 +1290,20 @@ export class InputBox extends QuickInput implements IInputBox {
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
 		}
+		let ariaLabel = this.ariaLabel;
+		// Only set aria label to the input box placeholder if we actually have an input box.
+		if (!ariaLabel && visibilities.inputBox) {
+			ariaLabel = this.placeholder
+				? this.title
+					? `${this.placeholder} - ${this.title}`
+					: this.placeholder
+				: this.title
+					? this.title
+					: 'input';
+		}
+		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+			this.ui.inputBox.ariaLabel = ariaLabel || 'input';
+		}
 	}
 }
 
@@ -1293,7 +1331,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super('element', false, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+		super('element', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
 	}
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {

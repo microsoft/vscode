@@ -9,6 +9,7 @@ import { LineTokens } from './lineTokens.js';
 import { SparseMultilineTokens } from './sparseMultilineTokens.js';
 import { ILanguageIdCodec } from '../languages.js';
 import { MetadataConsts } from '../encodedTokenAttributes.js';
+import { ITextModel } from '../model.js';
 
 /**
  * Represents sparse tokens in a text model.
@@ -34,9 +35,15 @@ export class SparseTokensStore {
 		return (this._pieces.length === 0);
 	}
 
-	public set(pieces: SparseMultilineTokens[] | null, isComplete: boolean): void {
+	public set(pieces: SparseMultilineTokens[] | null, isComplete: boolean, textModel: ITextModel | undefined = undefined): void {
 		this._pieces = pieces || [];
 		this._isComplete = isComplete;
+
+		if (textModel) {
+			for (const p of this._pieces) {
+				p.reportIfInvalid(textModel);
+			}
+		}
 	}
 
 	public setPartial(_range: Range, pieces: SparseMultilineTokens[]): Range {
@@ -124,7 +131,7 @@ export class SparseTokensStore {
 	}
 
 	public addSparseTokens(lineNumber: number, aTokens: LineTokens): LineTokens {
-		if (aTokens.getLineContent().length === 0) {
+		if (aTokens.getTextLength() === 0) {
 			// Don't do anything for empty lines
 			return aTokens;
 		}
@@ -160,8 +167,10 @@ export class SparseTokensStore {
 		};
 
 		for (let bIndex = 0; bIndex < bLen; bIndex++) {
-			const bStartCharacter = bTokens.getStartCharacter(bIndex);
-			const bEndCharacter = bTokens.getEndCharacter(bIndex);
+			// bTokens is not validated yet, but aTokens is. We want to make sure that the LineTokens we return
+			// are valid, so we clamp the ranges to ensure that.
+			const bStartCharacter = Math.min(bTokens.getStartCharacter(bIndex), aTokens.getTextLength());
+			const bEndCharacter = Math.min(bTokens.getEndCharacter(bIndex), aTokens.getTextLength());
 			const bMetadata = bTokens.getMetadata(bIndex);
 
 			const bMask = (

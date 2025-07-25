@@ -15,20 +15,21 @@
     "@vscode/l10n": "^0.0.18",
     "jsonc-parser": "^3.3.1",
     "request-light": "^0.8.0",
-    "vscode-json-languageservice": "^5.4.2",
-    "vscode-languageserver": "^10.0.0-next.11",
-    "vscode-uri": "^3.0.8"
+    "vscode-json-languageservice": "^5.6.1",
+    "vscode-languageserver": "^10.0.0-next.13",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   },
   "scripts": {
     "prepublishOnly": "npm run clean && npm run compile",
     "compile": "npx gulp compile-extension:json-language-features-server",
     "watch": "npx gulp watch-extension:json-language-features-server",
     "clean": "../../../node_modules/.bin/rimraf out",
-    "install-service-next": "npm install vscode-json-languageservice@next",
+    "install-service-next": "npm install vscode-json-languageservice",
+    "install-service-latest": "npm install vscode-json-languageservice",
     "install-service-local": "npm link vscode-json-languageservice",
     "install-server-next": "npm install vscode-languageserver@next",
     "install-server-local": "npm link vscode-languageserver-server",

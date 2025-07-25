@@ -7,6 +7,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { asyncTransaction, transaction } from '../../../../../base/common/observable.js';
 import { splitLines } from '../../../../../base/common/strings.js';
 import * as nls from '../../../../../nls.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -17,7 +18,7 @@ import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
-import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, toggleShowCollapsedId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
 
@@ -35,7 +36,7 @@ export class ShowNextInlineSuggestionAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		controller?.model.get()?.next();
 	}
@@ -55,7 +56,7 @@ export class ShowPreviousInlineSuggestionAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		controller?.model.get()?.previous();
 	}
@@ -70,7 +71,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		await asyncTransaction(async tx => {
 			/** @description triggerExplicitly from command */
@@ -84,13 +85,13 @@ export class ExplicitTriggerInlineEditAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.triggerInlineEditExplicit',
-			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Inline Edit"),
+			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Next Edit Suggestion"),
 			precondition: EditorContextKeys.writable,
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const notificationService = accessor!.get(INotificationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const notificationService = accessor.get(INotificationService);
 		const controller = InlineCompletionsController.get(editor);
 
 		await controller?.model.get()?.triggerExplicitly(undefined, true);
@@ -111,9 +112,9 @@ export class TriggerInlineEditAction extends EditorCommand {
 		});
 	}
 
-	public override async runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
+	public override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.trigger(undefined, true);
+		await controller?.model.get()?.trigger(undefined, { onlyFetchInlineEdits: true });
 	}
 }
 
@@ -126,7 +127,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
 				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible),
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.cursorBeforeGhostText, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			},
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
@@ -137,9 +138,9 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.acceptNextWord(controller.editor);
+		await controller?.model.get()?.acceptNextWord();
 	}
 }
 
@@ -161,9 +162,9 @@ export class AcceptNextLineOfInlineCompletion extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.acceptNextLine(controller.editor);
+		await controller?.model.get()?.acceptNextLine();
 	}
 }
 
@@ -194,6 +195,7 @@ export class AcceptInlineCompletion extends EditorAction {
 							EditorContextKeys.tabMovesFocus.toNegated(),
 							SuggestContext.Visible.toNegated(),
 							EditorContextKeys.hoverFocused.toNegated(),
+							InlineCompletionContextKeys.hasSelection.toNegated(),
 
 							InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
 						),
@@ -226,11 +228,10 @@ KeybindingsRegistry.registerKeybindingRule({
 	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
 });
 
-
 export class JumpToNextInlineEdit extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.inlineSuggest.jump',
+			id: jumpToNextInlineEditId,
 			label: nls.localize2('action.inlineSuggest.jump', "Jump to next inline edit"),
 			precondition: InlineCompletionContextKeys.inlineEditVisible,
 			menuOpts: [{
@@ -254,7 +255,7 @@ export class JumpToNextInlineEdit extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		if (controller) {
 			controller.jump();
@@ -263,7 +264,7 @@ export class JumpToNextInlineEdit extends EditorAction {
 }
 
 export class HideInlineCompletion extends EditorAction {
-	public static ID = 'editor.action.inlineSuggest.hide';
+	public static ID = hideInlineCompletionId;
 
 	constructor() {
 		super({
@@ -271,7 +272,7 @@ export class HideInlineCompletion extends EditorAction {
 			label: nls.localize2('action.inlineSuggest.hide', "Hide Inline Suggestion"),
 			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			kbOpts: {
-				weight: 100,
+				weight: KeybindingWeight.EditorContrib + 90, // same as hiding the suggest widget
 				primary: KeyCode.Escape,
 			},
 			menuOpts: [{
@@ -289,6 +290,24 @@ export class HideInlineCompletion extends EditorAction {
 			controller?.model.get()?.stop('explicitCancel', tx);
 		});
 		controller?.editor.focus();
+	}
+}
+
+export class ToggleInlineCompletionShowCollapsed extends EditorAction {
+	public static ID = toggleShowCollapsedId;
+
+	constructor() {
+		super({
+			id: ToggleInlineCompletionShowCollapsed.ID,
+			label: nls.localize2('action.inlineSuggest.toggleShowCollapsed', "Toggle Inline Suggestions Show Collapsed"),
+			precondition: ContextKeyExpr.true(),
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const showCollapsed = configurationService.getValue<boolean>('editor.inlineSuggest.edits.showCollapsed');
+		configurationService.updateValue('editor.inlineSuggest.edits.showCollapsed', !showCollapsed);
 	}
 }
 
@@ -332,7 +351,7 @@ export class DevExtractReproSample extends EditorAction {
 			id: 'editor.action.inlineSuggest.dev.extractRepro',
 			label: nls.localize('action.inlineSuggest.dev.extractRepro', "Developer: Extract Inline Suggest State"),
 			alias: 'Developer: Inline Suggest Extract Repro',
-			precondition: InlineCompletionContextKeys.inlineEditVisible,
+			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineEditVisible, InlineCompletionContextKeys.inlineSuggestionVisible),
 		});
 	}
 

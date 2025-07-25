@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as Vinyl from 'vinyl';
-import * as through from 'through';
+import Vinyl from 'vinyl';
+import through from 'through';
 import * as builder from './builder';
-import * as ts from 'typescript';
+import ts from 'typescript';
 import { Readable, Writable, Duplex } from 'stream';
 import { dirname } from 'path';
 import { strings } from './utils';
 import { readFileSync, statSync } from 'fs';
-import * as log from 'fancy-log';
+import log from 'fancy-log';
 import { ESBuildTranspiler, ITranspiler, TscTranspiler } from './transpiler';
 import colors = require('ansi-colors');
 
@@ -36,7 +36,7 @@ const _defaultOnError = (err: string) => console.log(JSON.stringify(err, null, 4
 export function create(
 	projectPath: string,
 	existingOptions: Partial<ts.CompilerOptions>,
-	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean; transpileWithSwc?: boolean },
+	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean; transpileWithEsbuild?: boolean },
 	onError: (message: string) => void = _defaultOnError
 ): IncrementalCompiler {
 
@@ -128,7 +128,7 @@ export function create(
 
 	let result: IncrementalCompiler;
 	if (config.transpileOnly) {
-		const transpiler = !config.transpileWithSwc
+		const transpiler = !config.transpileWithEsbuild
 			? new TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
 			: new ESBuildTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
 		result = <any>(() => createTranspileStream(transpiler));

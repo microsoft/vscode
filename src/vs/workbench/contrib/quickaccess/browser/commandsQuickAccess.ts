@@ -32,7 +32,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkbenchQuickAccessConfiguration } from '../../../browser/quickaccess.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
-import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from '../../../services/aiRelatedInformation/common/aiRelatedInformation.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -49,7 +50,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	// a chance to register so that the complete set of commands shows up as result
 	// We do not want to delay functionality beyond that time though to keep the commands
 	// functional.
-	private readonly extensionRegistrationRace = raceTimeout(this.extensionService.whenInstalledExtensionsRegistered(), 800);
+	private readonly extensionRegistrationRace: Promise<boolean | undefined>;
 
 	private useAiRelatedInfo = false;
 
@@ -66,7 +67,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionService extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
@@ -87,6 +88,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			}),
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 
+		this.extensionRegistrationRace = raceTimeout(extensionService.whenInstalledExtensionsRegistered(), 800);
 		this._register(configurationService.onDidChangeConfiguration((e) => this.updateOptions(e)));
 		this.updateOptions();
 	}

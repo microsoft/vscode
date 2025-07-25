@@ -16,7 +16,7 @@ import { TabFocus } from './tabFocus.js';
 import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from '../../common/config/editorOptions.js';
 import { EditorZoom } from '../../common/config/editorZoom.js';
 import { BareFontInfo, FontInfo, IValidatedEditorOptions } from '../../common/config/fontInfo.js';
-import { IDimension } from '../../common/core/dimension.js';
+import { IDimension } from '../../common/core/2d/dimension.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { getWindow, getWindowById } from '../../../base/browser/dom.js';
@@ -127,10 +127,11 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode(),
+			tabFocusMode: this._validatedOptions.get(EditorOption.tabFocusMode) || TabFocus.getTabFocusMode(),
 			inputMode: InputMode.getInputMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
-			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
+			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount,
+			editContextSupported: partialEnv.editContextSupported
 		};
 		return EditorOptionsUtil.computeOptions(this._validatedOptions, env);
 	}
@@ -142,6 +143,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: PixelRatio.getInstance(getWindowById(this._targetWindowId, true).window).value,
+			editContextSupported: typeof (globalThis as any).EditContext === 'function',
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
 					? AccessibilitySupport.Enabled
@@ -227,14 +229,13 @@ function digitCount(n: number): number {
 
 function getExtraEditorClassName(): string {
 	let extra = '';
-	if (!browser.isSafari && !browser.isWebkitWebView) {
-		// Use user-select: none in all browsers except Safari and native macOS WebView
-		extra += 'no-user-select ';
-	}
-	if (browser.isSafari) {
+	if (browser.isSafari || browser.isWebkitWebView) {
 		// See https://github.com/microsoft/vscode/issues/108822
 		extra += 'no-minimap-shadow ';
 		extra += 'enable-user-select ';
+	} else {
+		// Use user-select: none in all browsers except Safari and native macOS WebView
+		extra += 'no-user-select ';
 	}
 	if (platform.isMacintosh) {
 		extra += 'mac ';
@@ -249,6 +250,7 @@ export interface IEnvConfiguration {
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	accessibilitySupport: AccessibilitySupport;
+	editContextSupported: boolean;
 }
 
 class ValidatedEditorOptions implements IValidatedEditorOptions {

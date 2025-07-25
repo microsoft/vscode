@@ -183,8 +183,8 @@ suite('Windows State Storing', () => {
 					"mode": 1,
 					"x": 768,
 					"y": 336,
-					"width": 1024,
-					"height": 768
+					"width": 1200,
+					"height": 800
 				}
 			}
 		}`;
@@ -194,7 +194,7 @@ suite('Windows State Storing', () => {
 			openedWindows: [],
 			lastActiveWindow: {
 				backupPath: '/home/user/.config/code-oss-dev/Backups/1549539668998',
-				uiState: { mode: WindowMode.Normal, x: 768, y: 336, width: 1024, height: 768 }
+				uiState: { mode: WindowMode.Normal, x: 768, y: 336, width: 1200, height: 800 }
 			}
 		};
 		assertEqualWindowsState(expected, windowsState, 'v1_32_empty_window');

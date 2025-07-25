@@ -160,7 +160,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable<DisposableStore>());
-	private mouseUpTimeout: any;
+	private mouseUpTimeout: Timeout | undefined;
 	private keybindingLabel: string | undefined | null;
 
 	constructor(
@@ -514,26 +514,11 @@ export class CompositeOverflowActivityActionViewItem extends CompositeBarActionV
 	}
 }
 
-class ManageExtensionAction extends Action {
-
-	constructor(
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super('activitybar.manage.extension', localize('manageExtension', "Manage Extension"));
-	}
-
-	override run(id: string): Promise<void> {
-		return this.commandService.executeCommand('_extensions.manage', id);
-	}
-}
-
 export class CompositeActionViewItem extends CompositeBarActionViewItem {
-
-	private static manageExtensionAction: ManageExtensionAction;
 
 	constructor(
 		options: ICompositeBarActionViewItemOptions,
-		private readonly compositeActivityAction: CompositeBarAction,
+		compositeActivityAction: CompositeBarAction,
 		private readonly toggleCompositePinnedAction: IAction,
 		private readonly toggleCompositeBadgeAction: IAction,
 		private readonly compositeContextMenuActionsProvider: (compositeId: string) => IAction[],
@@ -557,10 +542,6 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 			configurationService,
 			keybindingService
 		);
-
-		if (!CompositeActionViewItem.manageExtensionAction) {
-			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
-		}
 	}
 
 	override render(container: HTMLElement): void {
@@ -667,11 +648,6 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.compositeBarActionItem.id);
 		if (compositeContextMenuActions.length) {
 			actions.push(...compositeContextMenuActions);
-		}
-
-		if ((<any>this.compositeActivityAction.compositeBarActionItem).extensionId) {
-			actions.push(new Separator());
-			actions.push(CompositeActionViewItem.manageExtensionAction);
 		}
 
 		const isPinned = this.compositeBar.isPinned(this.compositeBarActionItem.id);

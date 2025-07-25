@@ -32,15 +32,19 @@ function lookUp(tree: any, key: string) {
 	}
 }
 
-type ConfigurationInspect<T> = {
+export type ConfigurationInspect<T> = {
 	key: string;
 
 	defaultValue?: T;
+	globalLocalValue?: T;
+	globalRemoteValue?: T;
 	globalValue?: T;
 	workspaceValue?: T;
 	workspaceFolderValue?: T;
 
 	defaultLanguageValue?: T;
+	globalLocalLanguageValue?: T;
+	globalRemoteLanguageValue?: T;
 	globalLanguageValue?: T;
 	workspaceLanguageValue?: T;
 	workspaceFolderLanguageValue?: T;
@@ -156,9 +160,7 @@ export class ExtHostConfigProvider {
 
 	getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null, extensionDescription?: IExtensionDescription): vscode.WorkspaceConfiguration {
 		const overrides = scopeToOverrides(scope) || {};
-		const config = this._toReadonlyValue(section
-			? lookUp(this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(undefined, overrides, this._extHostWorkspace.workspace));
+		const config = this._toReadonlyValue(this._configuration.getValue(section, overrides, this._extHostWorkspace.workspace));
 
 		if (section) {
 			this._validateConfigurationAccess(section, overrides, extensionDescription?.identifier);
@@ -245,7 +247,7 @@ export class ExtHostConfigProvider {
 				}
 				return result;
 			},
-			update: (key: string, value: any, extHostConfigurationTarget: ExtHostConfigurationTarget | boolean, scopeToLanguage?: boolean) => {
+			update: (key: string, value: unknown, extHostConfigurationTarget: ExtHostConfigurationTarget | boolean, scopeToLanguage?: boolean) => {
 				key = section ? `${section}.${key}` : key;
 				const target = parseConfigurationTarget(extHostConfigurationTarget);
 				if (value !== undefined) {
@@ -262,11 +264,15 @@ export class ExtHostConfigProvider {
 						key,
 
 						defaultValue: deepClone(config.policy?.value ?? config.default?.value),
+						globalLocalValue: deepClone(config.userLocal?.value),
+						globalRemoteValue: deepClone(config.userRemote?.value),
 						globalValue: deepClone(config.user?.value ?? config.application?.value),
 						workspaceValue: deepClone(config.workspace?.value),
 						workspaceFolderValue: deepClone(config.workspaceFolder?.value),
 
 						defaultLanguageValue: deepClone(config.default?.override),
+						globalLocalLanguageValue: deepClone(config.userLocal?.override),
+						globalRemoteLanguageValue: deepClone(config.userRemote?.override),
 						globalLanguageValue: deepClone(config.user?.override ?? config.application?.override),
 						workspaceLanguageValue: deepClone(config.workspace?.override),
 						workspaceFolderLanguageValue: deepClone(config.workspaceFolder?.override),
@@ -293,7 +299,7 @@ export class ExtHostConfigProvider {
 					set: (_target: any, property: PropertyKey, _value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${String(property)}' of object`); },
 					deleteProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot delete read only property '${String(property)}' of object`); },
 					defineProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot define property '${String(property)}' for a readonly object`); },
-					setPrototypeOf: (_target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
+					setPrototypeOf: (_target: unknown) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
 					isExtensible: () => false,
 					preventExtensions: () => true
 				}) : target;

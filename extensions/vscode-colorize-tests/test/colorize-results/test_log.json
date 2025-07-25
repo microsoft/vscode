@@ -56,7 +56,35 @@
 		}
 	},
 	{
-		"c": "] [renderer1] [trace] CommandService#executeCommand ",
+		"c": "] [renderer1] [",
+		"t": "text.log",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "trace",
+		"t": "text.log comment log.verbose",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "] CommandService#executeCommand ",
 		"t": "text.log",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -140,7 +168,35 @@
 		}
 	},
 	{
-		"c": "] [renderer1] [trace] CommandService#executeCommand setContext",
+		"c": "] [renderer1] [",
+		"t": "text.log",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "trace",
+		"t": "text.log comment log.verbose",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "] CommandService#executeCommand setContext",
 		"t": "text.log",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -210,7 +266,35 @@
 		}
 	},
 	{
-		"c": "] [renderer1] [trace] SCMService#registerSCMProvider",
+		"c": "] [renderer1] [",
+		"t": "text.log",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "trace",
+		"t": "text.log comment log.verbose",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "] SCMService#registerSCMProvider",
 		"t": "text.log",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -280,7 +364,35 @@
 		}
 	},
 	{
-		"c": "] [renderer1] [trace] CommandService#executeCommand setContext",
+		"c": "] [renderer1] [",
+		"t": "text.log",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "trace",
+		"t": "text.log comment log.verbose",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "] CommandService#executeCommand setContext",
 		"t": "text.log",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -350,7 +462,35 @@
 		}
 	},
 	{
-		"c": "] [renderer1] [trace] CommandService#executeCommand ",
+		"c": "] [renderer1] [",
+		"t": "text.log",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "trace",
+		"t": "text.log comment log.verbose",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "] CommandService#executeCommand ",
 		"t": "text.log",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -434,7 +574,35 @@
 		}
 	},
 	{
-		"c": "] [renderer1] [trace] CommandService#executeCommand ",
+		"c": "] [renderer1] [",
+		"t": "text.log",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "trace",
+		"t": "text.log comment log.verbose",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "] CommandService#executeCommand ",
 		"t": "text.log",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -518,7 +686,35 @@
 		}
 	},
 	{
-		"c": "] [renderer1] [trace] CommandService#executeCommand ",
+		"c": "] [renderer1] [",
+		"t": "text.log",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "trace",
+		"t": "text.log comment log.verbose",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "] CommandService#executeCommand ",
 		"t": "text.log",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -602,7 +798,35 @@
 		}
 	},
 	{
-		"c": "] [renderer1] [trace] CommandService#executeCommand ",
+		"c": "] [renderer1] [",
+		"t": "text.log",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "trace",
+		"t": "text.log comment log.verbose",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "] CommandService#executeCommand ",
 		"t": "text.log",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -686,7 +910,35 @@
 		}
 	},
 	{
-		"c": "] [renderer1] [trace] CommandService#executeCommand ",
+		"c": "] [renderer1] [",
+		"t": "text.log",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "trace",
+		"t": "text.log comment log.verbose",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "] CommandService#executeCommand ",
 		"t": "text.log",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
