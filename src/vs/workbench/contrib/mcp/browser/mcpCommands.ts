@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, disposableWindowInterval, EventType, h } from '../../../../base/browser/dom.js';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
+import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, derivedObservableWithCache, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -31,6 +36,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
@@ -57,6 +63,7 @@ import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
+import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
 // acroynms do not get localized
@@ -358,6 +365,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
+		const hoverIsOpen = observableValue(this, false);
 		const config = observableConfigValue(mcpAutoStartConfig, McpAutoStartValue.NewAndOutdated, configurationService);
 
 		const enum DisplayedState {
@@ -367,7 +375,12 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			Refreshing,
 		}
 
-		const displayedState = derived((reader) => {
+		type DisplayedStateT = {
+			state: DisplayedState;
+			servers: IMcpServer[];
+		};
+
+		const displayedStateCurrent = derived((reader): DisplayedStateT => {
 			const servers = mcpService.servers.read(reader);
 			const serversPerState: IMcpServer[][] = [];
 			for (const server of servers) {
@@ -404,6 +417,15 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			return { state: maxState, servers: serversPerState[maxState] || [] };
 		});
 
+		// avoid hiding the hover if a state changes while it's open:
+		const displayedState = derivedObservableWithCache<DisplayedStateT>(this, (reader, last) => {
+			if (last && hoverIsOpen.read(reader)) {
+				return last;
+			} else {
+				return displayedStateCurrent.read(reader);
+			}
+		});
+
 		this._store.add(actionViewItemService.register(MenuId.ChatExecute, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
@@ -419,7 +441,8 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					const action = h('button.chat-mcp-action', [h('span@icon')]);
 
 					this._register(autorun(r => {
-						const { state } = displayedState.read(r);
+						const displayed = displayedState.read(r);
+						const { state } = displayed;
 						const { root, icon } = action;
 						this.updateTooltip();
 						container.classList.toggle('chat-mcp-has-action', state !== DisplayedState.None);
@@ -428,7 +451,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 							container.appendChild(root);
 						}
 
-						root.ariaLabel = this.getLabelForState(displayedState.read(r));
+						root.ariaLabel = this.getLabelForState(displayed);
 						root.className = 'chat-mcp-action';
 						icon.className = '';
 						if (state === DisplayedState.NewTools) {
@@ -450,7 +473,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					e.preventDefault();
 					e.stopPropagation();
 
-					const { state, servers } = displayedState.get();
+					const { state, servers } = displayedStateCurrent.get();
 					if (state === DisplayedState.NewTools) {
 						const interaction = new McpStartServerInteraction();
 						servers.forEach(server => server.stop().then(() => server.start({ interaction })));
@@ -471,7 +494,93 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					return this.getLabelForState() || super.getTooltip();
 				}
 
-				private getLabelForState({ state, servers } = displayedState.get()) {
+				protected override getHoverContents({ state, servers } = displayedStateCurrent.get()): string | undefined | IManagedHoverTooltipHTMLElement {
+					const link = (s: IMcpServer) => markdownCommandLink({
+						title: s.definition.label,
+						id: McpCommandIds.ServerOptions,
+						arguments: [s.definition.id],
+					});
+
+					const single = servers.length === 1;
+					const names = servers.map(link).map(l => single ? l : `- ${l}\n`).join(', ');
+					let markdown: MarkdownString;
+					if (state === DisplayedState.NewTools) {
+						markdown = new MarkdownString(single
+							? localize('mcp.newTools.md.single', "MCP server {0} has been updated and may have new tools available.", names)
+							: localize('mcp.newTools.md.multi', "MCP servers have been updated and may have new tools available:\n\n{0}", names)
+						);
+					} else if (state === DisplayedState.Error) {
+						markdown = new MarkdownString(single
+							? localize('mcp.err.md.single', "MCP server {0} was unable to start successfully.", names)
+							: localize('mcp.err.md.multi', "Multiple MCP servers were unable to start successfully:\n\n{0}", names)
+						);
+					} else {
+						return this.getLabelForState() || undefined;
+					}
+
+					return {
+						element: (token): HTMLElement => {
+							hoverIsOpen.set(true, undefined);
+
+							const store = new DisposableStore();
+							store.add(toDisposable(() => hoverIsOpen.set(false, undefined)));
+							store.add(token.onCancellationRequested(() => {
+								store.dispose();
+							}));
+
+							// todo@connor4312/@benibenj: workaround for #257923
+							store.add(disposableWindowInterval(mainWindow, () => {
+								if (!container.isConnected) {
+									store.dispose();
+								}
+							}, 2000));
+
+							const container = $('div.mcp-hover-contents');
+
+							// Render markdown content
+							markdown.isTrusted = true;
+							const markdownResult = store.add(renderMarkdown(markdown));
+							container.appendChild(markdownResult.element);
+
+							// Add divider
+							const divider = $('hr.mcp-hover-divider');
+							container.appendChild(divider);
+
+							// Add checkbox for mcpAutoStartConfig setting
+							const checkboxContainer = $('div.mcp-hover-setting');
+							const settingLabelStr = localize('mcp.autoStart', "Automatically start MCP servers when sending a chat message");
+
+							const checkbox = store.add(new Checkbox(
+								settingLabelStr,
+								config.get() !== McpAutoStartValue.Never,
+								defaultCheckboxStyles
+							));
+
+							checkboxContainer.appendChild(checkbox.domNode);
+
+							// Add label next to checkbox
+							const settingLabel = $('span.mcp-hover-setting-label', undefined, settingLabelStr);
+							checkboxContainer.appendChild(settingLabel);
+
+							const onChange = () => {
+								const newValue = checkbox.checked ? McpAutoStartValue.NewAndOutdated : McpAutoStartValue.Never;
+								configurationService.updateValue(mcpAutoStartConfig, newValue);
+							};
+
+							store.add(checkbox.onChange(onChange));
+
+							store.add(addDisposableListener(settingLabel, EventType.CLICK, () => {
+								checkbox.checked = !checkbox.checked;
+								onChange();
+							}));
+							container.appendChild(checkboxContainer);
+
+							return container;
+						},
+					};
+				}
+
+				private getLabelForState({ state, servers } = displayedStateCurrent.get()) {
 					if (state === DisplayedState.NewTools) {
 						return localize('mcp.newTools', "New tools available ({0})", servers.length || 1);
 					} else if (state === DisplayedState.Error) {
@@ -482,8 +591,6 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 						return null;
 					}
 				}
-
-
 			}, action, { ...options, keybindingNotRenderedWithLabel: true });
 
 		}, Event.fromObservable(displayedState)));
