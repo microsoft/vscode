@@ -592,7 +592,7 @@ class ChatResolverContribution extends Disposable {
 		super();
 
 		this._register(editorResolverService.registerEditor(
-			`${Schemas.vscodeChatSesssion}:**/**`,
+			`{${Schemas.vscodeChatEditor},${Schemas.vscodeChatSession}}:**/**`,
 			{
 				id: ChatEditorInput.EditorID,
 				label: nls.localize('chat', "Chat"),
@@ -600,7 +600,7 @@ class ChatResolverContribution extends Disposable {
 			},
 			{
 				singlePerResource: true,
-				canSupportResource: resource => resource.scheme === Schemas.vscodeChatSesssion
+				canSupportResource: resource => resource.scheme === Schemas.vscodeChatEditor || resource.scheme === Schemas.vscodeChatSession,
 			},
 			{
 				createEditorInput: ({ resource, options }) => {
