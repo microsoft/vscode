@@ -365,7 +365,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalExecutionIdleBeforeTimeout: outputAndIdle?.terminalExecutionIdleBeforeTimeout,
 					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
 					pollDurationMs: outputAndIdle?.pollDurationMs,
-					terminalInputPromptResponse: userResponse
+					// TODO: Fill in tool input properties
+					inputToolManualAcceptCount: 0,
+					inputToolManualRejectCount: 0,
+					inputToolManualChars: 0,
+					inputToolAutoChars: 0,
 				});
 			}
 		} else {
@@ -451,6 +455,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					exitCode,
 					timingExecuteMs,
 					timingConnectMs,
+					// TODO: Support tool auto reply in foreground terminals https://github.com/microsoft/vscode/issues/257726
+					inputToolManualAcceptCount: 0,
+					inputToolManualRejectCount: 0,
+					inputToolManualChars: 0,
+					inputToolAutoChars: 0,
 				});
 			}
 
@@ -622,7 +631,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		terminalExecutionIdleBeforeTimeout?: boolean;
 		timingExecuteMs: number;
 		exitCode: number | undefined;
-		terminalInputPromptResponse?: string;
+		inputToolManualAcceptCount: number;
+		inputToolManualRejectCount: number;
+		inputToolManualChars: number;
+		inputToolAutoChars: number;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -639,7 +651,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingConnectMs: number;
 			pollDurationMs: number;
 			terminalExecutionIdleBeforeTimeout: boolean;
-			terminalInputPromptResponse?: string;
+			inputToolManualAcceptCount: number;
+			inputToolManualRejectCount: number;
+			inputToolManualChars: number;
+			inputToolAutoChars: number;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -659,10 +674,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
 			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
-			terminalInputPromptResponse?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user response to the terminal prompt, if any. This is only set when the tool prompts the user for input.' };
+
+			inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times an elicitation to respond in the terminal was manually accepted by the user.' };
+			inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times an elicitation to respond in the terminal was manually rejected by the user.' };
+			inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters the tool input manually after accepting an elicitation dialog.' };
+			inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters the tool input automatically without user confirmation.' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
+
 			result: state.error ?? 'success',
 			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
 			userEditedCommand: state.didUserEditCommand ? 1 : 0,
@@ -675,7 +695,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingConnectMs: state.timingConnectMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
 			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
-			terminalInputPromptResponse: state.terminalInputPromptResponse
+			inputToolManualAcceptCount: state.inputToolManualAcceptCount,
+			inputToolManualRejectCount: state.inputToolManualRejectCount,
+			inputToolManualChars: state.inputToolManualChars,
+			inputToolAutoChars: state.inputToolAutoChars
 		});
 	}
 }
