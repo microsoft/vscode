@@ -44,6 +44,8 @@ import { ChatModel } from '../../common/chatModel.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionsService } from '../../browser/chatSessions.contribution.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -75,6 +77,7 @@ suite('ChatEditingService', function () {
 		collection.set(IChatVariablesService, new MockChatVariablesService());
 		collection.set(IChatSlashCommandService, new class extends mock<IChatSlashCommandService>() { });
 		collection.set(IChatTransferService, new SyncDescriptor(ChatTransferService));
+		collection.set(IChatSessionsService, new SyncDescriptor(ChatSessionsService));
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
