@@ -20,14 +20,28 @@ async function downloadExplorerDll(outDir, quality = 'stable', targetArch = 'x64
     if (!await fs_1.default.existsSync(outDir)) {
         await fs_1.default.mkdirSync(outDir, { recursive: true });
     }
+    // Read and parse checksums file
+    const checksumsFilePath = path_1.default.join(path_1.default.dirname(__dirname), 'checksums', 'explorer-dll.txt');
+    const checksumsContent = fs_1.default.readFileSync(checksumsFilePath, 'utf8');
+    const checksums = {};
+    checksumsContent.split('\n').forEach(line => {
+        const trimmedLine = line.trim();
+        if (trimmedLine) {
+            const [checksum, filename] = trimmedLine.split(/\s+/);
+            if (checksum && filename) {
+                checksums[filename] = checksum;
+            }
+        }
+    });
     d(`downloading ${fileName}`);
     const artifact = await (0, get_1.downloadArtifact)({
         isGeneric: true,
-        version: '3.0.4',
+        version: 'v4.0.0-350164',
         artifactName: fileName,
+        checksums,
         mirrorOptions: {
             mirror: 'https://github.com/microsoft/vscode-explorer-command/releases/download/',
-            customDir: '3.0.4',
+            customDir: 'v4.0.0-350164',
             customFilename: fileName
         }
     });
