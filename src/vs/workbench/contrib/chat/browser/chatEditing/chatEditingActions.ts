@@ -488,7 +488,6 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 					group: 'navigation',
 					order: 1,
 					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true)),
-					isHiddenByDefault: true
 				}
 			]
 		});
