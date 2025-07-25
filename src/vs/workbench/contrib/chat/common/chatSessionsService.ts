@@ -11,12 +11,14 @@ import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatProgress } from './chatService.js';
 import { IChatAgentRequest } from './chatAgents.js';
+import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 
 export interface IChatSessionsExtensionPoint {
 	id: string;
 	name: string;
 	displayName: string;
 	description: string;
+	extensionDescription: IRelaxedExtensionDescription;
 	when?: string;
 }
 export interface IChatSessionItem {

@@ -14,7 +14,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IExtensionService, isProposedApiEnabled, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IChatWidgetService } from '../browser/chat.js';
@@ -86,6 +86,7 @@ export class ChatSessionsContribution extends Disposable implements IWorkbenchCo
 						displayName: contribution.displayName,
 						description: contribution.description,
 						when: contribution.when,
+						extensionDescription: ext.description,
 					};
 					this.logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.id}' name='${c.name}')`);
 					this._register(this.chatSessionsService.registerContribution(c)); // TODO: Is it for contribution to own this? I think not
@@ -147,7 +148,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private registerDynamicAgent(contribution: IChatSessionsExtensionPoint): IDisposable {
-		const { id, name, displayName, description } = contribution;
+		const { id, name, displayName, description, extensionDescription } = contribution;
+		const { identifier: extensionId, name: extensionName, displayName: extensionDisplayName, publisher: extensionPublisherId } = extensionDescription;
 		const agentData: IChatAgentData = {
 			id,
 			name,
@@ -158,16 +160,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isDynamic: true,
 			isCodingAgent: true, // TODO: Influences chat UI (eg: locks chat to participant, hides UX elements, etc...)
 			slashCommands: [],
-			locations: [ChatAgentLocation.Panel],
-			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
+			locations: [ChatAgentLocation.Panel], // TODO: This doesn't appear to be respected
+			modes: [ChatModeKind.Agent, ChatModeKind.Ask], // TODO: These are no longer respected
 			disambiguation: [],
 			metadata: {
 				themeIcon: Codicon.sendToRemoteAgent,
 				isSticky: false,
 			},
-			extensionId: nullExtensionDescription.identifier,
-			extensionDisplayName: nullExtensionDescription.name,
-			extensionPublisherId: nullExtensionDescription.publisher,
+			extensionId,
+			extensionDisplayName: extensionDisplayName || extensionName,
+			extensionPublisherId,
 		};
 
 		const agentImpl = this._instantiationService.createInstance(CodingAgentChatImplementation, contribution);
