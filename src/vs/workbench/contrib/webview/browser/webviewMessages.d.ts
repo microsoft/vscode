@@ -40,7 +40,8 @@ export type FromWebviewMessage = {
 	'did-keyup': KeyEvent;
 	'did-context-menu': { clientX: number; clientY: number; context: { [key: string]: unknown } };
 	'drag-start': void;
-	'drag': WebViewDragEvent
+	'drag': WebViewDragEvent;
+	'updated-intrinsic-content-size': { width: number; height: number };
 };
 
 interface UpdateContentEvent {

@@ -11,7 +11,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { CommandLineAutoApprover } from '../../browser/commandLineAutoApprover.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
-import { ok } from 'assert';
+import { ok, strictEqual } from 'assert';
 
 suite('CommandLineAutoApprover', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +38,10 @@ suite('CommandLineAutoApprover', () => {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
+	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
+		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
+	}
+
 	function setConfig(key: string, value: unknown) {
 		configurationService.setUserConfiguration(key, value);
 		configurationService.onDidChangeConfigurationEmitter.fire({
@@ -49,7 +53,11 @@ suite('CommandLineAutoApprover', () => {
 	}
 
 	function isAutoApproved(commandLine: string): boolean {
-		return commandLineAutoApprover.isAutoApproved(commandLine, shell, os);
+		return commandLineAutoApprover.isCommandAutoApproved(commandLine, shell, os).isAutoApproved;
+	}
+
+	function isCommandLineAutoApproved(commandLine: string): boolean {
+		return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).isAutoApproved;
 	}
 
 	suite('autoApprove with allow patterns only', () => {
@@ -323,6 +331,153 @@ suite('CommandLineAutoApprover', () => {
 			ok(isAutoApproved('(Get-Content file.txt'));
 			ok(!isAutoApproved('[Get-Content'));
 			ok(!isAutoApproved('foo'));
+		});
+	});
+
+	suite('isCommandLineAutoApproved - matchCommandLine functionality', () => {
+		test('should auto-approve command line patterns with matchCommandLine: true', () => {
+			setAutoApproveWithCommandLine({
+				"echo": { approve: true, matchCommandLine: true }
+			});
+
+			ok(isCommandLineAutoApproved('echo hello'));
+			ok(isCommandLineAutoApproved('echo test && ls'));
+		});
+
+		test('should not auto-approve regular patterns with isCommandLineAutoApproved', () => {
+			setAutoApprove({
+				"echo": true
+			});
+
+			// Regular patterns should not be matched by isCommandLineAutoApproved
+			ok(!isCommandLineAutoApproved('echo hello'));
+		});
+
+		test('should handle regex patterns with matchCommandLine: true', () => {
+			setAutoApproveWithCommandLine({
+				"/echo.*world/": { approve: true, matchCommandLine: true }
+			});
+
+			ok(isCommandLineAutoApproved('echo hello world'));
+			ok(!isCommandLineAutoApproved('echo hello'));
+		});
+
+		test('should handle case-insensitive regex with matchCommandLine: true', () => {
+			setAutoApproveWithCommandLine({
+				"/echo/i": { approve: true, matchCommandLine: true }
+			});
+
+			ok(isCommandLineAutoApproved('echo hello'));
+			ok(isCommandLineAutoApproved('ECHO hello'));
+			ok(isCommandLineAutoApproved('Echo hello'));
+		});
+
+		test('should handle complex command line patterns', () => {
+			setAutoApproveWithCommandLine({
+				"/^npm run build/": { approve: true, matchCommandLine: true },
+				"/\.ps1/i": { approve: true, matchCommandLine: true }
+			});
+
+			ok(isCommandLineAutoApproved('npm run build --production'));
+			ok(isCommandLineAutoApproved('powershell -File script.ps1'));
+			ok(isCommandLineAutoApproved('pwsh -File SCRIPT.PS1'));
+			ok(!isCommandLineAutoApproved('npm install'));
+		});
+
+		test('should return false for empty command line', () => {
+			setAutoApproveWithCommandLine({
+				"echo": { approve: true, matchCommandLine: true }
+			});
+
+			ok(!isCommandLineAutoApproved(''));
+			ok(!isCommandLineAutoApproved('   '));
+		});
+
+		test('should handle mixed configuration with matchCommandLine entries', () => {
+			setAutoApproveWithCommandLine({
+				"echo": true,  // Regular pattern
+				"ls": { approve: true, matchCommandLine: true },  // Command line pattern
+				"rm": { approve: true, matchCommandLine: false }  // Explicit regular pattern
+			});
+
+			// Only the matchCommandLine: true entry should work with isCommandLineAutoApproved
+			ok(isCommandLineAutoApproved('ls -la'));
+			ok(!isCommandLineAutoApproved('echo hello'));
+			ok(!isCommandLineAutoApproved('rm file.txt'));
+		});
+
+		test('should handle deny patterns with matchCommandLine: true', () => {
+			setAutoApproveWithCommandLine({
+				"echo": { approve: true, matchCommandLine: true },
+				"/dangerous/": { approve: false, matchCommandLine: true }
+			});
+
+			ok(isCommandLineAutoApproved('echo hello'));
+			ok(!isCommandLineAutoApproved('echo dangerous command'));
+			ok(!isCommandLineAutoApproved('dangerous operation'));
+		});
+
+		test('should prioritize deny list over allow list for command line patterns', () => {
+			setAutoApproveWithCommandLine({
+				"/echo/": { approve: true, matchCommandLine: true },
+				"/echo.*dangerous/": { approve: false, matchCommandLine: true }
+			});
+
+			ok(isCommandLineAutoApproved('echo hello'));
+			ok(!isCommandLineAutoApproved('echo dangerous command'));
+		});
+
+		test('should handle complex deny patterns with matchCommandLine', () => {
+			setAutoApproveWithCommandLine({
+				"npm": { approve: true, matchCommandLine: true },
+				"/npm.*--force/": { approve: false, matchCommandLine: true },
+				"/\.ps1.*-ExecutionPolicy/i": { approve: false, matchCommandLine: true }
+			});
+
+			ok(isCommandLineAutoApproved('npm install'));
+			ok(isCommandLineAutoApproved('npm run build'));
+			ok(!isCommandLineAutoApproved('npm install --force'));
+			ok(!isCommandLineAutoApproved('powershell -File script.ps1 -ExecutionPolicy Bypass'));
+		});
+	});
+
+	suite('reasons', () => {
+		function getCommandReason(command: string): string {
+			return commandLineAutoApprover.isCommandAutoApproved(command, shell, os).reason;
+		}
+
+		function getCommandLineReason(commandLine: string): string {
+			return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).reason;
+		}
+
+		suite('command', () => {
+			test('approved', () => {
+				setAutoApprove({ echo: true });
+				strictEqual(getCommandReason('echo hello'), `Command 'echo hello' is approved by allow list rule: echo`);
+			});
+			test('not approved', () => {
+				setAutoApprove({ echo: false });
+				strictEqual(getCommandReason('echo hello'), `Command 'echo hello' is denied by deny list rule: echo`);
+			});
+			test('no match', () => {
+				setAutoApprove({});
+				strictEqual(getCommandReason('echo hello'), `Command 'echo hello' has no matching auto approve entries`);
+			});
+		});
+
+		suite('command line', () => {
+			test('approved', () => {
+				setAutoApproveWithCommandLine({ echo: { approve: true, matchCommandLine: true } });
+				strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' is approved by allow list rule: echo`);
+			});
+			test('not approved', () => {
+				setAutoApproveWithCommandLine({ echo: { approve: false, matchCommandLine: true } });
+				strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' is denied by deny list rule: echo`);
+			});
+			test('no match', () => {
+				setAutoApproveWithCommandLine({});
+				strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' has no matching auto approve entries`);
+			});
 		});
 	});
 });

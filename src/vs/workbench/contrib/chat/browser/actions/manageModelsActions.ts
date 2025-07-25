@@ -81,9 +81,10 @@ export class ManageModelsAction extends Action2 {
 		}));
 
 		store.add(quickPick.onDidTriggerItemButton(async (event) => {
-			const managementCommand = (event.item as IVendorQuickPickItem).managementCommand;
+			const selectedItem = event.item as IVendorQuickPickItem;
+			const managementCommand = selectedItem.managementCommand;
 			if (managementCommand) {
-				commandService.executeCommand(managementCommand);
+				commandService.executeCommand(managementCommand, selectedItem.vendor);
 			}
 		}));
 
@@ -105,6 +106,11 @@ export class ManageModelsAction extends Action2 {
 			vendor: model.metadata.vendor,
 			picked: model.metadata.isUserSelectable
 		}));
+
+		if (modelItems.length === 0) {
+			store.dispose();
+			return;
+		}
 
 		const quickPick = quickInputService.createQuickPick<IModelQuickPickItem>();
 		quickPick.items = modelItems;

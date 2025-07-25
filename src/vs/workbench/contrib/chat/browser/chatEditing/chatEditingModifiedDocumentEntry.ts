@@ -99,7 +99,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this._stateObs.set(action, undefined);
-			this._notifyAction(action === ModifiedFileEntryState.Accepted ? 'accepted' : 'rejected');
+			this._notifySessionAction(action === ModifiedFileEntryState.Accepted ? 'accepted' : 'rejected');
+		}));
+
+		this._register(this._textModelChangeService.onDidAcceptOrRejectLines(action => {
+			this._notifyAction({ kind: 'chatEditingHunkAction', uri: this.modifiedURI, outcome: action.state, lineCount: action.lineCount, hasRemainingEdits: action.hasRemainingEdits });
 		}));
 
 		// Create a reference to this model to avoid it being disposed from under our nose

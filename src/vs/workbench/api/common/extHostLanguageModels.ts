@@ -99,7 +99,7 @@ class LanguageModelResponse {
 
 			let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
 			if (fragment.part.type === 'text') {
-				out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
+				out = new extHostTypes.LanguageModelTextPart(fragment.part.value, fragment.part.audience);
 			} else if (fragment.part.type === 'data') {
 				out = new extHostTypes.LanguageModelTextPart('');
 			} else {
@@ -296,9 +296,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			if (fragment.part instanceof extHostTypes.LanguageModelToolCallPart) {
 				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.input, toolCallId: fragment.part.callId };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
-				part = { type: 'text', value: fragment.part.value };
+				part = { type: 'text', value: fragment.part.value, audience: fragment.part.audience };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelDataPart) {
-				part = { type: 'data', value: { mimeType: fragment.part.mimeType as ChatImageMimeType, data: VSBuffer.wrap(fragment.part.data) } };
+				part = { type: 'data', value: { mimeType: fragment.part.mimeType as ChatImageMimeType, data: VSBuffer.wrap(fragment.part.data) }, audience: fragment.part.audience };
 			}
 
 			if (!part) {

@@ -17,8 +17,9 @@ import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentT
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -53,12 +54,19 @@ suite('RunInTerminalTool', () => {
 				return [];
 			},
 		});
+		instantiationService.stub(ITerminalService, {
+			onDidDisposeInstance: new Emitter<ITerminalInstance>().event
+		});
 		workspaceService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService)) as TestContextService;
 
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
 	});
 
 	function setAutoApprove(value: { [key: string]: boolean }) {
+		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
+	}
+
+	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
@@ -228,6 +236,21 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Whitespace only command'
 			});
 			assertConfirmationRequired(result);
+		});
+
+		test('should handle matchCommandLine: true patterns', async () => {
+			setAutoApproveWithCommandLine({
+				"/dangerous/": { approve: false, matchCommandLine: true },
+				"echo": { approve: true, matchCommandLine: true }
+			});
+
+			// Command line pattern should be approved
+			const result1 = await executeToolTest({ command: 'echo hello world' });
+			assertAutoApproved(result1);
+
+			// Command line pattern should be denied due to dangerous content
+			const result2 = await executeToolTest({ command: 'echo this is a dangerous command' });
+			assertConfirmationRequired(result2);
 		});
 	});
 
