@@ -2038,18 +2038,14 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async worktree(options: { path: string; name: string; newBranch?: boolean }): Promise<void> {
+	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
 		const args = ['worktree', 'add'];
 
-		if (options?.newBranch) {
-			args.push('-b', options.name);
+		if (options.branch) {
+			args.push('-b', options.branch);
 		}
 
-		args.push(options.path);
-
-		if (!options.newBranch) {
-			args.push(options.name);
-		}
+		args.push(options.path, options.commitish);
 
 		await this.exec(args);
 	}

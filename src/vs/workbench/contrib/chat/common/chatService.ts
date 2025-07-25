@@ -109,6 +109,13 @@ export interface IChatContentReference {
 	kind: 'reference';
 }
 
+export interface IChatChangesSummary {
+	readonly reference: URI;
+	readonly sessionId: string;
+	readonly requestId: string;
+	readonly kind: 'changesSummary';
+}
+
 export interface IChatCodeCitation {
 	value: URI;
 	license: string;
@@ -457,7 +464,15 @@ export interface IChatEditingSessionAction {
 	outcome: 'accepted' | 'rejected' | 'userModified';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction;
+export interface IChatEditingHunkAction {
+	kind: 'chatEditingHunkAction';
+	uri: URI;
+	lineCount: number;
+	outcome: 'accepted' | 'rejected';
+	hasRemainingEdits: boolean;
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction | IChatEditingHunkAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
@@ -571,7 +586,8 @@ export interface IChatService {
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
 	isPersistedSessionEmpty(sessionId: string): boolean;
-	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;
+	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModel | undefined;
+	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;
 
 	/**
 	 * Returns whether the request was accepted.

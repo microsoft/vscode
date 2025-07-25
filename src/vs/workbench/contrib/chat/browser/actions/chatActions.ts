@@ -58,6 +58,7 @@ import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -475,6 +476,7 @@ export function registerChatActions() {
 			quickInputService: IQuickInputService,
 			commandService: ICommandService,
 			editorService: IEditorService,
+			chatWidgetService: IChatWidgetService,
 			view: ChatViewPane,
 			chatSessionsService: IChatSessionsService,
 			contextKeyService: IContextKeyService,
@@ -506,6 +508,7 @@ export function registerChatActions() {
 
 			interface ICodingAgentPickerItem extends IChatPickerItem {
 				id?: string;
+				session?: { providerType: string; session: IChatSessionItem };
 				uri?: URI;
 			}
 
@@ -563,9 +566,8 @@ export function registerChatActions() {
 
 						// Use the new Promise-based API to get chat sessions
 						const cancellationToken = new CancellationTokenSource();
-
 						try {
-							const providers = chatSessionsService.getChatSessionProviders();
+							const providers = chatSessionsService.getChatSessionContributions();
 							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
 
 							for (const provider of providers) {
@@ -592,6 +594,7 @@ export function registerChatActions() {
 								const agentPick: ICodingAgentPickerItem = {
 									label: sessionContent.label,
 									description: '',
+									session: { providerType: session.providerType, session: sessionContent },
 									chat: {
 										sessionId: sessionContent.id,
 										title: sessionContent.label,
@@ -739,6 +742,7 @@ export function registerChatActions() {
 						quickInputService,
 						commandService,
 						editorService,
+						chatWidgetService,
 						view,
 						chatSessionsService,
 						contextKeyService,
@@ -751,9 +755,13 @@ export function registerChatActions() {
 					if (buttonItem.id) {
 						const contextItem = context.item as ICodingAgentPickerItem;
 						commandService.executeCommand(buttonItem.id, {
-							id: contextItem.id,
+							uri: contextItem.uri,
+							session: contextItem.session,
 							$mid: MarshalledId.ChatSessionContext
 						});
+
+						// dismiss quick picker
+						picker.hide();
 					}
 				}
 			}));
@@ -771,6 +779,7 @@ export function registerChatActions() {
 							quickInputService,
 							commandService,
 							editorService,
+							chatWidgetService,
 							view,
 							chatSessionsService,
 							contextKeyService,
@@ -787,6 +796,7 @@ export function registerChatActions() {
 							quickInputService,
 							commandService,
 							editorService,
+							chatWidgetService,
 							view,
 							chatSessionsService,
 							contextKeyService,
@@ -797,16 +807,10 @@ export function registerChatActions() {
 						return;
 					} else if ((item as ICodingAgentPickerItem).id !== undefined) {
 						// TODO: This is a temporary change that will be replaced by opening a new chat instance
-						if (item.buttons && item.buttons.length > 0) {
-							const pickedItem = (item.buttons[0] as ICodingAgentPickerItem);
-							if (pickedItem.id) {
-								commandService.executeCommand(pickedItem.id, {
-									id: (item as ICodingAgentPickerItem).id,
-									$mid: MarshalledId.ChatSessionContext
-								});
-							}
+						const codingAgentItem = item as ICodingAgentPickerItem;
+						if (codingAgentItem.session) {
+							await this.showChatSessionInEditor(codingAgentItem.session.providerType, codingAgentItem.session.session, editorService);
 						}
-						return;
 					}
 
 					await view.loadSession(sessionId);
@@ -824,6 +828,7 @@ export function registerChatActions() {
 			const quickInputService = accessor.get(IQuickInputService);
 			const viewsService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
 			const dialogService = accessor.get(IDialogService);
 			const commandService = accessor.get(ICommandService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
@@ -850,12 +855,13 @@ export function registerChatActions() {
 			}
 
 			const showAgentSessionsMenuConfig = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
-			if (showAgentSessionsMenuConfig === 'showChatsMenu' && chatSessionsService.hasChatSessionItemProviders) {
+			if (showAgentSessionsMenuConfig === 'showChatsMenu') {
 				await this.showIntegratedPicker(
 					chatService,
 					quickInputService,
 					commandService,
 					editorService,
+					chatWidgetService,
 					view,
 					chatSessionsService,
 					contextKeyService,
@@ -864,6 +870,14 @@ export function registerChatActions() {
 			} else {
 				await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view);
 			}
+		}
+
+		private async showChatSessionInEditor(providerType: string, session: IChatSessionItem, editorService: IEditorService) {
+			// Open the chat editor
+			await editorService.openEditor({
+				resource: ChatSessionUri.forSession(providerType, session.id),
+				options: {} satisfies IChatEditorOptions
+			});
 		}
 	});
 
@@ -889,7 +903,6 @@ export function registerChatActions() {
 		}
 	});
 
-
 	registerAction2(class ChatAddAction extends Action2 {
 		constructor() {
 			super({
@@ -900,7 +913,10 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				menu: [{
 					id: MenuId.ChatExecute,
-					when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
+					when: ContextKeyExpr.and(
+						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
+						ChatContextKeys.lockedToCodingAgent.negate()
+					),
 					group: 'navigation',
 					order: 1
 				}]

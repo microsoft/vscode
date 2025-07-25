@@ -20,6 +20,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
@@ -933,6 +934,12 @@ export interface IChatModel extends IDisposable {
 	completeResponse(request: IChatRequestModel): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
+}
+
+export const IChatModelService = createDecorator<IChatModelService>('chatModelService');
+
+export interface IChatModelService {
+	readonly _serviceBrand: undefined;
 }
 
 export interface ISerializableChatsData {

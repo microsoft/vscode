@@ -208,3 +208,10 @@ export interface IAllowedMcpServersService {
 
 export const mcpEnabledConfig = 'chat.mcp.enabled';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
+export const mcpAutoStartConfig = 'chat.mcp.autostart';
+
+export const enum McpAutoStartValue {
+	Never = 'never',
+	OnlyNew = 'onlyNew',
+	NewAndOutdated = 'newAndOutdated',
+}

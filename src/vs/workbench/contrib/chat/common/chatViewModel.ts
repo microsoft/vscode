@@ -18,7 +18,7 @@ import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameS
 import { ChatPauseState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
 
@@ -175,10 +175,15 @@ export interface IChatErrorDetailsPart {
 	isLast: boolean;
 }
 
+export interface IChatChangesSummaryPart {
+	readonly kind: 'changesSummary';
+	readonly fileChanges: ReadonlyArray<IChatChangesSummary>;
+}
+
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress | IChatErrorDetailsPart;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress | IChatErrorDetailsPart | IChatChangesSummaryPart;
 
 export interface IChatLiveUpdateData {
 	totalTime: number;

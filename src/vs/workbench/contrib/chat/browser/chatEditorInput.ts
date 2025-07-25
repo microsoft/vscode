@@ -11,17 +11,17 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
+import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
-import type { IChatEditorOptions } from './chatEditor.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
-import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
+import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
@@ -38,7 +38,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
-		return ChatUri.generate(handle);
+		return ChatEditorUri.generate(handle);
 	}
 
 	static getNextCount(): number {
@@ -58,8 +58,12 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	) {
 		super();
 
-		const parsed = ChatUri.parse(resource);
-		if (typeof parsed?.handle !== 'number') {
+		if (resource.scheme === Schemas.vscodeChatEditor) {
+			const parsed = ChatEditorUri.parse(resource);
+			if (!parsed || typeof parsed !== 'number') {
+				throw new Error('Invalid chat URI');
+			}
+		} else if (resource.scheme !== Schemas.vscodeChatSession) {
 			throw new Error('Invalid chat URI');
 		}
 
@@ -113,7 +117,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
-		if (typeof this.sessionId === 'string') {
+		if (this.resource.scheme === Schemas.vscodeChatSession) {
+			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Editor, CancellationToken.None);
+		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
 				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if (!this.options.target) {
@@ -169,16 +175,16 @@ export class ChatEditorModel extends Disposable {
 	}
 }
 
-export namespace ChatUri {
 
-	export const scheme = Schemas.vscodeChatSesssion;
+export namespace ChatEditorUri {
 
+	export const scheme = Schemas.vscodeChatEditor;
 
 	export function generate(handle: number): URI {
 		return URI.from({ scheme, path: `chat-${handle}` });
 	}
 
-	export function parse(resource: URI): { handle: number } | undefined {
+	export function parse(resource: URI): number | undefined {
 		if (resource.scheme !== scheme) {
 			return undefined;
 		}
@@ -194,7 +200,7 @@ export namespace ChatUri {
 			return undefined;
 		}
 
-		return { handle };
+		return handle;
 	}
 }
 

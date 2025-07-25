@@ -273,11 +273,6 @@ abstract class BaseCheckbox extends Widget {
 		super();
 
 		this.applyStyles();
-
-		this._register(this.checkbox.onChange(keyboard => {
-			this.applyStyles();
-			this._onChange.fire(keyboard);
-		}));
 	}
 
 	get enabled(): boolean {
@@ -322,12 +317,9 @@ abstract class BaseCheckbox extends Widget {
 export class Checkbox extends BaseCheckbox {
 	constructor(title: string, isChecked: boolean, styles: ICheckboxStyles) {
 		const toggle = new Toggle({ title, isChecked, icon: Codicon.check, actionClassName: BaseCheckbox.CLASS_NAME, hoverDelegate: styles.hoverDelegate, ...unthemedToggleStyles });
-
 		super(toggle, toggle.domNode, styles);
+
 		this._register(toggle);
-
-		this.applyStyles();
-
 		this._register(this.checkbox.onChange(keyboard => {
 			this.applyStyles();
 			this._onChange.fire(keyboard);
@@ -340,19 +332,27 @@ export class Checkbox extends BaseCheckbox {
 
 	set checked(newIsChecked: boolean) {
 		this.checkbox.checked = newIsChecked;
-		if (newIsChecked) {
+		this.applyStyles();
+	}
+
+	protected override applyStyles(enabled?: boolean): void {
+		if (this.checkbox.checked) {
 			this.checkbox.setIcon(Codicon.check);
 		} else {
 			this.checkbox.setIcon(undefined);
 		}
-		this.applyStyles();
+		super.applyStyles(enabled);
 	}
 }
 
 export class TriStateCheckbox extends BaseCheckbox {
-	constructor(title: string, initialState: boolean | 'partial', styles: ICheckboxStyles) {
+	constructor(
+		title: string,
+		private _state: boolean | 'partial',
+		styles: ICheckboxStyles
+	) {
 		let icon: ThemeIcon | undefined;
-		switch (initialState) {
+		switch (_state) {
 			case true:
 				icon = Codicon.check;
 				break;
@@ -365,30 +365,40 @@ export class TriStateCheckbox extends BaseCheckbox {
 		}
 		const checkbox = new Toggle({
 			title,
-			isChecked: initialState === true,
+			isChecked: _state === true,
 			icon,
 			actionClassName: Checkbox.CLASS_NAME,
 			hoverDelegate: styles.hoverDelegate,
 			...unthemedToggleStyles
 		});
-
 		super(
 			checkbox,
 			checkbox.domNode,
 			styles
 		);
+
 		this._register(checkbox);
+		this._register(this.checkbox.onChange(keyboard => {
+			this._state = this.checkbox.checked;
+			this.applyStyles();
+			this._onChange.fire(keyboard);
+		}));
 	}
 
 	get checked(): boolean | 'partial' {
-		return this.checkbox.checked;
+		return this._state;
 	}
 
 	set checked(newState: boolean | 'partial') {
-		const checked = newState === true;
-		this.checkbox.checked = checked;
+		if (this._state !== newState) {
+			this._state = newState;
+			this.checkbox.checked = newState === true;
+			this.applyStyles();
+		}
+	}
 
-		switch (newState) {
+	protected override applyStyles(enabled?: boolean): void {
+		switch (this._state) {
 			case true:
 				this.checkbox.setIcon(Codicon.check);
 				break;
@@ -399,8 +409,7 @@ export class TriStateCheckbox extends BaseCheckbox {
 				this.checkbox.setIcon(undefined);
 				break;
 		}
-
-		this.applyStyles();
+		super.applyStyles(enabled);
 	}
 }
 

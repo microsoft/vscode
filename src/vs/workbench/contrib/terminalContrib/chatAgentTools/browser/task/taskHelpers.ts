@@ -22,18 +22,18 @@ export function getTaskDefinition(id: string) {
 
 }
 
-export function getTaskRepresentation(task: IConfiguredTask): string {
-	if (task.label) {
+export function getTaskRepresentation(task: IConfiguredTask | Task): string {
+	if ('label' in task && task.label) {
 		return task.label;
-	} else if (task.script) {
+	} else if ('script' in task && task.script) {
 		return task.script;
-	} else if (task.command) {
-		return task.command;
+	} else if ('command' in task && task.command) {
+		return typeof task.command === 'string' ? task.command : task.command.name?.toString() || '';
 	}
 	return '';
 }
 
-export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task | undefined> {
+export async function getTaskForTool(id: string | undefined, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task | undefined> {
 	let index = 0;
 	let task: IConfiguredTask | undefined;
 	const configTasks: IConfiguredTask[] = (configurationService.getValue('tasks') as { tasks: IConfiguredTask[] }).tasks ?? [];
@@ -80,9 +80,13 @@ export async function getTaskForTool(id: string, taskDefinition: { taskLabel?: s
  * - `command`: (optional) A command associated with the task, if applicable.
  *
  */
-interface IConfiguredTask {
+export interface IConfiguredTask {
 	label?: string;
 	type?: string;
 	script?: string;
 	command?: string;
+	args?: string[];
+	isBackground?: boolean;
+	problemMatcher?: string[];
+	group?: string;
 }

@@ -33,9 +33,8 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { ResourceLabels, IResourceLabel } from '../../../browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { append, $ } from '../../../../base/browser/dom.js';
+import { append, $, getActiveWindow } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -45,13 +44,13 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { IChatWidgetService, IChatWidget } from './chat.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
-import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IChatEditorOptions } from './chatEditor.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -192,9 +191,11 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 		this.editorGroupService.groups.forEach(group => {
 			group.editors.forEach(editor => {
-				const key = this.getEditorKey(editor, group);
-				this.currentEditorSet.add(key);
-				this.editorOrder.push(key);
+				if (this.isLocalChatSession(editor)) {
+					const key = this.getEditorKey(editor, group);
+					this.currentEditorSet.add(key);
+					this.editorOrder.push(key);
+				}
 			});
 		});
 	}
@@ -220,9 +221,16 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		}));
 	}
 
+	private isLocalChatSession(editor?: EditorInput): boolean {
+		if (!(editor instanceof ChatEditorInput)) {
+			return false; // Only track ChatEditorInput instances
+		}
+		return editor.resource?.scheme === 'vscode-chat-editor';
+	}
+
 	private registerGroupListeners(group: IEditorGroup): void {
 		this._register(group.onDidModelChange(e => {
-			if (!(e.editor instanceof ChatEditorInput)) {
+			if (!this.isLocalChatSession(e.editor)) {
 				return;
 			}
 			switch (e.kind) {
@@ -401,7 +409,10 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		}
 	}
 
-	private updateViewRegistration(): void {
+	private async updateViewRegistration(): Promise<void> {
+		// prepare all chat session providers
+		const contributions = await this.chatSessionsService.getChatSessionContributions();
+		await Promise.all(contributions.map(contrib => this.chatSessionsService.canResolveItemProvider(contrib.id)));
 		const currentProviders = this.getAllChatSessionProviders();
 		const currentProviderIds = new Set(currentProviders.map(p => p.chatSessionType));
 
@@ -522,11 +533,60 @@ interface ISessionTemplateData {
 // Renderer for session items in the tree
 class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionItem, FuzzyScore, ISessionTemplateData> {
 	static readonly TEMPLATE_ID = 'session';
+	private appliedIconColorStyles = new Set<string>();
 
 	constructor(
-		private readonly labels: ResourceLabels
+		private readonly labels: ResourceLabels,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
+
+		// Listen for theme changes to clear applied styles
+		this._register(this.themeService.onDidColorThemeChange(() => {
+			this.appliedIconColorStyles.clear();
+		}));
+	}
+
+	private applyIconColorStyle(iconId: string, colorId: string): void {
+		const styleKey = `${iconId}-${colorId}`;
+		if (this.appliedIconColorStyles.has(styleKey)) {
+			return; // Already applied
+		}
+
+		const colorTheme = this.themeService.getColorTheme();
+		const color = colorTheme.getColor(colorId);
+
+		if (color) {
+			// Target the ::before pseudo-element where the actual icon is rendered
+			const css = `.monaco-workbench .chat-session-item .monaco-icon-label.codicon-${iconId}::before { color: ${color} !important; }`;
+			const activeWindow = getActiveWindow();
+
+			const styleId = `chat-sessions-icon-${styleKey}`;
+			const existingStyle = activeWindow.document.getElementById(styleId);
+			if (existingStyle) {
+				existingStyle.textContent = css;
+			} else {
+				const styleElement = activeWindow.document.createElement('style');
+				styleElement.id = styleId;
+				styleElement.textContent = css;
+				activeWindow.document.head.appendChild(styleElement);
+
+				// Clean up on dispose
+				this._register({
+					dispose: () => {
+						const activeWin = getActiveWindow();
+						const style = activeWin.document.getElementById(styleId);
+						if (style) {
+							style.remove();
+						}
+					}
+				});
+			}
+
+			this.appliedIconColorStyles.add(styleKey);
+		} else {
+			console.log('No color found for colorId:', colorId);
+		}
 	}
 
 	get templateId(): string {
@@ -561,6 +621,10 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 				// Handle {light, dark} structure
 				iconResource = session.iconPath.light;
 			}
+		}
+		// Apply color styling if specified
+		if (iconTheme?.color?.id) {
+			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
 		// Set the resource label
@@ -599,9 +663,7 @@ class SessionsViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -638,7 +700,7 @@ class SessionsViewPane extends ViewPane {
 		this.dataSource = new SessionsDataSource(this.provider);
 
 		const delegate = new SessionsDelegate();
-		const renderer = new SessionsRenderer(this.labels);
+		const renderer = new SessionsRenderer(this.labels, this.themeService);
 		this._register(renderer);
 
 		this.tree = this.instantiationService.createInstance(
@@ -679,18 +741,12 @@ class SessionsViewPane extends ViewPane {
 				}
 			} else {
 				const ckey = this.contextKeyService.createKey('chatSessionType', element.provider.chatSessionType);
-				const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.contextKeyService);
-				const menuActions = getContextMenuActions(actions, 'navigation');
 				ckey.reset();
 
-				const allActions = [...menuActions.primary, ...menuActions.secondary];
-				const mainAction = allActions[0];
-				if (mainAction) {
-					this.commandService.executeCommand(mainAction.id, {
-						id: element.id,
-						$mid: MarshalledId.ChatSessionContext
-					});
-				}
+				await this.editorService.openEditor({
+					resource: ChatSessionUri.forSession(element.provider.chatSessionType, element.id),
+					options: { pinned: true } satisfies IChatEditorOptions
+				});
 			}
 		}));
 

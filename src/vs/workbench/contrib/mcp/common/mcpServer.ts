@@ -81,6 +81,7 @@ type ServerBootStateClassification = {
 interface IToolCacheEntry {
 	readonly serverName: string | undefined;
 	readonly serverInstructions: string | undefined;
+	readonly trustedAtNonce: string | undefined;
 
 	readonly nonce: string | undefined;
 	/** Cached tools so we can show what's available before it's started */
@@ -90,6 +91,16 @@ interface IToolCacheEntry {
 	/** Cached capabilities */
 	readonly capabilities: McpCapability | undefined;
 }
+
+const emptyToolEntry: IToolCacheEntry = {
+	serverName: undefined,
+	serverInstructions: undefined,
+	trustedAtNonce: undefined,
+	nonce: undefined,
+	tools: [],
+	prompts: undefined,
+	capabilities: undefined,
+};
 
 interface IServerCacheEntry {
 	readonly servers: readonly McpServerDefinition.Serialized[];
@@ -146,8 +157,9 @@ export class McpServerMetadataCache extends Disposable {
 	}
 
 	/** Sets cached primitives for a server */
-	store(definitionId: string, entry: IToolCacheEntry): void {
-		this.cache.set(definitionId, entry);
+	store(definitionId: string, entry: Partial<IToolCacheEntry>): void {
+		const prev = this.get(definitionId) || emptyToolEntry;
+		this.cache.set(definitionId, { ...prev, ...entry });
 		this.didChange = true;
 	}
 
@@ -215,7 +227,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	 * connection started if it is not already.
 	 */
 	public static async callOn<R>(server: IMcpServer, fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
-		await server.start(); // idempotent
+		await server.start({ promptType: 'all-untrusted' }); // idempotent
 
 		let ranOnce = false;
 		let d: IDisposable;
@@ -278,6 +290,14 @@ export class McpServer extends Disposable implements IMcpServer {
 		return this._serverMetadata.value;
 	}
 
+	public get trustedAtNonce() {
+		return this._primitiveCache.get(this.definition.id)?.trustedAtNonce;
+	}
+
+	public set trustedAtNonce(nonce: string | undefined) {
+		this._primitiveCache.store(this.definition.id, { trustedAtNonce: nonce });
+	}
+
 	private readonly _fullDefinitions: IObservable<{
 		server: McpServerDefinition | undefined;
 		collection: McpCollectionDefinition | undefined;
@@ -317,10 +337,6 @@ export class McpServer extends Disposable implements IMcpServer {
 	private _lastModeDebugged = false;
 	/** Count of running tool calls, used to detect if sampling is during an LM call */
 	public runningToolCalls = new Set<IMcpToolCallContext>();
-
-	public get trusted() {
-		return this._mcpRegistry.getTrust(this.collection);
-	}
 
 	constructor(
 		public readonly collection: McpCollectionReference,
@@ -460,8 +476,10 @@ export class McpServer extends Disposable implements IMcpServer {
 		}, token);
 	}
 
-	public start({ isFromInteraction, debug }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
-		return this._connectionSequencer.queue(async () => {
+	public start({ interaction, autoTrustChanges, promptType, debug }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
+		interaction?.participants.set(this.definition.id, { s: 'unknown' });
+
+		return this._connectionSequencer.queue<McpConnectionState>(async () => {
 			const activationEvent = mcpActivationEvent(this.collection.id.slice(extensionMcpCollectionPrefix.length));
 			if (this._requiresExtensionActivation && !this._extensionService.activationEventIsDone(activationEvent)) {
 				await this._extensionService.activateByEvent(activationEvent);
@@ -483,11 +501,18 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			if (!connection) {
 				this._lastModeDebugged = !!debug;
+				const that = this;
 				connection = await this._mcpRegistry.resolveConnection({
+					interaction,
+					autoTrustChanges,
+					promptType,
+					trustNonceBearer: {
+						get trustedAtNonce() { return that.trustedAtNonce; },
+						set trustedAtNonce(nonce: string | undefined) { that.trustedAtNonce = nonce; }
+					},
 					logger: this._logger,
 					collectionRef: this.collection,
 					definitionRef: this.definition,
-					forceTrust: isFromInteraction,
 					debug,
 				});
 				if (!connection) {
@@ -502,7 +527,7 @@ export class McpServer extends Disposable implements IMcpServer {
 				this._connection.set(connection, undefined);
 			}
 
-			if (isFromInteraction && connection.definition.devMode) {
+			if (connection.definition.devMode) {
 				this.showOutput();
 			}
 
@@ -531,11 +556,13 @@ export class McpServer extends Disposable implements IMcpServer {
 				time: Date.now() - start,
 			});
 
-			if (state.state === McpConnectionState.Kind.Error && isFromInteraction) {
+			if (state.state === McpConnectionState.Kind.Error) {
 				this.showInteractiveError(connection, state, debug);
 			}
 
 			return state;
+		}).finally(() => {
+			interaction?.participants.set(this.definition.id, { s: 'resolved' });
 		});
 	}
 
@@ -699,14 +726,18 @@ export class McpServer extends Disposable implements IMcpServer {
 		transaction(tx => {
 			// note: all update* methods must use tx synchronously
 			const capabilities = encodeCapabilities(handler.capabilities);
+			this._primitiveCache.store(this.definition.id, {
+				serverName: handler.serverInfo.title || handler.serverInfo.name,
+				serverInstructions: handler.serverInstructions,
+				capabilities,
+			});
+
 			this._capabilities.set(capabilities, tx);
 
 			this._serverMetadata.fromServerPromise.set(metadataPromise, tx);
 
 			Promise.all([updateTools(tx), updatePrompts(tx)]).then(([{ data: tools }, { data: prompts }]) => {
 				this._primitiveCache.store(this.definition.id, {
-					serverName: handler.serverInfo.title || handler.serverInfo.name,
-					serverInstructions: handler.serverInstructions,
 					nonce: cacheNonce,
 					tools,
 					prompts,

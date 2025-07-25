@@ -2718,6 +2718,91 @@ export namespace ChatPrepareToolInvocationPart {
 	}
 }
 
+export namespace ChatToolInvocationPart {
+	export function from(part: vscode.ChatToolInvocationPart): any {
+		// Convert extension API ChatToolInvocationPart to internal serialized format
+		return {
+			kind: 'toolInvocationSerialized',
+			toolCallId: part.toolCallId,
+			toolId: part.toolName,
+			invocationMessage: part.invocationMessage || part.toolName,
+			originMessage: part.originMessage,
+			pastTenseMessage: part.pastTenseMessage,
+			isConfirmed: part.isConfirmed,
+			isComplete: part.isComplete ?? true,
+			isError: part.isError ?? false,
+			resultDetails: undefined,
+			toolSpecificData: part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined,
+			presentation: undefined
+		};
+	}
+
+	function convertToolSpecificData(data: any): any {
+		// Convert extension API terminal tool data to internal format
+		if ('command' in data && 'language' in data) {
+			// ChatTerminalToolInvocationData
+			return {
+				kind: 'terminal',
+				command: data.command,
+				language: data.language
+			};
+		} else if ('commandLine' in data && 'language' in data) {
+			// ChatTerminalToolInvocationData2
+			return {
+				kind: 'terminal2',
+				commandLine: data.commandLine,
+				language: data.language
+			};
+		}
+		return data;
+	}
+
+	export function to(part: any): vscode.ChatToolInvocationPart {
+		const toolInvocation = new types.ChatToolInvocationPart(
+			part.toolId || part.toolName,
+			part.toolCallId,
+			part.isError
+		);
+
+		if (part.invocationMessage) {
+			toolInvocation.invocationMessage = part.invocationMessage;
+		}
+		if (part.originMessage) {
+			toolInvocation.originMessage = part.originMessage;
+		}
+		if (part.pastTenseMessage) {
+			toolInvocation.pastTenseMessage = part.pastTenseMessage;
+		}
+		if (part.isConfirmed !== undefined) {
+			toolInvocation.isConfirmed = part.isConfirmed;
+		}
+		if (part.isComplete !== undefined) {
+			toolInvocation.isComplete = part.isComplete;
+		}
+		if (part.toolSpecificData) {
+			toolInvocation.toolSpecificData = convertFromInternalToolSpecificData(part.toolSpecificData);
+		}
+
+		return toolInvocation;
+	}
+
+	function convertFromInternalToolSpecificData(data: any): any {
+		// Convert internal terminal tool data to extension API format
+		if (data.kind === 'terminal') {
+			return {
+				command: data.command,
+				language: data.language
+			};
+		} else if (data.kind === 'terminal2') {
+			return {
+				commandLine: data.commandLine,
+				language: data.language
+			};
+		}
+		return data;
+	}
+}
+
 export namespace ChatTask {
 	export function from(part: vscode.ChatResponseProgressPart2): IChatTaskDto {
 		return {
@@ -2897,6 +2982,8 @@ export namespace ChatResponsePart {
 			return ChatResponseExtensionsPart.from(part);
 		} else if (part instanceof types.ChatPrepareToolInvocationPart) {
 			return ChatPrepareToolInvocationPart.from(part);
+		} else if (part instanceof types.ChatToolInvocationPart) {
+			return ChatToolInvocationPart.from(part);
 		}
 
 		return {
@@ -3111,6 +3198,7 @@ export namespace ChatAgentResult {
 			errorDetails: result.errorDetails,
 			metadata: reviveMetadata(result.metadata),
 			nextQuestion: result.nextQuestion,
+			details: result.details,
 		};
 	}
 	export function from(result: vscode.ChatResult): Dto<IChatAgentResult> {
@@ -3118,6 +3206,7 @@ export namespace ChatAgentResult {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
 			nextQuestion: result.nextQuestion,
+			details: result.details
 		};
 	}
 
@@ -3170,6 +3259,21 @@ export namespace ChatAgentUserActionEvent {
 					outcome: outcomes.get(event.action.outcome) ?? types.ChatEditingSessionActionOutcome.Rejected,
 					uri: URI.revive(event.action.uri),
 					hasRemainingEdits: event.action.hasRemainingEdits
+				}, result: ehResult
+			};
+		} else if (event.action.kind === 'chatEditingHunkAction') {
+			const outcomes = new Map([
+				['accepted', types.ChatEditingSessionActionOutcome.Accepted],
+				['rejected', types.ChatEditingSessionActionOutcome.Rejected],
+			]);
+
+			return {
+				action: {
+					kind: 'chatEditingHunkAction',
+					outcome: outcomes.get(event.action.outcome) ?? types.ChatEditingSessionActionOutcome.Rejected,
+					uri: URI.revive(event.action.uri),
+					hasRemainingEdits: event.action.hasRemainingEdits,
+					lineCount: event.action.lineCount
 				}, result: ehResult
 			};
 		} else {
