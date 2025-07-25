@@ -107,7 +107,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					const _progressEmitter = new Emitter<IChatProgress[]>;
 					this._activeProgressEmitters.set(progressKey, _progressEmitter);
 					_progressEmitter.event(e => {
-						console.log(e);
 						progress(e);
 					});
 
