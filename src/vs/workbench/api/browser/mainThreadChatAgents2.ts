@@ -245,8 +245,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		chunks.forEach(item => {
 			const [progress, responsePartHandle] = Array.isArray(item) ? item : [item];
 
-			if (progress.kind === 'clear') {
-				chatProgressParts.push({ kind: 'clear', reason: progress.reason });
+			if (progress.kind === 'clearToPreviousToolInvocation') {
+				chatProgressParts.push({ kind: 'clearToPreviousToolInvocation', reason: progress.reason });
 				return;
 			}
 

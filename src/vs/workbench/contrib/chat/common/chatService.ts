@@ -102,7 +102,7 @@ export enum ChatResponseReferencePartStatusKind {
 	Omitted = 3
 }
 
-export enum ChatResponseClearReason {
+export enum ChatResponseClearToPreviousToolInvocationReason {
 	NoReason = 0,
 	FilteredContentRetry = 1,
 	CopyrightContentRetry = 2,
@@ -235,9 +235,9 @@ export interface IChatTextEdit {
 	done?: boolean;
 }
 
-export interface IChatClear {
-	kind: 'clear';
-	reason: ChatResponseClearReason;
+export interface IChatClearToPreviousToolInvocation {
+	kind: 'clearToPreviousToolInvocation';
+	reason: ChatResponseClearToPreviousToolInvocationReason;
 }
 
 export interface IChatNotebookEdit {
@@ -381,7 +381,7 @@ export type IChatProgress =
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
-	| IChatClear
+	| IChatClearToPreviousToolInvocation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent

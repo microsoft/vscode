@@ -299,7 +299,7 @@ declare module 'vscode' {
 
 		push(part: ExtendedChatResponsePart): void;
 
-		clear(reason: ChatResponseClearReason): void;
+		clearToPreviousToolInvocation(reason: ChatResponseClearToPreviousToolInvocationReason): void;
 	}
 
 	export enum ChatResponseReferencePartStatusKind {
@@ -308,7 +308,7 @@ declare module 'vscode' {
 		Omitted = 3
 	}
 
-	export enum ChatResponseClearReason {
+	export enum ChatResponseClearToPreviousToolInvocationReason {
 		NoReason = 0,
 		FilteredContentRetry = 1,
 		CopyrightContentRetry = 2,

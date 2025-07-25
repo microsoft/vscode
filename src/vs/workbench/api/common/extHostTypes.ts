@@ -4848,7 +4848,7 @@ export enum ChatResponseReferencePartStatusKind {
 	Omitted = 3
 }
 
-export enum ChatResponseClearReason {
+export enum ChatResponseClearToPreviousToolInvocationReason {
 	NoReason = 0,
 	FilteredContentRetry = 1,
 	CopyrightContentRetry = 2,

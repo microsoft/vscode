@@ -135,9 +135,9 @@ export class ChatAgentResponseStream {
 			};
 
 			this._apiObject = Object.freeze<vscode.ChatResponseStream>({
-				clear(reason) {
+				clearToPreviousToolInvocation(reason) {
 					throwIfDone(this.markdown);
-					send({ kind: 'clear', reason: reason });
+					send({ kind: 'clearToPreviousToolInvocation', reason: reason });
 					return this;
 				},
 				markdown(value) {

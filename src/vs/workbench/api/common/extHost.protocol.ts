@@ -57,7 +57,7 @@ import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from '../../c
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
-import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction, ChatResponseClearReason } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction, ChatResponseClearToPreviousToolInvocationReason } from '../../contrib/chat/common/chatService.js';
 import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -1439,7 +1439,7 @@ export type IChatProgressDto =
 	| Dto<Exclude<IChatProgress, IChatTask | IChatNotebookEdit>>
 	| IChatTaskDto
 	| IChatNotebookEditDto
-	| IChatResponseClearDto;
+	| IChatResponseClearToPreviousToolInvocationDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -2194,9 +2194,9 @@ export interface IChatNotebookEditDto {
 	done?: boolean;
 }
 
-export interface IChatResponseClearDto {
-	kind: 'clear';
-	reason: ChatResponseClearReason;
+export interface IChatResponseClearToPreviousToolInvocationDto {
+	kind: 'clearToPreviousToolInvocation';
+	reason: ChatResponseClearToPreviousToolInvocationReason;
 }
 
 export type ICellEditOperationDto =
