@@ -3133,12 +3133,12 @@ declare module 'vscode' {
 	 */
 	export class EvaluatableExpression {
 
-		/*
+		/**
 		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
 		 */
 		readonly range: Range;
 
-		/*
+		/**
 		 * If specified the expression overrides the extracted expression.
 		 */
 		readonly expression?: string | undefined;
