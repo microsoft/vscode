@@ -229,7 +229,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			if (command.exitCode !== undefined && buffer && marker) {
 				// Only register if cursor is at or below the command start marker
 				// This prevents misplaced decorations when watch commands clear previous output
-				if (buffer.cursorY >= marker.line) {
+				if (buffer.baseY + buffer.cursorY >= marker.line) {
 					this.registerCommandDecoration(command);
 				}
 			} else {
