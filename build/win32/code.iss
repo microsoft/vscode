@@ -1606,15 +1606,12 @@ var
   Parts: TArrayOfString;
   NewPath: string;
   i: Integer;
-  ResultCode: Integer;
 begin
   if not CurUninstallStep = usUninstall then begin
     exit;
   end;
 #ifdef AppxPackageFullname
-  if AppxPackageInstalled(ResultCode) then begin
-    RemoveAppxPackage();
-  end;
+  RemoveAppxPackage();
 #endif
   if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', Path)
   then begin
