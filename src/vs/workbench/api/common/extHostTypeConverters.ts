@@ -41,7 +41,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -2633,6 +2633,30 @@ export namespace ChatResponseFilesPart {
 	}
 }
 
+export namespace ChatResponseMultiDiffPart {
+	export function from(part: vscode.ChatResponseMultiDiffPart): IChatMultiDiffData {
+		return {
+			kind: 'multiDiffData',
+			multiDiffData: {
+				title: part.title,
+				resources: part.value.map(entry => ({
+					originalUri: entry.originalUri,
+					modifiedUri: entry.modifiedUri,
+					goToFileUri: entry.goToFileUri
+				}))
+			}
+		};
+	}
+	export function to(part: Dto<IChatMultiDiffData>): vscode.ChatResponseMultiDiffPart {
+		const resources = part.multiDiffData.resources.map(resource => ({
+			originalUri: resource.originalUri ? URI.revive(resource.originalUri) : undefined,
+			modifiedUri: resource.modifiedUri ? URI.revive(resource.modifiedUri) : undefined,
+			goToFileUri: resource.goToFileUri ? URI.revive(resource.goToFileUri) : undefined
+		}));
+		return new types.ChatResponseMultiDiffPart(resources, part.multiDiffData.title);
+	}
+}
+
 export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
 		// Work around type-narrowing confusion between vscode.Uri and URI
@@ -2977,6 +3001,8 @@ export namespace ChatResponsePart {
 			return ChatResponseProgressPart.from(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.from(part);
+		} else if (part instanceof types.ChatResponseMultiDiffPart) {
+			return ChatResponseMultiDiffPart.from(part);
 		} else if (part instanceof types.ChatResponseCommandButtonPart) {
 			return ChatResponseCommandButtonPart.from(part, commandsConverter, commandDisposables);
 		} else if (part instanceof types.ChatResponseTextEditPart) {
