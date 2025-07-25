@@ -333,7 +333,8 @@ export class CodeCell extends Disposable {
 				// do not reveal the cell into view if this selection change was caused by restoring editors
 				e.source === 'restoreState' || e.oldModelVersionId === 0
 				// nor if the text editor is not actually focused (e.g. inline chat is focused and modifying the cell content)
-				|| !this.templateData.editor.hasTextFocus()) {
+				|| !this.templateData.editor.hasTextFocus()
+			) {
 				return;
 			}
 
