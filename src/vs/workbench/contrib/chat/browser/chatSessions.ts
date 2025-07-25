@@ -542,7 +542,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 	constructor(
 		private readonly labels: ResourceLabels,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -590,7 +591,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 			this.appliedIconColorStyles.add(styleKey);
 		} else {
-			console.log('No color found for colorId:', colorId);
+			this.logService.debug('No color found for colorId:', colorId);
 		}
 	}
 
@@ -676,6 +677,7 @@ class SessionsViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -683,7 +685,7 @@ class SessionsViewPane extends ViewPane {
 		if (provider instanceof LocalChatSessionsProvider) {
 			this._register(provider.onDidChange(() => {
 				if (this.tree && this.isBodyVisible()) {
-					this.tree.updateChildren(this.provider);
+					this.refreshTreeWithProgress();
 				}
 			}));
 		}
@@ -695,7 +697,49 @@ class SessionsViewPane extends ViewPane {
 
 	public refreshTree(): void {
 		if (this.tree && this.isBodyVisible()) {
-			this.tree.updateChildren(this.provider);
+			this.refreshTreeWithProgress();
+		}
+	}
+
+	/**
+	 * Refreshes the tree data with progress indication.
+	 * Shows a progress indicator while the tree updates its children from the provider.
+	 */
+	private async refreshTreeWithProgress(): Promise<void> {
+		if (!this.tree) {
+			return;
+		}
+
+		const progressIndicator = this.getProgressIndicator();
+
+		try {
+			// Show progress while refreshing tree data
+			const refreshPromise = this.tree.updateChildren(this.provider);
+			await progressIndicator.showWhile(refreshPromise, 0); // Show immediately, no delay
+		} catch (error) {
+			// Log error but don't throw to avoid breaking the UI
+			this.logService.error('Error refreshing chat sessions tree:', error);
+		}
+	}
+
+	/**
+	 * Loads initial tree data with progress indication.
+	 * Shows a progress indicator while the tree loads data from the provider.
+	 */
+	private async loadDataWithProgress(): Promise<void> {
+		if (!this.tree) {
+			return;
+		}
+
+		const progressIndicator = this.getProgressIndicator();
+
+		try {
+			// Show progress while loading data
+			const loadingPromise = this.tree.setInput(this.provider);
+			await progressIndicator.showWhile(loadingPromise, 0); // Show immediately, no delay
+		} catch (error) {
+			// Log error but don't throw to avoid breaking the UI
+			this.logService.error('Error loading chat sessions data:', error);
 		}
 	}
 
@@ -711,7 +755,7 @@ class SessionsViewPane extends ViewPane {
 		this.dataSource = new SessionsDataSource(this.provider);
 
 		const delegate = new SessionsDelegate();
-		const renderer = new SessionsRenderer(this.labels, this.themeService);
+		const renderer = new SessionsRenderer(this.labels, this.themeService, this.logService);
 		this._register(renderer);
 
 		this.tree = this.instantiationService.createInstance(
@@ -737,7 +781,7 @@ class SessionsViewPane extends ViewPane {
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
 
-		console.log('Tree created with hideTwistiesOfChildlessElements: true');
+		this.logService.debug('Tree created with hideTwistiesOfChildlessElements: true');
 		this._register(this.tree);
 
 		// Handle double-click and keyboard selection to open editors
@@ -764,13 +808,13 @@ class SessionsViewPane extends ViewPane {
 		// Handle visibility changes to load data
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible && this.tree) {
-				await this.tree.setInput(this.provider);
+				await this.loadDataWithProgress();
 			}
 		}));
 
 		// Initially load data if visible
 		if (this.isBodyVisible() && this.tree) {
-			this.tree.setInput(this.provider);
+			this.loadDataWithProgress();
 		}
 	}
 
