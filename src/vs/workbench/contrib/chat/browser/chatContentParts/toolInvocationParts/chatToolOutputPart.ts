@@ -12,7 +12,7 @@ import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../../common/chatService.js';
 import { IToolResultOutputDetails } from '../../../common/languageModelToolsService.js';
-import { IChatCodeBlockInfo } from '../../chat.js';
+import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { IChatOutputRendererService } from '../../chatOutputItemRenderer.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
@@ -28,8 +28,9 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		_context: IChatContentPartRenderContext,
+		private readonly context: IChatContentPartRenderContext,
 		@IChatOutputRendererService private readonly chatOutputItemRendererService: IChatOutputRendererService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(toolInvocation);
@@ -55,6 +56,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 	private createOutputPart(details: IToolResultOutputDetails): HTMLElement {
 		const parent = dom.$('div.webview-output');
 		parent.style.maxHeight = '80vh';
+		// TODO: we should cache the height when restoring to avoid extra layout shifts
 
 		const progressMessage = dom.$('span');
 		progressMessage.textContent = localize('loading', 'Rendering tool output...');
@@ -74,6 +76,14 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			this._onDidChangeHeight.fire();
 			this._register(renderedItem.onDidChangeHeight(() => {
 				this._onDidChangeHeight.fire();
+			}));
+
+			this._register(renderedItem.webview.onDidWheel(e => {
+				this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.delegateScrollFromMouseWheelEvent({
+					...e,
+					preventDefault: () => { },
+					stopPropagation: () => { }
+				});
 			}));
 		}, (error) => {
 			// TODO: show error in UI too
