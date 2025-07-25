@@ -665,7 +665,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				_version: 2,
 			});
 
-			if (result && typeof result === 'object' /* TODO: Better checks here */) {
+			if (result && typeof result === 'object' /* _version === 2 */) {
 				chatModel.acceptResponseProgress(addedRequest, { kind: 'pullRequest', ...result });
 			} else if (typeof result === 'string') {
 				chatModel.acceptResponseProgress(addedRequest, {
