@@ -466,6 +466,21 @@
 		display: inherit;
 	}
 
+	.tool-output-part {
+		border: 1px solid var(--vscode-widget-border);
+		border-radius: 6px;
+		background: var(--vscode-editor-background);
+		margin: 4px 0;
+		overflow: hidden;
+
+		.output-title {
+			font-size: 13px;
+			padding: 8px 12px;
+			background: var(--vscode-editorWidget-background);
+			border-bottom: 1px solid var(--vscode-widget-border);
+		}
+	}
+
 	&:not(:last-child) {
 		margin-bottom: 8px;
 	}
