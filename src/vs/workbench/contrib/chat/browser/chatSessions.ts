@@ -537,7 +537,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 	constructor(
 		private readonly labels: ResourceLabels,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -585,7 +586,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 			this.appliedIconColorStyles.add(styleKey);
 		} else {
-			console.log('No color found for colorId:', colorId);
+			this.logService.debug('No color found for colorId:', colorId);
 		}
 	}
 
@@ -665,6 +666,7 @@ class SessionsViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -698,14 +700,14 @@ class SessionsViewPane extends ViewPane {
 		}
 
 		const progressIndicator = this.getProgressIndicator();
-		
+
 		try {
 			// Show progress while refreshing tree data
 			const refreshPromise = this.tree.updateChildren(this.provider);
 			await progressIndicator.showWhile(refreshPromise, 0); // Show immediately, no delay
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
-			console.error('Error refreshing chat sessions tree:', error);
+			this.logService.error('Error refreshing chat sessions tree:', error);
 		}
 	}
 
@@ -719,14 +721,14 @@ class SessionsViewPane extends ViewPane {
 		}
 
 		const progressIndicator = this.getProgressIndicator();
-		
+
 		try {
 			// Show progress while loading data
 			const loadingPromise = this.tree.setInput(this.provider);
 			await progressIndicator.showWhile(loadingPromise, 0); // Show immediately, no delay
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
-			console.error('Error loading chat sessions data:', error);
+			this.logService.error('Error loading chat sessions data:', error);
 		}
 	}
 
@@ -742,7 +744,7 @@ class SessionsViewPane extends ViewPane {
 		this.dataSource = new SessionsDataSource(this.provider);
 
 		const delegate = new SessionsDelegate();
-		const renderer = new SessionsRenderer(this.labels, this.themeService);
+		const renderer = new SessionsRenderer(this.labels, this.themeService, this.logService);
 		this._register(renderer);
 
 		this.tree = this.instantiationService.createInstance(
@@ -768,7 +770,7 @@ class SessionsViewPane extends ViewPane {
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
 
-		console.log('Tree created with hideTwistiesOfChildlessElements: true');
+		this.logService.debug('Tree created with hideTwistiesOfChildlessElements: true');
 		this._register(this.tree);
 
 		// Handle double-click and keyboard selection to open editors
