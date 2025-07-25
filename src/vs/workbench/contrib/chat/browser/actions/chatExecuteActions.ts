@@ -662,6 +662,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				userPrompt,
 				summary: summary || userPrompt,
 				followup,
+				_version: 2,
 			});
 
 			if (result && typeof result === 'object' /* TODO: Better checks here */) {
