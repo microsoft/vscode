@@ -2531,34 +2531,6 @@ export namespace LanguageModelChatMessage2 {
 	}
 }
 
-export namespace ExtendedChatResponsePart {
-	export function to(part: chatProvider.IExtendedChatResponsePart | undefined): vscode.ExtendedChatResponsePart | undefined {
-		if (part?.type === 'pullRequest') {
-			return new types.ChatResponsePullRequestPart(
-				URI.revive(part.uri),
-				part.title,
-				part.description,
-				part.author,
-				part.linkTag
-			);
-		}
-		return undefined;
-	}
-	export function from(part: vscode.ExtendedChatResponsePart | undefined): chatProvider.IExtendedChatResponsePart | undefined {
-		if (part instanceof types.ChatResponsePullRequestPart) {
-			return {
-				type: 'pullRequest',
-				uri: part.uri,
-				title: part.title,
-				description: part.description,
-				author: part.author,
-				linkTag: part.linkTag
-			};
-		}
-		return undefined;
-	}
-}
-
 function isImageDataPart(part: types.LanguageModelDataPart): boolean {
 	switch (part.mimeType) {
 		case types.ChatImageMimeType.PNG:
