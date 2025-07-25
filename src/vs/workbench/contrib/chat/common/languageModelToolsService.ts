@@ -22,6 +22,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { localize } from '../../../../nls.js';
+import { ToolResultAudience } from './languageModels.js';
 
 export interface IToolData {
 	id: string;
@@ -191,6 +192,7 @@ export function stringifyPromptTsxPart(part: IToolResultPromptTsxPart): string {
 export interface IToolResultTextPart {
 	kind: 'text';
 	value: string;
+	audience?: ToolResultAudience[];
 }
 
 export interface IToolResultDataPart {
@@ -199,6 +201,7 @@ export interface IToolResultDataPart {
 		mimeType: string;
 		data: VSBuffer;
 	};
+	audience?: ToolResultAudience[];
 }
 
 export interface IToolConfirmationMessages {

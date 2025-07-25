@@ -41,7 +41,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -2316,11 +2316,11 @@ export namespace LanguageModelChatMessage {
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
 		const content = message.content.map(c => {
 			if (c.type === 'text') {
-				return new LanguageModelTextPart(c.value);
+				return new LanguageModelTextPart(c.value, c.audience);
 			} else if (c.type === 'tool_result') {
 				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[] = c.value.map(part => {
 					if (part.type === 'text') {
-						return new types.LanguageModelTextPart(part.value);
+						return new types.LanguageModelTextPart(part.value, part.audience);
 					} else {
 						return new types.LanguageModelPromptTsxPart(part.value);
 					}
@@ -2360,7 +2360,8 @@ export namespace LanguageModelChatMessage {
 						if (part instanceof types.LanguageModelTextPart) {
 							return {
 								type: 'text',
-								value: part.value
+								value: part.value,
+								audience: part.audience,
 							} satisfies IChatResponseTextPart;
 						} else if (part instanceof types.LanguageModelPromptTsxPart) {
 							return {
@@ -2411,11 +2412,11 @@ export namespace LanguageModelChatMessage2 {
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage2 {
 		const content = message.content.map(c => {
 			if (c.type === 'text') {
-				return new LanguageModelTextPart(c.value);
+				return new LanguageModelTextPart(c.value, c.audience);
 			} else if (c.type === 'tool_result') {
 				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[] = c.value.map(part => {
 					if (part.type === 'text') {
-						return new types.LanguageModelTextPart(part.value);
+						return new types.LanguageModelTextPart(part.value, part.audience);
 					} else if (part.type === 'data') {
 						return new types.LanguageModelDataPart(part.value.data.buffer, part.value.mimeType);
 					} else {
@@ -2455,7 +2456,8 @@ export namespace LanguageModelChatMessage2 {
 						if (part instanceof types.LanguageModelTextPart) {
 							return {
 								type: 'text',
-								value: part.value
+								value: part.value,
+								audience: part.audience,
 							} satisfies IChatResponseTextPart;
 						} else if (part instanceof types.LanguageModelPromptTsxPart) {
 							return {
@@ -2468,7 +2470,8 @@ export namespace LanguageModelChatMessage2 {
 								value: {
 									mimeType: part.mimeType as chatProvider.ChatImageMimeType,
 									data: VSBuffer.wrap(part.data)
-								}
+								},
+								audience: part.audience
 							} satisfies IChatResponseDataPart;
 						} else {
 							// Strip unknown parts
@@ -2493,6 +2496,7 @@ export namespace LanguageModelChatMessage2 {
 						type: 'data',
 						mimeType: c.mimeType,
 						data: VSBuffer.wrap(c.data),
+						audience: c.audience
 					} satisfies IChatMessageDataPart;
 				}
 			} else if (c instanceof types.LanguageModelToolCallPart) {
@@ -2524,6 +2528,34 @@ export namespace LanguageModelChatMessage2 {
 			name,
 			content
 		};
+	}
+}
+
+export namespace ExtendedChatResponsePart {
+	export function to(part: chatProvider.IExtendedChatResponsePart | undefined): vscode.ExtendedChatResponsePart | undefined {
+		if (part?.type === 'pullRequest') {
+			return new types.ChatResponsePullRequestPart(
+				URI.revive(part.uri),
+				part.title,
+				part.description,
+				part.author,
+				part.linkTag
+			);
+		}
+		return undefined;
+	}
+	export function from(part: vscode.ExtendedChatResponsePart | undefined): chatProvider.IExtendedChatResponsePart | undefined {
+		if (part instanceof types.ChatResponsePullRequestPart) {
+			return {
+				type: 'pullRequest',
+				uri: part.uri,
+				title: part.title,
+				description: part.description,
+				author: part.author,
+				linkTag: part.linkTag
+			};
+		}
+		return undefined;
 	}
 }
 
@@ -2688,6 +2720,19 @@ export namespace ChatResponseExtensionsPart {
 		return {
 			kind: 'extensions',
 			extensions: part.extensions
+		};
+	}
+}
+
+export namespace ChatResponsePullRequestPart {
+	export function from(part: vscode.ChatResponsePullRequestPart): Dto<IChatPullRequestContent> {
+		return {
+			kind: 'pullRequest',
+			author: part.author,
+			title: part.title,
+			description: part.description,
+			uri: part.uri,
+			linkTag: part.linkTag
 		};
 	}
 }
@@ -2897,6 +2942,8 @@ export namespace ChatResponsePart {
 			return ChatResponseExtensionsPart.from(part);
 		} else if (part instanceof types.ChatPrepareToolInvocationPart) {
 			return ChatPrepareToolInvocationPart.from(part);
+		} else if (part instanceof types.ChatResponsePullRequestPart) {
+			return ChatResponsePullRequestPart.from(part);
 		}
 
 		return {
@@ -3126,7 +3173,7 @@ export namespace ChatAgentResult {
 			if (value.$mid === MarshalledId.LanguageModelToolResult) {
 				return new types.LanguageModelToolResult(cloneAndChange(value.content, reviveMetadata));
 			} else if (value.$mid === MarshalledId.LanguageModelTextPart) {
-				return new types.LanguageModelTextPart(value.value);
+				return new types.LanguageModelTextPart(value.value, value.audience);
 			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {
 				return new types.LanguageModelPromptTsxPart(value.value);
 			}
@@ -3295,7 +3342,7 @@ export namespace LanguageModelToolResult {
 	export function to(result: IToolResult): vscode.LanguageModelToolResult {
 		return new types.LanguageModelToolResult(result.content.map(item => {
 			if (item.kind === 'text') {
-				return new types.LanguageModelTextPart(item.value);
+				return new types.LanguageModelTextPart(item.value, item.audience);
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
@@ -3307,12 +3354,20 @@ export namespace LanguageModelToolResult {
 			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 		}
 
+		const checkAudienceApi = (item: LanguageModelTextPart) => {
+			if (item.audience) {
+				checkProposedApiEnabled(extension, 'languageModelToolResultAudience');
+			}
+		};
+
 		return {
 			content: result.content.map(item => {
 				if (item instanceof types.LanguageModelTextPart) {
+					checkAudienceApi(item);
 					return {
 						kind: 'text',
-						value: item.value
+						value: item.value,
+						audience: item.audience
 					};
 				} else if (item instanceof types.LanguageModelPromptTsxPart) {
 					return {
@@ -3333,13 +3388,9 @@ export namespace LanguageModelToolResult2 {
 	export function to(result: IToolResult): vscode.LanguageModelToolResult2 {
 		return new types.LanguageModelToolResult2(result.content.map(item => {
 			if (item.kind === 'text') {
-				return new types.LanguageModelTextPart(item.value);
+				return new types.LanguageModelTextPart(item.value, item.audience);
 			} else if (item.kind === 'data') {
-				const mimeType = Object.values(types.ChatImageMimeType).includes(item.value.mimeType as types.ChatImageMimeType) ? item.value.mimeType as types.ChatImageMimeType : undefined;
-				if (!mimeType) {
-					throw new Error('Invalid MIME type');
-				}
-				return new types.LanguageModelDataPart(item.value.data.buffer, mimeType);
+				return new types.LanguageModelDataPart(item.value.data.buffer, item.value.mimeType, item.audience);
 			} else {
 				return new types.LanguageModelPromptTsxPart(item.value);
 			}
@@ -3350,6 +3401,12 @@ export namespace LanguageModelToolResult2 {
 		if (result.toolResultMessage) {
 			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 		}
+
+		const checkAudienceApi = (item: LanguageModelTextPart | LanguageModelDataPart) => {
+			if (item.audience) {
+				checkProposedApiEnabled(extension, 'languageModelToolResultAudience');
+			}
+		};
 
 		let hasBuffers = false;
 		let detailsDto: Dto<Array<URI | types.Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | undefined> = undefined;
@@ -3373,9 +3430,11 @@ export namespace LanguageModelToolResult2 {
 		const dto: Dto<IToolResult> = {
 			content: result.content.map(item => {
 				if (item instanceof types.LanguageModelTextPart) {
+					checkAudienceApi(item);
 					return {
 						kind: 'text',
-						value: item.value
+						value: item.value,
+						audience: item.audience
 					};
 				} else if (item instanceof types.LanguageModelPromptTsxPart) {
 					return {
@@ -3383,13 +3442,15 @@ export namespace LanguageModelToolResult2 {
 						value: item.value,
 					};
 				} else if (item instanceof types.LanguageModelDataPart) {
+					checkAudienceApi(item);
 					hasBuffers = true;
 					return {
 						kind: 'data',
 						value: {
 							mimeType: item.mimeType,
 							data: VSBuffer.wrap(item.data)
-						}
+						},
+						audience: item.audience
 					};
 				} else {
 					throw new Error('Unknown LanguageModelToolResult part type');
