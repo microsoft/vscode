@@ -476,6 +476,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				};
 				this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, () => ({
 					...this.defaultHoverOptions,
+					id: `scope-overrides-${element.setting.key}`,
 					content,
 					linkHandler: (url: string) => {
 						const [scope, language] = decodeURIComponent(url).split(':');
