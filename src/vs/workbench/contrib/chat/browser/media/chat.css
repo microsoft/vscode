@@ -1735,6 +1735,81 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 }
 
+/* Thinking content part styles */
+.interactive-item-container .value .rendered-markdown.chat-thinking,
+.interactive-item-container .value .thinking-content {
+	background-color: var(--vscode-chat-slashCommandBackground);
+	border-radius: 6px;
+	padding: 10px;
+	position: relative;
+	margin-bottom: 8px;
+	border-left: 3px solid var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value .rendered-markdown.chat-thinking::before {
+	content: "Thinking...";
+	font-style: italic;
+	color: var(--vscode-textLink-foreground);
+	font-weight: 600;
+	display: block;
+	margin-bottom: 6px;
+}
+
+.interactive-item-container .value .thinking-content .thinking-header {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 6px;
+	align-items: center;
+}
+
+.interactive-item-container .value .thinking-content .thinking-label {
+	font-style: italic;
+	color: var(--vscode-textLink-foreground);
+	font-weight: 600;
+}
+
+.interactive-item-container .value .thinking-content .thinking-dots {
+	display: inline-block;
+	min-width: 18px;
+	margin-left: 2px;
+}
+
+.interactive-item-container .value .rendered-markdown.chat-thinking .thinking-icon,
+.interactive-item-container .value .thinking-content .thinking-icon {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value .rendered-markdown.chat-thinking .thinking-metadata,
+.interactive-item-container .value .thinking-content .thinking-metadata {
+	margin-top: 8px;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+	padding-top: 6px;
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.interactive-item-container .value .thinking-content .thinking-text {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.5em;
+	font-family: var(--monaco-monospace-font);
+	padding: 4px 0;
+}
+
+.interactive-item-container .value .thinking-content .thinking-text-updated {
+	animation: thinking-update-flash 0.5s ease-out;
+}
+
+@keyframes thinking-update-flash {
+	0% {
+		background-color: var(--vscode-editor-inactiveSelectionBackground);
+	}
+	100% {
+		background-color: transparent;
+	}
+}
+
 .interactive-item-container .progress-container {
 	display: flex;
 	align-items: center;

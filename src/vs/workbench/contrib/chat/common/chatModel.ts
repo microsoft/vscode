@@ -495,6 +495,23 @@ export class Response extends AbstractResponse implements IDisposable {
 				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
 			}
 			this._updateRepr(quiet);
+		} else if (progress.kind === 'thinking') {
+
+			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
+			// the MD be chopped up by text edit groups (and likely other non-renderable parts)
+			const lastResponsePart = this._responseParts
+				.filter(p => p.kind !== 'textEditGroup')
+				.at(-1);
+
+			if (!lastResponsePart || lastResponsePart.kind !== 'thinking' || !canMergeMarkdownStrings(new MarkdownString(lastResponsePart.value), new MarkdownString(progress.value))) {
+				// The last part can't be merged with- not markdown, or markdown with different permissions
+				this._responseParts.push(progress);
+			} else {
+				// Don't modify the current object, since it's being diffed by the renderer
+				const idx = this._responseParts.indexOf(lastResponsePart);
+				this._responseParts[idx] = { ...lastResponsePart, value: appendMarkdownString(new MarkdownString(lastResponsePart.value), new MarkdownString(progress.value)).value };
+			}
+			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
 			// If the progress.uri is a cell Uri, its possible its part of the inline chat.
 			// Old approach of notebook inline chat would not start and end with notebook Uri, so we need to check for old approach.

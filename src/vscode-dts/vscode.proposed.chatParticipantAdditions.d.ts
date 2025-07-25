@@ -198,7 +198,7 @@ declare module 'vscode' {
 		*/
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
-		thinkingProgress(value: string, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>): void;
+		thinkingProgress(value: string, id?: string, metadata?: string): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 

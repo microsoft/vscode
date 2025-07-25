@@ -71,6 +71,7 @@ import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
+import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -81,7 +82,6 @@ import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js'
 import { canceledName } from '../../../../base/common/errors.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
-import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { CodiconActionViewItem } from '../../notebook/browser/view/cellParts/cellActionView.js';
 
@@ -926,6 +926,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const data = this.getDataForProgressiveRender(element);
 
 		// An unregistered setting for development- skip the word counting and smoothing, just render content as it comes in
+		// We always want to render thinking parts immediately for a smoother experience
 		const renderImmediately = this.configService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
 
 		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
@@ -971,6 +972,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 					break;
 				}
+			} else if (part.kind === 'thinking') {
+				partsToRender.push(part);
 			} else {
 				partsToRender.push(part);
 			}
@@ -1036,10 +1039,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private diff(renderedParts: ReadonlyArray<IChatContentPart>, contentToRender: ReadonlyArray<IChatRendererContent>, element: ChatTreeItem): ReadonlyArray<IChatRendererContent | null> {
 		const diff: (IChatRendererContent | null)[] = [];
+		// // Process each content part
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
 			const renderedPart = renderedParts[i];
-
 			if (!renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
 				diff.push(content);
 			} else {
@@ -1269,9 +1272,43 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderThinking(context: IChatContentPartRenderContext, thinking: IChatThinkingPart, templateData: IChatListItemTemplate): IChatContentPart {
-		const part = this.instantiationService.createInstance(ChatThinkingContentPart, thinking, context);
-		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
-		return part;
+		const element = context.element;
+
+		// Create a special class for thinking content to style it differently
+		const markdown: IChatMarkdownContent = {
+			content: new MarkdownString(thinking.value, { supportHtml: true }),
+			kind: 'markdownContent',
+		};
+
+		// Always fill in incomplete tokens for thinking parts for smoother rendering
+		const fillInIncompleteTokens = true;
+		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
+
+		const thinkingPart = templateData.instantiationService.createInstance(
+			ChatMarkdownContentPart,
+			markdown,
+			context,
+			this._editorPool,
+			fillInIncompleteTokens,
+			codeBlockStartIndex,
+			this.renderer,
+			this._currentLayoutWidth,
+			this.codeBlockModelCollection,
+			{}
+		);
+
+		// Add a special class to identify thinking content
+		thinkingPart.domNode.classList.add('chat-thinking-part');
+
+		// Handle height changes for smooth rendering
+		thinkingPart.addDisposable(thinkingPart.onDidChangeHeight(() => {
+			thinkingPart.layout(this._currentLayoutWidth);
+			this.updateItemHeight(templateData);
+		}));
+
+		this.handleRenderedCodeblocks(element, thinkingPart, codeBlockStartIndex);
+
+		return thinkingPart;
 	}
 
 	private renderAttachments(variables: IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, templateData: IChatListItemTemplate) {
