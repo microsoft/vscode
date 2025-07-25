@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   fill="none"
+   version="1.1"
+   id="svg3"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs3" />
+  <path
+     fill-rule="evenodd"
+     clip-rule="evenodd"
+     d="M 3,11 V 5.82843 C 3,5.29799 3.21071,4.78929 3.58579,4.41421 L 6.41421,1.58579 C 6.78929,1.21071 7.29799,1 7.82843,1 H 10 c 1.1046,0 2,0.89543 2,2 v 8 c 0,1.1046 -0.8954,2 -2,2 H 5 C 3.89543,13 3,12.1046 3,11 Z M 4,6 v 5 c 0,0.5523 0.44772,1 1,1 h 5 c 0.5523,0 1,-0.4477 1,-1 V 3 C 11,2.44772 10.5523,2 10,2 H 8 V 4.5 C 8,5.32843 7.32843,6 6.5,6 Z M 4.41421,5 7,2.41421 V 4.5 C 7,4.77614 6.77614,5 6.5,5 Z"
+     fill="#CED0D6"
+     id="path2"
+     style="fill:#000000;fill-opacity:1" />
+  <path
+     d="M 14,3.5 C 14,3.22386 13.7761,3 13.5,3 13.2239,3 13,3.22386 13,3.5 V 13 c 0,0.5523 -0.4477,1 -1,1 H 5.5 C 5.22386,14 5,14.2239 5,14.5 5,14.7761 5.22386,15 5.5,15 H 12 c 1.1046,0 2,-0.8954 2,-2 z"
+     fill="#CED0D6"
+     id="path3"
+     style="fill:#000000;fill-opacity:1" />
+</svg>

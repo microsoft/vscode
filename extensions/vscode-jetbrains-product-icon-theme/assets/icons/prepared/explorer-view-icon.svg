@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   fill="none"
+   version="1.1"
+   id="svg6"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs6" />
+  <path
+     d="M 6.1217,3 H 2.63333 C 2.40481,3 2,3.25841 2,3.86667 V 12.1333 C 2,12.7416 2.40481,13 2.63333,13 H 8 v 1 H 2.63333 C 1.73127,14 1,13.1643 1,12.1333 V 3.86667 C 1,2.83574 1.73127,2 2.63333,2 H 6.1217 C 6.39413,2 6.65477,2.11115 6.84336,2.30775 L 8.46667,4 H 13 c 1.1046,0 2,0.89543 2,2 V 8 H 14 V 6 C 14,5.44771 13.5523,5 13,5 H 8.04022 Z"
+     fill="#CED0D6"
+     id="path3"
+     style="fill:#000000;fill-opacity:1" />
+  <path
+     d="m 11.5,12.9979 c -0.2761,0 -0.5,0.2239 -0.5,0.5 0,0.2762 0.2239,0.5 0.5,0.5 h 1 c 0.2761,0 0.5,-0.2238 0.5,-0.5 0,-0.2761 -0.2239,-0.5 -0.5,-0.5 z"
+     fill="#CED0D6"
+     id="path5"
+     style="fill:#000000;fill-opacity:1" />
+  <path
+     fill-rule="evenodd"
+     clip-rule="evenodd"
+     d="m 14,8.99792 h -3 c -1.10457,0 -2,0.89544 -2,1.99998 v 3 c 0,1.1046 0.89543,2 2,2 h 3 c 1.1046,0 2,-0.8954 2,-2 v -3 C 16,9.89336 15.1046,8.99792 14,8.99792 Z m -4,1.99998 c 0,-0.5523 0.4477,-0.99998 1,-0.99998 h 3 c 0.5523,0 1,0.44768 1,0.99998 v 3 c 0,0.5523 -0.4477,1 -1,1 h -3 c -0.5523,0 -1,-0.4477 -1,-1 z"
+     fill="#CED0D6"
+     id="path6"
+     style="fill:#000000;fill-opacity:1" />
+</svg>

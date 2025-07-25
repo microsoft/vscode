@@ -1,0 +1,4 @@
+{
+    "$schema": "vscode://schemas/color-theme",
+    "include": "./light-tokens-base.json",
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   fill="none"
+   version="1.1"
+   id="svg3"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs3" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1;stroke:none"
+     d="M 8,1.3769531 5.6464844,3.7304688 a 0.5,0.5 0 0 0 0,0.7070312 0.5,0.5 0 0 0 0.7070312,0 L 8,2.7910156 9.6464844,4.4375 a 0.5,0.5 0 0 0 0.7070316,0 0.5,0.5 0 0 0 0,-0.7070312 z"
+     id="path1" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1;stroke:none"
+     d="m 8,2.0839844 a 0.5,0.5 0 0 0 -0.5,0.5 V 6.1640625 C 7.5,6.6022529 7.309266,7.0175546 6.9765625,7.3027344 L 4.8730469,9.1054688 C 4.3191703,9.580229 4,10.274434 4,11.003906 v 3.080078 a 0.5,0.5 0 0 0 0.5,0.5 0.5,0.5 0 0 0 0.5,-0.5 V 11.003906 C 5,10.565778 5.190734,10.150414 5.5234375,9.8652344 L 7.6269531,8.0625 C 8.1808297,7.5877398 8.5,6.8935721 8.5,6.1640625 V 2.5839844 a 0.5,0.5 0 0 0 -0.5,-0.5 z"
+     id="path2" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1;stroke:none"
+     d="m 8,2.0839844 a 0.5,0.5 0 0 0 -0.5,0.5 V 6.1640625 C 7.5,6.8935721 7.8191703,7.5877398 8.3730469,8.0625 L 10.476563,9.8652344 C 10.809265,10.150407 11,10.565761 11,11.003906 v 3.080078 a 0.5,0.5 0 0 0 0.5,0.5 0.5,0.5 0 0 0 0.5,-0.5 V 11.003906 C 12,10.274451 11.68085,9.5802361 11.126953,9.1054688 L 9.0234375,7.3027344 C 8.690734,7.0175546 8.5,6.6022529 8.5,6.1640625 V 2.5839844 a 0.5,0.5 0 0 0 -0.5,-0.5 z"
+     id="path3" />
+</svg>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M 8.862 3.071 C 9.313 5.086 10.991 5.891 12.649 9.126 L 12 9.131 L 7 12.465 L 7 14.535 L 9.005 15.872 C 6.987 16.333 5.418 15.494 4.386 14.246 C 1.598 10.874 3.622 6.614 5.19 3.617 C 6.235 1.619 7.319 0.413 8.442 0 C 8.421 0.7 8.561 1.724 8.862 3.071 Z" style="fill: rgb(112, 0, 188);"/>
+  <polygon points="13 13 13 14 16 16 16 15 13.8 13.5 16 12 16 11" style="transform-box: fill-box; transform-origin: 50% 50%; paint-order: stroke; stroke-width: 2px; fill: rgb(154, 167, 176);" transform="matrix(-1, 0, 0, -1, -0.000001, 0)"/>
+  <polygon points="8 14 8 13 11 11 11 12 8.8 13.5 11 15 11 16" style="stroke-width: 2px; paint-order: stroke; fill: rgb(154, 167, 176);"/>
+</svg>

@@ -1,0 +1,15 @@
+# Server configuration
+[server]
+port = 8080
+enabled = true
+
+[database]
+user = "admin"
+connections = { max = 10, timeout = 30 }
+
+[[plugins]]
+name = "auth"
+config = { required = true }
+
+[[plugins]]
+name = "cache"

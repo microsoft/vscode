@@ -1,0 +1,15 @@
+<!-- Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_2772_38568)">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M11 10.5C11 10.2239 11.2239 10 11.5 10H15.5C15.7761 10 16 10.2239 16 10.5V14.5C16 14.7761 15.7761 15 15.5 15C15.2239 15 15 14.7761 15 14.5V11.7071L10.8536 15.8536C10.6583 16.0488 10.3417 16.0488 10.1464 15.8536C9.95118 15.6583 9.95118 15.3417 10.1464 15.1464L14.2929 11H11.5C11.2239 11 11 10.7761 11 10.5Z" fill="#548AF7"/>
+<path d="M1 4C1 2.89543 1.89543 2 3 2H13C14.1046 2 15 2.89543 15 4V9H11.5C10.6716 9 10 9.67157 10 10.5C10 11.3284 10.6716 12 11.5 12H11.8789L9.87887 14H3C1.89543 14 1 13.1046 1 12V4Z" fill="#43454A"/>
+<path d="M4 5.5H5" stroke="#CED0D6" stroke-linecap="round"/>
+<path d="M7 5.5H8" stroke="#CED0D6" stroke-linecap="round"/>
+<path d="M13 3H3C2.44772 3 2 3.44772 2 4V12C2 12.5523 2.44772 13 3 13H10.8789L9.87887 14H3C1.89543 14 1 13.1046 1 12V4C1 2.89543 1.89543 2 3 2H13C14.1046 2 15 2.89543 15 4V9H14V4C14 3.44772 13.5523 3 13 3Z" fill="#CED0D6"/>
+</g>
+<defs>
+<clipPath id="clip0_2772_38568">
+<rect width="16" height="16" fill="white"/>
+</clipPath>
+</defs>
+</svg>

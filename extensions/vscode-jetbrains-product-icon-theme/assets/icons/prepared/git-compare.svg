@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   fill="none"
+   version="1.1"
+   id="svg3"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs3" />
+  <path
+     id="rect1"
+     style="fill:#000000;fill-opacity:1;stroke:none"
+     d="m 2.5,5 h 6 C 8.777,5 9,5.223 9,5.5 9,5.777 8.777,6 8.5,6 h -6 C 2.223,6 2,5.777 2,5.5 2,5.223 2.223,5 2.5,5 Z" />
+  <path
+     id="rect2"
+     style="fill:#000000;fill-opacity:1;stroke:none"
+     d="m 2.5,8 h 4 C 6.777,8 7,8.223 7,8.5 7,8.777 6.777,9 6.5,9 h -4 C 2.223,9 2,8.777 2,8.5 2,8.223 2.223,8 2.5,8 Z" />
+  <path
+     id="rect3"
+     style="fill:#000000;fill-opacity:1;stroke:none"
+     d="m 2.5,2 h 11 C 13.777,2 14,2.223 14,2.5 14,2.777 13.777,3 13.5,3 H 2.5 C 2.223,3 2,2.777 2,2.5 2,2.223 2.223,2 2.5,2 Z" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;stroke-linejoin:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;stroke:none"
+     d="m 12.146484,6.1464844 -2,2 a 0.50005,0.50005 0 0 0 0,0.7070312 l 2,2.0000004 a 0.5,0.5 0 0 0 0.707032,0 0.5,0.5 0 0 0 0,-0.707032 L 11.707031,9 H 15.5 A 0.5,0.5 0 0 0 16,8.5 0.5,0.5 0 0 0 15.5,8 h -3.792969 l 1.146485,-1.1464844 a 0.5,0.5 0 0 0 0,-0.7070312 0.5,0.5 0 0 0 -0.707032,0 z M 8.1464844,10.146484 a 0.5,0.5 0 0 0 0,0.707032 L 9.2929688,12 H 5.5 A 0.5,0.5 0 0 0 5,12.5 0.5,0.5 0 0 0 5.5,13 h 3.7929688 l -1.1464844,1.146484 a 0.5,0.5 0 0 0 0,0.707032 0.5,0.5 0 0 0 0.7070312,0 l 2.0000004,-2 a 0.50005,0.50005 0 0 0 0,-0.707032 l -2.0000004,-2 a 0.5,0.5 0 0 0 -0.7070312,0 z"
+     id="path3" />
+</svg>

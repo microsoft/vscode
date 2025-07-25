@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>{{ title }}</h1>
+
+  {% for user in users %}
+    <div class="{% if user.admin %}admin{% endif %}">
+      {{ user.name|capitalize }}
+    </div>
+  {% endfor %}
+
+  {% macro input(name, value='', type='text') %}
+    <input type="{{ type }}" name="{{ name }}" value="{{ value }}">
+  {% endmacro %}
+{% endblock %}

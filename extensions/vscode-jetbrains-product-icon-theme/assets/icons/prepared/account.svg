@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   fill="none"
+   version="1.1"
+   id="svg4"
+   sodipodi:docname="account.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="50.4375"
+     inkscape:cx="8"
+     inkscape:cy="8"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg4" />
+  <defs
+     id="defs4" />
+  <path
+     fill-rule="evenodd"
+     clip-rule="evenodd"
+     d="m 10.9995,4 c 0,1.65685 -1.34313,3 -2.99999,3 -1.65685,0 -3,-1.34315 -3,-3 0,-1.65685 1.34315,-3 3,-3 1.65686,0 2.99999,1.34315 2.99999,3 z M 9.99951,4 c 0,1.10457 -0.89543,2 -2,2 -1.10457,0 -2,-0.89543 -2,-2 0,-1.10457 0.89543,-2 2,-2 1.10457,0 2,0.89543 2,2 z"
+     fill="#CED0D6"
+     id="path3"
+     style="fill:#000000;fill-opacity:1;stroke:none" />
+  <path
+     fill-rule="evenodd"
+     clip-rule="evenodd"
+     d="M 7.99969,8 C 3.54766,8 2.39906,11.3034 2.10272,13.008 2.00813,13.5521 2.4474,14 2.99969,14 H 12.9997 c 0.5523,0 0.9915,-0.4479 0.897,-0.992 C 13.6003,11.3034 12.4517,8 7.99969,8 Z m 3.74411,2.5114 c 0.6643,0.7837 0.9843,1.7438 1.134,2.4886 H 3.12154 C 3.27126,12.2552 3.59131,11.2951 4.25563,10.5114 4.94028,9.70375 6.05804,9 7.99969,9 9.94134,9 11.0591,9.70375 11.7438,10.5114 Z"
+     fill="#CED0D6"
+     id="path4"
+     style="fill:#000000;fill-opacity:1" />
+</svg>

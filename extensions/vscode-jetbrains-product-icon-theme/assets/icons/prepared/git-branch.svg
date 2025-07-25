@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   fill="none"
+   version="1.1"
+   id="svg2"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1;stroke:none"
+     d="M 4.5,1.5 C 3.1252104,1.5 2,2.6252104 2,4 2,5.3747896 3.1252104,6.5 4.5,6.5 5.8747896,6.5 7,5.3747896 7,4 7,2.6252104 5.8747896,1.5 4.5,1.5 Z m 0,1 C 5.3343494,2.5 6,3.1656506 6,4 6,4.8343494 5.3343494,5.5 4.5,5.5 3.6656506,5.5 3,4.8343494 3,4 3,3.1656506 3.6656506,2.5 4.5,2.5 Z"
+     id="circle1" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1;stroke:none"
+     d="M 10,8 V 9.5 C 10,10.334388 9.3343593,11 8.5,11 h -4 v 1 h 4 C 9.8747807,12 11,10.874812 11,9.5 V 8 Z"
+     id="path1" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;stroke-linejoin:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1;stroke:none"
+     d="M 4.5,6 A 0.5,0.5 0 0 0 4,6.5 v 8 A 0.5,0.5 0 0 0 4.5,15 0.5,0.5 0 0 0 5,14.5 v -8 A 0.5,0.5 0 0 0 4.5,6 Z"
+     id="path2" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1;stroke:none"
+     d="M 10.5,3.5 C 9.1252104,3.5 8,4.6252104 8,6 8,7.3747896 9.1252104,8.5 10.5,8.5 11.87479,8.5 13,7.3747896 13,6 13,4.6252104 11.87479,3.5 10.5,3.5 Z m 0,1 C 11.334349,4.5 12,5.1656506 12,6 12,6.8343494 11.334349,7.5 10.5,7.5 9.6656506,7.5 9,6.8343494 9,6 9,5.1656506 9.6656506,4.5 10.5,4.5 Z"
+     id="circle2" />
+</svg>

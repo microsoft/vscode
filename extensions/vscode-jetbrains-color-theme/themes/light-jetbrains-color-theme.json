@@ -1,0 +1,6 @@
+{
+	"type": "light",
+	"$schema": "vscode://schemas/color-theme",
+	"semanticHighlighting": true,
+    "include": "./light-ide.json",
+}

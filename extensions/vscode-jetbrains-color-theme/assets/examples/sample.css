@@ -1,0 +1,21 @@
+/* Comment */
+@import url('style.css');
+@keyframes slide {
+  from { transform: translateX(0%); }
+  to { transform: translateX(100%); }
+}
+
+:root {
+  --primary-color: #ff0000;
+}
+
+.container > .item:hover {
+  background-color: var(--primary-color);
+  animation: slide 2s ease-in-out;
+}
+
+@media (max-width: 600px) {
+  body {
+    font-size: 14px !important;
+  }
+}

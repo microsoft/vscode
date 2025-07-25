@@ -1,0 +1,113 @@
+{
+    "fonts": [
+        {
+            "id": "jetbrains-product-icon-theme",
+            "src": [
+                {
+                    "path": "./jetbrains-product-icon-theme.woff2",
+                    "format": "woff2"
+                }
+            ],
+            "style": "normal",
+            "weight": "normal"
+        },
+    ],
+    "iconDefinitions": {
+        "account": {
+            "fontCharacter": "\\7",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "explorer-view-icon": {
+            "fontCharacter": "\\1",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "extensions": {
+            "fontCharacter": "\\2",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "files": {
+            "fontCharacter": "\\3",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "search": {
+            "fontCharacter": "\\4",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "settings-gear": {
+            "fontCharacter": "\\5",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        // "gear": {
+        //     "fontCharacter": "\\5",
+        //     "fontId": "jetbrains-product-icon-theme"
+        // },
+        "terminal": {
+            "fontCharacter": "\\6",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "filter": {
+            "fontCharacter": "\\8",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        // "git-branch": {
+        //     "fontCharacter": "\\12",
+        //     "fontId": "jetbrains-product-icon-theme"
+        // },
+        // "git-branch-create": {
+        //     "fontCharacter": "\\12",
+        //     "fontId": "jetbrains-product-icon-theme"
+        // },
+        // "git-branch-delete": {
+        //     "fontCharacter": "\\12",
+        //     "fontId": "jetbrains-product-icon-theme"
+        // },
+        "git-commit": {
+            "fontCharacter": "\\13",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "source-control": {
+            "fontCharacter": "\\13",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "git-fetch": {
+            "fontCharacter": "\\14",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "git-compare": {
+            "fontCharacter": "\\15",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "git-merge": {
+            "fontCharacter": "\\16",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "git-pull-request": {
+            "fontCharacter": "\\e",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "remote-explorer": {
+            "fontCharacter": "\\f",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        // "split-horizontal": {
+        //     "fontCharacter": "\\10",
+        //     "fontId": "jetbrains-product-icon-theme"
+        // },
+        // "split-vertical": {
+        //     "fontCharacter": "\\11",
+        //     "fontId": "jetbrains-product-icon-theme"
+        // },
+        "run-view-icon": {
+            "fontCharacter": "\\17",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "new-file": {
+            "fontCharacter": "\\18",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+        "new-folder": {
+            "fontCharacter": "\\19",
+            "fontId": "jetbrains-product-icon-theme"
+        },
+    },
+}

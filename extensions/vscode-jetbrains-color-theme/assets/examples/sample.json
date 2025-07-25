@@ -1,0 +1,11 @@
+{
+    "name": "John Doe",
+    "age": 30,
+    "active": true,
+    "tags": ["user", "admin"],
+    "address": {
+      "street": "Main St",
+      "coordinates": [40.7128, -74.0060]
+    },
+    "metadata": null
+  }

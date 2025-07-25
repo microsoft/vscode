@@ -1,0 +1,63 @@
+{
+  "name": "jetbrains-product-icon-theme",
+  "displayName": "JetBrains New UI Product Icon Theme",
+  "description": "JetBrains IDEs New UI inspired product icon theme. Minimize distractions and boost productivity",
+  "publisher": "fogio",
+  "version": "0.1.0",
+  "preview": true,
+  "license": "MIT",
+  "homepage": "https://github.com/fogio-org/vscode-jetbrains-product-icon-theme",
+  "bugs": {
+    "url": "https://github.com/fogio-org/vscode-jetbrains-product-icon-theme/issues",
+    "email": "nickitonov@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fogio-org/vscode-jetbrains-product-icon-theme.git"
+  },
+  "icon": "assets/img/icon.png",
+  "engines": {
+    "vscode": "^1.21.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "keywords": [
+    "jetbrains",
+    "intellij",
+    "pycharm",
+    "goland",
+    "rustrover",
+    "webstorm",
+    "idea",
+    "clion",
+    "phpstorm",
+    "rubymiine",
+    "appcode",
+    "datagrip",
+    "rider",
+    "dataspell",
+    "theme",
+    "new ui",
+    "cold",
+    "dark",
+    "material",
+    "semantic",
+    "python",
+    "go",
+    "golang"
+  ],
+  "contributes": {
+    "productIconThemes": [
+        {
+            "id": "jetbrains-product-icon-theme",
+            "label": "JetBrains New UI Product Icon Theme",
+            "path": "./producticons/jetbrains-product-icon-theme.json"
+        }
+    ]
+  }
+}

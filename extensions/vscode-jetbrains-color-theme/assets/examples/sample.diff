@@ -1,0 +1,26 @@
+diff --git a/src/app.js b/src/app.js
+index 5d00807..a1b2c3d 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -10,7 +10,7 @@ function App() {
+       <header className="App-header">
+         <img src={logo} className="App-logo" alt="logo" />
+         <p>
+-          Edit <code>src/App.js</code> and save to reload.
++          Edit <code>src/App.js</code> and save to test HMR.
+         </p>
+         <a
+           className="App-link"
+diff --git a/package.json b/package.json
+index 8f9a422..d4e5f1a 100644
+--- a/package.json
++++ b/package.json
+@@ -7,6 +7,7 @@
+     "react-dom": "^18.2.0",
+     "react-scripts": "5.0.1",
+-    "web-vitals": "^2.1.4"
++    "web-vitals": "^2.1.4",
++    "lodash": "^4.17.21"
+   },
+   "scripts": {
+     "start": "react-scripts start",

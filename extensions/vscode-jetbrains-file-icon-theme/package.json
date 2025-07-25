@@ -1,0 +1,94 @@
+{
+  "name": "jetbrains-file-icon-theme",
+  "displayName": "JetBrains New UI File Icon Theme Extended",
+  "description": "JetBrains IDEs New UI inspired icon theme. Minimize distractions and boost productivity",
+  "publisher": "fogio",
+  "version": "1.3.0",
+  "license": "MIT",
+  "homepage": "https://github.com/fogio-org/vscode-jetbrains-file-icon-theme",
+  "bugs": {
+    "url": "https://github.com/fogio-org/vscode-jetbrains-file-icon-theme/issues",
+    "email": "nickitonov@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fogio-org/vscode-jetbrains-file-icon-theme.git"
+  },
+  "icon": "assets/img/icon.png",
+  "engines": {
+    "vscode": "^1.21.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "keywords": [
+    "jetbrains",
+    "intellij",
+    "pycharm",
+    "goland",
+    "rustrover",
+    "webstorm",
+    "idea",
+    "clion",
+    "phpstorm",
+    "rubymiine",
+    "appcode",
+    "datagrip",
+    "rider",
+    "dataspell",
+    "icons",
+    "icon-theme",
+    "theme",
+    "new ui",
+    "JetBrains Mono",
+    "font",
+    "cold",
+    "dark",
+    "material"
+  ],
+  "contributes": {
+    "iconThemes": [
+      {
+        "id": "jetbrains-file-icon-theme-auto",
+        "label": "| Auto | JetBrains New UI File Icon Theme",
+        "path": "./themes/auto-jetbrains-icon-theme.json"
+      },
+      {
+        "id": "jetbrains-file-icon-theme-dark",
+        "label": "| Dark | JetBrains New UI File Icon Theme",
+        "path": "./themes/dark-jetbrains-icon-theme.json"
+      },
+      {
+        "id": "jetbrains-file-icon-theme-light",
+        "label": "| Light | JetBrains New UI File Icon Theme",
+        "path": "./themes/light-jetbrains-icon-theme.json"
+      }
+    ],
+    "configuration": {
+      "title": "JetBrains File Icon Theme",
+      "properties": {
+        "jetbrains-file-icon-theme.enableGoTestIcons": {
+          "type": "boolean",
+          "default": false,
+          "description": "Experimental: Enable special icons for Go test files (*_test.go)"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "jetbrains-file-icon-theme.updateGoTestIcons",
+        "title": "Update Go Test Icons (experimental)"
+      }
+    ]
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:jetbrains-file-icon-theme.updateGoTestIcons",
+    "onLanguage:go"
+  ],
+  "main": "./src/extension.js"
+}

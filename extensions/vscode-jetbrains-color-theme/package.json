@@ -1,0 +1,69 @@
+{
+  "name": "jetbrains-color-theme",
+  "displayName": "JetBrains New UI Color Theme Extended",
+  "description": "JetBrains IDEs New UI inspired color theme. Minimize distractions and boost productivity",
+  "publisher": "fogio",
+  "version": "0.3.0",
+  "license": "MIT",
+  "homepage": "https://github.com/fogio-org/vscode-jetbrains-color-theme",
+  "bugs": {
+    "url": "https://github.com/fogio-org/vscode-jetbrains-color-theme/issues",
+    "email": "nickitonov@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fogio-org/vscode-jetbrains-color-theme.git"
+  },
+  "icon": "assets/img/icon.png",
+  "engines": {
+    "vscode": "^1.21.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "keywords": [
+    "jetbrains",
+    "intellij",
+    "pycharm",
+    "goland",
+    "rustrover",
+    "webstorm",
+    "idea",
+    "clion",
+    "phpstorm",
+    "rubymiine",
+    "appcode",
+    "datagrip",
+    "rider",
+    "dataspell",
+    "theme",
+    "new ui",
+    "cold",
+    "dark",
+    "material",
+    "semantic",
+    "python",
+    "go",
+    "golang"
+  ],
+  "contributes": {
+    "themes": [
+      {
+        "label": "Dark | JetBrains New UI",
+        "id": "dark-jetbrains-color-theme",
+        "uiTheme": "vs-dark",
+        "path": "./themes/dark.json"
+      },
+      {
+        "label": "Light | JetBrains New UI Color Theme",
+        "id": "light-jetbrains-color-theme",
+        "uiTheme": "vs",
+        "path": "./themes/light-jetbrains-color-theme.json"
+      }
+    ]
+  }
+}

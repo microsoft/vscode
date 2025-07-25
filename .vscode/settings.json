@@ -200,5 +200,6 @@
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
 	"terminal.integrated.suggest.enabled": true,
-	"application.experimental.rendererProfiling": true
+	"application.experimental.rendererProfiling": true,
+	"cmake.sourceDirectory": "/Users/denis0001-dev/Documents/Projects/Toolbox.io/Code/code/node_modules/bare-os"
 }

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   fill="none"
+   version="1.1"
+   id="svg5"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <g
+     clip-path="url(#clip0_2772_38568)"
+     id="g5">
+    <path
+       fill-rule="evenodd"
+       clip-rule="evenodd"
+       d="M11 10.5C11 10.2239 11.2239 10 11.5 10H15.5C15.7761 10 16 10.2239 16 10.5V14.5C16 14.7761 15.7761 15 15.5 15C15.2239 15 15 14.7761 15 14.5V11.7071L10.8536 15.8536C10.6583 16.0488 10.3417 16.0488 10.1464 15.8536C9.95118 15.6583 9.95118 15.3417 10.1464 15.1464L14.2929 11H11.5C11.2239 11 11 10.7761 11 10.5Z"
+       fill="#548AF7"
+       id="path1"
+       style="fill:#000000;fill-opacity:1" />
+    <path
+       style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1"
+       d="M 4,5 A 0.5,0.5 0 0 0 3.5,5.5 0.5,0.5 0 0 0 4,6 H 5 A 0.5,0.5 0 0 0 5.5,5.5 0.5,0.5 0 0 0 5,5 Z"
+       id="path3" />
+    <path
+       style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1"
+       d="M 7,5 A 0.5,0.5 0 0 0 6.5,5.5 0.5,0.5 0 0 0 7,6 H 8 A 0.5,0.5 0 0 0 8.5,5.5 0.5,0.5 0 0 0 8,5 Z"
+       id="path4" />
+    <path
+       d="M13 3H3C2.44772 3 2 3.44772 2 4V12C2 12.5523 2.44772 13 3 13H10.8789L9.87887 14H3C1.89543 14 1 13.1046 1 12V4C1 2.89543 1.89543 2 3 2H13C14.1046 2 15 2.89543 15 4V9H14V4C14 3.44772 13.5523 3 13 3Z"
+       fill="#CED0D6"
+       id="path5"
+       style="fill:#000000;fill-opacity:1" />
+  </g>
+  <defs
+     id="defs5">
+    <clipPath
+       id="clip0_2772_38568">
+      <rect
+         width="16"
+         height="16"
+         fill="white"
+         id="rect5" />
+    </clipPath>
+  </defs>
+</svg>

@@ -1,0 +1,30 @@
+GET /api/v1/users?page=2 HTTP/1.1
+Host: api.example.com
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+Accept: application/json
+User-Agent: MyApp/1.0
+
+###
+
+POST /upload HTTP/1.1
+Host: files.example.com
+Content-Type: multipart/form-data; boundary=MyBoundary
+
+--MyBoundary
+Content-Disposition: form-data; name="file"; filename="test.jpg"
+Content-Type: image/jpeg
+
+< ./test.jpg
+--MyBoundary--
+
+###
+
+PUT /api/posts/123 HTTP/1.1
+Content-Type: application/json
+X-Request-ID: 550e8400-e29b-41d4-a716-446655440000
+
+{
+  "title": "Updated Post",
+  "content": "New content with \"quotes\"",
+  "tags": ["tech", "update"]
+}

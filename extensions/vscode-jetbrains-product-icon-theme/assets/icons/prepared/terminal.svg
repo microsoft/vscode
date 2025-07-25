@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   fill="none"
+   version="1.1"
+   id="svg2"
+   sodipodi:docname="terminal.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="50.4375"
+     inkscape:cx="8"
+     inkscape:cy="8"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg2" />
+  <defs
+     id="defs2" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1"
+     d="M 3.0078125,2 C 1.9810637,1.9820025 1.0953663,2.7787241 1.0097656,3.8046875 l -0.00195,0.019531 V 3.84375 C 0.98983822,6.4916374 1.0050956,9.1358252 1,11.777344 l 0.00391,-0.05859 c -0.13337155,1.096901 0.6521745,2.189433 1.8066407,2.271484 l 0.015625,0.002 H 2.84375 c 3.313714,0.01799 6.6248948,0.0027 9.933594,0.0078 l -0.05859,-0.0039 c 1.096901,0.133371 2.189459,-0.652178 2.271484,-1.806641 l 0.002,-0.01563 V 12.15625 C 15.010146,9.5083649 14.994905,6.8641749 15,4.2226562 l -0.0039,0.058594 C 15.129465,3.1843488 14.343916,2.0917913 13.189453,2.0097656 l -0.01563,-0.00195 H 13.15625 C 9.7714531,1.9898149 6.3877095,2.0050914 3.0078125,2 Z M 2.9921875,3 H 2.9960938 3 c 3.3774159,0.00512 6.751312,-0.00994 10.123047,0.00781 0.525345,0.040453 0.945234,0.6229003 0.880859,1.1523437 L 14,4.1914062 v 0.029297 c -0.0051,2.6375436 0.0098,5.2719184 -0.0078,7.9023439 -0.04045,0.525345 -0.622901,0.945234 -1.152344,0.880859 L 12.808594,13 h -0.0293 c -3.3036985,-0.0051 -6.604431,0.0099 -9.9023439,-0.0078 C 2.3515798,12.951721 1.931719,12.369287 1.9960937,11.839844 L 2,11.808594 v -0.0293 C 2.0050817,9.1450126 1.9902875,6.5139025 2.0078125,3.8867188 2.0490087,3.4145798 2.5180276,2.9916886 2.9921875,3 Z"
+     id="rect1" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1"
+     d="m 4.4804687,5.0195312 a 0.5,0.5 0 0 0 -0.3535156,0.1464844 0.5,0.5 0 0 0 0,0.7070313 l 1.625,1.6269531 -1.625,1.6269531 a 0.5,0.5 0 0 0 0,0.7070313 0.5,0.5 0 0 0 0.7070313,0 L 7.1660156,7.5 4.8339844,5.1660156 A 0.5,0.5 0 0 0 4.4804687,5.0195312 Z"
+     id="path1" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1"
+     d="M 7.5,10 A 0.5,0.5 0 0 0 7,10.5 0.5,0.5 0 0 0 7.5,11 h 3 A 0.5,0.5 0 0 0 11,10.5 0.5,0.5 0 0 0 10.5,10 Z"
+     id="path2" />
+</svg>

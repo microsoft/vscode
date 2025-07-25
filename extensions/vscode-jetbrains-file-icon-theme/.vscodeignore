@@ -1,0 +1,6 @@
+.vscode/**
+.vscode-test/**
+.gitignore
+assets/doc/**
+assets/examples/**
+scripts/**

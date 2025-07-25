@@ -1,0 +1,25 @@
+class TestSome(unittest.TestCase):
+    def test_first(self):
+        with self.subTest(raw):
+            res = assert_python_ok(*cmd)
+            self.assertRegex(res.out.decode('utf-8'), expected)
+
+<<<<<<< HEAD
+=======
+    @support.cpython_only
+    def test_env_var_frozen_modules(self):
+        tests = {
+            ('on', 'FrozenImporter'),
+            ('off', 'SourceFileLoader'),
+        }
+        for raw, expected in tests:
+            cmd = ['-c', 'import os; print(os.__spec__.loader, end="")']
+            with self.subTest(raw):
+                res = assert_python_ok(*cmd, PYTHON_FROZEN_MODULES=raw)
+                self.assertRegex(res.out.decode('utf-8'), expected)
+
+>>>>>>> a1c4923d65a (gh-116858: Add `@cpython_only` to several tests in `test_cmd_line` (#116859))
+    def test_run_module(self):
+        # Test expected operation of the '-m' switch
+        # Switch needs an argument
+        assert_python_failure('-m')

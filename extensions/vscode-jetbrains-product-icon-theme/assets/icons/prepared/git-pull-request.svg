@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license. -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   fill="none"
+   version="1.1"
+   id="svg4"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs4" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1"
+     d="m 3.75,9.5 c -1.3747896,0 -2.5,1.12521 -2.5,2.5 0,1.37479 1.1252104,2.5 2.5,2.5 1.3747896,0 2.5,-1.12521 2.5,-2.5 0,-1.37479 -1.1252104,-2.5 -2.5,-2.5 z m 0,1 c 0.8343494,0 1.5,0.665651 1.5,1.5 0,0.834349 -0.6656506,1.5 -1.5,1.5 -0.8343494,0 -1.5,-0.665651 -1.5,-1.5 0,-0.834349 0.6656506,-1.5 1.5,-1.5 z"
+     id="circle1" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1"
+     d="m 3.75,1.5 c -1.3747896,0 -2.5,1.1252104 -2.5,2.5 0,1.3747896 1.1252104,2.5 2.5,2.5 1.3747896,0 2.5,-1.1252104 2.5,-2.5 0,-1.3747896 -1.1252104,-2.5 -2.5,-2.5 z m 0,1 c 0.8343494,0 1.5,0.6656506 1.5,1.5 0,0.8343494 -0.6656506,1.5 -1.5,1.5 -0.8343494,0 -1.5,-0.6656506 -1.5,-1.5 0,-0.8343494 0.6656506,-1.5 1.5,-1.5 z"
+     id="circle2" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1"
+     d="m 3.25,6 v 4 h 1 V 6 Z"
+     id="path2" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1"
+     d="m 12.25,9.5 c -1.37479,0 -2.5,1.12521 -2.5,2.5 0,1.37479 1.12521,2.5 2.5,2.5 1.37479,0 2.5,-1.12521 2.5,-2.5 0,-1.37479 -1.12521,-2.5 -2.5,-2.5 z m 0,1 c 0.834349,0 1.5,0.665651 1.5,1.5 0,0.834349 -0.665651,1.5 -1.5,1.5 -0.834349,0 -1.5,-0.665651 -1.5,-1.5 0,-0.834349 0.665651,-1.5 1.5,-1.5 z"
+     id="circle3" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1"
+     d="m 8,3.5 v 1 h 2.650391 C 11.263886,4.5 11.75,4.9861513 11.75,5.5996094 V 10 h 1 V 5.5996094 C 12.75,4.4457474 11.804295,3.5 10.650391,3.5 Z"
+     id="path3" />
+  <path
+     style="baseline-shift:baseline;display:inline;overflow:visible;vector-effect:none;fill:#000000;stroke-linecap:round;enable-background:accumulate;stop-color:#000000;stop-opacity:1;opacity:1;fill-opacity:1"
+     d="M 9.3964844,1.6464844 7.0429687,4 9.3964844,6.3535156 a 0.5,0.5 0 0 0 0.7070316,0 0.5,0.5 0 0 0 0,-0.7070312 L 8.4570313,4 10.103516,2.3535156 a 0.5,0.5 0 0 0 0,-0.7070312 0.5,0.5 0 0 0 -0.7070316,0 z"
+     id="path4" />
+</svg>

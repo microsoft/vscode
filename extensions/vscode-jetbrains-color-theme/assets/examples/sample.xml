@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE catalog SYSTEM "catalog.dtd">
+<catalog>
+  <book id="bk101">
+    <author>Gambardella, Matthew</author>
+    <title>XML Developer's Guide</title>
+    <price currency="USD">44.95</price>
+    <description>
+      <![CDATA[<html>Content</html>]]>
+    </description>
+  </book>
+  <ns:element xmlns:ns="http://example.com/ns"/>
+</catalog>

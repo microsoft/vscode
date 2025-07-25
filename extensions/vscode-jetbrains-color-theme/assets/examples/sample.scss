@@ -1,0 +1,22 @@
+$primary-color: #333;
+
+@mixin flex-center {
+  display: flex;
+  justify-content: center;
+}
+
+.container {
+  @include flex-center;
+
+  .item {
+    color: $primary-color;
+
+    &:hover {
+      transform: scale(1.1);
+    }
+  }
+}
+
+@function grid-width($n) {
+  @return $n * 100px;
+}

@@ -1,0 +1,8 @@
+[2023-10-21T14:32:45.123Z] INFO  server-1 - Starting application on port 8080
+[2023-10-21T14:33:01.234Z] WARN  db-connector - Connection pool 80% utilized (45/50)
+[2023-10-21T14:33:12.345Z] ERROR payment-service - Failed to process transaction TX-123:
+    java.io.IOException: Connection timeout
+    at com.example.PaymentService.process(PaymentService.java:123)
+    at com.example.Controller.lambda$post$0(Controller.java:45)
+[2023-10-21T14:33:15.456Z] DEBUG cache - Evicting 12 stale entries
+[2023-10-21T14:33:18.567Z] INFO  metrics - {"cpu":45.2,"mem":1234,"active_users":452}

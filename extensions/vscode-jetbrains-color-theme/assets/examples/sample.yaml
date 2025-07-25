@@ -1,0 +1,18 @@
+# Configuration
+services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+
+database: &db-config
+  host: localhost
+  credentials:
+    user: admin
+    password: secret
+
+staging:
+  <<: *db-config
+  port: 5432
