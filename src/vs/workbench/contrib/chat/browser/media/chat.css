@@ -204,17 +204,30 @@
 	visibility: visible;
 }
 
+/* Style the internal toolbar element to use flexbox */
+.interactive-item-container .chat-footer-toolbar .monaco-toolbar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
 .interactive-item-container .chat-footer-details {
-	display: block;
-	padding: 4px 0 2px 0;
+	display: none;
+	padding: 0;
 	font-size: 11px;
 	opacity: 0.7;
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
+	margin-left: auto;
+}
+
+/* Show details only on hover of the footer toolbar */
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details {
+	display: block;
 }
 
 .interactive-item-container .chat-footer-details.hidden {
-	display: none;
+	display: none !important;
 }
 
 .interactive-item-container .value {
