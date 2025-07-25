@@ -611,14 +611,20 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		this._logger.info('Exchanging authorization code for token...');
 		this._logger.trace(`Url: ${this._serverMetadata.token_endpoint}`);
 		this._logger.trace(`Token request body: ${tokenRequest.toString()}`);
-		const response = await fetch(this._serverMetadata.token_endpoint, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				'Accept': 'application/json'
-			},
-			body: tokenRequest.toString()
-		});
+		let response: Response;
+		try {
+			response = await fetch(this._serverMetadata.token_endpoint, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Accept': 'application/json'
+				},
+				body: tokenRequest.toString()
+			});
+		} catch (err) {
+			this._logger.error(`Failed to exchange authorization code for token: ${err}`);
+			throw new Error(`Failed to exchange authorization code for token: ${err}`);
+		}
 
 		if (!response.ok) {
 			const text = await response.text();
