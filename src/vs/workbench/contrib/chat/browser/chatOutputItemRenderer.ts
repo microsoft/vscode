@@ -21,8 +21,6 @@ export interface IChatOutputItemRenderer {
 	renderOutputPart(mime: string, data: Uint8Array, webview: IWebview, token: CancellationToken): Promise<void>;
 }
 
-export const IChatOutputRendererService = createDecorator<IChatOutputRendererService>('chatOutputRendererService');
-
 interface RegisterOptions {
 	readonly extension?: {
 		readonly id: ExtensionIdentifier;
@@ -30,18 +28,27 @@ interface RegisterOptions {
 	};
 }
 
-export interface RenderedOutputPart extends IDisposable {
-	readonly onDidChangeHeight: Event<number>;
-	readonly webview: IWebview;
-}
+export const IChatOutputRendererService = createDecorator<IChatOutputRendererService>('chatOutputRendererService');
 
 export interface IChatOutputRendererService {
 	readonly _serviceBrand: undefined;
 
 	registerRenderer(mime: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable;
 
-	renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, token: CancellationToken): Promise<RenderedOutputPart>;
+	renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart>;
 }
+
+export interface RenderedOutputPart extends IDisposable {
+	readonly onDidChangeHeight: Event<number>;
+	readonly webview: IWebview;
+
+	reinitialize(): void;
+}
+
+interface RenderOutputPartWebviewOptions {
+	readonly origin?: string;
+}
+
 
 export class ChatOutputRendererService extends Disposable implements IChatOutputRendererService {
 	_serviceBrand: undefined;
@@ -67,7 +74,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		};
 	}
 
-	async renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, token: CancellationToken): Promise<RenderedOutputPart> {
+	async renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart> {
 		// Activate extensions that contribute to chatOutputRenderer for this mime type
 		await this._extensionService.activateByEvent(`onChatOutputRenderer:${mime}`);
 
@@ -80,7 +87,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 
 		const webview = store.add(this._webviewService.createWebviewElement({
 			title: '',
-			origin: generateUuid(),
+			origin: webviewOptions.origin ?? generateUuid(),
 			options: {
 				enableFindWidget: false,
 				purpose: WebviewContentPurpose.ChatOutputItem,
@@ -103,11 +110,14 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		await rendererData.renderer.renderOutputPart(mime, data, webview, token);
 
 		return {
-			webview,
+			get webview() { return webview; },
 			onDidChangeHeight: onDidChangeHeight.event,
 			dispose: () => {
 				store.dispose();
-			}
+			},
+			reinitialize: () => {
+				webview.reinitializeAfterDismount();
+			},
 		};
 	}
 }
@@ -144,3 +154,4 @@ ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
 		}
 	}
 });
+
