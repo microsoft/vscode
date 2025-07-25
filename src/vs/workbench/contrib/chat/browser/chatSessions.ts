@@ -688,6 +688,10 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
+	/**
+	 * Refreshes the tree data with progress indication.
+	 * Shows a progress indicator while the tree updates its children from the provider.
+	 */
 	private async refreshTreeWithProgress(): Promise<void> {
 		if (!this.tree) {
 			return;
@@ -695,11 +699,20 @@ class SessionsViewPane extends ViewPane {
 
 		const progressIndicator = this.getProgressIndicator();
 		
-		// Show progress while refreshing tree data
-		const refreshPromise = this.tree.updateChildren(this.provider);
-		await progressIndicator.showWhile(refreshPromise, 0); // Show immediately, no delay
+		try {
+			// Show progress while refreshing tree data
+			const refreshPromise = this.tree.updateChildren(this.provider);
+			await progressIndicator.showWhile(refreshPromise, 0); // Show immediately, no delay
+		} catch (error) {
+			// Log error but don't throw to avoid breaking the UI
+			console.error('Error refreshing chat sessions tree:', error);
+		}
 	}
 
+	/**
+	 * Loads initial tree data with progress indication.
+	 * Shows a progress indicator while the tree loads data from the provider.
+	 */
 	private async loadDataWithProgress(): Promise<void> {
 		if (!this.tree) {
 			return;
@@ -707,9 +720,14 @@ class SessionsViewPane extends ViewPane {
 
 		const progressIndicator = this.getProgressIndicator();
 		
-		// Show progress while loading data
-		const loadingPromise = this.tree.setInput(this.provider);
-		await progressIndicator.showWhile(loadingPromise, 0); // Show immediately, no delay
+		try {
+			// Show progress while loading data
+			const loadingPromise = this.tree.setInput(this.provider);
+			await progressIndicator.showWhile(loadingPromise, 0); // Show immediately, no delay
+		} catch (error) {
+			// Log error but don't throw to avoid breaking the UI
+			console.error('Error loading chat sessions data:', error);
+		}
 	}
 
 	protected override renderBody(container: HTMLElement): void {
