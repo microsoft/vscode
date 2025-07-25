@@ -662,10 +662,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				userPrompt,
 				summary: summary || userPrompt,
 				followup,
-				_version: 2,
+				_version: 2, // Signal that we support the new response format
 			});
 
-			if (result && typeof result === 'object' /* _version === 2 */) {
+			if (result && typeof result === 'object') { /* _version === 2 */
 				chatModel.acceptResponseProgress(addedRequest, { kind: 'pullRequest', ...result });
 			} else if (typeof result === 'string') {
 				chatModel.acceptResponseProgress(addedRequest, {
