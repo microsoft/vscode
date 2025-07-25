@@ -1681,7 +1681,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 2px;
 }
 
-.interactive-session .chat-file-changes-label,
+.interactive-session .chat-file-changes-label {
+	color: var(--vscode-interactive-session-foreground);
+	user-select: none;
+}
+
 .interactive-session .chat-used-context-label {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
@@ -1710,7 +1714,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: initial;
 }
 
-.interactive-session .chat-file-changes-label .monaco-button:hover,
+.interactive-session .chat-file-changes-label .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 .interactive-session .chat-used-context-label .monaco-button:hover {
 	background-color: var(--vscode-list-hoverBackground);
 	color: var(--vscode-foreground);
