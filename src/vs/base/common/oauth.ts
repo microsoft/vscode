@@ -721,6 +721,18 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 	if (!serverMetadata.registration_endpoint) {
 		throw new Error('Server does not support dynamic registration');
 	}
+
+	// Determine the appropriate token endpoint auth method based on server capabilities
+	let tokenEndpointAuthMethod = 'none';
+	if (serverMetadata.token_endpoint_auth_methods_supported) {
+		// Prefer client_secret_basic if supported, otherwise client_secret_post, then none
+		if (serverMetadata.token_endpoint_auth_methods_supported.includes('client_secret_basic')) {
+			tokenEndpointAuthMethod = 'client_secret_basic';
+		} else if (serverMetadata.token_endpoint_auth_methods_supported.includes('client_secret_post')) {
+			tokenEndpointAuthMethod = 'client_secret_post';
+		}
+	}
+
 	const response = await fetch(serverMetadata.registration_endpoint, {
 		method: 'POST',
 		headers: {
@@ -746,7 +758,7 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
 			],
 			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
-			token_endpoint_auth_method: 'none',
+			token_endpoint_auth_method: tokenEndpointAuthMethod,
 			// https://openid.net/specs/openid-connect-registration-1_0.html
 			application_type: 'native'
 		})

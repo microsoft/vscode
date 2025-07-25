@@ -189,6 +189,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		clientSecret: string | undefined,
 		initialTokens: IAuthorizationToken[] | undefined
 	): Promise<string> {
+		let tokenEndpointAuthMethod: string | undefined;
 		if (!clientId) {
 			const authorizationServer = URI.revive(authorizationServerComponents);
 			if (serverMetadata.registration_endpoint) {
@@ -196,6 +197,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 					const registration = await fetchDynamicRegistration(serverMetadata, this._initData.environment.appName, resourceMetadata?.scopes_supported);
 					clientId = registration.client_id;
 					clientSecret = registration.client_secret;
+					tokenEndpointAuthMethod = registration.token_endpoint_auth_method;
 				} catch (err) {
 					this._logService.warn(`Dynamic registration failed for ${authorizationServer.toString()}: ${err.message}. Prompting user for client ID and client secret...`);
 				}
@@ -209,6 +211,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				}
 				clientId = clientDetails.clientId;
 				clientSecret = clientDetails.clientSecret;
+				// When user manually provides credentials, assume client_secret_post if secret is provided, otherwise none
+				tokenEndpointAuthMethod = clientSecret ? 'client_secret_post' : 'none';
 				this._logService.info(`User provided client registration for ${authorizationServer.toString()}`);
 				if (clientSecret) {
 					this._logService.trace(`User provided client secret for ${authorizationServer.toString()}`);
@@ -229,6 +233,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			resourceMetadata,
 			clientId,
 			clientSecret,
+			tokenEndpointAuthMethod,
 			this._onDidDynamicAuthProviderTokensChange,
 			initialTokens || []
 		);
@@ -310,6 +315,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		protected readonly _resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		protected _clientId: string,
 		protected _clientSecret: string | undefined,
+		protected _tokenEndpointAuthMethod: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: IAuthorizationToken[] }>,
 		initialTokens: IAuthorizationToken[],
 	) {
@@ -591,29 +597,51 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		return { code: codeMatch[1] };
 	}
 
+	private createTokenRequestHeaders(): Record<string, string> {
+		const headers: Record<string, string> = {
+			'Content-Type': 'application/x-www-form-urlencoded',
+			'Accept': 'application/json'
+		};
+
+		// Add authorization header for client_secret_basic
+		if (this._tokenEndpointAuthMethod === 'client_secret_basic' && this._clientSecret) {
+			const credentials = btoa(`${this._clientId}:${this._clientSecret}`);
+			headers['Authorization'] = `Basic ${credentials}`;
+		}
+
+		return headers;
+	}
+
 	protected async exchangeCodeForToken(code: string, codeVerifier: string, redirectUri: string): Promise<IAuthorizationTokenResponse> {
 		if (!this._serverMetadata.token_endpoint) {
 			throw new Error('Token endpoint not available in server metadata');
 		}
 
 		const tokenRequest = new URLSearchParams();
-		tokenRequest.append('client_id', this._clientId);
 		tokenRequest.append('grant_type', 'authorization_code');
 		tokenRequest.append('code', code);
 		tokenRequest.append('redirect_uri', redirectUri);
 		tokenRequest.append('code_verifier', codeVerifier);
 
-		// Add client secret if available
-		if (this._clientSecret) {
-			tokenRequest.append('client_secret', this._clientSecret);
+		// Add client credentials based on authentication method
+		if (this._tokenEndpointAuthMethod === 'client_secret_basic') {
+			// For client_secret_basic, client_id is included in Authorization header, not body
+			// Only add client_id to body if no client secret (fallback for 'none' method)
+			if (!this._clientSecret) {
+				tokenRequest.append('client_id', this._clientId);
+			}
+		} else {
+			// For 'none' and 'client_secret_post', add client_id to request body
+			tokenRequest.append('client_id', this._clientId);
+			// For 'client_secret_post', add client_secret to request body
+			if (this._tokenEndpointAuthMethod === 'client_secret_post' && this._clientSecret) {
+				tokenRequest.append('client_secret', this._clientSecret);
+			}
 		}
 
 		const response = await fetch(this._serverMetadata.token_endpoint, {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				'Accept': 'application/json'
-			},
+			headers: this.createTokenRequestHeaders(),
 			body: tokenRequest.toString()
 		});
 
@@ -639,21 +667,28 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 
 		const tokenRequest = new URLSearchParams();
-		tokenRequest.append('client_id', this._clientId);
 		tokenRequest.append('grant_type', 'refresh_token');
 		tokenRequest.append('refresh_token', refreshToken);
 
-		// Add client secret if available
-		if (this._clientSecret) {
-			tokenRequest.append('client_secret', this._clientSecret);
+		// Add client credentials based on authentication method
+		if (this._tokenEndpointAuthMethod === 'client_secret_basic') {
+			// For client_secret_basic, client_id is included in Authorization header, not body
+			// Only add client_id to body if no client secret (fallback for 'none' method)
+			if (!this._clientSecret) {
+				tokenRequest.append('client_id', this._clientId);
+			}
+		} else {
+			// For 'none' and 'client_secret_post', add client_id to request body
+			tokenRequest.append('client_id', this._clientId);
+			// For 'client_secret_post', add client_secret to request body
+			if (this._tokenEndpointAuthMethod === 'client_secret_post' && this._clientSecret) {
+				tokenRequest.append('client_secret', this._clientSecret);
+			}
 		}
 
 		const response = await fetch(this._serverMetadata.token_endpoint, {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				'Accept': 'application/json'
-			},
+			headers: this.createTokenRequestHeaders(),
 			body: tokenRequest.toString()
 		});
 
@@ -676,6 +711,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			const registration = await fetchDynamicRegistration(this._serverMetadata, this._initData.environment.appName, this._resourceMetadata?.scopes_supported);
 			this._clientId = registration.client_id;
 			this._clientSecret = registration.client_secret;
+			this._tokenEndpointAuthMethod = registration.token_endpoint_auth_method;
 			this._onDidChangeClientId.fire();
 		} catch (err) {
 			// When DCR fails, try to prompt the user for a client ID and client secret
@@ -688,6 +724,8 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 				}
 				this._clientId = clientDetails.clientId;
 				this._clientSecret = clientDetails.clientSecret;
+				// When user manually provides credentials, assume client_secret_post if secret is provided, otherwise none
+				this._tokenEndpointAuthMethod = clientDetails.clientSecret ? 'client_secret_post' : 'none';
 				this._logger.info(`User provided client ID for ${this.authorizationServer.toString()}`);
 				if (clientDetails.clientSecret) {
 					this._logger.info(`User provided client secret for ${this.authorizationServer.toString()}`);
