@@ -552,6 +552,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.manageTasksTool.enabled', "Enables manageTasksTool in chat. This tool allows you to use task lists in chat."),
 			tags: ['experimental'],
 			included: false,
+		},
+		'chat.tools.useTreePicker': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.tools.useTreePicker', "Use the new tree-based tools picker interface instead of the flat list. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions. MCP servers are displayed as expandable parent nodes with their tools as children."),
+			tags: ['experimental'],
 		}
 	}
 });
@@ -586,7 +592,7 @@ class ChatResolverContribution extends Disposable {
 		super();
 
 		this._register(editorResolverService.registerEditor(
-			`${Schemas.vscodeChatSesssion}:**/**`,
+			`{${Schemas.vscodeChatEditor},${Schemas.vscodeChatSession}}:**/**`,
 			{
 				id: ChatEditorInput.EditorID,
 				label: nls.localize('chat', "Chat"),
@@ -594,7 +600,7 @@ class ChatResolverContribution extends Disposable {
 			},
 			{
 				singlePerResource: true,
-				canSupportResource: resource => resource.scheme === Schemas.vscodeChatSesssion
+				canSupportResource: resource => resource.scheme === Schemas.vscodeChatEditor || resource.scheme === Schemas.vscodeChatSession,
 			},
 			{
 				createEditorInput: ({ resource, options }) => {

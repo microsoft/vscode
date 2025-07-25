@@ -33,6 +33,8 @@ import { IHoverService, WorkbenchHoverDelegate } from '../../hover/browser/hover
 import { QuickInputList } from './quickInputList.js';
 import type { IHoverOptions } from '../../../base/browser/ui/hover/hover.js';
 import { ContextKeyExpr, RawContextKey } from '../../contextkey/common/contextkey.js';
+import { QuickInputTreeController } from './tree/quickInputTreeController.js';
+import { observableValue } from '../../../base/common/observable.js';
 
 export const inQuickInputContextKeyValue = 'inQuickInput';
 export const InQuickInputContextKey = new RawContextKey<boolean>(inQuickInputContextKeyValue, false, localize('inQuickInput', "Whether keyboard focus is inside the quick input control"));
@@ -118,6 +120,7 @@ export interface QuickInputUI {
 	customButton: Button;
 	progressBar: ProgressBar;
 	list: QuickInputList;
+	tree: QuickInputTreeController;
 	onDidAccept: Event<void>;
 	onDidCustom: Event<void>;
 	onDidTriggerButton: Event<IQuickInputButton>;
@@ -141,21 +144,22 @@ export type Visibilities = {
 	count?: boolean;
 	message?: boolean;
 	list?: boolean;
+	tree?: boolean;
 	ok?: boolean;
 	customButton?: boolean;
 	progressBar?: boolean;
 };
 
-abstract class QuickInput extends Disposable implements IQuickInput {
+export abstract class QuickInput extends Disposable implements IQuickInput {
 	protected static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
+	protected _visible = observableValue('visible', false);
 	private _title: string | undefined;
 	private _description: string | undefined;
 	private _widget: HTMLElement | undefined;
 	private _widgetUpdated = false;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
-	protected visible = false;
 	private _enabled = true;
 	private _contextKey: string | undefined;
 	private _busy = false;
@@ -186,6 +190,10 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 		protected ui: QuickInputUI
 	) {
 		super();
+	}
+
+	protected get visible(): boolean {
+		return this._visible.get();
 	}
 
 	get title() {
@@ -344,7 +352,7 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 		this.ui.show(this);
 
 		// update properties in the controller that get reset in the ui.show() call
-		this.visible = true;
+		this._visible.set(true, undefined);
 		// This ensures the message/prompt gets rendered
 		this._lastValidationMessage = undefined;
 		// This ensures the input box has the right severity applied
@@ -371,7 +379,7 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 	}
 
 	didHide(reason = QuickInputHideReason.Other): void {
-		this.visible = false;
+		this._visible.set(false, undefined);
 		this.visibleDisposables.clear();
 		this.onDidHideEmitter.fire({ reason });
 	}

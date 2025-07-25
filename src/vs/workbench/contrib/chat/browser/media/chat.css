@@ -204,6 +204,19 @@
 	visibility: visible;
 }
 
+.interactive-item-container .chat-footer-details {
+	display: block;
+	padding: 4px 0 2px 0;
+	font-size: 11px;
+	opacity: 0.7;
+	color: var(--vscode-descriptionForeground);
+	line-height: 16px;
+}
+
+.interactive-item-container .chat-footer-details.hidden {
+	display: none;
+}
+
 .interactive-item-container .value {
 	width: 100%;
 }
@@ -456,105 +469,6 @@
 	&:not(:last-child) {
 		margin-bottom: 8px;
 	}
-}
-
-/* Task List Styles */
-.chat-task-list-part {
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 6px;
-	background: var(--vscode-editor-background);
-	margin: 4px 0;
-	overflow: hidden;
-}
-
-.chat-task-list-part .task-expando {
-	display: flex;
-	align-items: center;
-	padding: 8px 12px;
-	background: var(--vscode-editorWidget-background);
-	border-bottom: 1px solid var(--vscode-widget-border);
-	cursor: pointer;
-	user-select: none;
-	gap: 6px;
-}
-
-.chat-task-list-part .task-expando:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.chat-task-list-part .task-expando:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.chat-task-list-part .expand-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.chat-task-list-part .task-title {
-	font-weight: 600;
-	font-size: 13px;
-	color: var(--vscode-foreground);
-}
-
-.chat-task-list-part .task-list-container {
-	padding: 8px 0;
-}
-
-.chat-task-list-part .task-list {
-	list-style: none;
-	padding: 0;
-	margin: 0;
-}
-
-.chat-task-list-part .task-item {
-	display: flex;
-	align-items: center;
-	padding: 4px 12px;
-	gap: 8px;
-	min-height: 24px;
-	font-size: 13px;
-}
-
-.chat-task-list-part .task-item:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.chat-task-list-part .task-number {
-	color: var(--vscode-descriptionForeground);
-	font-weight: 500;
-	min-width: 20px;
-	text-align: right;
-}
-
-.chat-task-list-part .task-status-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.chat-task-list-part .task-content {
-	flex: 1;
-	color: var(--vscode-foreground);
-	line-height: 1.4;
-}
-
-.chat-task-list-part .task-status-text {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	background: var(--vscode-badge-background);
-	border-radius: 10px;
-	padding: 2px 6px;
-	margin-left: auto;
-	white-space: nowrap;
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
@@ -1662,7 +1576,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-header {
-	padding: 3px 3px 2px 3px;
+	padding: 3px 3px 3px 3px;
 	width: 100%;
 	display : flex;
 	box-sizing: border-box;
@@ -1703,6 +1617,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 }
 
+.interactive-session .checkpoint-file-changes-summary .chat-summary-list .monaco-scrollable-element {
+	border-radius: 4px;
+}
+
 .interactive-session .checkpoint-file-changes-summary .insertions {
 	color: var(--vscode-chat-linesAddedForeground);
 	font-weight: bold;
@@ -1720,7 +1638,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.interactive-session .checkpoint-file-changes-summary,
+.interactive-session .checkpoint-file-changes-summary {
+	display: flex;
+	flex-direction: column;
+}
+
 .interactive-session .chat-used-context {
 	display: flex;
 	flex-direction: column;
@@ -1762,12 +1684,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 12px;
 }
 
-.interactive-session .chat-summary-list .monaco-list .monaco-list-row,
+.interactive-session .chat-summary-list .monaco-list .monaco-list-row {
+	border-radius: 4px;
+}
+
 .interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
 	border-radius: 2px;
 }
 
-.interactive-session .chat-file-changes-label,
+.interactive-session .chat-file-changes-label {
+	color: var(--vscode-interactive-session-foreground);
+	user-select: none;
+}
+
 .interactive-session .chat-used-context-label {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
@@ -1785,18 +1714,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-file-changes-label .monaco-button,
 .interactive-session .chat-used-context-label .monaco-button {
-	/* unset Button styles */
-	display: inline-flex;
 	width: fit-content;
 	border: none;
 	border-radius: 4px;
 	gap: 4px;
-	padding: 2px 6px 2px 2px;
 	text-align: initial;
 	justify-content: initial;
 }
 
-.interactive-session .chat-file-changes-label .monaco-button:hover,
+.interactive-session .chat-used-context-label .monaco-button {
+	/* unset Button styles */
+	display: inline-flex;
+}
+
+.interactive-session .chat-file-changes-label .monaco-button {
+	padding: 2px 2px 2px 2px;
+}
+
+.interactive-session .chat-used-context-label .monaco-button {
+	padding: 2px 6px 2px 2px;
+}
+
+.interactive-session .chat-file-changes-label .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 .interactive-session .chat-used-context-label .monaco-button:hover {
 	background-color: var(--vscode-list-hoverBackground);
 	color: var(--vscode-foreground);
@@ -2350,4 +2292,71 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 	border-style: solid;
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Sticky Task Widget */
+.chat-sticky-task-widget {
+	position: sticky;
+	top: 0;
+	z-index: 100;
+	background-color: var(--vscode-sideBar-background);
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+	padding: 8px 16px;
+	margin-bottom: 8px;
+}
+
+.chat-sticky-task-widget .task-expando {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+	padding: 4px 0;
+}
+
+.chat-sticky-task-widget .task-expando:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: 4px;
+}
+
+.chat-sticky-task-widget .task-expando:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	border-radius: 4px;
+}
+
+.chat-sticky-task-widget .expand-icon {
+	flex-shrink: 0;
+}
+
+.chat-sticky-task-widget .task-title {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.chat-sticky-task-widget .task-list-container {
+	padding-left: 20px;
+	margin-top: 4px;
+}
+
+.chat-sticky-task-widget .task-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-sticky-task-widget .task-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 0;
+}
+
+.chat-sticky-task-widget .task-status-icon {
+	flex-shrink: 0;
+	font-size: 14px;
+}
+
+.chat-sticky-task-widget .task-content {
+	color: var(--vscode-foreground);
+	flex-grow: 1;
 }

@@ -68,6 +68,8 @@ import { NullLanguageModelsService } from '../../../chat/test/common/languageMod
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
+import { IChatSessionsService } from '../../../chat/common/chatSessionsService.js';
+import { ChatSessionsService } from '../../../chat/browser/chatSessions.contribution.js';
 
 suite('InlineChatSession', function () {
 
@@ -95,6 +97,7 @@ suite('InlineChatSession', function () {
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatTransferService, new SyncDescriptor(ChatTransferService)],
+			[IChatSessionsService, new SyncDescriptor(ChatSessionsService)],
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
