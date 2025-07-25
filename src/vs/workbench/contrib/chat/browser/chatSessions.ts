@@ -379,6 +379,11 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
 			this.refreshProviderTree(chatSessionType);
 		}));
+
+		// Listen for contribution availability changes and update view registration
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			this.updateViewRegistration();
+		}));
 	}
 
 	override getTitle(): string {

@@ -64,6 +64,7 @@ export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
 	readonly onDidChangeSessionItems: Event<string>;
+	readonly onDidChangeAvailability: Event<void>;
 	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
 	getChatSessionContributions(): IChatSessionsExtensionPoint[];
 	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
