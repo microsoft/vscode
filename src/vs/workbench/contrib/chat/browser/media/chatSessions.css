@@ -15,3 +15,9 @@
 .composite.viewlet[id="workbench.view.chat.sessions"] .pane-header.expanded.not-collapsible {
 	background-color: var(--vscode-sideBarSectionHeader-background) !important;
 }
+
+/* Add padding to chat session item icons */
+.chat-sessions-tree .chat-session-item .monaco-icon-label-iconpath {
+	margin-right: 4px;
+	margin-left: 4px;
+}
