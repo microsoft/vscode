@@ -1303,7 +1303,12 @@ export interface IDynamicChatAgentProps {
 	fullName?: string;
 }
 
-export interface MainThreadChatAgentsShape2 extends IDisposable {
+export interface IChatAgentProgressShape {
+	$handleProgressChunk(requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
+	$handleAnchorResolve(requestId: string, handle: string, anchor: Dto<IChatContentInlineReference>): void;
+}
+
+export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDisposable {
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
 	$registerChatParticipantDetectionProvider(handle: number): void;
 	$unregisterChatParticipantDetectionProvider(handle: number): void;
@@ -1313,9 +1318,6 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
-	$handleProgressChunk(requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
-	$handleAnchorResolve(requestId: string, handle: string, anchor: Dto<IChatContentInlineReference>): void;
-
 
 	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
@@ -3110,14 +3112,43 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
+export interface IChatRequestTurnDto {
+
+}
+
+export interface ChatSessionDto {
+	id: string;
+
+	history: Array<
+		| { type: 'request'; prompt: string }
+		| { type: 'response'; parts: IChatProgressDto[] }>;
+
+	hasActiveResponseCallback: boolean;
+	hasRequestHandler: boolean;
+}
+
+
 export interface MainThreadChatSessionsShape extends IDisposable {
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string, label: string): void;
 	$unregisterChatSessionItemProvider(handle: number): void;
 	$onDidChangeChatSessionItems(chatSessionType: string): void;
+
+	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void;
+	$unregisterChatSessionContentProvider(handle: number): void;
+
+	$handleProgressChunk(handle: number, sessionId: string, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
+	$handleAnchorResolve(handle: number, sessionId: string, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
+	$handleProgressComplete(handle: number, sessionId: string, requestId: string): void;
+
+	$showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void>;
 }
 
 export interface ExtHostChatSessionsShape {
-	$provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]>;
+	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
+
+	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
+	$disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void>;
+	$invokeChatSessionRequestHandler(providerHandle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;
 }
 
 // --- proxy identifiers

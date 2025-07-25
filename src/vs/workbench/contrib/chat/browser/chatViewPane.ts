@@ -7,6 +7,7 @@ import { $, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -248,12 +249,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionId: string, viewState?: IChatViewState): Promise<void> {
+	async loadSession(sessionId: string | URI, viewState?: IChatViewState): Promise<void> {
 		if (this.widget.viewModel) {
 			await this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
 
-		const newModel = await this.chatService.getOrRestoreSession(sessionId);
+		const newModel = await (URI.isUri(sessionId) ? this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Panel, CancellationToken.None) : this.chatService.getOrRestoreSession(sessionId));
 		await this.updateModel(newModel, viewState);
 	}
 
