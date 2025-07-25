@@ -93,7 +93,9 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
 								: toolInvocation.toolSpecificData?.kind === 'tasks'
 									? JSON.stringify(toolInvocation.toolSpecificData.tasks)
-									: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
+									: toolInvocation.toolSpecificData?.kind === 'pullRequest'
+										? JSON.stringify(toolInvocation.toolSpecificData)
+										: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
 					}
 					responseContent += `${title}`;
 					if (input) {
