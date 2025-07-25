@@ -21,13 +21,15 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatTask, IChatTasksService, IChatTaskStorage } from '../chatTasksService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
-const ManageToolSettingId = 'chat.manageTasksTool.enabled';
+export const ManageToolSettingId = 'chat.manageTasksTool.enabled';
+
+export const ManageTasksToolToolId = 'vscode_manageTasks';
 
 export const ManageTasksToolData: IToolData = {
-	id: 'vscode_tasks_internal',
+	id: ManageTasksToolToolId,
 	toolReferenceName: 'manageTasks',
 	when: ContextKeyExpr.equals(`config.${ManageToolSettingId}`, true),
-	canBeReferencedInPrompt: false,
+	canBeReferencedInPrompt: true,
 	icon: ThemeIcon.fromId(Codicon.checklist.id),
 	displayName: 'Manage Tasks',
 	modelDescription: 'A tool for managing tasks. Can create/update and read tasks in a todo list. Operations: write (add new todo tasks or update todo tasks), read(retrieve all todo tasks).',

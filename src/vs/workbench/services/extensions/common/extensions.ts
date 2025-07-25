@@ -112,6 +112,13 @@ export const enum ExtensionHostStartup {
 	LazyAutoStart = 3,
 }
 
+export interface IExtensionInspectInfo {
+	readonly port: number;
+	readonly host: string;
+	readonly devtoolsUrl?: string;
+	readonly devtoolsLabel?: string;
+}
+
 export interface IExtensionHost {
 	readonly pid: number | null;
 	readonly runningLocation: ExtensionRunningLocation;
@@ -126,7 +133,7 @@ export interface IExtensionHost {
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol>;
-	getInspectPort(): { port: number; host: string } | undefined;
+	getInspectPort(): IExtensionInspectInfo | undefined;
 	enableInspectPort(): Promise<boolean>;
 	disconnect?(): Promise<void>;
 	dispose(): void;
@@ -369,7 +376,7 @@ export interface IResponsiveStateChangeEvent {
 	/**
 	 * Return the inspect port or `0`. `0` means inspection is not possible.
 	 */
-	getInspectListener(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined>;
+	getInspectListener(tryEnableInspector: boolean): Promise<IExtensionInspectInfo | undefined>;
 }
 
 export const enum ActivationKind {
@@ -512,7 +519,7 @@ export interface IExtensionService {
 	/**
 	 * Return the inspect ports (if inspection is possible) for extension hosts of kind `extensionHostKind`.
 	 */
-	getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<{ port: number; host: string }[]>;
+	getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<IExtensionInspectInfo[]>;
 
 	/**
 	 * Stops the extension hosts.
@@ -600,7 +607,7 @@ export class NullExtensionService implements IExtensionService {
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }
-	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<{ port: number; host: string }[]> { return Promise.resolve([]); }
+	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<IExtensionInspectInfo[]> { return Promise.resolve([]); }
 	async stopExtensionHosts(): Promise<boolean> { return true; }
 	async startExtensionHosts(): Promise<void> { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }

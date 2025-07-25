@@ -400,7 +400,10 @@ export class AttachContextAction extends Action2 {
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: {
-				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeys.lockedToCodingAgent.negate()
+				),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation',
 				order: 3

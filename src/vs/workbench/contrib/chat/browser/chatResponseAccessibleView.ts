@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
@@ -66,7 +66,20 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			responseContent = item.errorDetails.message;
 		}
 		if (isResponseVM(item)) {
-
+			item.response.value.filter(item => item.kind === 'elicitation').forEach(elicitation => {
+				const title = elicitation.title;
+				if (typeof title === 'string') {
+					responseContent += `${title}\n`;
+				} else if (isMarkdownString(title)) {
+					responseContent += renderAsPlaintext(title, { includeCodeBlocksFences: true }) + '\n';
+				}
+				const message = elicitation.message;
+				if (isMarkdownString(message)) {
+					responseContent += renderAsPlaintext(message, { includeCodeBlocksFences: true });
+				} else {
+					responseContent += message;
+				}
+			});
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
 				if (toolInvocation.confirmationMessages) {

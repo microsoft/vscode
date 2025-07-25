@@ -384,7 +384,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		this._indexOfLastOpenedContext = -1;
 		this._onDidChangeVisibility = this._register(new Emitter<boolean>());
-		this._contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
+		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this.inputEditorHeight = 0;
 		this.followupsDisposables = this._register(new DisposableStore());
 		this.attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());

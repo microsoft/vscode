@@ -9,6 +9,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
+import { IChatAccessibilityService } from '../chat.js';
 import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
@@ -22,6 +23,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		elicitation: IChatElicitationRequest,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService
 	) {
 		super();
 
@@ -32,7 +34,11 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, elicitation.title, elicitation.originMessage, this.getMessageToRender(elicitation), buttons, context.container));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
+		this._register(elicitation.onDidRequestHide(() => this.domNode.remove()));
+
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
+		const messageToRender = this.getMessageToRender(elicitation);
 
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (e.data) {
@@ -42,12 +48,16 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			}
 
 			confirmationWidget.setShowButtons(false);
-			confirmationWidget.updateMessage(this.getMessageToRender(elicitation));
+			confirmationWidget.updateMessage(messageToRender);
 
 			this._onDidChangeHeight.fire();
 		}));
 
+
+		this.chatAccessibilityService.acceptElicitation(elicitation);
 		this.domNode = confirmationWidget.domNode;
+		this.domNode.tabIndex = 0;
+		this.domNode.ariaLabel = elicitation.title + ' ' + (typeof messageToRender === 'string' ? messageToRender : messageToRender.value || '');
 	}
 
 	private getMessageToRender(elicitation: IChatElicitationRequest): IMarkdownString | string {
