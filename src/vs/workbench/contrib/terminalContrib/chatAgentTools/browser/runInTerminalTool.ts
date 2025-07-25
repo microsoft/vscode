@@ -274,40 +274,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		let error: string | undefined;
+		const isNewSession = !args.isBackground && !this._sessionTerminalAssociations.has(chatSessionId);
 
 		const timingStart = Date.now();
 		const termId = generateUuid();
 
-		let isNewSession = false;
-		let toolTerminal: IToolTerminal;
 		const store = new DisposableStore();
 
-		if (args.isBackground) {
-			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-			toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
-			this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
-			if (token.isCancellationRequested) {
-				toolTerminal.instance.dispose();
-				throw new CancellationError();
-			}
-			await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, args.isBackground);
-		} else {
-			const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionId);
-			isNewSession = !cachedTerminal;
-			if (cachedTerminal) {
-				this._logService.debug(`RunInTerminalTool: Using existing terminal with session ID \`${chatSessionId}\``);
-				toolTerminal = cachedTerminal;
-			} else {
-				this._logService.debug(`RunInTerminalTool: Creating terminal with session ID \`${chatSessionId}\``);
-				toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
-				this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
-				if (token.isCancellationRequested) {
-					toolTerminal.instance.dispose();
-					throw new CancellationError();
-				}
-				await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, args.isBackground);
-			}
-		}
+		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
+		const toolTerminal = await (args.isBackground ? this._initBackgroundTerminal : this._initForegroundTerminal)(chatSessionId, termId, token);
 
 		this._terminalService.setActiveInstance(toolTerminal.instance);
 		const timingConnectMs = Date.now() - timingStart;
@@ -468,6 +443,34 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}]
 			};
 		}
+	}
+
+	private async _initBackgroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
+		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
+		const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
+		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
+		if (token.isCancellationRequested) {
+			toolTerminal.instance.dispose();
+			throw new CancellationError();
+		}
+		await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, true);
+		return toolTerminal;
+	}
+
+	private async _initForegroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
+		const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionId);
+		if (cachedTerminal) {
+			this._logService.debug(`RunInTerminalTool: Using cached foreground terminal with session ID \`${chatSessionId}\``);
+			return cachedTerminal;
+		}
+		const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
+		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
+		if (token.isCancellationRequested) {
+			toolTerminal.instance.dispose();
+			throw new CancellationError();
+		}
+		await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, false);
+		return toolTerminal;
 	}
 
 	protected async _rewriteCommandIfNeeded(args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
