@@ -111,6 +111,14 @@ export interface IRunInTerminalInputParams {
 	isBackground: boolean;
 }
 
+/**
+ * A set of characters to ignore when reporting telemetry
+ */
+const telemetryIgnoredSequences = [
+	'\x1b[I', // Focus in
+	'\x1b[O', // Focus out
+];
+
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
@@ -271,6 +279,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const termId = generateUuid();
 
 		if (args.isBackground) {
+			const store = new DisposableStore();
 			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } | undefined = undefined;
 
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
@@ -285,12 +294,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			const timingConnectMs = Date.now() - timingStart;
 
+			const xterm = await toolTerminal.instance.xtermReadyPromise;
+			if (!xterm) {
+				throw new Error('Instance was disposed before xterm.js was ready');
+			}
+
+			let inputUserChars = 0;
+			let inputUserSigint = false;
+			store.add(xterm.raw.onData(data => {
+				if (!telemetryIgnoredSequences.includes(data)) {
+					inputUserChars += data.length;
+				}
+				inputUserSigint ||= data === '\x03';
+			}));
+
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const xterm = await toolTerminal.instance.xtermReadyPromise;
-				if (!xterm) {
-					throw new Error('Instance was disposed before xterm.js was ready');
-				}
+
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
@@ -331,12 +351,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				throw e;
 			} finally {
+				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
-					didAcceptUserInput: false,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 					isBackground: true,
 					error,
@@ -347,9 +367,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalExecutionIdleBeforeTimeout: outputAndIdle?.terminalExecutionIdleBeforeTimeout,
 					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
 					pollDurationMs: outputAndIdle?.pollDurationMs,
+					inputUserChars,
+					inputUserSigint,
 				});
 			}
 		} else {
+			const store = new DisposableStore();
 			let toolTerminal: IToolTerminal | undefined = this._sessionTerminalAssociations.get(chatSessionId);
 			const isNewSession = !toolTerminal;
 			if (toolTerminal) {
@@ -369,14 +392,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			const timingConnectMs = Date.now() - timingStart;
 
-			const store = new DisposableStore();
-			let didAcceptUserInput = false;
 			const xterm = await toolTerminal.instance.xtermReadyPromise;
-			if (xterm) {
-				store.add(xterm.raw.onData(() => didAcceptUserInput = true));
+			if (!xterm) {
+				throw new Error('Instance was disposed before xterm.js was ready');
 			}
 
+			let inputUserChars = 0;
+			let inputUserSigint = false;
+			store.add(xterm.raw.onData(data => {
+				if (!telemetryIgnoredSequences.includes(data)) {
+					inputUserChars += data.length;
+				}
+				inputUserSigint ||= data === '\x03';
+			}));
+
 			let terminalResult = '';
+
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
 			try {
@@ -423,7 +454,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._sendTelemetry(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
-					didAcceptUserInput,
 					isBackground: false,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 					error,
@@ -432,6 +462,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					exitCode,
 					timingExecuteMs,
 					timingConnectMs,
+					inputUserChars,
+					inputUserSigint,
 				});
 			}
 
@@ -592,7 +624,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private _sendTelemetry(instance: ITerminalInstance, state: {
 		didUserEditCommand: boolean;
 		didToolEditCommand: boolean;
-		didAcceptUserInput: boolean;
 		error: string | undefined;
 		isBackground: boolean;
 		isNewSession: boolean;
@@ -603,6 +634,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		terminalExecutionIdleBeforeTimeout?: boolean;
 		timingExecuteMs: number;
 		exitCode: number | undefined;
+		inputUserChars: number;
+		inputUserSigint: boolean;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -611,7 +644,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			strategy: 0 | 1 | 2;
 			userEditedCommand: 0 | 1;
 			toolEditedCommand: 0 | 1;
-			acceptedUserInput: 0 | 1;
 			isBackground: 0 | 1;
 			isNewSession: 0 | 1;
 			outputLineCount: number;
@@ -619,6 +651,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingConnectMs: number;
 			pollDurationMs: number;
 			terminalExecutionIdleBeforeTimeout: boolean;
+
+			inputUserChars: number;
+			inputUserSigint: boolean;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -630,7 +665,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			strategy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'What strategy was used to execute the command (0=none, 1=basic, 2=rich)' };
 			userEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user edited the command' };
 			toolEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool edited the command' };
-			acceptedUserInput: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the terminal accepted user input during the execution' };
 			isBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command is a background command' };
 			isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this was the first execution for the terminal session' };
 			outputLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many lines of output were produced, this is -1 when isBackground is true or if there\'s an error' };
@@ -638,6 +672,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
 			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
+
+			inputUserChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters the user input manually, a single key stroke could map to several characters. Focus in/out sequences are not counted as part of this' };
+			inputUserSigint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user input the SIGINT signal' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -645,14 +682,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
 			userEditedCommand: state.didUserEditCommand ? 1 : 0,
 			toolEditedCommand: state.didToolEditCommand ? 1 : 0,
-			acceptedUserInput: state.didAcceptUserInput ? 1 : 0,
 			isBackground: state.isBackground ? 1 : 0,
 			isNewSession: state.isNewSession ? 1 : 0,
 			outputLineCount: state.outputLineCount,
 			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
 			timingConnectMs: state.timingConnectMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
-			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false
+			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
+
+			inputUserChars: state.inputUserChars,
+			inputUserSigint: state.inputUserSigint,
 		});
 	}
 }
