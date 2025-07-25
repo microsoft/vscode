@@ -325,7 +325,11 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private _showAndFocusHoverForActiveElement(): void {
-		// TODO: if hover is visible, focus it to avoid flickering
+		// If hover is visible, focus it to avoid flickering
+		if (this._currentHover && !this._currentHover.isDisposed) {
+			this._currentHover.focus();
+			return;
+		}
 
 		let activeElement = getActiveElement() as HTMLElement | null;
 		while (activeElement) {
