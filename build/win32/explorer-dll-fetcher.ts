@@ -50,7 +50,7 @@ export async function downloadExplorerDll(outDir: string, quality: string = 'sta
 	});
 
 	d(`moving ${artifact} to ${outDir}`);
-	await fs.renameSync(artifact, path.join(outDir, fileName));
+	await fs.copyFileSync(artifact, path.join(outDir, fileName));
 }
 
 async function main(outputDir?: string): Promise<void> {

@@ -46,7 +46,7 @@ async function downloadExplorerDll(outDir, quality = 'stable', targetArch = 'x64
         }
     });
     d(`moving ${artifact} to ${outDir}`);
-    await fs_1.default.renameSync(artifact, path_1.default.join(outDir, fileName));
+    await fs_1.default.copyFileSync(artifact, path_1.default.join(outDir, fileName));
 }
 async function main(outputDir) {
     const arch = process.env['VSCODE_ARCH'];
