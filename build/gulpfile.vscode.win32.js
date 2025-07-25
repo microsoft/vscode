@@ -114,9 +114,6 @@ function buildWin32Setup(arch, target) {
 
 		if (quality !== 'exploration') {
 			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
-			const rawVersion = pkg.version.replace(/-\w+$/, '').split('.');
-			const appxVersion = `${rawVersion[0]}.0.${rawVersion[1]}.${rawVersion[2]}`;
-			definitions['AppxPackageFullname'] = `${product.win32AppUserModelId}_${appxVersion}_neutral__8wekyb3d8bbwe`;
 			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
 		}
 
