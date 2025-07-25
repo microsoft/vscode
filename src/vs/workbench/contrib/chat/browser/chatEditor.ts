@@ -130,7 +130,12 @@ export class ChatEditor extends EditorPane {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
-		if (input.resource.scheme === Schemas.vscodeChatSession) {
+		const viewState = options?.viewState ?? input.options.viewState;
+		this.updateModel(editorModel.model, viewState);
+		const isAlreadyLocked = !!(viewState as IChatViewState | undefined)?.inputState?.lockedToCodingAgent;
+
+		// Only apply specific locking for dedicated coding agent sessions if not already locked
+		if (!isAlreadyLocked && input.resource.scheme === Schemas.vscodeChatSession) {
 			const identifier = ChatSessionUri.parse(input.resource);
 			if (identifier) {
 				const contributions = this.chatSessionsService.getChatSessionContributions();
@@ -139,9 +144,9 @@ export class ChatEditor extends EditorPane {
 					this.widget.lockToCodingAgent(contribution.name);
 				}
 			}
+		} else {
+			this.widget.unlockFromCodingAgent();
 		}
-
-		this.updateModel(editorModel.model, options?.viewState ?? input.options.viewState);
 	}
 
 	private updateModel(model: IChatModel, viewState?: IChatViewState): void {

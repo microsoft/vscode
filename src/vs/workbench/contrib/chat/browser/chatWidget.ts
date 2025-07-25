@@ -1524,11 +1524,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		});
 
-		// Restore locked coding agent state if present
-		if (viewState.inputState?.lockedToCodingAgent) {
-			this.lockToCodingAgent(viewState.inputState.lockedToCodingAgent);
-		}
-
 		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
@@ -1601,9 +1596,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	public unlockFromCodingAgent(): void {
+		// Clear all state related to locking
 		this._lockedToCodingAgent = undefined;
 		this._codingAgentPrefix = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
+
+		// Explicitly update the DOM to reflect unlocked state
 		this.renderWelcomeViewContentIfNeeded();
 
 		// Reset to default placeholder
