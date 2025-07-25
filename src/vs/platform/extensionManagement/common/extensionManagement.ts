@@ -209,6 +209,7 @@ export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
 	isPreReleaseVersion: boolean;
+	targetPlatforms: TargetPlatform[];
 }
 
 export interface IGalleryExtension {
@@ -357,6 +358,7 @@ export interface IExtensionsControlManifest {
 	readonly malicious: ReadonlyArray<MaliciousExtensionInfo>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
+	readonly autoUpdate?: IStringDictionary<string>;
 }
 
 export const enum InstallOperation {
@@ -382,7 +384,6 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
-	updateCheck?: boolean;
 }
 
 export interface IExtensionGalleryCapabilities {

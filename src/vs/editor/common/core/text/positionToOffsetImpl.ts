@@ -39,12 +39,12 @@ export abstract class PositionOffsetTransformerBase {
 		return new Deps.deps.StringReplacement(this.getOffsetRange(edit.range), edit.text);
 	}
 
-	getSingleTextEdit(edit: StringReplacement): TextReplacement {
+	getTextReplacement(edit: StringReplacement): TextReplacement {
 		return new Deps.deps.TextReplacement(this.getRange(edit.replaceRange), edit.newText);
 	}
 
 	getTextEdit(edit: StringEdit): TextEdit {
-		const edits = edit.replacements.map(e => this.getSingleTextEdit(e));
+		const edits = edit.replacements.map(e => this.getTextReplacement(e));
 		return new Deps.deps.TextEdit(edits);
 	}
 }

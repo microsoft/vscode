@@ -115,6 +115,7 @@ function buildWin32Setup(arch, target) {
 		if (quality === 'insider') {
 			definitions['AppxPackage'] = `code_insiders_explorer_${arch}.appx`;
 			definitions['AppxPackageFullname'] = `Microsoft.${product.win32RegValueName}_1.0.0.0_neutral__8wekyb3d8bbwe`;
+			definitions['AppxPackageName'] = `Microsoft.${product.win32RegValueName}`;
 		}
 
 		packageInnoSetup(issPath, { definitions }, cb);

@@ -107,11 +107,6 @@ Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; File
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Flags: nowait postinstall; Check: WizardNotSilent
 
-#ifdef AppxPackageFullname
-[UninstallRun]
-Filename: "powershell.exe"; Parameters: "Invoke-Command -ScriptBlock {{Remove-AppxPackage -Package ""{#AppxPackageFullname}""}"; Check: IsWindows11OrLater and QualityIsInsiders; Flags: shellexec waituntilterminated runhidden
-#endif
-
 [Registry]
 #if "user" == InstallTarget
 #define SoftwareClassesRootKey "HKCU"
@@ -1472,16 +1467,36 @@ begin
 end;
 
 #ifdef AppxPackageFullname
+var
+  Line: String;
+
+procedure ExecAndGetFirstLineLog(const S: String; const Error, FirstLine: Boolean);
+begin
+  if not Error and (Line = '') and (Trim(S) <> '') then
+    Line := S;
+  Log(S);
+end;
+
+function AppxPackageInstalled(var ResultCode: Integer): Boolean;
+begin
+  Line := '';
+  try
+    ExecAndLogOutput('powershell.exe', '-Command ' + AddQuotes('Get-AppxPackage -Name ''{#AppxPackageName}'''), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, @ExecAndGetFirstLineLog);
+  except
+    Log(GetExceptionMessage);
+  end;
+  if (Line <> '') then
+    Result := True
+  else
+    Result := False
+end;
+
 procedure AddAppxPackage();
 var
   AddAppxPackageResultCode: Integer;
 begin
-  if WizardIsTaskSelected('addcontextmenufiles') then begin
+  if not AppxPackageInstalled(AddAppxPackageResultCode) and WizardIsTaskSelected('addcontextmenufiles') then begin
     ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}');
   end;
 end;
 
@@ -1489,9 +1504,8 @@ procedure RemoveAppxPackage();
 var
   RemoveAppxPackageResultCode: Integer;
 begin
-  ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
-  if not WizardIsTaskSelected('addcontextmenufiles') then begin
-    RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\{#RegValueName}ContextMenu');
+  if AppxPackageInstalled(RemoveAppxPackageResultCode) then begin
+    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
   end;
 end;
 #endif
@@ -1503,6 +1517,17 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
+#ifdef AppxPackageFullname
+    if not WizardIsTaskSelected('addcontextmenufiles') then begin
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\{#RegValueName}ContextMenu');
+    end else begin
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}');
+    end;
+#endif
+
     if IsBackgroundUpdate() then
     begin
       CreateMutex('{#AppMutex}-ready');
@@ -1581,10 +1606,16 @@ var
   Parts: TArrayOfString;
   NewPath: string;
   i: Integer;
+  ResultCode: Integer;
 begin
   if not CurUninstallStep = usUninstall then begin
     exit;
   end;
+#ifdef AppxPackageFullname
+  if AppxPackageInstalled(ResultCode) then begin
+    RemoveAppxPackage();
+  end;
+#endif
   if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', Path)
   then begin
     exit;

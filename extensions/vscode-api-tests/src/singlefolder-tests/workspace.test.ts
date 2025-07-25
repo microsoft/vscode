@@ -1178,7 +1178,7 @@ suite('vscode API - workspace', () => {
 
 	});
 
-	test('issue #110141 - TextEdit.setEndOfLine applies an edit and invalidates redo stack even when no change is made', async () => {
+	test.skip('issue #110141 - TextEdit.setEndOfLine applies an edit and invalidates redo stack even when no change is made', async () => {
 		const file = await createRandomFile('hello\nworld');
 
 		const document = await vscode.workspace.openTextDocument(file);

@@ -41,6 +41,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 				userDescription: tool.userDescription,
 				modelDescription: tool.modelDescription,
 				inputSchema: tool.inputSchema,
+				source: tool.source,
 			} satisfies IToolDataDto));
 	}
 

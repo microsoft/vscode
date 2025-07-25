@@ -5,7 +5,8 @@
 
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
-import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationPropertySchema, IConfigurationNode, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import product from '../../../../../platform/product/common/product.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
@@ -54,10 +55,7 @@ export interface ITerminalSuggestConfiguration {
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
 	windowsExecutableExtensions: { [key: string]: boolean };
-	providers: {
-		'terminal-suggest': boolean;
-		'pwsh-shell-integration': boolean;
-	};
+	providers: { [key: string]: boolean };
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
@@ -77,9 +75,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		type: 'object',
 		properties: {},
 		default: {
-			'terminal-suggest': true,
-			'pwsh-shell-integration': true,
-			'lsp': true,
+			'pwsh-shell-integration': false,
 		},
 		tags: ['preview'],
 	},
@@ -195,4 +191,62 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 
 };
 
+let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
 
+export function registerTerminalSuggestProvidersConfiguration(availableProviders?: string[]) {
+	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
+
+	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+
+	const corePwshProviderId = 'core:pwsh-shell-integration';
+	const defaultValue: IStringDictionary<boolean> = {
+		[corePwshProviderId]: false,
+	};
+	providersProperties[corePwshProviderId] ??= {
+		type: 'boolean',
+		description: localize('suggest.provider.pwsh.description', "Enable or disable the PowerShell script-based provider. This enables PowerShell-specific argument completion."),
+		deprecated: true,
+		deprecationMessage: localize('suggest.provider.pwsh.deprecation', "This is deprecated as it has performance problems, the upcoming LSP provider will supersede this."),
+		default: false
+	};
+
+	if (availableProviders) {
+		for (const providerId of availableProviders) {
+			if (providerId in defaultValue) {
+				continue;
+			}
+			providersProperties[providerId] = {
+				type: 'boolean',
+				description: localize('suggest.provider.description', "Whether to enable this provider."),
+				default: true
+			};
+			defaultValue[providerId] = true;
+		}
+	}
+
+	terminalSuggestProvidersConfiguration = {
+		id: 'terminalSuggestProviders',
+		order: 100,
+		title: localize('terminalSuggestProvidersConfigurationTitle', "Terminal Suggest Providers"),
+		type: 'object',
+		properties: {
+			[TerminalSuggestSettingId.Providers]: {
+				restricted: true,
+				markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
+				type: 'object',
+				properties: providersProperties,
+				default: defaultValue,
+				tags: ['preview'],
+			}
+		}
+	};
+
+	registry.updateConfigurations({
+		add: [terminalSuggestProvidersConfiguration],
+		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : []
+	});
+}
+
+registerTerminalSuggestProvidersConfiguration([]);

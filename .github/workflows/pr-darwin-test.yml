@@ -38,10 +38,10 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
@@ -91,8 +91,9 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
+          enableCrossOsArchive: true
           path: .build/builtInExtensions
           key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 

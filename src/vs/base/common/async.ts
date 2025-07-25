@@ -2305,4 +2305,230 @@ export function cancellableIterable<T>(iterableOrIterator: AsyncIterator<T> | As
 	};
 }
 
+type ProducerConsumerValue<T> = {
+	ok: true;
+	value: T;
+} | {
+	ok: false;
+	error: Error;
+};
+
+class ProducerConsumer<T> {
+	private readonly _unsatisfiedConsumers: DeferredPromise<T>[] = [];
+	private readonly _unconsumedValues: ProducerConsumerValue<T>[] = [];
+	private _finalValue: ProducerConsumerValue<T> | undefined;
+
+	public get hasFinalValue(): boolean {
+		return !!this._finalValue;
+	}
+
+	produce(value: ProducerConsumerValue<T>): void {
+		this._ensureNoFinalValue();
+		if (this._unsatisfiedConsumers.length > 0) {
+			const deferred = this._unsatisfiedConsumers.shift()!;
+			this._resolveOrRejectDeferred(deferred, value);
+		} else {
+			this._unconsumedValues.push(value);
+		}
+	}
+
+	produceFinal(value: ProducerConsumerValue<T>): void {
+		this._ensureNoFinalValue();
+		this._finalValue = value;
+		for (const deferred of this._unsatisfiedConsumers) {
+			this._resolveOrRejectDeferred(deferred, value);
+		}
+		this._unsatisfiedConsumers.length = 0;
+	}
+
+	private _ensureNoFinalValue(): void {
+		if (this._finalValue) {
+			throw new BugIndicatingError('ProducerConsumer: cannot produce after final value has been set');
+		}
+	}
+
+	private _resolveOrRejectDeferred(deferred: DeferredPromise<T>, value: ProducerConsumerValue<T>): void {
+		if (value.ok) {
+			deferred.complete(value.value);
+		} else {
+			deferred.error(value.error);
+		}
+	}
+
+	consume(): Promise<T> {
+		if (this._unconsumedValues.length > 0 || this._finalValue) {
+			const value = this._unconsumedValues.length > 0 ? this._unconsumedValues.shift()! : this._finalValue!;
+			if (value.ok) {
+				return Promise.resolve(value.value);
+			} else {
+				return Promise.reject(value.error);
+			}
+		} else {
+			const deferred = new DeferredPromise<T>();
+			this._unsatisfiedConsumers.push(deferred);
+			return deferred.p;
+		}
+	}
+}
+
+/**
+ * Important difference to AsyncIterableObject:
+ * If it is iterated two times, the second iterator will not see the values emitted by the first iterator.
+ */
+export class AsyncIterableProducer<T> implements AsyncIterable<T> {
+	private readonly _producerConsumer = new ProducerConsumer<IteratorResult<T>>();
+
+	constructor(executor: AsyncIterableExecutor<T>, private readonly _onReturn?: () => void) {
+		queueMicrotask(async () => {
+			const p = executor({
+				emitOne: value => this._producerConsumer.produce({ ok: true, value: { done: false, value: value } }),
+				emitMany: values => {
+					for (const value of values) {
+						this._producerConsumer.produce({ ok: true, value: { done: false, value: value } });
+					}
+				},
+				reject: error => this._finishError(error),
+			});
+
+			if (!this._producerConsumer.hasFinalValue) {
+				try {
+					await p;
+					this._finishOk();
+				} catch (error) {
+					this._finishError(error);
+				}
+			}
+		});
+	}
+
+	private _finishOk(): void {
+		this._producerConsumer.produceFinal({ ok: true, value: { done: true, value: undefined } });
+	}
+
+	private _finishError(error: Error): void {
+		this._producerConsumer.produceFinal({ ok: false, error: error });
+	}
+
+	private readonly _iterator: AsyncIterator<T, void, void> = {
+		next: () => this._producerConsumer.consume(),
+		return: () => {
+			this._onReturn?.();
+			return Promise.resolve({ done: true, value: undefined });
+		},
+		throw: async (e) => {
+			this._finishError(e);
+			return { done: true, value: undefined };
+		},
+	};
+
+	[Symbol.asyncIterator](): AsyncIterator<T, void, void> {
+		return this._iterator;
+	}
+}
+
 //#endregion
+
+export const AsyncReaderEndOfStream = Symbol('AsyncReaderEndOfStream');
+
+export class AsyncReader<T> {
+	private _buffer: T[] = [];
+	private _atEnd = false;
+
+	public get endOfStream(): boolean { return this._buffer.length === 0 && this._atEnd; }
+	private _extendBufferPromise: Promise<void> | undefined;
+
+	constructor(
+		private readonly _source: AsyncIterator<T>
+	) {
+	}
+
+	public async read(): Promise<T | typeof AsyncReaderEndOfStream> {
+		if (this._buffer.length === 0 && !this._atEnd) {
+			await this._extendBuffer();
+		}
+		if (this._buffer.length === 0) {
+			return AsyncReaderEndOfStream;
+		}
+		return this._buffer.shift()!;
+	}
+
+	public async readWhile(predicate: (value: T) => boolean, callback: (element: T) => unknown): Promise<void> {
+		do {
+			const piece = await this.peek();
+			if (piece === AsyncReaderEndOfStream) {
+				break;
+			}
+			if (!predicate(piece)) {
+				break;
+			}
+			await this.read(); // consume
+			await callback(piece);
+		} while (true);
+	}
+
+	public readBufferedOrThrow(): T | typeof AsyncReaderEndOfStream {
+		const value = this.peekBufferedOrThrow();
+		this._buffer.shift();
+		return value;
+	}
+
+	public async consumeToEnd(): Promise<void> {
+		while (!this.endOfStream) {
+			await this.read();
+		}
+	}
+
+	public async peek(): Promise<T | typeof AsyncReaderEndOfStream> {
+		if (this._buffer.length === 0 && !this._atEnd) {
+			await this._extendBuffer();
+		}
+		if (this._buffer.length === 0) {
+			return AsyncReaderEndOfStream;
+		}
+		return this._buffer[0];
+	}
+
+	public peekBufferedOrThrow(): T | typeof AsyncReaderEndOfStream {
+		if (this._buffer.length === 0) {
+			if (this._atEnd) {
+				return AsyncReaderEndOfStream;
+			}
+			throw new BugIndicatingError('No buffered elements');
+		}
+
+		return this._buffer[0];
+	}
+
+	public async peekTimeout(timeoutMs: number): Promise<T | typeof AsyncReaderEndOfStream | undefined> {
+		if (this._buffer.length === 0 && !this._atEnd) {
+			await raceTimeout(this._extendBuffer(), timeoutMs);
+		}
+		if (this._atEnd) {
+			return AsyncReaderEndOfStream;
+		}
+		if (this._buffer.length === 0) {
+			return undefined;
+		}
+		return this._buffer[0];
+	}
+
+	private _extendBuffer(): Promise<void> {
+		if (this._atEnd) {
+			return Promise.resolve();
+		}
+
+		if (!this._extendBufferPromise) {
+			this._extendBufferPromise = (async () => {
+				const { value, done } = await this._source.next();
+				this._extendBufferPromise = undefined;
+				if (done) {
+					this._atEnd = true;
+				} else {
+					this._buffer.push(value);
+				}
+			})();
+		}
+
+		return this._extendBufferPromise;
+	}
+}

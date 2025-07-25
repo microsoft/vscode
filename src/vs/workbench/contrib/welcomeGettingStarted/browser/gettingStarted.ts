@@ -1394,7 +1394,7 @@ export class GettingStartedPage extends EditorPane {
 						const labelWithIcon = renderLabelWithIcons(node);
 						for (const element of labelWithIcon) {
 							if (typeof element === 'string') {
-								p.appendChild(renderFormattedText(element, { inline: true, renderCodeSegments: true }));
+								p.appendChild(renderFormattedText(element, { renderCodeSegments: true }, $('span')));
 							} else {
 								p.appendChild(element);
 							}

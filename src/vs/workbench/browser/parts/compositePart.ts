@@ -89,7 +89,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected readonly registry: CompositeRegistry<T>,
 		private readonly activeCompositeSettingsKey: string,
 		private readonly defaultCompositeId: string,
-		private readonly nameForTelemetry: string,
+		protected readonly nameForTelemetry: string,
 		private readonly compositeCSSClass: string,
 		private readonly titleForegroundColor: string | undefined,
 		private readonly titleBorderColor: string | undefined,

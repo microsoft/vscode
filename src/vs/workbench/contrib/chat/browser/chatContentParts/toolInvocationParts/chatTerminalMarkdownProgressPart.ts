@@ -8,7 +8,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatMarkdownContent, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
+import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
@@ -38,7 +38,9 @@ export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubP
 	) {
 		super(toolInvocation);
 
-		const content = new MarkdownString(`\`\`\`${terminalData.language}\n${terminalData.command}\n\`\`\``);
+		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+
+		const content = new MarkdownString(`\`\`\`${terminalData.language}\n${command}\n\`\`\``);
 		const chatMarkdownContent: IChatMarkdownContent = {
 			kind: 'markdownContent',
 			content: content,

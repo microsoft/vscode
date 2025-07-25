@@ -20,6 +20,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
@@ -369,6 +370,10 @@ class AbstractResponse implements IResponse {
 					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
 					break;
 				case 'confirmation':
+					if (part.message instanceof MarkdownString) {
+						segment = { text: `${part.title}\n${part.message.value}`, isBlock: true };
+						break;
+					}
 					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
 					break;
 				default:
@@ -901,7 +906,7 @@ export interface IChatRequestDisablement {
 	afterUndoStop?: string;
 }
 
-export interface IChatModel {
+export interface IChatModel extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
@@ -929,6 +934,12 @@ export interface IChatModel {
 	completeResponse(request: IChatRequestModel): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
+}
+
+export const IChatModelService = createDecorator<IChatModelService>('chatModelService');
+
+export interface IChatModelService {
+	readonly _serviceBrand: undefined;
 }
 
 export interface ISerializableChatsData {
@@ -1169,7 +1180,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		const message = typeof firstRequestMessage === 'string' ?
 			firstRequestMessage :
 			firstRequestMessage.text;
-		return message.split('\n')[0].substring(0, 50);
+		return message.split('\n')[0].substring(0, 200);
 	}
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
