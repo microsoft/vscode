@@ -672,7 +672,7 @@ class SessionsViewPane extends ViewPane {
 		if (provider instanceof LocalChatSessionsProvider) {
 			this._register(provider.onDidChange(() => {
 				if (this.tree && this.isBodyVisible()) {
-					this.tree.updateChildren(this.provider);
+					this.refreshTreeWithProgress();
 				}
 			}));
 		}
@@ -684,8 +684,32 @@ class SessionsViewPane extends ViewPane {
 
 	public refreshTree(): void {
 		if (this.tree && this.isBodyVisible()) {
-			this.tree.updateChildren(this.provider);
+			this.refreshTreeWithProgress();
 		}
+	}
+
+	private async refreshTreeWithProgress(): Promise<void> {
+		if (!this.tree) {
+			return;
+		}
+
+		const progressIndicator = this.getProgressIndicator();
+		
+		// Show progress while refreshing tree data
+		const refreshPromise = this.tree.updateChildren(this.provider);
+		await progressIndicator.showWhile(refreshPromise, 0); // Show immediately, no delay
+	}
+
+	private async loadDataWithProgress(): Promise<void> {
+		if (!this.tree) {
+			return;
+		}
+
+		const progressIndicator = this.getProgressIndicator();
+		
+		// Show progress while loading data
+		const loadingPromise = this.tree.setInput(this.provider);
+		await progressIndicator.showWhile(loadingPromise, 0); // Show immediately, no delay
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -753,13 +777,13 @@ class SessionsViewPane extends ViewPane {
 		// Handle visibility changes to load data
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible && this.tree) {
-				await this.tree.setInput(this.provider);
+				await this.loadDataWithProgress();
 			}
 		}));
 
 		// Initially load data if visible
 		if (this.isBodyVisible() && this.tree) {
-			this.tree.setInput(this.provider);
+			this.loadDataWithProgress();
 		}
 	}
 
