@@ -72,6 +72,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 
 const $ = dom.$;
 
@@ -2036,6 +2037,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 		return readFileTool;
+	}
+
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
+		this.tree.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 }
 

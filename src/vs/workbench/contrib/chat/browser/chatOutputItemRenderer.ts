@@ -32,6 +32,7 @@ interface RegisterOptions {
 
 export interface RenderedOutputPart extends IDisposable {
 	readonly onDidChangeHeight: Event<number>;
+	readonly webview: IWebview;
 }
 
 export interface IChatOutputRendererService {
@@ -102,6 +103,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		await rendererData.renderer.renderOutputPart(mime, data, webview, token);
 
 		return {
+			webview,
 			onDidChangeHeight: onDidChangeHeight.event,
 			dispose: () => {
 				store.dispose();
