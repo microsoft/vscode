@@ -3,31 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../../../base/browser/dom.js';
-import { localize } from '../../../../../../nls.js';
-import { IChatTasksContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
-import { IChatCodeBlockInfo } from '../../chat.js';
-import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { IChatTasksContent } from '../../common/chatService.js';
 
-export class ChatTaskListSubPart extends BaseChatToolInvocationSubPart {
+export class ChatStickyTaskWidget extends Disposable {
 	public readonly domNode: HTMLElement;
-	public override readonly codeblocks: IChatCodeBlockInfo[] = [];
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private _isExpanded: boolean = true;
 	private expandoElement!: HTMLElement;
 	private taskListContainer!: HTMLElement;
+	private _taskData: IChatTasksContent | undefined;
 
-	constructor(
-		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		private readonly taskData: IChatTasksContent,
-	) {
-		super(toolInvocation);
+	constructor() {
+		super();
 
-		this.domNode = this.createTaskListPart();
+		this.domNode = this.createStickyTaskWidget();
 	}
 
-	private createTaskListPart(): HTMLElement {
-		const container = dom.$('.chat-task-list-part');
+	public get height(): number {
+		return this.domNode.style.display === 'none' ? 0 : this.domNode.offsetHeight;
+	}
+
+	private createStickyTaskWidget(): HTMLElement {
+		const container = dom.$('.chat-sticky-task-widget');
+		container.style.display = 'none';
 
 		this.expandoElement = dom.$('.task-expando');
 		this.expandoElement.setAttribute('role', 'button');
@@ -46,8 +51,6 @@ export class ChatTaskListSubPart extends BaseChatToolInvocationSubPart {
 		this.taskListContainer = dom.$('.task-list-container');
 		this.taskListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
-		this.renderTaskList();
-
 		container.appendChild(this.expandoElement);
 		container.appendChild(this.taskListContainer);
 
@@ -65,31 +68,50 @@ export class ChatTaskListSubPart extends BaseChatToolInvocationSubPart {
 		return container;
 	}
 
+	public updateTaskData(taskData: IChatTasksContent | undefined): void {
+		this._taskData = taskData;
+
+		if (taskData && taskData.tasks.length > 0) {
+			this.renderTaskList();
+			this.domNode.style.display = 'block';
+		} else {
+			this.domNode.style.display = 'none';
+		}
+
+		this._onDidChangeHeight.fire();
+	}
+
 	private renderTaskList(): void {
-		dom.clearNode(this.taskListContainer);
+		if (!this._taskData || !this._taskData.tasks.length) {
+			return;
+		}
 
-		const listElement = dom.$('.task-list');
+		this.taskListContainer.textContent = '';
 
-		this.taskData.tasks.forEach((task, index) => {
-			const taskItem = dom.$('.task-item');
+		const titleElement = this.expandoElement.querySelector('.task-title') as HTMLElement;
+		if (titleElement) {
+			titleElement.textContent = `${localize('chat.task.title', 'Tasks')}`;
+		}
+
+		this._taskData.tasks.forEach((task, index) => {
+			const taskElement = dom.$('.task-item');
 
 			const statusIcon = dom.$('.task-status-icon.codicon');
-			const iconClass = this.getStatusIconClass(task.status);
-			const iconColor = this.getStatusIconColor(task.status);
-			statusIcon.classList.add(iconClass);
-			statusIcon.style.color = iconColor;
+			statusIcon.classList.add(this.getStatusIconClass(task.status));
+			statusIcon.style.color = this.getStatusIconColor(task.status);
 
-			// Create content
-			const contentElement = dom.$('.task-content');
-			contentElement.textContent = task.title;
+			const taskContent = dom.$('.task-content');
 
-			taskItem.appendChild(statusIcon);
-			taskItem.appendChild(contentElement);
+			const titleElement = dom.$('.task-title');
+			titleElement.textContent = `${index + 1}. ${task.title}`;
 
-			listElement.appendChild(taskItem);
+			taskContent.appendChild(titleElement);
+
+			taskElement.appendChild(statusIcon);
+			taskElement.appendChild(taskContent);
+
+			this.taskListContainer.appendChild(taskElement);
 		});
-
-		this.taskListContainer.appendChild(listElement);
 	}
 
 	private toggleExpanded(): void {

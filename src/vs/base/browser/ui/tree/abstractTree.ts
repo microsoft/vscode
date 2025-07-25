@@ -37,6 +37,7 @@ import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { autorun, constObservable } from '../../../common/observable.js';
 import { alert } from '../aria/aria.js';
+import { IMouseWheelEvent } from '../../mouseEvent.js';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -3222,6 +3223,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	navigate(start?: TRef): ITreeNavigator<T> {
 		return new TreeNavigator(this.view, this.model, start);
+	}
+
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	dispose(): void {

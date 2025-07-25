@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -224,6 +225,8 @@ export interface IChatWidget {
 	getViewState(): IChatViewState;
 	togglePaused(): void;
 	lockToCodingAgent(name: string): void;
+
+	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }
 
 
