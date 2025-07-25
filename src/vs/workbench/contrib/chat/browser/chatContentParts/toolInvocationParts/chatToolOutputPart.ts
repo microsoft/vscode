@@ -56,7 +56,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 					value: decodeBase64((toolInvocation.resultDetails as IToolResultOutputDetailsSerialized).output.base64Data),
 				},
 			};
-		console.log(context.content[context.contentIndex]);
+
 		this.domNode = dom.$('div.tool-output-part');
 
 		const titleEl = dom.$('.output-title');
