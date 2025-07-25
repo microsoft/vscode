@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder, ThemeIcon } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -30,6 +30,17 @@ class RepositoryPick implements QuickPickItem {
 		return [this.repository.headLabel, this.repository.syncLabel]
 			.filter(l => !!l)
 			.join(' ');
+	}
+
+	@memoize get iconPath(): ThemeIcon {
+		switch (this.repository.kind) {
+			case 'submodule':
+				return new ThemeIcon('archive');
+			case 'worktree':
+				return new ThemeIcon('list-tree');
+			default:
+				return new ThemeIcon('repo');
+		}
 	}
 
 	constructor(public readonly repository: Repository, public readonly index: number) { }
@@ -636,6 +647,19 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Open repository
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
 			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
+
+			// Check if the repository is a submodule/worktree and if they should be detected
+			const detectSubmodules = config.get<boolean>('detectSubmodules', true) === true;
+			const detectWorktrees = config.get<boolean>('detectWorktrees', true) === true;
+			if ((gitRepository.kind === 'submodule' && !detectSubmodules) ||
+				(gitRepository.kind === 'worktree' && !detectWorktrees)) {
+				this.logger.info(`[Model][openRepository] Skip opening repository (path): ${repositoryRoot}`);
+				this.logger.info(`[Model][openRepository] Skip opening repository (real path): ${repositoryRootRealPath ?? repositoryRoot}`);
+				this.logger.info(`[Model][openRepository] Skip opening repository (kind): ${gitRepository.kind}`);
+
+				return;
+			}
+
 			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
@@ -840,13 +864,22 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		openRepository.dispose();
 	}
 
-	async pickRepository(): Promise<Repository | undefined> {
+	async pickRepository(repositoryFilter?: ('repository' | 'submodule' | 'worktree')[]): Promise<Repository | undefined> {
 		if (this.openRepositories.length === 0) {
 			throw new Error(l10n.t('There are no available repositories'));
 		}
 
-		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
+		const repositories = this.openRepositories
+			.filter(r => !repositoryFilter || repositoryFilter.includes(r.repository.kind));
+
+		if (repositories.length === 0) {
+			throw new Error(l10n.t('There are no available repositories matching the filter'));
+		} else if (repositories.length === 1) {
+			return repositories[0].repository;
+		}
+
 		const active = window.activeTextEditor;
+		const picks = repositories.map((e, index) => new RepositoryPick(e.repository, index));
 		const repository = active && this.getRepository(active.document.fileName);
 		const index = picks.findIndex(pick => pick.repository === repository);
 

@@ -207,5 +207,8 @@
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
 	"terminal.integrated.suggest.enabled": true,
-	"application.experimental.rendererProfiling": true
+	"application.experimental.rendererProfiling": true,
+
+	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
+	"chat.checkpoints.showFileChanges": true
 }

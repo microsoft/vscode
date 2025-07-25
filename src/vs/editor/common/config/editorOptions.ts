@@ -4471,7 +4471,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated."),
 					experiment: {
-						allowAutoUpdate: false
+						mode: 'startup'
 					}
 				},
 				'editor.inlineSuggest.experimental.triggerCommandOnProviderChange': {
@@ -4480,7 +4480,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes."),
 					experiment: {
-						allowAutoUpdate: false
+						mode: 'startup'
 					}
 				},
 				'editor.inlineSuggest.fontFamily': {
@@ -5305,7 +5305,12 @@ class WordSegmenterLocales extends BaseEditorOption<EditorOption.wordSegmenterLo
 						}
 					}
 				],
-				description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). The locale specification can be a string or an array of strings."),
+				description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
+				type: 'array',
+				items: {
+					type: 'string',
+				},
+				default: defaults,
 			},
 		);
 	}
@@ -6335,7 +6340,7 @@ export const EditorOptions = {
 		{
 			description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up."),
 			experiment: {
-				allowAutoUpdate: false
+				mode: 'startup'
 			}
 		}
 	)),

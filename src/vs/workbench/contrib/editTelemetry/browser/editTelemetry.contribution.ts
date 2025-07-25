@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EDIT_TELEMETRY_SETTING_ID, AI_STATS_SETTING_ID, EditTelemetryContribution } from './editTelemetryContribution.js';
+import { EditTelemetryContribution } from './editTelemetryContribution.js';
+import { EDIT_TELEMETRY_SETTING_ID, AI_STATS_SETTING_ID } from './settingIds.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../nls.js';
 import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from './settings.js';
@@ -37,7 +38,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 			experiment: {
-				allowAutoUpdate: false
+				mode: 'startup'
 			}
 		},
 		[EDIT_TELEMETRY_SHOW_STATUS_BAR]: {

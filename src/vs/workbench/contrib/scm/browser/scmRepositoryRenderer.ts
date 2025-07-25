@@ -37,8 +37,14 @@ export class RepositoryActionRunner extends ActionRunner {
 			return super.runAction(action, context);
 		}
 
+		const actionContext = [context];
+
+		// If the selection contains the repository, add the
+		// other selected repositories to the action context
 		const selection = this.getSelectedRepositories().map(r => r.provider);
-		const actionContext = selection.some(s => s === context) ? selection : [context];
+		if (selection.some(s => s === context)) {
+			actionContext.push(...selection.filter(s => s !== context));
+		}
 
 		await action.run(...actionContext);
 	}

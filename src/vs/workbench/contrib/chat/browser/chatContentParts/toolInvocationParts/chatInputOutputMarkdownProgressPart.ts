@@ -88,7 +88,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 
 		let processedOutput = output;
 		if (typeof output === 'string') { // back compat with older stored versions
-			processedOutput = [{ value: output, isText: true }];
+			processedOutput = [{ type: 'embed', value: output, isText: true }];
 		}
 
 		const requestId = isResponseVM(context.element) ? context.element.requestId : context.element.id;
@@ -101,15 +101,16 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			toCodePart(input),
 			processedOutput && {
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
-					const permalinkBasename = o.uri
-						? basename(o.uri)
+					const permalinkBasename = o.type === 'ref' || o.uri
+						? basename(o.uri!)
 						: o.mimeType && getExtensionForMimeType(o.mimeType)
 							? `file${getExtensionForMimeType(o.mimeType)}`
 							: 'file' + (o.isText ? '.txt' : '.bin');
 
-					const permalinkUri = ChatResponseResource.createUri(context.element.sessionId, requestId, toolInvocation.toolCallId, i, permalinkBasename);
 
-					if (o.isText && !o.asResource) {
+					if (o.type === 'ref') {
+						return { kind: 'data', uri: o.uri, mimeType: o.mimeType };
+					} else if (o.isText && !o.asResource) {
 						return toCodePart(o.value);
 					} else {
 						let decoded: Uint8Array | undefined;
@@ -122,6 +123,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 						}
 
 						// Fall back to text if it's not valid base64
+						const permalinkUri = ChatResponseResource.createUri(context.element.sessionId, requestId, toolInvocation.toolCallId, i, permalinkBasename);
 						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri };
 					}
 				}),

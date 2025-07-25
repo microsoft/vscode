@@ -5,30 +5,43 @@
 
 declare module 'vscode' {
 	/**
-	 * Provides a list of chat sessions
+	 * Provides a list of information about chat sessions.
 	 */
-	export interface ChatSessionsProvider extends Disposable {
+	export interface ChatSessionItemProvider {
 		/**
-		 * Type to identify providers.
+		 * Label of the extension that registers the provider.
 		 */
-		readonly chatSessionType: string;
+		readonly label: string; // TODO: move to contribution or registration
 
 		/**
-		 * Fired when chat sessions change.
+		 * Event that the provider can fire to signal that chat sessions have changed.
 		 */
-		readonly onDidChangeChatSessionContent: Event<void>;
+		readonly onDidChangeChatSessionItems: Event<void>;
+
+		// /**
+		//  * Create a new chat session item
+		//  */
+		// provideNewChatSessionItem(context: {
+		// 	// This interface should be extracted
+		// 	readonly triggerChat?: {
+		// 		readonly prompt: string;
+		// 		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn>;
+		// 	};
+		// }, token: CancellationToken): Thenable<ChatSessionItem> | ChatSessionItem;
 
 		/**
-		 * Provide a list of chat sessions.
-		 * */
-		provideChatSessions(token: CancellationToken): Thenable<ChatSessionContent[]>;
+		 * Provides a list of chat sessions.
+		 *
+		 * TODO: Do we need a flag to try auth if needed?
+		 */
+		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
 	}
 
-	export interface ChatSessionContent {
+	export interface ChatSessionItem {
 		/**
-		 * Identifies the session
-		 *		 */
-		uri: Uri;
+		 * Unique identifier for the chat session.
+		 */
+		id: string;
 
 		/**
 		 * Human readable name of the session shown in the UI
@@ -41,7 +54,67 @@ declare module 'vscode' {
 		iconPath?: IconPath;
 	}
 
+	export interface ChatSession {
+
+		/**
+		 * The full history of the session
+		 *
+		 * This should not include any currently active responses
+		 *
+		 * TODO: Are these the right types to use?
+		 * TODO: link request + response to encourage correct usage?
+		 */
+		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn2>;
+
+		/**
+		 * Callback invoked by the editor for a currently running response. This allows the session to push items for the
+		 * current response and stream these in as them come in. The current response will be considered complete once the
+		 * callback resolved.
+		 *
+		 * If not provided, the chat session is assumed to not currently be running.
+		 */
+		readonly activeResponseCallback?: (stream: ChatResponseStream, token: CancellationToken) => Thenable<void>;
+
+		/**
+		 * Handles new request for the session.
+		 *
+		 * If not set, then the session will be considered read-only and no requests can be made.
+		 *
+		 * TODO: Should we introduce our own type for `ChatRequestHandler` since not all field apply to chat sessions?
+		 */
+		readonly requestHandler: ChatRequestHandler | undefined;
+	}
+
+	export interface ChatSessionContentProvider {
+		/**
+		 * Resolves a chat session into a full `ChatSession` object.
+		 *
+		 * @param uri The URI of the chat session to open. Uris as structured as `vscode-chat-session:<chatSessionType>/id`
+		 * @param token A cancellation token that can be used to cancel the operation.
+		 */
+		provideChatSessionContent(id: string, token: CancellationToken): Thenable<ChatSession>;
+	}
+
 	export namespace chat {
-		export function registerChatSessionsProvider(provider: ChatSessionsProvider): Disposable;
+		export function registerChatSessionItemProvider(chatSessionType: string, provider: ChatSessionItemProvider): Disposable;
+
+		/**
+		 * @param chatSessionType A unique identifier for the chat session type. This is used to differentiate between different chat session providers.
+		 */
+		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider): Disposable;
+	}
+
+	export interface ChatSessionShowOptions {
+		/**
+		 * The editor view column to show the chat session in.
+		 *
+		 * If not provided, the chat session will be shown in the chat panel instead.
+		 */
+		readonly viewColumn?: ViewColumn;
+	}
+
+	export namespace window {
+
+		export function showChatSession(chatSessionType: string, id: string, options: ChatSessionShowOptions): Thenable<void>;
 	}
 }
