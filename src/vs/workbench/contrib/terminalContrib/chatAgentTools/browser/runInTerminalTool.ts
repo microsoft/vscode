@@ -278,36 +278,56 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const timingStart = Date.now();
 		const termId = generateUuid();
 
-		if (args.isBackground) {
-			const store = new DisposableStore();
-			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } | undefined = undefined;
+		let isNewSession = false;
+		let toolTerminal: IToolTerminal;
+		const store = new DisposableStore();
 
+		if (args.isBackground) {
 			this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-			const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
+			toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
 			this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 			if (token.isCancellationRequested) {
 				toolTerminal.instance.dispose();
 				throw new CancellationError();
 			}
 			await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, args.isBackground);
-
-			this._terminalService.setActiveInstance(toolTerminal.instance);
-			const timingConnectMs = Date.now() - timingStart;
-
-			const xterm = await toolTerminal.instance.xtermReadyPromise;
-			if (!xterm) {
-				throw new Error('Instance was disposed before xterm.js was ready');
-			}
-
-			let inputUserChars = 0;
-			let inputUserSigint = false;
-			store.add(xterm.raw.onData(data => {
-				if (!telemetryIgnoredSequences.includes(data)) {
-					inputUserChars += data.length;
+		} else {
+			const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionId);
+			isNewSession = !cachedTerminal;
+			if (cachedTerminal) {
+				this._logService.debug(`RunInTerminalTool: Using existing terminal with session ID \`${chatSessionId}\``);
+				toolTerminal = cachedTerminal;
+			} else {
+				this._logService.debug(`RunInTerminalTool: Creating terminal with session ID \`${chatSessionId}\``);
+				toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
+				this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
+				if (token.isCancellationRequested) {
+					toolTerminal.instance.dispose();
+					throw new CancellationError();
 				}
-				inputUserSigint ||= data === '\x03';
-			}));
+				await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, args.isBackground);
+			}
+		}
 
+		this._terminalService.setActiveInstance(toolTerminal.instance);
+		const timingConnectMs = Date.now() - timingStart;
+
+		const xterm = await toolTerminal.instance.xtermReadyPromise;
+		if (!xterm) {
+			throw new Error('Instance was disposed before xterm.js was ready');
+		}
+
+		let inputUserChars = 0;
+		let inputUserSigint = false;
+		store.add(xterm.raw.onData(data => {
+			if (!telemetryIgnoredSequences.includes(data)) {
+				inputUserChars += data.length;
+			}
+			inputUserSigint ||= data === '\x03';
+		}));
+
+		if (args.isBackground) {
+			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } | undefined = undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
 
@@ -372,40 +392,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				});
 			}
 		} else {
-			const store = new DisposableStore();
-			let toolTerminal: IToolTerminal | undefined = this._sessionTerminalAssociations.get(chatSessionId);
-			const isNewSession = !toolTerminal;
-			if (toolTerminal) {
-				this._logService.debug(`RunInTerminalTool: Using existing terminal with session ID \`${chatSessionId}\``);
-			} else {
-				this._logService.debug(`RunInTerminalTool: Creating terminal with session ID \`${chatSessionId}\``);
-				toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
-				this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
-				if (token.isCancellationRequested) {
-					toolTerminal.instance.dispose();
-					throw new CancellationError();
-				}
-				await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, args.isBackground);
-			}
-
-			this._terminalService.setActiveInstance(toolTerminal.instance);
-
-			const timingConnectMs = Date.now() - timingStart;
-
-			const xterm = await toolTerminal.instance.xtermReadyPromise;
-			if (!xterm) {
-				throw new Error('Instance was disposed before xterm.js was ready');
-			}
-
-			let inputUserChars = 0;
-			let inputUserSigint = false;
-			store.add(xterm.raw.onData(data => {
-				if (!telemetryIgnoredSequences.includes(data)) {
-					inputUserChars += data.length;
-				}
-				inputUserSigint ||= data === '\x03';
-			}));
-
 			let terminalResult = '';
 
 			let outputLineCount = -1;
