@@ -439,26 +439,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 						onClickOrKeydown(e);
 					}
 				}));
-
-				// Setup hover for the single scope case to enable Ctrl+K I functionality
-				const scopeDisplayText = this.getInlineScopeDisplayText(overriddenScope);
-				const content: IMarkdownString = {
-					value: `[${scopeDisplayText}](${encodeURIComponent(overriddenScope)} "${getAccessibleScopeDisplayText(overriddenScope, this.languageService)}")`,
-					isTrusted: false,
-					supportHtml: false
-				};
-				this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(view, () => ({
-					...this.defaultHoverOptions,
-					content,
-					linkHandler: (url: string) => {
-						const [scope, language] = decodeURIComponent(url).split(':');
-						onDidClickOverrideElement.fire({
-							settingKey: element.setting.key,
-							scope: scope as ScopeString,
-							language
-						});
-					}
-				}), { setupKeyboardEvents: true }));
 			} else {
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.add('setting-indicator');
