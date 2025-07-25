@@ -36,7 +36,8 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
+import { getOutput, handleTerminalUserInputPrompt, pollForOutputAndIdle, racePollingOrPrompt } from './bufferOutputPolling.js';
+import { promptForMorePolling } from '../../../elicitation/browser/elicitation.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -266,6 +267,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		let error: string | undefined;
+		let userResponse: 'accepted' | 'rejected' | undefined;
 
 		const timingStart = Date.now();
 		const termId = generateUuid();
@@ -297,14 +299,30 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 					outputAndIdle = await racePollingOrPrompt(
 						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
-						() => promptForMorePolling(command, invocation.context!, this._chatService),
+						() => promptForMorePolling(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command), localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes."), invocation.context!, this._chatService),
 						outputAndIdle,
 						token,
 						this._languageModelsService,
 						execution
 					);
 				}
-
+				const handleResult = await handleTerminalUserInputPrompt(
+					outputAndIdle,
+					invocation,
+					this._chatService,
+					toolTerminal.instance,
+					command,
+					token,
+					this._languageModelsService
+				);
+				if (handleResult.handled) {
+					if (handleResult.outputAndIdle) {
+						outputAndIdle = handleResult.outputAndIdle;
+					}
+					userResponse = handleResult.userResponse;
+				} else if (handleResult.message) {
+					return handleResult.message;
+				}
 				let resultText = (
 					didUserEditCommand
 						? `Note: The user manually edited the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
@@ -347,6 +365,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalExecutionIdleBeforeTimeout: outputAndIdle?.terminalExecutionIdleBeforeTimeout,
 					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
 					pollDurationMs: outputAndIdle?.pollDurationMs,
+					// TODO: Fill in tool input properties
+					inputToolManualAcceptCount: 0,
+					inputToolManualRejectCount: 0,
+					inputToolManualChars: 0,
+					inputToolAutoChars: 0,
 				});
 			}
 		} else {
@@ -432,6 +455,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					exitCode,
 					timingExecuteMs,
 					timingConnectMs,
+					// TODO: Support tool auto reply in foreground terminals https://github.com/microsoft/vscode/issues/257726
+					inputToolManualAcceptCount: 0,
+					inputToolManualRejectCount: 0,
+					inputToolManualChars: 0,
+					inputToolAutoChars: 0,
 				});
 			}
 
@@ -603,6 +631,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		terminalExecutionIdleBeforeTimeout?: boolean;
 		timingExecuteMs: number;
 		exitCode: number | undefined;
+		inputToolManualAcceptCount: number;
+		inputToolManualRejectCount: number;
+		inputToolManualChars: number;
+		inputToolAutoChars: number;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -619,6 +651,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingConnectMs: number;
 			pollDurationMs: number;
 			terminalExecutionIdleBeforeTimeout: boolean;
+			inputToolManualAcceptCount: number;
+			inputToolManualRejectCount: number;
+			inputToolManualChars: number;
+			inputToolAutoChars: number;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -638,9 +674,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
 			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
+
+			inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times an elicitation to respond in the terminal was manually accepted by the user.' };
+			inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times an elicitation to respond in the terminal was manually rejected by the user.' };
+			inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters the tool input manually after accepting an elicitation dialog.' };
+			inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters the tool input automatically without user confirmation.' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
+
 			result: state.error ?? 'success',
 			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
 			userEditedCommand: state.didUserEditCommand ? 1 : 0,
@@ -652,7 +694,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
 			timingConnectMs: state.timingConnectMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
-			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false
+			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
+			inputToolManualAcceptCount: state.inputToolManualAcceptCount,
+			inputToolManualRejectCount: state.inputToolManualRejectCount,
+			inputToolManualChars: state.inputToolManualChars,
+			inputToolAutoChars: state.inputToolAutoChars
 		});
 	}
 }

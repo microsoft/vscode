@@ -12,13 +12,14 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
+import { handleTerminalUserInputPrompt, pollForOutputAndIdle, racePollingOrPrompt } from '../bufferOutputPolling.js';
 import { getOutput } from '../outputHelpers.js';
 import { IConfiguredTask } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { promptForMorePolling } from '../../../../elicitation/browser/elicitation.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
@@ -115,12 +116,26 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
 				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-				() => promptForMorePolling(args.task.label, invocation.context!, this._chatService),
+				() => promptForMorePolling(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", args.task.label), localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes."), invocation.context!, this._chatService),
 				outputAndIdle,
 				token,
 				this._languageModelsService,
 				{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
 			);
+		}
+		const userInputResult = await handleTerminalUserInputPrompt(
+			outputAndIdle,
+			invocation,
+			this._chatService,
+			terminal,
+			task._label,
+			token,
+			this._languageModelsService
+		);
+		if (userInputResult.handled && userInputResult.outputAndIdle) {
+			outputAndIdle = userInputResult.outputAndIdle;
+		} else if (userInputResult.message) {
+			return userInputResult.message;
 		}
 		let output = '';
 		if (result?.exitCode) {

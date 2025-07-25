@@ -9,10 +9,10 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatElicitationRequestPart } from '../../../chat/browser/chatElicitationRequestPart.js';
-import { ChatModel } from '../../../chat/common/chatModel.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { IToolInvocationContext } from '../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext, IToolResult } from '../../../chat/common/languageModelToolsService.js';
+import { promptForYesNo } from '../../../elicitation/browser/elicitation.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
@@ -152,37 +152,42 @@ export async function pollForOutputAndIdle(
 	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
-export function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
-	const chatModel = chatService.getSession(context.sessionId);
-	if (chatModel instanceof ChatModel) {
-		const request = chatModel.getRequests().at(-1);
-		if (request) {
-			let part: ChatElicitationRequestPart | undefined = undefined;
-			const promise = new Promise<boolean>(resolve => {
-				const thePart = part = new ChatElicitationRequestPart(
-					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
-					new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
-					'',
-					localize('poll.terminal.accept', 'Yes'),
-					localize('poll.terminal.reject', 'No'),
-					async () => {
-						thePart.state = 'accepted';
-						thePart.hide();
-						resolve(true);
-					},
-					async () => {
-						thePart.state = 'rejected';
-						thePart.hide();
-						resolve(false);
-					}
-				);
-				chatModel.acceptResponseProgress(request, thePart);
-			});
-			return { promise, part };
+export async function handleTerminalUserInputPrompt(
+	outputAndIdle: { output: string; terminalExecutionIdleBeforeTimeout: boolean; pollDurationMs?: number; modelOutputEvalResponse?: string },
+	invocation: any,
+	chatService: IChatService,
+	terminal: ITerminalInstance,
+	executableLabel: string,
+	token: CancellationToken,
+	languageModelsService: ILanguageModelsService
+): Promise<{ handled: boolean; userResponse?: 'accepted' | 'rejected'; outputAndIdle: { output: string; terminalExecutionIdleBeforeTimeout: boolean; pollDurationMs?: number; modelOutputEvalResponse?: string }; message?: IToolResult }> {
+	const userInputKind = await getExpectedUserInputKind(outputAndIdle.output);
+	if (userInputKind) {
+		const handleResult = await handleYesNoUserPrompt(
+			userInputKind,
+			invocation.context,
+			chatService,
+			terminal,
+			async () => await pollForOutputAndIdle({ getOutput: () => terminal.xterm?.raw?.buffer.active.toString() ?? '', isActive: undefined }, true, token, languageModelsService),
+		);
+		if (handleResult.handled) {
+			if (handleResult.outputAndIdle) {
+				return { handled: true, outputAndIdle: handleResult.outputAndIdle };
+			}
+		} else {
+			return {
+				handled: false,
+				outputAndIdle,
+				message: {
+					content: [{ kind: 'text', value: `The command is still running and requires user input of ${userInputKind}.` }],
+					toolResultMessage: new MarkdownString(localize('copilotChat.taskRequiresUserInput', '`{0}` is still running and requires user input. {1}', executableLabel, userInputKind))
+				}
+			};
 		}
 	}
-	return { promise: Promise.resolve(false) };
+	return { handled: false, outputAndIdle };
 }
+
 
 export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<string> {
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
@@ -214,4 +219,89 @@ export async function assessOutputForErrors(buffer: string, token: CancellationT
 	} catch (err) {
 		return 'Error occurred ' + err;
 	}
+}
+
+/**
+ * Returns true if the last line of the output is a prompt asking for user input (e.g., "Do you want to continue? (y/n)").
+ * This is a heuristic and matches common prompt patterns.
+ */
+/**
+ * Returns the kind of input expected by the last line of the output if it appears to be a user prompt.
+ * For example, returns 'y/n', 'yes/no', 'press key', 'choice', etc., or undefined if not a prompt.
+ */
+export function getExpectedUserInputKind(output: string): string | undefined {
+	if (!output) {
+		return undefined;
+	}
+
+	// Only match if the last non-empty line matches a prompt pattern and the next line is blank
+	const lines = output.split('\n');
+	for (let i = lines.length - 2; i >= 0; i--) {
+		const line = lines[i].trim();
+		const nextLine = lines[i + 1]?.trim();
+		if (!line) {
+			continue;
+		}
+		// Each pattern includes a comment with an example command that produces such a prompt
+		const patterns: { regex: RegExp; kind: string }[] = [
+			// Generic: contains (y/n)
+			// Example: apt-get install foo, rm -i file.txt, git clean -fd, etc.
+			{ regex: /\(y\/n\)/ig, kind: 'y/n' },
+			// [y/n] prompt (alternative format)
+			// Example: some package managers
+			{ regex: /\[y\/n\]/ig, kind: 'y/n' },
+			// yes/no prompt (matches most common forms)
+			// Example: sudo shutdown now, custom bash scripts
+			{ regex: /yes\/no\//ig, kind: 'yes/no' },
+			// PowerShell Remove-Item -Confirm
+			// Example: Remove-Item file.txt
+			{ regex: /\[Y\] Yes\s+\[A\] Yes to All\s+\[N\] No\s+\[L\] No to All\s+\[S\] Suspend\s+\[\?\] Help \(default is ".*"\):/i, kind: 'pwsh choice' },
+			// Choice prompt
+			// Example: interactive install scripts, menu-driven CLI tools
+			{ regex: /(enter your choice|select an option)/ig, kind: 'choice' },
+			// Response prompt
+			// Example: expect scripts
+			{ regex: /please respond/ig, kind: 'response' },
+		];
+		for (const { regex, kind } of patterns) {
+			if (regex.test(line) && (!nextLine || nextLine === '')) {
+				return kind;
+			}
+		}
+		break;
+	}
+	return undefined;
+}
+
+/**
+ * Handles a yes/no user prompt for terminal output, sending the appropriate response to the terminal.
+ * Returns true if a response was sent, false if not handled.
+ */
+export async function handleYesNoUserPrompt(
+	userInputKind: string,
+	context: IToolInvocationContext,
+	chatService: IChatService,
+	terminal: ITerminalInstance,
+	pollForOutputAndIdleFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
+): Promise<{ handled: boolean; userResponse?: 'accepted' | 'rejected'; outputAndIdle?: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } }> {
+	if (userInputKind && userInputKind !== 'choice' && userInputKind !== 'key') {
+		const options = userInputKind.split('/');
+		const acceptAnswer = options[0]?.trim();
+		const rejectAnswer = options[1]?.trim();
+		if (!acceptAnswer || !rejectAnswer) {
+			return { handled: false };
+		}
+		const response = await promptForYesNo(new MarkdownString(localize('poll.terminal.yes', 'Respond `{0}` in the terminal?', acceptAnswer)),
+			localize('poll.terminal.yesNo', 'Copilot will run the reply in the terminal.'), context, chatService);
+		const result = await response.promise;
+		if (result) {
+			await terminal.sendText(acceptAnswer, true);
+			const outputAndIdle = await pollForOutputAndIdleFn();
+			return { handled: true, outputAndIdle, userResponse: 'accepted' };
+		} else {
+			await terminal.sendText(rejectAnswer, true);
+			return { handled: true, userResponse: 'rejected' };
+		}
+	}
+	return { handled: false };
 }

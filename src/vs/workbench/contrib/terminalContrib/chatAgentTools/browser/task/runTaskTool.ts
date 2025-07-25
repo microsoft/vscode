@@ -12,11 +12,12 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
+import { pollForOutputAndIdle, racePollingOrPrompt, handleTerminalUserInputPrompt } from '../bufferOutputPolling.js';
 import { getOutput } from '../outputHelpers.js';
 import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { promptForMorePolling } from '../../../../elicitation/browser/elicitation.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -81,12 +82,28 @@ export class RunTaskTool implements IToolImpl {
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
 				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-				() => promptForMorePolling(taskDefinition.taskLabel, invocation.context!, this._chatService),
+				() => promptForMorePolling(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", taskDefinition.taskLabel), localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes."), invocation.context!, this._chatService),
 				outputAndIdle,
 				token,
 				this._languageModelsService,
 				{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
 			);
+		}
+		const handleResult = await handleTerminalUserInputPrompt(
+			outputAndIdle,
+			invocation,
+			this._chatService,
+			terminal,
+			task._label,
+			token,
+			this._languageModelsService
+		);
+		if (handleResult.handled) {
+			if (handleResult.outputAndIdle) {
+				outputAndIdle = handleResult.outputAndIdle;
+			}
+		} else if (handleResult.message) {
+			return handleResult.message;
 		}
 		let output = '';
 		if (result?.exitCode) {
