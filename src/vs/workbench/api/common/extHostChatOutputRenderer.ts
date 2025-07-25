@@ -15,7 +15,7 @@ export class ExtHostChatOutputRenderer implements ExtHostChatOutputRendererShape
 
 	private readonly _proxy: MainThreadChatOutputRendererShape;
 
-	private readonly _renderers = new Map</*mime*/ string, {
+	private readonly _renderers = new Map</*viewType*/ string, {
 		readonly renderer: vscode.ChatOutputRenderer;
 		readonly extension: IExtensionDescription;
 	}>();
@@ -27,27 +27,27 @@ export class ExtHostChatOutputRenderer implements ExtHostChatOutputRendererShape
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatOutputRenderer);
 	}
 
-	registerChatOutputRenderer(extension: IExtensionDescription, mime: string, renderer: vscode.ChatOutputRenderer): vscode.Disposable {
-		if (this._renderers.has(mime)) {
-			throw new Error(`Chat output renderer already registered for mime type: ${mime}`);
+	registerChatOutputRenderer(extension: IExtensionDescription, viewType: string, renderer: vscode.ChatOutputRenderer): vscode.Disposable {
+		if (this._renderers.has(viewType)) {
+			throw new Error(`Chat output renderer already registered for: ${viewType}`);
 		}
 
-		this._renderers.set(mime, { extension, renderer });
-		this._proxy.$registerChatOutputRenderer(mime, extension.identifier, extension.extensionLocation);
+		this._renderers.set(viewType, { extension, renderer });
+		this._proxy.$registerChatOutputRenderer(viewType, extension.identifier, extension.extensionLocation);
 
 		return new Disposable(() => {
-			this._renderers.delete(mime);
-			this._proxy.$unregisterChatOutputRenderer(mime);
+			this._renderers.delete(viewType);
+			this._proxy.$unregisterChatOutputRenderer(viewType);
 		});
 	}
 
-	async $renderChatOutput(mime: string, valueData: VSBuffer, webviewHandle: string, token: CancellationToken): Promise<void> {
-		const entry = this._renderers.get(mime);
+	async $renderChatOutput(viewType: string, mime: string, valueData: VSBuffer, webviewHandle: string, token: CancellationToken): Promise<void> {
+		const entry = this._renderers.get(viewType);
 		if (!entry) {
-			throw new Error(`No chat output renderer registered for mime type: ${mime}`);
+			throw new Error(`No chat output renderer registered for: ${viewType}`);
 		}
 
 		const webview = this.webviews.createNewWebview(webviewHandle, {}, entry.extension);
-		return entry.renderer.renderChatOutput(valueData.buffer, webview, {}, token);
+		return entry.renderer.renderChatOutput(Object.freeze({ mime, value: valueData.buffer }), webview, {}, token);
 	}
 }
