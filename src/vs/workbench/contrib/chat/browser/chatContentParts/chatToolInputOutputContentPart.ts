@@ -35,6 +35,7 @@ import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
+import { resizeImage } from '../imageUtils.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
 import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
@@ -199,29 +200,32 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		return contents.root;
 	}
 
-	private addResourceGroup(parts: IChatCollapsibleIODataPart[], container: HTMLElement) {
+	private async addResourceGroup(parts: IChatCollapsibleIODataPart[], container: HTMLElement) {
 		const el = dom.h('.chat-collapsible-io-resource-group', [
 			dom.h('.chat-collapsible-io-resource-items@items'),
 			dom.h('.chat-collapsible-io-resource-actions@actions'),
 		]);
 
-		const entries = parts.map((part): IChatRequestVariableEntry => {
+		const entries = parts.map(async (part): Promise<IChatRequestVariableEntry> => {
 			if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
-				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
+				const resized = part.value ? await resizeImage(part.value) : undefined;
+				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value: resized, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
 			} else {
 				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
 			}
 		});
 
+		const resolvedEntries = await Promise.all(entries);
+
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
-			entries,
+			resolvedEntries,
 			undefined,
 			undefined,
 		));
 
 		attachments.contextMenuHandler = (attachment, event) => {
-			const index = entries.indexOf(attachment);
+			const index = resolvedEntries.indexOf(attachment);
 			const part = parts[index];
 			if (part) {
 				event.preventDefault();
