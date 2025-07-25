@@ -224,7 +224,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			const buffer = this._terminal?.buffer?.active;
 			const marker = command.promptStartMarker;
 
-			// Edge case: Handle case where tsc watch commands clears buffer, but decoration that tsc command re-appears
+			// Edge case: Handle case where tsc watch commands clears buffer, but decoration of that tsc command re-appears
 			const shouldRegisterDecoration = (
 				command.exitCode === undefined ||
 				// Only register decoration if the cursor is at or below the promptStart marker.
