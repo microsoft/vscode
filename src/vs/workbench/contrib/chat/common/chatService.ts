@@ -140,6 +140,17 @@ export interface IChatTreeData {
 	treeData: IChatResponseProgressFileTreeData;
 	kind: 'treeData';
 }
+export interface IChatMultiDiffData {
+	multiDiffData: {
+		title: string;
+		resources: Array<{
+			originalUri?: URI;
+			modifiedUri?: URI;
+			goToFileUri?: URI;
+		}>;
+	};
+	kind: 'multiDiffData';
+}
 
 export interface IChatProgressMessage {
 	content: IMarkdownString;
@@ -344,6 +355,7 @@ export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
+	| IChatMultiDiffData
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
