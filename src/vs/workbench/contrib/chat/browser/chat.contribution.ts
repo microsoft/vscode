@@ -385,6 +385,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
+				tags: [PolicyTag.Agent]
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
