@@ -406,16 +406,19 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 			if (quality !== 'exploration') {
 				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
-				result = es.merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: 'resources/win32/appx' })
+				const rawVersion = version.replace(/-\w+$/, '').split('.');
+				const appxVersion = `${rawVersion[0]}.0.${rawVersion[1]}.${rawVersion[2]}`;
+				result = es.merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: '.' })
 					.pipe(replace('@@AppxPackageName@@', product.win32AppUserModelId))
-					.pipe(replace('@@AppxPackageVersion@@', version))
+					.pipe(replace('@@AppxPackageVersion@@', appxVersion))
 					.pipe(replace('@@AppxPackageDisplayName@@', product.nameLong))
 					.pipe(replace('@@AppxPackageDescription@@', product.win32NameVersion))
-					.pipe(replace('@@ApplicationIdShort@@', product.applicationName))
+					.pipe(replace('@@ApplicationIdShort@@', product.win32RegValueName))
 					.pipe(replace('@@ApplicationExe@@', product.nameShort + '.exe'))
-					.pipe(replace('@@FileExplorerContextMenuID@@', product.win32ContextMenu.id))
-					.pipe(replace('@@FileExplorerContextMenuCLSID@@', product.win32ContextMenu.clsid))
-					.pipe(replace('@@FileExplorerContextMenuDLL@@', product.win32ContextMenu.dllname)));
+					.pipe(replace('@@FileExplorerContextMenuID@@', quality === 'stable' ? 'OpenWithCode' : 'OpenWithCodeInsiders'))
+					.pipe(replace('@@FileExplorerContextMenuCLSID@@', product.win32ContextMenu[arch].clsid))
+					.pipe(replace('@@FileExplorerContextMenuDLL@@', `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`))
+					.pipe(rename(f => f.dirname = `appx/manifest`)));
 			}
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
