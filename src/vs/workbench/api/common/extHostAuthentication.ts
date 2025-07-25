@@ -608,6 +608,9 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			tokenRequest.append('client_secret', this._clientSecret);
 		}
 
+		this._logger.info('Exchanging authorization code for token...');
+		this._logger.trace(`Url: ${this._serverMetadata.token_endpoint}`);
+		this._logger.trace(`Token request body: ${tokenRequest.toString()}`);
 		const response = await fetch(this._serverMetadata.token_endpoint, {
 			method: 'POST',
 			headers: {
@@ -624,6 +627,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 		const result = await response.json();
 		if (isAuthorizationTokenResponse(result)) {
+			this._logger.info(`Successfully exchanged authorization code for token.`);
 			return result;
 		} else if (isAuthorizationErrorResponse(result) && result.error === AuthorizationErrorType.InvalidClient) {
 			this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);
