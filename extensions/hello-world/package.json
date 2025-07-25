@@ -8,6 +8,7 @@
 	"engines": {
 		"vscode": "^1.5.0"
 	},
+	"icon": "media/icon.png",
 	"activationEvents": [
 		"onCommand:hello-world.helloWorld",
 		"onCommand:hello-world.showWorkspaceInfo"
@@ -28,6 +29,14 @@
 				"command": "hello-world.showWorkspaceInfo",
 				"title": "Show Workspace Info",
 				"category": "Hello"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "hello-world.helloWorld",
+				"key": "ctrl+shift+h",
+				"mac": "cmd+shift+h",
+				"when": "editorTextFocus"
 			}
 		]
 	},
