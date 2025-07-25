@@ -21,7 +21,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatTask, IChatTasksService, IChatTaskStorage } from '../chatTasksService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
-const ManageToolSettingId = 'chat.manageTasksTool.enabled';
+export const ManageToolSettingId = 'chat.manageTasksTool.enabled';
 
 export const ManageTasksToolToolId = 'vscode_manageTasks';
 

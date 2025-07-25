@@ -471,105 +471,6 @@
 	}
 }
 
-/* Task List Styles */
-.chat-task-list-part {
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 6px;
-	background: var(--vscode-editor-background);
-	margin: 4px 0;
-	overflow: hidden;
-}
-
-.chat-task-list-part .task-expando {
-	display: flex;
-	align-items: center;
-	padding: 8px 12px;
-	background: var(--vscode-editorWidget-background);
-	border-bottom: 1px solid var(--vscode-widget-border);
-	cursor: pointer;
-	user-select: none;
-	gap: 6px;
-}
-
-.chat-task-list-part .task-expando:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.chat-task-list-part .task-expando:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.chat-task-list-part .expand-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.chat-task-list-part .task-title {
-	font-weight: 600;
-	font-size: 13px;
-	color: var(--vscode-foreground);
-}
-
-.chat-task-list-part .task-list-container {
-	padding: 8px 0;
-}
-
-.chat-task-list-part .task-list {
-	list-style: none;
-	padding: 0;
-	margin: 0;
-}
-
-.chat-task-list-part .task-item {
-	display: flex;
-	align-items: center;
-	padding: 4px 12px;
-	gap: 8px;
-	min-height: 24px;
-	font-size: 13px;
-}
-
-.chat-task-list-part .task-item:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.chat-task-list-part .task-number {
-	color: var(--vscode-descriptionForeground);
-	font-weight: 500;
-	min-width: 20px;
-	text-align: right;
-}
-
-.chat-task-list-part .task-status-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.chat-task-list-part .task-content {
-	flex: 1;
-	color: var(--vscode-foreground);
-	line-height: 1.4;
-}
-
-.chat-task-list-part .task-status-text {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	background: var(--vscode-badge-background);
-	border-radius: 10px;
-	padding: 2px 6px;
-	margin-left: auto;
-	white-space: nowrap;
-}
-
 .interactive-item-container .value > .rendered-markdown li > p {
 	margin: 0;
 }
@@ -2363,4 +2264,71 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 	border-style: solid;
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Sticky Task Widget */
+.chat-sticky-task-widget {
+	position: sticky;
+	top: 0;
+	z-index: 100;
+	background-color: var(--vscode-sideBar-background);
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+	padding: 8px 16px;
+	margin-bottom: 8px;
+}
+
+.chat-sticky-task-widget .task-expando {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+	padding: 4px 0;
+}
+
+.chat-sticky-task-widget .task-expando:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: 4px;
+}
+
+.chat-sticky-task-widget .task-expando:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	border-radius: 4px;
+}
+
+.chat-sticky-task-widget .expand-icon {
+	flex-shrink: 0;
+}
+
+.chat-sticky-task-widget .task-title {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.chat-sticky-task-widget .task-list-container {
+	padding-left: 20px;
+	margin-top: 4px;
+}
+
+.chat-sticky-task-widget .task-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-sticky-task-widget .task-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 0;
+}
+
+.chat-sticky-task-widget .task-status-icon {
+	flex-shrink: 0;
+	font-size: 14px;
+}
+
+.chat-sticky-task-widget .task-content {
+	color: var(--vscode-foreground);
+	flex-grow: 1;
 }
