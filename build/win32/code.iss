@@ -1505,7 +1505,7 @@ var
   RemoveAppxPackageResultCode: Integer;
 begin
   if AppxPackageInstalled(RemoveAppxPackageResultCode) then begin
-    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
   end;
 end;
 #endif
