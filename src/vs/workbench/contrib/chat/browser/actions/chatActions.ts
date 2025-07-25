@@ -915,6 +915,7 @@ export function registerChatActions() {
 					id: MenuId.ChatExecute,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
+						ContextKeyExpr.not('config.chat.emptyChatState.enabled'),
 						ChatContextKeys.lockedToCodingAgent.negate()
 					),
 					group: 'navigation',
