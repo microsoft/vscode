@@ -291,6 +291,7 @@ export class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
 						part instanceof extHostTypes.ChatResponseExtensionsPart ||
+						part instanceof extHostTypes.ChatResponsePullRequestPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');

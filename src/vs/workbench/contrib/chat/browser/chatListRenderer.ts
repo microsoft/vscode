@@ -49,7 +49,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -83,6 +83,7 @@ import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { CodiconActionViewItem } from '../../notebook/browser/view/cellParts/cellActionView.js';
+import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
 
 const $ = dom.$;
@@ -1124,6 +1125,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderToolInvocation(content, context, templateData);
 			} else if (content.kind === 'extensions') {
 				return this.renderExtensionsContent(content, context, templateData);
+			} else if (content.kind === 'pullRequest') {
+				return this.renderPullRequestContent(content, context, templateData);
 			} else if (content.kind === 'working') {
 				return this.renderWorkingProgress(content, context);
 			} else if (content.kind === 'undoStop') {
@@ -1283,6 +1286,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderExtensionsContent(extensionsContent: IChatExtensionsContent, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
 		const part = this.instantiationService.createInstance(ChatExtensionsContentPart, extensionsContent);
+		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+		return part;
+	}
+
+	private renderPullRequestContent(pullRequestContent: IChatPullRequestContent, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
+		const part = this.instantiationService.createInstance(ChatPullRequestContentPart, pullRequestContent);
 		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
 	}

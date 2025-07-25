@@ -107,7 +107,7 @@ declare module 'vscode' {
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -191,6 +191,15 @@ declare module 'vscode' {
 		readonly extensions: string[];
 
 		constructor(extensions: string[]);
+	}
+
+	export class ChatResponsePullRequestPart {
+		readonly uri: Uri;
+		readonly linkTag: string;
+		readonly title: string;
+		readonly description: string;
+		readonly author: string;
+		constructor(uri: Uri, title: string, description: string, author: string, linkTag: string);
 	}
 
 	export interface ChatResponseStream {

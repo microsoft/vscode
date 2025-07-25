@@ -265,7 +265,7 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTasksContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -298,7 +298,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTasksContent;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -313,6 +313,15 @@ export interface IChatToolInvocationSerialized {
 export interface IChatExtensionsContent {
 	extensions: string[];
 	kind: 'extensions';
+}
+
+export interface IChatPullRequestContent {
+	uri: URI;
+	title: string;
+	description: string;
+	author: string;
+	linkTag: string;
+	kind: 'pullRequest';
 }
 
 export interface IChatTasksContent {
@@ -352,6 +361,7 @@ export type IChatProgress =
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
+	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatTaskSerialized
