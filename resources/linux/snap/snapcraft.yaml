@@ -72,14 +72,19 @@ parts:
       patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
 
 
+plugs:
+  browser-sandbox:
+    interface: browser-support
+    allow-sandbox: true
+
 apps:
   @@NAME@@:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --no-sandbox
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
     common-id: @@NAME@@.desktop
     environment:
       GTK_USE_PORTAL: 1
 
   url-handler:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url --no-sandbox
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url
     environment:
       GTK_USE_PORTAL: 1
