@@ -371,6 +371,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.themeMainService.saveWindowSplash(windowId, window?.openedWorkspace, splash);
 	}
 
+	async setBackgroundThrottling(windowId: number | undefined, allowed: boolean): Promise<void> {
+		const window = this.codeWindowById(windowId);
+
+		this.logService.trace(`Setting background throttling for window ${windowId} to '${allowed}'`);
+
+		window?.win?.webContents?.setBackgroundThrottling(allowed);
+	}
+
 	//#endregion
 
 
@@ -988,6 +996,20 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async toggleDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.webContents.toggleDevTools();
+	}
+
+	async openDevToolsWindow(windowId: number | undefined, url: string): Promise<void> {
+		const parentWindow = this.codeWindowById(windowId);
+		if (!parentWindow) {
+			return;
+		}
+		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true, hideBecauseShadowWindow: false });
+		options.backgroundColor = undefined;
+
+		const devToolsWindow = new BrowserWindow(options);
+		devToolsWindow.setMenuBarVisibility(false);
+		devToolsWindow.loadURL(url);
+		devToolsWindow.once('ready-to-show', () => devToolsWindow.show());
 	}
 
 	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {

@@ -46,13 +46,16 @@ export class McpStdioStateHandler implements IDisposable {
 	 */
 	public stop(): void {
 		if (this._procState === McpProcessState.Running) {
+			let graceTime = this._graceTimeMs;
 			try {
 				this._child.stdin.end();
 			} catch (error) {
 				// If stdin.end() fails, continue with termination sequence
 				// This can happen if the stream is already in an error state
+				graceTime = 1;
 			}
-			this._nextTimeout = new TimeoutTimer(() => this.killPolite(), this._graceTimeMs);
+			this._procState = McpProcessState.StdinEnded;
+			this._nextTimeout = new TimeoutTimer(() => this.killPolite(), graceTime);
 		} else {
 			this._nextTimeout?.dispose();
 			this.killForceful();

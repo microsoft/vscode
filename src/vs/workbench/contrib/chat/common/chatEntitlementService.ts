@@ -134,9 +134,7 @@ const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	providerId: product.defaultChatAgent?.providerId ?? '',
-	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
-	alternativeProviderId: product.defaultChatAgent?.alternativeProviderId ?? '',
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '' }, enterprise: { id: '' } },
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
@@ -421,11 +419,11 @@ interface IQuotas {
 export class ChatEntitlementRequests extends Disposable {
 
 	static providerId(configurationService: IConfigurationService): string {
-		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.enterpriseProviderId) {
-			return defaultChat.enterpriseProviderId;
+		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.provider.enterprise.id) {
+			return defaultChat.provider.enterprise.id;
 		}
 
-		return defaultChat.providerId;
+		return defaultChat.provider.default.id;
 	}
 
 	private state: IEntitlements;
@@ -568,7 +566,7 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IEntitlements | undefined> {
-		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
+		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
 			this.logService.trace('[chat entitlement]: enterprise provider, assuming Enterprise plan');
 			return { entitlement: ChatEntitlement.Enterprise };
 		}
@@ -857,9 +855,9 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 	}
 
-	async signIn(options?: { useAlternateProvider?: boolean }) {
+	async signIn(options?: { useSocialProvider?: string }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
-		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0], options?.useAlternateProvider ? { provider: defaultChat.alternativeProviderId } : undefined);
+		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0], options?.useSocialProvider ? { provider: options.useSocialProvider } : undefined);
 
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);

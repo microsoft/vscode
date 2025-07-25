@@ -680,7 +680,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 			]);
 		});
 
-		test.skip('Revert first deleted with multiple cells', async function () {
+		test('Revert first deleted with multiple cells', async function () {
 			const cellsDiffInfo: ICellDiffInfo[] = [
 				{
 					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,

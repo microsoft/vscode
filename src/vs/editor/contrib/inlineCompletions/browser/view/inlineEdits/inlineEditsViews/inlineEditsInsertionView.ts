@@ -20,7 +20,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
 import { GhostTextView } from '../../ghostText/ghostTextView.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';

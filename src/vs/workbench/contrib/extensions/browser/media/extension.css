@@ -31,7 +31,7 @@
 	bottom: 5px;
 }
 
-.extension-list-item > .icon-container .extension-badge.extension-remote-badge {
+.extension-list-item > .icon-container .extension-badge.extension-icon-badge {
 	width: 22px;
 	height: 22px;
 	line-height: 22px;
@@ -42,7 +42,7 @@
 	justify-content: center;
 }
 
-.extension-list-item > .icon-container .extension-remote-badge .codicon {
+.extension-list-item > .icon-container .extension-icon-badge .codicon {
 	color: currentColor;
 }
 
@@ -120,11 +120,11 @@
 	text-align: right;
 }
 
-.extension-list-item > .details > .header-container > .header .extension-remote-badge .codicon {
+.extension-list-item > .details > .header-container > .header .extension-icon-badge .codicon {
 	margin-right: 0;
 }
 
-.extension-list-item > .details > .header-container > .header .extension-remote-badge {
+.extension-list-item > .details > .header-container > .header .extension-icon-badge {
 	width: 14px;
 	height: 14px;
 	line-height: 14px;
@@ -135,7 +135,7 @@
 	justify-content: center;
 }
 
-.extension-list-item > .details > .header-container > .header .extension-remote-badge > .codicon {
+.extension-list-item > .details > .header-container > .header .extension-icon-badge > .codicon {
 	font-size: 12px;
 	color: currentColor;
 }

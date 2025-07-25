@@ -1383,8 +1383,19 @@ export class SymbolInformation {
 	}
 }
 
+@es5ClassCompat
+export class DocumentSymbol {
 
-abstract class AbstractDocumentSymbol {
+	static validate(candidate: DocumentSymbol): void {
+		if (!candidate.name) {
+			throw new Error('name must not be falsy');
+		}
+		if (!candidate.range.contains(candidate.selectionRange)) {
+			throw new Error('selectionRange must be contained in fullRange');
+		}
+		candidate.children?.forEach(DocumentSymbol.validate);
+	}
+
 	name: string;
 	detail: string;
 	kind: SymbolKind;
@@ -1400,56 +1411,11 @@ abstract class AbstractDocumentSymbol {
 		this.range = range;
 		this.selectionRange = selectionRange;
 		this.children = [];
-	}
-}
 
-@es5ClassCompat
-export class DocumentSymbol extends AbstractDocumentSymbol {
-
-	static validate(candidate: DocumentSymbol): void {
-		if (!candidate.name) {
-			throw new Error('name must not be falsy');
-		}
-		if (!candidate.range.contains(candidate.selectionRange)) {
-			throw new Error('selectionRange must be contained in fullRange');
-		}
-		candidate.children?.forEach(DocumentSymbol.validate);
-	}
-
-	constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range) {
-		super(name, detail, kind, range, selectionRange);
 		DocumentSymbol.validate(this);
 	}
-
-	static override[Symbol.hasInstance](candidate: unknown): boolean {
-		if (!isObject(candidate)) {
-			throw new TypeError();
-		}
-		return candidate instanceof AbstractDocumentSymbol
-			|| candidate instanceof SymbolInformationAndDocumentSymbol;
-	}
 }
 
-// This is a special type that's used from the `vscode.executeDocumentSymbolProvider` API
-// command which implements both shapes, vscode.SymbolInformation _and_ vscode.DocumentSymbol
-export class SymbolInformationAndDocumentSymbol extends SymbolInformation implements vscode.DocumentSymbol {
-
-	detail: string;
-	range: vscode.Range;
-	selectionRange: vscode.Range;
-	children: vscode.DocumentSymbol[];
-	override containerName: string;
-
-	constructor(name: string, kind: vscode.SymbolKind, detail: string, containerName: string, uri: URI, range: Range, selectionRange: Range, children?: SymbolInformationAndDocumentSymbol[]) {
-		super(name, kind, containerName, new Location(uri, range));
-
-		this.containerName = containerName;
-		this.detail = detail;
-		this.range = range;
-		this.selectionRange = selectionRange;
-		this.children = children ?? [];
-	}
-}
 
 export enum CodeActionTriggerKind {
 	Invoke = 1,
@@ -4622,11 +4588,11 @@ export class ChatResponseMarkdownWithVulnerabilitiesPart {
 
 export class ChatResponseConfirmationPart {
 	title: string;
-	message: string;
+	message: string | vscode.MarkdownString;
 	data: any;
 	buttons?: string[];
 
-	constructor(title: string, message: string, data: any, buttons?: string[]) {
+	constructor(title: string, message: string | vscode.MarkdownString, data: any, buttons?: string[]) {
 		this.title = title;
 		this.message = message;
 		this.data = data;
@@ -4737,6 +4703,27 @@ export class ChatResponseExtensionsPart {
 	}
 }
 
+export class ChatResponsePullRequestPart {
+	constructor(
+		public readonly uri: vscode.Uri,
+		public readonly title: string,
+		public readonly description: string,
+		public readonly author: string,
+		public readonly linkTag: string
+	) {
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.ChatResponsePullRequestPart,
+			uri: this.uri,
+			title: this.title,
+			description: this.description,
+			author: this.author
+		};
+	}
+}
+
 export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
@@ -4778,6 +4765,36 @@ export class ChatPrepareToolInvocationPart {
 	}
 }
 
+
+export interface ChatTerminalToolInvocationData2 {
+	commandLine: {
+		original: string;
+		userEdited?: string;
+		toolEdited?: string;
+	};
+	language: string;
+}
+
+export class ChatToolInvocationPart {
+	toolName: string;
+	toolCallId: string;
+	isError?: boolean;
+	invocationMessage?: string | vscode.MarkdownString;
+	originMessage?: string | vscode.MarkdownString;
+	pastTenseMessage?: string | vscode.MarkdownString;
+	isConfirmed?: boolean;
+	isComplete?: boolean;
+	toolSpecificData?: ChatTerminalToolInvocationData2;
+
+	constructor(toolName: string,
+		toolCallId: string,
+		isError?: boolean) {
+		this.toolName = toolName;
+		this.toolCallId = toolCallId;
+		this.isError = isError;
+	}
+}
+
 export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 	constructor(
 		readonly prompt: string,
@@ -4793,6 +4810,16 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 
 	constructor(
 		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>,
+		readonly result: vscode.ChatResult,
+		readonly participant: string,
+		readonly command?: string
+	) { }
+}
+
+export class ChatResponseTurn2 implements vscode.ChatResponseTurn2 {
+
+	constructor(
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ChatResponseExtensionsPart | ChatToolInvocationPart>,
 		readonly result: vscode.ChatResult,
 		readonly participant: string,
 		readonly command?: string
@@ -4871,15 +4898,6 @@ export class LanguageModelToolResultPart2 implements vscode.LanguageModelToolRes
 		this.content = content;
 		this.isError = isError ?? false;
 	}
-}
-
-export class PreparedTerminalToolInvocation {
-	constructor(
-		public readonly command: string,
-		public readonly language: string,
-		public readonly confirmationMessages?: vscode.LanguageModelToolConfirmationMessages,
-		public readonly presentation?: 'hidden'
-	) { }
 }
 
 export enum ChatErrorLevel {
@@ -4997,28 +5015,38 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	}
 }
 
-export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
-	value: string;
+export enum ToolResultAudience {
+	Assistant = 0,
+	User = 1,
+}
 
-	constructor(value: string) {
+export class LanguageModelTextPart implements vscode.LanguageModelTextPart2 {
+	value: string;
+	audience: vscode.ToolResultAudience[] | undefined;
+
+	constructor(value: string, audience?: vscode.ToolResultAudience[]) {
 		this.value = value;
+		audience = audience;
 	}
 
 	toJSON() {
 		return {
 			$mid: MarshalledId.LanguageModelTextPart,
 			value: this.value,
+			audience: this.audience,
 		};
 	}
 }
 
-export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
+export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 	mimeType: string;
 	data: Uint8Array<ArrayBufferLike>;
+	audience: vscode.ToolResultAudience[] | undefined;
 
-	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string) {
+	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string, audience?: vscode.ToolResultAudience[]) {
 		this.mimeType = mimeType;
 		this.data = data;
+		this.audience = audience;
 	}
 
 	static image(data: Uint8Array<ArrayBufferLike>, mimeType: ChatImageMimeType): vscode.LanguageModelDataPart {
@@ -5039,6 +5067,7 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 			$mid: MarshalledId.LanguageModelDataPart,
 			mimeType: this.mimeType,
 			data: this.data,
+			audience: this.audience
 		};
 	}
 }
@@ -5167,6 +5196,14 @@ export enum LanguageModelChatToolMode {
 	Required = 2
 }
 
+export class LanguageModelToolExtensionSource implements vscode.LanguageModelToolExtensionSource {
+	constructor(public readonly id: string, public readonly label: string) { }
+}
+
+export class LanguageModelToolMCPSource implements vscode.LanguageModelToolMCPSource {
+	constructor(public readonly label: string, public readonly name: string, public readonly instructions: string | undefined) { }
+}
+
 //#endregion
 
 //#region ai
@@ -5209,7 +5246,7 @@ export enum KeywordRecognitionStatus {
 
 //#endregion
 
-//#region MC
+//#region MCP
 export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition {
 	cwd?: URI;
 

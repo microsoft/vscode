@@ -24,7 +24,7 @@ import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
-import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult } from './languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -107,6 +107,13 @@ export interface IChatContentReference {
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
 	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
 	kind: 'reference';
+}
+
+export interface IChatChangesSummary {
+	readonly reference: URI;
+	readonly sessionId: string;
+	readonly requestId: string;
+	readonly kind: 'changesSummary';
 }
 
 export interface IChatCodeCitation {
@@ -220,7 +227,7 @@ export interface IChatNotebookEdit {
 
 export interface IChatConfirmation {
 	title: string;
-	message: string;
+	message: string | IMarkdownString;
 	data: any;
 	buttons?: string[];
 	isUsed?: boolean;
@@ -231,16 +238,23 @@ export interface IChatElicitationRequest {
 	kind: 'elicitation';
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
+	acceptButtonLabel: string;
+	rejectButtonLabel: string;
 	originMessage?: string | IMarkdownString;
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
 	reject(): Promise<void>;
+	onDidRequestHide: Event<void>;
 }
 
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
-	command: string;
+	commandLine: {
+		original: string;
+		userEdited?: string;
+		toolEdited?: string;
+	};
 	language: string;
 }
 
@@ -251,7 +265,7 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTasksContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -271,16 +285,24 @@ export interface IChatToolInvocation {
 	kind: 'toolInvocation';
 }
 
+export interface IToolResultOutputDetailsSerialized {
+	output: {
+		type: 'data';
+		mimeType: string;
+		base64Data: string;
+	};
+}
+
 /**
  * This is a IChatToolInvocation that has been serialized, like after window reload, so it is no longer an active tool invocation.
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTasksContent;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
-	resultDetails: IToolResult['toolResultDetails'];
+	resultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetailsSerialized;
 	isConfirmed: boolean | undefined;
 	isComplete: boolean;
 	toolCallId: string;
@@ -291,6 +313,26 @@ export interface IChatToolInvocationSerialized {
 export interface IChatExtensionsContent {
 	extensions: string[];
 	kind: 'extensions';
+}
+
+export interface IChatPullRequestContent {
+	uri: URI;
+	title: string;
+	description: string;
+	author: string;
+	linkTag: string;
+	kind: 'pullRequest';
+}
+
+export interface IChatTasksContent {
+	kind: 'tasks';
+	sessionId: string;
+	tasks: Array<{
+		id: string;
+		title: string;
+		description: string;
+		status: 'not-started' | 'in-progress' | 'completed';
+	}>;
 }
 
 export interface IChatPrepareToolInvocationPart {
@@ -319,6 +361,7 @@ export type IChatProgress =
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
+	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatTaskSerialized
@@ -431,7 +474,15 @@ export interface IChatEditingSessionAction {
 	outcome: 'accepted' | 'rejected' | 'userModified';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction;
+export interface IChatEditingHunkAction {
+	kind: 'chatEditingHunkAction';
+	uri: URI;
+	lineCount: number;
+	outcome: 'accepted' | 'rejected';
+	hasRemainingEdits: boolean;
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction | IChatEditingHunkAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
@@ -510,7 +561,7 @@ export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationD
 export interface IChatSendRequestOptions {
 	mode?: ChatModeKind;
 	userSelectedModelId?: string;
-	userSelectedTools?: Record<string, boolean>;
+	userSelectedTools?: IObservable<Record<string, boolean>>;
 	modeInstructions?: string;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
@@ -545,7 +596,8 @@ export interface IChatService {
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
 	isPersistedSessionEmpty(sessionId: string): boolean;
-	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined;
+	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModel | undefined;
+	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;
 
 	/**
 	 * Returns whether the request was accepted.
@@ -574,6 +626,8 @@ export interface IChatService {
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
 	readonly edits2Enabled: boolean;
+
+	readonly requestInProgressObs: IObservable<boolean>;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

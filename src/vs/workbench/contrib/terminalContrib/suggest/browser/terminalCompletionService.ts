@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/path.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -72,13 +73,17 @@ export interface ITerminalCompletionProvider {
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	readonly providers: IterableIterator<ITerminalCompletionProvider>;
+	readonly onDidChangeProviders: Event<void>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType | undefined, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
 	declare _serviceBrand: undefined;
 	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
+
+	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
+	readonly onDidChangeProviders = this._onDidChangeProviders.event;
 
 	get providers(): IterableIterator<ITerminalCompletionProvider> {
 		return this._providersGenerator();
@@ -113,6 +118,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		provider.triggerCharacters = triggerCharacters;
 		provider.id = id;
 		extMap.set(id, provider);
+		this._onDidChangeProviders.fire();
 		return toDisposable(() => {
 			const extMap = this._providers.get(extensionIdentifier);
 			if (extMap) {
@@ -121,10 +127,11 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					this._providers.delete(extensionIdentifier);
 				}
 			}
+			this._onDidChangeProviders.fire();
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType | undefined, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
 		if (!this._providers || !this._providers.values || cursorPosition < 0) {
 			return undefined;
 		}
@@ -153,11 +160,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token, explicitlyInvoked);
 		}
 
-		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
-		providers = providers.filter(p => {
-			const providerId = p.id;
-			return providerId && providerId in providerConfig && providerConfig[providerId] !== false;
-		});
+		providers = this._getEnabledProviders(providers);
 
 		if (!providers.length) {
 			return;
@@ -166,9 +169,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, allowFallbackCompletions, capabilities, token, explicitlyInvoked);
 	}
 
-	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, capabilities: ITerminalCapabilityStore, token: CancellationToken, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
+	protected _getEnabledProviders(providers: ITerminalCompletionProvider[]): ITerminalCompletionProvider[] {
+		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
+		return providers.filter(p => {
+			const providerId = p.id;
+			return providerId && (!(providerId in providerConfig) || providerConfig[providerId] !== false);
+		});
+	}
+
+	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType | undefined, promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, capabilities: ITerminalCapabilityStore, token: CancellationToken, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
 		const completionPromises = providers.map(async provider => {
-			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
+			if (provider.shellTypes && shellType && !provider.shellTypes.includes(shellType)) {
 				return undefined;
 			}
 			const timeoutMs = explicitlyInvoked ? 30000 : 5000;
@@ -206,7 +217,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return completionItems;
 			}
 			if (completions.resourceRequestConfig) {
-				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, provider.id, capabilities, shellType);
+				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, `core:path:ext:${provider.id}`, capabilities, shellType);
 				if (resourceCompletions) {
 					for (const item of resourceCompletions) {
 						const labels = new Set(completionItems.map(c => c.label));
