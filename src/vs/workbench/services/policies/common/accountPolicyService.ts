@@ -88,7 +88,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			else if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.MCP])) {
 				updateIfNeeded(key, policy, this.accountPolicy?.mcpEnabled);
 			}
-			else if (hasAllTags(policy, [PolicyTag.Agent])) {
+			else if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.Agent])) {
 				updateIfNeeded(key, policy, this.accountPolicy?.chatAgentEnabled);
 			}
 		}
