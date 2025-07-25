@@ -222,18 +222,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		}
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
 			const buffer = this._terminal?.buffer?.active;
-			const marker = command.marker;
+			const marker = command.promptStartMarker;
 
-			// Only apply cursor check for commands with exit codes (completed commands)
-			// Skip the check for incomplete commands (no exitCode) to allow placeholders
-			if (command.exitCode !== undefined && buffer && marker) {
-				// Only register if cursor is at or below the command start marker
-				// This prevents misplaced decorations when watch commands clear previous output
-				if (buffer.baseY + buffer.cursorY >= marker.line) {
-					this.registerCommandDecoration(command);
-				}
-			} else {
-				// No exit code means incomplete command - always register placeholder
+			// Edge case: Handle case where tsc watch commands clears buffer, but decoration that tsc command re-appears
+			const shouldRegisterDecoration = (
+				command.exitCode === undefined ||
+				// Only register decoration if the cursor is at or below the promptStart marker.
+				(buffer && marker && buffer.baseY + buffer.cursorY >= marker.line)
+			);
+
+			if (shouldRegisterDecoration) {
 				this.registerCommandDecoration(command);
 			}
 
