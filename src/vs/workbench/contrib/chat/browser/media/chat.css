@@ -1576,7 +1576,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .checkpoint-file-changes-summary .checkpoint-file-changes-summary-header {
-	padding: 3px 3px 2px 3px;
+	padding: 3px 3px 3px 3px;
 	width: 100%;
 	display : flex;
 	box-sizing: border-box;
@@ -1617,6 +1617,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 }
 
+.interactive-session .checkpoint-file-changes-summary .chat-summary-list .monaco-scrollable-element {
+	border-radius: 4px;
+}
+
 .interactive-session .checkpoint-file-changes-summary .insertions {
 	color: var(--vscode-chat-linesAddedForeground);
 	font-weight: bold;
@@ -1634,7 +1638,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.interactive-session .checkpoint-file-changes-summary,
+.interactive-session .checkpoint-file-changes-summary {
+	display: flex;
+	flex-direction: column;
+}
+
 .interactive-session .chat-used-context {
 	display: flex;
 	flex-direction: column;
@@ -1676,7 +1684,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 12px;
 }
 
-.interactive-session .chat-summary-list .monaco-list .monaco-list-row,
+.interactive-session .chat-summary-list .monaco-list .monaco-list-row {
+	border-radius: 4px;
+}
+
 .interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
 	border-radius: 2px;
 }
@@ -1699,15 +1710,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-file-changes-label .monaco-button,
 .interactive-session .chat-used-context-label .monaco-button {
-	/* unset Button styles */
-	display: inline-flex;
 	width: fit-content;
 	border: none;
 	border-radius: 4px;
 	gap: 4px;
-	padding: 2px 6px 2px 2px;
 	text-align: initial;
 	justify-content: initial;
+}
+
+.interactive-session .chat-used-context-label .monaco-button {
+	/* unset Button styles */
+	display: inline-flex;
+}
+
+.interactive-session .chat-file-changes-label .monaco-button {
+	padding: 2px 2px 2px 2px;
+}
+
+.interactive-session .chat-used-context-label .monaco-button {
+	padding: 2px 6px 2px 2px;
 }
 
 .interactive-session .chat-file-changes-label .monaco-button:hover,
