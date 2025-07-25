@@ -737,7 +737,6 @@ class SessionsViewPane extends ViewPane {
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
 
-		console.log('Tree created with hideTwistiesOfChildlessElements: true');
 		this._register(this.tree);
 
 		// Handle double-click and keyboard selection to open editors
