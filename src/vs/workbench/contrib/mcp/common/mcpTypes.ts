@@ -208,7 +208,7 @@ export interface IMcpService {
 	resetTrust(): void;
 
 	/** Set if there are extensions that register MCP servers that have never been activated. */
-	readonly lazyCollectionState: IObservable<LazyCollectionState>;
+	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 	/** Activatese extensions and runs their MCP servers. */
 	activateCollections(): Promise<void>;
 }

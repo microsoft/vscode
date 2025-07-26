@@ -8,6 +8,7 @@ import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -60,7 +61,7 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import './media/mcpServerAction.css';
@@ -377,12 +378,16 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 		type DisplayedStateT = {
 			state: DisplayedState;
-			servers: IMcpServer[];
+			servers: (IMcpServer | McpCollectionDefinition)[];
 		};
+
+		function isServer(s: IMcpServer | McpCollectionDefinition): s is IMcpServer {
+			return typeof (s as IMcpServer).start === 'function';
+		}
 
 		const displayedStateCurrent = derived((reader): DisplayedStateT => {
 			const servers = mcpService.servers.read(reader);
-			const serversPerState: IMcpServer[][] = [];
+			const serversPerState: (IMcpServer | McpCollectionDefinition)[][] = [];
 			for (const server of servers) {
 				let thisState = DisplayedState.None;
 				switch (server.cacheState.read(reader)) {
@@ -403,10 +408,12 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			}
 
 			const unknownServerStates = mcpService.lazyCollectionState.read(reader);
-			if (unknownServerStates === LazyCollectionState.LoadingUnknown) {
+			if (unknownServerStates.state === LazyCollectionState.LoadingUnknown) {
 				serversPerState[DisplayedState.Refreshing] ??= [];
-			} else if (unknownServerStates === LazyCollectionState.HasUnknown) {
+				serversPerState[DisplayedState.Refreshing].push(...unknownServerStates.collections);
+			} else if (unknownServerStates.state === LazyCollectionState.HasUnknown) {
 				serversPerState[DisplayedState.NewTools] ??= [];
+				serversPerState[DisplayedState.NewTools].push(...unknownServerStates.collections);
 			}
 
 			let maxState = (serversPerState.length - 1) as DisplayedState;
@@ -476,13 +483,14 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					const { state, servers } = displayedStateCurrent.get();
 					if (state === DisplayedState.NewTools) {
 						const interaction = new McpStartServerInteraction();
-						servers.forEach(server => server.stop().then(() => server.start({ interaction })));
+						servers.filter(isServer).forEach(server => server.stop().then(() => server.start({ interaction })));
 						mcpService.activateCollections();
 					} else if (state === DisplayedState.Refreshing) {
-						servers.at(-1)?.showOutput();
+						findLast(servers, isServer)?.showOutput();
 					} else if (state === DisplayedState.Error) {
-						const server = servers.at(-1);
+						const server = findLast(servers, isServer);
 						if (server) {
+							server.showOutput();
 							commandService.executeCommand(McpCommandIds.ServerOptions, server.definition.id);
 						}
 					} else {
@@ -502,7 +510,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					});
 
 					const single = servers.length === 1;
-					const names = servers.map(link).map(l => single ? l : `- ${l}\n`).join(', ');
+					const names = servers.map(s => isServer(s) ? link(s) : '`' + s.label + '`').map(l => single ? l : `- ${l}\n`).join(', ');
 					let markdown: MarkdownString;
 					if (state === DisplayedState.NewTools) {
 						markdown = new MarkdownString(single
