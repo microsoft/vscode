@@ -24,8 +24,7 @@
 		"editor.formatOnSave": true
 	},
 	"[rust]": {
-		"editor.defaultFormatter": "rust-lang.rust-analyzer",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": true
 	},
 	"[github-issues]": {
 		"editor.wordWrap": "on"
