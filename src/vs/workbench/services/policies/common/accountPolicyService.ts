@@ -13,12 +13,14 @@ import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js'
 interface IAccountPolicy {
 	readonly chatPreviewFeaturesEnabled: boolean;
 	readonly mcpEnabled: boolean;
+	readonly chatAgentEnabled: boolean;
 }
 
 export class AccountPolicyService extends AbstractPolicyService implements IPolicyService {
 	private accountPolicy: IAccountPolicy = {
 		chatPreviewFeaturesEnabled: true,
-		mcpEnabled: true
+		mcpEnabled: true,
+		chatAgentEnabled: true
 	};
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -30,12 +32,14 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			.then(account => {
 				this._update({
 					chatPreviewFeaturesEnabled: account?.chat_preview_features_enabled ?? true,
-					mcpEnabled: account?.mcp ?? true
+					mcpEnabled: account?.mcp ?? true,
+					chatAgentEnabled: account?.chat_agent_enabled ?? true
 				});
 				this._register(this.defaultAccountService.onDidChangeDefaultAccount(
 					account => this._update({
 						chatPreviewFeaturesEnabled: account?.chat_preview_features_enabled ?? true,
-						mcpEnabled: account?.mcp ?? true
+						mcpEnabled: account?.mcp ?? true,
+						chatAgentEnabled: account?.chat_agent_enabled ?? true
 					})
 				));
 			});
@@ -83,6 +87,9 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			// Map MCP feature with MCP tag
 			else if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.MCP])) {
 				updateIfNeeded(key, policy, this.accountPolicy?.mcpEnabled);
+			}
+			else if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.Agent])) {
+				updateIfNeeded(key, policy, this.accountPolicy?.chatAgentEnabled);
 			}
 		}
 
