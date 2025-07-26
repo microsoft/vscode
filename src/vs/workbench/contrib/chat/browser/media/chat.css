@@ -2322,8 +2322,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* Sticky Task Widget */
-.chat-sticky-task-widget {
+/* Chat Todo List Widget */
+.chat-todo-list-widget {
 	position: sticky;
 	top: 0;
 	z-index: 100;
@@ -2333,7 +2333,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-bottom: 8px;
 }
 
-.chat-sticky-task-widget .task-expando {
+.chat-todo-list-widget .todo-list-expand {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -2341,50 +2341,50 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 4px 0;
 }
 
-.chat-sticky-task-widget .task-expando:hover {
+.chat-todo-list-widget .todo-list-expand:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: 4px;
 }
 
-.chat-sticky-task-widget .task-expando:focus {
+.chat-todo-list-widget .todo-list-expand:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 	border-radius: 4px;
 }
 
-.chat-sticky-task-widget .expand-icon {
+.chat-todo-list-widget .expand-icon {
 	flex-shrink: 0;
 }
 
-.chat-sticky-task-widget .task-title {
+.chat-todo-list-widget .todo-list-title {
 	font-weight: 600;
 	color: var(--vscode-foreground);
 }
 
-.chat-sticky-task-widget .task-list-container {
+.chat-todo-list-widget .todo-list-container {
 	padding-left: 20px;
 	margin-top: 4px;
 }
 
-.chat-sticky-task-widget .task-list {
+.chat-todo-list-widget .todo-list {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
 }
 
-.chat-sticky-task-widget .task-item {
+.chat-todo-list-widget .todo-item {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	padding: 2px 0;
 }
 
-.chat-sticky-task-widget .task-status-icon {
+.chat-todo-list-widget .todo-status-icon {
 	flex-shrink: 0;
 	font-size: 14px;
 }
 
-.chat-sticky-task-widget .task-content {
+.chat-todo-list-widget .todo-content {
 	color: var(--vscode-foreground);
 	flex-grow: 1;
 }
