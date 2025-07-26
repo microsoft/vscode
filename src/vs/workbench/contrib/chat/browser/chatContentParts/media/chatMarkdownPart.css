@@ -14,4 +14,9 @@
 	h6 {
 		line-height: normal;
 	}
+
+	.katex-display .katex {
+		width: fit-content;
+		overflow: hidden;
+	}
 }
