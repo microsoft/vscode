@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { IChatTasksContent } from '../../common/chatService.js';
+import { IChatTasksService, IChatTask } from '../../common/chatTasksService.js';
 
 export class ChatStickyTaskWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -18,9 +18,11 @@ export class ChatStickyTaskWidget extends Disposable {
 	private _isExpanded: boolean = true;
 	private expandoElement!: HTMLElement;
 	private taskListContainer!: HTMLElement;
-	private _taskData: IChatTasksContent | undefined;
+	private _currentSessionId: string | undefined;
 
-	constructor() {
+	constructor(
+		@IChatTasksService private readonly chatTasksService: IChatTasksService
+	) {
 		super();
 
 		this.domNode = this.createStickyTaskWidget();
@@ -68,11 +70,23 @@ export class ChatStickyTaskWidget extends Disposable {
 		return container;
 	}
 
-	public updateTaskData(taskData: IChatTasksContent | undefined): void {
-		this._taskData = taskData;
+	public updateSessionId(sessionId: string | undefined): void {
+		this._currentSessionId = sessionId;
+		this.updateTaskDisplay();
+	}
 
-		if (taskData && taskData.tasks.length > 0) {
-			this.renderTaskList();
+	private updateTaskDisplay(): void {
+		if (!this._currentSessionId) {
+			this.domNode.style.display = 'none';
+			this._onDidChangeHeight.fire();
+			return;
+		}
+
+		const taskStorage = this.chatTasksService.getChatTasksStorage();
+		const tasks = taskStorage.getTasks(this._currentSessionId);
+
+		if (tasks.length > 0) {
+			this.renderTaskList(tasks);
 			this.domNode.style.display = 'block';
 		} else {
 			this.domNode.style.display = 'none';
@@ -81,11 +95,7 @@ export class ChatStickyTaskWidget extends Disposable {
 		this._onDidChangeHeight.fire();
 	}
 
-	private renderTaskList(): void {
-		if (!this._taskData || !this._taskData.tasks.length) {
-			return;
-		}
-
+	private renderTaskList(tasks: IChatTask[]): void {
 		this.taskListContainer.textContent = '';
 
 		const titleElement = this.expandoElement.querySelector('.task-title') as HTMLElement;
@@ -93,7 +103,7 @@ export class ChatStickyTaskWidget extends Disposable {
 			titleElement.textContent = `${localize('chat.task.title', 'Tasks')}`;
 		}
 
-		this._taskData.tasks.forEach((task, index) => {
+		tasks.forEach((task, index) => {
 			const taskElement = dom.$('.task-item');
 
 			const statusIcon = dom.$('.task-status-icon.codicon');
