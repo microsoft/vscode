@@ -75,8 +75,8 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Current {0} context", attachmentTypeName);
-		const inactive = localize('enableHint', "disabled");
-		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
+		const inactive = localize('enableHint', "Enable current {0} context", attachmentTypeName);
+		const currentFileHint = this.attachment.enabled || this.attachment.isSelection ? currentFile : inactive;
 		const title = `${currentFileHint}\n${uriLabel}`;
 
 		label.setFile(file, {
@@ -89,14 +89,12 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.domNode.tabIndex = 0;
 
 		const isSuggestedEnabled = this.configService.getValue('chat.implicitContext.suggestedContext');
-		const hintLabel = !this.attachment.isSelection && !isSuggestedEnabled ? localize('hint.label.current', "Current {0}", attachmentTypeName) : '';
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, hintLabel));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.domNode, title));
 
 
 		if (isSuggestedEnabled) {
 			if (!this.attachment.isSelection) {
-				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : localize('enable', "Enable current {0} context", attachmentTypeName);
+				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : '';
 				const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
 				toggleButton.icon = this.attachment.enabled ? Codicon.x : Codicon.plus;
 				this.renderDisposables.add(toggleButton.onDidClick((e) => {
