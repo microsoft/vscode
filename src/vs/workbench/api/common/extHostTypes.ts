@@ -4609,6 +4609,15 @@ export class ChatResponseFileTreePart {
 	}
 }
 
+export class ChatResponseMultiDiffPart {
+	value: vscode.ChatResponseDiffEntry[];
+	title: string;
+	constructor(value: vscode.ChatResponseDiffEntry[], title: string) {
+		this.value = value;
+		this.title = title;
+	}
+}
+
 export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location;
 	title?: string;
@@ -4700,6 +4709,27 @@ export class ChatResponseExtensionsPart {
 	constructor(
 		public readonly extensions: string[],
 	) {
+	}
+}
+
+export class ChatResponsePullRequestPart {
+	constructor(
+		public readonly uri: vscode.Uri,
+		public readonly title: string,
+		public readonly description: string,
+		public readonly author: string,
+		public readonly linkTag: string
+	) {
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.ChatResponsePullRequestPart,
+			uri: this.uri,
+			title: this.title,
+			description: this.description,
+			author: this.author
+		};
 	}
 }
 
@@ -4994,28 +5024,38 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	}
 }
 
-export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
-	value: string;
+export enum ToolResultAudience {
+	Assistant = 0,
+	User = 1,
+}
 
-	constructor(value: string) {
+export class LanguageModelTextPart implements vscode.LanguageModelTextPart2 {
+	value: string;
+	audience: vscode.ToolResultAudience[] | undefined;
+
+	constructor(value: string, audience?: vscode.ToolResultAudience[]) {
 		this.value = value;
+		audience = audience;
 	}
 
 	toJSON() {
 		return {
 			$mid: MarshalledId.LanguageModelTextPart,
 			value: this.value,
+			audience: this.audience,
 		};
 	}
 }
 
-export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
+export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 	mimeType: string;
 	data: Uint8Array<ArrayBufferLike>;
+	audience: vscode.ToolResultAudience[] | undefined;
 
-	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string) {
+	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string, audience?: vscode.ToolResultAudience[]) {
 		this.mimeType = mimeType;
 		this.data = data;
+		this.audience = audience;
 	}
 
 	static image(data: Uint8Array<ArrayBufferLike>, mimeType: ChatImageMimeType): vscode.LanguageModelDataPart {
@@ -5036,6 +5076,7 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 			$mid: MarshalledId.LanguageModelDataPart,
 			mimeType: this.mimeType,
 			data: this.data,
+			audience: this.audience
 		};
 	}
 }

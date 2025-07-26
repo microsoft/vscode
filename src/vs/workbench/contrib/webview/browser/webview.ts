@@ -286,6 +286,8 @@ export interface IWebviewElement extends IWebview {
 	 * @param parent Element to append the webview to.
 	 */
 	mountTo(parent: HTMLElement, targetWindow: CodeWindow): void;
+
+	reinitializeAfterDismount(): void;
 }
 
 /**

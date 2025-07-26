@@ -3640,7 +3640,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.openWorktree', { repository: true })
+	@command('git.openWorktree', { repository: true, repositoryFilter: ['worktree'] })
 	async openWorktreeInCurrentWindow(repository: Repository): Promise<void> {
 		if (!repository) {
 			return;
@@ -3650,7 +3650,7 @@ export class CommandCenter {
 		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
 	}
 
-	@command('git.openWorktreeInNewWindow', { repository: true })
+	@command('git.openWorktreeInNewWindow', { repository: true, repositoryFilter: ['worktree'] })
 	async openWorktreeInNewWindow(repository: Repository): Promise<void> {
 		if (!repository) {
 			return;
