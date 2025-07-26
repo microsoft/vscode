@@ -586,6 +586,15 @@
 			]
 		},
 		{
+			"name": "Launch Hello World Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/hello-world"
+			]
+		},
+		{
 			"name": "Monaco Editor Playground",
 			"type": "chrome",
 			"request": "launch",
