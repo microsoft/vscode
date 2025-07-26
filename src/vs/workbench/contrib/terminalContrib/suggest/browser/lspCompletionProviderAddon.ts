@@ -51,28 +51,32 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		const lineNum = this._textVirtualModel.object.textEditorModel.getLineCount();
 		const positionVirtualDocument = new Position(lineNum, column);
 
-
-		// TODO: Scan back to start of nearest word like other providers? Is this needed for `ILanguageFeaturesService`?
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
-
-			completions.push(...(result?.suggestions || []).map((e: any) => {
+			for (const item of (result?.suggestions || [])) {
 				// TODO: Support more terminalCompletionItemKind for [different LSP providers](https://github.com/microsoft/vscode/issues/249479)
-				const convertedKind = e.kind ? mapLspKindToTerminalKind(e.kind) : TerminalCompletionItemKind.Method;
+				const convertedKind = item.kind ? mapLspKindToTerminalKind(item.kind) : TerminalCompletionItemKind.Method;
 				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
-
-				return {
-					label: e.insertText,
+				const terminalCompletion: ITerminalCompletion = {
+					label: item.label,
 					provider: `lsp:${this._provider._debugDisplayName}`,
-					detail: e.detail,
-					documentation: e.documentation,
+					detail: item.detail,
+					documentation: item.documentation,
 					kind: convertedKind,
 					replacementIndex: completionItemTemp.replacementIndex,
 					replacementLength: completionItemTemp.replacementLength,
 				};
-			}));
+
+				// Store unresolved item and provider for lazy resolution if needed
+				if (this._provider.resolveCompletionItem && (!item.detail || !item.documentation)) {
+					terminalCompletion._unresolvedItem = item;
+					terminalCompletion._resolveProvider = this._provider;
+				}
+
+				completions.push(terminalCompletion);
+			}
 		}
 
 		return completions;

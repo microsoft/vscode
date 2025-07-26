@@ -17,8 +17,9 @@ import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentT
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -52,6 +53,9 @@ suite('RunInTerminalTool', () => {
 			getTools() {
 				return [];
 			},
+		});
+		instantiationService.stub(ITerminalService, {
+			onDidDisposeInstance: new Emitter<ITerminalInstance>().event
 		});
 		workspaceService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService)) as TestContextService;
 

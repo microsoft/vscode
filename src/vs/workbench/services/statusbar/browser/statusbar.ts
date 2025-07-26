@@ -214,6 +214,8 @@ export interface IStatusbarEntry {
 	 * more actions to manage the extension from the status bar entry.
 	 */
 	readonly extensionId?: string;
+
+	readonly content?: HTMLElement;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

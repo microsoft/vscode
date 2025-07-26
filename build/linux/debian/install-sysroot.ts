@@ -10,7 +10,6 @@ import https from 'https';
 import path from 'path';
 import { createHash } from 'crypto';
 import { DebianArchString } from './types';
-import ansiColors from 'ansi-colors';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
@@ -98,22 +97,22 @@ async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000)
 				});
 				if (assetResponse.ok && (assetResponse.status >= 200 && assetResponse.status < 300)) {
 					const assetContents = Buffer.from(await assetResponse.arrayBuffer());
-					console.log(`Fetched response body buffer: ${ansiColors.magenta(`${(assetContents as Buffer).byteLength} bytes`)}`);
+					console.log(`Fetched response body buffer: ${(assetContents as Buffer).byteLength} bytes`);
 					if (options.checksumSha256) {
 						const actualSHA256Checksum = createHash('sha256').update(assetContents).digest('hex');
 						if (actualSHA256Checksum !== options.checksumSha256) {
-							throw new Error(`Checksum mismatch for ${ansiColors.cyan(asset.url)} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
+							throw new Error(`Checksum mismatch for ${asset.url} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
 						}
 					}
-					console.log(`Verified SHA256 checksums match for ${ansiColors.cyan(asset.url)}`);
+					console.log(`Verified SHA256 checksums match for ${asset.url}`);
 					const tarCommand = `tar -xz -C ${options.dest}`;
 					execSync(tarCommand, { input: assetContents });
 					console.log(`Fetch complete!`);
 					return;
 				}
-				throw new Error(`Request ${ansiColors.magenta(asset.url)} failed with status code: ${assetResponse.status}`);
+				throw new Error(`Request ${asset.url} failed with status code: ${assetResponse.status}`);
 			}
-			throw new Error(`Request ${ansiColors.magenta('https://api.github.com')} failed with status code: ${response.status}`);
+			throw new Error(`Request https://api.github.com failed with status code: ${response.status}`);
 		} finally {
 			clearTimeout(timeout);
 		}

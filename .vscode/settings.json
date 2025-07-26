@@ -201,5 +201,6 @@
 	},
 	"terminal.integrated.suggest.enabled": true,
 	"application.experimental.rendererProfiling": true,
-	"cmake.sourceDirectory": "/Users/denis0001-dev/Documents/Projects/Toolbox.io/Code/code/node_modules/bare-os"
+	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
+	"chat.checkpoints.showFileChanges": true
 }

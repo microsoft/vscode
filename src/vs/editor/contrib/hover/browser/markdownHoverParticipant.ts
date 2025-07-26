@@ -153,7 +153,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return result;
 	}
 
-	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterable<MarkdownHover> {
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -164,20 +164,20 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		if (!hoverProviderRegistry.has(model)) {
 			return AsyncIterableObject.EMPTY;
 		}
-		const markdownHovers = this._getMarkdownHovers(hoverProviderRegistry, model, anchor, token);
-		return markdownHovers;
+		return this._getMarkdownHovers(hoverProviderRegistry, model, anchor, token);
 	}
 
-	private _getMarkdownHovers(hoverProviderRegistry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, anchor: HoverRangeAnchor, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	private async *_getMarkdownHovers(hoverProviderRegistry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, anchor: HoverRangeAnchor, token: CancellationToken): AsyncIterable<MarkdownHover> {
 		const position = anchor.range.getStartPosition();
 		const hoverProviderResults = getHoverProviderResultsAsAsyncIterable(hoverProviderRegistry, model, position, token);
-		const markdownHovers = hoverProviderResults.filter(item => !isEmptyMarkdownString(item.hover.contents))
-			.map(item => {
+
+		for await (const item of hoverProviderResults) {
+			if (!isEmptyMarkdownString(item.hover.contents)) {
 				const range = item.hover.range ? Range.lift(item.hover.range) : anchor.range;
 				const hoverSource = new HoverSource(item.hover, item.provider, position);
-				return new MarkdownHover(this, range, item.hover.contents, false, item.ordinal, hoverSource);
-			});
-		return markdownHovers;
+				yield new MarkdownHover(this, range, item.hover.contents, false, item.ordinal, hoverSource);
+			}
+		}
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IRenderedHoverParts<MarkdownHover> {

@@ -18,18 +18,20 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { installCountIcon, starEmptyIcon, starFullIcon, starHalfIcon } from '../../extensions/browser/extensionsIcons.js';
-import { IMcpServerContainer, IWorkbenchMcpServer, mcpServerIcon } from '../common/mcpTypes.js';
+import { IMcpServerContainer, IWorkbenchMcpServer } from '../common/mcpTypes.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { McpServerStatusAction } from './mcpServerActions.js';
 import { reset } from '../../../../base/browser/dom.js';
+import { mcpServerIcon, mcpServerRemoteIcon, mcpServerWorkspaceIcon } from './mcpServerIcons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { ExtensionHoverOptions } from '../../extensions/browser/extensionsWidgets.js';
+import { ExtensionHoverOptions, ExtensionIconBadge } from '../../extensions/browser/extensionsWidgets.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export abstract class McpServerWidget extends Disposable implements IMcpServerContainer {
 	private _mcpServer: IWorkbenchMcpServer | null = null;
@@ -390,7 +392,14 @@ export class McpServerHoverWidget extends McpServerWidget {
 		markdown.appendText(`\n`);
 
 		if (this.mcpServer.local?.scope === LocalMcpServerScope.Workspace) {
+			markdown.appendMarkdown(`$(${mcpServerWorkspaceIcon.id})&nbsp;`);
 			markdown.appendMarkdown(localize('workspace extension', "Workspace MCP Server"));
+			markdown.appendText(`\n`);
+		}
+
+		if (this.mcpServer.local?.scope === LocalMcpServerScope.RemoteUser) {
+			markdown.appendMarkdown(`$(${mcpServerRemoteIcon.id})&nbsp;`);
+			markdown.appendMarkdown(localize('remote user extension', "Remote MCP Server"));
 			markdown.appendText(`\n`);
 		}
 
@@ -419,6 +428,52 @@ export class McpServerHoverWidget extends McpServerWidget {
 		return markdown;
 	}
 
+}
+
+export class McpServerScopeBadgeWidget extends McpServerWidget {
+
+	private readonly badge = this._register(new MutableDisposable<ExtensionIconBadge>());
+	private element: HTMLElement;
+
+	constructor(
+		readonly container: HTMLElement,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+		this.element = dom.append(this.container, dom.$(''));
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.badge.value?.element.remove();
+		this.badge.clear();
+	}
+
+	render(): void {
+		this.clear();
+
+		const scope = this.mcpServer?.local?.scope;
+
+		if (!scope || scope === LocalMcpServerScope.User) {
+			return;
+		}
+
+		let icon: ThemeIcon;
+		switch (scope) {
+			case LocalMcpServerScope.Workspace: {
+				icon = mcpServerWorkspaceIcon;
+				break;
+			}
+			case LocalMcpServerScope.RemoteUser: {
+				icon = mcpServerRemoteIcon;
+				break;
+			}
+		}
+
+		this.badge.value = this.instantiationService.createInstance(ExtensionIconBadge, icon, undefined);
+		dom.append(this.element, this.badge.value.element);
+	}
 }
 
 export class McpServerStatusWidget extends McpServerWidget {

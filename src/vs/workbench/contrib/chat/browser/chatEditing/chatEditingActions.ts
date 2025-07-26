@@ -474,6 +474,61 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	}
 });
 
+registerAction2(class RestoreLastCheckpoint extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.restoreLastCheckpoint',
+			title: localize2('chat.restoreLastCheckpoint.label', "Restore to last checkpoint"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.discard,
+			menu: [
+				{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true)),
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		let item: ChatTreeItem | undefined = args[0];
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
+		}
+
+		const chatModel = chatService.getSession(item.sessionId);
+		if (!chatModel) {
+			return;
+		}
+
+		const session = chatModel.editingSession;
+		if (!session) {
+			return;
+		}
+
+		await restoreSnapshotWithConfirmation(accessor, item);
+
+		if (isResponseVM(item)) {
+			widget?.viewModel?.model.setCheckpoint(item.requestId);
+			const request = chatModel.getRequests().find(request => request.id === item.requestId);
+			if (request) {
+				widget?.focusInput();
+				widget?.input.setValue(request.message.text, false);
+			}
+		}
+	}
+});
+
 registerAction2(class EditAction extends Action2 {
 	constructor() {
 		super({
@@ -669,9 +724,9 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ViewPreviousEditsAction.Id,
-			title: ViewPreviousEditsAction.Label,
+			title: localize2('chatEditing.viewPreviousEdits', 'View Previous Edits'),
 			tooltip: ViewPreviousEditsAction.Label,
-			f1: false,
+			f1: true,
 			icon: Codicon.diffMultiple,
 			precondition: hasUndecidedChatEditingResourceContextKey.negate(),
 			menu: [
