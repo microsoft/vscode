@@ -22,6 +22,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ClipboardEventUtils } from '../../../browser/controller/editContext/clipboardUtils.js';
@@ -116,6 +117,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	constructor(
 		editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -146,8 +148,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	public async pasteAs(preferred?: PastePreference) {
+		this._logService.trace('CopyPasteController.pasteAs ', preferred);
 		this._editor.focus();
 		try {
+			this._logService.trace('Before calling editor.action.clipboardPasteAction');
 			this._pasteAsActionContext = { preferred };
 			await this._commandService.executeCommand('editor.action.clipboardPasteAction');
 		} finally {
@@ -168,6 +172,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private handleCopy(e: ClipboardEvent) {
+		this._logService.trace('CopyPasteController.handleCopy');
 		if (!this._editor.hasTextFocus()) {
 			return;
 		}
@@ -208,6 +213,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			mode: null
 		};
 
+		this._logService.trace('CopyPasteController.handleCopy: defaultPastePayload.multicursorText', multicursorText?.concat('\n'));
+
 		const providers = this._languageFeaturesService.documentPasteEditProvider
 			.ordered(model)
 			.filter(x => !!x.prepareDocumentPaste);
@@ -244,6 +251,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
+		this._logService.trace('CopyPasteController#handlePaste');
 		if (!e.clipboardData || !this._editor.hasTextFocus()) {
 			return;
 		}
@@ -330,6 +338,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, clipboardEvent: ClipboardEvent): void {
+		this._logService.trace('CopyPasteController.doPasteInline');
 		const editor = this._editor;
 		if (!editor.hasModel()) {
 			return;
@@ -423,6 +432,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private showPasteAsPick(preference: PastePreference | undefined, allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined): void {
+		this._logService.trace('CopyPasteController.showPasteAsPick');
 		const p = createCancelablePromise(async (token) => {
 			const editor = this._editor;
 			if (!editor.hasModel()) {
@@ -645,6 +655,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			multicursorText: metadata?.defaultPastePayload.multicursorText ?? null,
 			mode: null,
 		};
+		this._logService.trace('CopyPasteController.applyDefaultPasteHandler: payload.multicursorText', payload.multicursorText?.concat('\n'));
 		this._editor.trigger('keyboard', Handler.Paste, payload);
 	}
 
