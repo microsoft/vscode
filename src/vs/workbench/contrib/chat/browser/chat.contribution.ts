@@ -114,7 +114,7 @@ import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
-import { ChatTaskServiceImpl, IChatTasksService } from '../common/chatTasksService.js';
+import { ChatTodoListService, IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { AssistedTypes, AddConfigurationType } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 import { ChatSessionsView } from './chatSessions.js';
@@ -546,10 +546,10 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
-		'chat.manageTasksTool.enabled': {
+		'chat.todoListTool.enabled': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('chat.manageTasksTool.enabled', "Enables manageTasksTool in chat. This tool allows you to use task lists in chat."),
+			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat. This tool allows you to use todo lists in chat."),
 			tags: ['experimental'],
 			included: false,
 		},
@@ -841,7 +841,7 @@ registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
-registerSingleton(IChatTasksService, ChatTaskServiceImpl, InstantiationType.Delayed);
+registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);

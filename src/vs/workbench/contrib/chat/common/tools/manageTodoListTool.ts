@@ -18,21 +18,21 @@ import {
 	IPreparedToolInvocation
 } from '../languageModelToolsService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatTask, IChatTasksService, IChatTaskStorage } from '../chatTasksService.js';
+import { IChatTodo, IChatTodoListService, IChatTodoListStorage } from '../chatTodoListService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
-export const ManageToolSettingId = 'chat.manageTasksTool.enabled';
+export const TodoListToolSettingId = 'chat.todoListTool.enabled';
 
-export const ManageTasksToolToolId = 'vscode_manageTasks';
+export const ManageTodoListToolToolId = 'vscode_manageTodoList';
 
-export const ManageTasksToolData: IToolData = {
-	id: ManageTasksToolToolId,
-	toolReferenceName: 'manageTasks',
-	when: ContextKeyExpr.equals(`config.${ManageToolSettingId}`, true),
+export const ManageTodoListToolData: IToolData = {
+	id: ManageTodoListToolToolId,
+	toolReferenceName: 'manageTodoList',
+	when: ContextKeyExpr.equals(`config.${TodoListToolSettingId}`, true),
 	canBeReferencedInPrompt: true,
 	icon: ThemeIcon.fromId(Codicon.checklist.id),
-	displayName: 'Manage Tasks',
-	modelDescription: 'A tool for managing tasks. Can create/update and read tasks in a todo list. Operations: write (add new todo tasks or update todo tasks), read(retrieve all todo tasks).',
+	displayName: 'Manage Todo Lists',
+	modelDescription: 'A tool for managing todo lists. Can create/update and read items in a todo list. Operations: write (add new todo items or update todo items), read(retrieve all todo items).',
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',
@@ -40,30 +40,30 @@ export const ManageTasksToolData: IToolData = {
 			operation: {
 				type: 'string',
 				enum: ['write', 'read'],
-				description: 'The operation to perform on tasks: write or read.When using write, you must provide the complete list of tasks, including any new or updated items. Partial updates are not supported.'
+				description: 'The operation to perform on todo list: write or read. When using write, you must provide the complete todo list, including any new or updated items. Partial updates are not supported.'
 			},
-			taskData: {
+			todoList: {
 				type: 'array',
-				description: 'Array of task items to be written.  Ignore for read operation ',
+				description: 'Array of todo items to be written.  Ignore for read operation ',
 				items: {
 					type: 'object',
 					properties: {
 						id: {
 							type: 'number',
-							description: 'Numerical identifier representing the position of the task item in the ordered list. Lower numbers have higher priority.'
+							description: 'Numerical identifier representing the position of the todo item in the ordered list. Lower numbers have higher priority.'
 						},
 						title: {
 							type: 'string',
-							description: 'Short title or summary of the task item.'
+							description: 'Short title or summary of the todo item.'
 						},
 						description: {
 							type: 'string',
-							description: 'Detailed description of the task item.'
+							description: 'Detailed description of the todo item.'
 						},
 						status: {
 							type: 'string',
 							enum: ['not-started', 'in-progress', 'completed'],
-							description: 'Current status of the task item.'
+							description: 'Current status of the todo item.'
 						},
 					},
 					required: ['id', 'title', 'description', 'status']
@@ -74,10 +74,10 @@ export const ManageTasksToolData: IToolData = {
 	}
 };
 
-export interface IManageTasksToolInputParams {
+interface IManageTodoListToolInputParams {
 
 	operation: 'write' | 'read';
-	taskData: Array<{
+	todoList: Array<{
 		id: number;
 		title: string;
 		description: string;
@@ -85,10 +85,10 @@ export interface IManageTasksToolInputParams {
 	}>;
 }
 
-export class ManageTasksTool extends Disposable implements IToolImpl {
+export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	constructor(
-		@IChatTasksService private readonly chatTaskService: IChatTasksService,
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -100,15 +100,15 @@ export class ManageTasksTool extends Disposable implements IToolImpl {
 			throw new Error('A chat session ID is required for this tool');
 		}
 
-		const args = invocation.parameters as IManageTasksToolInputParams;
-		this.logService.debug(`TaskManagerTool: Invoking with options ${JSON.stringify(args)}`);
+		const args = invocation.parameters as IManageTodoListToolInputParams;
+		this.logService.debug(`ManageTodoListTool: Invoking with options ${JSON.stringify(args)}`);
 
 		try {
-			const storage = this.chatTaskService.getChatTasksStorage();
+			const storage = this.chatTodoListService.getChatTodoListStorage();
 
 			switch (args.operation) {
 				case 'read': {
-					const readResult = this.handleReadTasks(storage, chatSessionId);
+					const readResult = this.handleRead(storage, chatSessionId);
 					return {
 						content: [{
 							kind: 'text',
@@ -117,17 +117,17 @@ export class ManageTasksTool extends Disposable implements IToolImpl {
 					};
 				}
 				case 'write': {
-					const tasks: IChatTask[] = args.taskData.map((parsedTask) => ({
-						id: parsedTask.id,
-						title: parsedTask.title,
-						description: parsedTask.description,
-						status: parsedTask.status
+					const todoList: IChatTodo[] = args.todoList.map((parsedTodo) => ({
+						id: parsedTodo.id,
+						title: parsedTodo.title,
+						description: parsedTodo.description,
+						status: parsedTodo.status
 					}));
-					storage.setTasks(chatSessionId, tasks);
+					storage.setTodoList(chatSessionId, todoList);
 					return {
 						content: [{
 							kind: 'text',
-							value: 'Successfully wrote tasks'
+							value: 'Successfully wrote todo list'
 						}]
 					};
 				}
@@ -159,69 +159,69 @@ export class ManageTasksTool extends Disposable implements IToolImpl {
 			throw new Error('chatSessionId undefined');
 		}
 
-		const storage = this.chatTaskService.getChatTasksStorage();
-		const currentTasks = storage.getTasks(context.chatSessionId);
+		const storage = this.chatTodoListService.getChatTodoListStorage();
+		const currentTodoItems = storage.getTodoList(context.chatSessionId);
 
-		const args = context.parameters as IManageTasksToolInputParams;
+		const args = context.parameters as IManageTodoListToolInputParams;
 		let message: string | undefined;
 		switch (args.operation) {
 			case 'write': {
-				if (args.taskData) {
-					if (!currentTasks.length) {
-						message = 'Creating tasks';
+				if (args.todoList) {
+					if (!currentTodoItems.length) {
+						message = 'Creating todo list';
 					}
 					else {
-						message = 'Updating tasks';
+						message = 'Updating todo list';
 					}
 				}
 				break;
 			}
 			case 'read': {
-				message = 'Reading all tasks';
+				message = 'Reading all items in todo list';
 				break;
 			}
 			default:
 				break;
 		}
 
-		const items = args.taskData ?? currentTasks;
-		const tasks = items.map(task => ({
-			id: task.id.toString(),
-			title: task.title,
-			description: task.description,
-			status: task.status
+		const items = args.todoList ?? currentTodoItems;
+		const todoList = items.map(todo => ({
+			id: todo.id.toString(),
+			title: todo.title,
+			description: todo.description,
+			status: todo.status
 		}));
 
 		return {
-			invocationMessage: new MarkdownString(message ?? 'Unknown task operation'),
+			invocationMessage: new MarkdownString(message ?? 'Unknown todo list operation'),
 			toolSpecificData: {
-				kind: 'tasks',
+				kind: 'todoList',
 				sessionId: context.chatSessionId,
-				tasks: tasks
+				todoList: todoList
 			}
 		};
 	}
 
-	private handleReadTasks(storage: IChatTaskStorage, sessionId: string): string {
-		const tasks = storage.getTasks(sessionId);
+	private handleRead(storage: IChatTodoListStorage, sessionId: string): string {
+		const todoItems = storage.getTodoList(sessionId);
 
-		if (tasks.length === 0) {
-			return 'No tasks found.';
+		if (todoItems.length === 0) {
+			return 'No todo list found.';
 		}
 
-		const markdownTaskList = this.formatTasksAsMarkdownTaskList(tasks);
+		const markdownTaskList = this.formatTodoListAsMarkdownTaskList(todoItems);
 
 		return `# Task List\n\n${markdownTaskList}`;
 	}
 
-	private formatTasksAsMarkdownTaskList(tasks: IChatTask[]): string {
-		if (tasks.length === 0) {
+	private formatTodoListAsMarkdownTaskList(todoList: IChatTodo[]): string {
+		if (todoList.length === 0) {
 			return '';
 		}
 
-		return tasks.map(task => {
+		return todoList.map(todo => {
 			let checkbox: string;
-			switch (task.status) {
+			switch (todo.status) {
 				case 'completed':
 					checkbox = '[x]';
 					break;
@@ -234,9 +234,9 @@ export class ManageTasksTool extends Disposable implements IToolImpl {
 					break;
 			}
 
-			const lines = [`- ${checkbox} ${task.title}`];
-			if (task.description && task.description.trim()) {
-				lines.push(`  - ${task.description.trim()}`);
+			const lines = [`- ${checkbox} ${todo.title}`];
+			if (todo.description && todo.description.trim()) {
+				lines.push(`  - ${todo.description.trim()}`);
 			}
 
 			return lines.join('\n');
