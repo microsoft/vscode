@@ -45,7 +45,7 @@ import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey
 import { ChatPauseState, IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
-import { IChatLocationData, IChatSendRequestOptions, IChatService, IChatTasksContent } from '../common/chatService.js';
+import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
@@ -68,13 +68,13 @@ import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } f
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, isPromptTextVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatStickyTaskWidget } from './chatContentParts/chatStickyTaskWidget.js';
-import { ManageToolSettingId } from '../common/tools/manageTasksTool.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import { ManageToolSettingId } from '../common/tools/manageTasksTool.js';
 
 const $ = dom.$;
 
@@ -829,27 +829,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private renderStickyTaskWidget(): void {
 		const isManageTasksToolEnabled = this.configurationService.getValue<boolean>(ManageToolSettingId) === true;
-		if (!this.viewModel || !isManageTasksToolEnabled) {
-			this.stickyTaskWidget.updateTaskData(undefined);
-			return;
+		if (isManageTasksToolEnabled) {
+			this.stickyTaskWidget.updateSessionId(this.viewModel?.sessionId);
 		}
-
-		let latestTaskData: IChatTasksContent | undefined;
-		for (const item of this.viewModel.getItems().slice().reverse()) {
-			if (isResponseVM(item)) {
-				for (const content of item.response.value) {
-					if (content.kind === 'toolInvocation' &&
-						content.toolSpecificData?.kind === 'tasks') {
-						latestTaskData = content.toolSpecificData;
-						break;
-					}
-				}
-				if (latestTaskData) {
-					break;
-				}
-			}
-		}
-		this.stickyTaskWidget.updateTaskData(latestTaskData);
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
