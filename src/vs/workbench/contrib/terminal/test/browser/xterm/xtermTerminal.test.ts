@@ -79,7 +79,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontWeight: 'normal',
 	fontWeightBold: 'normal',
 	gpuAcceleration: 'off',
-	scrollback: 1000,
+	scrollback: 10,
 	fastScrollSensitivity: 2,
 	mouseWheelScrollSensitivity: 1,
 	unicodeVersion: '6'
@@ -249,6 +249,26 @@ suite('XtermTerminal', () => {
 
 			const result = xterm.getContentsAsText();
 			strictEqual(result.startsWith('red text\ngreen text'), true, 'ANSI escape sequences should be filtered out, but there will be trailing empty lines');
+		});
+	});
+
+	suite('getBufferReverseIterator', () => {
+		test('should get text properly within scrollback limit', async () => {
+			const text = 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5';
+			await write(text);
+
+			const result = [...xterm.getBufferReverseIterator()].reverse().join('\r\n');
+			strictEqual(text, result, 'Should equal original text');
+		});
+		test('should get text properly when exceed scrollback limit', async () => {
+			// max buffer lines(40) = rows(30) + scrollback(10)
+			const text = 'line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n'.repeat(8).trim();
+			await write(text);
+			await write('\r\nline more');
+
+			const result = [...xterm.getBufferReverseIterator()].reverse().join('\r\n');
+			const expect = text.slice(8) + '\r\nline more';
+			strictEqual(expect, result, 'Should equal original text without line 1');
 		});
 	});
 

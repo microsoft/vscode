@@ -8,7 +8,7 @@ import { assert } from '../../../../../base/common/assert.js';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -33,6 +33,7 @@ import { IChatResponseModel } from '../../common/chatModel.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
+type acceptedOrRejectedLines = { state: 'accepted' | 'rejected'; lineCount: number; hasRemainingEdits: boolean };
 
 export class ChatEditingTextModelChangeService extends Disposable {
 
@@ -97,10 +98,21 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private readonly _didAcceptOrRejectAllHunks = this._register(new Emitter<ModifiedFileEntryState.Accepted | ModifiedFileEntryState.Rejected>());
 	public readonly onDidAcceptOrRejectAllHunks = this._didAcceptOrRejectAllHunks.event;
 
+	private readonly _didAcceptOrRejectLines = this._register(new Emitter<acceptedOrRejectedLines>());
+	public readonly onDidAcceptOrRejectLines = this._didAcceptOrRejectLines.event;
+
+	private notifyHunkAction(state: 'accepted' | 'rejected', lineCount: number, hasRemainingEdits: boolean) {
+		if (lineCount > 0) {
+			this._didAcceptOrRejectLines.fire({ state, lineCount, hasRemainingEdits });
+		}
+	}
+
 	private readonly _didUserEditModel = this._register(new Emitter<void>());
 	public readonly onDidUserEditModel = this._didUserEditModel.event;
 
 	private _originalToModifiedEdit: StringEdit = StringEdit.empty;
+
+	private lineChangeCount: number = 0;
 
 	constructor(
 		private readonly originalModel: ITextModel,
@@ -117,6 +129,17 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		this._register(toDisposable(() => {
 			this.clearCurrentEditLineDecoration();
 		}));
+
+		this._register(autorun(r => this.updateLineChangeCount(this._diffInfo.read(r))));
+	}
+
+	private updateLineChangeCount(diff: IDocumentDiff) {
+		this.lineChangeCount = 0;
+		for (const change of diff.changes) {
+			const modifiedRange = change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+			const originalRange = change.original.endLineNumberExclusive - change.original.startLineNumber;
+			this.lineChangeCount += Math.max(modifiedRange, originalRange);
+		}
 	}
 
 	public clearCurrentEditLineDecoration() {
@@ -233,6 +256,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 * Keeps the current modified document as the final contents.
 	 */
 	public keep() {
+		this.notifyHunkAction('accepted', this.lineChangeCount, false);
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
 		this._diffInfo.set(nullDocumentDiff, undefined);
 		this._originalToModifiedEdit = StringEdit.empty;
@@ -242,6 +266,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 * Undoes the current modified document as the final contents.
 	 */
 	public undo() {
+		this.notifyHunkAction('rejected', this.lineChangeCount, false);
 		this.modifiedModel.pushStackElement();
 		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
@@ -322,7 +347,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			edits.push(EditOperation.replace(edit.originalRange, newText));
 		}
 		this.originalModel.pushEditOperations(null, edits, _ => null);
-		await this._updateDiffInfoSeq();
+		await this._updateDiffInfoSeq('accepted');
 		if (this._diffInfo.get().identical) {
 			this._didAcceptOrRejectAllHunks.fire(ModifiedFileEntryState.Accepted);
 		}
@@ -340,7 +365,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			edits.push(EditOperation.replace(edit.modifiedRange, newText));
 		}
 		this.modifiedModel.pushEditOperations(null, edits, _ => null);
-		await this._updateDiffInfoSeq();
+		await this._updateDiffInfoSeq('rejected');
 		if (this._diffInfo.get().identical) {
 			this._didAcceptOrRejectAllHunks.fire(ModifiedFileEntryState.Rejected);
 		}
@@ -349,13 +374,17 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 
-	private async _updateDiffInfoSeq() {
+	private async _updateDiffInfoSeq(notifyAction: 'accepted' | 'rejected' | undefined = undefined) {
 		const myDiffOperationId = ++this._diffOperationIds;
 		await Promise.resolve(this._diffOperation);
+		const previousCount = this.lineChangeCount;
 		if (this._diffOperationIds === myDiffOperationId) {
 			const thisDiffOperation = this._updateDiffInfo();
 			this._diffOperation = thisDiffOperation;
 			await thisDiffOperation;
+			if (notifyAction) {
+				this.notifyHunkAction(notifyAction, previousCount - this.lineChangeCount, this.lineChangeCount > 0);
+			}
 		}
 	}
 

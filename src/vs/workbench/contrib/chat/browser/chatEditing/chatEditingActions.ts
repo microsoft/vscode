@@ -481,12 +481,12 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 			title: localize2('chat.restoreLastCheckpoint.label', "Restore to last checkpoint"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.arrowUp,
+			icon: Codicon.discard,
 			menu: [
 				{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
-					order: 3,
+					order: 1,
 					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true)),
 				}
 			]
@@ -724,9 +724,9 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ViewPreviousEditsAction.Id,
-			title: ViewPreviousEditsAction.Label,
+			title: localize2('chatEditing.viewPreviousEdits', 'View Previous Edits'),
 			tooltip: ViewPreviousEditsAction.Label,
-			f1: false,
+			f1: true,
 			icon: Codicon.diffMultiple,
 			precondition: hasUndecidedChatEditingResourceContextKey.negate(),
 			menu: [

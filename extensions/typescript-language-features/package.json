@@ -458,15 +458,6 @@
             "default": true,
             "markdownDescription": "%configuration.updateImportsOnPaste%"
           },
-          "typescript.experimental.expandableHover": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.expandableHover%",
-            "scope": "window",
-            "tags": [
-              "experimental"
-            ]
-          },
           "js/ts.hover.maximumLength": {
             "type": "number",
             "default": 500,
