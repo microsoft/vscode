@@ -27,9 +27,8 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 	}
 
 	// Boost LSP provider completions
-	const lspProviderId = 'python';
-	const aIsLsp = a.completion.provider.includes(lspProviderId);
-	const bIsLsp = b.completion.provider.includes(lspProviderId);
+	const aIsLsp = a.completion.provider.startsWith('lsp:');
+	const bIsLsp = b.completion.provider.startsWith('lsp:');
 
 	if (aIsLsp && !bIsLsp) {
 		return -1;

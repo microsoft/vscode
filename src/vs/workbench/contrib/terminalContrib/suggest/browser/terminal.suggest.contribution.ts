@@ -37,9 +37,8 @@ import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
 import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { env } from '../../../../../base/common/process.js';
-import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { CompletionItemProvider } from '../../../../../editor/common/languages.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -161,26 +160,31 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 	}
 
-	// TODO: Eventually support multiple LSP providers for [non-Python REPLs](https://github.com/microsoft/vscode/issues/249479)
+	// Support for multiple LSP providers for different language REPLs
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
 		const isWsl =
 			isLinux &&
 			(
-				!!env['WSL_DISTRO_NAME'] ||
-				!!env['WSL_INTEROP']
+				!!process.env['WSL_DISTRO_NAME'] ||
+				!!process.env['WSL_INTEROP']
 			);
 
-		// Windows, WSL currently does not support shell integration for Python REPL.
+		// Windows, WSL currently does not support shell integration for interactive REPLs
 		if (isWindows || isWsl) {
 			return;
 		}
 
-		if (this._ctx.instance.shellType !== GeneralShellType.Python) {
+		if (!this._isInteractiveShell()) {
 			this._lspAddon.clear();
 			return;
 		}
 
-		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, 'py');
+		const languageExtension = this._getLanguageExtensionForShell();
+		if (!languageExtension) {
+			return;
+		}
+
+		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, languageExtension);
 
 		// Load and register the LSP completion providers (one per language server)
 		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri, this._ctx.instance.shellType);
@@ -190,8 +194,8 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(textVirtualModel);
 
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
-		// TODO: Remove hard-coded filter for Python REPL.
-		const provider = virtualProviders.find(p => p._debugDisplayName === PYLANCE_DEBUG_DISPLAY_NAME || p._debugDisplayName === `ms-python.vscode-pylance(.["')`);
+		// Find a suitable LSP provider for the current language
+		const provider = this._findSuitableLspProvider(virtualProviders);
 
 		if (provider) {
 			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
@@ -204,6 +208,56 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				...(lspCompletionProviderAddon.triggerCharacters ?? [])
 			));
 		}
+	}
+
+	/**
+	 * Determines if the current shell supports interactive language server completion.
+	 */
+	private _isInteractiveShell(): boolean {
+		return this._ctx.instance.shellType === GeneralShellType.Python;
+	}
+
+	/**
+	 * Gets the appropriate file extension for the current shell type.
+	 */
+	private _getLanguageExtensionForShell(): string | undefined {
+		switch (this._ctx.instance.shellType) {
+			case GeneralShellType.Python:
+				return 'py';
+			// Future support for other interactive shells:
+			// case GeneralShellType.NodeJS:
+			//     return 'js';
+			// case GeneralShellType.Ruby:
+			//     return 'rb';
+			default:
+				return undefined;
+		}
+	}
+
+	/**
+	 * Finds a suitable LSP provider from the available providers.
+	 * Prioritizes known language-specific providers.
+	 */
+	private _findSuitableLspProvider(providers: readonly CompletionItemProvider[]): CompletionItemProvider | undefined {
+		// Look for language-specific providers first
+		const knownProviders = [
+			'ms-python.python', 'ms-python.vscode-pylance', // Python
+			'ms-vscode.vscode-typescript-next', 'vscode.typescript-language-features', // TypeScript/JavaScript  
+			'ms-toolsai.jupyter', // Jupyter
+		];
+
+		for (const knownProvider of knownProviders) {
+			const provider = providers.find(p => 
+				p._debugDisplayName?.includes(knownProvider) || 
+				p._debugDisplayName === `${knownProvider}(.["')`
+			);
+			if (provider) {
+				return provider;
+			}
+		}
+
+		// Fall back to any non-word-based completion provider
+		return providers.find(p => p._debugDisplayName !== 'wordbasedCompletions');
 	}
 
 	private _loadAddons(xterm: RawXtermTerminal): void {
