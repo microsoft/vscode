@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-kvB8+4EUtyEDThMIgb61H4fMe04EqjRhttNuYd028mo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-qzQMf4WjRXHohkk4Hg1T0LJIElTDtjITLXbR/RuGA/Q=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1127,8 +1127,8 @@
 						if (docEl) {
 							const postSize = () => {
 								hostMessaging.postMessage('updated-intrinsic-content-size', {
-									width: docEl.scrollWidth,
-									height: docEl.scrollHeight
+									width: docEl.offsetWidth,
+									height: docEl.offsetHeight
 								});
 							};
 

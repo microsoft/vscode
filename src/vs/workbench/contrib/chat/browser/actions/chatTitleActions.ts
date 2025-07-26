@@ -43,7 +43,7 @@ export function registerChatTitleActions() {
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
-					order: 1,
+					order: 2,
 					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
@@ -90,7 +90,7 @@ export function registerChatTitleActions() {
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
-					order: 2,
+					order: 3,
 					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,

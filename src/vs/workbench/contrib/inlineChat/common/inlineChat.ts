@@ -20,6 +20,7 @@ export const enum InlineChatConfigKeys {
 	LineEmptyHint = 'inlineChat.lineEmptyHint',
 	LineNLHint = 'inlineChat.lineNaturalLanguageHint',
 	EnableV2 = 'inlineChat.enableV2',
+	notebookAgent = 'inlineChat.notebookAgent',
 	HideOnRequest = 'inlineChat.hideOnRequest'
 }
 
@@ -77,6 +78,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				mode: 'startup'
 			}
 		},
+		[InlineChatConfigKeys.notebookAgent]: {
+			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks. Depends on the `#inlineChat.enableV2#` setting being enabled."),
+			default: false,
+			type: 'boolean',
+			tags: ['experimental'],
+			experiment: {
+				mode: 'startup'
+			}
+		}
 	}
 });
 

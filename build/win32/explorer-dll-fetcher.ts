@@ -7,41 +7,50 @@
 
 import fs from 'fs';
 import debug from 'debug';
-import extract from 'extract-zip';
 import path from 'path';
 import { downloadArtifact } from '@electron/get';
+import product from '../../product.json';
 
-const root = path.dirname(path.dirname(__dirname));
+const d = debug('explorer-dll-fetcher');
 
-const d = debug('explorer-appx-fetcher');
-
-export async function downloadExplorerAppx(outDir: string, quality: string = 'stable', targetArch: string = 'x64'): Promise<void> {
-	const fileNamePrefix = quality === 'insider' ? 'code_insiders' : 'code';
-	const fileName = `${fileNamePrefix}_explorer_${targetArch}.zip`;
-
-	if (await fs.existsSync(path.resolve(outDir, 'resources.pri'))) {
-		return;
-	}
+export async function downloadExplorerDll(outDir: string, quality: string = 'stable', targetArch: string = 'x64'): Promise<void> {
+	const fileNamePrefix = quality === 'insider' ? 'code_insider' : 'code';
+	const fileName = `${fileNamePrefix}_explorer_command_${targetArch}.dll`;
 
 	if (!await fs.existsSync(outDir)) {
 		await fs.mkdirSync(outDir, { recursive: true });
 	}
 
+	// Read and parse checksums file
+	const checksumsFilePath = path.join(path.dirname(__dirname), 'checksums', 'explorer-dll.txt');
+	const checksumsContent = fs.readFileSync(checksumsFilePath, 'utf8');
+	const checksums: Record<string, string> = {};
+
+	checksumsContent.split('\n').forEach(line => {
+		const trimmedLine = line.trim();
+		if (trimmedLine) {
+			const [checksum, filename] = trimmedLine.split(/\s+/);
+			if (checksum && filename) {
+				checksums[filename] = checksum;
+			}
+		}
+	});
+
 	d(`downloading ${fileName}`);
 	const artifact = await downloadArtifact({
 		isGeneric: true,
-		version: '3.0.4',
+		version: 'v4.0.0-350164',
 		artifactName: fileName,
-		unsafelyDisableChecksums: true,
+		checksums,
 		mirrorOptions: {
 			mirror: 'https://github.com/microsoft/vscode-explorer-command/releases/download/',
-			customDir: '3.0.4',
+			customDir: 'v4.0.0-350164',
 			customFilename: fileName
 		}
 	});
 
-	d(`unpacking from ${fileName}`);
-	await extract(artifact, { dir: fs.realpathSync(outDir) });
+	d(`moving ${artifact} to ${outDir}`);
+	await fs.copyFileSync(artifact, path.join(outDir, fileName));
 }
 
 async function main(outputDir?: string): Promise<void> {
@@ -51,8 +60,7 @@ async function main(outputDir?: string): Promise<void> {
 		throw new Error('Required build env not set');
 	}
 
-	const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-	await downloadExplorerAppx(outputDir, (product as any).quality, arch);
+	await downloadExplorerDll(outputDir, (product as any).quality, arch);
 }
 
 if (require.main === module) {

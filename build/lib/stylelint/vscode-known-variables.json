@@ -57,6 +57,7 @@
 		"--vscode-chat-requestBorder",
 		"--vscode-chat-requestBubbleBackground",
 		"--vscode-chat-requestBubbleHoverBackground",
+		"--vscode-chat-checkpointSeparator",
 		"--vscode-chat-requestCodeBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",

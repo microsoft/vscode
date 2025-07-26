@@ -20,7 +20,7 @@ import { StorageScope } from '../../../../../platform/storage/common/storage.js'
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { DiscoverySource, discoverySourceLabel, mcpDiscoverySection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition } from '../mcpTypes.js';
+import { McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { ClaudeDesktopMpcDiscoveryAdapter, CursorDesktopMpcDiscoveryAdapter, NativeMpcDiscoveryAdapter, WindsurfDesktopMpcDiscoveryAdapter } from './nativeMcpDiscoveryAdapters.js';
 
@@ -54,7 +54,7 @@ export abstract class FilesystemMcpDiscovery extends Disposable {
 		file: URI,
 		collection: WritableMcpCollectionDefinition,
 		discoverySource: DiscoverySource | undefined,
-		adaptFile: (contents: VSBuffer) => McpServerDefinition[] | undefined,
+		adaptFile: (contents: VSBuffer) => Promise<McpServerDefinition[] | undefined>,
 	): IDisposable {
 		const store = new DisposableStore();
 		const collectionRegistration = store.add(new MutableDisposable());
@@ -62,7 +62,7 @@ export abstract class FilesystemMcpDiscovery extends Disposable {
 			let definitions: McpServerDefinition[] = [];
 			try {
 				const contents = await this._fileService.readFile(file);
-				definitions = adaptFile(contents.value) || [];
+				definitions = await adaptFile(contents.value) || [];
 			} catch {
 				// ignored
 			}
@@ -146,7 +146,7 @@ export abstract class NativeFilesystemMcpDiscovery extends FilesystemMcpDiscover
 				remoteAuthority: adapter.remoteAuthority,
 				configTarget: ConfigurationTarget.USER,
 				scope: StorageScope.PROFILE,
-				isTrustedByDefault: false,
+				trustBehavior: McpServerTrust.Kind.TrustedOnNonce,
 				serverDefinitions: observableValue<readonly McpServerDefinition[]>(this, []),
 				presentation: {
 					origin: file,

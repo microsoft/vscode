@@ -1336,6 +1336,14 @@
           "when": "false"
         },
         {
+          "command": "git.openWorktree",
+          "when": "false"
+        },
+        {
+          "command": "git.openWorktreeInNewWindow",
+          "when": "false"
+        },
+        {
           "command": "git.deleteWorktreeFromPalette",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
@@ -1690,13 +1698,13 @@
         },
         {
           "command": "git.openWorktree",
-          "group": "worktree@1",
-          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
+          "group": "1_worktree@1",
+          "when": "scmProvider == git && scmProviderContext == worktree"
         },
         {
           "command": "git.openWorktreeInNewWindow",
-          "group": "worktree@2",
-          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
+          "group": "1_worktree@2",
+          "when": "scmProvider == git && scmProviderContext == worktree"
         }
       ],
       "scm/resourceGroup/context": [
@@ -3071,7 +3079,7 @@
         "git.detectWorktrees": {
           "type": "boolean",
           "scope": "resource",
-          "default": false,
+          "default": true,
           "description": "%config.detectWorktrees%"
         },
         "git.detectWorktreesLimit": {

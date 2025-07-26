@@ -19,7 +19,6 @@ export interface ILocalMcpServer {
 	readonly version?: string;
 	readonly mcpResource: URI;
 	readonly location?: URI;
-	readonly id?: string;
 	readonly displayName?: string;
 	readonly url?: string;
 	readonly description?: string;
@@ -209,3 +208,10 @@ export interface IAllowedMcpServersService {
 
 export const mcpEnabledConfig = 'chat.mcp.enabled';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
+export const mcpAutoStartConfig = 'chat.mcp.autostart';
+
+export const enum McpAutoStartValue {
+	Never = 'never',
+	OnlyNew = 'onlyNew',
+	NewAndOutdated = 'newAndOutdated',
+}
