@@ -5,15 +5,10 @@
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
-export const IImageResizeService = createDecorator<IImageResizeService>('imageResizeService');
-export interface IImageResizeService extends ICommonImageResizeService { }
-
-export const IImageResizeMainService = createDecorator<IImageResizeMainService>('imageResizeMainService');
-export interface IImageResizeMainService extends ICommonImageResizeService { }
+export const IImageResizeService = createDecorator<IImageResizeService>('imageResizeMainService');
 
 
-
-export interface ICommonImageResizeService {
+export interface IImageResizeService {
 
 	readonly _serviceBrand: undefined;
 

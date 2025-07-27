@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IImageResizeMainService } from '../common/imageResizeService.js';
+import { IImageResizeService } from '../common/imageResizeService.js';
 import { nativeImage } from 'electron';
 
-export class ImageResizeMainService implements IImageResizeMainService {
+export class ImageResizeMainService implements IImageResizeService {
 	_serviceBrand: undefined;
 
 	constructor() { }
