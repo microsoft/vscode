@@ -197,7 +197,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				confirmationMessages = undefined;
 			} else {
 				this._logService.info('autoApprove: All sub-commands NOT auto-approved');
-				const commandLineResults = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
+				const commandLineResults = await this._commandLineAutoApprover.isCommandLineAutoApproved(args.command, shell, os);
 				autoApproveReasons.push(commandLineResults.reason);
 				if (commandLineResults.isAutoApproved) {
 					this._logService.info('autoApprove: Command line auto-approved');

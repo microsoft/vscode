@@ -30,7 +30,8 @@ export class CommandLineAutoApprover extends Disposable {
 		super();
 		this.updateConfiguration();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove)) {
+			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.LlmAutoApprove)) {
 				this.updateConfiguration();
 			}
 		}));
@@ -59,21 +60,11 @@ export class CommandLineAutoApprover extends Disposable {
 			}
 		}
 
-		// LLM-based auto-approval
-		try {
-			const isLlmApproved = await this._checkLlmApproval(command, shell, os);
-			if (isLlmApproved) {
-				return { isAutoApproved: true, reason: `Command '${command}' is approved by LLM analysis` };
-			}
-		} catch (error) {
-			// If LLM approval fails, continue to fallback
-		}
-
 		// Fallback is always to require approval
 		return { isAutoApproved: false, reason: `Command '${command}' has no matching auto approve entries` };
 	}
 
-	isCommandLineAutoApproved(commandLine: string): { isAutoApproved: boolean; reason: string } {
+	async isCommandLineAutoApproved(commandLine: string, shell: string, os: OperatingSystem): Promise<{ isAutoApproved: boolean; reason: string }> {
 		// Check the deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
@@ -87,6 +78,19 @@ export class CommandLineAutoApprover extends Disposable {
 				return { isAutoApproved: true, reason: `Command line '${commandLine}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
+
+		// LLM-based auto-approval (if enabled)
+		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.LlmAutoApprove)) {
+			try {
+				const isLlmApproved = await this._checkLlmApproval(commandLine, shell, os);
+				if (isLlmApproved) {
+					return { isAutoApproved: true, reason: `Command line '${commandLine}' is approved by LLM analysis` };
+				}
+			} catch (error) {
+				// If LLM approval fails, continue to fallback
+			}
+		}
+
 		return { isAutoApproved: false, reason: `Command line '${commandLine}' has no matching auto approve entries` };
 	}
 
