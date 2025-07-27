@@ -8,7 +8,7 @@ declare function suite(title: string, fn: () => void): void;
 declare function test(title: string, fn: () => void | Promise<void>): void;
 declare function setup(fn: () => void): void;
 
-import assert from 'assert';
+import assert, { ok } from 'assert';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
