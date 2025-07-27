@@ -62,11 +62,7 @@ suite('RunInTerminalTool', () => {
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
 	});
 
-	function setAutoApprove(value: { [key: string]: boolean }) {
-		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
-	}
-
-	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
+	function setAutoApprove(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
@@ -239,18 +235,29 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle matchCommandLine: true patterns', async () => {
-			setAutoApproveWithCommandLine({
+			setAutoApprove({
 				"/dangerous/": { approve: false, matchCommandLine: true },
 				"echo": { approve: true, matchCommandLine: true }
 			});
 
-			// Command line pattern should be approved
 			const result1 = await executeToolTest({ command: 'echo hello world' });
 			assertAutoApproved(result1);
 
-			// Command line pattern should be denied due to dangerous content
 			const result2 = await executeToolTest({ command: 'echo this is a dangerous command' });
 			assertConfirmationRequired(result2);
+		});
+
+		test('should only approve when neither sub-commands or command lines are denied', async () => {
+			setAutoApprove({
+				"foo": true,
+				"/^foo$/": { approve: false, matchCommandLine: true },
+			});
+
+			const result1 = await executeToolTest({ command: 'foo' });
+			assertConfirmationRequired(result1);
+
+			const result2 = await executeToolTest({ command: 'foo bar' });
+			assertAutoApproved(result2);
 		});
 	});
 
