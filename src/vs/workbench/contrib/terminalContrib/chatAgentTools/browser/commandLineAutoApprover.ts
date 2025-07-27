@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 
@@ -22,11 +25,13 @@ export class CommandLineAutoApprover extends Disposable {
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this.updateConfiguration();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove)) {
+			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.LlmAutoApprove)) {
 				this.updateConfiguration();
 			}
 		}));
@@ -40,7 +45,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { isAutoApproved: boolean; reason: string } {
+	async isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): Promise<{ isAutoApproved: boolean; reason: string }> {
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRegex(rule.regex, command, shell, os)) {
@@ -55,13 +60,11 @@ export class CommandLineAutoApprover extends Disposable {
 			}
 		}
 
-		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267
-
 		// Fallback is always to require approval
 		return { isAutoApproved: false, reason: `Command '${command}' has no matching auto approve entries` };
 	}
 
-	isCommandLineAutoApproved(commandLine: string): { isAutoApproved: boolean; reason: string } {
+	async isCommandLineAutoApproved(commandLine: string, shell: string, os: OperatingSystem): Promise<{ isAutoApproved: boolean; reason: string }> {
 		// Check the deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
@@ -75,7 +78,93 @@ export class CommandLineAutoApprover extends Disposable {
 				return { isAutoApproved: true, reason: `Command line '${commandLine}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
+
+		// LLM-based auto-approval (if enabled)
+		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.LlmAutoApprove)) {
+			try {
+				const isLlmApproved = await this._checkLlmApproval(commandLine, shell, os);
+				if (isLlmApproved) {
+					return { isAutoApproved: true, reason: `Command line '${commandLine}' is approved by LLM analysis` };
+				}
+			} catch (error) {
+				// If LLM approval fails, continue to fallback
+			}
+		}
+
 		return { isAutoApproved: false, reason: `Command line '${commandLine}' has no matching auto approve entries` };
+	}
+
+	private async _checkLlmApproval(command: string, shell: string, os: OperatingSystem): Promise<boolean> {
+		// Get available language models
+		const modelIds = this._languageModelsService.getLanguageModelIds().filter(m => this._languageModelsService.lookupLanguageModel(m)?.isDefault);
+		if (!modelIds.length) {
+			return false;
+		}
+
+		const model = modelIds[0];
+
+		// Create the prompt for the LLM to analyze the command
+		const messages: IChatMessage[] = [
+			{
+				role: ChatMessageRole.System,
+				content: [{
+					type: 'text',
+					value: `You are a security analyzer for terminal commands. Your task is to determine if a command is safe to auto-approve for execution.
+
+Consider a command safe if it:
+- Performs read-only operations (ls, cat, grep, find, etc.)
+- Common development tasks (npm install, git commands, build commands)
+- File operations that don't modify system files
+- Standard utility commands
+
+Consider a command unsafe if it:
+- Modifies system files or configurations
+- Executes with elevated privileges (sudo, runas)
+- Downloads and executes code from the internet
+- Deletes files or directories
+- Modifies network settings
+- Contains suspicious patterns or obfuscation
+
+Respond with only "SAFE" or "UNSAFE" - no explanation needed.`
+				}]
+			},
+			{
+				role: ChatMessageRole.User,
+				content: [{
+					type: 'text',
+					value: `Shell: ${shell}\nOS: ${os}\nCommand: ${command}`
+				}]
+			}
+		];
+
+		try {
+			// Use the same approach as MCP sampling service
+			const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('Github.copilot-chat'), messages, {}, CancellationToken.None);
+
+			let responseText = '';
+
+			// Collect the response text
+			for await (const part of response.stream) {
+				if (Array.isArray(part)) {
+					for (const p of part) {
+						if (p.part.type === 'text') {
+							responseText += p.part.value;
+						}
+					}
+				} else if (part.part.type === 'text') {
+					responseText += part.part.value;
+				}
+			}
+
+			await response.result;
+
+			// Check if the response indicates the command is safe
+			const normalizedResponse = responseText.trim().toLowerCase();
+			return normalizedResponse === 'safe';
+		} catch (error) {
+			// If there's any error with the LLM request, default to not approved
+			return false;
+		}
 	}
 
 	private _commandMatchesRegex(regex: RegExp, command: string, shell: string, os: OperatingSystem): boolean {

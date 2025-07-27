@@ -10,10 +10,12 @@ import { ConfigurationScope, type IConfigurationPropertySchema } from '../../../
 
 export const enum TerminalChatAgentToolsSettingId {
 	AutoApprove = 'chat.agent.terminal.autoApprove',
+	LlmAutoApprove = 'chat.agent.terminal.llmAutoApprove',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
 	autoApprove: { [key: string]: boolean };
+	llmAutoApprove: boolean;
 }
 
 const autoApproveBoolean: IJSONSchema = {
@@ -94,5 +96,14 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			chown: false,
 			'/^Remove-Item\\b/i': false,
 		},
-	}
+	},
+	[TerminalChatAgentToolsSettingId.LlmAutoApprove]: {
+		markdownDescription: localize('llmAutoApprove.description', "Enable LLM-based auto-approval for terminal commands. When enabled, commands that don't match explicit auto-approve rules will be sent to an available language model for safety analysis."),
+		type: 'boolean',
+		scope: ConfigurationScope.APPLICATION_MACHINE,
+		default: false,
+		tags: [
+			'experimental'
+		],
+	},
 };

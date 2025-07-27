@@ -189,7 +189,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const subCommands = splitCommandLineIntoSubCommands(args.command, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
-			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
+			const subCommandResults = await Promise.all(allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os)));
 			const autoApproveReasons: string[] = [...subCommandResults.map(e => e.reason)];
 
 			if (subCommandResults.every(e => e.isAutoApproved)) {
@@ -197,7 +197,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				confirmationMessages = undefined;
 			} else {
 				this._logService.info('autoApprove: All sub-commands NOT auto-approved');
-				const commandLineResults = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
+				const commandLineResults = await this._commandLineAutoApprover.isCommandLineAutoApproved(args.command, shell, os);
 				autoApproveReasons.push(commandLineResults.reason);
 				if (commandLineResults.isAutoApproved) {
 					this._logService.info('autoApprove: Command line auto-approved');
