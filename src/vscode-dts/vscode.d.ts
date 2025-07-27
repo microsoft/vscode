@@ -18835,7 +18835,7 @@ declare module 'vscode' {
 		 * Creates a {@link FileCoverage} instance with counts filled in from
 		 * the coverage details.
 		 * @param uri Covered file URI
-		 * @param detailed Detailed coverage information
+		 * @param details Detailed coverage information
 		 */
 		static fromDetails(uri: Uri, details: readonly FileCoverageDetail[]): FileCoverage;
 

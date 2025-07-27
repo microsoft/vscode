@@ -143,6 +143,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
+	flushToolChanges(): void {
+		this._onDidChangeToolsScheduler.cancel();
+		this._onDidChangeTools.fire();
+	}
+
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
 		const entry = this._tools.get(id);
 		if (!entry) {
@@ -276,6 +281,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				model.acceptResponseProgress(request, toolInvocation);
 
+				dto.toolSpecificData = toolInvocation?.toolSpecificData;
+
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
@@ -284,8 +291,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					if (!userConfirmed) {
 						throw new CancellationError();
 					}
-
-					dto.toolSpecificData = toolInvocation?.toolSpecificData;
 
 					if (dto.toolSpecificData?.kind === 'input') {
 						dto.parameters = dto.toolSpecificData.rawInput;
@@ -363,7 +368,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			: undefined;
 
 		if (prepared?.confirmationMessages) {
-			if (prepared.toolSpecificData?.kind !== 'terminal' && prepared.toolSpecificData?.kind !== 'terminal2' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
+			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
 				prepared.confirmationMessages.allowAutoConfirm = true;
 			}
 

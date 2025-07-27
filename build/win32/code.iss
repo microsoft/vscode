@@ -94,8 +94,8 @@ Name: "{app}"; AfterInstall: DisableAppDirInheritance
 Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\resources\app"; Flags: ignoreversion
-#ifdef AppxPackageFullname
-Source: "appx\*"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater and QualityIsInsiders
+#ifdef AppxPackageName
+Source: "appx\*"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater
 #endif
 
 [Icons]
@@ -1466,26 +1466,26 @@ begin
     Result := False;
 end;
 
-#ifdef AppxPackageFullname
+#ifdef AppxPackageName
 var
-  Line: String;
+  AppxPackageFullname: String;
 
 procedure ExecAndGetFirstLineLog(const S: String; const Error, FirstLine: Boolean);
 begin
-  if not Error and (Line = '') and (Trim(S) <> '') then
-    Line := S;
+  if not Error and (AppxPackageFullname = '') and (Trim(S) <> '') then
+    AppxPackageFullname := S;
   Log(S);
 end;
 
 function AppxPackageInstalled(var ResultCode: Integer): Boolean;
 begin
-  Line := '';
+  AppxPackageFullname := '';
   try
-    ExecAndLogOutput('powershell.exe', '-Command ' + AddQuotes('Get-AppxPackage -Name ''{#AppxPackageName}'''), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, @ExecAndGetFirstLineLog);
+    ExecAndLogOutput('powershell.exe', '-Command ' + AddQuotes('Get-AppxPackage -Name ''{#AppxPackageName}'' | Select-Object -ExpandProperty PackageFullName'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, @ExecAndGetFirstLineLog);
   except
     Log(GetExceptionMessage);
   end;
-  if (Line <> '') then
+  if (AppxPackageFullname <> '') then
     Result := True
   else
     Result := False
@@ -1495,7 +1495,7 @@ procedure AddAppxPackage();
 var
   AddAppxPackageResultCode: Integer;
 begin
-  if not AppxPackageInstalled(AddAppxPackageResultCode) and WizardIsTaskSelected('addcontextmenufiles') then begin
+  if not AppxPackageInstalled(AddAppxPackageResultCode) then begin
     ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
   end;
 end;
@@ -1505,7 +1505,7 @@ var
   RemoveAppxPackageResultCode: Integer;
 begin
   if AppxPackageInstalled(RemoveAppxPackageResultCode) then begin
-    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''{#AppxPackageFullname}'''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
   end;
 end;
 #endif
@@ -1517,7 +1517,7 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
-#ifdef AppxPackageFullname
+#ifdef AppxPackageName
     if not WizardIsTaskSelected('addcontextmenufiles') then begin
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\{#RegValueName}ContextMenu');
     end else begin
@@ -1606,15 +1606,12 @@ var
   Parts: TArrayOfString;
   NewPath: string;
   i: Integer;
-  ResultCode: Integer;
 begin
   if not CurUninstallStep = usUninstall then begin
     exit;
   end;
-#ifdef AppxPackageFullname
-  if AppxPackageInstalled(ResultCode) then begin
-    RemoveAppxPackage();
-  end;
+#ifdef AppxPackageName
+  RemoveAppxPackage();
 #endif
   if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', Path)
   then begin
