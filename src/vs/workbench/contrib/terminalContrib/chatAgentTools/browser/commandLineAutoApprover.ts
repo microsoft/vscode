@@ -14,6 +14,8 @@ interface IAutoApproveRule {
 	sourceText: string;
 }
 
+export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
+
 export class CommandLineAutoApprover extends Disposable {
 	private _denyListRules: IAutoApproveRule[] = [];
 	private _allowListRules: IAutoApproveRule[] = [];
@@ -40,42 +42,42 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { isAutoApproved: boolean; reason: string } {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; reason: string } {
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRegex(rule.regex, command, shell, os)) {
-				return { isAutoApproved: false, reason: `Command '${command}' is denied by deny list rule: ${rule.sourceText}` };
+				return { result: 'denied', reason: `Command '${command}' is denied by deny list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// Check the allow list to see if the command is allowed to run without explicit approval
 		for (const rule of this._allowListRules) {
 			if (this._commandMatchesRegex(rule.regex, command, shell, os)) {
-				return { isAutoApproved: true, reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}` };
+				return { result: 'approved', reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267
 
 		// Fallback is always to require approval
-		return { isAutoApproved: false, reason: `Command '${command}' has no matching auto approve entries` };
+		return { result: 'noMatch', reason: `Command '${command}' has no matching auto approve entries` };
 	}
 
-	isCommandLineAutoApproved(commandLine: string): { isAutoApproved: boolean; reason: string } {
+	isCommandLineAutoApproved(commandLine: string): { result: ICommandApprovalResult; reason: string } {
 		// Check the deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
-				return { isAutoApproved: false, reason: `Command line '${commandLine}' is denied by deny list rule: ${rule.sourceText}` };
+				return { result: 'denied', reason: `Command line '${commandLine}' is denied by deny list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// Check if the full command line matches any of the allow list command line regexes
 		for (const rule of this._allowListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
-				return { isAutoApproved: true, reason: `Command line '${commandLine}' is approved by allow list rule: ${rule.sourceText}` };
+				return { result: 'approved', reason: `Command line '${commandLine}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
-		return { isAutoApproved: false, reason: `Command line '${commandLine}' has no matching auto approve entries` };
+		return { result: 'noMatch', reason: `Command line '${commandLine}' has no matching auto approve entries` };
 	}
 
 	private _commandMatchesRegex(regex: RegExp, command: string, shell: string, os: OperatingSystem): boolean {
