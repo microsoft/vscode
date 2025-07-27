@@ -84,8 +84,11 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 	private initialize(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
-				this.local = await this.populateLocalServers();
-				this.startWatching();
+				try {
+					this.local = await this.populateLocalServers();
+				} finally {
+					this.startWatching();
+				}
 			})();
 		}
 		return this.initializePromise;
@@ -178,7 +181,6 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 			mcpResource: this.mcpResource,
 			version: mcpServerInfo.version,
 			location: mcpServerInfo.location,
-			id: mcpServerInfo.id,
 			displayName: mcpServerInfo.displayName,
 			description: mcpServerInfo.description,
 			publisher: mcpServerInfo.publisher,

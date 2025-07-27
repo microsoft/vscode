@@ -198,27 +198,34 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 
 	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
 
-	// Create properties for the providers setting dynamically
 	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+
+	const corePwshProviderId = 'core:pwsh-shell-integration';
 	const defaultValue: IStringDictionary<boolean> = {
-		// Always include known built-in providers as defaults even if not yet registered
-		'terminal-suggest': true,
-		'pwsh-shell-integration': false,
-		'lsp': true
+		[corePwshProviderId]: false,
+	};
+	providersProperties[corePwshProviderId] ??= {
+		type: 'boolean',
+		description: localize('suggest.provider.pwsh.description', "Enable or disable the PowerShell script-based provider. This enables PowerShell-specific argument completion."),
+		deprecated: true,
+		deprecationMessage: localize('suggest.provider.pwsh.deprecation', "This is deprecated as it has performance problems, the upcoming LSP provider will supersede this."),
+		default: false
 	};
 
 	if (availableProviders) {
 		for (const providerId of availableProviders) {
+			if (providerId in defaultValue) {
+				continue;
+			}
 			providersProperties[providerId] = {
 				type: 'boolean',
-				description: localize('suggest.provider.description', "Enable or disable the '{0}' terminal suggestion provider.", providerId),
+				description: localize('suggest.provider.description', "Whether to enable this provider."),
 				default: true
 			};
-			defaultValue[providerId] = defaultValue[providerId] ?? true;
+			defaultValue[providerId] = true;
 		}
 	}
 
-	// Create the configuration node with dynamic properties
 	terminalSuggestProvidersConfiguration = {
 		id: 'terminalSuggestProviders',
 		order: 100,
@@ -236,14 +243,10 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 		}
 	};
 
-	// Update the registry with the new configuration
 	registry.updateConfigurations({
 		add: [terminalSuggestProvidersConfiguration],
 		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : []
 	});
 }
 
-// Initial registration with default providers to ensure the setting appears in UI
-registerTerminalSuggestProvidersConfiguration(['terminal-suggest', 'builtinPwsh', 'lsp']);
-
-
+registerTerminalSuggestProvidersConfiguration([]);

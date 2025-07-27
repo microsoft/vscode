@@ -59,10 +59,6 @@
 	font-size: 14px;
 }
 
-.scm-view .scm-provider .monaco-highlighted-label .codicon.codicon-archive {
-	padding-top: 1px;
-}
-
 .scm-view .scm-provider > .actions {
 	overflow: hidden;
 	justify-content: flex-end;

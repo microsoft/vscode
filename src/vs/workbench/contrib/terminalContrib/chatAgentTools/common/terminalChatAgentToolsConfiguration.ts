@@ -51,7 +51,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			].join('\n')
 		].join('\n\n'),
 		type: 'object',
-		scope: ConfigurationScope.MACHINE,
+		scope: ConfigurationScope.APPLICATION_MACHINE,
 		additionalProperties: {
 			anyOf: [
 				autoApproveBoolean,

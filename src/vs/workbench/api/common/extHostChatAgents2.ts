@@ -26,7 +26,7 @@ import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResp
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatProgressDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -35,7 +35,7 @@ import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 
-class ChatAgentResponseStream {
+export class ChatAgentResponseStream {
 
 	private _stopWatch = StopWatch.create(false);
 	private _isClosed: boolean = false;
@@ -45,7 +45,7 @@ class ChatAgentResponseStream {
 	constructor(
 		private readonly _extension: IExtensionDescription,
 		private readonly _request: IChatAgentRequest,
-		private readonly _proxy: MainThreadChatAgentsShape2,
+		private readonly _proxy: IChatAgentProgressShape,
 		private readonly _commandsConverter: CommandsConverter,
 		private readonly _sessionDisposables: DisposableStore
 	) { }
@@ -291,6 +291,7 @@ class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
 						part instanceof extHostTypes.ChatResponseExtensionsPart ||
+						part instanceof extHostTypes.ChatResponsePullRequestPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -584,7 +585,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 					} catch (err) {
 						const msg = `result.metadata MUST be JSON.stringify-able. Got error: ${err.message}`;
 						this._logService.error(`[${agent.extension.identifier.value}] [@${agent.id}] ${msg}`, agent.extension);
-						return { errorDetails: { message: msg }, timings: stream?.timings, nextQuestion: result.nextQuestion };
+						return { errorDetails: { message: msg }, timings: stream?.timings, nextQuestion: result.nextQuestion, };
 					}
 				}
 				let errorDetails: IChatResponseErrorDetails | undefined;
@@ -598,7 +599,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
-				return { errorDetails, timings: stream?.timings, metadata: result?.metadata, nextQuestion: result?.nextQuestion } satisfies IChatAgentResult;
+				return { errorDetails, timings: stream?.timings, metadata: result?.metadata, nextQuestion: result?.nextQuestion, details: result?.details } satisfies IChatAgentResult;
 			}), token);
 		} catch (e) {
 			this._logService.error(e, agent.extension);

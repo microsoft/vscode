@@ -10,6 +10,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,9 +25,15 @@ export const enum ChatMessageRole {
 	Assistant,
 }
 
+export enum ToolResultAudience {
+	Assistant = 0,
+	User = 1,
+}
+
 export interface IChatMessageTextPart {
 	type: 'text';
 	value: string;
+	audience?: ToolResultAudience[];
 }
 
 export interface IChatMessageImagePart {
@@ -38,6 +45,7 @@ export interface IChatMessageDataPart {
 	type: 'data';
 	mimeType: string;
 	data: VSBuffer;
+	audience?: ToolResultAudience[];
 }
 
 export interface IChatImageURLPart {
@@ -90,6 +98,7 @@ export interface IChatMessage {
 export interface IChatResponseTextPart {
 	type: 'text';
 	value: string;
+	audience?: ToolResultAudience[];
 }
 
 export interface IChatResponsePromptTsxPart {
@@ -100,6 +109,7 @@ export interface IChatResponsePromptTsxPart {
 export interface IChatResponseDataPart {
 	type: 'data';
 	value: IChatImageURLPart;
+	audience?: ToolResultAudience[];
 }
 
 export interface IChatResponseToolUsePart {
@@ -108,6 +118,17 @@ export interface IChatResponseToolUsePart {
 	toolCallId: string;
 	parameters: any;
 }
+
+export interface IChatResponsePullRequestPart {
+	type: 'pullRequest';
+	uri: URI;
+	title: string;
+	description: string;
+	author: string;
+	linkTag: string;
+}
+
+export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
 export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart;
 
