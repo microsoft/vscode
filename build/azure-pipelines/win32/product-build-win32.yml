@@ -175,9 +175,9 @@ steps:
       displayName: Transpile client and extensions
 
   - ${{ else }}:
-    - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_QUALITY, 'insider')) }}:
-      - powershell: node build/win32/explorer-appx-fetcher .build/win32/appx
-        displayName: Download Explorer Sparse Package
+    - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'exploration')) }}:
+      - powershell: node build/win32/explorer-dll-fetcher .build/win32/appx
+        displayName: Download Explorer dll
 
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
@@ -189,6 +189,23 @@ steps:
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build client
+
+    # Note: the appx prepare step has to follow Build client step since build step replaces the template
+    # strings in the raw manifest file at resources/win32/appx/AppxManifest.xml and places it under
+    # <build-out-dir>/appx/manifest, we need a separate step to prepare the appx package with the
+    # final contents. In our case only the manifest file is bundled into the appx package.
+    - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'exploration')) }}:
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          # Add Windows SDK to path
+          $sdk = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
+          $env:PATH = "$sdk;$env:PATH"
+          $AppxName = if ('$(VSCODE_QUALITY)' -eq 'stable') { 'code' } else { 'code_insider' }
+          makeappx pack /d "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/appx/manifest" /p "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/appx/${AppxName}_$(VSCODE_ARCH).appx" /nv
+          # Remove the raw manifest folder
+          Remove-Item -Path "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/appx/manifest" -Recurse -Force
+        displayName: Prepare appx package
 
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1

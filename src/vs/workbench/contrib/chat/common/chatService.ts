@@ -140,6 +140,17 @@ export interface IChatTreeData {
 	treeData: IChatResponseProgressFileTreeData;
 	kind: 'treeData';
 }
+export interface IChatMultiDiffData {
+	multiDiffData: {
+		title: string;
+		resources: Array<{
+			originalUri?: URI;
+			modifiedUri?: URI;
+			goToFileUri?: URI;
+		}>;
+	};
+	kind: 'multiDiffData';
+}
 
 export interface IChatProgressMessage {
 	content: IMarkdownString;
@@ -265,7 +276,7 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -298,7 +309,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTasksContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -315,10 +326,19 @@ export interface IChatExtensionsContent {
 	kind: 'extensions';
 }
 
-export interface IChatTasksContent {
-	kind: 'tasks';
+export interface IChatPullRequestContent {
+	uri: URI;
+	title: string;
+	description: string;
+	author: string;
+	linkTag: string;
+	kind: 'pullRequest';
+}
+
+export interface IChatTodoListContent {
+	kind: 'todoList';
 	sessionId: string;
-	tasks: Array<{
+	todoList: Array<{
 		id: string;
 		title: string;
 		description: string;
@@ -335,6 +355,7 @@ export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
+	| IChatMultiDiffData
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
@@ -352,6 +373,7 @@ export type IChatProgress =
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
+	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatTaskSerialized

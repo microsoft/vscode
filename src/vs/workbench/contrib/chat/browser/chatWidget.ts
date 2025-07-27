@@ -45,7 +45,7 @@ import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey
 import { ChatPauseState, IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
-import { IChatLocationData, IChatSendRequestOptions, IChatService, IChatTasksContent } from '../common/chatService.js';
+import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
@@ -67,14 +67,14 @@ import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, isPromptTextVariableEntry } from '../common/chatVariableEntries.js';
-import { ChatStickyTaskWidget } from './chatContentParts/chatStickyTaskWidget.js';
-import { ManageToolSettingId } from '../common/tools/manageTasksTool.js';
+import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import { TodoListToolSettingId as TodoListToolSettingId } from '../common/tools/manageTodoListTool.js';
 
 const $ = dom.$;
 
@@ -147,6 +147,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidHide = this._register(new Emitter<void>());
 	readonly onDidHide = this._onDidHide.event;
 
+	private _onDidShow = this._register(new Emitter<void>());
+	readonly onDidShow = this._onDidShow.event;
+
 	private _onDidChangeParsedInput = this._register(new Emitter<void>());
 	readonly onDidChangeParsedInput = this._onDidChangeParsedInput.event;
 
@@ -184,7 +187,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
-	private readonly stickyTaskWidget: ChatStickyTaskWidget;
+	private readonly chatTodoListWidget: ChatTodoListWidget;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
@@ -370,7 +373,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
-		this.stickyTaskWidget = this._register(this.instantiationService.createInstance(ChatStickyTaskWidget));
+		this.chatTodoListWidget = this._register(this.instantiationService.createInstance(ChatTodoListWidget));
 
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
@@ -522,7 +525,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return this.input.contentHeight + this.tree.contentHeight + this.stickyTaskWidget.height;
+		return this.input.contentHeight + this.tree.contentHeight + this.chatTodoListWidget.height;
 	}
 
 	get attachmentModel(): ChatAttachmentModel {
@@ -556,8 +559,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
 		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, () => this.focusInput()));
 
-		dom.append(this.container, this.stickyTaskWidget.domNode);
-		this._register(this.stickyTaskWidget.onDidChangeHeight(() => {
+		dom.append(this.container, this.chatTodoListWidget.domNode);
+		this._register(this.chatTodoListWidget.onDidChangeHeight(() => {
 			if (this.bodyDimension) {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
@@ -723,7 +726,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.renderWelcomeViewContentIfNeeded();
-			this.renderStickyTaskWidget();
+			this.renderChatTodoListWidget();
 
 			this._onWillMaybeChangeHeight.fire();
 
@@ -824,29 +827,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private renderStickyTaskWidget(): void {
-		const isManageTasksToolEnabled = this.configurationService.getValue<boolean>(ManageToolSettingId) === true;
-		if (!this.viewModel || !isManageTasksToolEnabled) {
-			this.stickyTaskWidget.updateTaskData(undefined);
-			return;
+	private renderChatTodoListWidget(): void {
+		const isChatTodoListToolEnabled = this.configurationService.getValue<boolean>(TodoListToolSettingId) === true;
+		if (isChatTodoListToolEnabled) {
+			this.chatTodoListWidget.updateSessionId(this.viewModel?.sessionId);
 		}
-
-		let latestTaskData: IChatTasksContent | undefined;
-		for (const item of this.viewModel.getItems().slice().reverse()) {
-			if (isResponseVM(item)) {
-				for (const content of item.response.value) {
-					if (content.kind === 'toolInvocation' &&
-						content.toolSpecificData?.kind === 'tasks') {
-						latestTaskData = content.toolSpecificData;
-						break;
-					}
-				}
-				if (latestTaskData) {
-					break;
-				}
-			}
-		}
-		this.stickyTaskWidget.updateTaskData(latestTaskData);
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
@@ -977,6 +962,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					this.onDidChangeItems(true);
 				}
 			}, 0));
+
+			if (!wasVisible) {
+				dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+					this._onDidShow.fire();
+				});
+			}
 		} else if (wasVisible) {
 			this._onDidHide.fire();
 		}
@@ -1959,10 +1950,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const inputHeight = this.inputPart.inputPartHeight;
-		const stickyTaskWidgetHeight = this.stickyTaskWidget.height;
+		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
-		const contentHeight = Math.max(0, height - inputHeight - stickyTaskWidgetHeight);
+		const contentHeight = Math.max(0, height - inputHeight - chatTodoListWidgetHeight);
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
@@ -2027,9 +2018,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
 				this.input.layout(possibleMaxHeight, width);
 				const inputPartHeight = this.input.inputPartHeight;
-				const stickyTaskWidgetHeight = this.stickyTaskWidget.height;
-				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - stickyTaskWidgetHeight);
-				this.layout(newHeight + inputPartHeight + stickyTaskWidgetHeight, width);
+				const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
+				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatTodoListWidgetHeight);
+				this.layout(newHeight + inputPartHeight + chatTodoListWidgetHeight, width);
 			});
 		}));
 	}
@@ -2072,7 +2063,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
 		this.input.layout(this._dynamicMessageLayoutData.maxHeight, width);
 		const inputHeight = this.input.inputPartHeight;
-		const stickyTaskWidgetHeight = this.stickyTaskWidget.height;
+		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
 
 		const totalMessages = this.viewModel.getItems();
 		// grab the last N messages
@@ -2086,7 +2077,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.layout(
 			Math.min(
 				// we add an additional 18px in order to show that there is scrollable content
-				inputHeight + stickyTaskWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
+				inputHeight + chatTodoListWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
 				this._dynamicMessageLayoutData.maxHeight
 			),
 			width

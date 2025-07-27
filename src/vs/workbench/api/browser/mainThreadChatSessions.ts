@@ -257,6 +257,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			return iconPath; // ThemeIcon doesn't need conversion
 		}
 
+		// handle single URI
+		if (typeof iconPath === 'object' && 'scheme' in iconPath) {
+			return URI.revive(iconPath);
+		}
+
 		// Handle light/dark theme icons
 		if (typeof iconPath === 'object' && ('light' in iconPath && 'dark' in iconPath)) {
 			return {

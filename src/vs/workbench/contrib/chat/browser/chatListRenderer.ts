@@ -49,7 +49,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -72,6 +72,7 @@ import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, Coll
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
+import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
@@ -83,6 +84,7 @@ import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { CodiconActionViewItem } from '../../notebook/browser/view/cellParts/cellActionView.js';
+import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
 
 const $ = dom.$;
@@ -418,7 +420,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
-		const footerDetailsContainer = dom.append(rowContainer, $('.chat-footer-details'));
+		// Insert the details container into the toolbar's internal element structure
+		const footerDetailsContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-details'));
 
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
@@ -1102,6 +1105,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		try {
 			if (content.kind === 'treeData') {
 				return this.renderTreeData(content, templateData, context);
+			} else if (content.kind === 'multiDiffData') {
+				return this.renderMultiDiffData(content, templateData, context);
 			} else if (content.kind === 'progressMessage') {
 				return this.instantiationService.createInstance(ChatProgressContentPart, content, this.renderer, context, undefined, undefined, undefined);
 			} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
@@ -1124,6 +1129,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderToolInvocation(content, context, templateData);
 			} else if (content.kind === 'extensions') {
 				return this.renderExtensionsContent(content, context, templateData);
+			} else if (content.kind === 'pullRequest') {
+				return this.renderPullRequestContent(content, context, templateData);
 			} else if (content.kind === 'working') {
 				return this.renderWorkingProgress(content, context);
 			} else if (content.kind === 'undoStop') {
@@ -1214,6 +1221,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return treePart;
 	}
 
+	private renderMultiDiffData(content: IChatMultiDiffData, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
+		const multiDiffPart = this.instantiationService.createInstance(ChatMultiDiffContentPart, content, context.element);
+		multiDiffPart.addDisposable(multiDiffPart.onDidChangeHeight(() => {
+			this.updateItemHeight(templateData);
+		}));
+		return multiDiffPart;
+	}
+
 	private renderContentReferencesListData(references: IChatReferences, labelOverride: string | undefined, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCollapsibleListContentPart {
 		const referencesPart = this.instantiationService.createInstance(ChatUsedReferencesListContentPart, references.references, labelOverride, context, this._contentReferencesListPool, { expandedWhenEmptyResponse: checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.referencesExpandedWhenEmptyResponse) });
 		referencesPart.addDisposable(referencesPart.onDidChangeHeight(() => {
@@ -1283,6 +1298,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderExtensionsContent(extensionsContent: IChatExtensionsContent, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
 		const part = this.instantiationService.createInstance(ChatExtensionsContentPart, extensionsContent);
+		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+		return part;
+	}
+
+	private renderPullRequestContent(pullRequestContent: IChatPullRequestContent, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
+		const part = this.instantiationService.createInstance(ChatPullRequestContentPart, pullRequestContent);
 		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
 	}

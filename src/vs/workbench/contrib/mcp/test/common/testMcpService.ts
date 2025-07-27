@@ -16,7 +16,7 @@ export class TestMcpService implements IMcpService {
 
 	}
 
-	public lazyCollectionState = observableValue<LazyCollectionState>(this, LazyCollectionState.AllKnown);
+	public lazyCollectionState = observableValue(this, { state: LazyCollectionState.AllKnown, collections: [] });
 
 	activateCollections(): Promise<void> {
 		return Promise.resolve();

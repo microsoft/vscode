@@ -50,7 +50,7 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 			const serverTools = servers.map(s => s.tools.read(r));
 			ctxServerCount.set(servers.length);
 			ctxToolsCount.set(serverTools.reduce((count, tools) => count + tools.length, 0));
-			ctxHasUnknownTools.set(mcpService.lazyCollectionState.read(r) !== LazyCollectionState.AllKnown || servers.some(s => {
+			ctxHasUnknownTools.set(mcpService.lazyCollectionState.read(r).state !== LazyCollectionState.AllKnown || servers.some(s => {
 				const toolState = s.cacheState.read(r);
 				return toolState === McpServerCacheState.Unknown || toolState === McpServerCacheState.Outdated || toolState === McpServerCacheState.RefreshingFromUnknown;
 			}));

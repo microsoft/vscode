@@ -57,14 +57,15 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	public readonly lazyCollectionState = derived(reader => {
 		if (this._enabled.read(reader) === false) {
-			return LazyCollectionState.AllKnown;
+			return { state: LazyCollectionState.AllKnown, collections: [] };
 		}
 
 		if (this._ongoingLazyActivations.read(reader) > 0) {
-			return LazyCollectionState.LoadingUnknown;
+			return { state: LazyCollectionState.LoadingUnknown, collections: [] };
 		}
 		const collections = this._collections.read(reader);
-		return collections.some(c => c.lazy && c.lazy.isCached === false) ? LazyCollectionState.HasUnknown : LazyCollectionState.AllKnown;
+		const hasUnknown = collections.some(c => c.lazy && c.lazy.isCached === false);
+		return hasUnknown ? { state: LazyCollectionState.HasUnknown, collections: collections.filter(c => c.lazy && c.lazy.isCached === false) } : { state: LazyCollectionState.AllKnown, collections: [] };
 	});
 
 	public get delegates(): IObservable<readonly IMcpHostDelegate[]> {
