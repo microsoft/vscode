@@ -858,7 +858,7 @@ export class Repository implements Disposable {
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
 		historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
-		globalState: Memento,
+		private globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
@@ -947,6 +947,9 @@ export class Repository implements Disposable {
 		const onConfigListenerForInputBoxVisibility = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.showCommitInput', root));
 		onConfigListenerForInputBoxVisibility(updateInputBoxVisibility, this, this.disposables);
 		updateInputBoxVisibility();
+
+		// Initialize commit message history from persistent storage and Git log
+		this.initializeCommitMessageHistory();
 
 		this.mergeGroup.hideWhenEmpty = true;
 		this.untrackedGroup.hideWhenEmpty = true;
@@ -1349,9 +1352,74 @@ export class Repository implements Disposable {
 
 	private async commitOperationCleanup(message: string | undefined, indexResources: string[], workingGroupResources: string[]) {
 		if (message) {
+			// Add commit message to persistent history before clearing input
+			this.addToCommitMessageHistory(message);
 			this.inputBox.value = await this.getInputTemplate();
 		}
 		this.closeDiffEditors(indexResources, workingGroupResources);
+	}
+
+	private getCommitMessageHistoryStorageKey(): string {
+		// Use a unique key per repository to avoid conflicts in multi-root workspaces
+		return `git.commitMessages.${this.repository.root.replace(/[/\\]/g, '-')}`;
+	}
+
+	private getPersistedCommitMessages(): string[] {
+		const storageKey = this.getCommitMessageHistoryStorageKey();
+		const stored = this.globalState.get<string[]>(storageKey, []);
+		return stored;
+	}
+
+	private saveCommitMessages(messages: string[]): void {
+		const storageKey = this.getCommitMessageHistoryStorageKey();
+		this.globalState.update(storageKey, messages);
+	}
+
+	private addToCommitMessageHistory(message: string): void {
+		if (!message || !message.trim()) {
+			return;
+		}
+
+		const trimmedMessage = message.trim();
+		let history = this.getPersistedCommitMessages();
+
+		// Add message to the beginning, remove duplicates, and limit to 32 entries
+		history = [trimmedMessage, ...history.filter(m => m !== trimmedMessage)].slice(0, 32);
+		
+		this.saveCommitMessages(history);
+	}
+
+	private async getCommitMessages(): Promise<string[]> {
+		let history = this.getPersistedCommitMessages();
+
+		// If persisted history is empty or small, merge with Git log
+		if (history.length < 32) {
+			try {
+				const log = await this.repository.log({ maxEntries: 32 });
+				const logMessages = log.map(commit => commit.message.trim()).filter(m => m);
+				
+				// Merge with persisted history, make unique, and limit to 32
+				const allMessages = [...history, ...logMessages];
+				history = allMessages.filter((value, index, self) => self.indexOf(value) === index).slice(0, 32);
+				
+				// Save merged history back to storage
+				this.saveCommitMessages(history);
+			} catch (err) {
+				// If Git log fails, just use persisted history
+				this.logger.warn(`Failed to fetch Git log for commit message history: ${err}`);
+			}
+		}
+
+		return history;
+	}
+
+	private async initializeCommitMessageHistory(): Promise<void> {
+		try {
+			// Get merged history from storage and Git log
+			await this.getCommitMessages();
+		} catch (err) {
+			this.logger.warn(`Failed to initialize commit message history: ${err}`);
+		}
 	}
 
 	private commitOperationGetOptimisticResourceGroups(opts: CommitOptions): GitResourceGroups {
