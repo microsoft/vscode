@@ -122,7 +122,8 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
-
+import { IImageResizeMainService } from '../../platform/imageResize/common/imageResizeService.js';
+import { ImageResizeMainService } from '../../platform/imageResize/electron-main/imageResizeMainService.js';
 /**
  * The main VS Code application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
@@ -1020,6 +1021,9 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
+		// Image Resize
+		services.set(IImageResizeMainService, new SyncDescriptor(ImageResizeMainService, undefined, false /* proxied to other processes */));
+
 		// Browser Elements
 		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
 
@@ -1164,6 +1168,10 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+
+		// Image Resize
+		const imageResizeChannel = ProxyChannel.fromService(accessor.get(IImageResizeMainService), disposables);
+		mainProcessElectronServer.registerChannel('imageResize', imageResizeChannel);
 
 		// Browser Elements
 		const browserElementsChannel = ProxyChannel.fromService(accessor.get(INativeBrowserElementsMainService), disposables);
