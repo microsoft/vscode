@@ -4,25 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IImageResizeMainService } from '../common/imageResizeService.js';
-import { ILogService } from '../../log/common/log.js';
 import { nativeImage } from 'electron';
 
 export class ImageResizeMainService implements IImageResizeMainService {
 	_serviceBrand: undefined;
 
-	constructor(
-		@ILogService _logService: ILogService
-	) { }
+	constructor() { }
 
 	resizeImage(data: Uint8Array | string, mimeType?: string): Promise<Uint8Array> {
 		return new Promise((resolve, reject) => {
 			try {
 				let image: Electron.NativeImage;
 				if (typeof data === 'string') {
-					if (!data.startsWith('data:')) {
-						const inferredMimeType = mimeType || 'image/png';
-						data = `data:${inferredMimeType};base64,${data}`;
-					}
 					image = nativeImage.createFromDataURL(data);
 				} else {
 					image = nativeImage.createFromBuffer(Buffer.from(data));
@@ -51,19 +44,13 @@ export class ImageResizeMainService implements IImageResizeMainService {
 					newWidth = Math.round(newWidth * scaleFactor);
 					newHeight = Math.round(newHeight * scaleFactor);
 
-					image = image.resize({
-						width: newWidth,
-						height: newHeight,
-						quality: 'better'
-					});
+					image = image.resize({ width: newWidth, height: newHeight, quality: 'better' });
 				}
 				let buffer: Buffer;
-				if (mimeType?.includes('png')) {
+				if (mimeType?.includes('png') || mimeType?.includes('webp')) {
 					buffer = image.toPNG();
 				} else if (mimeType?.includes('jpeg') || mimeType?.includes('jpg')) {
 					buffer = image.toJPEG(90);
-				} else if (mimeType?.includes('webp')) {
-					buffer = image.toPNG();
 				} else {
 					buffer = image.toPNG();
 				}

@@ -1022,7 +1022,7 @@ export class CodeApplication extends Disposable {
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
 		// Image Resize
-		services.set(IImageResizeMainService, new SyncDescriptor(ImageResizeMainService, undefined, false /* proxied to other processes */));
+		services.set(IImageResizeMainService, new SyncDescriptor(ImageResizeMainService));
 
 		// Browser Elements
 		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
