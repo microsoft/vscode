@@ -14,6 +14,7 @@ import { IChatAgentRequest } from './chatAgents.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 
 export interface IChatSessionsExtensionPoint {
+	readonly id: string;
 	readonly type: string;
 	readonly name: string;
 	readonly displayName: string;
@@ -51,7 +52,6 @@ export interface ChatSession extends IDisposable {
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
-	readonly label: string;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 }
 
