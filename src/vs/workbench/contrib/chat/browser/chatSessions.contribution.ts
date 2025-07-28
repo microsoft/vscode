@@ -34,8 +34,8 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 		items: {
 			type: 'object',
 			properties: {
-				id: {
-					description: localize('chatSessionsExtPoint.id', 'A unique identifier for this item.'),
+				type: {
+					description: localize('chatSessionsExtPoint.chatSessionType', 'Unique identifier for the type of chat session.'),
 					type: 'string',
 				},
 				name: {
@@ -60,7 +60,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 	},
 	activationEventsGenerator: (contribs, results) => {
 		for (const contrib of contribs) {
-			results.push(`onChatSession:${contrib.id}`);
+			results.push(`onChatSession:${contrib.type}`);
 		}
 	}
 });
@@ -83,13 +83,14 @@ export class ChatSessionsContribution extends Disposable implements IWorkbenchCo
 				for (const contribution of ext.value) {
 					const c: IChatSessionsExtensionPoint = {
 						id: contribution.id,
+						type: contribution.type,
 						name: contribution.name,
 						displayName: contribution.displayName,
 						description: contribution.description,
 						when: contribution.when,
 						extensionDescription: ext.description,
 					};
-					this.logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.id}' name='${c.name}')`);
+					this.logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.type}' name='${c.name}')`);
 					this._register(this.chatSessionsService.registerContribution(c)); // TODO: Is it for contribution to own this? I think not
 				}
 			}
@@ -146,8 +147,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}));
 	}
 	public registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
-		if (this._contributions.has(contribution.id)) {
-			this._logService.warn(`Chat session contribution with id '${contribution.id}' is already registered.`);
+		if (this._contributions.has(contribution.type)) {
+			this._logService.warn(`Chat session contribution with id '${contribution.type}' is already registered.`);
 			return { dispose: () => { } };
 		}
 
@@ -161,15 +162,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		this._contributions.set(contribution.id, contribution);
+		this._contributions.set(contribution.type, contribution);
 
 		// Register dynamic agent if the when condition is satisfied
 		this._registerDynamicAgentIfAvailable(contribution);
 
 		return {
 			dispose: () => {
-				this._contributions.delete(contribution.id);
-				this._disposeDynamicAgent(contribution.id);
+				this._contributions.delete(contribution.type);
+				this._disposeDynamicAgent(contribution.type);
 			}
 		};
 	}
@@ -186,7 +187,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _registerDynamicAgentIfAvailable(contribution: IChatSessionsExtensionPoint): void {
 		if (this._isContributionAvailable(contribution)) {
 			const disposable = this._registerDynamicAgent(contribution);
-			this._dynamicAgentDisposables.set(contribution.id, disposable);
+			this._dynamicAgentDisposables.set(contribution.type, disposable);
 		}
 	}
 
@@ -202,14 +203,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		let hasChanges = false;
 
 		for (const contribution of this._contributions.values()) {
-			const isCurrentlyRegistered = this._dynamicAgentDisposables.has(contribution.id);
+			const isCurrentlyRegistered = this._dynamicAgentDisposables.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
 
 			if (isCurrentlyRegistered && !shouldBeRegistered) {
 				// Should be unregistered
-				this._disposeDynamicAgent(contribution.id);
+				this._disposeDynamicAgent(contribution.type);
 				// Also dispose any cached sessions for this contribution
-				this._disposeSessionsForContribution(contribution.id);
+				this._disposeSessionsForContribution(contribution.type);
 				hasChanges = true;
 			} else if (!isCurrentlyRegistered && shouldBeRegistered) {
 				// Should be registered
@@ -230,7 +231,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 			// Notify about session items changes for all chat session types
 			for (const contribution of this._contributions.values()) {
-				this._onDidChangeSessionItems.fire(contribution.id);
+				this._onDidChangeSessionItems.fire(contribution.type);
 			}
 		}
 	}
@@ -257,7 +258,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerDynamicAgent(contribution: IChatSessionsExtensionPoint): IDisposable {
-		const { id, name, displayName, description, extensionDescription } = contribution;
+		const { type: id, name, displayName, description, extensionDescription } = contribution;
 		const { identifier: extensionId, name: extensionName, displayName: extensionDisplayName, publisher: extensionPublisherId } = extensionDescription;
 		const agentData: IChatAgentData = {
 			id,
@@ -461,7 +462,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 							const identifier = ChatSessionUri.parse(editor.resource);
 
 							if (identifier) {
-								chatSession = await this.chatSessionService.provideChatSessionContent(this.chatSession.id, identifier.sessionId, token);
+								chatSession = await this.chatSessionService.provideChatSessionContent(this.chatSession.type, identifier.sessionId, token);
 							}
 							break;
 						}

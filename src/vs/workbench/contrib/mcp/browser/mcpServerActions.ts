@@ -26,6 +26,7 @@ import { errorIcon, infoIcon, manageExtensionIcon, trustIcon, warningIcon } from
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab, McpServerInstallState } from '../common/mcpTypes.js';
+import { startServerByFilter } from '../common/mcpTypesUtils.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
 
@@ -108,6 +109,7 @@ export class InstallAction extends McpServerAction {
 		private readonly editor: boolean,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IMcpService private readonly mcpService: IMcpService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.update();
@@ -149,7 +151,11 @@ export class InstallAction extends McpServerAction {
 		};
 		this.telemetryService.publicLog2<McpServerInstall, McpServerInstallClassification>('mcp:action:install', { name: this.mcpServer.gallery?.name });
 
-		await this.mcpWorkbenchService.install(this.mcpServer);
+		const installed = await this.mcpWorkbenchService.install(this.mcpServer);
+
+		await startServerByFilter(this.mcpService, s => {
+			return s.definition.label === installed.name;
+		});
 	}
 }
 

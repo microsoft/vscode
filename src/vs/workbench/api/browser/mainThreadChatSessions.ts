@@ -51,10 +51,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 	}
 
-	$registerChatSessionItemProvider(handle: number, chatSessionType: string, label: string): void {
+	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
 		// Register the provider handle - this tracks that a provider exists
 		const provider: IChatSessionItemProvider = {
-			label,
 			chatSessionType,
 			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
 		};

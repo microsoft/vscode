@@ -26,7 +26,7 @@ import { Extensions, IViewContainersRegistry, IViewDescriptorService, ViewContai
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -118,7 +118,6 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider {
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
 	readonly chatSessionType = 'local';
-	readonly label = 'Local Chat Sessions';
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -418,7 +417,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 	private async updateViewRegistration(): Promise<void> {
 		// prepare all chat session providers
 		const contributions = await this.chatSessionsService.getChatSessionContributions();
-		await Promise.all(contributions.map(contrib => this.chatSessionsService.canResolveItemProvider(contrib.id)));
+		await Promise.all(contributions.map(contrib => this.chatSessionsService.canResolveItemProvider(contrib.type)));
 		const currentProviders = this.getAllChatSessionProviders();
 		const currentProviderIds = new Set(currentProviders.map(p => p.chatSessionType));
 
@@ -440,10 +439,10 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		}
 
 		// Register new views
-		this.registerViews();
+		this.registerViews(contributions);
 	}
 
-	private async registerViews() {
+	private async registerViews(extensionPointContributions: IChatSessionsExtensionPoint[]) {
 		const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(VIEWLET_ID);
 		const providers = this.getAllChatSessionProviders();
 
@@ -454,11 +453,22 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			providers.forEach(provider => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
+					let displayName = '';
+					if (provider.chatSessionType === 'local') {
+						displayName = 'Local Chat Sessions';
+					} else {
+						const extContribution = extensionPointContributions.find(c => c.id === provider.chatSessionType);
+						if (!extContribution) {
+							this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
+							return; // Skip if no contribution found
+						}
+						displayName = extContribution.displayName;
+					}
 					const viewDescriptor: IViewDescriptor = {
 						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
 						name: {
-							value: provider.label,
-							original: provider.label,
+							value: displayName,
+							original: displayName,
 						},
 						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider]),
 						canToggleVisibility: true,

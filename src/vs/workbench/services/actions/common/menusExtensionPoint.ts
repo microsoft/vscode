@@ -106,6 +106,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugVariablesContext', "The debug variables view context menu")
 	},
 	{
+		key: 'debug/watch/context',
+		id: MenuId.DebugWatchContext,
+		description: localize('menus.debugWatchContext', "The debug watch view context menu")
+	},
+	{
 		key: 'debug/toolBar',
 		id: MenuId.DebugToolBar,
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
