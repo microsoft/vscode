@@ -15,6 +15,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatElicitationRequest } from '../common/chatService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -28,7 +29,8 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	constructor(
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 	}
@@ -56,6 +58,28 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const title = typeof elicitation.title === 'string' ? elicitation.title : elicitation.title.value;
 		const message = typeof elicitation.message === 'string' ? elicitation.message : elicitation.message.value;
 		alert(title + ' ' + message);
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
+		
+		// Check if sound is enabled for chatUserActionRequired signal
+		const soundSetting = this._configurationService.getValue<string>('accessibility.signals.chatUserActionRequired.sound');
+		const shouldPlaySound = this._shouldPlaySound(soundSetting);
+		
+		if (shouldPlaySound) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
+		}
+	}
+
+	private _shouldPlaySound(soundSetting: string): boolean {
+		// Implementation of checkEnabledState logic for sound settings
+		switch (soundSetting) {
+			case 'on':
+			case 'always':
+				return true;
+			case 'auto':
+				return this._accessibilityService.isScreenReaderOptimized();
+			case 'off':
+			case 'never':
+			default:
+				return false;
+		}
 	}
 }
