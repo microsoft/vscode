@@ -11,11 +11,11 @@ import { ConfigurationScope, type IConfigurationPropertySchema } from '../../../
 export const enum TerminalChatAgentToolsSettingId {
 	AutoApprove = 'chat.tools.terminal.autoApprove',
 
+	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
 	DeprecatedAutoApprove3 = 'github.copilot.chat.agent.terminal.allowList',
 	DeprecatedAutoApprove4 = 'github.copilot.chat.agent.terminal.denyList',
-	DeprecatedAutoApprove5 = 'chat.agent.terminal.autoApprove',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
@@ -108,7 +108,7 @@ for (const id of [
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove2,
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove3,
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove4,
-	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove5,
+	TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible,
 ]) {
 	terminalChatAgentToolsConfiguration[id] = {
 		deprecated: true,
