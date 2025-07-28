@@ -683,7 +683,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const currentMode = this._currentModeObservable.get();
 		const validMode = this.chatModeService.findModeById(currentMode.id);
 		if (!validMode) {
-			this.setChatMode2(ChatMode.Agent);
+			this.setChatMode(ChatModeKind.Agent);
 			return;
 		}
 	}
