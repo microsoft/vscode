@@ -7,9 +7,9 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { IChatTasksContent } from '../../common/chatService.js';
+import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
 
-export class ChatStickyTaskWidget extends Disposable {
+export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
@@ -17,24 +17,26 @@ export class ChatStickyTaskWidget extends Disposable {
 
 	private _isExpanded: boolean = true;
 	private expandoElement!: HTMLElement;
-	private taskListContainer!: HTMLElement;
-	private _taskData: IChatTasksContent | undefined;
+	private todoListContainer!: HTMLElement;
+	private _currentSessionId: string | undefined;
 
-	constructor() {
+	constructor(
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
+	) {
 		super();
 
-		this.domNode = this.createStickyTaskWidget();
+		this.domNode = this.createChatTodoWidget();
 	}
 
 	public get height(): number {
 		return this.domNode.style.display === 'none' ? 0 : this.domNode.offsetHeight;
 	}
 
-	private createStickyTaskWidget(): HTMLElement {
-		const container = dom.$('.chat-sticky-task-widget');
+	private createChatTodoWidget(): HTMLElement {
+		const container = dom.$('.chat-todo-list-widget');
 		container.style.display = 'none';
 
-		this.expandoElement = dom.$('.task-expando');
+		this.expandoElement = dom.$('.todo-list-expand');
 		this.expandoElement.setAttribute('role', 'button');
 		this.expandoElement.setAttribute('aria-expanded', 'true');
 		this.expandoElement.setAttribute('tabindex', '0');
@@ -42,17 +44,17 @@ export class ChatStickyTaskWidget extends Disposable {
 		const expandIcon = dom.$('.expand-icon.codicon');
 		expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
 
-		const titleElement = dom.$('.task-title');
-		titleElement.textContent = localize('chat.task.title', 'Tasks');
+		const titleElement = dom.$('.todo-list-title');
+		titleElement.textContent = localize('chat.todoList.title', 'Tasks');
 
 		this.expandoElement.appendChild(expandIcon);
 		this.expandoElement.appendChild(titleElement);
 
-		this.taskListContainer = dom.$('.task-list-container');
-		this.taskListContainer.style.display = this._isExpanded ? 'block' : 'none';
+		this.todoListContainer = dom.$('.todo-list-container');
+		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
 		container.appendChild(this.expandoElement);
-		container.appendChild(this.taskListContainer);
+		container.appendChild(this.todoListContainer);
 
 		this._register(dom.addDisposableListener(this.expandoElement, 'click', () => {
 			this.toggleExpanded();
@@ -68,11 +70,23 @@ export class ChatStickyTaskWidget extends Disposable {
 		return container;
 	}
 
-	public updateTaskData(taskData: IChatTasksContent | undefined): void {
-		this._taskData = taskData;
+	public updateSessionId(sessionId: string | undefined): void {
+		this._currentSessionId = sessionId;
+		this.updateTodoDisplay();
+	}
 
-		if (taskData && taskData.tasks.length > 0) {
-			this.renderTaskList();
+	private updateTodoDisplay(): void {
+		if (!this._currentSessionId) {
+			this.domNode.style.display = 'none';
+			this._onDidChangeHeight.fire();
+			return;
+		}
+
+		const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
+		const todoList = todoListStorage.getTodoList(this._currentSessionId);
+
+		if (todoList.length > 0) {
+			this.renderTodoList(todoList);
 			this.domNode.style.display = 'block';
 		} else {
 			this.domNode.style.display = 'none';
@@ -81,36 +95,32 @@ export class ChatStickyTaskWidget extends Disposable {
 		this._onDidChangeHeight.fire();
 	}
 
-	private renderTaskList(): void {
-		if (!this._taskData || !this._taskData.tasks.length) {
-			return;
-		}
+	private renderTodoList(todoList: IChatTodo[]): void {
+		this.todoListContainer.textContent = '';
 
-		this.taskListContainer.textContent = '';
-
-		const titleElement = this.expandoElement.querySelector('.task-title') as HTMLElement;
+		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
 		if (titleElement) {
-			titleElement.textContent = `${localize('chat.task.title', 'Tasks')}`;
+			titleElement.textContent = `${localize('chat.todoList.title', 'Tasks')}`;
 		}
 
-		this._taskData.tasks.forEach((task, index) => {
-			const taskElement = dom.$('.task-item');
+		todoList.forEach((todo, index) => {
+			const todoElement = dom.$('.todo-item');
 
-			const statusIcon = dom.$('.task-status-icon.codicon');
-			statusIcon.classList.add(this.getStatusIconClass(task.status));
-			statusIcon.style.color = this.getStatusIconColor(task.status);
+			const statusIcon = dom.$('.todo-status-icon.codicon');
+			statusIcon.classList.add(this.getStatusIconClass(todo.status));
+			statusIcon.style.color = this.getStatusIconColor(todo.status);
 
-			const taskContent = dom.$('.task-content');
+			const todoContent = dom.$('.todo-content');
 
-			const titleElement = dom.$('.task-title');
-			titleElement.textContent = `${index + 1}. ${task.title}`;
+			const titleElement = dom.$('.todo-title');
+			titleElement.textContent = `${index + 1}. ${todo.title}`;
 
-			taskContent.appendChild(titleElement);
+			todoContent.appendChild(titleElement);
 
-			taskElement.appendChild(statusIcon);
-			taskElement.appendChild(taskContent);
+			todoElement.appendChild(statusIcon);
+			todoElement.appendChild(todoContent);
 
-			this.taskListContainer.appendChild(taskElement);
+			this.todoListContainer.appendChild(todoElement);
 		});
 	}
 
@@ -124,7 +134,7 @@ export class ChatStickyTaskWidget extends Disposable {
 		}
 
 		this.expandoElement.setAttribute('aria-expanded', this._isExpanded.toString());
-		this.taskListContainer.style.display = this._isExpanded ? 'block' : 'none';
+		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
 		this._onDidChangeHeight.fire();
 	}

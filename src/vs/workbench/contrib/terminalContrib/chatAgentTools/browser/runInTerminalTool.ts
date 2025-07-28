@@ -7,7 +7,7 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
@@ -22,11 +22,13 @@ import { ITerminalLogService } from '../../../../../platform/terminal/common/ter
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
+import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from './executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from './executeStrategy/executeStrategy.js';
@@ -35,8 +37,6 @@ import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
-import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -190,33 +190,43 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
 			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
-			const autoApproveReasons: string[] = [...subCommandResults.map(e => e.reason)];
+			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
+			const autoApproveReasons: string[] = [
+				...subCommandResults.map(e => e.reason),
+				commandLineResult.reason,
+			];
 
-			if (subCommandResults.every(e => e.isAutoApproved)) {
-				this._logService.info('autoApprove: All sub-commands auto-approved');
-				confirmationMessages = undefined;
+			let isAutoApproved = false;
+			if (subCommandResults.some(e => e.result === 'denied')) {
+				this._logService.info('autoApprove: Sub-command DENIED auto approval');
+			} else if (commandLineResult.result === 'denied') {
+				this._logService.info('autoApprove: Command line DENIED auto approval');
 			} else {
-				this._logService.info('autoApprove: All sub-commands NOT auto-approved');
-				const commandLineResults = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
-				autoApproveReasons.push(commandLineResults.reason);
-				if (commandLineResults.isAutoApproved) {
-					this._logService.info('autoApprove: Command line auto-approved');
-					confirmationMessages = undefined;
+				if (subCommandResults.every(e => e.result === 'approved')) {
+					this._logService.info('autoApprove: All sub-commands auto-approved');
+					isAutoApproved = true;
 				} else {
-					this._logService.info('autoApprove: Command line NOT auto-approved');
-					confirmationMessages = {
-						title: args.isBackground
-							? localize('runInTerminal.background', "Run command in background terminal")
-							: localize('runInTerminal.foreground', "Run command in terminal"),
-						message: new MarkdownString(args.explanation),
-					};
+					this._logService.info('autoApprove: All sub-commands NOT auto-approved');
+					if (commandLineResult.result === 'approved') {
+						this._logService.info('autoApprove: Command line auto-approved');
+						isAutoApproved = true;
+					} else {
+						this._logService.info('autoApprove: Command line NOT auto-approved');
+					}
 				}
 			}
 
-			// TODO: Surface reason on tool part https://github.com/microsoft/vscode/pull/256793
+			// TODO: Surface reason on tool part https://github.com/microsoft/vscode/issues/256780
 			for (const reason of autoApproveReasons) {
 				this._logService.info(`- ${reason}`);
 			}
+
+			confirmationMessages = isAutoApproved ? undefined : {
+				title: args.isBackground
+					? localize('runInTerminal.background', "Run command in background terminal")
+					: localize('runInTerminal.foreground', "Run command in terminal"),
+				message: new MarkdownString(args.explanation),
+			};
 		}
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
@@ -252,12 +262,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		let toolResultMessage: string | IMarkdownString | undefined;
 
-		const chatSessionId = invocation.context?.sessionId;
-		if (!invocation.context || chatSessionId === undefined) {
-			throw new Error('A chat session ID is required for this tool');
-		}
-
+		const chatSessionId = invocation.context?.sessionId ?? 'no-chat-session';
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
@@ -282,7 +289,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const store = new DisposableStore();
 
 		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
-		const toolTerminal = await (args.isBackground ? this._initBackgroundTerminal : this._initForegroundTerminal)(chatSessionId, termId, token);
+		const toolTerminal = await (args.isBackground
+			? this._initBackgroundTerminal(chatSessionId, termId, token)
+			: this._initForegroundTerminal(chatSessionId, termId, token));
 
 		this._terminalService.setActiveInstance(toolTerminal.instance);
 		const timingConnectMs = Date.now() - timingStart;
@@ -308,7 +317,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
+
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 					outputAndIdle = await racePollingOrPrompt(
 						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
@@ -318,6 +332,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						this._languageModelsService,
 						execution
 					);
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
 				}
 
 				let resultText = (
@@ -339,11 +356,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}]
 				};
 			} catch (e) {
-				error = 'threw';
 				if (termId) {
 					RunInTerminalTool._backgroundExecutions.get(termId)?.dispose();
 					RunInTerminalTool._backgroundExecutions.delete(termId);
 				}
+				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
 				store.dispose();
@@ -377,6 +394,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance);
+						toolResultMessage = new MarkdownString('Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection');
 						break;
 					}
 					case ShellIntegrationQuality.Basic: {
@@ -390,6 +408,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				const executeResult = await strategy.execute(command, token);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
 				exitCode = executeResult.exitCode;
@@ -407,7 +429,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
 				toolTerminal.instance.dispose();
-				error = 'threw';
+				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
 				store.dispose();
@@ -437,6 +459,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			resultText.push(terminalResult);
 
 			return {
+				toolResultMessage,
 				content: [{
 					kind: 'text',
 					value: resultText.join(''),

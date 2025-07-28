@@ -112,6 +112,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chatEditing.discardAllFiles', '- Undo All Edits{0}.', '<keybinding:chatEditing.discardAllFiles>'));
 		content.push(localize('chatEditing.openFileInDiff', '- Open File in Diff{0}.', '<keybinding:chatEditing.openFileInDiff>'));
 		content.push(localize('chatEditing.viewChanges', '- View Changes{0}.', '<keybinding:chatEditing.viewChanges>'));
+		content.push('chatEditing.viewAllEdits', '- View All Edits{0}.', '<keybinding:chatEditing.viewAllEdits>');
 		content.push(localize('chatEditing.viewPreviousEdits', '- View Previous Edits{0}.', '<keybinding:chatEditing.viewPreviousEdits>'));
 	}
 	else {

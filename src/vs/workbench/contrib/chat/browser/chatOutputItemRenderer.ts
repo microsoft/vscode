@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../base/browser/dom.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { matchesMimeType } from '../../../../base/common/dataTransfer.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -14,8 +17,8 @@ import * as nls from '../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWebview, IWebviewService, WebviewContentPurpose } from '../../../contrib/webview/browser/webview.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { ExtensionsRegistry, IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
 
 export interface IChatOutputItemRenderer {
 	renderOutputPart(mime: string, data: Uint8Array, webview: IWebview, token: CancellationToken): Promise<void>;
@@ -50,37 +53,48 @@ interface RenderOutputPartWebviewOptions {
 }
 
 
+interface RendererEntry {
+	readonly renderer: IChatOutputItemRenderer;
+	readonly options: RegisterOptions;
+}
+
 export class ChatOutputRendererService extends Disposable implements IChatOutputRendererService {
 	_serviceBrand: undefined;
 
-	private readonly _renderers = new Map<string, {
-		readonly renderer: IChatOutputItemRenderer;
-		readonly options: RegisterOptions;
+	private readonly _contributions = new Map</*viewType*/ string, {
+		readonly mimes: readonly string[];
 	}>();
+
+	private readonly _renderers = new Map</*viewType*/ string, RendererEntry>();
 
 	constructor(
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super();
+
+		this._register(chatOutputRenderContributionPoint.setHandler(extensions => {
+			this.updateContributions(extensions);
+		}));
 	}
 
-	registerRenderer(mime: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable {
-		this._renderers.set(mime, { renderer, options });
+	registerRenderer(viewType: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable {
+		this._renderers.set(viewType, { renderer, options });
 		return {
 			dispose: () => {
-				this._renderers.delete(mime);
+				this._renderers.delete(viewType);
 			}
 		};
 	}
 
 	async renderOutputPart(mime: string, data: Uint8Array, parent: HTMLElement, webviewOptions: RenderOutputPartWebviewOptions, token: CancellationToken): Promise<RenderedOutputPart> {
-		// Activate extensions that contribute to chatOutputRenderer for this mime type
-		await this._extensionService.activateByEvent(`onChatOutputRenderer:${mime}`);
+		const rendererData = await this.getRenderer(mime, token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 
-		const rendererData = this._renderers.get(mime);
 		if (!rendererData) {
-			throw new Error(`No renderer registered for mime type: ${mime}`);
+			throw new Error(`No renderer registered found for mime type: ${mime}`);
 		}
 
 		const store = new DisposableStore();
@@ -120,19 +134,53 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			},
 		};
 	}
+
+	private async getRenderer(mime: string, token: CancellationToken): Promise<RendererEntry | undefined> {
+		await raceCancellationError(this._extensionService.whenInstalledExtensionsRegistered(), token);
+		for (const [id, value] of this._contributions) {
+			if (value.mimes.some(m => matchesMimeType(m, [mime]))) {
+				await raceCancellationError(this._extensionService.activateByEvent(`onChatOutputRenderer:${id}`), token);
+				const rendererData = this._renderers.get(id);
+				if (rendererData) {
+					return rendererData;
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	private updateContributions(extensions: readonly IExtensionPointUser<readonly IChatOutputRendererContribution[]>[]) {
+		this._contributions.clear();
+		for (const extension of extensions) {
+			if (!isProposedApiEnabled(extension.description, 'chatOutputRenderer')) {
+				continue;
+			}
+
+			for (const contribution of extension.value) {
+				if (this._contributions.has(contribution.viewType)) {
+					extension.collector.error(`Chat output renderer with view type '${contribution.viewType}' already registered`);
+					continue;
+				}
+
+				this._contributions.set(contribution.viewType, {
+					mimes: contribution.mimeTypes,
+				});
+			}
+		}
+	}
 }
 
 interface IChatOutputRendererContribution {
+	readonly viewType: string;
 	readonly mimeTypes: readonly string[];
 }
 
-ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
-	extensionPoint: 'chatOutputRenderer',
+const chatOutputRenderContributionPoint = ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
+	extensionPoint: 'chatOutputRenderers',
 	activationEventsGenerator: (contributions: IChatOutputRendererContribution[], result) => {
 		for (const contrib of contributions) {
-			for (const mime of contrib.mimeTypes) {
-				result.push(`onChatOutputRenderer:${mime}`);
-			}
+			result.push(`onChatOutputRenderer:${contrib.viewType}`);
 		}
 	},
 	jsonSchema: {
@@ -141,11 +189,15 @@ ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
 		items: {
 			type: 'object',
 			additionalProperties: false,
-			required: ['mimeTypes'],
+			required: ['viewType', 'mimeTypes'],
 			properties: {
+				viewType: {
+					type: 'string',
+					description: nls.localize('chatOutputRenderer.viewType', 'Unique identifier for the renderer.'),
+				},
 				mimeTypes: {
-					description: nls.localize('chatOutputRenderer.mimeTypes', 'MIME types that this renderer can handle'),
 					type: 'array',
+					description: nls.localize('chatOutputRenderer.mimeTypes', 'MIME types that this renderer can handle'),
 					items: {
 						type: 'string'
 					}
