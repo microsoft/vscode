@@ -12,7 +12,7 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { ITaskService } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { getOutput } from '../bufferOutputPolling.js';
-import { getTaskDefinition, getTaskForTool, getTaskRepresentation } from './taskHelpers.js';
+import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
@@ -61,7 +61,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		if (!task) {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
-		const taskLabel = getTaskRepresentation(task);
+		const taskLabel = task._label;
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.includes(task)) {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskLabel)) };
@@ -81,7 +81,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
 		const resource = this._tasksService.getTerminalForTask(task);
-		const taskLabel = getTaskRepresentation(task);
+		const taskLabel = task._label;
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
 			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskLabel)) };

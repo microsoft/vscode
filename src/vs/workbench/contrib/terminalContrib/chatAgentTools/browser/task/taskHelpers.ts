@@ -58,7 +58,7 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	}
 	const configuringTasks: IStringDictionary<ConfiguringTask> | undefined = (await taskService.getWorkspaceTasks())?.get(URI.file(workspaceFolder).toString())?.configurations?.byIdentifier;
 	const configuredTask: ConfiguringTask | undefined = Object.values(configuringTasks ?? {}).find(t => {
-		return t.type === task.type && (t._label === task.label || t._label === `${task.type}: ${getTaskRepresentation(task)}`);
+		return t.type === task.type && (t._label === task.label || t._label === `${task.type}: ${getTaskRepresentation(task)}` || t._label === getTaskRepresentation(task));
 	});
 	let resolvedTask: Task | undefined;
 	if (configuredTask) {
