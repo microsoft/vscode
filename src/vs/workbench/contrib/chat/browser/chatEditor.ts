@@ -139,7 +139,7 @@ export class ChatEditor extends EditorPane {
 			const identifier = ChatSessionUri.parse(input.resource);
 			if (identifier) {
 				const contributions = this.chatSessionsService.getChatSessionContributions();
-				const contribution = contributions.find(c => c.id === identifier.chatSessionType);
+				const contribution = contributions.find(c => c.type === identifier.chatSessionType);
 				if (contribution) {
 					this.widget.lockToCodingAgent(contribution.name);
 				}
