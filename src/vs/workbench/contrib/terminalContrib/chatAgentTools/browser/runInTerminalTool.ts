@@ -292,7 +292,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const store = new DisposableStore();
 
 		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
-		const toolTerminal = await (args.isBackground ? this._initBackgroundTerminal : this._initForegroundTerminal)(chatSessionId, termId, token);
+		const toolTerminal = await (args.isBackground
+			? this._initBackgroundTerminal(chatSessionId, termId, token)
+			: this._initForegroundTerminal(chatSessionId, termId, token));
 
 		this._terminalService.setActiveInstance(toolTerminal.instance);
 		const timingConnectMs = Date.now() - timingStart;
@@ -318,7 +320,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
+
 				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 					outputAndIdle = await racePollingOrPrompt(
 						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
@@ -328,6 +335,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						this._languageModelsService,
 						execution
 					);
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
 				}
 
 				let resultText = (
@@ -349,11 +359,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}]
 				};
 			} catch (e) {
-				error = 'threw';
 				if (termId) {
 					RunInTerminalTool._backgroundExecutions.get(termId)?.dispose();
 					RunInTerminalTool._backgroundExecutions.delete(termId);
 				}
+				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
 				store.dispose();
@@ -400,6 +410,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				const executeResult = await strategy.execute(command, token);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
 				exitCode = executeResult.exitCode;
@@ -417,7 +431,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
 				toolTerminal.instance.dispose();
-				error = 'threw';
+				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
 			} finally {
 				store.dispose();
