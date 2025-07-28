@@ -1329,18 +1329,10 @@
         },
         {
           "command": "git.createWorktree",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && scmProviderContext == 'repository'"
         },
         {
           "command": "git.deleteWorktree",
-          "when": "false"
-        },
-        {
-          "command": "git.openWorktree",
-          "when": "false"
-        },
-        {
-          "command": "git.openWorktreeInNewWindow",
           "when": "false"
         },
         {

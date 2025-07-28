@@ -3597,7 +3597,7 @@ export class CommandCenter {
 
 		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
 		if (!mainRepository) {
-			await window.showErrorMessage(l10n.t('You cannot delete the worktree you are currently in. Please switch to the main repository first.'), { modal: true });
+			await window.showErrorMessage(l10n.t('You cannot delete a worktree within a worktree. Please switch to the main repository first.'), { modal: true });
 			return;
 		}
 
