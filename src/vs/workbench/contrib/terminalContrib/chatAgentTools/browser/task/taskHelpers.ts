@@ -38,11 +38,16 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	let task: IConfiguredTask | undefined;
 	const configTasks: IConfiguredTask[] = (configurationService.getValue('tasks') as { tasks: IConfiguredTask[] }).tasks ?? [];
 	for (const configTask of configTasks) {
+		if (!configTask.type || 'hide' in configTask && configTask.hide) {
+			// Skip thse as they
+			// and not included in the agent prompt.
+			continue;
+		}
 		if ((configTask.type && taskDefinition.taskType ? configTask.type === taskDefinition.taskType : true) &&
 			((getTaskRepresentation(configTask) === taskDefinition?.taskLabel) || (id === configTask.label))) {
 			task = configTask;
 			break;
-		} else if (id === `${configTask.type}: ${index}`) {
+		} else if (!configTask.label && id === `${configTask.type}: ${index}`) {
 			task = configTask;
 			break;
 		}
