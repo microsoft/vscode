@@ -79,7 +79,7 @@
         <com:Extension Category="windows.comServer">
           <com:ComServer>
             <com:SurrogateServer DisplayName="@@AppxPackageDisplayName@@">
-              <com:Class Id="@@FileExplorerContextMenuCLSID@@" Path="@@FileExplorerContextMenuDLL@@" ThreadingModel="STA"/>
+              <com:Class Id="@@FileExplorerContextMenuCLSID@@" Path="appx\@@FileExplorerContextMenuDLL@@" ThreadingModel="STA"/>
             </com:SurrogateServer>
           </com:ComServer>
         </com:Extension>
