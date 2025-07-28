@@ -190,33 +190,43 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
 			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
-			const autoApproveReasons: string[] = [...subCommandResults.map(e => e.reason)];
+			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
+			const autoApproveReasons: string[] = [
+				...subCommandResults.map(e => e.reason),
+				commandLineResult.reason,
+			];
 
-			if (subCommandResults.every(e => e.isAutoApproved)) {
-				this._logService.info('autoApprove: All sub-commands auto-approved');
-				confirmationMessages = undefined;
+			let isAutoApproved = false;
+			if (subCommandResults.some(e => e.result === 'denied')) {
+				this._logService.info('autoApprove: Sub-command DENIED auto approval');
+			} else if (commandLineResult.result === 'denied') {
+				this._logService.info('autoApprove: Command line DENIED auto approval');
 			} else {
-				this._logService.info('autoApprove: All sub-commands NOT auto-approved');
-				const commandLineResults = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
-				autoApproveReasons.push(commandLineResults.reason);
-				if (commandLineResults.isAutoApproved) {
-					this._logService.info('autoApprove: Command line auto-approved');
-					confirmationMessages = undefined;
+				if (subCommandResults.every(e => e.result === 'approved')) {
+					this._logService.info('autoApprove: All sub-commands auto-approved');
+					isAutoApproved = true;
 				} else {
-					this._logService.info('autoApprove: Command line NOT auto-approved');
-					confirmationMessages = {
-						title: args.isBackground
-							? localize('runInTerminal.background', "Run command in background terminal")
-							: localize('runInTerminal.foreground', "Run command in terminal"),
-						message: new MarkdownString(args.explanation),
-					};
+					this._logService.info('autoApprove: All sub-commands NOT auto-approved');
+					if (commandLineResult.result === 'approved') {
+						this._logService.info('autoApprove: Command line auto-approved');
+						isAutoApproved = true;
+					} else {
+						this._logService.info('autoApprove: Command line NOT auto-approved');
+					}
 				}
 			}
 
-			// TODO: Surface reason on tool part https://github.com/microsoft/vscode/pull/256793
+			// TODO: Surface reason on tool part https://github.com/microsoft/vscode/issues/256780
 			for (const reason of autoApproveReasons) {
 				this._logService.info(`- ${reason}`);
 			}
+
+			confirmationMessages = isAutoApproved ? undefined : {
+				title: args.isBackground
+					? localize('runInTerminal.background', "Run command in background terminal")
+					: localize('runInTerminal.foreground', "Run command in terminal"),
+				message: new MarkdownString(args.explanation),
+			};
 		}
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
