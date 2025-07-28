@@ -3456,6 +3456,13 @@ export class CommandCenter {
 			? (branch ?? commitish).substring(branchPrefix.length)
 			: (branch ?? commitish);
 
+		// Check if user is trying to delete the worktree they are currently in
+		const currentWorktree = repository.worktrees.find(wt => wt.uri.path === Uri.file(repository.root).path);
+		if (currentWorktree && worktreeName === currentWorktree.name) {
+			window.showErrorMessage(l10n.t('You cannot delete the worktree you are currently in. Please switch to another worktree or the main repository first.'));
+			return;
+		}
+
 		// If user selects folder button, they manually select the worktree path through folder picker
 		const getWorktreePath = async (): Promise<string | undefined> => {
 			const worktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
