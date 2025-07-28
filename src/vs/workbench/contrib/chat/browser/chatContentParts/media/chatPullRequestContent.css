@@ -39,13 +39,6 @@
 	white-space: nowrap;
 }
 
-.chat-pull-request-content-part .title-container .title {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	flex: 1 1 auto;
-}
-
 .chat-pull-request-content-part .title-container .icon.codicon {
 	font-size: large;
 }
