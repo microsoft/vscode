@@ -3589,7 +3589,7 @@ export class CommandCenter {
 		return;
 	}
 
-	@command('git.deleteWorktree', { repository: true })
+	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
 	async deleteWorktree(repository: Repository): Promise<void> {
 		if (!repository.dotGit.commonPath) {
 			return;
@@ -3597,6 +3597,7 @@ export class CommandCenter {
 
 		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
 		if (!mainRepository) {
+			await window.showErrorMessage(l10n.t('You cannot delete the worktree you are currently in. Please switch to the main repository first.'), { modal: true });
 			return;
 		}
 
