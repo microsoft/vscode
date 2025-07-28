@@ -240,7 +240,7 @@ class McpToolImplementation implements IToolImpl {
 
 						const serializedData = await this._imageResizeService.resizeImage(dataToResize, mimeType);
 						finalData = decodeBase64(value);
-						if (serializedData && typeof serializedData === 'object') {
+						if (serializedData instanceof Uint8Array) {
 							const resizedData = new Uint8Array(Object.values(serializedData));
 							const resized = VSBuffer.wrap(resizedData);
 							if (resized.byteLength > 0) {
