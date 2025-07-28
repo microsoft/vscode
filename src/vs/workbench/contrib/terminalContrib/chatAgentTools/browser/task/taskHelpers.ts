@@ -39,8 +39,8 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	const configTasks: IConfiguredTask[] = (configurationService.getValue('tasks') as { tasks: IConfiguredTask[] }).tasks ?? [];
 	for (const configTask of configTasks) {
 		if (!configTask.type || 'hide' in configTask && configTask.hide) {
-			// Skip thse as they
-			// and not included in the agent prompt.
+			// Skip these as they are not included in the agent prompt and we need to align with
+			// the indices used there.
 			continue;
 		}
 		if ((configTask.type && taskDefinition.taskType ? configTask.type === taskDefinition.taskType : true) &&
@@ -58,7 +58,7 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	}
 	const configuringTasks: IStringDictionary<ConfiguringTask> | undefined = (await taskService.getWorkspaceTasks())?.get(URI.file(workspaceFolder).toString())?.configurations?.byIdentifier;
 	const configuredTask: ConfiguringTask | undefined = Object.values(configuringTasks ?? {}).find(t => {
-		return t.type === task.type && (t._label === task.label || t._label === `${task.type}: ${getTaskRepresentation(task)}`);
+		return t.type === task.type && (t._label === task.label || t._label === `${task.type}: ${getTaskRepresentation(task)}` || t._label === getTaskRepresentation(task));
 	});
 	let resolvedTask: Task | undefined;
 	if (configuredTask) {
