@@ -20,6 +20,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -384,6 +385,7 @@ export class TextAreaInput extends Disposable {
 			}
 
 			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			this._logService.trace(`TextAreaInput#onPaste with id : `, metadata?.id, ' with text.length: ', text.length);
 			if (!text) {
 				return;
 			}
@@ -391,8 +393,7 @@ export class TextAreaInput extends Disposable {
 			// try the in-memory store
 			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 
-			this._logService.trace('TextAreaInput#onPaste text:', text, ' metadata:', metadata);
-
+			this._logService.trace(`TextAreaInput#onPaste (before onPaste)`);
 			this._onPaste.fire({
 				text: text,
 				metadata: metadata
@@ -610,8 +611,10 @@ export class TextAreaInput extends Disposable {
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
 		const dataToCopy = this._host.getDataToCopy();
+		const id = generateUuid();
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
+			id,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
 			multicursorText: dataToCopy.multicursorText,
 			mode: dataToCopy.mode
@@ -622,11 +625,12 @@ export class TextAreaInput extends Disposable {
 			(this._browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
 			storedMetadata
 		);
-		this._logService.trace('TextAreaInput#ensureClipboardGetsEditorSelection  text:', dataToCopy.text, ' html:', dataToCopy.html, ' metadata:', storedMetadata);
+
 		e.preventDefault();
 		if (e.clipboardData) {
 			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
 		}
+		this._logService.trace('TextAreaEditContextInput#_ensureClipboardGetsEditorSelection with id : ', id, ' with text.length: ', dataToCopy.text.length);
 	}
 }
 

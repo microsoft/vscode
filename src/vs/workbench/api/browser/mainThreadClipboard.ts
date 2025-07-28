@@ -22,14 +22,13 @@ export class MainThreadClipboard implements MainThreadClipboardShape {
 	}
 
 	$readText(): Promise<string> {
-		this._logService.trace('MainThreadClipboard#readText called');
+		this._logService.trace('MainThreadClipboard#readText');
 		const readText = this._clipboardService.readText();
-		this._logService.trace('MainThreadClipboard#readText returning:', readText);
 		return readText;
 	}
 
 	$writeText(value: string): Promise<void> {
-		this._logService.trace('MainThreadClipboard#writeText called with value:', value);
+		this._logService.trace('MainThreadClipboard#writeText with text.length : ', value.length);
 		return this._clipboardService.writeText(value);
 	}
 }

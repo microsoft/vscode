@@ -32,6 +32,7 @@ import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/stri
 import { IME } from '../../../../../base/common/ime.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -120,7 +121,7 @@ export class NativeEditContext extends AbstractEditContext {
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.onWillCut();
 			this._ensureClipboardGetsEditorSelection(e);
-			this.logService.trace('NativeEditContext#cut before viewController.cut');
+			this.logService.trace('NativeEditContext#cut (before viewController.cut)');
 			this._viewController.cut();
 		}));
 
@@ -140,7 +141,7 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
-			this.logService.trace('NativeEditContext#paste with text: ', text);
+			this.logService.trace('NativeEditContext#paste with id : ', metadata?.id, ' with text.length: ', text.length);
 			if (!text) {
 				return;
 			}
@@ -155,7 +156,7 @@ export class NativeEditContext extends AbstractEditContext {
 				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
 				mode = metadata.mode;
 			}
-			this.logService.trace('NativeEditContext#paste before viewController.paste');
+			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
 			this._viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 
@@ -301,6 +302,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public onWillPaste(): void {
+		this.logService.trace('NativeEditContext#onWillPaste');
 		this._onWillPaste();
 	}
 
@@ -543,20 +545,19 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		this.logService.trace('NativeEditContext#_ensureClipboardGetsEditorSelection');
 		const options = this._context.configuration.options;
 		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		const selections = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
 		const dataToCopy = getDataToCopy(this._context.viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
+		const id = generateUuid();
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
+			id,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
 			multicursorText: dataToCopy.multicursorText,
 			mode: dataToCopy.mode
 		};
-		this.logService.trace('NativeEditContext#_ensureClipboardGetsEditorSelection dataToCopy.text : ', dataToCopy.text);
-		this.logService.trace('NativeEditContext#_ensureClipboardGetsEditorSelection dataToCopy.html : ', dataToCopy.html);
 		InMemoryClipboardMetadataManager.INSTANCE.set(
 			// When writing "LINE\r\n" to the clipboard and then pasting,
 			// Firefox pastes "LINE\n", so let's work around this quirk
@@ -567,5 +568,6 @@ export class NativeEditContext extends AbstractEditContext {
 		if (e.clipboardData) {
 			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
 		}
+		this.logService.trace('NativeEditContext#_ensureClipboardGetsEditorSelectios with id : ', id, ' with text.length: ', dataToCopy.text.length);
 	}
 }

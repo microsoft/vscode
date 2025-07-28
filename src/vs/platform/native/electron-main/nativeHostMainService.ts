@@ -813,7 +813,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
 		this.logService.trace(`readClipboardText in window ${windowId} with type:`, type);
 		const clipboardText = clipboard.readText(type);
-		this.logService.trace(`clipboardText:`, clipboardText);
+		this.logService.trace(`clipboardText.length :`, clipboardText.length);
 		return clipboardText;
 	}
 

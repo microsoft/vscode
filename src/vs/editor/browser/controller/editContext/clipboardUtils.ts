@@ -72,6 +72,7 @@ export interface ClipboardDataToCopy {
 
 export interface ClipboardStoredMetadata {
 	version: 1;
+	id: string;
 	isFromEmptySelection: boolean | undefined;
 	multicursorText: string[] | null | undefined;
 	mode: string | null;

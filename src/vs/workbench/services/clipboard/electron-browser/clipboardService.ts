@@ -32,7 +32,7 @@ export class NativeClipboardService implements IClipboardService {
 	}
 
 	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
-		this.logService.trace('NativeClipboardService#writeText called with type:', type, ' and text:', text);
+		this.logService.trace('NativeClipboardService#writeText called with type:', type, ' with text.length:', text.length);
 		return this.nativeHostService.writeClipboardText(text, type);
 	}
 

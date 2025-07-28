@@ -46,7 +46,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	triggerPaste(): Promise<void> | undefined {
-		this.logService.trace('BrowserClipboardService#triggerPaste called');
+		this.logService.trace('BrowserClipboardService#triggerPaste');
 		return undefined;
 	}
 
@@ -120,14 +120,14 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
 	async writeText(text: string, type?: string): Promise<void> {
-		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' and text:', text);
+		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' text.length:', text.length);
 		// Clear resources given we are writing text
 		this.clearResourcesState();
 
 		// With type: only in-memory is supported
 		if (type) {
 			this.mapTextToType.set(type, text);
-			this.logService.trace('BrowserClipboardService#writeText storing in-memory text:', text);
+			this.logService.trace('BrowserClipboardService#writeText');
 			return;
 		}
 
@@ -153,7 +153,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	private fallbackWriteText(text: string): void {
-		this.logService.trace('BrowserClipboardService#fallbackWriteText called with text:', text);
+		this.logService.trace('BrowserClipboardService#fallbackWriteText');
 		const activeDocument = getActiveDocument();
 		const activeElement = activeDocument.activeElement;
 
@@ -180,7 +180,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// With type: only in-memory is supported
 		if (type) {
 			const readText = this.mapTextToType.get(type) || '';
-			this.logService.trace('BrowserClipboardService#readText returning in-memory text:', readText);
+			this.logService.trace('BrowserClipboardService#readText text.length:', readText.length);
 			return readText;
 		}
 
@@ -189,7 +189,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// due to security policies.
 		try {
 			const readText = await getActiveWindow().navigator.clipboard.readText();
-			this.logService.trace('BrowserClipboardService#readText returning clipboard text:', readText);
+			this.logService.trace('BrowserClipboardService#readText text.length:', readText.length);
 			return readText;
 		} catch (error) {
 			console.error(error);
