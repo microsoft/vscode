@@ -315,7 +315,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.inputFocusedContext.set(isInputFocused);
 
 		if (isInputFocused) {
-			const tracker = disposables.add(trackFocus(ownerDocument.activeElement as HTMLElement));
+			const store = new DisposableStore();
+			disposables.add(store);
+			const tracker = store.add(trackFocus(ownerDocument.activeElement as HTMLElement));
 			Event.once(tracker.onDidBlur)(() => {
 
 				// Ensure we are only updating the context key if we are
@@ -330,8 +332,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 					this.inputFocusedContext.set(activeElementIsInput());
 				}
 
-				tracker.dispose();
-			}, undefined, disposables);
+				store.dispose();
+			}, undefined, store);
 		}
 	}
 
