@@ -81,7 +81,7 @@ class ConfigureToolsAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			menu: [{
-				when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+				when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.lockedToCodingAgent.negate()),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1,

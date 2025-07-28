@@ -84,7 +84,8 @@ export class ListMcpServerCommand extends Action2 {
 			menu: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
-					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+					ChatContextKeys.lockedToCodingAgent.negate()
 				),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
