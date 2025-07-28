@@ -91,8 +91,12 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			}));
 
 			// Execute the command
+			// IMPORTANT: This uses `sendText` not `runCommand` since when basic shell integration
+			// is used as it's more common to not recognize the prompt input which would result in
+			// ^C being sent and also to return the exit code of 130 when from the shell when that
+			// occurs.
 			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.runCommand(commandLine, true);
+			this._instance.sendText(commandLine, true);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested
