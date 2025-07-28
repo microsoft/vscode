@@ -40,10 +40,14 @@ export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubP
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 
-		const content = new MarkdownString(`\`\`\`${terminalData.language}\n${command}\n\`\`\``);
+		let content = `\`\`\`${terminalData.language}\n${command}\n\`\`\``;
+		if (toolInvocation.pastTenseMessage) {
+			content += `\n\n$(info) ${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
+		}
+		const markdownContent = new MarkdownString(content, { supportThemeIcons: true });
 		const chatMarkdownContent: IChatMarkdownContent = {
 			kind: 'markdownContent',
-			content: content,
+			content: markdownContent,
 		};
 
 		const codeBlockRenderOptions: ICodeBlockRenderOptions = {

@@ -7,7 +7,7 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { count } from '../../../../../base/common/strings.js';
@@ -22,11 +22,13 @@ import { ITerminalLogService } from '../../../../../platform/terminal/common/ter
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
+import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from './executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from './executeStrategy/executeStrategy.js';
@@ -35,8 +37,6 @@ import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
-import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -262,6 +262,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		let toolResultMessage: string | IMarkdownString | undefined;
 
 		const chatSessionId = invocation.context?.sessionId;
 		if (!invocation.context || chatSessionId === undefined) {
@@ -397,6 +398,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance);
+						toolResultMessage = new MarkdownString('Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection');
 						break;
 					}
 					case ShellIntegrationQuality.Basic: {
@@ -461,6 +463,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			resultText.push(terminalResult);
 
 			return {
+				toolResultMessage,
 				content: [{
 					kind: 'text',
 					value: resultText.join(''),
