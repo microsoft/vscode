@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
@@ -88,7 +88,7 @@ export class ImageResizeService implements IImageResizeService {
 	convertStringToUInt8Array(data: string): Uint8Array {
 		const base64Data = data.includes(',') ? data.split(',')[1] : data;
 		if (this.isValidBase64(base64Data)) {
-			return Uint8Array.from(atob(base64Data), char => char.charCodeAt(0));
+			return decodeBase64(base64Data).buffer;
 		}
 		return new TextEncoder().encode(data);
 	}
@@ -105,15 +105,12 @@ export class ImageResizeService implements IImageResizeService {
 	}
 
 	isValidBase64(str: string): boolean {
-		// checks if the string is a valid base64 string that is NOT encoded
-		return /^[A-Za-z0-9+/]*={0,2}$/.test(str) && (() => {
-			try {
-				atob(str);
-				return true;
-			} catch {
-				return false;
-			}
-		})();
+		try {
+			decodeBase64(str);
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	async createFileForMedia(fileService: IFileService, imagesFolder: URI, dataTransfer: Uint8Array, mimeType: string): Promise<URI | undefined> {

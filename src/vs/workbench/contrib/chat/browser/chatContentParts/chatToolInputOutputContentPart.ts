@@ -35,7 +35,6 @@ import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
-import { resizeImage } from '../imageUtils.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
 import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
@@ -208,8 +207,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		const entries = parts.map(async (part): Promise<IChatRequestVariableEntry> => {
 			if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
-				const resized = part.value && await resizeImage(part.value).catch(() => part.value);
-				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value: resized, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
+				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
 			} else {
 				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
 			}

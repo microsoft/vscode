@@ -231,14 +231,7 @@ class McpToolImplementation implements IToolImpl {
 					let finalData: VSBuffer;
 
 					try {
-						let dataToResize = value;
-						if (!value.startsWith('data:')) {
-							const base64Data = value.includes(',') ? value.split(',')[1] : value;
-							dataToResize = `data:${mimeType};base64,${base64Data}`;
-
-						}
-
-						const serializedData = await this._imageResizeService.resizeImage(dataToResize, mimeType);
+						const serializedData = await this._imageResizeService.resizeImage(decodeBase64(value).buffer, mimeType);
 						finalData = decodeBase64(value);
 						if (serializedData instanceof Uint8Array) {
 							const resizedData = new Uint8Array(Object.values(serializedData));
@@ -268,7 +261,7 @@ class McpToolImplementation implements IToolImpl {
 				}
 			} else if (item.type === 'image' || item.type === 'audio') {
 				// default to some image type if not given to hint
-				addAsInlineData(item.mimeType || 'image/png', item.data);
+				await addAsInlineData(item.mimeType || 'image/png', item.data);
 			} else if (item.type === 'resource_link') {
 				const uri = McpResourceURI.fromServer(this._server.definition, item.uri);
 				details.output.push({
@@ -296,7 +289,7 @@ class McpToolImplementation implements IToolImpl {
 			} else if (item.type === 'resource') {
 				const uri = McpResourceURI.fromServer(this._server.definition, item.resource.uri);
 				if (item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {
-					addAsInlineData(item.resource.mimeType, item.resource.blob, uri);
+					await addAsInlineData(item.resource.mimeType, item.resource.blob, uri);
 				} else {
 					details.output.push({
 						type: 'embed',
