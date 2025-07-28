@@ -180,7 +180,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, 'py');
+		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, '.ps1');
 
 		// Load and register the LSP completion providers (one per language server)
 		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri, this._ctx.instance.shellType);
@@ -190,7 +190,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(textVirtualModel);
 
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
-		const provider = virtualProviders.find(p => p._debugDisplayName === PYLANCE_DEBUG_DISPLAY_NAME);
+		const provider = virtualProviders[0];
 
 		if (provider) {
 			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
