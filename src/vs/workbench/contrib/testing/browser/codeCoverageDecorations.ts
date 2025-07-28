@@ -38,7 +38,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IQuickInputService, QuickPickInput, IQuickInputButton } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, QuickPickInput, IQuickInputButton, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -814,19 +814,31 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const result = coverage.fromResult;
 		const previousSelection = testCoverageService.filterToTest.get();
 
-		type TItem = { label: string; testId: TestId | undefined; buttons?: readonly IQuickInputButton[] };
+		type TItem = IQuickPickItem & { testId: TestId | undefined };
 
 		const items: QuickPickInput<TItem>[] = [
 			{ label: coverUtils.labels.allTests, testId: undefined },
 			{ type: 'separator' },
-			...tests.map(id => ({ 
-				label: coverUtils.getLabelForItem(result, id, commonPrefix), 
-				testId: id,
-				buttons: [{
-					iconClass: ThemeIcon.asClassName(Codicon.goToFile),
-					tooltip: localize('testing.goToTest', 'Go to Test')
-				}]
-			})),
+			...tests.map(id => {
+				// Check ahead of time if the test has a URI/range to determine if we should show the button
+				const testItem = testService.collection.getNodeById(id.toString());
+				const hasLocation = testItem?.item.uri && (testItem?.item.range || true); // URI is required, range is optional
+				
+				const item: TItem = { 
+					label: coverUtils.getLabelForItem(result, id, commonPrefix), 
+					testId: id
+				};
+				
+				// Only add buttons if the test has a location we can navigate to
+				if (hasLocation) {
+					item.buttons = [{
+						iconClass: ThemeIcon.asClassName(Codicon.goToFile),
+						tooltip: localize('testing.goToTest', 'Go to Test')
+					}];
+				}
+				
+				return item;
+			}),
 		];
 
 		// These handle the behavior that reveals the start of coverage when the
@@ -924,6 +936,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 				activeEditor?.setScrollTop(scrollTop);
 				testCoverageService.filterToTest.set(previousSelection, undefined);
 			}
+			quickPick.dispose();
 		});
 
 		quickPick.show();
