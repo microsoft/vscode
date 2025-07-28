@@ -555,8 +555,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.tools.useTreePicker': {
 			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.tools.useTreePicker', "Use the new tree-based tools picker interface instead of the flat list. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions. MCP servers are displayed as expandable parent nodes with their tools as children."),
+			default: true,
+			description: nls.localize('chat.tools.useTreePicker', "Use the new Quick Tree-based tools picker instead of the Quick Pick-based one. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions."),
 			tags: ['experimental'],
 		}
 	}
