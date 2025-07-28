@@ -92,7 +92,10 @@ class SCMRepositoryActionViewItem extends ActionViewItem {
 			this.label.classList.add('scm-graph-repository-picker');
 
 			const icon = $('.icon');
-			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.repo));
+			const iconClassNameArray = ThemeIcon.isThemeIcon(this._repository.provider.iconPath)
+				? ThemeIcon.asClassNameArray(this._repository.provider.iconPath)
+				: ThemeIcon.asClassNameArray(Codicon.repo);
+			icon.classList.add(...iconClassNameArray);
 
 			const name = $('.name');
 			name.textContent = this._repository.provider.name;
@@ -1376,7 +1379,9 @@ class RepositoryPicker {
 		picks.push(...this._scmViewService.repositories.map(r => ({
 			label: r.provider.name,
 			description: r.provider.rootUri?.fsPath,
-			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			iconClass: ThemeIcon.isThemeIcon(r.provider.iconPath)
+				? ThemeIcon.asClassName(r.provider.iconPath)
+				: ThemeIcon.asClassName(Codicon.repo),
 			repository: r
 		})));
 
