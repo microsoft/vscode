@@ -14,12 +14,12 @@ import { IChatAgentRequest } from './chatAgents.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 
 export interface IChatSessionsExtensionPoint {
-	id: string;
-	name: string;
-	displayName: string;
-	description: string;
-	extensionDescription: IRelaxedExtensionDescription;
-	when?: string;
+	readonly type: string;
+	readonly name: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly extensionDescription: IRelaxedExtensionDescription;
+	readonly when?: string;
 }
 export interface IChatSessionItem {
 

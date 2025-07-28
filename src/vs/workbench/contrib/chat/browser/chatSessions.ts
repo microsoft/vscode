@@ -417,7 +417,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 	private async updateViewRegistration(): Promise<void> {
 		// prepare all chat session providers
 		const contributions = await this.chatSessionsService.getChatSessionContributions();
-		await Promise.all(contributions.map(contrib => this.chatSessionsService.canResolveItemProvider(contrib.id)));
+		await Promise.all(contributions.map(contrib => this.chatSessionsService.canResolveItemProvider(contrib.type)));
 		const currentProviders = this.getAllChatSessionProviders();
 		const currentProviderIds = new Set(currentProviders.map(p => p.chatSessionType));
 
