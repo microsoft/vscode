@@ -94,9 +94,9 @@ export function getRepositoryDefaultRemoteUrl(repository: Repository): string | 
 		return undefined;
 	}
 
-	// upstream -> origin -> first
-	const remote = remotes.find(remote => remote.name === 'upstream')
-		?? remotes.find(remote => remote.name === 'origin')
+	// origin -> upstream -> first
+	const remote = remotes.find(remote => remote.name === 'origin')
+		?? remotes.find(remote => remote.name === 'upstream')
 		?? remotes[0];
 
 	return remote.fetchUrl;

@@ -379,6 +379,11 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
 			this.refreshProviderTree(chatSessionType);
 		}));
+
+		// Listen for contribution availability changes and update view registration
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			this.updateViewRegistration();
+		}));
 	}
 
 	override getTitle(): string {
@@ -611,10 +616,16 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Handle different icon types
 		let iconResource: URI | undefined;
 		let iconTheme: ThemeIcon | undefined;
+		let iconUri: URI | undefined;
 
 		if (session.iconPath) {
 			if (session.iconPath instanceof URI) {
-				iconResource = session.iconPath;
+				// Check if it's a data URI - if so, use it as icon option instead of resource
+				if (session.iconPath.scheme === 'data') {
+					iconUri = session.iconPath;
+				} else {
+					iconResource = session.iconPath;
+				}
 			} else if (ThemeIcon.isThemeIcon(session.iconPath)) {
 				iconTheme = session.iconPath;
 			} else {
@@ -634,7 +645,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			resource: iconResource
 		}, {
 			fileKind: undefined,
-			icon: iconTheme
+			icon: iconTheme || iconUri
 		});
 	}
 
@@ -726,7 +737,6 @@ class SessionsViewPane extends ViewPane {
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
 
-		console.log('Tree created with hideTwistiesOfChildlessElements: true');
 		this._register(this.tree);
 
 		// Handle double-click and keyboard selection to open editors

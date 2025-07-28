@@ -342,7 +342,7 @@ suite('Workbench - MCP - Registry', () => {
 
 			assert.strictEqual(registry.collections.get().length, 1);
 			assert.strictEqual(registry.collections.get()[0], lazyCollection);
-			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.HasUnknown);
+			assert.strictEqual(registry.lazyCollectionState.get().state, LazyCollectionState.HasUnknown);
 		});
 
 		test('lazy collection is replaced by normal collection', () => {
@@ -353,7 +353,7 @@ suite('Workbench - MCP - Registry', () => {
 			assert.strictEqual(collections.length, 1);
 			assert.strictEqual(collections[0], normalCollection);
 			assert.strictEqual(collections[0].lazy, undefined);
-			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.AllKnown);
+			assert.strictEqual(registry.lazyCollectionState.get().state, LazyCollectionState.AllKnown);
 		});
 
 		test('lazyCollectionState updates correctly during loading', async () => {
@@ -370,16 +370,16 @@ suite('Workbench - MCP - Registry', () => {
 			};
 
 			store.add(registry.registerCollection(lazyCollection));
-			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.HasUnknown);
+			assert.strictEqual(registry.lazyCollectionState.get().state, LazyCollectionState.HasUnknown);
 
 			const loadingPromise = registry.discoverCollections();
-			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.LoadingUnknown);
+			assert.strictEqual(registry.lazyCollectionState.get().state, LazyCollectionState.LoadingUnknown);
 
 			await loadingPromise;
 
 			// The collection wasn't replaced, so it should be removed
 			assert.strictEqual(registry.collections.get().length, 1);
-			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.AllKnown);
+			assert.strictEqual(registry.lazyCollectionState.get().state, LazyCollectionState.AllKnown);
 			assert.strictEqual(removedCalled, false);
 		});
 
@@ -394,7 +394,7 @@ suite('Workbench - MCP - Registry', () => {
 			lazyCollection.lazy!.isCached = true;
 			store.add(registry.registerCollection(lazyCollection));
 
-			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.AllKnown);
+			assert.strictEqual(registry.lazyCollectionState.get().state, LazyCollectionState.AllKnown);
 
 			// Adding an uncached lazy collection changes the state
 			const uncachedLazy = {
@@ -407,7 +407,7 @@ suite('Workbench - MCP - Registry', () => {
 			};
 			store.add(registry.registerCollection(uncachedLazy));
 
-			assert.strictEqual(registry.lazyCollectionState.get(), LazyCollectionState.HasUnknown);
+			assert.strictEqual(registry.lazyCollectionState.get().state, LazyCollectionState.HasUnknown);
 		});
 	});
 

@@ -68,7 +68,7 @@ export interface IMcpRegistry {
 	readonly collections: IObservable<readonly McpCollectionDefinition[]>;
 	readonly delegates: IObservable<readonly IMcpHostDelegate[]>;
 	/** Whether there are new collections that can be resolved with a discover() call */
-	readonly lazyCollectionState: IObservable<LazyCollectionState>;
+	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
 	/** Helper function to observe a definition by its reference. */
 	getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }>;

@@ -187,7 +187,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 		},
 		waitForInitialProviderPromises: () => Promise.resolve(),
 	}]);
-	lazyCollectionState = observableValue<LazyCollectionState>(this, LazyCollectionState.AllKnown);
+	lazyCollectionState = observableValue(this, { state: LazyCollectionState.AllKnown, collections: [] });
 	collectionToolPrefix(collection: McpCollectionReference): IObservable<string> {
 		return observableValue<string>(this, `mcp-${collection.id}-`);
 	}
