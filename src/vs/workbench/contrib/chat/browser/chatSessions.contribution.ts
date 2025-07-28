@@ -82,6 +82,7 @@ export class ChatSessionsContribution extends Disposable implements IWorkbenchCo
 				}
 				for (const contribution of ext.value) {
 					const c: IChatSessionsExtensionPoint = {
+						id: contribution.id,
 						type: contribution.type,
 						name: contribution.name,
 						displayName: contribution.displayName,
