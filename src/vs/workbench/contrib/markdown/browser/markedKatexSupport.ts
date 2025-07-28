@@ -207,6 +207,9 @@ export namespace MarkedKatexExtension {
 		return {
 			name: 'blockKatex',
 			level: 'block',
+			start(src: string) {
+				return src.match(new RegExp(blockRule.source, 'm'))?.index;
+			},
 			tokenizer(src: string, tokens: marked.Token[]) {
 				const match = src.match(blockRule);
 				if (match) {
