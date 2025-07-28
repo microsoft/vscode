@@ -1332,14 +1332,6 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
-          "command": "git.deleteWorktree",
-          "when": "false"
-        },
-        {
-          "command": "git.openWorktree",
-          "when": "false"
-        },
-        {
           "command": "git.openWorktreeInNewWindow",
           "when": "false"
         },
