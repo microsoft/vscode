@@ -12,7 +12,7 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { ITaskService } from '../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { getOutput } from '../bufferOutputPolling.js';
-import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
+import { getTaskDefinition, getTaskForTool, getTaskRepresentation } from './taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
@@ -61,14 +61,15 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		if (!task) {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
+		const taskLabel = getTaskRepresentation(task);
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (activeTasks.includes(task)) {
-			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskDefinition.taskLabel)) };
+			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyRunning', 'The task `{0}` is already running.', taskLabel)) };
 		}
 
 		return {
-			invocationMessage: new MarkdownString(localize('copilotChat.checkingTerminalOutput', 'Checking output for task `{0}`', taskDefinition.taskLabel)),
-			pastTenseMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskDefinition.taskLabel)),
+			invocationMessage: new MarkdownString(localize('copilotChat.checkingTerminalOutput', 'Checking output for task `{0}`', taskLabel)),
+			pastTenseMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskLabel)),
 		};
 	}
 
@@ -79,16 +80,16 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		if (!task) {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
-
 		const resource = this._tasksService.getTerminalForTask(task);
+		const taskLabel = getTaskRepresentation(task);
 		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
 		if (!terminal) {
-			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskDefinition?.taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskDefinition?.taskLabel)) };
+			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskLabel)) };
 		}
 		return {
 			content: [{
 				kind: 'text',
-				value: `Output of task ${taskDefinition.taskLabel}: ${getOutput(terminal)}`
+				value: `Output of task ${taskLabel}: ${getOutput(terminal)}`
 			}]
 		};
 	}

@@ -14,7 +14,7 @@ import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskS
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
 import { getOutput } from '../outputHelpers.js';
-import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
+import { getTaskDefinition, getTaskForTool, getTaskRepresentation } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -55,7 +55,6 @@ export class RunTaskTool implements IToolImpl {
 		}
 
 		const taskDefinition = getTaskDefinition(args.id);
-
 		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
 
 		if (!task) {
@@ -119,7 +118,7 @@ export class RunTaskTool implements IToolImpl {
 		if (!task) {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
-
+		const taskLabel = getTaskRepresentation(task);
 		const activeTasks = await this._tasksService.getActiveTasks();
 		if (task && activeTasks.includes(task)) {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskAlreadyActive', 'The task is already running.')) };
@@ -127,19 +126,19 @@ export class RunTaskTool implements IToolImpl {
 
 		if (await this._isTaskActive(task)) {
 			return {
-				invocationMessage: new MarkdownString(localize('copilotChat.taskIsAlreadyRunning', '`{0}` is already running.', taskDefinition.taskLabel ?? args.id)),
-				pastTenseMessage: new MarkdownString(localize('copilotChat.taskWasAlreadyRunning', '`{0}` was already running.', taskDefinition.taskLabel ?? args.id)),
+				invocationMessage: new MarkdownString(localize('copilotChat.taskIsAlreadyRunning', '`{0}` is already running.', taskLabel)),
+				pastTenseMessage: new MarkdownString(localize('copilotChat.taskWasAlreadyRunning', '`{0}` was already running.', taskLabel)),
 				confirmationMessages: undefined
 			};
 		}
 
 		return {
-			invocationMessage: new MarkdownString(localize('copilotChat.runningTask', 'Running `{0}`', taskDefinition.taskLabel)),
+			invocationMessage: new MarkdownString(localize('copilotChat.runningTask', 'Running `{0}`', taskLabel)),
 			pastTenseMessage: new MarkdownString(task?.configurationProperties.isBackground
-				? localize('copilotChat.startedTask', 'Started `{0}`', taskDefinition.taskLabel)
-				: localize('copilotChat.ranTask', 'Ran `{0}`', taskDefinition.taskLabel)),
+				? localize('copilotChat.startedTask', 'Started `{0}`', taskLabel)
+				: localize('copilotChat.ranTask', 'Ran `{0}`', taskLabel)),
 			confirmationMessages: task
-				? { title: localize('copilotChat.allowTaskRunTitle', 'Allow task run?'), message: localize('copilotChat.allowTaskRunMsg', 'Allow Copilot to run the task `{0}`?', taskDefinition.taskLabel) }
+				? { title: localize('copilotChat.allowTaskRunTitle', 'Allow task run?'), message: localize('copilotChat.allowTaskRunMsg', 'Allow Copilot to run the task `{0}`?', taskLabel) }
 				: undefined
 		};
 	}
