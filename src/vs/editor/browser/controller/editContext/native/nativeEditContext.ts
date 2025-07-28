@@ -134,7 +134,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
-			console.log('NativeEditContext#paste');
+			this.logService.trace('NativeEditContext#paste');
 			e.preventDefault();
 			if (!e.clipboardData) {
 				return;
