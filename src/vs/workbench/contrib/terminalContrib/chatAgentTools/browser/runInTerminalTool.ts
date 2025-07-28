@@ -264,11 +264,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 		let toolResultMessage: string | IMarkdownString | undefined;
 
-		const chatSessionId = invocation.context?.sessionId;
-		if (!invocation.context || chatSessionId === undefined) {
-			throw new Error('A chat session ID is required for this tool');
-		}
-
+		const chatSessionId = invocation.context?.sessionId ?? 'no-chat-session';
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
