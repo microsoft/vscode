@@ -283,9 +283,9 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ChatEditingShowChangesAction.ID,
-			title: ChatEditingShowChangesAction.LABEL,
+			title: { value: ChatEditingShowChangesAction.LABEL, original: ChatEditingShowChangesAction.LABEL },
 			tooltip: ChatEditingShowChangesAction.LABEL,
-			f1: false,
+			f1: true,
 			icon: Codicon.diffMultiple,
 			precondition: hasUndecidedChatEditingResourceContextKey,
 			menu: [
@@ -724,7 +724,7 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ViewPreviousEditsAction.Id,
-			title: localize2('chatEditing.viewPreviousEdits', 'View Previous Edits'),
+			title: { value: ViewPreviousEditsAction.Label, original: ViewPreviousEditsAction.Label },
 			tooltip: ViewPreviousEditsAction.Label,
 			f1: true,
 			icon: Codicon.diffMultiple,
