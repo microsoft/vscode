@@ -38,7 +38,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, QuickPickInput, IQuickInputButton } from '../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -814,7 +814,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const result = coverage.fromResult;
 		const previousSelection = testCoverageService.filterToTest.get();
 
-		type TItem = { label: string; testId: TestId | undefined; buttons?: { iconClass: string; tooltip: string; }[] };
+		type TItem = { label: string; testId: TestId | undefined; buttons?: readonly IQuickInputButton[] };
 
 		const items: QuickPickInput<TItem>[] = [
 			{ label: coverUtils.labels.allTests, testId: undefined },
