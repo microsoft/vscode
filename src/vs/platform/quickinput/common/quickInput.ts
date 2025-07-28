@@ -1017,6 +1017,16 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	activeItems: ReadonlyArray<T>;
 
 	/**
+	 * The validation message for the quick pick. This is rendered below the input.
+	 */
+	validationMessage: string | undefined;
+
+	/**
+	 * The severity of the validation message.
+	 */
+	severity: Severity;
+
+	/**
 	 * The items currently displayed in the quick tree.
 	 * @note modifications to this array directly will not cause updates.
 	 */

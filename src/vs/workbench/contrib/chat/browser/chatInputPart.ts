@@ -423,6 +423,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this.promptFileAttached = ChatContextKeys.hasPromptFile.bindTo(contextKeyService);
 		this.chatModeKindKey = ChatContextKeys.chatModeKind.bindTo(contextKeyService);
+		const chatToolCount = ChatContextKeys.chatToolCount.bindTo(contextKeyService);
+
+		this._register(autorun(reader => {
+			let count = 0;
+			for (const enabled of this.selectedToolsModel.enablementMap.read(reader).values()) {
+				if (enabled) { count++; }
+			}
+
+			chatToolCount.set(count);
+		}));
 
 		this.history = this.loadHistory();
 		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatHistoryEntry>([{ text: '', state: this.getInputState() }], ChatInputHistoryMaxEntries, historyKeyFn)));
