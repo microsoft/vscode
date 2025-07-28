@@ -1616,6 +1616,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codingAgentPrefix = `@${name} `;
 		this._lockedToCodingAgentContextKey.set(true);
 		this.renderWelcomeViewContentIfNeeded();
+		this.input.setChatMode(ChatModeKind.Ask);
 
 		// Update the placeholder to show that we're locked to this agent
 		const localized = localize('chat.input.placeholder.lockedToAgent', "Chat with @{0}", name);
