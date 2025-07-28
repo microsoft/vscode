@@ -313,7 +313,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.mcp.autostart.never', "Never automatically start MCP servers."),
 				nls.localize('chat.mcp.autostart.onlyNew', "Only automatically start new MCP servers that have never been run."),
 				nls.localize('chat.mcp.autostart.newAndOutdated', "Automatically start new and outdated MCP servers that are not yet running.")
-			]
+			],
+			tags: ['experimental'],
 		},
 		[mcpServerSamplingSection]: {
 			type: 'object',
