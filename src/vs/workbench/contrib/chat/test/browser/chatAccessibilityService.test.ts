@@ -108,7 +108,7 @@ suite('ChatAccessibilityService', function () {
 
 	test('acceptElicitation should play signal when sound is "on"', async () => {
 		// Set the configuration to enable sound
-		configurationService.setUserConfiguration('accessibility.signals.chatUserActionRequired.sound', 'on');
+		configurationService.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'on', announcement: 'auto' });
 
 		const elicitation = new MockElicitationRequest('Test Title', 'Test Message');
 
@@ -122,7 +122,7 @@ suite('ChatAccessibilityService', function () {
 
 	test('acceptElicitation should NOT play signal when sound is "off"', async () => {
 		// Set the configuration to disable sound
-		configurationService.setUserConfiguration('accessibility.signals.chatUserActionRequired.sound', 'off');
+		configurationService.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'off', announcement: 'auto' });
 
 		const elicitation = new MockElicitationRequest('Test Title', 'Test Message');
 
@@ -135,7 +135,7 @@ suite('ChatAccessibilityService', function () {
 
 	test('acceptElicitation should play signal when sound is "auto" and screen reader is optimized', async () => {
 		// Set the configuration to auto and enable screen reader
-		configurationService.setUserConfiguration('accessibility.signals.chatUserActionRequired.sound', 'auto');
+		configurationService.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'auto', announcement: 'auto' });
 		mockAccessibilityService.setScreenReaderOptimized(true);
 
 		const elicitation = new MockElicitationRequest('Test Title', 'Test Message');
@@ -150,7 +150,7 @@ suite('ChatAccessibilityService', function () {
 
 	test('acceptElicitation should NOT play signal when sound is "auto" and screen reader is NOT optimized', async () => {
 		// Set the configuration to auto and disable screen reader
-		configurationService.setUserConfiguration('accessibility.signals.chatUserActionRequired.sound', 'auto');
+		configurationService.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'auto', announcement: 'auto' });
 		mockAccessibilityService.setScreenReaderOptimized(false);
 
 		const elicitation = new MockElicitationRequest('Test Title', 'Test Message');

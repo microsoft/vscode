@@ -59,27 +59,17 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const message = typeof elicitation.message === 'string' ? elicitation.message : elicitation.message.value;
 		alert(title + ' ' + message);
 		
-		// Check if sound is enabled for chatUserActionRequired signal
-		const soundSetting = this._configurationService.getValue<string>('accessibility.signals.chatUserActionRequired.sound');
-		const shouldPlaySound = this._shouldPlaySound(soundSetting);
+		// Check if sound is enabled for chatUserActionRequired signal (following same pattern as languageModelToolsService)
+		const setting: { sound?: 'auto' | 'on' | 'off'; announcement?: 'auto' | 'off' } | undefined = 
+			this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
 		
-		if (shouldPlaySound) {
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
+		if (setting) {
+			const soundEnabled = setting.sound === 'on' || (setting.sound === 'auto' && this._accessibilityService.isScreenReaderOptimized());
+			if (soundEnabled) {
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true });
+			}
 		}
 	}
 
-	private _shouldPlaySound(soundSetting: string): boolean {
-		// Implementation of checkEnabledState logic for sound settings
-		switch (soundSetting) {
-			case 'on':
-			case 'always':
-				return true;
-			case 'auto':
-				return this._accessibilityService.isScreenReaderOptimized();
-			case 'off':
-			case 'never':
-			default:
-				return false;
-		}
-	}
+
 }
