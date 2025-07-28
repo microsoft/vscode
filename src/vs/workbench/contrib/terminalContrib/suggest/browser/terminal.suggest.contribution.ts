@@ -38,7 +38,7 @@ import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } fro
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { env } from '../../../../../base/common/process.js';
-import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
+import { isLspSupportedShellType, mapShellTypeToExtension, PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
@@ -175,12 +175,12 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		if (this._ctx.instance.shellType !== GeneralShellType.Python) {
+		if (!isLspSupportedShellType(this._ctx.instance.shellType)) {
 			this._lspAddon.clear();
 			return;
 		}
 
-		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, '.ps1');
+		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, mapShellTypeToExtension(this._ctx.instance.shellType));
 
 		// Load and register the LSP completion providers (one per language server)
 		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri, this._ctx.instance.shellType);
