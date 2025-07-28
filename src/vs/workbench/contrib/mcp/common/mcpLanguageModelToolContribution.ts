@@ -229,21 +229,12 @@ class McpToolImplementation implements IToolImpl {
 				details.output.push({ type: 'embed', mimeType, value, uri });
 				if (isForModel) {
 					let finalData: VSBuffer;
-
 					try {
-						const serializedData = await this._imageResizeService.resizeImage(decodeBase64(value).buffer, mimeType);
-						finalData = decodeBase64(value);
-						if (serializedData instanceof Uint8Array) {
-							const resizedData = new Uint8Array(Object.values(serializedData));
-							const resized = VSBuffer.wrap(resizedData);
-							if (resized.byteLength > 0) {
-								finalData = resized;
-							}
-						}
+						const resized = await this._imageResizeService.resizeImage(decodeBase64(value).buffer, mimeType);
+						finalData = VSBuffer.wrap(resized);
 					} catch {
 						finalData = decodeBase64(value);
 					}
-
 					result.content.push({ kind: 'data', value: { mimeType, data: finalData } });
 				}
 			};

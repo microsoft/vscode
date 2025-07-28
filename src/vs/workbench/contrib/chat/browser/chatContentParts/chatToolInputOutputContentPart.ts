@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -51,7 +52,7 @@ export interface IChatCollapsibleIOCodePart {
 
 export interface IChatCollapsibleIODataPart {
 	kind: 'data';
-	value?: Uint8Array;
+	value: Uint8Array;
 	mimeType: string | undefined;
 	uri: URI;
 }
@@ -199,13 +200,13 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		return contents.root;
 	}
 
-	private async addResourceGroup(parts: IChatCollapsibleIODataPart[], container: HTMLElement) {
+	private addResourceGroup(parts: IChatCollapsibleIODataPart[], container: HTMLElement) {
 		const el = dom.h('.chat-collapsible-io-resource-group', [
 			dom.h('.chat-collapsible-io-resource-items@items'),
 			dom.h('.chat-collapsible-io-resource-actions@actions'),
 		]);
 
-		const entries = parts.map(async (part): Promise<IChatRequestVariableEntry> => {
+		const entries = parts.map((part): IChatRequestVariableEntry => {
 			if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
 				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
 			} else {
@@ -213,17 +214,15 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			}
 		});
 
-		const resolvedEntries = await Promise.all(entries);
-
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
-			resolvedEntries,
+			entries,
 			undefined,
 			undefined,
 		));
 
 		attachments.contextMenuHandler = (attachment, event) => {
-			const index = resolvedEntries.indexOf(attachment);
+			const index = entries.indexOf(attachment);
 			const part = parts[index];
 			if (part) {
 				event.preventDefault();
@@ -314,7 +313,7 @@ class SaveResourcesAction extends Action2 {
 			const target = isFolder ? joinPath(uri, basename(part.uri)) : uri;
 			try {
 				if (part.kind === 'data') {
-					await fileService.copy(part.uri, target, true);
+					await fileService.writeFile(target, VSBuffer.wrap(part.value));
 				} else {
 					// MCP doesn't support streaming data, so no sense trying
 					const contents = await fileService.readFile(part.uri);
