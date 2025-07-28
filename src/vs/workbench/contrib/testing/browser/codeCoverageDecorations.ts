@@ -41,6 +41,7 @@ import { bindContextKey, observableConfigValue } from '../../../../platform/obse
 import { IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
 import { TestCommandId } from '../common/constants.js';
 import { FileCoverage } from '../common/testCoverage.js';
@@ -791,6 +792,8 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 	run(accessor: ServicesAccessor, coverageOrUri?: FileCoverage | URI, editor?: ICodeEditor): void {
 		const testCoverageService = accessor.get(ITestCoverageService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const editorService = accessor.get(IEditorService);
+		const testService = accessor.get(ITestService);
 		const activeEditor = isCodeEditor(editor) ? editor : accessor.get(ICodeEditorService).getActiveCodeEditor();
 		let coverage: FileCoverage | undefined;
 		if (coverageOrUri instanceof FileCoverage) {
@@ -811,12 +814,19 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const result = coverage.fromResult;
 		const previousSelection = testCoverageService.filterToTest.get();
 
-		type TItem = { label: string; testId: TestId | undefined };
+		type TItem = { label: string; testId: TestId | undefined; buttons?: { iconClass: string; tooltip: string; }[] };
 
 		const items: QuickPickInput<TItem>[] = [
 			{ label: coverUtils.labels.allTests, testId: undefined },
 			{ type: 'separator' },
-			...tests.map(id => ({ label: coverUtils.getLabelForItem(result, id, commonPrefix), testId: id })),
+			...tests.map(id => ({ 
+				label: coverUtils.getLabelForItem(result, id, commonPrefix), 
+				testId: id,
+				buttons: [{
+					iconClass: ThemeIcon.asClassName(Codicon.goToFile),
+					tooltip: localize('testing.goToTest', 'Go to Test')
+				}]
+			})),
 		];
 
 		// These handle the behavior that reveals the start of coverage when the
@@ -825,36 +835,98 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const scrollTop = activeEditor?.getScrollTop() || 0;
 		const revealScrollCts = new MutableDisposable<CancellationTokenSource>();
 
-		quickInputService.pick(items, {
-			activeItem: items.find((item): item is TItem => 'item' in item && item.item === coverage),
-			placeHolder: coverUtils.labels.pickShowCoverage,
-			onDidFocus: (entry) => {
-				if (!entry.testId) {
-					revealScrollCts.clear();
-					activeEditor?.setScrollTop(scrollTop);
-					testCoverageService.filterToTest.set(undefined, undefined);
-				} else {
-					const cts = revealScrollCts.value = new CancellationTokenSource();
-					coverage.detailsForTest(entry.testId, cts.token).then(
-						details => {
-							const first = details.find(d => d.type === DetailType.Statement);
-							if (!cts.token.isCancellationRequested && first) {
-								activeEditor?.revealLineNearTop(first.location instanceof Position ? first.location.lineNumber : first.location.startLineNumber);
+		// Create a quickpick to handle button events
+		const quickPick = quickInputService.createQuickPick<TItem>();
+		quickPick.items = items;
+		quickPick.placeholder = coverUtils.labels.pickShowCoverage;
+
+		// Handle button clicks for navigation to test
+		quickPick.onDidTriggerItemButton(async ({ item, button }) => {
+			if (item.testId) {
+				try {
+					// Get the test item from the collection to get its location
+					const testItem = testService.collection.getNodeById(item.testId.toString());
+					if (testItem?.item.uri && testItem?.item.range) {
+						// Navigate to the test location
+						await editorService.openEditor({
+							resource: testItem.item.uri,
+							options: {
+								selection: testItem.item.range,
+								revealInCenterIfOutsideViewport: true
 							}
-						},
-						() => { /* ignored */ }
-					);
-					testCoverageService.filterToTest.set(entry.testId, undefined);
+						});
+						quickPick.hide();
+						return;
+					}
+				} catch (error) {
+					// Continue to fallback approach
 				}
-			},
-		}).then(selected => {
-			if (!selected) {
-				activeEditor?.setScrollTop(scrollTop);
+				
+				// Fallback: try to get related code locations for the test
+				try {
+					const testItem = testService.collection.getNodeById(item.testId.toString());
+					if (testItem) {
+						const locations = await testService.collection.getCodeRelatedToTest(testItem);
+						if (locations.length > 0) {
+							const location = locations[0];
+							await editorService.openEditor({
+								resource: location.uri,
+								options: {
+									selection: location.range,
+									revealInCenterIfOutsideViewport: true
+								}
+							});
+							quickPick.hide();
+						}
+					}
+				} catch (fallbackError) {
+					// If all else fails, silently ignore
+				}
+			}
+		});
+
+		quickPick.onDidChangeActive((items) => {
+			const entry = items[0];
+			if (!entry) {
+				return;
 			}
 
+			if (!entry.testId) {
+				revealScrollCts.clear();
+				activeEditor?.setScrollTop(scrollTop);
+				testCoverageService.filterToTest.set(undefined, undefined);
+			} else {
+				const cts = revealScrollCts.value = new CancellationTokenSource();
+				coverage.detailsForTest(entry.testId, cts.token).then(
+					details => {
+						const first = details.find(d => d.type === DetailType.Statement);
+						if (!cts.token.isCancellationRequested && first) {
+							activeEditor?.revealLineNearTop(first.location instanceof Position ? first.location.lineNumber : first.location.startLineNumber);
+						}
+					},
+					() => { /* ignored */ }
+				);
+				testCoverageService.filterToTest.set(entry.testId, undefined);
+			}
+		});
+
+		quickPick.onDidAccept(() => {
+			const selected = quickPick.selectedItems[0];
 			revealScrollCts.dispose();
 			testCoverageService.filterToTest.set(selected ? selected.testId : previousSelection, undefined);
+			quickPick.hide();
 		});
+
+		quickPick.onDidHide(() => {
+			revealScrollCts.dispose();
+			const selected = quickPick.selectedItems[0];
+			if (!selected) {
+				activeEditor?.setScrollTop(scrollTop);
+				testCoverageService.filterToTest.set(previousSelection, undefined);
+			}
+		});
+
+		quickPick.show();
 	}
 });
 
