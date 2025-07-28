@@ -23,7 +23,7 @@ export class EditTelemetryService extends Disposable {
 	) {
 		super();
 
-		this._editSourceTrackingEnabled = observableConfigValue(EDIT_TELEMETRY_SETTING_ID, true, this._configurationService);
+		this._editSourceTrackingEnabled = observableConfigValue(EDIT_TELEMETRY_SETTING_ID, false, this._configurationService);
 
 		this._register(autorun(r => {
 			const enabled = this._editSourceTrackingEnabled.read(r);
