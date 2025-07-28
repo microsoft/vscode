@@ -31,7 +31,7 @@ import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 import { IME } from '../../../../../base/common/ime.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 
 // Corresponds to classes in nativeEditContext.css
@@ -550,7 +550,10 @@ export class NativeEditContext extends AbstractEditContext {
 		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		const selections = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
 		const dataToCopy = getDataToCopy(this._context.viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
-		const id = generateUuid();
+		let id = undefined;
+		if (this.logService.getLevel() === LogLevel.Trace) {
+			id = generateUuid();
+		}
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
 			id,

@@ -17,7 +17,7 @@ import * as strings from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -611,7 +611,10 @@ export class TextAreaInput extends Disposable {
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
 		const dataToCopy = this._host.getDataToCopy();
-		const id = generateUuid();
+		let id = undefined;
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			id = generateUuid();
+		}
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
 			id,

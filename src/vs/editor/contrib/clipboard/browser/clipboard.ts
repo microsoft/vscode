@@ -173,7 +173,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const logService = accessor.get(ILogService);
-		logService.trace('ExecCommandCopyWithSyntaxHighlightingAction.run');
+		logService.trace('ExecCommandCopyWithSyntaxHighlightingAction#run');
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -186,9 +186,9 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 
 		CopyOptions.forceCopyWithSyntaxHighlighting = true;
 		editor.focus();
-		logService.trace('Before execCommand copy with syntax highlighting');
+		logService.trace('ExecCommandCopyWithSyntaxHighlightingAction (before execCommand copy)');
 		editor.getContainerDomNode().ownerDocument.execCommand('copy');
-		logService.trace('After execCommand copy with syntax highlighting');
+		logService.trace('ExecCommandCopyWithSyntaxHighlightingAction (after execCommand copy)');
 		CopyOptions.forceCopyWithSyntaxHighlighting = false;
 	}
 }
@@ -201,7 +201,7 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 	// 1. handle case when focus is in editor.
 	target.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 		const logService = accessor.get(ILogService);
-		logService.trace('addImplementation code-editor for : ', browserCommand);
+		logService.trace('registerExecCommandImpl (addImplementation code-editor for : ', browserCommand, ')');
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
@@ -214,14 +214,14 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
 			if (focusedEditor.getOption(EditorOption.effectiveEditContext) && browserCommand === 'cut') {
 				// execCommand(copy) works for edit context, but not execCommand(cut).
-				logService.trace('Before execCommand copy');
+				logService.trace('registerExecCommandImpl (before execCommand copy)');
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
 				focusedEditor.trigger(undefined, Handler.Cut, undefined);
-				logService.trace('After execCommand copy');
+				logService.trace('registerExecCommandImpl (after execCommand copy)');
 			} else {
-				logService.trace('Before execCommand ' + browserCommand);
+				logService.trace('registerExecCommandImpl (before execCommand ' + browserCommand + ')');
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
-				logService.trace('After execCommand ' + browserCommand);
+				logService.trace('registerExecCommandImpl (after execCommand ' + browserCommand + ')');
 			}
 			return true;
 		}
@@ -231,10 +231,10 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 	// 2. (default) handle case when focus is somewhere else.
 	target.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
 		const logService = accessor.get(ILogService);
-		logService.trace('addImplementation generic-dom for : ', browserCommand);
-		logService.trace('Before execCommand ' + browserCommand);
+		logService.trace('registerExecCommandImpl (addImplementation generic-dom for : ', browserCommand, ')');
+		logService.trace('registerExecCommandImpl (before execCommand ' + browserCommand + ')');
 		getActiveDocument().execCommand(browserCommand);
-		logService.trace('After execCommand ' + browserCommand);
+		logService.trace('registerExecCommandImpl (after execCommand ' + browserCommand + ')');
 		return true;
 	});
 }
@@ -246,7 +246,7 @@ if (PasteAction) {
 	// 1. Paste: handle case when focus is in editor.
 	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 		const logService = accessor.get(ILogService);
-		logService.trace('addImplementation code-editor for paste');
+		logService.trace('registerExecCommandImpl (addImplementation code-editor for : paste)');
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -265,12 +265,12 @@ if (PasteAction) {
 			}
 
 			const sw = StopWatch.create(true);
-			logService.trace('Before triggerPaste');
+			logService.trace('registerExecCommandImpl (before triggerPaste)');
 			const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
 			if (triggerPaste) {
-				logService.trace('triggerPaste defined');
+				logService.trace('registerExecCommandImpl (triggerPaste defined)');
 				return triggerPaste.then(async () => {
-					logService.trace('After triggerPaste');
+					logService.trace('registerExecCommandImpl (after triggerPaste)');
 					if (productService.quality !== 'stable') {
 						const duration = sw.elapsed();
 						type EditorAsyncPasteClassification = {
@@ -290,10 +290,10 @@ if (PasteAction) {
 					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 				});
 			} else {
-				logService.trace('triggerPaste undefined');
+				logService.trace('registerExecCommandImpl (triggerPaste undefined)');
 			}
 			if (platform.isWeb) {
-				logService.trace('Paste handling on web');
+				logService.trace('registerExecCommandImpl (Paste handling on web)');
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();
@@ -307,7 +307,7 @@ if (PasteAction) {
 							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 							mode = metadata.mode;
 						}
-						logService.trace('clipboardText.length : ', clipboardText.length, ' id : ', metadata?.id);
+						logService.trace('registerExecCommandImpl (clipboardText.length : ', clipboardText.length, ' id : ', metadata?.id, ')');
 						focusedEditor.trigger('keyboard', Handler.Paste, {
 							text: clipboardText,
 							pasteOnNewLine,
@@ -325,7 +325,7 @@ if (PasteAction) {
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
 		const logService = accessor.get(ILogService);
-		logService.trace('addImplementation generic-dom for paste');
+		logService.trace('registerExecCommandImpl (addImplementation generic-dom for : paste)');
 		const triggerPaste = accessor.get(IClipboardService).triggerPaste(getActiveWindow().vscodeWindowId);
 		return triggerPaste ?? false;
 	});
