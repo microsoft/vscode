@@ -181,6 +181,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				return;
 			}
 			const diff = this.fileChangesDiffsObservable.get().get(this.changeID(element));
+			console.log('onDidOpen diff', diff);
 			if (diff) {
 				const input = {
 					original: { resource: diff.originalURI },
