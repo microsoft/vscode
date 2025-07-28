@@ -22,6 +22,14 @@ export class ManagedHoverWidget implements IDisposable {
 
 	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget | HTMLElement, private fadeInAnimation: boolean) { }
 
+	onDidHide() {
+		if (this._cancellationTokenSource) {
+			// there's an computation ongoing, cancel it
+			this._cancellationTokenSource.dispose(true);
+			this._cancellationTokenSource = undefined;
+		}
+	}
+
 	async update(content: IManagedHoverContent, focus?: boolean, options?: IManagedHoverOptions): Promise<void> {
 		if (this._cancellationTokenSource) {
 			// there's an computation ongoing, cancel it

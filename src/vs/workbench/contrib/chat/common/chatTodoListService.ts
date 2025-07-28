@@ -8,63 +8,63 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
 
-export interface IChatTask {
+export interface IChatTodo {
 	id: number;
 	title: string;
 	description?: string;
 	status: 'not-started' | 'in-progress' | 'completed';
 }
 
-export interface IChatTaskStorage {
-	getTasks(sessionId: string): IChatTask[];
-	setTasks(sessionId: string, tasks: IChatTask[]): void;
+export interface IChatTodoListStorage {
+	getTodoList(sessionId: string): IChatTodo[];
+	setTodoList(sessionId: string, todoList: IChatTodo[]): void;
 }
 
-export const IChatTasksService = createDecorator<IChatTasksService>('chatTasksService');
+export const IChatTodoListService = createDecorator<IChatTodoListService>('chatTodoListService');
 
-export interface IChatTasksService {
+export interface IChatTodoListService {
 	readonly _serviceBrand: undefined;
-	getChatTasksStorage(): IChatTaskStorage;
+	getChatTodoListStorage(): IChatTodoListStorage;
 }
 
-export class ChatTaskstorage implements IChatTaskStorage {
+export class ChatTodoListStorage implements IChatTodoListStorage {
 	private memento: Memento;
 
 	constructor(@IStorageService storageService: IStorageService) {
-		this.memento = new Memento('chat-tasks', storageService);
+		this.memento = new Memento('chat-todo-list', storageService);
 	}
 
-	private getSessionData(sessionId: string): IChatTask[] {
+	private getSessionData(sessionId: string): IChatTodo[] {
 		const storage = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		return storage[sessionId] || [];
 	}
 
-	private setSessionData(sessionId: string, tasks: IChatTask[]): void {
+	private setSessionData(sessionId: string, todoList: IChatTodo[]): void {
 		const storage = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		storage[sessionId] = tasks;
+		storage[sessionId] = todoList;
 		this.memento.saveMemento();
 	}
 
-	getTasks(sessionId: string): IChatTask[] {
+	getTodoList(sessionId: string): IChatTodo[] {
 		return this.getSessionData(sessionId);
 	}
 
-	setTasks(sessionId: string, tasks: IChatTask[]): void {
-		this.setSessionData(sessionId, tasks);
+	setTodoList(sessionId: string, todoList: IChatTodo[]): void {
+		this.setSessionData(sessionId, todoList);
 	}
 }
 
-export class ChatTaskServiceImpl extends Disposable implements IChatTasksService {
+export class ChatTodoListService extends Disposable implements IChatTodoListService {
 	declare readonly _serviceBrand: undefined;
 
-	private tasksStorage: IChatTaskStorage;
+	private todoListStorage: IChatTodoListStorage;
 
 	constructor(@IStorageService storageService: IStorageService) {
 		super();
-		this.tasksStorage = new ChatTaskstorage(storageService);
+		this.todoListStorage = new ChatTodoListStorage(storageService);
 	}
 
-	getChatTasksStorage(): IChatTaskStorage {
-		return this.tasksStorage;
+	getChatTodoListStorage(): IChatTodoListStorage {
+		return this.todoListStorage;
 	}
 }

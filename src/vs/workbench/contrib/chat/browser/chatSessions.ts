@@ -379,6 +379,11 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
 			this.refreshProviderTree(chatSessionType);
 		}));
+
+		// Listen for contribution availability changes and update view registration
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			this.updateViewRegistration();
+		}));
 	}
 
 	override getTitle(): string {
@@ -732,7 +737,6 @@ class SessionsViewPane extends ViewPane {
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
 
-		console.log('Tree created with hideTwistiesOfChildlessElements: true');
 		this._register(this.tree);
 
 		// Handle double-click and keyboard selection to open editors

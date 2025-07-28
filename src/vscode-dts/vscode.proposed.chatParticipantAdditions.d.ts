@@ -107,7 +107,49 @@ declare module 'vscode' {
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart;
+	/**
+	 * Represents a single file diff entry in a multi diff view.
+	 */
+	export interface ChatResponseDiffEntry {
+		/**
+		 * The original file URI (undefined for new files).
+		 */
+		originalUri?: Uri;
+
+		/**
+		 * The modified file URI (undefined for deleted files).
+		 */
+		modifiedUri?: Uri;
+
+		/**
+		 * Optional URI to navigate to when clicking on the file.
+		 */
+		goToFileUri?: Uri;
+	}
+
+	/**
+	 * Represents a part of a chat response that shows multiple file diffs.
+	 */
+	export class ChatResponseMultiDiffPart {
+		/**
+		 * Array of file diff entries to display.
+		 */
+		value: ChatResponseDiffEntry[];
+
+		/**
+		 * The title for the multi diff editor.
+		 */
+		title: string;
+
+		/**
+		 * Create a new ChatResponseMultiDiffPart.
+		 * @param value Array of file diff entries.
+		 * @param title The title for the multi diff editor.
+		 */
+		constructor(value: ChatResponseDiffEntry[], title: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);

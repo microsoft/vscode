@@ -28,7 +28,7 @@ import { toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatPullRequestContent, IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
@@ -658,31 +658,36 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			});
 
 			// Execute the remote command
-			const resultMarkdown: string | undefined = await commandService.executeCommand(agent.command, {
+			const result: Omit<IChatPullRequestContent, 'kind'> | string | undefined = await commandService.executeCommand(agent.command, {
 				userPrompt,
 				summary: summary || userPrompt,
 				followup,
+				_version: 2, // Signal that we support the new response format
 			});
 
-			let content = new MarkdownString(
-				resultMarkdown,
-				CreateRemoteAgentJobAction.markdownStringTrustedOptions
-			);
-			if (!resultMarkdown) {
-				content = new MarkdownString(
-					localize('remoteAgentError', "Coding agent session cancelled."),
-					CreateRemoteAgentJobAction.markdownStringTrustedOptions
-				);
+			if (result && typeof result === 'object') { /* _version === 2 */
+				chatModel.acceptResponseProgress(addedRequest, { kind: 'pullRequest', ...result });
+			} else if (typeof result === 'string') {
+				chatModel.acceptResponseProgress(addedRequest, {
+					kind: 'markdownContent',
+					content: new MarkdownString(
+						localize('remoteAgentResponse', "Coding agent response: {0}", result),
+						CreateRemoteAgentJobAction.markdownStringTrustedOptions
+					)
+				});
+				// Extension will open up the pull request in another view
+				widget.clear();
+			} else {
+				chatModel.acceptResponseProgress(addedRequest, {
+					kind: 'markdownContent',
+					content: new MarkdownString(
+						localize('remoteAgentError', "Coding agent session cancelled."),
+						CreateRemoteAgentJobAction.markdownStringTrustedOptions
+					)
+				});
 			}
-
-			chatModel.acceptResponseProgress(addedRequest, { content, kind: 'markdownContent' });
 			chatModel.setResponse(addedRequest, {});
 			chatModel.completeResponse(addedRequest);
-
-			// Clear chat (start a new chat)
-			if (resultMarkdown) {
-				widget.clear();
-			}
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}

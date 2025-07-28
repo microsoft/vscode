@@ -1043,7 +1043,7 @@ export class InlineChatController1 implements IEditorContribution {
 	}
 
 	private _updatePlaceholder(): void {
-		this._ui.value.widget.placeholder = this._session?.agent.description ?? '';
+		this._ui.value.widget.placeholder = this._session?.agent.description ?? localize('askOrEditInContext', 'Ask or edit in context');
 	}
 
 	private _updateInput(text: string, selectAll = true): void {
