@@ -42,6 +42,12 @@
 	position: absolute;
 	right: 49px;
 	top: 0px;
+	margin: 3.2px 0px;
+}
+
+.monaco-workbench.hc-black .settings-editor > .settings-header > .search-container > .settings-count-widget,
+.monaco-workbench.hc-light .settings-editor > .settings-header > .search-container > .settings-count-widget {
+	/* Reduce the margin because there is a border in this case. */
 	margin: 2.5px 0px;
 }
 
