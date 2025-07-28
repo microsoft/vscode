@@ -10,6 +10,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -678,6 +679,7 @@ class SessionsViewPane extends ViewPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -710,12 +712,16 @@ class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		const progressIndicator = this.getProgressIndicator();
-
 		try {
-			// Show progress while refreshing tree data
-			const refreshPromise = this.tree.updateChildren(this.provider);
-			await progressIndicator.showWhile(refreshPromise, 0); // Show immediately, no delay
+			await this.progressService.withProgress(
+				{
+					location: this.id, // Use the view ID as the progress location
+					title: nls.localize('chatSessions.refreshing', 'Refreshing chat sessions...'),
+				},
+				async () => {
+					await this.tree!.updateChildren(this.provider);
+				}
+			);
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error refreshing chat sessions tree:', error);
@@ -731,12 +737,16 @@ class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		const progressIndicator = this.getProgressIndicator();
-
 		try {
-			// Show progress while loading data
-			const loadingPromise = this.tree.setInput(this.provider);
-			await progressIndicator.showWhile(loadingPromise, 0); // Show immediately, no delay
+			await this.progressService.withProgress(
+				{
+					location: this.id, // Use the view ID as the progress location
+					title: nls.localize('chatSessions.loading', 'Loading chat sessions...'),
+				},
+				async () => {
+					await this.tree!.setInput(this.provider);
+				}
+			);
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error loading chat sessions data:', error);
