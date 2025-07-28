@@ -210,8 +210,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined) {
-		return this._timeline.getEntryDiffBetweenStops(uri, requestId, stopId);
+	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined) {
+		console.log('startStopId : ', startStopId);
+		console.log('endStopId : ', endStopId);
+		return this._timeline.getEntryDiffBetweenStops(uri, requestId, startStopId, endStopId);
 	}
 
 	public createSnapshot(requestId: string, undoStop: string | undefined, makeEmpty = undoStop !== undefined): void {

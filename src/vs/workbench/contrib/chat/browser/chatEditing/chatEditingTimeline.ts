@@ -366,15 +366,16 @@ export class ChatEditingTimeline {
 		});
 	}
 
-	private _createDiffBetweenStopsObservable(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> {
+	private _createDiffBetweenStopsObservable(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> {
 		const entries = derivedOpts<undefined | { before: ISnapshotEntry; after: ISnapshotEntry }>(
 			{
 				equalsFn: (a, b) => snapshotsEqualForDiff(a?.before, b?.before) && snapshotsEqualForDiff(a?.after, b?.after),
 			},
 			reader => {
 				const stops = requestId ?
-					getCurrentAndNextStop(requestId, stopId, this._linearHistory.read(reader)) :
+					getCurrentAndNextStop(requestId, startStopId, endStopId, this._linearHistory.read(reader)) :
 					getFirstAndLastStop(uri, this._linearHistory.read(reader));
+				console.log('stops 	', stops);
 				if (!stops) { return undefined; }
 				const before = stops.current.get(uri);
 				const after = stops.next.get(uri);
@@ -391,18 +392,19 @@ export class ChatEditingTimeline {
 		});
 
 		const diff = this._entryDiffBetweenTextStops(entries, modelUrisObservable);
+		console.log('diff for uri : ', uri, ' diff : ', diff);
 
 		return derived(reader => {
 			return diff.read(reader)?.promiseResult.read(reader)?.data || undefined;
 		});
 	}
 
-	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined) {
+	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined) {
 		if (requestId) {
-			const key = `${uri}\0${requestId}\0${stopId}`;
+			const key = `${uri}\0${requestId}\0${startStopId}\0${endStopId}`;
 			let observable = this._diffsBetweenStops.get(key);
 			if (!observable) {
-				observable = this._createDiffBetweenStopsObservable(uri, requestId, stopId);
+				observable = this._createDiffBetweenStopsObservable(uri, requestId, startStopId, endStopId);
 				this._diffsBetweenStops.set(key, observable);
 			}
 
@@ -411,7 +413,7 @@ export class ChatEditingTimeline {
 			const key = uri.toString();
 			let observable = this._fullDiffs.get(key);
 			if (!observable) {
-				observable = this._createDiffBetweenStopsObservable(uri, requestId, stopId);
+				observable = this._createDiffBetweenStopsObservable(uri, requestId, startStopId, endStopId);
 				this._fullDiffs.set(key, observable);
 			}
 
@@ -437,18 +439,25 @@ function snapshotsEqualForDiff(a: ISnapshotEntry | undefined, b: ISnapshotEntry 
 	return isEqual(a.snapshotUri, b.snapshotUri) && a.current === b.current;
 }
 
-function getCurrentAndNextStop(requestId: string, stopId: string | undefined, history: readonly IChatEditingSessionSnapshot[]) {
+function getCurrentAndNextStop(requestId: string, startStopId: string | undefined, endStopId: string | undefined, history: readonly IChatEditingSessionSnapshot[]) {
 	const snapshotIndex = history.findIndex(s => s.requestId === requestId);
 	if (snapshotIndex === -1) { return undefined; }
 	const snapshot = history[snapshotIndex];
-	const stopIndex = snapshot.stops.findIndex(s => s.stopId === stopId);
-	if (stopIndex === -1) { return undefined; }
+	const startStopIndex = snapshot.stops.findIndex(s => s.stopId === startStopId);
+	if (startStopIndex === -1) { return undefined; }
 
-	const currentStop = snapshot.stops[stopIndex];
+	const currentStop = snapshot.stops[startStopIndex];
 	const current = currentStop.entries;
-	const nextStop = stopIndex < snapshot.stops.length - 1
-		? snapshot.stops[stopIndex + 1]
-		: undefined;
+	let nextStop: IChatEditingSessionStop | undefined = undefined;
+	if (endStopId) {
+		const endStopIndex = snapshot.stops.findIndex(s => s.stopId === endStopId);
+		if (endStopIndex === -1) { return undefined; }
+		nextStop = snapshot.stops[endStopIndex];
+	} else {
+		nextStop = startStopIndex < snapshot.stops.length - 1
+			? snapshot.stops[startStopIndex + 1]
+			: undefined;
+	}
 	if (!nextStop) {
 		return undefined;
 	}

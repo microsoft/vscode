@@ -137,11 +137,11 @@ export interface IChatEditingSession extends IDisposable {
 	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
 
 	/**
-	 * Gets the document diff of a change made to a URI between one undo stop and
-	 * the next one.
+	 * Gets the document diff of a change made to a URI between one undo stop and another one.
+	 * If startStopId is defined and endStopId is undefined, then the diff will be between startStopId and the next one. 
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
-	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
+	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;

@@ -56,6 +56,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	) {
 		super();
 
+		console.log('content.fileChanges : ', content.fileChanges);
 		this.fileChanges = content.fileChanges;
 		this.fileChangesDiffsObservable = this.computeFileChangesDiffs(context, content.fileChanges);
 
@@ -90,18 +91,17 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 					continue;
 				}
 				const requestId = change.requestId;
+				console.log('change : ', change);
 				const undoStops = context.content.filter(e => e.kind === 'undoStop');
 
-				for (let i = undoStops.length - 1; i >= 0; i--) {
-					const modifiedUri = modifiedEntry.modifiedURI;
-					const undoStopID = undoStops[i].id;
-					const diff = editSession.getEntryDiffBetweenStops(modifiedUri, requestId, undoStopID)?.read(r);
-					if (!diff) {
-						continue;
-					}
-					fileChangesDiffs.set(this.changeID(change), diff);
+				const modifiedUri = modifiedEntry.modifiedURI;
+				const diff = editSession.getEntryDiffBetweenStops(modifiedUri, requestId, undoStops[0].id, undoStops[undoStops.length - 1].id)?.read(r);
+				if (!diff) {
+					continue;
 				}
+				fileChangesDiffs.set(this.changeID(change), diff);
 			}
+			console.log('fileChangesDiffs : ', fileChangesDiffs);
 			return fileChangesDiffs;
 		});
 	}

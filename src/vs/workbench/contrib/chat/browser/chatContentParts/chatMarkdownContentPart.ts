@@ -519,7 +519,7 @@ export class CollapsedCodeBlock extends Disposable {
 
 			if (!diffBetweenStops) {
 				diffBetweenStops = modifiedEntry && editSession
-					? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop)
+					? editSession.getEntryDiffBetweenStops(modifiedEntry.modifiedURI, this.requestId, this.inUndoStop, undefined)
 					: undefined;
 				diffValue = diffBetweenStops?.read(r);
 			}
