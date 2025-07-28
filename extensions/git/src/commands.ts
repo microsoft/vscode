@@ -3485,6 +3485,25 @@ export class CommandCenter {
 			return [start, value.length];
 		};
 
+		// Get existing worktrees for validation
+		const existingWorktrees = await repository.getWorktrees();
+
+		const getWorktreePathValidationMessage = (inputPath: string): string | InputBoxValidationMessage | undefined => {
+			if (!inputPath.trim()) {
+				return l10n.t('Worktree path cannot be empty');
+			}
+
+			const worktreeNameFromPath = path.basename(inputPath);
+
+			// Check if worktree name already exists
+			const existingWorktree = existingWorktrees.find(wt => wt.name === worktreeNameFromPath);
+			if (existingWorktree) {
+				return l10n.t('Worktree "{0}" already exists', worktreeNameFromPath);
+			}
+
+			return undefined;
+		};
+
 		// Default worktree path is based on the last worktree location or a worktree folder for the repository
 		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
 		const defaultWorktreePath = defaultWorktreeRoot
@@ -3499,6 +3518,7 @@ export class CommandCenter {
 		inputBox.prompt = l10n.t('Please provide a worktree path');
 		inputBox.value = defaultWorktreePath;
 		inputBox.valueSelection = getValueSelection(inputBox.value);
+		inputBox.validationMessage = getWorktreePathValidationMessage(inputBox.value);
 		inputBox.ignoreFocusOut = true;
 		inputBox.buttons = [
 			{
@@ -3512,7 +3532,14 @@ export class CommandCenter {
 
 		const worktreePath = await new Promise<string | undefined>((resolve) => {
 			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
-			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+			disposables.push(inputBox.onDidAccept(() => {
+				if (!inputBox.validationMessage) {
+					resolve(inputBox.value);
+				}
+			}));
+			disposables.push(inputBox.onDidChangeValue(value => {
+				inputBox.validationMessage = getWorktreePathValidationMessage(value);
+			}));
 			disposables.push(inputBox.onDidTriggerButton(async () => {
 				inputBox.value = await getWorktreePath() ?? '';
 				inputBox.valueSelection = getValueSelection(inputBox.value);
