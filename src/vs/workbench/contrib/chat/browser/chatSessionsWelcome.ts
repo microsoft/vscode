@@ -33,7 +33,7 @@ class ChatSessionsWelcomeContribution implements IWorkbenchContribution {
 		const localViewId = `${VIEWLET_ID}.local`;
 		
 		const welcomeContent: IViewContentDescriptor = {
-			content: localize('chatSessions.welcome', "No coding agent runs yet.\n\n[Start a coding session](command:workbench.action.chat.open) to begin."),
+			content: localize('chatSessions.welcome', "No coding agent runs yet.\n\nStart your first coding session to see your agent's work history here.\n\n[New Chat](command:workbench.action.chat.open)\n[Start Agent Mode](command:workbench.action.chat.newEditSession)"),
 			when: 'default', // Show when the view determines it should show welcome content
 		};
 		
