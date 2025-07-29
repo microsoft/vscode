@@ -575,7 +575,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.renderWelcomeViewContentIfNeeded();
-		this.createList(this.listContainer, { ...this.viewOptions.rendererOptions, renderStyle });
+		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
 		const scrollDownButton = this._register(new Button(this.listContainer, {
 			supportIcons: true,
@@ -996,7 +996,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._codeBlockModelCollection,
 			overflowWidgetsContainer,
 			this.viewModel,
-			isInlineChat(this) || isQuickChat(this),
 		));
 
 		this._register(this.renderer.onDidClickRequest(async item => {
@@ -1624,6 +1623,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel.setInputPlaceholder(localized);
 		}
 		this.inputEditor.updateOptions({ placeholder: localized });
+
+		this.renderer.updateOptions({ restorable: false, editable: false });
+		this.tree.rerender();
 	}
 
 	public unlockFromCodingAgent(): void {
@@ -1642,6 +1644,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Also clear the editor's placeholder immediately for immediate visual feedback
 		this.inputEditor.updateOptions({ placeholder: undefined });
+		this.renderer.updateOptions({ restorable: true, editable: true });
+		this.tree.rerender();
 	}
 
 	public get isLockedToCodingAgent(): boolean {
