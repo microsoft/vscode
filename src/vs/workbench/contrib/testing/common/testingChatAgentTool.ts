@@ -163,7 +163,7 @@ class RunTestTool extends Disposable implements IToolImpl {
 			const [, ...testPath] = TestId.split(failure.item.extId);
 			const testName = testPath.pop();
 			str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
-			str += failure.tasks.flatMap(t => t.messages.filter(m => m.type === TestMessageType.Error)).join('\n\n');
+			str += failure.tasks.flatMap(t => t.messages.filter(m => m.type === TestMessageType.Error).map(m => typeof m.message === 'string' ? m.message : m.message.value)).join('\n\n');
 			str += `\n</testFailure>\n`;
 		}
 
