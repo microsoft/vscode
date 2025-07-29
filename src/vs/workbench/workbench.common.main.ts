@@ -380,6 +380,7 @@ import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js'
 
 // Chat Sessions
 import './contrib/chat/browser/chatSessions.contribution.js';
+import './contrib/chat/browser/chatSessionsWelcome.js';
 
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';
