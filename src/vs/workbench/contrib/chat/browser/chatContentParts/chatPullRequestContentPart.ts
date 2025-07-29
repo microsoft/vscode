@@ -14,6 +14,8 @@ import { IChatContentPart } from './chatContentParts.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 export class ChatPullRequestContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -22,7 +24,8 @@ export class ChatPullRequestContentPart extends Disposable implements IChatConte
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
-		private readonly pullRequestContent: IChatPullRequestContent
+		private readonly pullRequestContent: IChatPullRequestContent,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
@@ -37,6 +40,11 @@ export class ChatPullRequestContentPart extends Disposable implements IChatConte
 		titleElement.textContent = this.pullRequestContent.title;
 		const linkElement: HTMLAnchorElement = dom.append(titleContainer, dom.$('a.link'));
 		linkElement.textContent = this.pullRequestContent.linkTag;
+		this._register(addDisposableListener(linkElement, 'click', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.openerService.open(this.pullRequestContent.uri);
+		}));
 		linkElement.href = this.pullRequestContent.uri.toString();
 
 		const metaElement = dom.append(contentContainer, dom.$('.meta'));

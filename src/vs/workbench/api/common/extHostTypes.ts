@@ -4609,6 +4609,15 @@ export class ChatResponseFileTreePart {
 	}
 }
 
+export class ChatResponseMultiDiffPart {
+	value: vscode.ChatResponseDiffEntry[];
+	title: string;
+	constructor(value: vscode.ChatResponseDiffEntry[], title: string) {
+		this.value = value;
+		this.title = title;
+	}
+}
+
 export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location;
 	title?: string;

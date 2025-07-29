@@ -53,11 +53,11 @@ suite('CommandLineAutoApprover', () => {
 	}
 
 	function isAutoApproved(commandLine: string): boolean {
-		return commandLineAutoApprover.isCommandAutoApproved(commandLine, shell, os).isAutoApproved;
+		return commandLineAutoApprover.isCommandAutoApproved(commandLine, shell, os).result === 'approved';
 	}
 
 	function isCommandLineAutoApproved(commandLine: string): boolean {
-		return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).isAutoApproved;
+		return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).result === 'approved';
 	}
 
 	suite('autoApprove with allow patterns only', () => {

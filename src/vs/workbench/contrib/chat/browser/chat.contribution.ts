@@ -114,7 +114,7 @@ import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
-import { ChatTaskServiceImpl, IChatTasksService } from '../common/chatTasksService.js';
+import { ChatTodoListService, IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { AssistedTypes, AddConfigurationType } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 import { ChatSessionsView } from './chatSessions.js';
@@ -283,7 +283,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
-			tags: ['experimental'],
+			tags: ['preview'],
 		},
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
@@ -313,7 +313,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.mcp.autostart.never', "Never automatically start MCP servers."),
 				nls.localize('chat.mcp.autostart.onlyNew', "Only automatically start new MCP servers that have never been run."),
 				nls.localize('chat.mcp.autostart.newAndOutdated', "Automatically start new and outdated MCP servers that are not yet running.")
-			]
+			],
+			tags: ['experimental'],
 		},
 		[mcpServerSamplingSection]: {
 			type: 'object',
@@ -385,6 +386,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
+				tags: [PolicyTag.Account, PolicyTag.Agent]
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
@@ -546,17 +548,17 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
-		'chat.manageTasksTool.enabled': {
+		'chat.todoListTool.enabled': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('chat.manageTasksTool.enabled', "Enables manageTasksTool in chat. This tool allows you to use task lists in chat."),
+			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat. This tool allows you to use todo lists in chat."),
 			tags: ['experimental'],
 			included: false,
 		},
 		'chat.tools.useTreePicker': {
 			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.tools.useTreePicker', "Use the new tree-based tools picker interface instead of the flat list. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions. MCP servers are displayed as expandable parent nodes with their tools as children."),
+			default: true,
+			description: nls.localize('chat.tools.useTreePicker', "Use the new Quick Tree-based tools picker instead of the Quick Pick-based one. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions."),
 			tags: ['experimental'],
 		}
 	}
@@ -841,7 +843,7 @@ registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
-registerSingleton(IChatTasksService, ChatTaskServiceImpl, InstantiationType.Delayed);
+registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);

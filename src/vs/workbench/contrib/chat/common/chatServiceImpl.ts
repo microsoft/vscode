@@ -11,7 +11,7 @@ import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -636,15 +636,34 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (content.progressEvent) {
-			disposables.add(content.progressEvent(e => {
-				if (lastRequest) {
-					for (const progress of e) {
-						if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
-							model?.completeResponse(lastRequest);
-						} else {
-							model?.acceptResponseProgress(lastRequest, progress);
+		if (content.progressEvent && lastRequest) {
+			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
+			this._pendingRequests.set(model.sessionId, initialCancellationRequest);
+			const cancellationListener = new MutableDisposable();
+
+			const createCancellationListener = (token: CancellationToken) => {
+				return token.onCancellationRequested(() => {
+					content.interruptActiveResponseCallback?.().then(userConfirmedInterruption => {
+						if (!userConfirmedInterruption) {
+							// User cancelled the interruption
+							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
+							this._pendingRequests.set(model.sessionId, newCancellationRequest);
+							cancellationListener.value = createCancellationListener(newCancellationRequest.cancellationTokenSource.token);
 						}
+					});
+				});
+			};
+
+			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
+			disposables.add(cancellationListener);
+
+			disposables.add(content.progressEvent(e => {
+				for (const progress of e) {
+					if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
+						model?.completeResponse(lastRequest);
+						cancellationListener.clear();
+					} else {
+						model?.acceptResponseProgress(lastRequest, progress);
 					}
 				}
 			}));

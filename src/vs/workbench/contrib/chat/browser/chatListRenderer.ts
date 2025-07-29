@@ -49,7 +49,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -72,6 +72,7 @@ import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, Coll
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
+import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
@@ -419,7 +420,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
-		const footerDetailsContainer = dom.append(rowContainer, $('.chat-footer-details'));
+		// Insert the details container into the toolbar's internal element structure
+		const footerDetailsContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-details'));
 
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
@@ -550,11 +552,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.checkpointToolbar.context = element;
-		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || !this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled));
+		const isLockedToCodingAgent = ChatContextKeys.lockedToCodingAgent.getValue(templateData.contextKeyService);
+		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || !this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled) || isLockedToCodingAgent);
 
 		// Only show restore container when we have a checkpoint and not editing
 		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1);
-		templateData.checkpointRestoreContainer.classList.toggle('hidden', !shouldShowRestore || !this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled));
+		templateData.checkpointRestoreContainer.classList.toggle('hidden', !shouldShowRestore || !this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled) || isLockedToCodingAgent);
 
 		const editing = element.id === this.viewModel?.editing?.id;
 		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';
@@ -694,27 +697,38 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
-		if (this.shouldShowFileChangesSummary(element)) {
-			const fileChanges: IChatChangesSummary[] = [];
-			for (const part of element.model.entireResponse.value) {
-				if (part.kind === 'textEditGroup') {
-					fileChanges.push({
-						kind: 'changesSummary',
-						reference: part.uri,
-						sessionId: element.sessionId,
-						requestId: element.requestId,
-					});
-				}
-			}
-			if (fileChanges.length) {
-				content.push({ kind: 'changesSummary', fileChanges });
-			}
+		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
+		if (fileChangesSummaryPart) {
+			content.push(fileChangesSummaryPart);
 		}
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 
 		this.updateItemHeightOnRender(element, templateData);
+	}
+
+	private getChatFileChangesSummaryPart(element: IChatResponseViewModel): IChatChangesSummaryPart | undefined {
+		if (!this.shouldShowFileChangesSummary(element)) {
+			return undefined;
+		}
+		const consideredFiles: Set<string> = new Set();
+		const fileChanges: IChatChangesSummary[] = [];
+		for (const part of element.model.entireResponse.value) {
+			if (part.kind === 'textEditGroup' && !consideredFiles.has(part.uri.toString(true))) {
+				fileChanges.push({
+					kind: 'changesSummary',
+					reference: part.uri,
+					sessionId: element.sessionId,
+					requestId: element.requestId,
+				});
+				consideredFiles.add(part.uri.toString(true));
+			}
+		}
+		if (!fileChanges.length) {
+			return undefined;
+		}
+		return { kind: 'changesSummary', fileChanges };
 	}
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
@@ -1017,21 +1031,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isPaused = element.model.isPaused.get();
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
-		if (this.shouldShowFileChangesSummary(element)) {
-			const fileChanges: IChatChangesSummary[] = [];
-			for (const part of element.model.entireResponse.value) {
-				if (part.kind === 'textEditGroup') {
-					fileChanges.push({
-						kind: 'changesSummary',
-						reference: part.uri,
-						sessionId: element.sessionId,
-						requestId: element.requestId,
-					});
-				}
-			}
-			if (fileChanges.length > 0) {
-				partsToRender.push({ kind: 'changesSummary', fileChanges });
-			}
+		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
+		if (fileChangesSummaryPart) {
+			partsToRender.push(fileChangesSummaryPart);
 		}
 
 		return { content: partsToRender, moreContentAvailable };
@@ -1103,6 +1105,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		try {
 			if (content.kind === 'treeData') {
 				return this.renderTreeData(content, templateData, context);
+			} else if (content.kind === 'multiDiffData') {
+				return this.renderMultiDiffData(content, templateData, context);
 			} else if (content.kind === 'progressMessage') {
 				return this.instantiationService.createInstance(ChatProgressContentPart, content, this.renderer, context, undefined, undefined, undefined);
 			} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
@@ -1215,6 +1219,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return treePart;
+	}
+
+	private renderMultiDiffData(content: IChatMultiDiffData, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
+		const multiDiffPart = this.instantiationService.createInstance(ChatMultiDiffContentPart, content, context.element);
+		multiDiffPart.addDisposable(multiDiffPart.onDidChangeHeight(() => {
+			this.updateItemHeight(templateData);
+		}));
+		return multiDiffPart;
 	}
 
 	private renderContentReferencesListData(references: IChatReferences, labelOverride: string | undefined, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCollapsibleListContentPart {

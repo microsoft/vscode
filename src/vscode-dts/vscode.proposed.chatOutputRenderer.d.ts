@@ -29,14 +29,26 @@ declare module 'vscode' {
 		toolResultDetails2?: Array<Uri | Location> | ToolResultDataOutput;
 	}
 
+	/**
+	 * The data to be rendered by a {@link ChatOutputRenderer}.
+	 */
+	export interface ChatOutputDataItem {
+		/**
+		 * The MIME type of the data.
+		 */
+		readonly mime: string;
+
+		/**
+		 * The contents of the data.
+		 */
+		readonly value: Uint8Array;
+	}
+
 	export interface ChatOutputRenderer {
 		/**
 		 * Given an output, render it into the provided webview.
 		 *
-		 * TODO:Should this take an object instead of Uint8Array? That would let you get the original mime. Useful
-		 * if we ever support registering for multiple mime types or using image/*.
-		 *
-		 * TODO: Figure out what to pass as context?
+		 * TODO: Figure out what to pass as context? Probably at least basic info such as chat location.
 		 *
 		 * @param data The data to render.
 		 * @param webview The webview to render the data into.
@@ -45,7 +57,7 @@ declare module 'vscode' {
 		 *
 		 * @returns A promise that resolves when the webview has been initialized and is ready to be presented to the user.
 		 */
-		renderChatOutput(data: Uint8Array, webview: Webview, ctx: {}, token: CancellationToken): Thenable<void>;
+		renderChatOutput(data: ChatOutputDataItem, webview: Webview, ctx: {}, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace chat {
@@ -59,15 +71,16 @@ declare module 'vscode' {
 		 * "contributes": {
 		 *   "chatOutputRenderer": [
 		 *     {
+		 *       "viewType": "myExt.myChatOutputRenderer",
 		 *       "mimeTypes": ["application/your-mime-type"]
 		 *     }
 		 *   ]
 		 * }
 		 * ```
 		 *
-		 * @param mime The MIME type of the output that this renderer can handle.
+		 * @param viewType Unique identifier for the renderer. This should match the `viewType` in your contribution point.
 		 * @param renderer The renderer to register.
 		 */
-		export function registerChatOutputRenderer(mime: string, renderer: ChatOutputRenderer): Disposable;
+		export function registerChatOutputRenderer(viewType: string, renderer: ChatOutputRenderer): Disposable;
 	}
 }

@@ -3133,12 +3133,12 @@ declare module 'vscode' {
 	 */
 	export class EvaluatableExpression {
 
-		/*
+		/**
 		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
 		 */
 		readonly range: Range;
 
-		/*
+		/**
 		 * If specified the expression overrides the extracted expression.
 		 */
 		readonly expression?: string | undefined;
@@ -20405,7 +20405,7 @@ declare module 'vscode' {
 		 * any custom flow.
 		 *
 		 * In the former case, the caller shall pass the
-		 * {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes with the a
+		 * {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes from a
 		 * {@link ChatRequest.toolInvocationToken chat request}. This makes sure the chat UI shows the tool invocation for the
 		 * correct conversation.
 		 *

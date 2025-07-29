@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from '../../../../base/browser/browser.js';
-import { addDisposableListener, EventType, getWindowById } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getWindow, getWindowById } from '../../../../base/browser/dom.js';
 import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
@@ -594,6 +594,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	public reload(): void {
 		this.doUpdateContent(this._content);
+	}
+
+	public reinitializeAfterDismount(): void {
+		this._state = new WebviewState.Initializing([]);
+		this._messagePort = undefined;
+
+		this.mountTo(this.element!.parentElement!, getWindow(this.element));
+		this.reload();
 	}
 
 	public setHtml(html: string) {

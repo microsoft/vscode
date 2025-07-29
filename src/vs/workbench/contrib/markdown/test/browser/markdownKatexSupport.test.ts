@@ -35,5 +35,15 @@ suite('Markdown Katex Support Test', () => {
 		const rendered = await renderMarkdownWithKatex('Hello ($\\frac{1}{2}$) World!');
 		await assertSnapshot(rendered.element.innerHTML);
 	});
+
+	test('Should support blocks immediately after paragraph', async () => {
+		const rendered = await renderMarkdownWithKatex([
+			'Block example:',
+			'$$',
+			'\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}',
+			'$$',
+		].join('\n'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
 });
 

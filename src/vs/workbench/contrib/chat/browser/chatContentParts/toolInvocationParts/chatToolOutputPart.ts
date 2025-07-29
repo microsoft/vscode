@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../../common/chatService.js';
+import { IChatViewModel } from '../../../common/chatViewModel.js';
 import { IToolResultOutputDetails } from '../../../common/languageModelToolsService.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { IChatOutputRendererService } from '../../chatOutputItemRenderer.js';
@@ -18,8 +21,17 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
+interface OutputState {
+	readonly webviewOrigin: string;
+	height: number;
+}
+
 // TODO: see if we can reuse existing types instead of adding ChatToolOutputSubPart
 export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
+
+	/** Remembers cached state on re-render */
+	private static readonly _cachedStates = new WeakMap<IChatViewModel | IChatToolInvocationSerialized, Map<string, OutputState>>();
+
 	public readonly domNode: HTMLElement;
 
 	public override readonly codeblocks: IChatCodeBlockInfo[] = [];
@@ -45,7 +57,18 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 				},
 			};
 
-		this.domNode = this.createOutputPart(details);
+		this.domNode = dom.$('div.tool-output-part');
+
+		const titleEl = dom.$('.output-title');
+		this.domNode.appendChild(titleEl);
+		if (typeof toolInvocation.invocationMessage === 'string') {
+			titleEl.textContent = toolInvocation.invocationMessage;
+		} else {
+			const md = this._register(renderMarkdown(toolInvocation.invocationMessage));
+			titleEl.appendChild(md.element);
+		}
+
+		this.domNode.appendChild(this.createOutputPart(toolInvocation, details));
 	}
 
 	public override dispose(): void {
@@ -53,10 +76,31 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		super.dispose();
 	}
 
-	private createOutputPart(details: IToolResultOutputDetails): HTMLElement {
+	private createOutputPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, details: IToolResultOutputDetails): HTMLElement {
+		const vm = this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.viewModel;
+
 		const parent = dom.$('div.webview-output');
 		parent.style.maxHeight = '80vh';
-		// TODO: we should cache the height when restoring to avoid extra layout shifts
+
+		let partState: OutputState = { height: 0, webviewOrigin: generateUuid() };
+		if (vm) {
+			let allStates = ChatToolOutputSubPart._cachedStates.get(vm);
+			if (!allStates) {
+				allStates = new Map<string, OutputState>();
+				ChatToolOutputSubPart._cachedStates.set(vm, allStates);
+			}
+
+			const cachedState = allStates.get(toolInvocation.toolCallId);
+			if (cachedState) {
+				partState = cachedState;
+			} else {
+				allStates.set(toolInvocation.toolCallId, partState);
+			}
+		}
+
+		if (partState.height) {
+			parent.style.height = `${partState.height}px`;
+		}
 
 		const progressMessage = dom.$('span');
 		progressMessage.textContent = localize('loading', 'Rendering tool output...');
@@ -64,7 +108,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		parent.appendChild(progressPart.domNode);
 
 		// TODO: we also need to show the tool output in the UI
-		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, this._disposeCts.token).then((renderedItem) => {
+		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, { origin: partState.webviewOrigin }, this._disposeCts.token).then((renderedItem) => {
 			if (this._disposeCts.token.isCancellationRequested) {
 				return;
 			}
@@ -74,8 +118,9 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			progressPart.domNode.remove();
 
 			this._onDidChangeHeight.fire();
-			this._register(renderedItem.onDidChangeHeight(() => {
+			this._register(renderedItem.onDidChangeHeight(newHeight => {
 				this._onDidChangeHeight.fire();
+				partState.height = newHeight;
 			}));
 
 			this._register(renderedItem.webview.onDidWheel(e => {
@@ -85,6 +130,14 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 					stopPropagation: () => { }
 				});
 			}));
+
+			// When the webview is disconnected from the DOM due to being hidden, we need to reload it when it is shown again.
+			const widget = this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId);
+			if (widget) {
+				this._register(widget?.onDidShow(() => {
+					renderedItem.reinitialize();
+				}));
+			}
 		}, (error) => {
 			// TODO: show error in UI too
 			console.error('Error rendering tool output:', error);
