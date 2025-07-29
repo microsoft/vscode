@@ -3147,6 +3147,7 @@ export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
 
 	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
+	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;
 	$disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void>;
 	$invokeChatSessionRequestHandler(providerHandle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;
 }

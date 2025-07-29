@@ -40,6 +40,7 @@ export interface ChatSession extends IDisposable {
 		| { type: 'response'; parts: IChatProgress[] }>;
 
 	readonly progressEvent?: Event<IChatProgress[]>;
+	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 
 	requestHandler?: (
 		request: IChatAgentRequest,

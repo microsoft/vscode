@@ -283,7 +283,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
-			tags: ['experimental'],
+			tags: ['preview'],
 		},
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
