@@ -1677,11 +1677,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		});
 
-		// Save the locked coding agent state
-		if (this._lockedToCodingAgent) {
-			inputState.lockedToCodingAgent = this._lockedToCodingAgent;
-		}
-
 		return inputState;
 	}
 
@@ -2090,12 +2085,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	getViewState(): IChatViewState {
 		// Get the input state which includes our locked agent (if any)
 		const inputState = this.input.getViewState();
-
-		// Ensure the locked agent state is included
-		if (this._lockedToCodingAgent && inputState && !inputState.lockedToCodingAgent) {
-			inputState.lockedToCodingAgent = this._lockedToCodingAgent;
-		}
-
 		return {
 			inputValue: this.getInput(),
 			inputState: inputState
