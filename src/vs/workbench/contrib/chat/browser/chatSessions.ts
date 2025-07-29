@@ -457,7 +457,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					if (provider.chatSessionType === 'local') {
 						displayName = 'Local Chat Sessions';
 					} else {
-						const extContribution = extensionPointContributions.find(c => c.id === provider.chatSessionType);
+						const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
 						if (!extContribution) {
 							this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
 							return; // Skip if no contribution found
