@@ -83,7 +83,10 @@ export class ListMcpServerCommand extends Action2 {
 			f1: true,
 			menu: [{
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
+					ContextKeyExpr.or(
+						ContextKeyExpr.and(ContextKeyExpr.equals(`config.${mcpAutoStartConfig}`, McpAutoStartValue.Never), McpContextKeys.hasUnknownTools),
+						McpContextKeys.hasServersWithErrors,
+					),
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				),
@@ -511,7 +514,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					});
 
 					const single = servers.length === 1;
-					const names = servers.map(s => isServer(s) ? link(s) : '`' + s.label + '`').map(l => single ? l : `- ${l}\n`).join(', ');
+					const names = servers.map(s => isServer(s) ? link(s) : '`' + s.label + '`').map(l => single ? l : `- ${l}`).join('\n');
 					let markdown: MarkdownString;
 					if (state === DisplayedState.NewTools) {
 						markdown = new MarkdownString(single
