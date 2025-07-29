@@ -138,7 +138,7 @@ export interface IChatEditingSession extends IDisposable {
 
 	/**
 	 * Gets the document diff of a change made to a URI between one undo stop and another one.
-	 * If startStopId is defined and endStopId is undefined, then the diff will be between startStopId and the next one. 
+	 * If startStopId is defined and endStopId is undefined, then the diff will be between startStopId and the next one.
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
 	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
@@ -253,6 +253,8 @@ export interface IModifiedFileEntry {
 	readonly changesCount: IObservable<number>;
 
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
+
+	createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
 }
 
 export interface IChatEditingSessionStream {

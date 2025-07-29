@@ -24,11 +24,12 @@ import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { autorun, derived, IObservableWithChange } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservableWithChange, ObservablePromise } from '../../../../../base/common/observable.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 
 export class ChatCheckpointFileChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -41,7 +42,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private fileChanges: readonly IChatFileChangesSummary[];
-	private fileChangesDiffsObservable: IObservableWithChange<Map<string, IEditSessionEntryDiff>, void>;
+	private fileChangesDiffsObservable: IObservableWithChange<Map<string, ObservablePromise<IEditSessionEntryDiff>>, void>;
 
 	private list!: WorkbenchList<IChatFileChangesSummaryItem>;
 	private isCollapsed: boolean = true;
@@ -53,6 +54,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
 	) {
 		super();
 
@@ -72,9 +74,9 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		return `${change.sessionId}-${change.requestId}-${change.reference.path}`;
 	}
 
-	private computeFileChangesDiffs(context: IChatContentPartRenderContext, changes: readonly IChatFileChangesSummary[]): IObservableWithChange<Map<string, IEditSessionEntryDiff>, void> {
-		return derived((r) => {
-			const fileChangesDiffs = new Map<string, IEditSessionEntryDiff>();
+	private computeFileChangesDiffs(context: IChatContentPartRenderContext, changes: readonly IChatFileChangesSummary[]): IObservableWithChange<Map<string, ObservablePromise<IEditSessionEntryDiff>>, void> {
+		return derived((r): Map<string, ObservablePromise<IEditSessionEntryDiff>> => {
+			const fileChangesDiffs = new Map<string, ObservablePromise<IEditSessionEntryDiff>>();
 			for (const change of changes) {
 				const sessionId = change.sessionId;
 				const session = this.chatService.getSession(sessionId);
@@ -86,20 +88,44 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 					continue;
 				}
 				const uri = change.reference;
-				const modifiedEntry = editSession.getEntry(uri);
-				if (!modifiedEntry) {
+				const entry = editSession.getEntry(uri);
+				if (!entry) {
 					continue;
 				}
 				const requestId = change.requestId;
 				console.log('change : ', change);
 				const undoStops = context.content.filter(e => e.kind === 'undoStop');
 
-				const modifiedUri = modifiedEntry.modifiedURI;
-				const diff = editSession.getEntryDiffBetweenStops(modifiedUri, requestId, undoStops[0].id, undoStops[undoStops.length - 1].id)?.read(r);
-				if (!diff) {
-					continue;
-				}
-				fileChangesDiffs.set(this.changeID(change), diff);
+				const modifiedUri = entry.modifiedURI;
+				const originalSnapShot = entry.createSnapshot(requestId, undoStops[0].id);
+				console.log('context.content : ', context.content);
+				console.log('undoStops : ', undoStops);
+				console.log('originalSnapShot.snapshotUri : ', originalSnapShot.snapshotUri);
+				console.log('entry : ', entry);
+
+				console.log('originalURI : ', entry.originalURI);
+				console.log('modifiedURI : ', modifiedUri);
+				const diffPromise = this.editorWorkerService.computeDiff(originalSnapShot.snapshotUri, modifiedUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
+				// const diff = editSession.getEntryDiffBetweenStops(modifiedUri, requestId, undoStops[0].id, undoStops[undoStops.length - 1].id)?.read(r);
+				const editEntryDiffPromise = diffPromise.then((diff) => {
+					console.log('diff : ', diff);
+					const entryDiff: IEditSessionEntryDiff = {
+						originalURI: originalSnapShot.snapshotUri,
+						modifiedURI: entry.modifiedURI,
+						identical: !!diff?.identical,
+						quitEarly: !diff || diff.quitEarly,
+						added: 0,
+						removed: 0,
+					};
+					if (diff) {
+						for (const change of diff.changes) {
+							entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
+							entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+						}
+					}
+					return entryDiff;
+				});
+				fileChangesDiffs.set(this.changeID(change), new ObservablePromise(editEntryDiffPromise));
 			}
 			console.log('fileChangesDiffs : ', fileChangesDiffs);
 			return fileChangesDiffs;
@@ -132,10 +158,10 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		const button = container.appendChild($('.chat-view-changes-icon'));
 		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
 
-		return dom.addDisposableListener(button, 'click', (e) => {
+		return dom.addDisposableListener(button, 'click', async (e) => {
 			const resources: { originalUri: URI; modifiedUri?: URI }[] = [];
 			for (const fileChange of this.fileChanges) {
-				const diffEntry = this.fileChangesDiffsObservable.get().get(this.changeID(fileChange));
+				const diffEntry = await this.fileChangesDiffsObservable.get().get(this.changeID(fileChange))?.promise;
 				if (diffEntry) {
 					resources.push({
 						originalUri: diffEntry.originalURI,
@@ -175,12 +201,12 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		this.updateList(this.fileChanges, this.fileChangesDiffsObservable.get());
 		container.appendChild(this.list.getHTMLElement().parentElement!);
 
-		store.add(this.list.onDidOpen((item) => {
+		store.add(this.list.onDidOpen(async (item) => {
 			const element = item.element;
 			if (!element) {
 				return;
 			}
-			const diff = this.fileChangesDiffsObservable.get().get(this.changeID(element));
+			const diff = await this.fileChangesDiffsObservable.get().get(this.changeID(element))?.promise;
 			console.log('onDidOpen diff', diff);
 			if (diff) {
 				const input = {
@@ -202,14 +228,14 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		return store;
 	}
 
-	private updateList(fileChanges: readonly IChatFileChangesSummary[], fileChangesDiffs: Map<string, IEditSessionEntryDiff>): void {
-		this.list.splice(0, this.list.length, this.computeFileChangeSummaryItems(fileChanges, fileChangesDiffs));
+	private async updateList(fileChanges: readonly IChatFileChangesSummary[], fileChangesDiffs: Map<string, ObservablePromise<IEditSessionEntryDiff>>): Promise<void> {
+		this.list.splice(0, this.list.length, await this.computeFileChangeSummaryItems(fileChanges, fileChangesDiffs));
 	}
 
-	private computeFileChangeSummaryItems(fileChanges: readonly IChatFileChangesSummary[], fileChangesDiffs: Map<string, IEditSessionEntryDiff>): IChatFileChangesSummaryItem[] {
+	private async computeFileChangeSummaryItems(fileChanges: readonly IChatFileChangesSummary[], fileChangesDiffs: Map<string, ObservablePromise<IEditSessionEntryDiff>>): Promise<IChatFileChangesSummaryItem[]> {
 		const items: IChatFileChangesSummaryItem[] = [];
 		for (const fileChange of fileChanges) {
-			const diffEntry = fileChangesDiffs.get(this.changeID(fileChange));
+			const diffEntry = await fileChangesDiffs.get(this.changeID(fileChange))?.promise;
 			if (diffEntry) {
 				const additionalLabels: { description: string; className: string }[] = [];
 				if (diffEntry) {
