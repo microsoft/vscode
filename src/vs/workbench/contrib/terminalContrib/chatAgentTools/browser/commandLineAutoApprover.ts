@@ -28,14 +28,31 @@ export class CommandLineAutoApprover extends Disposable {
 		super();
 		this.updateConfiguration();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove)) {
+			if (
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible)
+			) {
 				this.updateConfiguration();
 			}
 		}));
 	}
 
 	updateConfiguration() {
-		const { denyListRules, allowListRules, allowListCommandLineRules, denyListCommandLineRules } = this._mapAutoApproveConfigToRules(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove));
+		let configValue = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove);
+		const deprecatedValue = this._configurationService.getValue(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible);
+		if (deprecatedValue && typeof deprecatedValue === 'object' && configValue && typeof configValue === 'object') {
+			configValue = {
+				...configValue,
+				...deprecatedValue
+			};
+		}
+
+		const {
+			denyListRules,
+			allowListRules,
+			allowListCommandLineRules,
+			denyListCommandLineRules
+		} = this._mapAutoApproveConfigToRules(configValue);
 		this._allowListRules = allowListRules;
 		this._denyListRules = denyListRules;
 		this._allowListCommandLineRules = allowListCommandLineRules;

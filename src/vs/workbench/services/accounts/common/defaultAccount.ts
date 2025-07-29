@@ -49,6 +49,7 @@ export interface IDefaultAccount {
 		readonly completions: number;
 	};
 	readonly limited_user_reset_date?: string;
+	readonly chat_agent_enabled?: boolean;
 }
 
 interface IChatEntitlementsResponse {
@@ -250,6 +251,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 				return {
 					// Editor preview features are disabled if the flag is present and set to 0
 					chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
+					chat_agent_enabled: tokenMap.get('chat_agent_enabled') !== '0',
 					// MCP is disabled if the flag is present and set to 0
 					mcp: tokenMap.get('mcp') !== '0',
 				};

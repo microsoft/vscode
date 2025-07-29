@@ -313,7 +313,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.mcp.autostart.never', "Never automatically start MCP servers."),
 				nls.localize('chat.mcp.autostart.onlyNew', "Only automatically start new MCP servers that have never been run."),
 				nls.localize('chat.mcp.autostart.newAndOutdated', "Automatically start new and outdated MCP servers that are not yet running.")
-			]
+			],
+			tags: ['experimental'],
 		},
 		[mcpServerSamplingSection]: {
 			type: 'object',
@@ -385,6 +386,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
+				tags: [PolicyTag.Account, PolicyTag.Agent]
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
@@ -555,8 +557,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.tools.useTreePicker': {
 			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.tools.useTreePicker', "Use the new tree-based tools picker interface instead of the flat list. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions. MCP servers are displayed as expandable parent nodes with their tools as children."),
+			default: true,
+			description: nls.localize('chat.tools.useTreePicker', "Use the new Quick Tree-based tools picker instead of the Quick Pick-based one. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions."),
 			tags: ['experimental'],
 		}
 	}

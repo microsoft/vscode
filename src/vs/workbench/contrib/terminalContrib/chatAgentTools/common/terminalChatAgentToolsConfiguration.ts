@@ -9,7 +9,13 @@ import { localize } from '../../../../../nls.js';
 import { ConfigurationScope, type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 
 export const enum TerminalChatAgentToolsSettingId {
-	AutoApprove = 'chat.agent.terminal.autoApprove',
+	AutoApprove = 'chat.tools.terminal.autoApprove',
+
+	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
+	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
+	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
+	DeprecatedAutoApprove3 = 'github.copilot.chat.agent.terminal.allowList',
+	DeprecatedAutoApprove4 = 'github.copilot.chat.agent.terminal.denyList',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
@@ -96,3 +102,16 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 	}
 };
+
+for (const id of [
+	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove1,
+	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove2,
+	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove3,
+	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove4,
+	TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible,
+]) {
+	terminalChatAgentToolsConfiguration[id] = {
+		deprecated: true,
+		markdownDeprecationMessage: localize('autoApprove.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``)
+	};
+}

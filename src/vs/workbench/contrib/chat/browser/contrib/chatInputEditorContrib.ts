@@ -132,7 +132,7 @@ class InputEditorDecorations extends Disposable {
 			const mode = this.widget.input.currentModeObs.get();
 			let description = mode.description.get();
 			if (this.configurationService.getValue<boolean>('chat.emptyChatState.enabled')) {
-				description = localize('chatPlaceholderHint', "Add Context (#), Extensions (@), Commands (/)");
+				description = localize('chatPlaceholderHint', "Add context (#), extensions (@), commands (/)");
 			}
 
 			const decoration: IDecorationOptions[] = [

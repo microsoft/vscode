@@ -667,6 +667,12 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			if (result && typeof result === 'object') { /* _version === 2 */
 				chatModel.acceptResponseProgress(addedRequest, { kind: 'pullRequest', ...result });
+				chatModel.acceptResponseProgress(addedRequest, {
+					kind: 'markdownContent', content: new MarkdownString(
+						localize('remoteAgentResponse2', "Your work will be continued in this pull request."), // TODO(jospicer): Generalize this
+						CreateRemoteAgentJobAction.markdownStringTrustedOptions
+					)
+				});
 			} else if (typeof result === 'string') {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'markdownContent',

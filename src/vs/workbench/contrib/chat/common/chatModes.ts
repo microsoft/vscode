@@ -160,7 +160,12 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
-		return { builtin: this.getBuiltinModes(), custom: Array.from(this._customModeInstances.values()) };
+		return {
+			builtin: this.getBuiltinModes(),
+			custom: this.chatAgentService.hasToolsAgent ?
+				Array.from(this._customModeInstances.values()) :
+				[]
+		};
 	}
 
 	private getFlatModes(): IChatMode[] {
