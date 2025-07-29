@@ -192,11 +192,13 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	private renderFilesList(container: HTMLElement): IDisposable {
 		const store = new DisposableStore();
 		this.list = store.add(this.instantiationService.createInstance(CollapsibleChangesSummaryListPool)).get();
+		this.updateList(this.fileChanges, this.fileChangesDiffsObservable.get());
+		const listNode = this.list.getHTMLElement();
 		const itemsShown = Math.min(this.fileChanges.length, this.MAX_ITEMS_SHOWN);
 		const height = itemsShown * this.ELEMENT_HEIGHT;
 		this.list.layout(height);
-		this.updateList(this.fileChanges, this.fileChangesDiffsObservable.get());
-		container.appendChild(this.list.getHTMLElement().parentElement!);
+		listNode.style.height = height + 'px';
+		container.appendChild(listNode.parentElement!);
 
 		store.add(this.list.onDidOpen(async (item) => {
 			const element = item.element;
