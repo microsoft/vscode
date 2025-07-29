@@ -84,8 +84,15 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 		}
 		const allKeys = await this.secretStorageService.keys();
 		const keys = allKeys
-			.map(key => this.parseKey(key))
-			.filter(({ extensionId: id }) => id === extensionId)
+			.map(key => {
+				try {
+					return this.parseKey(key);
+				} catch (e) {
+					// Core can use non-JSON values as keys, so we may not be able to parse them.
+					return null;
+				}
+			})
+			.filter(parsed => parsed !== null && parsed.extensionId === extensionId)
 			.map(({ key }) => key); // Return only my keys
 		this.logService.trace(`[mainThreadSecretState] Got ${keys.length}key(s) for: `, extensionId);
 		return keys;
