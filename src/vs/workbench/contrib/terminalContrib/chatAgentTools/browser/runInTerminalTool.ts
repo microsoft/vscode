@@ -50,7 +50,6 @@ interface IStoredTerminalAssociation {
 export const RunInTerminalToolData: IToolData = {
 	id: 'run_in_terminal',
 	toolReferenceName: 'runInTerminal',
-	canBeReferencedInPrompt: true,
 	displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 	modelDescription: [
 		'This tool allows you to execute shell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
