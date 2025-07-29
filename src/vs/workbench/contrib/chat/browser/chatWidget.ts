@@ -1507,8 +1507,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
-		// Apply any placeholder from the view model immediately
-		if (this.viewModel.inputPlaceholder) {
+		if (this._lockedToCodingAgent) {
+			const placeholder = localize('chat.input.placeholder.lockedToAgent', "Follow up with {0}", this._lockedToCodingAgent);
+			this.viewModel.setInputPlaceholder(placeholder);
+			this.inputEditor.updateOptions({ placeholder });
+		} else if (this.viewModel.inputPlaceholder) {
 			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
 		}
 
@@ -1611,19 +1614,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	// Coding agent locking methods
-	public lockToCodingAgent(name: string): void {
-		this._lockedToCodingAgent = name;
+	public lockToCodingAgent(name: string, displayName: string): void {
+		this._lockedToCodingAgent = displayName;
 		this._codingAgentPrefix = `@${name} `;
 		this._lockedToCodingAgentContextKey.set(true);
 		this.renderWelcomeViewContentIfNeeded();
 		this.input.setChatMode(ChatModeKind.Ask);
-
-		// Update the placeholder to show that we're locked to this agent
-		const localized = localize('chat.input.placeholder.lockedToAgent', "Chat with @{0}", name);
-		if (this.viewModel) {
-			this.viewModel.setInputPlaceholder(localized);
-		}
-		this.inputEditor.updateOptions({ placeholder: localized });
 	}
 
 	public unlockFromCodingAgent(): void {
@@ -1639,8 +1635,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
-
-		// Also clear the editor's placeholder immediately for immediate visual feedback
 		this.inputEditor.updateOptions({ placeholder: undefined });
 	}
 
