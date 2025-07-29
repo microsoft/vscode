@@ -24,6 +24,7 @@ export interface IChatCapabilityDiscoveryService {
 	getCapabilities(): IChatCapability[];
 	getCapabilityExamples(workspaceState: WorkbenchState): IChatSuggestedPrompts[];
 	getEngagementPrompts(hasWorkspace: boolean): IChatSuggestedPrompts[];
+	getCapabilityOverviewPrompt(): string;
 }
 
 export class ChatCapabilityDiscoveryService implements IChatCapabilityDiscoveryService {
@@ -152,17 +153,17 @@ export class ChatCapabilityDiscoveryService implements IChatCapabilityDiscoveryS
 				{
 					icon: Codicon.sparkle,
 					label: localize('chatEngagement.showCapabilities', "Show all capabilities"),
-					prompt: localize('chatEngagement.showCapabilitiesPrompt', "What are all the different ways you can help me with programming? Give me a comprehensive overview with examples."),
+					prompt: localize('chatEngagement.showCapabilitiesPrompt', "What are all the different ways you can help me with programming? Give me a comprehensive overview with examples for each capability."),
 				},
 				{
 					icon: Codicon.question,
-					label: localize('chatEngagement.howToUse', "How to use you effectively"),
-					prompt: localize('chatEngagement.howToUsePrompt', "How can I interact with you most effectively? What are the best practices for asking programming questions?"),
+					label: localize('chatEngagement.howToUse', "How to interact effectively"),
+					prompt: localize('chatEngagement.howToUsePrompt', "I'm new to AI programming assistants. How can I interact with you most effectively? What are the best practices for asking programming questions and getting useful help?"),
 				},
 				{
-					icon: Codicon.newFolder,
-					label: localize('chatEngagement.startProject', "Start a new project"),
-					prompt: localize('chatEngagement.startProjectPrompt', "Help me start a new web development project. What technologies should I consider and how do I set it up?"),
+					icon: Codicon.mortarBoard,
+					label: localize('chatEngagement.exploreLearning', "Explore learning paths"),
+					prompt: localize('chatEngagement.exploreLearningPrompt', "I want to learn programming but I'm not sure where to start. Can you help me explore different learning paths and suggest what to focus on first?"),
 				}
 			];
 		} else {
@@ -170,19 +171,36 @@ export class ChatCapabilityDiscoveryService implements IChatCapabilityDiscoveryS
 				{
 					icon: Codicon.gear,
 					label: localize('chatEngagement.projectSpecific', "Project-specific help"),
-					prompt: localize('chatEngagement.projectSpecificPrompt', "Based on this project structure, what are the most useful ways you can help me?"),
+					prompt: localize('chatEngagement.projectSpecificPrompt', "Based on this project structure, what are the most useful ways you can help me? Analyze my codebase and suggest specific areas where I could use assistance."),
 				},
 				{
 					icon: Codicon.rocket,
 					label: localize('chatEngagement.optimize', "Optimize this project"),
-					prompt: localize('chatEngagement.optimizePrompt', "Analyze this project and suggest ways to improve performance, structure, and maintainability"),
+					prompt: localize('chatEngagement.optimizePrompt', "Analyze this project and suggest ways to improve performance, structure, and maintainability. Help me understand what could be enhanced."),
 				},
 				{
 					icon: Codicon.shield,
 					label: localize('chatEngagement.bestPractices', "Best practices review"),
-					prompt: localize('chatEngagement.bestPracticesPrompt', "Review this codebase for adherence to best practices and suggest improvements"),
+					prompt: localize('chatEngagement.bestPracticesPrompt', "Review this codebase for adherence to best practices and suggest improvements. Help me understand what's working well and what could be better."),
 				}
 			];
 		}
+	}
+
+	/**
+	 * Provides a comprehensive capability overview prompt for users who want to discover 
+	 * what the AI assistant can help with. This addresses the scenario where users are 
+	 * in an exploratory phase and haven't specified a particular task yet.
+	 */
+	getCapabilityOverviewPrompt(): string {
+		return localize('chatCapability.overviewPrompt', 
+			`I'd like to understand what you can help me with as a programming assistant. Please provide:
+
+1. **Core Capabilities** - What are your main areas of expertise in programming?
+2. **Practical Examples** - Show me specific examples of tasks you can help with
+3. **Best Practices** - How should I ask questions to get the most helpful responses?
+4. **Getting Started** - If I'm new to working with AI assistants, what should I try first?
+
+Please make this interactive - I want to understand not just what you can do, but how we can work together effectively on programming tasks.`);
 	}
 }

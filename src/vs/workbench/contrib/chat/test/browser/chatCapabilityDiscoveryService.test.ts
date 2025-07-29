@@ -78,4 +78,20 @@ suite('ChatCapabilityDiscoveryService', () => {
 			assert.ok(example.icon, 'Example should have an icon');
 		}
 	});
+
+	test('should provide comprehensive overview prompt for exploratory users', () => {
+		const overviewPrompt = service.getCapabilityOverviewPrompt();
+		
+		// Should be comprehensive and interactive
+		assert.ok(overviewPrompt.length > 100, 'Overview prompt should be comprehensive');
+		assert.ok(overviewPrompt.includes('capabilities'), 'Should mention capabilities');
+		assert.ok(overviewPrompt.includes('examples'), 'Should ask for examples');
+		assert.ok(overviewPrompt.includes('practices'), 'Should ask for best practices');
+		assert.ok(overviewPrompt.includes('interactive'), 'Should emphasize interactivity');
+		
+		// Should address the scenario in the problem statement
+		const promptLower = overviewPrompt.toLowerCase();
+		assert.ok(promptLower.includes('programming'), 'Should be programming-focused');
+		assert.ok(promptLower.includes('help'), 'Should emphasize helping');
+	});
 });

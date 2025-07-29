@@ -890,6 +890,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			additionalMessage: localize('expChatAdditionalMessage', "Review AI output carefully before use."),
 			isExperimental: true,
 			suggestedPrompts: this.getExpSuggestedPrompts(),
+			tips: new MarkdownString(localize('expChatTips', "💡 **Tip:** Not sure where to start? Try asking me about my capabilities or describing what you're working on!"))
 		};
 		return welcomeContent;
 	}
@@ -906,9 +907,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				{
 					icon: Codicon.lightbulb,
 					label: localize('chatWidget.suggestedPrompts.discoverCapabilities', "Discover what I can do"),
-					prompt: localize('chatWidget.suggestedPrompts.discoverCapabilitiesPrompt', "What can you help me with? Show me examples of different tasks you can assist with."),
+					prompt: this.capabilityDiscoveryService.getCapabilityOverviewPrompt(),
 				},
-				...basePrompts,
+				...basePrompts.slice(0, 2), // Limit to avoid overwhelming users
 				{
 					icon: Codicon.code,
 					label: localize('chatWidget.suggestedPrompts.learnCoding', "Help me learn"),
@@ -922,7 +923,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					label: localize('chatWidget.suggestedPrompts.exploreCapabilities', "Explore assistant features"),
 					prompt: localize('chatWidget.suggestedPrompts.exploreCapabilitiesPrompt', "What programming tasks can you help me with in this project? Show me specific examples."),
 				},
-				...basePrompts,
+				...basePrompts.slice(0, 2), // Limit to avoid overwhelming users
 				{
 					icon: Codicon.gear,
 					label: localize('chatWidget.suggestedPrompts.findConfig', "Show project config"),
