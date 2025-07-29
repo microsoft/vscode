@@ -208,6 +208,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
+	async $interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void> {
+		const key = `${providerHandle}_${sessionId}`;
+		const entry = this._extHostChatSessions.get(key);
+		entry?.disposeCts.cancel();
+	}
+
 	async $disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void> {
 		const key = `${providerHandle}_${sessionId}`;
 		const entry = this._extHostChatSessions.get(key);
