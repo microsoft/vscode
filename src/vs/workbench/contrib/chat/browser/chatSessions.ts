@@ -52,6 +52,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatSessionUri } from '../common/chatUri.js';
+import { IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -668,11 +669,15 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 }
 
 // Sessions view pane for a specific provider
-class SessionsViewPane extends ViewPane {
+class SessionsViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private tree?: WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
 	private treeContainer?: HTMLElement;
 	private dataSource?: SessionsDataSource;
 	private labels?: ResourceLabels;
+	private hasSessionItems = false;
+
+	private readonly _onDidChangeViewWelcomeState = this._register(new Emitter<void>());
+	readonly onDidChangeViewWelcomeState = this._onDidChangeViewWelcomeState.event;
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
@@ -703,6 +708,11 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
+	shouldShowWelcome(): boolean {
+		// Show welcome when there are no chat session items
+		return !this.hasSessionItems;
+	}
+
 	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
 		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
 	}
@@ -730,11 +740,35 @@ class SessionsViewPane extends ViewPane {
 				},
 				async () => {
 					await this.tree!.updateChildren(this.provider);
+					await this.updateSessionItemsState();
 				}
 			);
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error refreshing chat sessions tree:', error);
+		}
+	}
+
+	/**
+	 * Updates the hasSessionItems state and fires the welcome state change event.
+	 */
+	private async updateSessionItemsState(): Promise<void> {
+		try {
+			const items = await this.provider.provideChatSessionItems(CancellationToken.None);
+			const previousState = this.hasSessionItems;
+			this.hasSessionItems = items.length > 0;
+			
+			// Fire event if state changed
+			if (previousState !== this.hasSessionItems) {
+				this._onDidChangeViewWelcomeState.fire();
+			}
+		} catch (error) {
+			this.logService.error('Error updating session items state:', error);
+			const previousState = this.hasSessionItems;
+			this.hasSessionItems = false;
+			if (previousState !== this.hasSessionItems) {
+				this._onDidChangeViewWelcomeState.fire();
+			}
 		}
 	}
 
@@ -755,6 +789,7 @@ class SessionsViewPane extends ViewPane {
 				},
 				async () => {
 					await this.tree!.setInput(this.provider);
+					await this.updateSessionItemsState();
 				}
 			);
 		} catch (error) {
