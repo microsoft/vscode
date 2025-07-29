@@ -15,6 +15,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
+import { IChatEditingSessionStop } from '../browser/chatEditing/chatEditingSessionStorage.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatResponseModel } from './chatModel.js';
 
@@ -142,6 +143,8 @@ export interface IChatEditingSession extends IDisposable {
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
 	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
+
+	getSessionStopAfter(requestId: string, stopId: string | undefined): IObservable<IChatEditingSessionStop | undefined>;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;

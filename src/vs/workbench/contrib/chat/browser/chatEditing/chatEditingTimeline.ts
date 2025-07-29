@@ -11,7 +11,7 @@ import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { derived, derivedOpts, IObservable, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IObservableWithChange, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
@@ -374,7 +374,7 @@ export class ChatEditingTimeline {
 			},
 			reader => {
 				const stops = requestId ?
-					getCurrentAndNextStop(requestId, startStopId, endStopId, this._linearHistory.read(reader)) :
+					getCurrentAndNextStop(requestId, startStopId, this._linearHistory.read(reader)) :
 					getFirstAndLastStop(uri, this._linearHistory.read(reader));
 				console.log('stops 	', stops);
 				if (!stops) { return undefined; }
@@ -421,6 +421,20 @@ export class ChatEditingTimeline {
 			return observable;
 		}
 	}
+
+	public getSessionStopAfter(requestId: string, stopId: string | undefined): IObservableWithChange<IChatEditingSessionStop | undefined, void> {
+		return derived(reader => {
+			const history = this._linearHistory.read(reader);
+			const snapshotIndex = history.findIndex(s => s.requestId === requestId);
+			if (snapshotIndex === -1) { return undefined; }
+			const snapshot = history[snapshotIndex];
+			const stopIndex = snapshot.stops.findIndex(s => s.stopId === stopId);
+			if (stopIndex === -1) { return undefined; }
+			return snapshotIndex < snapshot.stops.length - 1
+				? snapshot.stops[stopIndex + 1]
+				: undefined;
+		});
+	}
 }
 
 function stopProvidesNewData(origin: IChatEditingSessionStop, target: IChatEditingSessionStop) {
@@ -440,25 +454,18 @@ function snapshotsEqualForDiff(a: ISnapshotEntry | undefined, b: ISnapshotEntry 
 	return isEqual(a.snapshotUri, b.snapshotUri) && a.current === b.current;
 }
 
-function getCurrentAndNextStop(requestId: string, startStopId: string | undefined, endStopId: string | undefined, history: readonly IChatEditingSessionSnapshot[]) {
+function getCurrentAndNextStop(requestId: string, stopId: string | undefined, history: readonly IChatEditingSessionSnapshot[]) {
 	const snapshotIndex = history.findIndex(s => s.requestId === requestId);
 	if (snapshotIndex === -1) { return undefined; }
 	const snapshot = history[snapshotIndex];
-	const startStopIndex = snapshot.stops.findIndex(s => s.stopId === startStopId);
-	if (startStopIndex === -1) { return undefined; }
+	const stopIndex = snapshot.stops.findIndex(s => s.stopId === stopId);
+	if (stopIndex === -1) { return undefined; }
 
-	const currentStop = snapshot.stops[startStopIndex];
+	const currentStop = snapshot.stops[stopIndex];
 	const current = currentStop.entries;
-	let nextStop: IChatEditingSessionStop | undefined = undefined;
-	if (endStopId) {
-		const endStopIndex = snapshot.stops.findIndex(s => s.stopId === endStopId);
-		if (endStopIndex === -1) { return undefined; }
-		nextStop = snapshot.stops[endStopIndex];
-	} else {
-		nextStop = startStopIndex < snapshot.stops.length - 1
-			? snapshot.stops[startStopIndex + 1]
-			: undefined;
-	}
+	const nextStop = stopIndex < snapshot.stops.length - 1
+		? snapshot.stops[stopIndex + 1]
+		: undefined;
 	if (!nextStop) {
 		return undefined;
 	}

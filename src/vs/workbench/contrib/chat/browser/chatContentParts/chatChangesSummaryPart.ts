@@ -93,13 +93,18 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 					continue;
 				}
 				const requestId = change.requestId;
-				console.log('change : ', change);
 				const undoStops = context.content.filter(e => e.kind === 'undoStop');
 
 				const originalSnapShot = entry.createSnapshot(requestId, undoStops[0].id);
-				const modifiedSnapshot = entry.createSnapshot(requestId, undoStops[undoStops.length - 1].id);
+				const sessionStopAfterLast = editSession.getSessionStopAfter(requestId, undoStops[undoStops.length - 1].id).read(r);
+				if (!sessionStopAfterLast) {
+					continue;
+				}
+				const modifiedSnapshot = entry.createSnapshot(requestId, sessionStopAfterLast.stopId);
 				console.log('context.content : ', context.content);
 				console.log('undoStops : ', undoStops);
+				console.log('undoStops[undoStops.length - 1].id : ', undoStops[undoStops.length - 1].id);
+				console.log('sessionStopAfterLast.stopId : ', sessionStopAfterLast.stopId);
 				console.log('originalSnapShot.snapshotUri : ', originalSnapShot.snapshotUri);
 				console.log('modifiedSnapshot.snapshotUri : ', modifiedSnapshot.snapshotUri);
 				const diffPromise = this.editorWorkerService.computeDiff(originalSnapShot.snapshotUri, modifiedSnapshot.snapshotUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
@@ -228,7 +233,8 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	}
 
 	private async updateList(fileChanges: readonly IChatFileChangesSummary[], fileChangesDiffs: Map<string, ObservablePromise<IEditSessionEntryDiff>>): Promise<void> {
-		this.list.splice(0, this.list.length, await this.computeFileChangeSummaryItems(fileChanges, fileChangesDiffs));
+		const items = await this.computeFileChangeSummaryItems(fileChanges, fileChangesDiffs);
+		this.list.splice(0, this.list.length, items);
 	}
 
 	private async computeFileChangeSummaryItems(fileChanges: readonly IChatFileChangesSummary[], fileChangesDiffs: Map<string, ObservablePromise<IEditSessionEntryDiff>>): Promise<IChatFileChangesSummaryItem[]> {
