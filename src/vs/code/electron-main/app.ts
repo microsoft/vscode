@@ -607,7 +607,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Post Open Windows Tasks
-		this.afterWindowOpen();
+		await this.afterWindowOpen();
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
@@ -1363,7 +1363,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private afterWindowOpen(): void {
+	private async afterWindowOpen(): Promise<void> {
 
 		// Windows: mutex
 		this.installMutex();
@@ -1385,8 +1385,8 @@ export class CodeApplication extends Disposable {
 		// Crash reporter
 		this.updateCrashReporterEnablement();
 
-		// macOS: rosetta translation warning
-		if (isMacintosh && app.runningUnderARM64Translation) {
+		// ARM64 translation warning (both macOS and Windows)
+		if (await this.nativeHostMainService!.isRunningUnderARM64Translation()) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
 	}

@@ -711,8 +711,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async isRunningUnderARM64Translation(): Promise<boolean> {
-		if (isLinux || isWindows) {
+		if (isLinux) {
 			return false;
+		}
+
+		if (isWindows) {
+			// On Windows, detect if we're running an x64 process on ARM64 hardware
+			// Based on environment variable behavior observed in VS Code:
+			// - x64 process on ARM64: PROCESSOR_ARCHITECTURE is ARM64, process.arch is x64
+			// - ARM64 process on ARM64: PROCESSOR_ARCHITECTURE is ARM64, process.arch is arm64
+			// - x64 process on x64: PROCESSOR_ARCHITECTURE is AMD64, process.arch is x64
+			const processorArch = process.env['PROCESSOR_ARCHITECTURE'];
+			const processArch = process.arch;
+			
+			// If machine reports ARM64 but process is x64, we're running under emulation
+			return processorArch === 'ARM64' && processArch === 'x64';
 		}
 
 		return app.runningUnderARM64Translation;
