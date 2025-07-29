@@ -135,7 +135,9 @@ export interface IChatEditingSession extends IDisposable {
 	 * @param responseModel The response model making the edits
 	 * @param inUndoStop The undo stop the edits will be grouped in
 	 */
-	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
+	startStreamingEdits(resource: URI, otherResources: URI[], responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
+
+	ensureResourcesAreTracked(responseModel: IChatResponseModel, undoStop: string | undefined, resources: URI[]): void;
 
 	/**
 	 * Gets the document diff of a change made to a URI between one undo stop and another one.

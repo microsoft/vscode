@@ -139,6 +139,22 @@ export class ChatEditingTimeline {
 		tx: ITransaction | undefined
 	) {
 		const history = this._linearHistory.get();
+
+		const newNewLinearHistory = history.map((element) => {
+			return {
+				requestId: element.requestId,
+				stops: element.stops.map((stop) => {
+					return {
+						stopId: stop.stopId,
+						resources: Array.from(stop.entries.keys()).map((resource) => {
+							return resource.toString();
+						})
+					};
+				})
+			};
+		});
+		console.log('newLinearHistory : ', JSON.stringify(newNewLinearHistory));
+
 		const snapIndex = history.findIndex((s) => s.requestId === requestId);
 		if (snapIndex === -1) {
 			return;
@@ -177,6 +193,21 @@ export class ChatEditingTimeline {
 
 		const newHistory = history.slice();
 		newHistory[snapIndex] = snap;
+
+		const newNewNewLinearHistory = newHistory.map((element) => {
+			return {
+				requestId: element.requestId,
+				stops: element.stops.map((stop) => {
+					return {
+						stopId: stop.stopId,
+						resources: Array.from(stop.entries.keys()).map((resource) => {
+							return resource.toString();
+						})
+					};
+				})
+			};
+		});
+		console.log('newLinearHistory : ', JSON.stringify(newNewNewLinearHistory));
 
 		this._linearHistory.set(newHistory, tx);
 		if (linearHistoryIndexIncr) {
@@ -261,7 +292,10 @@ export class ChatEditingTimeline {
 	}
 
 	public pushSnapshot(requestId: string, undoStop: string | undefined, snapshot: IChatEditingSessionStop) {
-		console.log('pushSnapshot requestId : ', requestId, 'undoStop : ', undoStop, ' snapshot : ', snapshot);
+		const res = Array.from(snapshot.entries.keys()).map((resource) => {
+			return resource.toString();
+		});
+		console.log('pushSnapshot requestId : ', requestId, 'undoStop : ', undoStop, ' resources', JSON.stringify(res));
 		const linearHistoryPtr = this._linearHistoryIndex.get();
 		const newLinearHistory: IChatEditingSessionSnapshot[] = [];
 		for (const entry of this._linearHistory.get()) {
@@ -273,6 +307,20 @@ export class ChatEditingTimeline {
 				newLinearHistory.push(entry);
 			}
 		}
+		const newNewLinearHistory = newLinearHistory.map((element) => {
+			return {
+				requestId: element.requestId,
+				stops: element.stops.map((stop) => {
+					return {
+						stopId: stop.stopId,
+						resources: Array.from(stop.entries.keys()).map((resource) => {
+							return resource.toString();
+						})
+					};
+				})
+			};
+		});
+		console.log('newLinearHistory : ', JSON.stringify(newNewLinearHistory));
 
 		const lastEntry = newLinearHistory.at(-1);
 		if (requestId && lastEntry?.requestId === requestId) {
@@ -290,8 +338,20 @@ export class ChatEditingTimeline {
 		} else {
 			newLinearHistory.push({ requestId, startIndex: lastEntry ? lastEntry.startIndex + lastEntry.stops.length : 0, stops: [snapshot] });
 		}
-
-		console.log('newLinearHistory : ', newLinearHistory);
+		const newNewNewLinearHistory = newLinearHistory.map((element) => {
+			return {
+				requestId: element.requestId,
+				stops: element.stops.map((stop) => {
+					return {
+						stopId: stop.stopId,
+						resources: Array.from(stop.entries.keys()).map((resource) => {
+							return resource.toString();
+						})
+					};
+				})
+			};
+		});
+		console.log('newLinearHistory : ', JSON.stringify(newNewNewLinearHistory));
 
 		transaction((tx) => {
 			const last = newLinearHistory[newLinearHistory.length - 1];
