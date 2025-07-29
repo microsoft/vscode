@@ -1524,9 +1524,25 @@ begin
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\{#RegValueName}ContextMenu');
     end else begin
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
-      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
+      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}'); 
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}');
+
+      // Fix for duplicate Windows 11 context menu entries (issue #258418)
+      // When VS Code Insiders changed appx package naming, old packages weren't cleaned up
+      // causing duplicate entries in Windows 11 modern context menu.
+#if "insider" == Quality
+      if IsWindows11OrLater then begin
+        // Clean up any old VS Code insiders appx package that uses the old naming scheme
+        // This specifically targets the scenario where insiders used 'code_*.appx' before
+        // switching to 'code_insider_*.appx', leaving duplicate registrations.
+        try
+          Exec('powershell', '-WindowStyle Hidden -Command "Get-AppxPackage | Where-Object { $_.Name -match ''Microsoft\.VSCode'' -and $_.PackageFullName -match ''code_.*\.appx'' -and $_.PackageFullName -notmatch ''code_insider'' } | Remove-AppxPackage -Confirm:$false -ErrorAction SilentlyContinue"', '', SW_HIDE, ewWaitUntilTerminated, UpdateResultCode);
+        except
+          // Ignore any errors - this is a best-effort cleanup
+        end;
+      end;
+#endif
     end;
 #endif
 
