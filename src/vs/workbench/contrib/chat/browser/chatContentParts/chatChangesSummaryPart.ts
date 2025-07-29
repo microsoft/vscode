@@ -96,22 +96,19 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				console.log('change : ', change);
 				const undoStops = context.content.filter(e => e.kind === 'undoStop');
 
-				const modifiedUri = entry.modifiedURI;
 				const originalSnapShot = entry.createSnapshot(requestId, undoStops[0].id);
+				const modifiedSnapshot = entry.createSnapshot(requestId, undoStops[undoStops.length - 1].id);
 				console.log('context.content : ', context.content);
 				console.log('undoStops : ', undoStops);
 				console.log('originalSnapShot.snapshotUri : ', originalSnapShot.snapshotUri);
-				console.log('entry : ', entry);
-
-				console.log('originalURI : ', entry.originalURI);
-				console.log('modifiedURI : ', modifiedUri);
-				const diffPromise = this.editorWorkerService.computeDiff(originalSnapShot.snapshotUri, modifiedUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
+				console.log('modifiedSnapshot.snapshotUri : ', modifiedSnapshot.snapshotUri);
+				const diffPromise = this.editorWorkerService.computeDiff(originalSnapShot.snapshotUri, modifiedSnapshot.snapshotUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
 				// const diff = editSession.getEntryDiffBetweenStops(modifiedUri, requestId, undoStops[0].id, undoStops[undoStops.length - 1].id)?.read(r);
 				const editEntryDiffPromise = diffPromise.then((diff) => {
 					console.log('diff : ', diff);
 					const entryDiff: IEditSessionEntryDiff = {
 						originalURI: originalSnapShot.snapshotUri,
-						modifiedURI: entry.modifiedURI,
+						modifiedURI: modifiedSnapshot.snapshotUri,
 						identical: !!diff?.identical,
 						quitEarly: !diff || diff.quitEarly,
 						added: 0,

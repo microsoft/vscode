@@ -95,6 +95,7 @@ export class ChatEditingTimeline {
 	 * If requestId is undefined, returns undefined (pending snapshot is managed by session).
 	 */
 	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; apply(): void } | undefined {
+		console.log('getSnapshotForRestore : ', requestId, stopId);
 		if (requestId === undefined) {
 			return undefined;
 		}

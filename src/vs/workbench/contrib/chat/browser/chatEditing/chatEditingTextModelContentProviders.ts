@@ -63,6 +63,7 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		console.log('provideTextContent resource : ', resource);
 		const existing = this._modelService.getModel(resource);
 		if (existing && !existing.isDisposed()) {
 			return existing;
@@ -75,6 +76,7 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 			return null;
 		}
 
+		// get the model for this snapshot
 		return session.getSnapshotModel(data.requestId, data.undoStop || undefined, resource);
 	}
 }

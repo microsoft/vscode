@@ -126,16 +126,16 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		const modified = this._getModel(modifiedUrl);
 		console.log('originalUri : ', originalUrl);
 		console.log('modifiedUrl : ', modifiedUrl);
-		console.log('original : ', original);
-		console.log('modified : ', modified);
 		const originalValue = original?.getValue();
 		const modifiedValue = modified?.getValue();
-		console.log('originalValue === modifiedValue ; ', originalValue === modifiedValue);
+		console.log('originalValue : ', originalValue);
+		console.log('modifiedValue : ', modifiedValue);
 		if (!original || !modified) {
 			return null;
 		}
 
 		const result = EditorWorker.computeDiff(original, modified, options, algorithm);
+		console.log('diff result : ', result);
 		return result;
 	}
 

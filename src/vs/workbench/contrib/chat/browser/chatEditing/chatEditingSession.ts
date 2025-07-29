@@ -243,11 +243,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (!snapshotEntry) {
 			return null;
 		}
-
+		console.log('getSnapshotModel');
+		console.log('snapshotUri : ', snapshotUri);
+		console.log('snapshotEntry.current : ', snapshotEntry.current);
 		return this._modelService.createModel(snapshotEntry.current, this._languageService.createById(snapshotEntry.languageId), snapshotUri, false);
 	}
 
 	public getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined {
+		console.log('getSnapshotUri : ', requestId, uri, stopId);
 		// This should be encapsulated in the timeline, but for now, fallback to legacy logic if needed.
 		// TODO: Move this logic into a timeline method if required by the design.
 		const timelineState = this._timeline.getStateForPersistence();
