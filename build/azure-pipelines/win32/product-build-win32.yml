@@ -301,6 +301,9 @@ steps:
           $ErrorActionPreference = "Stop"
           exec { npx deemon --attach -- -- npx zx build/azure-pipelines/win32/codesign.js }
         condition: succeededOrFailed()
+        env:
+          NODE_DEBUG: "net,child_process"
+          NODE_OPTIONS: "--report-filename=stdout,--report-uncaught-exception,--report-on-fatalerror"
         displayName: "✍️ Post-job: Codesign"
 
       - powershell: |
