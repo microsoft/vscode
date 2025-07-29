@@ -696,6 +696,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 		Promise.all([modifiedCellModelPromise, originalCellModelPromise]).then(([modifiedCellModel, originalCellModel]) => {
 			this.getOrCreateModifiedTextFileEntryForCell(modifiedCell, modifiedCellModel, originalCellModel);
+		}).catch(() => {
+			// If promises fail due to disposal, ignore the error
 		});
 
 		const diff = observableValue('diff', nullDocumentDiff);
@@ -749,6 +751,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			// We want decorators for the cell just as we display decorators for modified cells.
 			// This way we have the ability to accept/reject the entire cell.
 			this.getOrCreateModifiedTextFileEntryForCell(cell, modifiedModel, originalModel);
+		}).catch(() => {
+			// If promise fails due to disposal, ignore the error
 		});
 		return {
 			type: 'insert' as const,
@@ -966,8 +970,19 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (!cell) {
 			throw new Error('Cell not found');
 		}
-		const model = this.cellTextModelMap.get(cell.uri) || this._register(await this.textModelService.createModelReference(cell.uri)).object.textEditorModel;
-		this.cellTextModelMap.set(cell.uri, model);
+		let model = this.cellTextModelMap.get(cell.uri);
+		if (!model) {
+			const ref = await this.textModelService.createModelReference(cell.uri);
+			model = ref.object.textEditorModel;
+			// Prevent disposable leak: only register if we're not disposed
+			if (!this._store.isDisposed) {
+				this._register(ref);
+			} else {
+				// If we're disposed, just dispose the reference immediately instead of leaking it
+				ref.dispose();
+			}
+			this.cellTextModelMap.set(cell.uri, model);
+		}
 		return model;
 	}
 
@@ -975,6 +990,11 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		let cellEntry = this.cellEntryMap.get(cell.uri);
 		if (cellEntry) {
 			return cellEntry;
+		}
+
+		// Prevent disposable leak: don't create new entries if we're disposed
+		if (this._store.isDisposed) {
+			return undefined;
 		}
 
 		const disposables = new DisposableStore();
