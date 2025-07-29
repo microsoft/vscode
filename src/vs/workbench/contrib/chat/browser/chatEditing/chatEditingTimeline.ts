@@ -261,6 +261,7 @@ export class ChatEditingTimeline {
 	}
 
 	public pushSnapshot(requestId: string, undoStop: string | undefined, snapshot: IChatEditingSessionStop) {
+		console.log('pushSnapshot requestId : ', requestId, 'undoStop : ', undoStop, ' snapshot : ', snapshot);
 		const linearHistoryPtr = this._linearHistoryIndex.get();
 		const newLinearHistory: IChatEditingSessionSnapshot[] = [];
 		for (const entry of this._linearHistory.get()) {
@@ -289,6 +290,8 @@ export class ChatEditingTimeline {
 		} else {
 			newLinearHistory.push({ requestId, startIndex: lastEntry ? lastEntry.startIndex + lastEntry.stops.length : 0, stops: [snapshot] });
 		}
+
+		console.log('newLinearHistory : ', newLinearHistory);
 
 		transaction((tx) => {
 			const last = newLinearHistory[newLinearHistory.length - 1];
