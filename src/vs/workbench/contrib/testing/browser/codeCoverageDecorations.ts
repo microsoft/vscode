@@ -814,23 +814,24 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const result = coverage.fromResult;
 		const previousSelection = testCoverageService.filterToTest.get();
 
-		type TItem = IQuickPickItem & { testId: TestId | undefined };
+		type TItem = IQuickPickItem & { testId: TestId | undefined; location?: { uri: URI; range?: Range } };
 
 		const items: QuickPickInput<TItem>[] = [
 			{ label: coverUtils.labels.allTests, testId: undefined },
 			{ type: 'separator' },
 			...tests.map(id => {
-				// Check ahead of time if the test has a URI/range to determine if we should show the button
+				// Check ahead of time if the test has a URI to determine if we should show the button
 				const testItem = testService.collection.getNodeById(id.toString());
-				const hasLocation = testItem?.item.uri && (testItem?.item.range || true); // URI is required, range is optional
+				const location = testItem?.item.uri ? { uri: testItem.item.uri, range: testItem.item.range } : undefined;
 				
 				const item: TItem = { 
 					label: coverUtils.getLabelForItem(result, id, commonPrefix), 
-					testId: id
+					testId: id,
+					location
 				};
 				
 				// Only add buttons if the test has a location we can navigate to
-				if (hasLocation) {
+				if (location) {
 					item.buttons = [{
 						iconClass: ThemeIcon.asClassName(Codicon.goToFile),
 						tooltip: localize('testing.goToTest', 'Go to Test')
@@ -854,45 +855,19 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 
 		// Handle button clicks for navigation to test
 		quickPick.onDidTriggerItemButton(async ({ item, button }) => {
-			if (item.testId) {
+			if (item.location) {
 				try {
-					// Get the test item from the collection to get its location
-					const testItem = testService.collection.getNodeById(item.testId.toString());
-					if (testItem?.item.uri && testItem?.item.range) {
-						// Navigate to the test location
-						await editorService.openEditor({
-							resource: testItem.item.uri,
-							options: {
-								selection: testItem.item.range,
-								revealInCenterIfOutsideViewport: true
-							}
-						});
-						quickPick.hide();
-						return;
-					}
-				} catch (error) {
-					// Continue to fallback approach
-				}
-				
-				// Fallback: try to get related code locations for the test
-				try {
-					const testItem = testService.collection.getNodeById(item.testId.toString());
-					if (testItem) {
-						const locations = await testService.collection.getCodeRelatedToTest(testItem);
-						if (locations.length > 0) {
-							const location = locations[0];
-							await editorService.openEditor({
-								resource: location.uri,
-								options: {
-									selection: location.range,
-									revealInCenterIfOutsideViewport: true
-								}
-							});
-							quickPick.hide();
+					// Navigate to the test location using stored location
+					await editorService.openEditor({
+						resource: item.location.uri,
+						options: {
+							selection: item.location.range,
+							revealInCenterIfOutsideViewport: true
 						}
-					}
-				} catch (fallbackError) {
-					// If all else fails, silently ignore
+					});
+					quickPick.hide();
+				} catch (error) {
+					// If navigation fails, silently ignore
 				}
 			}
 		});
