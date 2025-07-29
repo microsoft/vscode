@@ -6,11 +6,12 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { InMemoryDocument } from '../client/inMemoryDocument';
-import { createInsertUriListEdit } from '../languageFeatures/copyFiles/shared';
+import { createInsertUriListEdit, imageEditKind, linkEditKind } from '../languageFeatures/copyFiles/shared';
 import { InsertMarkdownLink, findValidUriInText, shouldInsertMarkdownLinkByDefault } from '../languageFeatures/copyFiles/smartDropOrPaste';
 import { noopToken } from '../util/cancellation';
 import { UriList } from '../util/uriList';
 import { createNewMarkdownEngine } from './engine';
+import { joinLines } from './util';
 
 function makeTestDoc(contents: string) {
 	return new InMemoryDocument(vscode.Uri.file('test.md'), contents);
@@ -19,8 +20,6 @@ function makeTestDoc(contents: string) {
 suite('createEditAddingLinksForUriList', () => {
 
 	test('Markdown Link Pasting should occur for a valid link (end to end)', async () => {
-		// createEditAddingLinksForUriList -> checkSmartPaste -> tryGetUriListSnippet -> createUriListSnippet -> createLinkSnippet
-
 		const result = createInsertUriListEdit(
 			new InMemoryDocument(vscode.Uri.file('test.md'), 'hello world!'), [new vscode.Range(0, 0, 0, 12)], UriList.from('https://www.microsoft.com/'));
 		// need to check the actual result -> snippet value
@@ -109,7 +108,6 @@ suite('createEditAddingLinksForUriList', () => {
 	});
 
 	suite('createInsertUriListEdit', () => {
-
 		test('Should create snippet with < > when pasted link has an mismatched parentheses', () => {
 			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], UriList.from('https://www.mic(rosoft.com'));
 			assert.strictEqual(edit?.edits?.[0].snippet.value, '[${1:text}](<https://www.mic(rosoft.com>)');
@@ -133,6 +131,25 @@ suite('createEditAddingLinksForUriList', () => {
 		test('Should not encode an unencoded URI string when passing in an external browser link', () => {
 			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], UriList.from('https://www.example.com/path?query=value&another=value#fragment'));
 			assert.strictEqual(edit?.edits?.[0].snippet.value, '[${1:text}](https://www.example.com/path?query=value&another=value#fragment)');
+		});
+
+		test('Should add image for image file by default', () => {
+			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], UriList.from('https://www.example.com/cat.png'));
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '![${1:alt text}](https://www.example.com/cat.png)');
+		});
+
+		test('Should be able to override insert style to use link', () => {
+			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], UriList.from('https://www.example.com/cat.png'), {
+				linkKindHint: linkEditKind,
+			});
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '[${1:text}](https://www.example.com/cat.png)');
+		});
+
+		test('Should be able to override insert style to use images', () => {
+			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], UriList.from('https://www.example.com/'), {
+				linkKindHint: imageEditKind,
+			});
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '![${1:alt text}](https://www.example.com/)');
 		});
 	});
 
@@ -180,7 +197,12 @@ suite('createEditAddingLinksForUriList', () => {
 		});
 
 		test('Smart should be disabled in math blocks', async () => {
-			const katex = (await import('@vscode/markdown-it-katex')).default;
+
+			let katex: any = (await import('@vscode/markdown-it-katex')).default;
+			if (typeof katex === 'object') {
+				katex = katex.default;
+			}
+
 			const engine = createNewMarkdownEngine();
 			(await engine.getEngine(undefined)).use(katex);
 			assert.strictEqual(
@@ -306,6 +328,37 @@ suite('createEditAddingLinksForUriList', () => {
 			assert.strictEqual(
 				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('<>'), InsertMarkdownLink.Smart, [new vscode.Range(0, 1, 0, 1)], noopToken),
 				false);
+		});
+
+		test('Smart should be disabled in frontmatter', async () => {
+			const textDoc = makeTestDoc(joinLines(
+				`---`,
+				`layout: post`,
+				`title: Blogging Like a Hacker`,
+				`---`,
+				``,
+				`Link Text`
+			));
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), textDoc, InsertMarkdownLink.Smart, [new vscode.Range(0, 0, 0, 0)], noopToken),
+				false);
+
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), textDoc, InsertMarkdownLink.Smart, [new vscode.Range(1, 0, 1, 0)], noopToken),
+				false);
+		});
+
+		test('Smart should enabled after frontmatter', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc(joinLines(
+					`---`,
+					`layout: post`,
+					`title: Blogging Like a Hacker`,
+					`---`,
+					``,
+					`Link Text`
+				)), InsertMarkdownLink.Smart, [new vscode.Range(5, 0, 5, 0)], noopToken),
+				true);
 		});
 	});
 });

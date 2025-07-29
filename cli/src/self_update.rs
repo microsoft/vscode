@@ -122,7 +122,7 @@ fn validate_cli_is_good(exe_path: &Path) -> Result<(), AnyError> {
 	let o = new_std_command(exe_path)
 		.args(["--version"])
 		.output()
-		.map_err(|e| CorruptDownload(format!("could not execute new binary, aborting: {}", e)))?;
+		.map_err(|e| CorruptDownload(format!("could not execute new binary, aborting: {e}")))?;
 
 	if !o.status.success() {
 		let msg = format!(

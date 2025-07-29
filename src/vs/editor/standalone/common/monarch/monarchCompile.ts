@@ -8,8 +8,9 @@
  * into a typed and checked ILexer definition.
  */
 
-import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
-import { IMonarchLanguage, IMonarchLanguageBracket } from 'vs/editor/standalone/common/monarch/monarchTypes';
+import { isString } from '../../../../base/common/types.js';
+import * as monarchCommon from './monarchCommon.js';
+import { IMonarchLanguage, IMonarchLanguageBracket } from './monarchTypes.js';
 
 /*
  * Type helpers
@@ -337,6 +338,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 		// build an array of test cases
 		const cases: monarchCommon.IBranch[] = [];
 
+		let hasEmbeddedEndInCases = false;
 		// for each case, push a test function and result value
 		for (const tkey in action.cases) {
 			if (action.cases.hasOwnProperty(tkey)) {
@@ -352,12 +354,17 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 				else {
 					cases.push(createGuard(lexer, ruleName, tkey, val));  // call separate function to avoid local variable capture
 				}
+
+				if (!hasEmbeddedEndInCases) {
+					hasEmbeddedEndInCases = !isString(val) && (val.hasEmbeddedEndInCases || ['@pop', '@popall'].includes(val.nextEmbedded || ''));
+				}
 			}
 		}
 
 		// create a matching function
 		const def = lexer.defaultToken;
 		return {
+			hasEmbeddedEndInCases,
 			test: function (id, matches, state, eos) {
 				for (const _case of cases) {
 					const didmatch = (!_case.test || _case.test(id, matches, state, eos));
@@ -434,21 +441,21 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	}
 
 	// Create our lexer
-	const lexer: monarchCommon.ILexer = <monarchCommon.ILexer>{};
-	lexer.languageId = languageId;
-	lexer.includeLF = bool(json.includeLF, false);
-	lexer.noThrow = false; // raise exceptions during compilation
-	lexer.maxStack = 100;
-
-	// Set standard fields: be defensive about types
-	lexer.start = (typeof json.start === 'string' ? json.start : null);
-	lexer.ignoreCase = bool(json.ignoreCase, false);
-	lexer.unicode = bool(json.unicode, false);
-
-	lexer.tokenPostfix = string(json.tokenPostfix, '.' + lexer.languageId);
-	lexer.defaultToken = string(json.defaultToken, 'source');
-
-	lexer.usesEmbedded = false; // becomes true if we find a nextEmbedded action
+	const lexer: monarchCommon.ILexer = {
+		languageId: languageId,
+		includeLF: bool(json.includeLF, false),
+		noThrow: false, // raise exceptions during compilation
+		maxStack: 100,
+		start: (typeof json.start === 'string' ? json.start : null),
+		ignoreCase: bool(json.ignoreCase, false),
+		unicode: bool(json.unicode, false),
+		tokenPostfix: string(json.tokenPostfix, '.' + languageId),
+		defaultToken: string(json.defaultToken, 'source'),
+		usesEmbedded: false, // becomes true if we find a nextEmbedded action
+		stateNames: {},
+		tokenizer: {},
+		brackets: []
+	};
 
 	// For calling compileAction later on
 	const lexerMin: monarchCommon.ILexerMin = <any>json;

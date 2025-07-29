@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { PreloadOptions, RenderOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
-import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import type { RenderOutputType } from '../../notebookBrowser.js';
+import type { PreloadOptions, RenderOptions } from './webviewPreloads.js';
+import { NotebookCellMetadata } from '../../../common/notebookCommon.js';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -50,6 +50,7 @@ export interface IOutputBlurMessage extends BaseToWebviewMessage {
 export interface IOutputInputFocusMessage extends BaseToWebviewMessage {
 	readonly type: 'outputInputFocus';
 	readonly inputFocused: boolean;
+	readonly id: string;
 }
 
 export interface IScrollToRevealMessage extends BaseToWebviewMessage {
@@ -68,7 +69,7 @@ export interface IScrollAckMessage extends BaseToWebviewMessage {
 	readonly version: number;
 }
 
-export interface IBlurOutputMessage extends BaseToWebviewMessage {
+export interface IFocusEditorMessage extends BaseToWebviewMessage {
 	readonly type: 'focus-editor';
 	readonly cellId: string;
 	readonly focusNext?: boolean;
@@ -253,12 +254,17 @@ export interface ICopyImageMessage {
 	readonly type: 'copyImage';
 	readonly outputId: string;
 	readonly altOutputId: string;
+	readonly textAlternates?: { mimeType: string; content: string }[];
 }
 
 export interface IFocusOutputMessage {
 	readonly type: 'focus-output';
 	readonly cellOrOutputId: string;
 	readonly alternateId?: string;
+}
+
+export interface IBlurOutputMessage {
+	readonly type: 'blur-output';
 }
 
 export interface IAckOutputHeight {
@@ -300,7 +306,7 @@ export interface IUpdateRenderersMessage {
 }
 
 export interface IUpdateDecorationsMessage {
-	readonly type: 'decorations';
+	readonly type: 'decorations' | 'markupDecorations';
 	readonly cellId: string;
 	readonly addedClassNames: readonly string[];
 	readonly removedClassNames: readonly string[];
@@ -394,7 +400,7 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string };
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string; findIds: string[] };
 }
 
 
@@ -463,6 +469,10 @@ export interface ISelectOutputItemMessage {
 	readonly type: 'select-output-contents';
 	readonly cellOrOutputId: string;
 }
+export interface ISelectInputOutputItemMessage {
+	readonly type: 'select-input-contents';
+	readonly cellOrOutputId: string;
+}
 
 export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
 	readonly type: 'logRendererDebugMessage';
@@ -476,6 +486,7 @@ export interface IPerformanceMessage extends BaseToWebviewMessage {
 	readonly cellId: string;
 	readonly duration: number;
 	readonly rendererId: string;
+	readonly outputSize?: number;
 }
 
 
@@ -489,7 +500,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	IScrollToRevealMessage |
 	IWheelMessage |
 	IScrollAckMessage |
-	IBlurOutputMessage |
+	IFocusEditorMessage |
 	ICustomKernelMessage |
 	ICustomRendererMessage |
 	IClickedDataUrlMessage |
@@ -515,6 +526,7 @@ export type FromWebviewMessage = WebviewInitialized |
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
+	IBlurOutputMessage |
 	IAckOutputHeightMessage |
 	ICreationRequestMessage |
 	IViewScrollTopRequestMessage |
@@ -544,7 +556,8 @@ export type ToWebviewMessage = IClearMessage |
 	IFindUnHighlightCurrentMessage |
 	IFindStopMessage |
 	IReturnOutputItemMessage |
-	ISelectOutputItemMessage;
+	ISelectOutputItemMessage |
+	ISelectInputOutputItemMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

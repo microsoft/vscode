@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { Client, IClientRouter, IConnectionHub } from 'vs/base/parts/ipc/common/ipc';
+import { UriComponents } from '../../../base/common/uri.js';
+import { Client, IClientRouter, IConnectionHub } from '../../../base/parts/ipc/common/ipc.js';
 
 export const NODE_REMOTE_RESOURCE_IPC_METHOD_NAME = 'request';
 

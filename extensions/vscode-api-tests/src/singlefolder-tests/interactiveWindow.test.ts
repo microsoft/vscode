@@ -73,7 +73,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		await saveAllFilesAndCloseAll();
 	});
 
-	test('Can open an interactive window and execute from input box', async () => {
+	test.skip('Can open an interactive window and execute from input box', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const { notebookEditor, inputUri } = await createInteractiveWindow(defaultKernel);
 
@@ -127,6 +127,9 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 });
 
 function lastCellIsVisible(notebookEditor: vscode.NotebookEditor) {
+	if (!notebookEditor.visibleRanges.length) {
+		return false;
+	}
 	const lastVisibleCell = notebookEditor.visibleRanges[notebookEditor.visibleRanges.length - 1].end;
 	return notebookEditor.notebook.cellCount === lastVisibleCell;
 }

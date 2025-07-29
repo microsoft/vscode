@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IMatch } from 'vs/base/common/filters';
-import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IQuickAccessController } from './quickAccess.js';
+import { IMatch } from '../../../base/common/filters.js';
+import { IItemAccessor } from '../../../base/common/fuzzyScorer.js';
+import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -51,6 +51,9 @@ export interface IQuickPickItem {
 	 */
 	disabled?: boolean;
 	alwaysShow?: boolean;
+	indented?: boolean;
+	/** Defauls to true with `IQuickPick.canSelectMany`, can be false to disable picks for a single item */
+	pickable?: boolean;
 }
 
 export interface IQuickPickSeparator {
@@ -82,6 +85,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	title?: string;
 
 	/**
+	 * the value to prefill in the input box
+	 */
+	value?: string;
+
+	/**
 	 * an optional string to show as placeholder in the input box to guide the user what she picks on
 	 */
 	placeHolder?: string;
@@ -100,6 +108,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * an optional flag to filter the picks based on label. Defaults to true.
 	 */
 	matchOnLabel?: boolean;
+
+	/**
+	 * an optional flag to sort the picks based by the label.
+	 */
+	sortByLabel?: boolean;
 
 	/**
 	 * an optional flag to not close the picker on focus lost
@@ -205,9 +218,24 @@ export interface IQuickInputHideEvent {
 }
 
 /**
+ * A collection of the different types of QuickInput
+ */
+export const enum QuickInputType {
+	QuickPick = 'quickPick',
+	InputBox = 'inputBox',
+	QuickWidget = 'quickWidget',
+	QuickTree = 'quickTree'
+}
+
+/**
  * Represents a quick input control that allows users to make selections or provide input quickly.
  */
 export interface IQuickInput extends IDisposable {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType;
 
 	/**
 	 * An event that is fired when the quick input is hidden.
@@ -304,6 +332,12 @@ export interface IQuickInput extends IDisposable {
 }
 
 export interface IQuickWidget extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.QuickWidget;
+
 	/**
 	 * Should be an HTMLElement (TODO: move this entire file into browser)
 	 * @override
@@ -354,9 +388,56 @@ export enum ItemActivation {
 }
 
 /**
+ * Represents the focus options for a quick pick.
+ */
+export enum QuickPickFocus {
+	/**
+	 * Focus the first item in the list.
+	 */
+	First = 1,
+	/**
+	 * Focus the second item in the list.
+	 */
+	Second,
+	/**
+	 * Focus the last item in the list.
+	 */
+	Last,
+	/**
+	 * Focus the next item in the list.
+	 */
+	Next,
+	/**
+	 * Focus the previous item in the list.
+	 */
+	Previous,
+	/**
+	 * Focus the next page in the list.
+	 */
+	NextPage,
+	/**
+	 * Focus the previous page in the list.
+	 */
+	PreviousPage,
+	/**
+	 * Focus the first item under the next separator.
+	 */
+	NextSeparator,
+	/**
+	 * Focus the first item under the current separator.
+	 */
+	PreviousSeparator
+}
+
+/**
  * Represents a quick pick control that allows the user to select an item from a list of options.
  */
-export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
+export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators: boolean } = { useSeparators: false }> extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.QuickPick;
 
 	/**
 	 * The current value of the quick pick input.
@@ -406,6 +487,11 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	ok: boolean | 'default';
 
 	/**
+	 * The OK button label.
+	 */
+	okLabel: string | undefined;
+
+	/**
 	 * An event that is fired when the custom button is triggered. The custom button is a button with text rendered to the right of the input.
 	 */
 	readonly onDidCustom: Event<void>;
@@ -438,7 +524,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	/**
 	 * The items to be displayed in the quick pick.
 	 */
-	items: ReadonlyArray<T | IQuickPickSeparator>;
+	items: O extends { useSeparators: true } ? ReadonlyArray<T | IQuickPickSeparator> : ReadonlyArray<T>;
 
 	/**
 	 * Whether multiple items can be selected. If so, checkboxes will be rendered.
@@ -556,6 +642,18 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * The toggle buttons to be added to the input box.
 	 */
 	toggles: IQuickInputToggle[] | undefined;
+
+	/**
+	 * Focus a particular item in the list. Used internally for keyboard navigation.
+	 * @param focus The focus behavior.
+	 */
+	focus(focus: QuickPickFocus): void;
+
+	/**
+	 * Programmatically accepts an item. Used internally for keyboard navigation.
+	 * @param inBackground Whether you are accepting an item in the background and keeping the picker open.
+	 */
+	accept(inBackground?: boolean): void;
 }
 
 /**
@@ -573,6 +671,11 @@ export interface IQuickInputToggle {
  * Represents an input box in a quick input dialog.
  */
 export interface IInputBox extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.InputBox;
 
 	/**
 	 * Value shown in the input box.
@@ -621,6 +724,18 @@ export interface IInputBox extends IQuickInput {
 	severity: Severity;
 }
 
+export enum QuickInputButtonLocation {
+	/**
+	 * In the title bar.
+	 */
+	Title = 1,
+
+	/**
+	 * To the right of the input box.
+	 */
+	Inline = 2
+}
+
 /**
  * Represents a button in the quick input UI.
  */
@@ -644,6 +759,11 @@ export interface IQuickInputButton {
 	 * By default, buttons are only visible when hovering over them with the mouse.
 	 */
 	alwaysVisible?: boolean;
+	/**
+	 * Where the button should be rendered. The default is {@link QuickInputButtonLocation.Title}.
+	 * @note This property is ignored if the button was added to a QuickPickItem.
+	 */
+	location?: QuickInputButtonLocation;
 }
 
 /**
@@ -770,7 +890,8 @@ export interface IQuickInputService {
 	/**
 	 * Provides raw access to the quick pick controller.
 	 */
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T>;
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+	createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
 
 	/**
 	 * Provides raw access to the input box controller.
@@ -781,6 +902,12 @@ export interface IQuickInputService {
 	 * Provides raw access to the quick widget controller.
 	 */
 	createQuickWidget(): IQuickWidget;
+
+	/**
+	 * Provides raw access to the quick tree controller.
+	 * @template T The type of items in the quick tree.
+	 */
+	createQuickTree<T extends IQuickTreeItem>(): IQuickTree<T>;
 
 	/**
 	 * Moves focus into quick input.
@@ -814,4 +941,231 @@ export interface IQuickInputService {
 	 * Cancels quick input and closes it.
 	 */
 	cancel(): Promise<void>;
+
+	/**
+	 * Toggles hover for the current quick input item
+	 */
+	toggleHover(): void;
+
+	/**
+	 * The current quick pick that is visible. Undefined if none is open.
+	 */
+	currentQuickInput: IQuickInput | undefined;
+
+	/**
+	 * Set the alignment of the quick input.
+	 * @param alignment either a preset or a custom alignment
+	 */
+	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void;
 }
+
+//#region Quick Tree
+
+/**
+ * Represents a quick tree control that displays hierarchical data with checkboxes.
+ */
+export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.QuickTree;
+
+	/**
+	 * The current value of the quick tree filter input.
+	 */
+	value: string;
+
+	/**
+	 * The ARIA label for the quick tree input.
+	 */
+	ariaLabel: string | undefined;
+
+	/**
+	 * The placeholder text for the quick tree filter input.
+	 */
+	placeholder: string | undefined;
+
+	/**
+	 * An event that is fired when the filter value changes.
+	 */
+	readonly onDidChangeValue: Event<string>;
+
+	/**
+	 * An event that is fired when the quick tree has accepted the selected items.
+	 */
+	readonly onDidAccept: Event<void>;
+
+	/**
+	 * Whether to match on the description of the items.
+	 */
+	matchOnDescription: boolean;
+
+	/**
+	 * Whether to match on the detail of the items.
+	 */
+	matchOnDetail: boolean;
+
+	/**
+	 * Whether to match on the label of the items.
+	 */
+	matchOnLabel: boolean;
+
+	/**
+	 * The currently active items.
+	 */
+	activeItems: ReadonlyArray<T>;
+
+	/**
+	 * The validation message for the quick pick. This is rendered below the input.
+	 */
+	validationMessage: string | undefined;
+
+	/**
+	 * The severity of the validation message.
+	 */
+	severity: Severity;
+
+	/**
+	 * The items currently displayed in the quick tree.
+	 * @note modifications to this array directly will not cause updates.
+	 */
+	readonly itemTree: ReadonlyArray<Readonly<T>>;
+
+	/**
+	 * The currently selected leaf items.
+	 */
+	readonly checkedLeafItems: ReadonlyArray<T>;
+
+	/**
+	 * Get the parent element of the element passed in
+	 * @param element
+	 */
+	getParent(element: T): T | undefined;
+
+	/**
+	 * An event that is fired when the active items change.
+	 */
+	readonly onDidChangeActive: Event<ReadonlyArray<T>>;
+
+	/**
+	 * An event that is fired when the selected items change.
+	 */
+	readonly onDidChangeCheckedLeafItems: Event<ReadonlyArray<T>>;
+
+	/**
+	 * An event that is fired when an item button is triggered.
+	 */
+	readonly onDidTriggerItemButton: Event<IQuickTreeItemButtonEvent<T>>;
+
+	/**
+	 * Sets the items to be displayed in the quick tree.
+	 * @param itemTree The items to display.
+	 */
+	setItemTree(itemTree: T[]): void;
+
+	/**
+	 * Sets the checkbox state of an item.
+	 * @param element The item to update.
+	 * @param checked The new checkbox state.
+	 */
+	setCheckboxState(element: T, checked: boolean | 'partial'): void;
+
+	/**
+	 * Expands an item.
+	 * @param element The item to expand.
+	 */
+	expand(element: T): void;
+
+	/**
+	 * Collapses an item.
+	 * @param element The item to collapse.
+	 */
+	collapse(element: T): void;
+
+	/**
+	 * Checks if an item is collapsed.
+	 * @param element The item to check.
+	 * @returns True if the item is collapsed.
+	 */
+	isCollapsed(element: T): boolean;
+
+	/**
+	 * Focuses on the tree input.
+	 */
+	focusOnInput(): void;
+
+	/**
+	 * Focus a particular item in the list. Used internally for keyboard navigation.
+	 * @param focus The focus behavior.
+	 */
+	focus(focus: QuickPickFocus): void;
+
+	/**
+	 * Programmatically accepts an item. Used internally for keyboard navigation.
+	 * @param inBackground Whether you are accepting an item in the background and keeping the picker open.
+	 */
+	accept(inBackground?: boolean): void;
+}
+
+/**
+ * Represents a tree item in the quick tree.
+ */
+export interface IQuickTreeItem extends IQuickPickItem {
+	/**
+	 * The checked state of the item. Can be true, false, or 'partial' for tri-state.
+	 * When canSelectMany is false, this is ignored and the item is treated as a single selection.
+	 * When canSelectMany is true, this indicates the checkbox state of the item.
+	 * If undefined, the item is unchecked by default.
+	 */
+	checked?: boolean | 'partial';
+
+	/**
+	 * TODO:@TylerLeonhardt Bring this back.
+	 */
+	detail?: undefined;
+	picked?: undefined;
+
+	/**
+	 * The collapsible state of the tree item. Defaults to 'Expanded' if children are present.
+	 */
+	collapsed?: boolean;
+
+	/**
+	 * The children of this tree item.
+	 */
+	children?: readonly IQuickTreeItem[];
+}
+
+/**
+ * Represents an event that occurs when the checkbox state of a tree item changes.
+ * @template T - The type of the tree item.
+ */
+export interface IQuickTreeCheckboxEvent<T extends IQuickTreeItem> {
+	/**
+	 * The tree item whose checkbox state changed.
+	 */
+	item: T;
+
+	/**
+	 * The new checked state.
+	 */
+	checked: boolean | 'partial';
+}
+
+/**
+ * Represents an event that occurs when a button associated with a quick tree item is clicked.
+ * @template T - The type of the quick tree item.
+ */
+export interface IQuickTreeItemButtonEvent<T extends IQuickTreeItem> {
+	/**
+	 * The button that was clicked.
+	 */
+	button: IQuickInputButton;
+	/**
+	 * The quick tree item associated with the button.
+	 */
+	item: T;
+}
+
+//#endregion

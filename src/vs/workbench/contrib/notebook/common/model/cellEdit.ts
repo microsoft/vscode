@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { ISelectionState, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IResourceUndoRedoElement, UndoRedoElementType } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { NotebookCellTextModel } from './notebookCellTextModel.js';
+import { ISelectionState, NotebookCellMetadata } from '../notebookCommon.js';
 
 /**
  * It should not modify Undo/Redo stack
@@ -24,7 +24,7 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 	get label() {
 		return this.length === 1 ? 'Move Cell' : 'Move Cells';
 	}
-	code: string = 'undoredo.notebooks.moveCell';
+	code: string = 'undoredo.textBufferEdit';
 
 	constructor(
 		public resource: URI,
@@ -67,7 +67,7 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 		// Default to Insert Cell
 		return 'Insert Cell';
 	}
-	code: string = 'undoredo.notebooks.insertCell';
+	code: string = 'undoredo.textBufferEdit';
 	constructor(
 		public resource: URI,
 		private diffs: [number, NotebookCellTextModel[], NotebookCellTextModel[]][],

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { Disposable, DisposableStore, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMarkTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { Disposable, DisposableStore, MutableDisposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { IMarkTracker } from '../terminal.js';
+import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import type { Terminal, IMarker, ITerminalAddon, IDecoration, IBufferRange } from '@xterm/xterm';
-import { timeout } from 'vs/base/common/async';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { getWindow } from 'vs/base/browser/dom';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { timeout } from '../../../../../base/common/async.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from '../../common/terminalColorRegistry.js';
+import { getWindow } from '../../../../../base/browser/dom.js';
+import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalContribSettingId } from '../../terminalContribExports.js';
 
 enum Boundary {
 	Top,
@@ -41,7 +41,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	private _navigationDecorations: IDecoration[] | undefined;
 
 	private _activeCommandGuide?: ITerminalCommand;
-	private _commandGuideDecorations = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _commandGuideDecorations = this._register(new MutableDisposable<DisposableStore>());
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -282,7 +282,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			{
 				bufferRange: range,
 				// Ensure scroll shows the line when sticky scroll is enabled
-				forceScroll: !!this._configurationService.getValue(TerminalSettingId.StickyScrollEnabled)
+				forceScroll: !!this._configurationService.getValue(TerminalContribSettingId.StickyScrollEnabled)
 			}
 		);
 	}
@@ -309,8 +309,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			}
 			const startLine = command.marker.line - (command.getPromptRowCount() - 1);
 			const decorationCount = toLineIndex(command.endMarker) - startLine;
-			// Abort if the command is too long, this limitation can be lifted when
-			// xtermjs/xterm.js#4911 is handled.
+			// Abort if the command is excessively long to avoid performance on hover/leave
 			if (decorationCount > 200) {
 				return;
 			}

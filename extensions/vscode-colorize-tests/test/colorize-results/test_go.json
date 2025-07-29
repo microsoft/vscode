@@ -1065,7 +1065,7 @@
 	},
 	{
 		"c": "nil",
-		"t": "source.go constant.language.go",
+		"t": "source.go constant.language.null.go",
 		"r": {
 			"dark_plus": "constant.language: #569CD6",
 			"light_plus": "constant.language: #0000FF",

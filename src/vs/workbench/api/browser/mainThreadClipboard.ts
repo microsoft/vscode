@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { MainContext, MainThreadClipboardShape } from '../common/extHost.protocol';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
+import { MainContext, MainThreadClipboardShape } from '../common/extHost.protocol.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 @extHostNamedCustomer(MainContext.MainThreadClipboard)
 export class MainThreadClipboard implements MainThreadClipboardShape {
@@ -13,6 +14,7 @@ export class MainThreadClipboard implements MainThreadClipboardShape {
 	constructor(
 		_context: any,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ILogService private readonly _logService: ILogService
 	) { }
 
 	dispose(): void {
@@ -20,10 +22,13 @@ export class MainThreadClipboard implements MainThreadClipboardShape {
 	}
 
 	$readText(): Promise<string> {
-		return this._clipboardService.readText();
+		this._logService.trace('MainThreadClipboard#readText');
+		const readText = this._clipboardService.readText();
+		return readText;
 	}
 
 	$writeText(value: string): Promise<void> {
+		this._logService.trace('MainThreadClipboard#writeText with text.length : ', value.length);
 		return this._clipboardService.writeText(value);
 	}
 }

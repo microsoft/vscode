@@ -1,0 +1,7 @@
+{
+  "name": "keytar",
+  "version": "7.9.0",
+  "description": "OVERRIDE Keytar since we don't need the feature",
+  "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node",
+  "main": "index.js"
+}

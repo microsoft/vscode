@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier, isThenable, RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { assertNever } from 'vs/base/common/assert';
-import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { URI } from 'vs/base/common/uri';
+import { Barrier, isThenable, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { assertNever } from '../../../../base/common/assert.js';
+import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from './testTypes.js';
+import { TestId } from './testId.js';
+import { URI } from '../../../../base/common/uri.js';
 
 /**
  * @private
@@ -396,6 +396,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		this.options.getApiFor(oldActual).listener = undefined;
 
 		internal.actual = actual;
+		internal.resolveBarrier = undefined;
 		internal.expand = TestItemExpandState.NotExpandable; // updated by `connectItemAndChildren`
 
 		if (update) {
@@ -414,6 +415,19 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			if (!this.options.getChildren(actual).get(child.id)) {
 				this.removeItem(TestId.joinToString(fullId, child.id));
 			}
+		}
+
+		// Re-expand the element if it was previous expanded (#207574)
+		const expandLevels = internal.expandLevels;
+		if (expandLevels !== undefined) {
+			// Wait until a microtask to allow the extension to finish setting up
+			// properties of the element and children before we ask it to expand.
+			queueMicrotask(() => {
+				if (internal.expand === TestItemExpandState.Expandable) {
+					internal.expandLevels = undefined;
+					this.expand(fullId.toString(), expandLevels);
+				}
+			});
 		}
 
 		// Mark ranges in the document as synced (#161320)

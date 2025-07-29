@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as types from 'vs/base/common/types';
-import { CursorState, ICursorSimpleModel, PartialCursorState, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
-import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
-import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { IViewModel } from 'vs/editor/common/viewModel';
+import * as types from '../../../base/common/types.js';
+import { CursorState, ICursorSimpleModel, PartialCursorState, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
+import { MoveOperations } from './cursorMoveOperations.js';
+import { WordOperations } from './cursorWordOperations.js';
+import { IPosition, Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
+import { IViewModel } from '../viewModel.js';
+import { TextDirection } from '../model.js';
 
 export class CursorMoveCommands {
 
@@ -431,11 +432,16 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		return cursors.map(cursor =>
-			CursorState.fromViewState(
-				MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
-			)
-		);
+		return cursors.map(cursor => {
+			const direction = viewModel.getTextDirection(cursor.viewState.position.lineNumber);
+			const isRtl = direction === TextDirection.RTL;
+
+			return CursorState.fromViewState(
+				isRtl
+					? MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+					: MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+			);
+		});
 	}
 
 	private static _moveHalfLineLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
@@ -450,11 +456,16 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		return cursors.map(cursor =>
-			CursorState.fromViewState(
-				MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
-			)
-		);
+		return cursors.map(cursor => {
+			const direction = viewModel.getTextDirection(cursor.viewState.position.lineNumber);
+			const isRtl = direction === TextDirection.RTL;
+
+			return CursorState.fromViewState(
+				isRtl
+					? MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+					: MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+			);
+		});
 	}
 
 	private static _moveHalfLineRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
@@ -596,7 +607,7 @@ export namespace CursorMove {
 		return true;
 	};
 
-	export const metadata = <ICommandMetadata>{
+	export const metadata: ICommandMetadata = {
 		description: 'Move cursor to a logical position in the view',
 		args: [
 			{

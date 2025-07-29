@@ -3,28 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { EditorAutoIndentStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { TextEdit } from 'vs/editor/common/languages';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
-import { IModelService } from 'vs/editor/common/services/model';
-import * as indentUtils from 'vs/editor/contrib/indentation/common/indentUtils';
-import * as nls from 'vs/nls';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
-import { getReindentEditOperations } from '../common/indentation';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import * as strings from '../../../../base/common/strings.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
+import { EditorAutoIndentStrategy, EditorOption } from '../../../common/config/editorOptions.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { EndOfLineSequence, ITextModel } from '../../../common/model.js';
+import { TextEdit } from '../../../common/languages.js';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { IndentConsts } from '../../../common/languages/supports/indentRules.js';
+import { IModelService } from '../../../common/services/model.js';
+import * as indentUtils from '../common/indentUtils.js';
+import * as nls from '../../../../nls.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { getGoodIndentForLine, getIndentMetadata } from '../../../common/languages/autoIndent.js';
+import { getReindentEditOperations } from '../common/indentation.js';
+import { getStandardTokenTypeAtPosition } from '../../../common/tokens/lineTokens.js';
+import { Position } from '../../../common/core/position.js';
 
 export class IndentationToSpacesAction extends EditorAction {
 	public static readonly ID = 'editor.action.indentationToSpaces';
@@ -32,9 +34,11 @@ export class IndentationToSpacesAction extends EditorAction {
 	constructor() {
 		super({
 			id: IndentationToSpacesAction.ID,
-			label: nls.localize('indentationToSpaces', "Convert Indentation to Spaces"),
-			alias: 'Convert Indentation to Spaces',
-			precondition: EditorContextKeys.writable
+			label: nls.localize2('indentationToSpaces', "Convert Indentation to Spaces"),
+			precondition: EditorContextKeys.writable,
+			metadata: {
+				description: nls.localize2('indentationToSpacesDescription', "Convert the tab indentation to spaces."),
+			}
 		});
 	}
 
@@ -66,9 +70,11 @@ export class IndentationToTabsAction extends EditorAction {
 	constructor() {
 		super({
 			id: IndentationToTabsAction.ID,
-			label: nls.localize('indentationToTabs', "Convert Indentation to Tabs"),
-			alias: 'Convert Indentation to Tabs',
-			precondition: EditorContextKeys.writable
+			label: nls.localize2('indentationToTabs', "Convert Indentation to Tabs"),
+			precondition: EditorContextKeys.writable,
+			metadata: {
+				description: nls.localize2('indentationToTabsDescription', "Convert the spaces indentation to tabs."),
+			}
 		});
 	}
 
@@ -159,9 +165,11 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 	constructor() {
 		super(false, false, {
 			id: IndentUsingTabs.ID,
-			label: nls.localize('indentUsingTabs', "Indent Using Tabs"),
-			alias: 'Indent Using Tabs',
-			precondition: undefined
+			label: nls.localize2('indentUsingTabs', "Indent Using Tabs"),
+			precondition: undefined,
+			metadata: {
+				description: nls.localize2('indentUsingTabsDescription', "Use indentation with tabs."),
+			}
 		});
 	}
 }
@@ -173,9 +181,11 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 	constructor() {
 		super(true, false, {
 			id: IndentUsingSpaces.ID,
-			label: nls.localize('indentUsingSpaces', "Indent Using Spaces"),
-			alias: 'Indent Using Spaces',
-			precondition: undefined
+			label: nls.localize2('indentUsingSpaces', "Indent Using Spaces"),
+			precondition: undefined,
+			metadata: {
+				description: nls.localize2('indentUsingSpacesDescription', "Use indentation with spaces."),
+			}
 		});
 	}
 }
@@ -187,9 +197,11 @@ export class ChangeTabDisplaySize extends ChangeIndentationSizeAction {
 	constructor() {
 		super(true, true, {
 			id: ChangeTabDisplaySize.ID,
-			label: nls.localize('changeTabDisplaySize', "Change Tab Display Size"),
-			alias: 'Change Tab Display Size',
-			precondition: undefined
+			label: nls.localize2('changeTabDisplaySize', "Change Tab Display Size"),
+			precondition: undefined,
+			metadata: {
+				description: nls.localize2('changeTabDisplaySizeDescription', "Change the space size equivalent of the tab."),
+			}
 		});
 	}
 }
@@ -201,9 +213,11 @@ export class DetectIndentation extends EditorAction {
 	constructor() {
 		super({
 			id: DetectIndentation.ID,
-			label: nls.localize('detectIndentation', "Detect Indentation from Content"),
-			alias: 'Detect Indentation from Content',
-			precondition: undefined
+			label: nls.localize2('detectIndentation', "Detect Indentation from Content"),
+			precondition: undefined,
+			metadata: {
+				description: nls.localize2('detectIndentationDescription', "Detect the indentation from content."),
+			}
 		});
 	}
 
@@ -224,9 +238,11 @@ export class ReindentLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.reindentlines',
-			label: nls.localize('editor.reindentlines', "Reindent Lines"),
-			alias: 'Reindent Lines',
-			precondition: EditorContextKeys.writable
+			label: nls.localize2('editor.reindentlines', "Reindent Lines"),
+			precondition: EditorContextKeys.writable,
+			metadata: {
+				description: nls.localize2('editor.reindentlinesDescription', "Reindent the lines of the editor."),
+			}
 		});
 	}
 
@@ -250,9 +266,11 @@ export class ReindentSelectedLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.reindentselectedlines',
-			label: nls.localize('editor.reindentselectedlines', "Reindent Selected Lines"),
-			alias: 'Reindent Selected Lines',
-			precondition: EditorContextKeys.writable
+			label: nls.localize2('editor.reindentselectedlines', "Reindent Selected Lines"),
+			precondition: EditorContextKeys.writable,
+			metadata: {
+				description: nls.localize2('editor.reindentselectedlinesDescription', "Reindent the selected lines of the editor."),
+			}
 		});
 	}
 
@@ -368,7 +386,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		this.callOnModel.clear();
 
 		// we are disabled
-		if (this.editor.getOption(EditorOption.autoIndent) < EditorAutoIndentStrategy.Full || this.editor.getOption(EditorOption.formatOnPaste)) {
+		if (!this.editor.getOption(EditorOption.autoIndentOnPaste) || this.editor.getOption(EditorOption.autoIndent) < EditorAutoIndentStrategy.Full) {
 			return;
 		}
 
@@ -392,7 +410,13 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (!model) {
 			return;
 		}
-
+		const containsOnlyWhitespace = this.rangeContainsOnlyWhitespaceCharacters(model, range);
+		if (containsOnlyWhitespace) {
+			return;
+		}
+		if (!this.editor.getOption(EditorOption.autoIndentOnPasteWithinString) && isStartOrEndInString(model, range)) {
+			return;
+		}
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			return;
 		}
@@ -411,18 +435,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		let startLineNumber = range.startLineNumber;
 
-		while (startLineNumber <= range.endLineNumber) {
-			if (this.shouldIgnoreLine(model, startLineNumber)) {
-				startLineNumber++;
-				continue;
-			}
-			break;
-		}
-
-		if (startLineNumber > range.endLineNumber) {
-			return;
-		}
-
 		let firstLineText = model.getLineContent(startLineNumber);
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
 			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService);
@@ -438,7 +450,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						range: new Range(startLineNumber, 1, startLineNumber, oldIndentation.length + 1),
 						text: newIndent
 					});
-					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
+					firstLineText = newIndent + firstLineText.substring(oldIndentation.length);
 				} else {
 					const indentMetadata = getIndentMetadata(model, startLineNumber, this._languageConfigurationService);
 
@@ -518,27 +530,47 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 	}
 
-	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
-		model.tokenization.forceTokenization(lineNumber);
-		const nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-		if (nonWhitespaceColumn === 0) {
-			return true;
-		}
-		const tokens = model.tokenization.getLineTokens(lineNumber);
-		if (tokens.getCount() > 0) {
-			const firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
-			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
-				return true;
+	private rangeContainsOnlyWhitespaceCharacters(model: ITextModel, range: Range): boolean {
+		const lineContainsOnlyWhitespace = (content: string): boolean => {
+			return content.trim().length === 0;
+		};
+		let containsOnlyWhitespace: boolean = true;
+		if (range.startLineNumber === range.endLineNumber) {
+			const lineContent = model.getLineContent(range.startLineNumber);
+			const linePart = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
+			containsOnlyWhitespace = lineContainsOnlyWhitespace(linePart);
+		} else {
+			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+				const lineContent = model.getLineContent(i);
+				if (i === range.startLineNumber) {
+					const linePart = lineContent.substring(range.startColumn - 1);
+					containsOnlyWhitespace = lineContainsOnlyWhitespace(linePart);
+				} else if (i === range.endLineNumber) {
+					const linePart = lineContent.substring(0, range.endColumn - 1);
+					containsOnlyWhitespace = lineContainsOnlyWhitespace(linePart);
+				} else {
+					containsOnlyWhitespace = model.getLineFirstNonWhitespaceColumn(i) === 0;
+				}
+				if (!containsOnlyWhitespace) {
+					break;
+				}
 			}
 		}
-
-		return false;
+		return containsOnlyWhitespace;
 	}
 
 	public dispose(): void {
 		this.callOnDispose.dispose();
 		this.callOnModel.dispose();
 	}
+}
+
+function isStartOrEndInString(model: ITextModel, range: Range): boolean {
+	const isPositionInString = (position: Position): boolean => {
+		const tokenType = getStandardTokenTypeAtPosition(model, position);
+		return tokenType === StandardTokenType.String;
+	};
+	return isPositionInString(range.getStartPosition()) || isPositionInString(range.getEndPosition());
 }
 
 function getIndentationEditOperations(model: ITextModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {

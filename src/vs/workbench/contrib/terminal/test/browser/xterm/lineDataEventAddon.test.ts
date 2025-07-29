@@ -4,22 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
-import { OperatingSystem } from 'vs/base/common/platform';
 import { deepStrictEqual } from 'assert';
-import { importAMDNodeModule } from 'vs/amdX';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { LineDataEventAddon } from '../../../browser/xterm/lineDataEventAddon.js';
 
 suite('LineDataEventAddon', () => {
 	let xterm: Terminal;
 	let lineDataEventAddon: LineDataEventAddon;
 
-	let store: DisposableStore;
-	setup(() => store = new DisposableStore());
-	teardown(() => store.dispose());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('onLineData', () => {
 		let events: string[];

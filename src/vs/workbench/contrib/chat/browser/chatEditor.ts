@@ -3,32 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { Memento } from 'vs/workbench/common/memento';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import * as dom from '../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { editorBackground, editorForeground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { IEditorOpenContext } from '../../../common/editor.js';
+import { Memento } from '../../../common/memento.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
+import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSessionUri } from '../common/chatUri.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { clearChatEditor } from './actions/chatClear.js';
+import { ChatEditorInput } from './chatEditorInput.js';
+import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
-	target: { sessionId: string } | { providerId: string } | { data: ISerializableChatData };
+	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
 }
 
 export class ChatEditor extends EditorPane {
-	private widget!: ChatWidget;
-
+	private _widget!: ChatWidget;
+	public get widget(): ChatWidget {
+		return this._widget;
+	}
 	private _scopedContextKeyService!: IScopedContextKeyService;
 	override get scopedContextKeyService() {
 		return this._scopedContextKeyService;
@@ -43,33 +52,59 @@ export class ChatEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(ChatEditorInput.EditorID, group, telemetryService, themeService, storageService);
 	}
 
-	public async clear() {
-		return this.instantiationService.invokeFunction(clearChatEditor);
+	private async clear() {
+		if (this.input) {
+			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput);
+		}
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		ChatContextKeys.inChatEditor.bindTo(this._scopedContextKeyService).set(true);
 
-		this.widget = this._register(
+		this._widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				{ resource: true },
-				{ supportsFileReferences: true },
+				ChatAgentLocation.Panel,
+				undefined,
+				{
+					autoScroll: mode => mode !== ChatModeKind.Ask,
+					renderFollowups: true,
+					supportsFileReferences: true,
+					rendererOptions: {
+						renderTextEditsAsSummary: (uri) => {
+							return true;
+						},
+						referencesExpandedWhenEmptyResponse: false,
+						progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
+					},
+					enableImplicitContext: true,
+					enableWorkingSet: 'explicit',
+					supportsChangingModes: true,
+				},
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
+					overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
 		this._register(this.widget.onDidClear(() => this.clear()));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
+	}
+
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+
+		this.widget?.setVisible(visible);
 	}
 
 	public override focus(): void {
@@ -95,11 +130,27 @@ export class ChatEditor extends EditorPane {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
-		this.updateModel(editorModel.model, options?.viewState ?? input.options.viewState);
+		const viewState = options?.viewState ?? input.options.viewState;
+		this.updateModel(editorModel.model, viewState);
+		const isAlreadyLocked = !!(viewState as IChatViewState | undefined)?.inputState?.lockedToCodingAgent;
+
+		// Only apply specific locking for dedicated coding agent sessions if not already locked
+		if (!isAlreadyLocked && input.resource.scheme === Schemas.vscodeChatSession) {
+			const identifier = ChatSessionUri.parse(input.resource);
+			if (identifier) {
+				const contributions = this.chatSessionsService.getChatSessionContributions();
+				const contribution = contributions.find(c => c.type === identifier.chatSessionType);
+				if (contribution) {
+					this.widget.lockToCodingAgent(contribution.name);
+				}
+			}
+		} else {
+			this.widget.unlockFromCodingAgent();
+		}
 	}
 
 	private updateModel(model: IChatModel, viewState?: IChatViewState): void {
-		this._memento = new Memento('interactive-session-editor-' + model.providerId, this.storageService);
+		this._memento = new Memento('interactive-session-editor-' + CHAT_PROVIDER_ID, this.storageService);
 		this._viewState = viewState ?? this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatViewState;
 		this.widget.setModel(model, { ...this._viewState });
 	}
@@ -109,9 +160,16 @@ export class ChatEditor extends EditorPane {
 
 		if (this._memento && this._viewState) {
 			const widgetViewState = this.widget.getViewState();
+
+			// Need to set props individually on the memento
 			this._viewState.inputValue = widgetViewState.inputValue;
+			this._viewState.inputState = widgetViewState.inputState;
 			this._memento.saveMemento();
 		}
+	}
+
+	override getViewState(): object | undefined {
+		return { ...this._viewState };
 	}
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { IStringDictionary } from 'vs/base/common/collections';
-import * as Types from 'vs/base/common/types';
-import * as Objects from 'vs/base/common/objects';
+import * as nls from '../../../../nls.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import * as Types from '../../../../base/common/types.js';
+import * as Objects from '../../../../base/common/objects.js';
 
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionMessageCollector } from '../../../services/extensions/common/extensionsRegistry.js';
 
-import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Emitter, Event } from 'vs/base/common/event';
+import * as Tasks from './tasks.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
 
 const taskDefinitionSchema: IJSONSchema = {

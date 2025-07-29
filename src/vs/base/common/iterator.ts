@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isIterable } from './types.js';
+
 export namespace Iterable {
 
-	export function is<T = any>(thing: any): thing is Iterable<T> {
-		return thing && typeof thing === 'object' && typeof thing[Symbol.iterator] === 'function';
+	export function is<T = any>(thing: unknown): thing is Iterable<T> {
+		return !!thing && typeof thing === 'object' && typeof (thing as Iterable<T>)[Symbol.iterator] === 'function';
 	}
 
 	const _empty: Iterable<any> = Object.freeze([]);
@@ -30,7 +32,7 @@ export namespace Iterable {
 		return iterable || _empty;
 	}
 
-	export function* reverse<T>(array: Array<T>): Iterable<T> {
+	export function* reverse<T>(array: ReadonlyArray<T>): Iterable<T> {
 		for (let i = array.length - 1; i >= 0; i--) {
 			yield array[i];
 		}
@@ -44,13 +46,24 @@ export namespace Iterable {
 		return iterable[Symbol.iterator]().next().value;
 	}
 
-	export function some<T>(iterable: Iterable<T>, predicate: (t: T) => unknown): boolean {
+	export function some<T>(iterable: Iterable<T>, predicate: (t: T, i: number) => unknown): boolean {
+		let i = 0;
 		for (const element of iterable) {
-			if (predicate(element)) {
+			if (predicate(element, i++)) {
 				return true;
 			}
 		}
 		return false;
+	}
+
+	export function every<T>(iterable: Iterable<T>, predicate: (t: T, i: number) => unknown): boolean {
+		let i = 0;
+		for (const element of iterable) {
+			if (!predicate(element, i++)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): R | undefined;
@@ -82,9 +95,20 @@ export namespace Iterable {
 		}
 	}
 
-	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
-		for (const iterable of iterables) {
-			yield* iterable;
+	export function* flatMap<T, R>(iterable: Iterable<T>, fn: (t: T, index: number) => Iterable<R>): Iterable<R> {
+		let index = 0;
+		for (const element of iterable) {
+			yield* fn(element, index++);
+		}
+	}
+
+	export function* concat<T>(...iterables: (Iterable<T> | T)[]): Iterable<T> {
+		for (const item of iterables) {
+			if (isIterable(item)) {
+				yield* item;
+			} else {
+				yield item;
+			}
 		}
 	}
 
@@ -96,10 +120,21 @@ export namespace Iterable {
 		return value;
 	}
 
+	export function length<T>(iterable: Iterable<T>): number {
+		let count = 0;
+		for (const _ of iterable) {
+			count++;
+		}
+		return count;
+	}
+
 	/**
 	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
 	 */
 	export function* slice<T>(arr: ReadonlyArray<T>, from: number, to = arr.length): Iterable<T> {
+		if (from < -arr.length) {
+			from = 0;
+		}
 		if (from < 0) {
 			from += arr.length;
 		}
@@ -146,6 +181,14 @@ export namespace Iterable {
 		for await (const item of iterable) {
 			result.push(item);
 		}
-		return Promise.resolve(result);
+		return result;
+	}
+
+	export async function asyncToArrayFlat<T>(iterable: AsyncIterable<T[]>): Promise<T[]> {
+		let result: T[] = [];
+		for await (const item of iterable) {
+			result = result.concat(item);
+		}
+		return result;
 	}
 }

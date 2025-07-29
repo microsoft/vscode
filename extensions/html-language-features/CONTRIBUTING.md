@@ -1,12 +1,12 @@
 ## Setup
 
 - Clone [microsoft/vscode](https://github.com/microsoft/vscode)
-- Run `yarn` at `/`, this will install
+- Run `npm i` at `/`, this will install
 	- Dependencies for `/extension/html-language-features/`
 	- Dependencies for `/extension/html-language-features/server/`
 	- devDependencies such as `gulp`
 - Open `/extensions/html-language-features/` as the workspace in VS Code
-- In `/extensions/html-language-features/` run `yarn compile`(or `yarn watch`) to build the client and server
+- In `/extensions/html-language-features/` run `npm run compile`(or `npm run watch`) to build the client and server
 - Run the [`Launch Extension`](https://github.com/microsoft/vscode/blob/master/extensions/html-language-features/.vscode/launch.json) debug target in the Debug View. This will:
 	- Launch a new VS Code instance with the `html-language-features` extension loaded
 - Open a `.html` file to activate the extension. The extension will start the HTML language server process.
@@ -28,13 +28,13 @@ However, within this extension, you can run a development version of `vscode-htm
 #### Linking `vscode-html-languageservice` in `html-language-features/server/`
 
 - Clone [microsoft/vscode-html-languageservice](https://github.com/microsoft/vscode-html-languageservice)
-- Run `yarn` in `vscode-html-languageservice`
-- Run `yarn link` in `vscode-html-languageservice`. This will compile and link `vscode-html-languageservice`
-- In `html-language-features/server/`, run `yarn link vscode-html-languageservice`
+- Run `npm i` in `vscode-html-languageservice`
+- Run `npm link` in `vscode-html-languageservice`. This will compile and link `vscode-html-languageservice`
+- In `html-language-features/server/`, run `npm link vscode-html-languageservice`
 
 #### Testing the development version of `vscode-html-languageservice`
 
 - Open both `vscode-html-languageservice` and this extension in two windows or with a single window with the[multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature
-- Run `yarn watch` at `html-languagefeatures/server/` to recompile this extension with the linked version of `vscode-html-languageservice`
+- Run `npm run watch` at `html-languagefeatures/server/` to recompile this extension with the linked version of `vscode-html-languageservice`
 - Make some changes in `vscode-html-languageservice`
 - Now when you run `Launch Extension` debug target, the launched instance will use your development version of `vscode-html-languageservice`. You can interactively test the language features.

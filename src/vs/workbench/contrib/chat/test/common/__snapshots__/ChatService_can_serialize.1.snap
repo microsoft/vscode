@@ -1,15 +1,15 @@
 {
   requesterUsername: "test",
   requesterAvatarIconUri: undefined,
-  responderUsername: "test",
+  responderUsername: "",
   responderAvatarIconUri: undefined,
-  welcomeMessage: undefined,
+  initialLocation: "panel",
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
-            kind: "agent",
             range: {
               start: 0,
               endExclusive: 28
@@ -21,14 +21,22 @@
               endColumn: 29
             },
             agent: {
-              id: "ChatProviderWithUsedContext",
               name: "ChatProviderWithUsedContext",
-              description: undefined,
-              metadata: {
-                requester: { name: "test" },
-                fullName: "test"
-              }
-            }
+              id: "ChatProviderWithUsedContext",
+              extensionId: {
+                value: "nullExtensionDescription",
+                _lower: "nullextensiondescription"
+              },
+              extensionPublisherId: "",
+              publisherDisplayName: "",
+              extensionDisplayName: "",
+              locations: [ "panel" ],
+              modes: [ "ask" ],
+              metadata: { requester: { name: "test" } },
+              slashCommands: [  ],
+              disambiguation: [  ]
+            },
+            kind: "agent"
           },
           {
             range: {
@@ -49,39 +57,41 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
-      followups: undefined,
+      followups: [
+        {
+          kind: "reply",
+          message: "Something else",
+          agentId: "",
+          tooltip: "a tooltip"
+        }
+      ],
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
-        id: "ChatProviderWithUsedContext",
         name: "ChatProviderWithUsedContext",
-        description: undefined,
+        id: "ChatProviderWithUsedContext",
         extensionId: {
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
-        metadata: {
-          requester: { name: "test" },
-          fullName: "test"
-        },
+        extensionPublisherId: "",
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        locations: [ "panel" ],
+        modes: [ "ask" ],
+        metadata: { requester: { name: "test" } },
         slashCommands: [  ],
-        locations: [ 1 ],
-        isDefault: undefined
+        disambiguation: [  ]
       },
       slashCommand: undefined,
       usedContext: {
         documents: [
           {
-            uri: {
-              scheme: "file",
-              authority: "",
-              path: "/test/path/to/file",
-              query: "",
-              fragment: "",
-              _formatted: null,
-              _fsPath: null
-            },
+            uri: URI(file:///test/path/to/file),
             version: 3,
             ranges: [
               {
@@ -95,8 +105,68 @@
         ],
         kind: "usedContext"
       },
-      contentReferences: [  ]
+      contentReferences: [  ],
+      codeCitations: [  ],
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
+    },
+    {
+      requestId: undefined,
+      message: {
+        parts: [
+          {
+            range: {
+              start: 0,
+              endExclusive: 14
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 1,
+              endLineNumber: 1,
+              endColumn: 15
+            },
+            text: "test request 2",
+            kind: "text"
+          }
+        ],
+        text: "test request 2"
+      },
+      variableData: { variables: [  ] },
+      response: [  ],
+      responseId: undefined,
+      shouldBeRemovedOnSend: undefined,
+      result: {  },
+      followups: [  ],
+      isCanceled: false,
+      vote: undefined,
+      voteDownReason: undefined,
+      agent: {
+        name: "testAgent",
+        id: "testAgent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        extensionPublisherId: "",
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        locations: [ "panel" ],
+        modes: [ "ask" ],
+        metadata: { requester: { name: "test" } },
+        slashCommands: [  ],
+        disambiguation: [  ],
+        isDefault: true
+      },
+      slashCommand: undefined,
+      usedContext: undefined,
+      contentReferences: [  ],
+      codeCitations: [  ],
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     }
-  ],
-  providerId: "testProvider"
+  ]
 }

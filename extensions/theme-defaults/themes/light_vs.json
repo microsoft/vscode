@@ -23,6 +23,8 @@
 		"ports.iconRunningProcessForeground": "#369432",
 		"sideBarSectionHeader.background": "#0000",
 		"sideBarSectionHeader.border": "#61616130",
+		"tab.selectedForeground": "#333333b3",
+		"tab.selectedBackground": "#ffffffa5",
 		"tab.lastPinnedBorder": "#61616130",
 		"notebook.cellBorderColor": "#E8E8E8",
 		"notebook.selectedCellBackground": "#c8ddf150",

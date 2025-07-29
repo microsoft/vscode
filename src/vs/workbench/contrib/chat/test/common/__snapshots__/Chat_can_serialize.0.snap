@@ -1,9 +1,0 @@
-{
-  requesterUsername: "test",
-  requesterAvatarIconUri: undefined,
-  responderUsername: "test",
-  responderAvatarIconUri: undefined,
-  welcomeMessage: undefined,
-  requests: [  ],
-  providerId: "testProvider"
-}
