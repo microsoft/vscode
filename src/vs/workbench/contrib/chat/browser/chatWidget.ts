@@ -75,6 +75,7 @@ import { startupExpContext, StartupExperimentGroup } from '../../../services/cor
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { TodoListToolSettingId as TodoListToolSettingId } from '../common/tools/manageTodoListTool.js';
+import { IChatCapabilityDiscoveryService } from './chatCapabilityDiscoveryService.js';
 
 const $ = dom.$;
 
@@ -307,7 +308,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IChatCapabilityDiscoveryService private readonly capabilityDiscoveryService: IChatCapabilityDiscoveryService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -882,7 +884,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getExpWelcomeViewContent(): IChatViewWelcomeContent {
 		const welcomeContent: IChatViewWelcomeContent = {
 			title: localize('expChatTitle', 'Welcome to Copilot'),
-			message: new MarkdownString(localize('expchatMessage', "Let's get started")),
+			message: new MarkdownString(localize('expchatMessage', "I'm your AI programming assistant. I can help you write code, explain concepts, debug issues, and much more. What would you like to explore today?")),
 			icon: Codicon.copilotLarge,
 			inputPart: this.inputPart.element,
 			additionalMessage: localize('expChatAdditionalMessage', "Review AI output carefully before use."),
@@ -893,28 +895,34 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getExpSuggestedPrompts(): IChatSuggestedPrompts[] {
-		// Check if the workbench is empty
-		const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		const workspaceState = this.contextService.getWorkbenchState();
+		const isEmpty = workspaceState === WorkbenchState.EMPTY;
+		
+		// Get base capability discovery prompts
+		const basePrompts = this.capabilityDiscoveryService.getCapabilityExamples(workspaceState);
+		
 		if (isEmpty) {
 			return [
 				{
-					icon: Codicon.vscode,
-					label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @vscode"),
-					prompt: localize('chatWidget.suggestedPrompts.gettingStartedPrompt', "@vscode How do I change the theme to light mode?"),
+					icon: Codicon.lightbulb,
+					label: localize('chatWidget.suggestedPrompts.discoverCapabilities', "Discover what I can do"),
+					prompt: localize('chatWidget.suggestedPrompts.discoverCapabilitiesPrompt', "What can you help me with? Show me examples of different tasks you can assist with."),
 				},
+				...basePrompts,
 				{
-					icon: Codicon.newFolder,
-					label: localize('chatWidget.suggestedPrompts.newProject', "Create project"),
-					prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
+					icon: Codicon.code,
+					label: localize('chatWidget.suggestedPrompts.learnCoding', "Help me learn"),
+					prompt: localize('chatWidget.suggestedPrompts.learnCodingPrompt', "Explain JavaScript concepts with examples. Start with variables and functions."),
 				}
 			];
 		} else {
 			return [
 				{
-					icon: Codicon.debugAlt,
-					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build workspace"),
-					prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
+					icon: Codicon.search,
+					label: localize('chatWidget.suggestedPrompts.exploreCapabilities', "Explore assistant features"),
+					prompt: localize('chatWidget.suggestedPrompts.exploreCapabilitiesPrompt', "What programming tasks can you help me with in this project? Show me specific examples."),
 				},
+				...basePrompts,
 				{
 					icon: Codicon.gear,
 					label: localize('chatWidget.suggestedPrompts.findConfig', "Show project config"),

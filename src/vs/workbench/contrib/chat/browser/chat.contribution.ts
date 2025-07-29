@@ -116,6 +116,7 @@ import { registerLanguageModelActions } from './actions/chatLanguageModelActions
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
+import { ChatCapabilityDiscoveryService, IChatCapabilityDiscoveryService } from './chatCapabilityDiscoveryService.js';
 import { AssistedTypes, AddConfigurationType } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 import { ChatSessionsView } from './chatSessions.js';
 
@@ -843,6 +844,7 @@ registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
+registerSingleton(IChatCapabilityDiscoveryService, ChatCapabilityDiscoveryService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 
