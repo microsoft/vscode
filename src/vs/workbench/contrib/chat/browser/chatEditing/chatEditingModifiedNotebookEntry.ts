@@ -226,7 +226,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		try {
 			this._isProcessingResponse.set(true, undefined);
 			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.originalURI, this.modifiedURI);
-			if (id !== this.computeRequestId) {
+			if (id !== this.computeRequestId || this._store.isDisposed) {
 				return;
 			}
 			const result = computeDiff(this.originalModel, this.modifiedModel, notebookDiff);
@@ -746,6 +746,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			return true;
 		};
 		this.resolveCellModel(cell.uri).then(modifiedModel => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			// We want decorators for the cell just as we display decorators for modified cells.
 			// This way we have the ability to accept/reject the entire cell.
 			this.getOrCreateModifiedTextFileEntryForCell(cell, modifiedModel, originalModel);
