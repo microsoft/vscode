@@ -31,7 +31,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		this._provider = provider;
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
-		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' '] : [' '];
+		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' ', '('] : [' ', '('];
 	}
 
 	activate(terminal: Terminal): void {
@@ -100,9 +100,27 @@ export function createCompletionItemPython(cursorPosition: number, prefix: strin
 			kind: kind ?? kind ?? TerminalCompletionItemKind.Method
 		};
 	} else {
-		// Case where user is triggering completion with dot:
+		// Case where user is triggering completion with dot or parenthesis:
 		// For example, typing `pathlib.` to request completion for list of methods, attributes from the pathlib module.
-		const lastWord = endsWithDot ? '' : prefix.split('.').at(-1) ?? '';
+		// Or typing `re.findall(ab` to request completion for parameters inside parentheses.
+		let lastWord: string;
+		
+		if (endsWithDot) {
+			lastWord = '';
+		} else {
+			// Check if there's a parenthesis in the prefix and get text after the last one
+			const lastParenIndex = prefix.lastIndexOf('(');
+			const lastDotIndex = prefix.lastIndexOf('.');
+			
+			if (lastParenIndex > lastDotIndex) {
+				// Text after the last opening parenthesis
+				lastWord = prefix.substring(lastParenIndex + 1);
+			} else {
+				// Text after the last dot (existing behavior)
+				lastWord = prefix.split('.').at(-1) ?? '';
+			}
+		}
+		
 		return {
 			label,
 			detail: detail ?? detail ?? '',
