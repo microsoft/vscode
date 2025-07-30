@@ -30,6 +30,3 @@ if [ -z "$APP_PATH" ]; then
 fi
 open -a "$APP_PATH" --args "$@"
 exit $?
-unset NODE_REPL_EXTERNAL_MODULE
-ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
-exit $?
