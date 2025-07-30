@@ -28,12 +28,8 @@ if [ -z "$APP_PATH" ]; then
 	echo "Unable to determine app path from symlink : ${BASH_SOURCE[0]}"
 	exit 1
 fi
-CONTENTS="$APP_PATH/Contents"
-ELECTRON="$CONTENTS/MacOS/Electron"
-CLI="$CONTENTS/Resources/app/out/cli.js"
-export VSCODE_NODE_OPTIONS=$NODE_OPTIONS
-export VSCODE_NODE_REPL_EXTERNAL_MODULE=$NODE_REPL_EXTERNAL_MODULE
-unset NODE_OPTIONS
+open -a "$APP_PATH" --args "$@"
+exit $?
 unset NODE_REPL_EXTERNAL_MODULE
 ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
 exit $?
