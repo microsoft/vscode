@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -28,6 +28,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import Severity from '../../../../../base/common/severity.js';
+import { markdownCommandLink } from '../../../../../base/common/htmlContent.js';
 
 /**
  * Chat Tools Picker - Dual Implementation
@@ -459,7 +460,7 @@ async function showToolsPickerTree(
 		if (toolLimit) {
 			if (count > toolLimit) {
 				treePicker.severity = Severity.Warning;
-				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, toolLimit);
+				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, markdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
 			} else {
 				treePicker.severity = Severity.Ignore;
 				treePicker.validationMessage = undefined;
@@ -475,6 +476,15 @@ async function showToolsPickerTree(
 		}
 	};
 	collectResults();
+
+	// Temporary command to close the picker and open settings, for use in the validation message
+	store.add(CommandsRegistry.registerCommand({
+		id: '_chat.toolPicker.closeAndOpenVirtualThreshold',
+		handler: () => {
+			treePicker.hide();
+			commandService.executeCommand('workbench.action.openSettings', 'github.copilot.chat.virtualTools.threshold');
+		}
+	}));
 
 	// Handle checkbox state changes
 	store.add(treePicker.onDidChangeCheckedLeafItems(() => {
