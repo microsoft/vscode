@@ -289,6 +289,7 @@ export class Menubar extends Disposable {
 
 			const dockMenu = new Menu();
 			dockMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openEmptyWindow({ context: OpenContext.DOCK }) }));
+			dockMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewTerminal', comment: ['&& denotes a mnemonic'] }, "New &&Terminal")), click: () => this.runActionInRenderer({ type: 'commandId', commandId: 'workbench.action.terminal.new' }) }));
 
 			app.dock!.setMenu(dockMenu);
 		}
