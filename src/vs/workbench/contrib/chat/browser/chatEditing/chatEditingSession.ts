@@ -281,11 +281,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	public getSurroundingSnapshots(uri: URI): {
-		firstSnapshotUri: URI;
-		lastSnapshotUri: URI;
-	} | undefined {
-		return this._timeline.getSurroundingSnapshots(uri);
+	public getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive?: boolean): URI | undefined {
+		return this._timeline.getFirstSnapshotForUriAfterRequest(uri, requestId, inclusive);
 	}
 
 	private async _restoreSnapshot({ entries }: IChatEditingSessionStop, restoreResolvedToDisk = true): Promise<void> {

@@ -77,6 +77,8 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	private computeFileChangesDiffs(context: IChatContentPartRenderContext, changes: readonly IChatFileChangesSummary[]): IObservableWithChange<Map<string, ObservablePromise<IEditSessionEntryDiff>>, void> {
 		return derived((r): Map<string, ObservablePromise<IEditSessionEntryDiff>> => {
 			const fileChangesDiffs = new Map<string, ObservablePromise<IEditSessionEntryDiff>>();
+			const firstRequestId = changes[0].requestId;
+			const lastRequestId = changes[changes.length - 1].requestId;
 			for (const change of changes) {
 				const sessionId = change.sessionId;
 				const session = this.chatService.getSession(sessionId);
@@ -87,32 +89,23 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				if (!editSession) {
 					continue;
 				}
+				console.log('context.content : ', context.content);
 				const uri = change.reference;
-				// const entry = editSession.getEntry(uri);
-				// if (!entry) {
-				// 	continue;
-				// }
-				// const requestId = change.requestId;
-				// const undoStops = context.content.filter(e => e.kind === 'undoStop');
-
-				// const originalSnapShot = entry.createSnapshot(requestId, undoStops[0].id);
-				// const sessionStopAfterLast = editSession.getSessionStopAfter(requestId, undoStops[undoStops.length - 1].id).read(r);
-				// if (!sessionStopAfterLast) {
-				// 	continue;
-				// }
-				// const modifiedSnapshot = entry.createSnapshot(requestId, sessionStopAfterLast.stopId);
-				const surroundingSnapshots = editSession.getSurroundingSnapshots(uri);
-				console.log('surroundingSnapshots : ', surroundingSnapshots);
-				if (!surroundingSnapshots) {
+				console.log('firstRequestId : ', firstRequestId);
+				console.log('lastRequestId : ', lastRequestId);
+				const firstSnapshotUri = editSession.getFirstSnapshotForUriAfterRequest(uri, firstRequestId);
+				const lastSnapshotUri = editSession.getFirstSnapshotForUriAfterRequest(uri, lastRequestId, false);
+				console.log('firstSnapshotUri : ', firstSnapshotUri);
+				console.log('lastSnapshotUri : ', lastSnapshotUri);
+				if (!firstSnapshotUri || !lastSnapshotUri) {
 					continue;
 				}
-				const diffPromise = this.editorWorkerService.computeDiff(surroundingSnapshots.firstSnapshotUri, surroundingSnapshots.lastSnapshotUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
-				// const diff = editSession.getEntryDiffBetweenStops(modifiedUri, requestId, undoStops[0].id, undoStops[undoStops.length - 1].id)?.read(r);
+				const diffPromise = this.editorWorkerService.computeDiff(firstSnapshotUri, lastSnapshotUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
 				const editEntryDiffPromise = diffPromise.then((diff) => {
 					console.log('diff : ', diff);
 					const entryDiff: IEditSessionEntryDiff = {
-						originalURI: surroundingSnapshots.firstSnapshotUri,
-						modifiedURI: surroundingSnapshots.lastSnapshotUri,
+						originalURI: firstSnapshotUri,
+						modifiedURI: lastSnapshotUri,
 						identical: !!diff?.identical,
 						quitEarly: !diff || diff.quitEarly,
 						added: 0,
@@ -128,7 +121,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				});
 				fileChangesDiffs.set(this.changeID(change), new ObservablePromise(editEntryDiffPromise));
 			}
-			console.log('fileChangesDiffs : ', fileChangesDiffs);
 			return fileChangesDiffs;
 		});
 	}

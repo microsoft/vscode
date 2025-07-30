@@ -123,10 +123,7 @@ export interface IChatEditingSession extends IDisposable {
 
 	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined;
 
-	getSurroundingSnapshots(uri: URI): {
-		firstSnapshotUri: URI;
-		lastSnapshotUri: URI;
-	} | undefined;
+	getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive?: boolean): URI | undefined;
 
 	/**
 	 * Will lead to this object getting disposed
