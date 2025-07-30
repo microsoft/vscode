@@ -20,7 +20,6 @@ export const GetTaskOutputToolData: IToolData = {
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
 	modelDescription: 'Get the output of a task',
 	source: ToolDataSource.Internal,
-	canBeReferencedInPrompt: true,
 	inputSchema: {
 		type: 'object',
 		properties: {

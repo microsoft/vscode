@@ -188,8 +188,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 
 export const CreateAndRunTaskToolData: IToolData = {
 	id: 'create_and_run_task',
-	toolReferenceName: 'createAndRunTask2',
-	canBeReferencedInPrompt: true,
+	toolReferenceName: 'createAndRunTask',
 	displayName: localize('createAndRunTask.displayName', 'Create and run Task'),
 	modelDescription: localize('createAndRunTask.modelDescription', 'For a workspace, this tool will create a task based on the package.json, README.md, and project structure so that the project can be built and run.'),
 	userDescription: localize('createAndRunTask.userDescription', "Create and run a task in the workspace"),
