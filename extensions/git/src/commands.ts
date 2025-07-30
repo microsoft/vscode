@@ -1792,6 +1792,8 @@ export class CommandCenter {
 
 	@command('git.stageFile')
 	async stageFile(uri: Uri): Promise<void> {
+		uri = uri ?? window.activeTextEditor?.document.uri;
+
 		if (!uri) {
 			return;
 		}
@@ -2103,6 +2105,8 @@ export class CommandCenter {
 
 	@command('git.unstageFile')
 	async unstageFile(uri: Uri): Promise<void> {
+		uri = uri ?? window.activeTextEditor?.document.uri;
+
 		if (!uri) {
 			return;
 		}
