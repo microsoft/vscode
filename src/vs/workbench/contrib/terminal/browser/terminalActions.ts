@@ -47,7 +47,7 @@ import { IConfigurationResolverService } from '../../../services/configurationRe
 import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
@@ -339,6 +339,17 @@ export function registerTerminalActions() {
 		run: async (c) => {
 			const instance = await c.service.createTerminal({
 				location: { viewColumn: SIDE_GROUP }
+			});
+			await instance.focusWhenReady();
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.NewInNewWindow,
+		title: terminalStrings.newInNewWindow,
+		run: async (c) => {
+			const instance = await c.service.createTerminal({
+				location: { viewColumn: AUX_WINDOW_GROUP }
 			});
 			await instance.focusWhenReady();
 		}
