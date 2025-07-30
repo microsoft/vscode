@@ -30,6 +30,7 @@ import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffS
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 
 export class ChatCheckpointFileChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -54,7 +55,8 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super();
 
@@ -74,7 +76,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	}
 
 	private computeFileChangesDiffs(context: IChatContentPartRenderContext, changes: readonly IChatFileChangesSummary[]): IObservableWithChange<Map<string, ObservablePromise<IEditSessionEntryDiff>>, void> {
-		return derived((r): Map<string, ObservablePromise<IEditSessionEntryDiff>> => {
+		return derived((reader): Map<string, ObservablePromise<IEditSessionEntryDiff>> => {
 			const fileChangesDiffs = new Map<string, ObservablePromise<IEditSessionEntryDiff>>();
 			const firstRequestId = changes[0].requestId;
 			const lastRequestId = changes[changes.length - 1].requestId;
@@ -84,7 +86,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				if (!session || !session.editingSessionObs) {
 					continue;
 				}
-				const editSession = session.editingSessionObs.promiseResult.read(r)?.data;
+				const editSession = session.editingSessionObs.promiseResult.read(reader)?.data;
 				if (!editSession) {
 					continue;
 				}
@@ -94,25 +96,44 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				if (!firstSnapshotUri || !lastSnapshotUri) {
 					continue;
 				}
-				const diffPromise = this.editorWorkerService.computeDiff(firstSnapshotUri, lastSnapshotUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
-				const editSessionEntryDiffPromise = diffPromise.then((diff) => {
-					const entryDiff: IEditSessionEntryDiff = {
-						originalURI: firstSnapshotUri,
-						modifiedURI: lastSnapshotUri,
-						identical: !!diff?.identical,
-						quitEarly: !diff || diff.quitEarly,
-						added: 0,
-						removed: 0,
-					};
-					if (diff) {
-						for (const change of diff.changes) {
-							entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
-							entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
-						}
+				const store = new DisposableStore();
+				reader.store.add(store);
+				const referencePromise = Promise.all([firstSnapshotUri, lastSnapshotUri].map(u => this.textModelService.createModelReference(u))).then(refs => {
+					if (store.isDisposed) {
+						refs.forEach(ref => ref.dispose());
+					} else {
+						refs.forEach(ref => store.add(ref));
 					}
-					return entryDiff;
+					return refs;
 				});
-				fileChangesDiffs.set(this.changeID(change), new ObservablePromise(editSessionEntryDiffPromise));
+
+				const diffPromise = referencePromise.then((refs) => {
+					const firstSnapshotUri = refs[0].object.textEditorModel.uri;
+					const secondSnapshotUri = refs[1].object.textEditorModel.uri;
+					return this.editorWorkerService.computeDiff(
+						firstSnapshotUri,
+						secondSnapshotUri,
+						{ ignoreTrimWhitespace: false, computeMoves: false, maxComputationTimeMs: 3000 },
+						'advanced'
+					).then((diff): IEditSessionEntryDiff => {
+						const entryDiff: IEditSessionEntryDiff = {
+							originalURI: firstSnapshotUri,
+							modifiedURI: secondSnapshotUri,
+							identical: !!diff?.identical,
+							quitEarly: !diff || diff.quitEarly,
+							added: 0,
+							removed: 0,
+						};
+						if (diff) {
+							for (const change of diff.changes) {
+								entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
+								entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+							}
+						}
+						return entryDiff;
+					});
+				});
+				fileChangesDiffs.set(this.changeID(change), new ObservablePromise(diffPromise));
 			}
 			return fileChangesDiffs;
 		});
