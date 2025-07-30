@@ -2790,7 +2790,7 @@ export namespace ChatToolInvocationPart {
 		} else if ('commandLine' in data && 'language' in data) {
 			// ChatTerminalToolInvocationData2
 			return {
-				kind: 'terminal2',
+				kind: 'terminal',
 				commandLine: data.commandLine,
 				language: data.language
 			};
