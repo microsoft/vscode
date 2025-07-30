@@ -7,7 +7,7 @@ import { sumBy } from '../../../../../base/common/arrays.js';
 import { TaskQueue, timeout } from '../../../../../base/common/async.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, mapObservableArrayCached, observableValue, runOnChange } from '../../../../../base/common/observable.js';
+import { autorun, derived, mapObservableArrayCached, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { AnnotatedStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { isAiEdit, isUserEdit } from '../../../../../editor/common/textModelEditSource.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -32,8 +32,11 @@ export class AiStatsFeature extends Disposable {
 		this.aiRate.recomputeInitiallyAndOnChange(this._store);
 
 		this._register(autorun(reader => {
-			reader.store.add(this._instantiationService.createInstance(AiStatsStatusBar.hot.read(reader), this.aiRate));
+			reader.store.add(this._instantiationService.createInstance(AiStatsStatusBar.hot.read(reader), this));
 		}));
+
+
+		const lastRequestIds: string[] = [];
 
 		const obs = mapObservableArrayCached(this, annotatedDocuments.documents, (doc, store) => {
 			store.add(runOnChange(doc.documentWithAnnotations.value, (_val, _prev, edit) => {
@@ -49,6 +52,31 @@ export class AiStatsFeature extends Disposable {
 					}
 				}
 
+				if (e.replacements.length > 0) {
+					const sessionToUpdate = curSession.value.currentSession;
+					const s = e.replacements[0].data.editSource;
+					if (s.metadata.source === 'inlineCompletionAccept') {
+						if (sessionToUpdate.acceptedInlineSuggestions === undefined) {
+							sessionToUpdate.acceptedInlineSuggestions = 0;
+						}
+						sessionToUpdate.acceptedInlineSuggestions += 1;
+					}
+
+					if (s.metadata.source === 'Chat.applyEdits' && s.metadata.$$requestId !== undefined) {
+						const didSeeRequestId = lastRequestIds.includes(s.metadata.$$requestId);
+						if (!didSeeRequestId) {
+							lastRequestIds.push(s.metadata.$$requestId);
+							if (lastRequestIds.length > 10) {
+								lastRequestIds.shift();
+							}
+							if (sessionToUpdate.chatEditCount === undefined) {
+								sessionToUpdate.chatEditCount = 0;
+							}
+							sessionToUpdate.chatEditCount += 1;
+						}
+					}
+				}
+
 				if (curSession.hasValue) {
 					this._data.writeValue(curSession.value.data);
 					this._dataVersion.set(this._dataVersion.get() + 1, undefined);
@@ -57,7 +85,6 @@ export class AiStatsFeature extends Disposable {
 		});
 
 		obs.recomputeInitiallyAndOnChange(this._store);
-
 	}
 
 	public readonly aiRate = this._dataVersion.map(() => {
@@ -77,6 +104,28 @@ export class AiStatsFeature extends Disposable {
 		return r;
 	});
 
+	public readonly sessionCount = derived(this, r => {
+		this._dataVersion.read(r);
+		const val = this._data.getValue();
+		if (!val) {
+			return 0;
+		}
+		return val.sessions.length;
+	});
+
+	public readonly acceptedInlineSuggestionsToday = derived(this, r => {
+		this._dataVersion.read(r);
+		const val = this._data.getValue();
+		if (!val) {
+			return 0;
+		}
+		const startOfToday = new Date();
+		startOfToday.setHours(0, 0, 0, 0);
+
+		const sessionsToday = val.sessions.filter(s => s.startTime > startOfToday.getTime());
+		return sumBy(sessionsToday, s => s.acceptedInlineSuggestions ?? 0);
+	});
+
 	private _getDataAndSession(): { data: IData; currentSession: ISession } {
 		const state = this._data.getValue() ?? { sessions: [] };
 
@@ -88,7 +137,9 @@ export class AiStatsFeature extends Disposable {
 			state.sessions.push({
 				startTime: nowTime,
 				typedCharacters: 0,
-				aiCharacters: 0
+				aiCharacters: 0,
+				acceptedInlineSuggestions: 0,
+				chatEditCount: 0,
 			});
 			lastSession = state.sessions.at(-1)!;
 
@@ -111,6 +162,8 @@ interface ISession {
 	startTime: number;
 	typedCharacters: number;
 	aiCharacters: number;
+	acceptedInlineSuggestions: number | undefined;
+	chatEditCount: number | undefined;
 }
 
 

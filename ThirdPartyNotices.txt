@@ -1230,7 +1230,7 @@ more details.
 
 ---------------------------------------------------------
 
-go-syntax 0.8.1 - MIT
+go-syntax 0.8.4 - MIT
 https://github.com/worlpaker/go-syntax
 
 MIT License
@@ -1546,7 +1546,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jlelong/vscode-latex-basics 1.13.0 - MIT
+jlelong/vscode-latex-basics 1.14.0 - MIT
 https://github.com/jlelong/vscode-latex-basics
 
 Copyright (c) vscode-latex-basics authors
@@ -2128,7 +2128,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-microsoft/vscode-mssql 1.31.0 - MIT
+microsoft/vscode-mssql 1.34.0 - MIT
 https://github.com/microsoft/vscode-mssql
 
 ------------------------------------------ START OF LICENSE -----------------------------------------
@@ -2275,7 +2275,7 @@ suitability for any purpose.
 
 ---------------------------------------------------------
 
-REditorSupport/vscode-R 0.1.0 - MIT
+REditorSupport/vscode-R 0.1.1 - MIT
 https://github.com/REditorSupport/vscode-R-syntax
 
 MIT License

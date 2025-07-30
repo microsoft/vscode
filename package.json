@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.103.0",
-  "distro": "64ef829677a2ce7428f802dd768c9d436935a962",
+  "distro": "5545a7bcc7ca289eee3a1bd8fff5d381f3811934",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -138,7 +138,7 @@
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.36.0",
-    "@vscode/gulp-electron": "^1.37.1",
+    "@vscode/gulp-electron": "^1.38.1",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.6",
@@ -209,7 +209,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^5.9.0-dev.20250707",
+    "typescript": "^5.9.0-dev.20250728",
     "typescript-eslint": "^8.8.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",
