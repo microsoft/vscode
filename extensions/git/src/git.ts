@@ -351,10 +351,11 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.NotASafeGitRepository;
 	} else if (/contains modified or untracked files|use --force to delete it/.test(stderr)) {
 		return GitErrorCodes.WorktreeContainsChanges;
-	} else if (/is already used by worktree at|already exists/.test(stderr)) {
+	} else if (/fatal: '[^']+' already exists/.test(stderr)) {
 		return GitErrorCodes.WorktreeAlreadyExists;
+	} else if (/is already used by worktree at/.test(stderr)) {
+		return GitErrorCodes.WorktreeBranchAlreadyUsed;
 	}
-
 	return undefined;
 }
 

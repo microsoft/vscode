@@ -2923,12 +2923,12 @@ export class CommandCenter {
 			try {
 				await item.run(repository, opts);
 			} catch (err) {
-				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree && err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
+				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree && err.gitErrorCode !== GitErrorCodes.WorktreeBranchAlreadyUsed) {
 					throw err;
 				}
 
-				if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
-					this.handleWorktreeError(err);
+				if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+					this.handleWorktreeBranchAlreadyUsed(err);
 					return false;
 				}
 
@@ -3527,22 +3527,43 @@ export class CommandCenter {
 				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
 			}
 		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+				await this.handleWorktreeAlreadyExists(err);
+			} else if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+				await this.handleWorktreeBranchAlreadyUsed(err);
+			} else {
 				throw err;
 			}
 
-			this.handleWorktreeError(err);
 			return;
 		}
 	}
 
-	private async handleWorktreeError(err: any): Promise<void> {
+	private async handleWorktreeBranchAlreadyUsed(err: any): Promise<void> {
 		const match = err.stderr.match(/fatal: '([^']+)' is already used by worktree at '([^']+)'/);
+
 		if (!match) {
 			return;
 		}
 
 		const [, branch, path] = match;
+		const message = l10n.t("Branch '{0}' is already checked out in the worktree at '{1}'.", branch, path);
+		await this.handleWorktreeConflict(path, message);
+	}
+
+	private async handleWorktreeAlreadyExists(err: any): Promise<void> {
+		const match = err.stderr.match(/fatal: '([^']+)'/);
+
+		if (!match) {
+			return;
+		}
+
+		const [, path] = match;
+		const message = l10n.t("A worktree already exists at '{0}'.", path);
+		await this.handleWorktreeConflict(path, message);
+	}
+
+	private async handleWorktreeConflict(path: string, message: string): Promise<void> {
 		const worktreeRepository = this.model.getRepository(path);
 
 		if (!worktreeRepository) {
@@ -3551,7 +3572,6 @@ export class CommandCenter {
 
 		const openWorktree = l10n.t('Open in Current Window');
 		const openWorktreeInNewWindow = l10n.t('Open in New Window');
-		const message = l10n.t('Branch \'{0}\' is already checked out in the worktree at \'{1}\'.', branch, path);
 		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
 
 		if (choice === openWorktree) {
@@ -3559,9 +3579,9 @@ export class CommandCenter {
 		} else if (choice === openWorktreeInNewWindow) {
 			await this.openWorktreeInNewWindow(worktreeRepository);
 		}
-
 		return;
 	}
+
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
 	async deleteWorktree(repository: Repository): Promise<void> {
