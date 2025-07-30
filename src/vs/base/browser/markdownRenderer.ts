@@ -546,15 +546,19 @@ function getSanitizerOptions(isTrusted: boolean | MarkdownStringTrustedOptions, 
 				}
 			},
 			uponSanitizeElement: (element, e) => {
+				let wantsReplaceWithPlaintext = false;
 				if (e.tagName === 'input') {
 					if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
 						element.setAttribute('disabled', '');
-					} else if (!options.replaceWithPlaintext) {
+					} else if (options.replaceWithPlaintext) {
+						wantsReplaceWithPlaintext = true;
+					} else {
 						element.remove();
+						return;
 					}
 				}
 
-				if (options.replaceWithPlaintext && !e.allowedTags[e.tagName] && e.tagName !== 'body') {
+				if (options.replaceWithPlaintext && (wantsReplaceWithPlaintext || (!e.allowedTags[e.tagName] && e.tagName !== 'body'))) {
 					if (element.parentElement) {
 						let startTagText: string;
 						let endTagText: string | undefined;
