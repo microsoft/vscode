@@ -124,12 +124,6 @@ export interface IChatEditingSession extends IDisposable {
 	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined;
 
 	/**
-	 * Get the first snapshot URI for a file URI on or after a specific request
-	 * @param inclusive Whether to include the requestId in the search
-	 */
-	getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive?: boolean): URI | undefined;
-
-	/**
 	 * Will lead to this object getting disposed
 	 */
 	stop(clearState?: boolean): Promise<void>;
@@ -148,6 +142,12 @@ export interface IChatEditingSession extends IDisposable {
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
 	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
+
+	/**
+	 * Gets the document diff of a change made to a URI between one request to another one.
+	 * @returns The observable or undefined if there is no diff between the requests.
+	 */
+	getEntryDiffBetweenRequests(uri: URI, startRequestIs: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> | undefined;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;

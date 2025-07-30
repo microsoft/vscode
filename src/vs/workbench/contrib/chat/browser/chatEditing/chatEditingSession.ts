@@ -214,6 +214,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._timeline.getEntryDiffBetweenStops(uri, requestId, stopId);
 	}
 
+	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string) {
+		return this._timeline.getEntryDiffBetweenRequests(uri, startRequestId, stopRequestId);
+	}
+
 	public createSnapshot(requestId: string, undoStop: string | undefined, makeEmpty = undoStop !== undefined): void {
 		this._timeline.pushSnapshot(
 			requestId,
@@ -274,10 +278,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._pendingSnapshot.set(undefined, undefined);
 			await this._restoreSnapshot(pendingSnapshot, undefined);
 		}
-	}
-
-	public getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive?: boolean): URI | undefined {
-		return this._timeline.getFirstSnapshotForUriAfterRequest(uri, requestId, inclusive);
 	}
 
 	private async _restoreSnapshot({ entries }: IChatEditingSessionStop, restoreResolvedToDisk = true): Promise<void> {

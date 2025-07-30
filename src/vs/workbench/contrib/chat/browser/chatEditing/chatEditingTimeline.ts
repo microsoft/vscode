@@ -11,7 +11,7 @@ import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { derived, derivedOpts, IObservable, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IObservableWithChange, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
@@ -38,12 +38,12 @@ export class ChatEditingTimeline {
 		};
 	}
 
-	private readonly _requestToLinearHistoryMap = new Map<string, number>();
-
 	private readonly _linearHistory = observableValue<readonly IChatEditingSessionSnapshot[]>(this, []);
 	private readonly _linearHistoryIndex = observableValue<number>(this, 0);
+	private readonly _requestToLinearHistoryMap = new Map<string, number>();
 
 	private readonly _diffsBetweenStops = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
+	private readonly _diffsBetweenRequests = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 	private readonly _fullDiffs = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 	private readonly _ignoreTrimWhitespaceObservable: IObservable<boolean>;
 
@@ -118,23 +118,6 @@ export class ChatEditingTimeline {
 			stop: stopRef.stop,
 			apply: () => this._linearHistoryIndex.set(toIndex, undefined)
 		};
-	}
-
-	public getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive: boolean = true): URI | undefined {
-		const requestIndex = this._requestToLinearHistoryMap.get(requestId);
-		if (requestIndex === undefined) { return undefined; }
-		const history = this._linearHistory.get();
-		const processedIndex = requestIndex + (inclusive ? 0 : 1);
-		for (let i = processedIndex; i < history.length; i++) {
-			const snapshot = history[i];
-			for (const stop of snapshot.stops) {
-				const entry = stop.entries.get(uri);
-				if (entry) {
-					return entry.snapshotUri;
-				}
-			}
-		}
-		return uri;
 	}
 
 	/**
@@ -454,6 +437,92 @@ export class ChatEditingTimeline {
 
 			return observable;
 		}
+	}
+
+	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> | undefined {
+		const key = `${uri}\0${startRequestId}\0${stopRequestId}`;
+		let observable = this._diffsBetweenRequests.get(key);
+		if (!observable) {
+			observable = this._createDiffBetweenRequestsObservable(uri, startRequestId, stopRequestId);
+			this._diffsBetweenRequests.set(key, observable);
+		}
+		return observable;
+	}
+
+	private _createDiffBetweenRequestsObservable(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
+		const modelRefs = derived((reader) => {
+			const firstSnapshotUri = this._getFirstSnapshotForUriAfterRequest(uri, startRequestId, true).read(reader);
+			const lastSnapshotUri = this._getFirstSnapshotForUriAfterRequest(uri, stopRequestId, false).read(reader);
+			if (!firstSnapshotUri || !lastSnapshotUri) {
+				return;
+			}
+			const store = new DisposableStore();
+			reader.store.add(store);
+			const referencesPromise = Promise.all([firstSnapshotUri, lastSnapshotUri].map(u => this._textModelService.createModelReference(u))).then(refs => {
+				if (store.isDisposed) {
+					refs.forEach(ref => ref.dispose());
+				} else {
+					refs.forEach(ref => store.add(ref));
+				}
+				return refs;
+			});
+			return new ObservablePromise(referencesPromise);
+		});
+		const diff = derived((reader): ObservablePromise<IEditSessionEntryDiff> | undefined => {
+			const references = modelRefs.read(reader)?.promiseResult.read(reader);
+			const refs = references?.data;
+			if (!refs) {
+				return;
+			}
+			const firstSnapshotUri = refs[0].object.textEditorModel.uri;
+			const secondSnapshotUri = refs[1].object.textEditorModel.uri;
+			const ignoreTrimWhitespace = this._ignoreTrimWhitespaceObservable.read(reader);
+			const promise = this._editorWorkerService.computeDiff(
+				firstSnapshotUri,
+				secondSnapshotUri,
+				{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
+				'advanced'
+			).then((diff): IEditSessionEntryDiff => {
+				const entryDiff: IEditSessionEntryDiff = {
+					originalURI: firstSnapshotUri,
+					modifiedURI: secondSnapshotUri,
+					identical: !!diff?.identical,
+					quitEarly: !diff || diff.quitEarly,
+					added: 0,
+					removed: 0,
+				};
+				if (diff) {
+					for (const change of diff.changes) {
+						entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
+						entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+					}
+				}
+				return entryDiff;
+			});
+			return new ObservablePromise(promise);
+		});
+		return derived(reader => {
+			return diff.read(reader)?.promiseResult.read(reader)?.data || undefined;
+		});
+	}
+
+	private _getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive: boolean = true): IObservableWithChange<URI | undefined, void> {
+		return derived((reader) => {
+			const requestIndex = this._requestToLinearHistoryMap.get(requestId);
+			if (requestIndex === undefined) { return undefined; }
+			const history = this._linearHistory.read(reader);
+			const processedIndex = requestIndex + (inclusive ? 0 : 1);
+			for (let i = processedIndex; i < history.length; i++) {
+				const snapshot = history[i];
+				for (const stop of snapshot.stops) {
+					const entry = stop.entries.get(uri);
+					if (entry) {
+						return entry.snapshotUri;
+					}
+				}
+			}
+			return uri;
+		});
 	}
 }
 
