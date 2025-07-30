@@ -7,7 +7,7 @@ import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables
 import { IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
-import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 export class ChatVariablesService implements IChatVariablesService {
 	declare _serviceBrand: undefined;
@@ -50,7 +50,7 @@ export class ChatVariablesService implements IChatVariablesService {
 				}
 			}
 
-			return [...references];
+			return [...model.variables, ...references];
 		}
 
 		return model.variables;
