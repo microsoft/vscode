@@ -523,7 +523,7 @@ async function showToolsPickerTree(
 	};
 	treePicker.title = localize('configureTools', "Configure Tools");
 	treePicker.buttons = [addMcpServerButton, installExtension, configureToolSets];
-	treePicker.onDidTriggerButton(button => {
+	store.add(treePicker.onDidTriggerButton(button => {
 		if (button === addMcpServerButton) {
 			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else if (button === installExtension) {
@@ -532,11 +532,11 @@ async function showToolsPickerTree(
 			commandService.executeCommand(ConfigureToolSets.ID);
 		}
 		treePicker.hide();
-	});
+	}));
 
 	treePicker.show();
 
-	await Promise.race([Event.toPromise(Event.any(treePicker.onDidAccept, treePicker.onDidHide))]);
+	await Promise.race([Event.toPromise(Event.any(treePicker.onDidAccept, treePicker.onDidHide), store)]);
 
 	store.dispose();
 
