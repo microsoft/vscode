@@ -133,8 +133,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				};
 			}
 
+			const onWillDisposeEventEmitter = new Emitter<void>();
+
 			return {
 				id: sessionContent.id,
+				onWillDispose: onWillDisposeEventEmitter.event,
 				history: sessionContent.history.map(turn => {
 					if (turn.type === 'request') {
 						return { type: 'request', prompt: turn.prompt };
@@ -149,6 +152,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				requestHandler: requestHandler,
 				interruptActiveResponseCallback: interruptActiveResponseCallback,
 				dispose: () => {
+					onWillDisposeEventEmitter.fire();
+					onWillDisposeEventEmitter.dispose();
 					progressEmitter.dispose();
 					completionEmitter.dispose();
 					this._proxy.$disposeChatSessionContent(providerHandle, sessionContent.id);
