@@ -266,6 +266,7 @@ export class QuickInputController extends Disposable {
 				tree.tree.setFocus([]);
 			}, 0);
 		}));
+		this._register(tree.tree.onDidChangeContentHeight(() => this.updateLayout()));
 
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
