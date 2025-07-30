@@ -1619,6 +1619,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedToCodingAgentContextKey.set(true);
 		this.renderWelcomeViewContentIfNeeded();
 		this.input.setChatMode(ChatModeKind.Ask);
+		this.renderer.updateOptions({ restorable: false, editable: false });
+		this.tree.rerender();
 	}
 
 	public unlockFromCodingAgent(): void {
