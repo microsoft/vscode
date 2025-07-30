@@ -179,7 +179,7 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 					order: 1,
-					when: precondition
+					when: ContextKeyExpr.and(precondition, ChatContextKeys.lockedToCodingAgent.negate()),
 				},
 				{
 					id: MenuId.ChatExecute,
