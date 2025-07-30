@@ -358,29 +358,7 @@ export class ChatEditingTimeline {
 
 			}
 			const ignoreTrimWhitespace = this._ignoreTrimWhitespaceObservable.read(reader);
-			const promise = this._editorWorkerService.computeDiff(
-				refs[0].object.textEditorModel.uri,
-				refs[1].object.textEditorModel.uri,
-				{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
-				'advanced'
-			).then((diff): IEditSessionEntryDiff => {
-				const entryDiff: IEditSessionEntryDiff = {
-					originalURI: refs[0].object.textEditorModel.uri,
-					modifiedURI: refs[1].object.textEditorModel.uri,
-					identical: !!diff?.identical,
-					quitEarly: !diff || diff.quitEarly,
-					added: 0,
-					removed: 0,
-				};
-				if (diff) {
-					for (const change of diff.changes) {
-						entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
-						entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
-					}
-				}
-
-				return entryDiff;
-			});
+			const promise = this._computeDiff(refs[0].object.textEditorModel.uri, refs[1].object.textEditorModel.uri, ignoreTrimWhitespace);
 
 			return new ObservablePromise(promise);
 		});
@@ -474,35 +452,37 @@ export class ChatEditingTimeline {
 			if (!refs) {
 				return;
 			}
-			const firstSnapshotUri = refs[0].object.textEditorModel.uri;
-			const secondSnapshotUri = refs[1].object.textEditorModel.uri;
 			const ignoreTrimWhitespace = this._ignoreTrimWhitespaceObservable.read(reader);
-			const promise = this._editorWorkerService.computeDiff(
-				firstSnapshotUri,
-				secondSnapshotUri,
-				{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
-				'advanced'
-			).then((diff): IEditSessionEntryDiff => {
-				const entryDiff: IEditSessionEntryDiff = {
-					originalURI: firstSnapshotUri,
-					modifiedURI: secondSnapshotUri,
-					identical: !!diff?.identical,
-					quitEarly: !diff || diff.quitEarly,
-					added: 0,
-					removed: 0,
-				};
-				if (diff) {
-					for (const change of diff.changes) {
-						entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
-						entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
-					}
-				}
-				return entryDiff;
-			});
+			const promise = this._computeDiff(refs[0].object.textEditorModel.uri, refs[1].object.textEditorModel.uri, ignoreTrimWhitespace);
 			return new ObservablePromise(promise);
 		});
 		return derived(reader => {
 			return diff.read(reader)?.promiseResult.read(reader)?.data || undefined;
+		});
+	}
+
+	private _computeDiff(originalUri: URI, modifiedUri: URI, ignoreTrimWhitespace: boolean): Promise<IEditSessionEntryDiff> {
+		return this._editorWorkerService.computeDiff(
+			originalUri,
+			modifiedUri,
+			{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
+			'advanced'
+		).then((diff): IEditSessionEntryDiff => {
+			const entryDiff: IEditSessionEntryDiff = {
+				originalURI: originalUri,
+				modifiedURI: modifiedUri,
+				identical: !!diff?.identical,
+				quitEarly: !diff || diff.quitEarly,
+				added: 0,
+				removed: 0,
+			};
+			if (diff) {
+				for (const change of diff.changes) {
+					entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
+					entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+				}
+			}
+			return entryDiff;
 		});
 	}
 
