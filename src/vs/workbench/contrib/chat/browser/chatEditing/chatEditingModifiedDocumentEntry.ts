@@ -86,7 +86,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		this.initialContent = initialContent ?? this.modifiedModel.getValue();
 		const docSnapshot = this.originalModel = this._register(
-			modelService.createModel( //
+			modelService.createModel(
 				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.modifiedModel.createSnapshot()),
 				languageService.createById(this.modifiedModel.getLanguageId()),
 				this.originalURI,
@@ -108,7 +108,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		// Create a reference to this model to avoid it being disposed from under our nose
 		(async () => {
-			const reference = await textModelService.createModelReference(docSnapshot.uri); //
+			const reference = await textModelService.createModelReference(docSnapshot.uri);
 			if (this._store.isDisposed) {
 				reference.dispose();
 				return;

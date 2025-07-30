@@ -15,7 +15,6 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { IChatEditingSessionStop } from '../browser/chatEditing/chatEditingSessionStorage.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatResponseModel } from './chatModel.js';
 
@@ -124,6 +123,11 @@ export interface IChatEditingSession extends IDisposable {
 
 	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined;
 
+	getSurroundingSnapshots(uri: URI): {
+		firstSnapshotUri: URI;
+		lastSnapshotUri: URI;
+	} | undefined;
+
 	/**
 	 * Will lead to this object getting disposed
 	 */
@@ -135,18 +139,14 @@ export interface IChatEditingSession extends IDisposable {
 	 * @param responseModel The response model making the edits
 	 * @param inUndoStop The undo stop the edits will be grouped in
 	 */
-	startStreamingEdits(resource: URI, otherResources: URI[], responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
-
-	ensureResourcesAreTracked(responseModel: IChatResponseModel, undoStop: string | undefined, resources: URI[]): void;
+	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
 
 	/**
-	 * Gets the document diff of a change made to a URI between one undo stop and another one.
-	 * If startStopId is defined and endStopId is undefined, then the diff will be between startStopId and the next one.
+	 * Gets the document diff of a change made to a URI between one undo stop and
+	 * the next one.
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
-	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
-
-	getSessionStopAfter(requestId: string, stopId: string | undefined): IObservable<IChatEditingSessionStop | undefined>;
+	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;
@@ -258,8 +258,6 @@ export interface IModifiedFileEntry {
 	readonly changesCount: IObservable<number>;
 
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
-
-	createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
 }
 
 export interface IChatEditingSessionStream {

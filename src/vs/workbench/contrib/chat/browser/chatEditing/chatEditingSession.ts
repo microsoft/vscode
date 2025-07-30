@@ -30,7 +30,7 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
@@ -210,14 +210,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> {
-		console.log('startStopId : ', startStopId);
-		console.log('endStopId : ', endStopId);
-		return this._timeline.getEntryDiffBetweenStops(uri, requestId, startStopId, endStopId);
-	}
-
-	public getSessionStopAfter(requestId: string, stopId: string | undefined): IObservable<IChatEditingSessionStop | undefined> {
-		return this._timeline.getSessionStopAfter(requestId, stopId);
+	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined) {
+		return this._timeline.getEntryDiffBetweenStops(uri, requestId, stopId);
 	}
 
 	public createSnapshot(requestId: string, undoStop: string | undefined, makeEmpty = undoStop !== undefined): void {
@@ -285,6 +279,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._pendingSnapshot.set(undefined, undefined);
 			await this._restoreSnapshot(pendingSnapshot, undefined);
 		}
+	}
+
+	public getSurroundingSnapshots(uri: URI): {
+		firstSnapshotUri: URI;
+		lastSnapshotUri: URI;
+	} | undefined {
+		return this._timeline.getSurroundingSnapshots(uri);
 	}
 
 	private async _restoreSnapshot({ entries }: IChatEditingSessionStop, restoreResolvedToDisk = true): Promise<void> {
@@ -409,8 +410,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._state.get() === ChatEditingSessionState.Disposed;
 	}
 
-	startStreamingEdits(resource: URI, otherResources: URI[], responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits {
-		console.log('startStreamingEdits resource : ', resource, ' otherResources : ', otherResources);
+	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits {
 		const completePromise = new DeferredPromise<void>();
 		const startPromise = new DeferredPromise<void>();
 
@@ -422,7 +422,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		this._streamingEditLocks.queue(resource.toString(), async () => {
 			if (!this.isDisposed) {
-				await this._acceptStreamingEditsStart(responseModel, inUndoStop, resource, otherResources);
+				await this._acceptStreamingEditsStart(responseModel, inUndoStop, resource);
 			}
 
 			startPromise.complete();
@@ -463,7 +463,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				sequencer.queue(async () => {
 					if (!this.isDisposed) {
 						await this._acceptEdits(resource, [], true, responseModel);
-						await this._resolve(responseModel.requestId, inUndoStop, resource, otherResources);
+						await this._resolve(responseModel.requestId, inUndoStop, resource);
 						completePromise.complete();
 					}
 				});
@@ -495,26 +495,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
-	private async _acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStop: string | undefined, resource: URI, otherResources: URI[]) {
-		console.log('_acceptStreamingEditsStart resource : ', resource, ' otherResources : ', otherResources);
+	private async _acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStop: string | undefined, resource: URI) {
 		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
-		transaction(async (tx) => {
+		transaction((tx) => {
 			this._state.set(ChatEditingSessionState.StreamingEdits, tx);
 			entry.acceptStreamingEditsStart(responseModel, tx);
 			this._timeline.ensureEditInUndoStopMatches(responseModel.requestId, undoStop, entry, false, tx);
-			for (const resource of otherResources) {
-				const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
-				this._timeline.ensureEditInUndoStopMatches(responseModel.requestId, undoStop, entry, false, tx);
-			}
-		});
-	}
-
-	public ensureResourcesAreTracked(responseModel: IChatResponseModel, undoStop: string | undefined, resources: URI[]): void {
-		transaction(async (tx) => {
-			for (const resource of resources) {
-				const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
-				this._timeline.ensureEditInUndoStopMatches(responseModel.requestId, undoStop, entry, false, tx);
-			}
 		});
 	}
 
@@ -534,8 +520,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 	}
 
-	private async _resolve(requestId: string, undoStop: string | undefined, resource: URI, otherResources: URI[]): Promise<void> {
-		console.log('_resolve resource : ', resource, ' otherResources : ', otherResources);
+	private async _resolve(requestId: string, undoStop: string | undefined, resource: URI): Promise<void> {
 		const hasOtherTasks = Iterable.some(this._streamingEditLocks.keys(), k => k !== resource.toString());
 		if (!hasOtherTasks) {
 			this._state.set(ChatEditingSessionState.Idle, undefined);
@@ -547,14 +532,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		this._timeline.ensureEditInUndoStopMatches(requestId, undoStop, entry, /* next= */ true, undefined);
-
-		for (const otherResource of otherResources) {
-			const entry = this._getEntry(otherResource);
-			if (!entry) {
-				continue;
-			}
-			this._timeline.ensureEditInUndoStopMatches(requestId, undoStop, entry, /* next= */ true, undefined);
-		}
 		return entry.acceptStreamingEditsEnd();
 
 	}

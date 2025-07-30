@@ -88,32 +88,31 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 					continue;
 				}
 				const uri = change.reference;
-				const entry = editSession.getEntry(uri);
-				if (!entry) {
-					continue;
-				}
-				const requestId = change.requestId;
-				const undoStops = context.content.filter(e => e.kind === 'undoStop');
+				// const entry = editSession.getEntry(uri);
+				// if (!entry) {
+				// 	continue;
+				// }
+				// const requestId = change.requestId;
+				// const undoStops = context.content.filter(e => e.kind === 'undoStop');
 
-				const originalSnapShot = entry.createSnapshot(requestId, undoStops[0].id);
-				const sessionStopAfterLast = editSession.getSessionStopAfter(requestId, undoStops[undoStops.length - 1].id).read(r);
-				if (!sessionStopAfterLast) {
+				// const originalSnapShot = entry.createSnapshot(requestId, undoStops[0].id);
+				// const sessionStopAfterLast = editSession.getSessionStopAfter(requestId, undoStops[undoStops.length - 1].id).read(r);
+				// if (!sessionStopAfterLast) {
+				// 	continue;
+				// }
+				// const modifiedSnapshot = entry.createSnapshot(requestId, sessionStopAfterLast.stopId);
+				const surroundingSnapshots = editSession.getSurroundingSnapshots(uri);
+				console.log('surroundingSnapshots : ', surroundingSnapshots);
+				if (!surroundingSnapshots) {
 					continue;
 				}
-				const modifiedSnapshot = entry.createSnapshot(requestId, sessionStopAfterLast.stopId);
-				console.log('context.content : ', context.content);
-				console.log('undoStops : ', undoStops);
-				console.log('undoStops[undoStops.length - 1].id : ', undoStops[undoStops.length - 1].id);
-				console.log('sessionStopAfterLast.stopId : ', sessionStopAfterLast.stopId);
-				console.log('originalSnapShot.snapshotUri : ', originalSnapShot.snapshotUri);
-				console.log('modifiedSnapshot.snapshotUri : ', modifiedSnapshot.snapshotUri);
-				const diffPromise = this.editorWorkerService.computeDiff(originalSnapShot.snapshotUri, modifiedSnapshot.snapshotUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
+				const diffPromise = this.editorWorkerService.computeDiff(surroundingSnapshots.firstSnapshotUri, surroundingSnapshots.lastSnapshotUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
 				// const diff = editSession.getEntryDiffBetweenStops(modifiedUri, requestId, undoStops[0].id, undoStops[undoStops.length - 1].id)?.read(r);
 				const editEntryDiffPromise = diffPromise.then((diff) => {
 					console.log('diff : ', diff);
 					const entryDiff: IEditSessionEntryDiff = {
-						originalURI: originalSnapShot.snapshotUri,
-						modifiedURI: modifiedSnapshot.snapshotUri,
+						originalURI: surroundingSnapshots.firstSnapshotUri,
+						modifiedURI: surroundingSnapshots.lastSnapshotUri,
 						identical: !!diff?.identical,
 						quitEarly: !diff || diff.quitEarly,
 						added: 0,

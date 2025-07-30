@@ -76,7 +76,6 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 			return null;
 		}
 
-		// get the model for this snapshot
 		return session.getSnapshotModel(data.requestId, data.undoStop || undefined, resource);
 	}
 }

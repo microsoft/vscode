@@ -11,7 +11,7 @@ import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { derived, derivedOpts, IObservable, IObservableWithChange, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
@@ -37,6 +37,8 @@ export class ChatEditingTimeline {
 			entries: new ResourceMap(),
 		};
 	}
+
+	private uriToSnapshotMap = new ResourceMap<{ firstSnapshotUri: URI, lastSnapshotUri: URI }>();
 
 	private readonly _linearHistory = observableValue<readonly IChatEditingSessionSnapshot[]>(this, []);
 	private readonly _linearHistoryIndex = observableValue<number>(this, 0);
@@ -86,6 +88,24 @@ export class ChatEditingTimeline {
 	 * Restore the timeline from a saved state (history array and index).
 	 */
 	public restoreFromState(state: { history: readonly IChatEditingSessionSnapshot[]; index: number }, tx: ITransaction): void {
+		this.uriToSnapshotMap.clear();
+		for (const historyItem of state.history) {
+			for (const stop of historyItem.stops) {
+				for (const entry of stop.entries) {
+					const uri = entry[0];
+					const snapShot = entry[1];
+					const existing = this.uriToSnapshotMap.get(uri);
+					if (existing) {
+						if (!existing.firstSnapshotUri) {
+							existing.firstSnapshotUri = snapShot.snapshotUri;
+						}
+						existing.lastSnapshotUri = snapShot.snapshotUri;
+					} else {
+						this.uriToSnapshotMap.set(uri, { firstSnapshotUri: snapShot.snapshotUri, lastSnapshotUri: snapShot.snapshotUri });
+					}
+				}
+			}
+		}
 		this._linearHistory.set(state.history, tx);
 		this._linearHistoryIndex.set(state.index, tx);
 	}
@@ -95,7 +115,6 @@ export class ChatEditingTimeline {
 	 * If requestId is undefined, returns undefined (pending snapshot is managed by session).
 	 */
 	public getSnapshotForRestore(requestId: string | undefined, stopId: string | undefined): { stop: IChatEditingSessionStop; apply(): void } | undefined {
-		console.log('getSnapshotForRestore : ', requestId, stopId);
 		if (requestId === undefined) {
 			return undefined;
 		}
@@ -111,6 +130,14 @@ export class ChatEditingTimeline {
 			stop: stopRef.stop,
 			apply: () => this._linearHistoryIndex.set(toIndex, undefined)
 		};
+	}
+
+	public getSurroundingSnapshots(uri: URI): {
+		firstSnapshotUri: URI;
+		lastSnapshotUri: URI;
+	} | undefined {
+		console.log('this.uriSnapshotMap : ', JSON.stringify(this.uriToSnapshotMap));
+		return this.uriToSnapshotMap.get(uri);
 	}
 
 	/**
@@ -209,6 +236,24 @@ export class ChatEditingTimeline {
 		});
 		console.log('newLinearHistory : ', JSON.stringify(newNewNewLinearHistory));
 
+		this.uriToSnapshotMap.clear();
+		for (const historyItem of newHistory) {
+			for (const stop of historyItem.stops) {
+				for (const entry of stop.entries) {
+					const uri = entry[0];
+					const snapShot = entry[1];
+					const existing = this.uriToSnapshotMap.get(uri);
+					if (existing) {
+						if (!existing.firstSnapshotUri) {
+							existing.firstSnapshotUri = snapShot.snapshotUri;
+						}
+						existing.lastSnapshotUri = snapShot.snapshotUri;
+					} else {
+						this.uriToSnapshotMap.set(uri, { firstSnapshotUri: snapShot.snapshotUri, lastSnapshotUri: snapShot.snapshotUri });
+					}
+				}
+			}
+		}
 		this._linearHistory.set(newHistory, tx);
 		if (linearHistoryIndexIncr) {
 			this._linearHistoryIndex.set(this._linearHistoryIndex.get() + linearHistoryIndexIncr, tx);
@@ -353,6 +398,25 @@ export class ChatEditingTimeline {
 		});
 		console.log('newLinearHistory : ', JSON.stringify(newNewNewLinearHistory));
 
+		this.uriToSnapshotMap.clear();
+		for (const historyItem of newLinearHistory) {
+			for (const stop of historyItem.stops) {
+				for (const entry of stop.entries) {
+					const uri = entry[0];
+					const snapShot = entry[1];
+					const existing = this.uriToSnapshotMap.get(uri);
+					if (existing) {
+						if (!existing.firstSnapshotUri) {
+							existing.firstSnapshotUri = snapShot.snapshotUri;
+						}
+						existing.lastSnapshotUri = snapShot.snapshotUri;
+					} else {
+						this.uriToSnapshotMap.set(uri, { firstSnapshotUri: snapShot.snapshotUri, lastSnapshotUri: snapShot.snapshotUri });
+					}
+				}
+			}
+		}
+
 		transaction((tx) => {
 			const last = newLinearHistory[newLinearHistory.length - 1];
 			this._linearHistory.set(newLinearHistory, tx);
@@ -430,16 +494,15 @@ export class ChatEditingTimeline {
 		});
 	}
 
-	private _createDiffBetweenStopsObservable(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> {
+	private _createDiffBetweenStopsObservable(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> {
 		const entries = derivedOpts<undefined | { before: ISnapshotEntry; after: ISnapshotEntry }>(
 			{
 				equalsFn: (a, b) => snapshotsEqualForDiff(a?.before, b?.before) && snapshotsEqualForDiff(a?.after, b?.after),
 			},
 			reader => {
 				const stops = requestId ?
-					getCurrentAndNextStop(requestId, startStopId, this._linearHistory.read(reader)) :
+					getCurrentAndNextStop(requestId, stopId, this._linearHistory.read(reader)) :
 					getFirstAndLastStop(uri, this._linearHistory.read(reader));
-				console.log('stops 	', stops);
 				if (!stops) { return undefined; }
 				const before = stops.current.get(uri);
 				const after = stops.next.get(uri);
@@ -456,19 +519,18 @@ export class ChatEditingTimeline {
 		});
 
 		const diff = this._entryDiffBetweenTextStops(entries, modelUrisObservable);
-		console.log('diff for uri : ', uri, ' diff : ', diff);
 
 		return derived(reader => {
 			return diff.read(reader)?.promiseResult.read(reader)?.data || undefined;
 		});
 	}
 
-	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, startStopId: string | undefined, endStopId: string | undefined) {
+	public getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined) {
 		if (requestId) {
-			const key = `${uri}\0${requestId}\0${startStopId}\0${endStopId}`;
+			const key = `${uri}\0${requestId}\0${stopId}`;
 			let observable = this._diffsBetweenStops.get(key);
 			if (!observable) {
-				observable = this._createDiffBetweenStopsObservable(uri, requestId, startStopId, endStopId);
+				observable = this._createDiffBetweenStopsObservable(uri, requestId, stopId);
 				this._diffsBetweenStops.set(key, observable);
 			}
 
@@ -477,26 +539,12 @@ export class ChatEditingTimeline {
 			const key = uri.toString();
 			let observable = this._fullDiffs.get(key);
 			if (!observable) {
-				observable = this._createDiffBetweenStopsObservable(uri, requestId, startStopId, endStopId);
+				observable = this._createDiffBetweenStopsObservable(uri, requestId, stopId);
 				this._fullDiffs.set(key, observable);
 			}
 
 			return observable;
 		}
-	}
-
-	public getSessionStopAfter(requestId: string, stopId: string | undefined): IObservableWithChange<IChatEditingSessionStop | undefined, void> {
-		return derived(reader => {
-			const history = this._linearHistory.read(reader);
-			const snapshotIndex = history.findIndex(s => s.requestId === requestId);
-			if (snapshotIndex === -1) { return undefined; }
-			const snapshot = history[snapshotIndex];
-			const stopIndex = snapshot.stops.findIndex(s => s.stopId === stopId);
-			if (stopIndex === -1) { return undefined; }
-			return snapshotIndex < snapshot.stops.length - 1
-				? snapshot.stops[stopIndex + 1]
-				: undefined;
-		});
 	}
 }
 

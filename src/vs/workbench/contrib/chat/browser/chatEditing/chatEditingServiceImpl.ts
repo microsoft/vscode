@@ -6,7 +6,6 @@
 import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { SetWithKey } from '../../../../../base/common/collections.js';
 import { ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -269,25 +268,12 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				return;
 			}
 
-			const allUrisChanged = new SetWithKey<URI>([], (uri: URI) => uri.toString());
-			for (let i = 0; i < responseModel.response.value.length; i++) {
-				const part = responseModel.response.value[i];
-				if (part.kind !== 'textEditGroup' && part.kind !== 'notebookEditGroup') {
-					continue;
-				}
-				allUrisChanged.add(CellUri.parse(part.uri)?.notebook ?? part.uri);
-			}
-
-			let firstUndoStop: undefined | string;
 			let undoStop: undefined | string;
 			for (let i = 0; i < responseModel.response.value.length; i++) {
 				const part = responseModel.response.value[i];
 
 				if (part.kind === 'undoStop') {
 					undoStop = part.id;
-					if (!firstUndoStop) {
-						firstUndoStop = part.id;
-					}
 					continue;
 				}
 
@@ -297,16 +283,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				ensureEditorOpen(part.uri);
 
-				console.log('allUrisChanged : ', allUrisChanged);
-				const currentResource = CellUri.parse(part.uri)?.notebook ?? part.uri;
-				const newAllUrisChanged = allUrisChanged;
-				newAllUrisChanged.delete(currentResource);
-				const otherResources = Array.from(newAllUrisChanged);
-
 				// get new edits and start editing session
 				let entry = editsSeen[i];
 				if (!entry) {
-					entry = { seen: 0, streaming: session.startStreamingEdits(currentResource, otherResources, responseModel, undoStop) };
+					entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, responseModel, undoStop) };
 					editsSeen[i] = entry;
 				}
 
@@ -336,11 +316,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					entry.streaming.complete();
 				}
 			}
-
-			console.log('before 2 ensureResourcesAreTracked');
-			session.ensureResourcesAreTracked(responseModel, firstUndoStop, Array.from(allUrisChanged));
-			session.ensureResourcesAreTracked(responseModel, undoStop, Array.from(allUrisChanged));
-			session.restoreSnapshot(responseModel.requestId, undefined);
 		};
 
 		if (responseModel.isComplete) {
@@ -501,7 +476,7 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 		const entries = currentSession.entries.read(reader);
 		return entries.map((entry) => {
 			if (this._showPreviousChanges) {
-				const entryDiffObs = currentSession.getEntryDiffBetweenStops(entry.modifiedURI, undefined, undefined, undefined);
+				const entryDiffObs = currentSession.getEntryDiffBetweenStops(entry.modifiedURI, undefined, undefined);
 				const entryDiff = entryDiffObs?.read(reader);
 				if (entryDiff) {
 					return new MultiDiffEditorItem(
