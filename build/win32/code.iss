@@ -1498,7 +1498,7 @@ procedure AddAppxPackage();
 var
   AddAppxPackageResultCode: Integer;
 begin
-  if not AppxPackageInstalled(AddAppxPackageResultCode) then begin
+  if not AppxPackageInstalled(ExpandConstant('{#AppxPackageName}'), AddAppxPackageResultCode) then begin
     Log('Installing appx ' + AppxPackageFullname + ' ...');
     ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
     Log('Add-AppxPackage complete.');
