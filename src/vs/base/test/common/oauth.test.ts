@@ -188,6 +188,28 @@ suite('OAuth', () => {
 			assert.strictEqual(metadata.registration_endpoint, 'https://auth.example.com/register');
 			assert.deepStrictEqual(metadata.response_types_supported, ['code', 'id_token', 'id_token token']);
 		});
+
+		test('getDefaultMetadataForUrl should preserve subpaths', () => {
+			const authorizationServer = new URL('https://api.example.com/oauth/server');
+			const metadata = getDefaultMetadataForUrl(authorizationServer);
+
+			assert.strictEqual(metadata.issuer, 'https://api.example.com/oauth/server');
+			assert.strictEqual(metadata.authorization_endpoint, 'https://api.example.com/oauth/server/authorize');
+			assert.strictEqual(metadata.token_endpoint, 'https://api.example.com/oauth/server/token');
+			assert.strictEqual(metadata.registration_endpoint, 'https://api.example.com/oauth/server/register');
+			assert.deepStrictEqual(metadata.response_types_supported, ['code', 'id_token', 'id_token token']);
+		});
+
+		test('getDefaultMetadataForUrl should handle subpaths with trailing slash', () => {
+			const authorizationServer = new URL('https://api.example.com/oauth/server/');
+			const metadata = getDefaultMetadataForUrl(authorizationServer);
+
+			assert.strictEqual(metadata.issuer, 'https://api.example.com/oauth/server/');
+			assert.strictEqual(metadata.authorization_endpoint, 'https://api.example.com/oauth/server/authorize');
+			assert.strictEqual(metadata.token_endpoint, 'https://api.example.com/oauth/server/token');
+			assert.strictEqual(metadata.registration_endpoint, 'https://api.example.com/oauth/server/register');
+			assert.deepStrictEqual(metadata.response_types_supported, ['code', 'id_token', 'id_token token']);
+		});
 	});
 
 	suite('Parsing Functions', () => {

@@ -693,11 +693,15 @@ export function isAuthorizationRegistrationErrorResponse(obj: unknown): obj is I
 //#endregion
 
 export function getDefaultMetadataForUrl(authorizationServer: URL): IAuthorizationServerMetadata {
+	// Preserve existing path when constructing endpoints per RFC 8414 Section 3
+	// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+	const basePath = authorizationServer.pathname.endsWith('/') ? authorizationServer.pathname : authorizationServer.pathname + '/';
+
 	return {
 		issuer: authorizationServer.toString(),
-		authorization_endpoint: new URL('/authorize', authorizationServer).toString(),
-		token_endpoint: new URL('/token', authorizationServer).toString(),
-		registration_endpoint: new URL('/register', authorizationServer).toString(),
+		authorization_endpoint: new URL(basePath + 'authorize', authorizationServer.origin).toString(),
+		token_endpoint: new URL(basePath + 'token', authorizationServer.origin).toString(),
+		registration_endpoint: new URL(basePath + 'register', authorizationServer.origin).toString(),
 		// Default values for Dynamic OpenID Providers
 		// https://openid.net/specs/openid-connect-discovery-1_0.html
 		response_types_supported: ['code', 'id_token', 'id_token token'],
