@@ -347,6 +347,12 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.NewInNewWindow,
 		title: terminalStrings.newInNewWindow,
+		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
+		keybinding: {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.Backquote,
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyMod.Alt | KeyCode.Backquote },
+			weight: KeybindingWeight.WorkbenchContrib
+		},
 		run: async (c) => {
 			const instance = await c.service.createTerminal({
 				location: { viewColumn: AUX_WINDOW_GROUP }
