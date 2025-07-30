@@ -16,6 +16,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { URI } from '../../../../base/common/uri.js';
 import { defaultCheckboxStyles } from '../../../theme/browser/defaultStyles.js';
 import { isDark } from '../../../theme/common/theme.js';
+import { escape } from '../../../../base/common/strings.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { IQuickTreeCheckboxEvent, IQuickTreeItem, IQuickTreeItemButtonEvent } from '../../common/quickInput.js';
 import { quickInputButtonToAction } from '../quickInputUtils.js';
@@ -109,6 +110,17 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 		const { labelHighlights: matches, descriptionHighlights: descriptionMatches, detailHighlights } = node.filterData || {};
 
 		// Label and Description
+		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;
+		// NOTE: If we bring back quick tool tips, we need to check that here like we do in the QuickInputListRenderer
+		if (quickTreeItem.description) {
+			descriptionTitle = {
+				markdown: {
+					value: escape(quickTreeItem.description),
+					supportThemeIcons: true
+				},
+				markdownNotSupportedFallback: quickTreeItem.description
+			};
+		}
 		templateData.label.setLabel(
 			quickTreeItem.label,
 			quickTreeItem.description,
@@ -118,7 +130,8 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 				extraClasses: quickTreeItem.iconClasses,
 				italic: quickTreeItem.italic,
 				strikethrough: quickTreeItem.strikethrough,
-				labelEscapeNewLines: true
+				labelEscapeNewLines: true,
+				descriptionTitle
 			}
 		);
 
