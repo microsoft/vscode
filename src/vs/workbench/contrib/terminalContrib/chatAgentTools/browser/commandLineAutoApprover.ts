@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
+import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
@@ -180,7 +181,21 @@ export class CommandLineAutoApprover extends Disposable {
 			if (flags) {
 				flags = flags.replaceAll('g', '');
 			}
-			return new RegExp(regexPattern, flags || undefined);
+
+			try {
+				const regex = new RegExp(regexPattern, flags || undefined);
+
+				// Check if the regex would lead to an endless loop
+				if (regExpLeadsToEndlessLoop(regex)) {
+					// Return a regex that will never match anything to prevent endless loops
+					return /(?!.*)/;
+				}
+
+				return regex;
+			} catch (error) {
+				// If the regex is invalid, return a regex that will never match anything
+				return /(?!.*)/;
+			}
 		}
 
 		// Escape regex special characters
