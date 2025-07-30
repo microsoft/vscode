@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -102,17 +102,22 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(ChatSessionsContribution, LifecyclePhase.Restored);
 
 class ContributedChatSessionData implements IDisposable {
+	private readonly _disposableStore: DisposableStore;
+
 	constructor(
 		readonly session: ChatSession,
 		readonly chatSessionType: string,
 		readonly id: string,
 		private readonly onWillDispose: (session: ChatSession, chatSessionType: string, id: string) => void
 	) {
+		this._disposableStore = new DisposableStore();
+		this._disposableStore.add(this.session.onWillDispose(() => {
+			this.onWillDispose(this.session, this.chatSessionType, this.id);
+		}));
 	}
 
 	dispose(): void {
-		this.onWillDispose(this.session, this.chatSessionType, this.id);
-		this.session.dispose();
+		this._disposableStore.dispose();
 	}
 }
 
@@ -411,7 +416,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._sessions.set(sessionKey, sessionData);
 
 		return session;
-	} private _onWillDisposeSession(session: ChatSession, chatSessionType: string, id: string): void {
+	}
+
+	private _onWillDisposeSession(session: ChatSession, chatSessionType: string, id: string): void {
 		const sessionKey = `${chatSessionType}_${id}`;
 		this._sessions.delete(sessionKey);
 	}
