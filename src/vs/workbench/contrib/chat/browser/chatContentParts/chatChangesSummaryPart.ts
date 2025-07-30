@@ -58,7 +58,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	) {
 		super();
 
-		console.log('content.fileChanges : ', content.fileChanges);
 		this.fileChanges = content.fileChanges;
 		this.fileChangesDiffsObservable = this.computeFileChangesDiffs(context, content.fileChanges);
 
@@ -89,20 +88,14 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				if (!editSession) {
 					continue;
 				}
-				console.log('context.content : ', context.content);
 				const uri = change.reference;
-				console.log('firstRequestId : ', firstRequestId);
-				console.log('lastRequestId : ', lastRequestId);
-				const firstSnapshotUri = editSession.getFirstSnapshotForUriAfterRequest(uri, firstRequestId);
+				const firstSnapshotUri = editSession.getFirstSnapshotForUriAfterRequest(uri, firstRequestId, true);
 				const lastSnapshotUri = editSession.getFirstSnapshotForUriAfterRequest(uri, lastRequestId, false);
-				console.log('firstSnapshotUri : ', firstSnapshotUri);
-				console.log('lastSnapshotUri : ', lastSnapshotUri);
 				if (!firstSnapshotUri || !lastSnapshotUri) {
 					continue;
 				}
 				const diffPromise = this.editorWorkerService.computeDiff(firstSnapshotUri, lastSnapshotUri, { ignoreTrimWhitespace: true, maxComputationTimeMs: 1000, computeMoves: false }, 'advanced');
-				const editEntryDiffPromise = diffPromise.then((diff) => {
-					console.log('diff : ', diff);
+				const editSessionEntryDiffPromise = diffPromise.then((diff) => {
 					const entryDiff: IEditSessionEntryDiff = {
 						originalURI: firstSnapshotUri,
 						modifiedURI: lastSnapshotUri,
@@ -119,7 +112,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 					}
 					return entryDiff;
 				});
-				fileChangesDiffs.set(this.changeID(change), new ObservablePromise(editEntryDiffPromise));
+				fileChangesDiffs.set(this.changeID(change), new ObservablePromise(editSessionEntryDiffPromise));
 			}
 			return fileChangesDiffs;
 		});
@@ -154,7 +147,8 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		return dom.addDisposableListener(button, 'click', async (e) => {
 			const resources: { originalUri: URI; modifiedUri?: URI }[] = [];
 			for (const fileChange of this.fileChanges) {
-				const diffEntry = await this.fileChangesDiffsObservable.get().get(this.changeID(fileChange))?.promise;
+				const fileChangesDiff = this.fileChangesDiffsObservable.get();
+				const diffEntry = await fileChangesDiff.get(this.changeID(fileChange))?.promise;
 				if (diffEntry) {
 					resources.push({
 						originalUri: diffEntry.originalURI,
@@ -188,12 +182,12 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	private renderFilesList(container: HTMLElement): IDisposable {
 		const store = new DisposableStore();
 		this.list = store.add(this.instantiationService.createInstance(CollapsibleChangesSummaryListPool)).get();
-		this.updateList(this.fileChanges, this.fileChangesDiffsObservable.get());
 		const listNode = this.list.getHTMLElement();
 		const itemsShown = Math.min(this.fileChanges.length, this.MAX_ITEMS_SHOWN);
 		const height = itemsShown * this.ELEMENT_HEIGHT;
 		this.list.layout(height);
 		listNode.style.height = height + 'px';
+		this.updateList(this.fileChanges, this.fileChangesDiffsObservable.get());
 		container.appendChild(listNode.parentElement!);
 
 		store.add(this.list.onDidOpen(async (item) => {
@@ -201,8 +195,8 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 			if (!element) {
 				return;
 			}
-			const diff = await this.fileChangesDiffsObservable.get().get(this.changeID(element))?.promise;
-			console.log('onDidOpen diff', diff);
+			const fileChangesDiffs = this.fileChangesDiffsObservable.get();
+			const diff = await fileChangesDiffs.get(this.changeID(element))?.promise;
 			if (diff) {
 				const input = {
 					original: { resource: diff.originalURI },

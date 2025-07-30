@@ -63,7 +63,6 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		console.log('provideTextContent resource : ', resource);
 		const existing = this._modelService.getModel(resource);
 		if (existing && !existing.isDisposed()) {
 			return existing;

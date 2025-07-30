@@ -123,6 +123,10 @@ export interface IChatEditingSession extends IDisposable {
 
 	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined;
 
+	/**
+	 * Get the first snapshot URI for a file URI on or after a specific request
+	 * @param inclusive Whether to include the requestId in the search
+	 */
 	getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive?: boolean): URI | undefined;
 
 	/**

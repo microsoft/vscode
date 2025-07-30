@@ -103,7 +103,6 @@ export abstract class EditorWorkerService extends Disposable implements IEditorW
 	public async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
 		const worker = await this._workerWithResources([original, modified], /* forceLargeModels */true);
 		const result = await worker.$computeDiff(original.toString(), modified.toString(), options, algorithm);
-		console.log('result : ', result);
 		if (!result) {
 			return null;
 		}

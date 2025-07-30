@@ -38,8 +38,7 @@ export class ChatEditingTimeline {
 		};
 	}
 
-	private requestIdToLinearHistoryMap = new Map<string, number>();
-	private uriToSnapshotMap = new ResourceMap<{ firstSnapshotUri: URI, lastSnapshotUri: URI }>();
+	private readonly _requestToLinearHistoryMap = new Map<string, number>();
 
 	private readonly _linearHistory = observableValue<readonly IChatEditingSessionSnapshot[]>(this, []);
 	private readonly _linearHistoryIndex = observableValue<number>(this, 0);
@@ -89,44 +88,10 @@ export class ChatEditingTimeline {
 	 * Restore the timeline from a saved state (history array and index).
 	 */
 	public restoreFromState(state: { history: readonly IChatEditingSessionSnapshot[]; index: number }, tx: ITransaction): void {
-		this.uriToSnapshotMap.clear();
-		for (const historyItem of state.history) {
-			for (const stop of historyItem.stops) {
-				for (const entry of stop.entries) {
-					const uri = entry[0];
-					const snapShot = entry[1];
-					const existing = this.uriToSnapshotMap.get(uri);
-					if (existing) {
-						if (!existing.firstSnapshotUri) {
-							existing.firstSnapshotUri = snapShot.snapshotUri;
-						}
-						existing.lastSnapshotUri = snapShot.snapshotUri;
-					} else {
-						this.uriToSnapshotMap.set(uri, { firstSnapshotUri: snapShot.snapshotUri, lastSnapshotUri: snapShot.snapshotUri });
-					}
-				}
-			}
-		}
-
-		const newNewLinearHistory = state.history.map((element) => {
-			return {
-				requestId: element.requestId,
-				stops: element.stops.map((stop) => {
-					return {
-						stopId: stop.stopId,
-						resources: Array.from(stop.entries.keys()).map((resource) => {
-							return resource.toString();
-						})
-					};
-				})
-			};
-		});
-		console.log('newLinearHistory : ', JSON.stringify(newNewLinearHistory));
-
-		this.requestIdToLinearHistoryMap.clear();
+		this._requestToLinearHistoryMap.clear();
 		for (const [index, item] of state.history.entries()) {
 			if (item.requestId) {
-				this.requestIdToLinearHistoryMap.set(item.requestId, index);
+				this._requestToLinearHistoryMap.set(item.requestId, index);
 			}
 		}
 		this._linearHistory.set(state.history, tx);
@@ -156,8 +121,8 @@ export class ChatEditingTimeline {
 	}
 
 	public getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive: boolean = true): URI | undefined {
-		const requestIndex = this.requestIdToLinearHistoryMap.get(requestId);
-		if (requestIndex === undefined) { return undefined };
+		const requestIndex = this._requestToLinearHistoryMap.get(requestId);
+		if (requestIndex === undefined) { return undefined; }
 		const history = this._linearHistory.get();
 		const processedIndex = requestIndex + (inclusive ? 0 : 1);
 		for (let i = processedIndex; i < history.length; i++) {
@@ -169,7 +134,7 @@ export class ChatEditingTimeline {
 				}
 			}
 		}
-		return undefined;
+		return uri;
 	}
 
 	/**
@@ -198,22 +163,6 @@ export class ChatEditingTimeline {
 		tx: ITransaction | undefined
 	) {
 		const history = this._linearHistory.get();
-
-		const newNewLinearHistory = history.map((element) => {
-			return {
-				requestId: element.requestId,
-				stops: element.stops.map((stop) => {
-					return {
-						stopId: stop.stopId,
-						resources: Array.from(stop.entries.keys()).map((resource) => {
-							return resource.toString();
-						})
-					};
-				})
-			};
-		});
-		console.log('newLinearHistory : ', JSON.stringify(newNewLinearHistory));
-
 		const snapIndex = history.findIndex((s) => s.requestId === requestId);
 		if (snapIndex === -1) {
 			return;
@@ -253,39 +202,6 @@ export class ChatEditingTimeline {
 		const newHistory = history.slice();
 		newHistory[snapIndex] = snap;
 
-		const newNewNewLinearHistory = newHistory.map((element) => {
-			return {
-				requestId: element.requestId,
-				stops: element.stops.map((stop) => {
-					return {
-						stopId: stop.stopId,
-						resources: Array.from(stop.entries.keys()).map((resource) => {
-							return resource.toString();
-						})
-					};
-				})
-			};
-		});
-		console.log('newLinearHistory : ', JSON.stringify(newNewNewLinearHistory));
-
-		this.uriToSnapshotMap.clear();
-		for (const historyItem of newHistory) {
-			for (const stop of historyItem.stops) {
-				for (const entry of stop.entries) {
-					const uri = entry[0];
-					const snapShot = entry[1];
-					const existing = this.uriToSnapshotMap.get(uri);
-					if (existing) {
-						if (!existing.firstSnapshotUri) {
-							existing.firstSnapshotUri = snapShot.snapshotUri;
-						}
-						existing.lastSnapshotUri = snapShot.snapshotUri;
-					} else {
-						this.uriToSnapshotMap.set(uri, { firstSnapshotUri: snapShot.snapshotUri, lastSnapshotUri: snapShot.snapshotUri });
-					}
-				}
-			}
-		}
 		this._linearHistory.set(newHistory, tx);
 		if (linearHistoryIndexIncr) {
 			this._linearHistoryIndex.set(this._linearHistoryIndex.get() + linearHistoryIndexIncr, tx);
@@ -369,45 +285,27 @@ export class ChatEditingTimeline {
 	}
 
 	public pushSnapshot(requestId: string, undoStop: string | undefined, snapshot: IChatEditingSessionStop) {
-		const res = Array.from(snapshot.entries.keys()).map((resource) => {
-			return resource.toString();
-		});
-		console.log('pushSnapshot requestId : ', requestId, 'undoStop : ', undoStop, ' resources', JSON.stringify(res));
+		let index = 0;
 		const linearHistoryPtr = this._linearHistoryIndex.get();
 		const newLinearHistory: IChatEditingSessionSnapshot[] = [];
-		const newRequestIdToLinearHistoryMap: Map<string, number> = new Map();
-		let index = 0;
+		this._requestToLinearHistoryMap.clear();
 		for (const entry of this._linearHistory.get()) {
 			if (entry.startIndex >= linearHistoryPtr) {
 				break;
 			} else if (linearHistoryPtr - entry.startIndex < entry.stops.length) {
 				newLinearHistory.push({ requestId: entry.requestId, stops: entry.stops.slice(0, linearHistoryPtr - entry.startIndex), startIndex: entry.startIndex });
 				if (entry.requestId) {
-					newRequestIdToLinearHistoryMap.set(entry.requestId, index);
+					this._requestToLinearHistoryMap.set(entry.requestId, index);
 				}
 				index++;
 			} else {
 				newLinearHistory.push(entry);
 				if (entry.requestId) {
-					newRequestIdToLinearHistoryMap.set(entry.requestId, index);
+					this._requestToLinearHistoryMap.set(entry.requestId, index);
 				}
 				index++;
 			}
 		}
-		const newNewLinearHistory = newLinearHistory.map((element) => {
-			return {
-				requestId: element.requestId,
-				stops: element.stops.map((stop) => {
-					return {
-						stopId: stop.stopId,
-						resources: Array.from(stop.entries.keys()).map((resource) => {
-							return resource.toString();
-						})
-					};
-				})
-			};
-		});
-		console.log('newLinearHistory : ', JSON.stringify(newNewLinearHistory));
 
 		const lastEntry = newLinearHistory.at(-1);
 		if (requestId && lastEntry?.requestId === requestId) {
@@ -424,41 +322,8 @@ export class ChatEditingTimeline {
 			};
 		} else {
 			newLinearHistory.push({ requestId, startIndex: lastEntry ? lastEntry.startIndex + lastEntry.stops.length : 0, stops: [snapshot] });
-			newRequestIdToLinearHistoryMap.set(requestId, index);
+			this._requestToLinearHistoryMap.set(requestId, index);
 			index++;
-		}
-		const newNewNewLinearHistory = newLinearHistory.map((element) => {
-			return {
-				requestId: element.requestId,
-				stops: element.stops.map((stop) => {
-					return {
-						stopId: stop.stopId,
-						resources: Array.from(stop.entries.keys()).map((resource) => {
-							return resource.toString();
-						})
-					};
-				})
-			};
-		});
-		console.log('newLinearHistory : ', JSON.stringify(newNewNewLinearHistory));
-
-		this.uriToSnapshotMap.clear();
-		for (const historyItem of newLinearHistory) {
-			for (const stop of historyItem.stops) {
-				for (const entry of stop.entries) {
-					const uri = entry[0];
-					const snapShot = entry[1];
-					const existing = this.uriToSnapshotMap.get(uri);
-					if (existing) {
-						if (!existing.firstSnapshotUri) {
-							existing.firstSnapshotUri = snapShot.snapshotUri;
-						}
-						existing.lastSnapshotUri = snapShot.snapshotUri;
-					} else {
-						this.uriToSnapshotMap.set(uri, { firstSnapshotUri: snapShot.snapshotUri, lastSnapshotUri: snapShot.snapshotUri });
-					}
-				}
-			}
 		}
 
 		transaction((tx) => {

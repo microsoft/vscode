@@ -231,26 +231,21 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	public getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined {
-		console.log('getSnapshot requestId : ', requestId, 'undoStop : ', undoStop, ' snapshotUri : ', snapshotUri);
 		const stopRef = this._timeline.getSnapshotForRestore(requestId, undoStop);
 		const entries = stopRef?.stop.entries;
-		console.log('entries : ', entries);
 		return entries && [...entries.values()].find((e) => isEqual(e.snapshotUri, snapshotUri));
 	}
 
 	public async getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null> {
-		console.log('getSnapshotModel snapshotUri : ', snapshotUri);
 		const snapshotEntry = this.getSnapshot(requestId, undoStop, snapshotUri);
-		console.log('snapShotEntry : ', snapshotEntry);
 		if (!snapshotEntry) {
 			return null;
 		}
-		console.log('snapshotEntry.current : ', snapshotEntry.current);
+
 		return this._modelService.createModel(snapshotEntry.current, this._languageService.createById(snapshotEntry.languageId), snapshotUri, false);
 	}
 
 	public getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined {
-		console.log('getSnapshotUri : ', requestId, uri, stopId);
 		// This should be encapsulated in the timeline, but for now, fallback to legacy logic if needed.
 		// TODO: Move this logic into a timeline method if required by the design.
 		const timelineState = this._timeline.getStateForPersistence();
@@ -300,7 +295,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const entriesArr: AbstractChatEditingModifiedFileEntry[] = [];
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of entries.values()) {
-			console.log('snapshotEntry : ', snapshotEntry);
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
 			const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified || restoreResolvedToDisk;
 			await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);

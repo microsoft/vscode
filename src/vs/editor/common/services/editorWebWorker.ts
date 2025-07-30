@@ -124,18 +124,11 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 	public async $computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
-		console.log('originalUri : ', originalUrl);
-		console.log('modifiedUrl : ', modifiedUrl);
-		const originalValue = original?.getValue();
-		const modifiedValue = modified?.getValue();
-		console.log('originalValue : ', originalValue);
-		console.log('modifiedValue : ', modifiedValue);
 		if (!original || !modified) {
 			return null;
 		}
 
 		const result = EditorWorker.computeDiff(original, modified, options, algorithm);
-		console.log('diff result : ', result);
 		return result;
 	}
 
