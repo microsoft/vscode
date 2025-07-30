@@ -1753,6 +1753,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else {
 				// For user input, update the editor value if needed
 				const currentValue = this.getInput();
+				if (!currentValue.length) {
+					return;
+				}
 				if (!currentValue.startsWith(this._codingAgentPrefix)) {
 					const newValue = this._codingAgentPrefix + this.removeExistingAgentPrefix(currentValue);
 					this.input.inputEditor.setValue(newValue);
