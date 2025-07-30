@@ -3400,6 +3400,7 @@ export class CommandCenter {
 
 	private async _createWorktree(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
+		const branchPrefix = config.get<string>('branchPrefix')!;
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
 		const createBranch = new CreateBranchItem();
@@ -3450,9 +3451,10 @@ export class CommandCenter {
 			commitish = choice.refName;
 		}
 
-		const worktreeName = (branch ?? commitish).includes('/')
-			? (branch ?? commitish).substring((branch ?? commitish).lastIndexOf('/') + 1)
-			: (branch ?? commitish);
+		const worktreeName = ((branch ?? commitish).startsWith(branchPrefix)
+			? (branch ?? commitish).substring(branchPrefix.length)
+			: (branch ?? commitish)
+		).split('/').pop() || (branch ?? commitish);
 
 		// If user selects folder button, they manually select the worktree path through folder picker
 		const getWorktreePath = async (): Promise<string | undefined> => {
