@@ -795,12 +795,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 							return;
 						}
 
-						// Re-render the specific item to show resolved details (like editor does)
-						this._ignoreFocusEvents = true;
-						// Use splice to replace the item and trigger re-render
-						this._suggestWidget.list.splice(focusedIndex, 1, [focusedItem]);
-						this._suggestWidget.list.setFocus([focusedIndex]);
-						this._ignoreFocusEvents = false;
+						// The SimpleSuggestWidget handles re-rendering automatically when details are resolved
+						// No need to manually splice and refocus which causes visual flash
 					});
 				}
 
