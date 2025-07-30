@@ -55,7 +55,11 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 			const ctx = canvas.getContext('2d');
 			if (ctx) {
 				ctx.drawImage(img, 0, 0, width, height);
-				canvas.toBlob((blob) => {
+
+				const jpegTypes = ['image/jpeg', 'image/jpg'];
+				const outputMimeType = mimeType && jpegTypes.includes(mimeType) ? 'image/jpeg' : 'image/png';
+
+				canvas.toBlob(blob => {
 					if (blob) {
 						const reader = new FileReader();
 						reader.onload = () => {
@@ -66,7 +70,7 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 					} else {
 						reject(new Error('Failed to create blob from canvas'));
 					}
-				}, mimeType || 'image/png');
+				}, outputMimeType);
 			} else {
 				reject(new Error('Failed to get canvas context'));
 			}
