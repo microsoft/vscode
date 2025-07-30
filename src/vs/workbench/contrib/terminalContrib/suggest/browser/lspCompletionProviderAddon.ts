@@ -83,52 +83,47 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	}
 }
 
-export function createCompletionItemPython(cursorPosition: number, prefix: string, kind: TerminalCompletionItemKind, label: string | CompletionItemLabel, detail: string | undefined): TerminalCompletionItem {
-	const endsWithDot = prefix.endsWith('.');
-	const endsWithSpace = prefix.endsWith(' ');
+export function createCompletionItemPython(
+	cursorPosition: number,
+	prefix: string,
+	kind: TerminalCompletionItemKind,
+	label: string | CompletionItemLabel,
+	detail: string | undefined
+): TerminalCompletionItem {
+	const lastWord = getLastWord(prefix);
 
-	if (endsWithSpace) {
-		// Case where user is triggering completion with space:
-		// For example, typing `import  ` to request completion for list of modules
-		// This is similar to completions we are used to seeing in upstream shell (such as typing `ls  ` inside bash).
-		const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
-		return {
-			label: label,
-			detail: detail ?? detail ?? '',
-			replacementIndex: cursorPosition - lastWord.length,
-			replacementLength: lastWord.length,
-			kind: kind ?? kind ?? TerminalCompletionItemKind.Method
-		};
-	} else {
-		// Case where user is triggering completion with dot or parenthesis:
-		// For example, typing `pathlib.` to request completion for list of methods, attributes from the pathlib module.
-		// Or typing `re.findall(ab` to request completion for parameters inside parentheses.
-		let lastWord: string;
+	return {
+		label,
+		detail: detail ?? '',
+		replacementIndex: cursorPosition - lastWord.length,
+		replacementLength: lastWord.length,
+		kind: kind ?? TerminalCompletionItemKind.Method
+	};
+}
 
-		if (endsWithDot) {
-			lastWord = '';
-		} else {
-			// Check if there's a parenthesis in the prefix and get text after the last one
-			const lastParenIndex = prefix.lastIndexOf('(');
-			const lastDotIndex = prefix.lastIndexOf('.');
-
-			if (lastParenIndex > lastDotIndex) {
-				// Text after the last opening parenthesis
-				lastWord = prefix.substring(lastParenIndex + 1);
-			} else {
-				// Text after the last dot (existing behavior)
-				lastWord = prefix.split('.').at(-1) ?? '';
-			}
-		}
-
-		return {
-			label,
-			detail: detail ?? detail ?? '',
-			replacementIndex: cursorPosition - lastWord.length,
-			replacementLength: lastWord.length,
-			kind: kind ?? kind ?? TerminalCompletionItemKind.Method
-		};
+function getLastWord(prefix: string): string {
+	if (prefix.endsWith(' ')) {
+		return '';
 	}
+
+	if (prefix.endsWith('.')) {
+		return '';
+	}
+
+	const lastSpaceIndex = prefix.lastIndexOf(' ');
+	const lastDotIndex = prefix.lastIndexOf('.');
+	const lastParenIndex = prefix.lastIndexOf('(');
+
+	// Get the maximum index (most recent delimiter)
+	const lastDelimiterIndex = Math.max(lastSpaceIndex, lastDotIndex, lastParenIndex);
+
+	// If no delimiter found, return the entire prefix
+	if (lastDelimiterIndex === -1) {
+		return prefix;
+	}
+
+	// Return the substring after the last delimiter
+	return prefix.substring(lastDelimiterIndex + 1);
 }
 
 export interface TerminalCompletionItem {
