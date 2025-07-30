@@ -3442,16 +3442,6 @@ export class CommandCenter {
 				return;
 			}
 
-			// If the worktree is locked, we prompt to create a new branch
-			// otherwise we can use the existing selected branch or tag
-			const isWorktreeLocked = await this.isWorktreeLocked(repository, choice);
-			if (isWorktreeLocked) {
-				branch = await this.promptForBranchName(repository);
-
-				if (!branch) {
-					return;
-				}
-			}
 			commitish = choice.refName;
 		}
 
@@ -3546,23 +3536,8 @@ export class CommandCenter {
 		}
 	}
 
-	// If the user picks a branch that is present in any of the worktrees or the current branch, return true
-	// Otherwise, return false.
-	private async isWorktreeLocked(repository: Repository, choice: RefItem): Promise<boolean> {
-		if (!choice.refName) {
-			return false;
-		}
-
-		const worktrees = await repository.getWorktrees();
-
-		const isInWorktree = worktrees.some(worktree => worktree.ref === `refs/heads/${choice.refName}`);
-		const isCurrentBranch = repository.HEAD?.name === choice.refName;
-
-		return isInWorktree || isCurrentBranch;
-	}
-
 	private async handleWorktreeError(err: any): Promise<void> {
-		const match = err.stderr.match(/^fatal: '([^']+)' is already used by worktree at '([^']+)'/);
+		const match = err.stderr.match(/fatal: '([^']+)' is already used by worktree at '([^']+)'/);
 		if (!match) {
 			return;
 		}
