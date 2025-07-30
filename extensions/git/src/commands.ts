@@ -3452,9 +3452,8 @@ export class CommandCenter {
 		}
 
 		const worktreeName = ((branch ?? commitish).startsWith(branchPrefix)
-			? (branch ?? commitish).substring(branchPrefix.length)
-			: (branch ?? commitish)
-		).replace(/\//g, '-');
+			? (branch ?? commitish).substring(branchPrefix.length).replace(/\//g, '-')
+			: (branch ?? commitish).replace(/\//g, '-'));
 
 		// If user selects folder button, they manually select the worktree path through folder picker
 		const getWorktreePath = async (): Promise<string | undefined> => {
