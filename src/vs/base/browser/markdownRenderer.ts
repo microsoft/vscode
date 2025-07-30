@@ -424,6 +424,11 @@ function sanitizeRenderedMarkdown(
 	return domSanitize.sanitizeHtml(renderedMarkdown, sanitizerConfig);
 }
 
+export const allowedMarkdownHtmlTags = Object.freeze([
+	...domSanitize.basicMarkupHtmlTags,
+	'input', // Allow inputs for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
+]);
+
 export const allowedMarkdownHtmlAttributes = [
 	'align',
 	'autoplay',
@@ -483,7 +488,7 @@ function getSanitizerOptions(isTrusted: boolean | MarkdownStringTrustedOptions, 
 		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
 		allowedTags: {
-			override: options.allowedTags?.override ?? domSanitize.basicMarkupHtmlTags
+			override: options.allowedTags?.override ?? allowedMarkdownHtmlTags
 		},
 		allowedAttributes: {
 			override: allowedMarkdownHtmlAttributes,
