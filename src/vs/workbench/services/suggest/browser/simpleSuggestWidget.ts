@@ -366,8 +366,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				const sub = token.onCancellationRequested(() => loading.dispose());
 				try {
 					// Call item.resolve() if available (similar to editor suggest widget)
-					if (typeof item.resolve === 'function') {
-						return await item.resolve(token);
+					if (typeof (item as any).resolve === 'function') {
+						return await (item as any).resolve(token);
 					}
 					return await Promise.resolve();
 				} finally {
