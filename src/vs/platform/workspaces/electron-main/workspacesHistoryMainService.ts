@@ -26,6 +26,8 @@ import { IWorkspacesManagementMainService } from './workspacesManagementMainServ
 import { ResourceMap } from '../../../base/common/map.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 
+
+
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
 export interface IWorkspacesHistoryMainService {
