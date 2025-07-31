@@ -909,9 +909,10 @@ class SessionsViewPane extends ViewPane {
 				const ckey = this.contextKeyService.createKey('chatSessionType', element.provider.chatSessionType);
 				ckey.reset();
 
+				const preferredTitle = element.label;
 				await this.editorService.openEditor({
 					resource: ChatSessionUri.forSession(element.provider.chatSessionType, element.id),
-					options: { pinned: true } satisfies IChatEditorOptions
+					options: { pinned: true, preferredTitle } satisfies IChatEditorOptions
 				});
 			}
 		}));

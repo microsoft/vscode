@@ -31,6 +31,7 @@ import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
+	preferredTitle?: string;
 }
 
 export class ChatEditor extends EditorPane {
@@ -151,8 +152,8 @@ export class ChatEditor extends EditorPane {
 		const viewState = options?.viewState ?? input.options.viewState;
 		this.updateModel(editorModel.model, viewState);
 
-		if (isContributedChatSession) {
-			editorModel.model.setCustomTitle(`${input.resource.authority}${input.resource.path}`); // TODO: Use actual title
+		if (isContributedChatSession && options?.preferredTitle) {
+			editorModel.model.setCustomTitle(options?.preferredTitle);
 		}
 	}
 

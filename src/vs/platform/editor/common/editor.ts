@@ -45,6 +45,11 @@ export interface IBaseUntypedEditorInput {
 	 * Description to show for the input.
 	 */
 	readonly description?: string;
+
+	/**
+	 * The preferred title for the input.
+	 */
+	readonly preferredTitle?: string;
 }
 
 export interface IBaseResourceEditorInput extends IBaseUntypedEditorInput {
@@ -320,6 +325,11 @@ export interface IEditorOptions {
 		 */
 		alwaysOnTop?: boolean;
 	};
+
+	/**
+	 * A hint of a possible title for the input
+	 */
+	readonly preferredTitle?: string;
 }
 
 export interface ITextEditorSelection {
