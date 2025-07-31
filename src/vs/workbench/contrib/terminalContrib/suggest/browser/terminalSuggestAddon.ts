@@ -777,8 +777,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._currentSuggestionDetails = undefined;
 				this._focusedItem = focusedItem;
 
-				// Note: SimpleSuggestWidget now handles resolution automatically via item.resolve()
-				// No need for separate resolution and re-rendering logic here
+				// Check if the item needs resolution and hasn't been resolved yet
+				if (focusedItem && (!focusedItem.completion.documentation || !focusedItem.completion.detail)) {
+					this._currentSuggestionDetails = createCancelablePromise(async token => {
+						try {
+							await focusedItem.resolve(token);
+						} catch (error) {
+							// Silently fail - the item is still usable without details
+							this._logService.warn(`Failed to resolve suggestion details for item ${focusedItem} at index ${focusedIndex}`, error);
+						}
+					});
+
+					// Don't do any re-rendering here - let SimpleSuggestWidget handle it
+					// This prevents the double re-rendering that causes the flash
+				}
 
 			}));
 
