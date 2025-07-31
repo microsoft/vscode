@@ -298,6 +298,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			: this._initForegroundTerminal(chatSessionId, termId, token));
 
 		this._terminalService.setActiveInstance(toolTerminal.instance);
+		this._terminalService.revealTerminal(toolTerminal.instance, true);
 		const timingConnectMs = Date.now() - timingStart;
 
 		const xterm = await toolTerminal.instance.xtermReadyPromise;
