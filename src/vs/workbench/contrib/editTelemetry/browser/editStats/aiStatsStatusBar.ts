@@ -13,6 +13,7 @@ import { autorun, derived } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { AI_STATS_SETTING_ID } from '../settingIds.js';
 import type { AiStatsFeature } from './aiStatsFeature.js';
@@ -25,6 +26,7 @@ export class AiStatsStatusBar extends Disposable {
 		private readonly _aiStatsFeature: AiStatsFeature,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -39,6 +41,7 @@ export class AiStatsStatusBar extends Disposable {
 				text: '',
 				tooltip: {
 					element: async (_token) => {
+						this._sendHoverTelemetry();
 						store.clear();
 						const elem = this._createStatusBarHover();
 						return elem.keepUpdated(store).element;
@@ -48,6 +51,21 @@ export class AiStatsStatusBar extends Disposable {
 				content: statusBarItem.element,
 			}, 'aiStatsStatusBar', StatusbarAlignment.RIGHT, 100));
 		}));
+	}
+
+	private _sendHoverTelemetry(): void {
+		this._telemetryService.publicLog2<{
+			aiRate: number;
+		}, {
+			owner: 'hediet';
+			comment: 'Fired when the AI stats status bar hover tooltip is shown';
+			aiRate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current AI rate percentage' };
+		}>(
+			'aiStatsStatusBar.hover',
+			{
+				aiRate: this._aiStatsFeature.aiRate.get(),
+			}
+		);
 	}
 
 
