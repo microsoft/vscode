@@ -3622,6 +3622,8 @@ export class CommandCenter {
 	}
 
 	private async handleWorktreeConflict(path: string, message: string): Promise<void> {
+		await this.model.openRepository(path, true);
+
 		const worktreeRepository = this.model.getRepository(path);
 
 		if (!worktreeRepository) {
