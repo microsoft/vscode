@@ -55,6 +55,9 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	$registerCommand(id: string): void {
+		if (id === 'editor.action.clipboardCopyAction') {
+			console.log('registerCommand for id : ', id);
+		}
 		this._commandRegistrations.set(
 			id,
 			CommandsRegistry.registerCommand(id, (accessor, ...args) => {
