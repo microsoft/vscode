@@ -3525,7 +3525,7 @@ export class CommandCenter {
 		};
 
 		const getValidationMessage = (value: string): InputBoxValidationMessage | undefined => {
-			const worktree = repository.worktrees.find(worktree => pathEquals(worktree.path, value));
+			const worktree = repository.worktrees.find(worktree => pathEquals(path.normalize(worktree.path), path.normalize(value)));
 			return worktree ? {
 				message: l10n.t('A worktree already exists at "{0}".', value),
 				severity: InputBoxValidationSeverity.Warning
