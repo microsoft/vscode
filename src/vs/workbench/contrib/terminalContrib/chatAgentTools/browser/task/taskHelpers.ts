@@ -36,7 +36,16 @@ export function getTaskRepresentation(task: IConfiguredTask | Task): string {
 export async function getTaskForTool(id: string | undefined, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task | undefined> {
 	let index = 0;
 	let task: IConfiguredTask | undefined;
-	const configTasks: IConfiguredTask[] = (configurationService.getValue('tasks') as { tasks: IConfiguredTask[] }).tasks ?? [];
+	const workspaceFolderToTaskMap = await taskService.getWorkspaceTasks();
+	let configTasks: IConfiguredTask[] = [];
+	if (workspaceFolderToTaskMap) {
+		for (const folder of workspaceFolderToTaskMap.keys()) {
+			const tasksConfig = configurationService.getValue('tasks', { resource: URI.parse(folder) }) as { tasks: IConfiguredTask[] } | undefined;
+			if (tasksConfig?.tasks) {
+				configTasks = configTasks.concat(tasksConfig.tasks);
+			}
+		}
+	}
 	for (const configTask of configTasks) {
 		if (!configTask.type || 'hide' in configTask && configTask.hide) {
 			// Skip these as they are not included in the agent prompt and we need to align with
@@ -56,7 +65,7 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	if (!task) {
 		return;
 	}
-	const workspaceFolderToTaskMap = await taskService.getWorkspaceTasks();
+
 	let tasksForWorkspace;
 	for (const [folder, tasks] of workspaceFolderToTaskMap) {
 		if (URI.parse(folder).path === workspaceFolder) {
