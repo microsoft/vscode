@@ -3397,8 +3397,36 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.createWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
-	async createWorktree(repository: Repository): Promise<void> {
+	@command('git.createWorktree')
+	async createWorktree(repository: any): Promise<void> {
+		repository = this.model.getRepository(repository);
+
+		if (!repository) {
+			// Single repository/submodule/worktree
+			if (this.model.repositories.length === 1) {
+				repository = this.model.repositories[0];
+			}
+		}
+
+		if (!repository) {
+			// Single repository/submodule
+			const repositories = this.model.repositories
+				.filter(r => r.kind === 'repository' || r.kind === 'submodule');
+
+			if (repositories.length === 1) {
+				repository = repositories[0];
+			}
+		}
+
+		if (!repository) {
+			// Multiple repositories/submodules
+			repository = await this.model.pickRepository(['repository', 'submodule']);
+		}
+
+		if (!repository) {
+			return;
+		}
+
 		await this._createWorktree(repository);
 	}
 
@@ -3640,7 +3668,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.openWorktree', { repository: true, repositoryFilter: ['worktree'] })
+	@command('git.openWorktree', { repository: true })
 	async openWorktreeInCurrentWindow(repository: Repository): Promise<void> {
 		if (!repository) {
 			return;
@@ -3650,7 +3678,7 @@ export class CommandCenter {
 		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
 	}
 
-	@command('git.openWorktreeInNewWindow', { repository: true, repositoryFilter: ['worktree'] })
+	@command('git.openWorktreeInNewWindow', { repository: true })
 	async openWorktreeInNewWindow(repository: Repository): Promise<void> {
 		if (!repository) {
 			return;
