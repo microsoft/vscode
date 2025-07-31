@@ -45,11 +45,6 @@ export interface IBaseUntypedEditorInput {
 	 * Description to show for the input.
 	 */
 	readonly description?: string;
-
-	/**
-	 * The preferred title for the input.
-	 */
-	readonly preferredTitle?: string;
 }
 
 export interface IBaseResourceEditorInput extends IBaseUntypedEditorInput {
