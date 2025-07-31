@@ -155,7 +155,7 @@ export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
 
 	constructor() {
-		const precondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
+		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 
 		super({
 			id: ChatSubmitAction.ID,
@@ -168,7 +168,6 @@ export class ChatSubmitAction extends SubmitAction {
 				icon: Codicon.sendToRemoteAgent,
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
-			precondition,
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
@@ -179,14 +178,14 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 					order: 1,
-					when: ContextKeyExpr.and(precondition, ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate()),
 				},
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
 						whenNotInProgressOrPaused,
-						precondition,
+						menuCondition,
 					),
 					group: 'navigation',
 				}]
@@ -438,7 +437,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
 	constructor() {
-		const precondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
+		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 
 		super({
 			id: ChatEditingSessionSubmitAction.ID,
@@ -446,17 +445,11 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition,
-			keybinding: {
-				when: ChatContextKeys.inChatInput,
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			},
 			menu: [
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgressOrPaused, precondition),
+					when: ContextKeyExpr.and(whenNotInProgressOrPaused, menuCondition),
 					order: 1
 				},
 				{
@@ -467,7 +460,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
 							ChatContextKeys.requestInProgress.negate(),
 						),
-						precondition),
+						menuCondition),
 					group: 'navigation',
 				}]
 		});
