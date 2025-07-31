@@ -56,7 +56,18 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	if (!task) {
 		return;
 	}
-	const configuringTasks: IStringDictionary<ConfiguringTask> | undefined = (await taskService.getWorkspaceTasks())?.get(URI.file(workspaceFolder).toString())?.configurations?.byIdentifier;
+	const workspaceFolderToTaskMap = await taskService.getWorkspaceTasks();
+	let tasksForWorkspace;
+	for (const [folder, tasks] of workspaceFolderToTaskMap) {
+		if (URI.parse(folder).path === workspaceFolder) {
+			tasksForWorkspace = tasks;
+			break;
+		}
+	}
+	if (!tasksForWorkspace) {
+		return;
+	}
+	const configuringTasks: IStringDictionary<ConfiguringTask> | undefined = tasksForWorkspace.configurations?.byIdentifier;
 	const configuredTask: ConfiguringTask | undefined = Object.values(configuringTasks ?? {}).find(t => {
 		return t.type === task.type && (t._label === task.label || t._label === `${task.type}: ${getTaskRepresentation(task)}` || t._label === getTaskRepresentation(task));
 	});
@@ -65,9 +76,8 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 		resolvedTask = await taskService.tryResolveTask(configuredTask);
 	}
 	if (!resolvedTask) {
-		const customTasks: Task[] | undefined = (await taskService.getWorkspaceTasks())?.get(URI.file(workspaceFolder).toString())?.set?.tasks;
+		const customTasks: Task[] | undefined = tasksForWorkspace.set?.tasks;
 		resolvedTask = customTasks?.find(t => task.label === t._label || task.label === t._label);
-
 	}
 	return resolvedTask;
 }
