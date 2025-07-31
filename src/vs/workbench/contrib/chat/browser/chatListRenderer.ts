@@ -555,14 +555,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.checkpointToolbar.context = element;
-		const isLockedToCodingAgent = ChatContextKeys.lockedToCodingAgent.getValue(templateData.contextKeyService);
-		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || !this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled) || isLockedToCodingAgent);
+		const checkpointEnabled = this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled)
+			&& (this.rendererOptions.restorable ?? true);
 
-		const checkpointEnabled = this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled) && this.rendererOptions.restorable;
+		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || !(checkpointEnabled));
 
 		// Only show restore container when we have a checkpoint and not editing
 		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1);
-		templateData.checkpointRestoreContainer.classList.toggle('hidden', !shouldShowRestore || checkpointEnabled);
+		templateData.checkpointRestoreContainer.classList.toggle('hidden', !(shouldShowRestore && checkpointEnabled));
 
 		const editing = element.id === this.viewModel?.editing?.id;
 		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';

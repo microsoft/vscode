@@ -227,7 +227,7 @@ export interface IChatWidget {
 	waitForReady(): Promise<void>;
 	getViewState(): IChatViewState;
 	togglePaused(): void;
-	lockToCodingAgent(name: string): void;
+	lockToCodingAgent(name: string, displayName: string): void;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }
