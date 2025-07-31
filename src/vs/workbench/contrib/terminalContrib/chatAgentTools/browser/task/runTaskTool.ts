@@ -79,7 +79,7 @@ export class RunTaskTool implements IToolImpl {
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
 				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-				() => promptForMorePolling(taskLabel, invocation.context!, this._chatService),
+				() => promptForMorePolling(taskLabel, token, invocation.context!, this._chatService),
 				outputAndIdle,
 				token,
 				this._languageModelsService,
