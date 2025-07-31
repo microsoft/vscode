@@ -365,6 +365,10 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				}, 250);
 				const sub = token.onCancellationRequested(() => loading.dispose());
 				try {
+					// Check if the item has a resolve method and call it
+					if (typeof (item as any).resolve === 'function') {
+						return await (item as any).resolve(token);
+					}
 					return await Promise.resolve();
 				} finally {
 					loading.dispose();

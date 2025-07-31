@@ -23,7 +23,7 @@ import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../serv
 import { ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalSettingId, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { createCancelablePromise, CancelablePromise, IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
+import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -88,11 +88,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 
 	private _discoverability: TerminalSuggestShownTracker | undefined;
-
-	// Terminal suggest resolution tracking (similar to editor's suggest widget)
-	private _currentSuggestionDetails?: CancelablePromise<void>;
-	private _focusedItem?: TerminalCompletionItem;
-	private _ignoreFocusEvents: boolean = false;
 
 	isPasting: boolean = false;
 	shellType: TerminalShellType | undefined;
@@ -760,39 +755,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 			));
 
-			this._register(this._suggestWidget.onDidFocus(async e => {
-				if (this._ignoreFocusEvents) {
-					return;
-				}
-
-				const focusedItem = e.item;
-				const focusedIndex = e.index;
-
-				if (focusedItem === this._focusedItem) {
-					return;
-				}
-
-				// Cancel any previous resolution
-				this._currentSuggestionDetails?.cancel();
-				this._currentSuggestionDetails = undefined;
-				this._focusedItem = focusedItem;
-
-				// Check if the item needs resolution and hasn't been resolved yet
-				if (focusedItem && (!focusedItem.completion.documentation || !focusedItem.completion.detail)) {
-					this._currentSuggestionDetails = createCancelablePromise(async token => {
-						try {
-							await focusedItem.resolve(token);
-						} catch (error) {
-							// Silently fail - the item is still usable without details
-							this._logService.warn(`Failed to resolve suggestion details for item ${focusedItem} at index ${focusedIndex}`, error);
-						}
-					});
-
-					// Don't do any re-rendering here - let SimpleSuggestWidget handle it
-					// This prevents the double re-rendering that causes the flash
-				}
-
-			}));
+			// Removed onDidFocus handler - SimpleSuggestWidget now handles item resolution directly
 
 			const element = this._terminal?.element?.querySelector('.xterm-helper-textarea');
 			if (element) {
@@ -953,13 +916,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (cancelAnyRequest) {
 			this._cancellationTokenSource?.cancel();
 			this._cancellationTokenSource = undefined;
-			// Also cancel any pending resolution requests
-			this._currentSuggestionDetails?.cancel();
-			this._currentSuggestionDetails = undefined;
 		}
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
-		this._focusedItem = undefined;
 		this._suggestWidget?.hide();
 	}
 }
