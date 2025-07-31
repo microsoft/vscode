@@ -3622,6 +3622,8 @@ export class CommandCenter {
 	}
 
 	private async handleWorktreeConflict(path: string, message: string): Promise<void> {
+		await this.model.openRepository(path, true);
+
 		const worktreeRepository = this.model.getRepository(path);
 
 		if (!worktreeRepository) {
@@ -3655,7 +3657,7 @@ export class CommandCenter {
 
 		// Dispose worktree repository
 		this.model.disposeRepository(repository);
-
+		console.log(repository.root);
 		try {
 			await mainRepository.deleteWorktree(repository.root);
 		} catch (err) {
