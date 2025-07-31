@@ -75,6 +75,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { getFontSnippets } from '../../../../base/browser/fonts.js';
 import { registerEditorFontConfigurations } from '../../../../editor/common/config/editorConfigurationSchema.js';
 import { terminalStrings } from '../../contrib/terminal/common/terminalStrings.js';
+import { TerminalContextKeys } from '../../contrib/terminal/common/terminalContextKey.js';
 
 //#region Editor Registrations
 
@@ -356,7 +357,7 @@ MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GRO
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20, when: ContextKeyExpr.or(IsAuxiliaryWindowContext, EditorPartMultipleEditorGroupsContext) });
 
 // Empty Editor Group Context Menu
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: 'workbench.action.createTerminalEditorSameGroup', title: terminalStrings.new }, group: '1_create', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: 'workbench.action.createTerminalEditorSameGroup', title: terminalStrings.new }, group: '1_create', order: 10, when: TerminalContextKeys.processSupported });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '2_split', order: 10 });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '2_split', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '2_split', order: 30 });
