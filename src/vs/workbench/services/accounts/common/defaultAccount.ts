@@ -201,6 +201,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			const [key, value] = field.split('=');
 			result.set(key, value);
 		}
+		this.logService.trace(`DefaultAccount#extractFromToken: ${JSON.stringify(Object.fromEntries(result))}`);
 		return result;
 	}
 
