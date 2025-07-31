@@ -489,10 +489,6 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 			// TODO(jospicer): Temporary while we work on API for dynamic agent to trigger a session
 			const content = new MarkdownString(
 				localize('chatSessionNotFound', "Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS),
-				{
-					isTrusted: true,
-					supportHtml: true,
-				}
 			);
 			progress(
 				[{
