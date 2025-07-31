@@ -50,7 +50,6 @@ interface IStoredTerminalAssociation {
 export const RunInTerminalToolData: IToolData = {
 	id: 'run_in_terminal',
 	toolReferenceName: 'runInTerminal',
-	canBeReferencedInPrompt: true,
 	displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 	modelDescription: [
 		'This tool allows you to execute shell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
@@ -122,7 +121,7 @@ const telemetryIgnoredSequences = [
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
-	private readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
+	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
 
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
@@ -166,6 +165,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					this._sessionTerminalAssociations.delete(sessionId);
 				}
 			}
+		}));
+
+		// Listen for chat session disposal to clean up associated terminals
+		this._register(this._chatService.onDidDisposeSession(e => {
+			this._cleanupSessionTerminals(e.sessionId);
 		}));
 	}
 
@@ -476,7 +480,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolTerminal.instance.dispose();
 			throw new CancellationError();
 		}
-		await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, true);
+		await this._setupProcessIdAssociation(toolTerminal, chatSessionId, termId, true);
 		return toolTerminal;
 	}
 
@@ -492,7 +496,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolTerminal.instance.dispose();
 			throw new CancellationError();
 		}
-		await this._setupTerminalAssociation(toolTerminal, chatSessionId, termId, false);
+		await this._setupProcessIdAssociation(toolTerminal, chatSessionId, termId, false);
 		return toolTerminal;
 	}
 
@@ -570,7 +574,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 						// Listen for terminal disposal to clean up storage
 						this._register(instance.onDisposed(() => {
-							this._removeTerminalAssociation(instance.processId!);
+							this._removeProcessIdAssociation(instance.processId!);
 						}));
 					}
 				}
@@ -580,16 +584,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private async _setupTerminalAssociation(toolTerminal: IToolTerminal, chatSessionId: string, termId: string, isBackground: boolean) {
-		await this._associateTerminalWithSession(toolTerminal.instance, chatSessionId, termId, toolTerminal.shellIntegrationQuality, isBackground);
+	private async _setupProcessIdAssociation(toolTerminal: IToolTerminal, chatSessionId: string, termId: string, isBackground: boolean) {
+		await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionId, termId, toolTerminal.shellIntegrationQuality, isBackground);
 		this._register(toolTerminal.instance.onDisposed(() => {
 			if (toolTerminal!.instance.processId) {
-				this._removeTerminalAssociation(toolTerminal!.instance.processId);
+				this._removeProcessIdAssociation(toolTerminal!.instance.processId);
 			}
 		}));
 	}
 
-	private async _associateTerminalWithSession(terminal: ITerminalInstance, sessionId: string, id: string, shellIntegrationQuality: ShellIntegrationQuality, isBackground?: boolean): Promise<void> {
+	private async _associateProcessIdWithSession(terminal: ITerminalInstance, sessionId: string, id: string, shellIntegrationQuality: ShellIntegrationQuality, isBackground?: boolean): Promise<void> {
 		try {
 			// Wait for process ID with timeout
 			const pid = await Promise.race([
@@ -618,7 +622,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private async _removeTerminalAssociation(pid: number): Promise<void> {
+	private async _removeProcessIdAssociation(pid: number): Promise<void> {
 		try {
 			const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
 			const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
@@ -630,6 +634,28 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		} catch (error) {
 			this._logService.debug(`RunInTerminalTool: Failed to remove terminal association: ${error}`);
+		}
+	}
+
+	private _cleanupSessionTerminals(sessionId: string): void {
+		const toolTerminal = this._sessionTerminalAssociations.get(sessionId);
+		if (toolTerminal) {
+			this._logService.debug(`RunInTerminalTool: Cleaning up terminal for disposed chat session ${sessionId}`);
+
+			this._sessionTerminalAssociations.delete(sessionId);
+			toolTerminal.instance.dispose();
+
+			// Clean up any background executions associated with this session
+			const terminalToRemove: string[] = [];
+			for (const [termId, execution] of RunInTerminalTool._backgroundExecutions.entries()) {
+				if (execution.instance === toolTerminal.instance) {
+					execution.dispose();
+					terminalToRemove.push(termId);
+				}
+			}
+			for (const termId of terminalToRemove) {
+				RunInTerminalTool._backgroundExecutions.delete(termId);
+			}
 		}
 	}
 
@@ -712,16 +738,16 @@ class BackgroundTerminalExecution extends Disposable {
 	private _startMarker?: IXtermMarker;
 
 	constructor(
-		private readonly _instance: ITerminalInstance,
+		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string
 	) {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this._instance.runCommand(this._commandLine, true);
+		this.instance.runCommand(this._commandLine, true);
 	}
 	getOutput(): string {
-		return getOutput(this._instance, this._startMarker);
+		return getOutput(this.instance, this._startMarker);
 	}
 }

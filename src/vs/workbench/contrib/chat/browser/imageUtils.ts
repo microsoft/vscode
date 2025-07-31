@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -55,7 +55,11 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 			const ctx = canvas.getContext('2d');
 			if (ctx) {
 				ctx.drawImage(img, 0, 0, width, height);
-				canvas.toBlob((blob) => {
+
+				const jpegTypes = ['image/jpeg', 'image/jpg'];
+				const outputMimeType = mimeType && jpegTypes.includes(mimeType) ? 'image/jpeg' : 'image/png';
+
+				canvas.toBlob(blob => {
 					if (blob) {
 						const reader = new FileReader();
 						reader.onload = () => {
@@ -66,7 +70,7 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 					} else {
 						reject(new Error('Failed to create blob from canvas'));
 					}
-				}, 'image/png');
+				}, outputMimeType);
 			} else {
 				reject(new Error('Failed to get canvas context'));
 			}
@@ -81,7 +85,7 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 export function convertStringToUInt8Array(data: string): Uint8Array {
 	const base64Data = data.includes(',') ? data.split(',')[1] : data;
 	if (isValidBase64(base64Data)) {
-		return Uint8Array.from(atob(base64Data), char => char.charCodeAt(0));
+		return decodeBase64(base64Data).buffer;
 	}
 	return new TextEncoder().encode(data);
 }

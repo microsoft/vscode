@@ -34,6 +34,7 @@ export interface IChatSessionItem {
 
 export interface ChatSession extends IDisposable {
 	readonly id: string;
+	readonly onWillDispose: Event<void>;
 
 	history: Array<
 		| { type: 'request'; prompt: string }

@@ -27,10 +27,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[AI_STATS_SETTING_ID]: {
-			markdownDescription: localize('editor.aiStats.enabled', "Controls whether to enable AI statistics in the editor."),
+			markdownDescription: localize('editor.aiStats.enabled', "Controls whether to enable AI statistics in the editor. The gauge represents the average amount of code inserted by AI vs manual typing over a 24 hour period."),
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[EDIT_TELEMETRY_DETAILS_SETTING_ID]: {
 			markdownDescription: localize('telemetry.editStats.detailed.enabled', "Controls whether to enable telemetry for detailed edit statistics (only sends statistics if general telemetry is enabled)."),
@@ -38,7 +41,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		[EDIT_TELEMETRY_SHOW_STATUS_BAR]: {

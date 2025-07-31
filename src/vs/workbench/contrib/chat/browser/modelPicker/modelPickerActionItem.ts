@@ -35,7 +35,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 				return {
 					id: model.metadata.id,
 					enabled: true,
-					checked: model.metadata.id === delegate.getCurrentModel()?.metadata.id,
+					checked: model.identifier === delegate.getCurrentModel()?.identifier,
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
 					description: model.metadata.cost,

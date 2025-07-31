@@ -2210,8 +2210,8 @@ display: none;
 			width: fit-content;
 			user-select: none;
 			position: absolute;
-			top: 5px;
-			left: 25px;
+			top: 4px;
+			margin-left: 25px;
 			background: var(--vscode-sideBar-background);
 		}
 
@@ -2228,14 +2228,14 @@ display: none;
 		.checkpoint-label-text {
 			font-size: 12px;
 			color: var(--vscode-descriptionForeground);
-			padding-right: 4px;
+			background-color: var(--vscode-sideBar-background);
+			padding: 4px;
 			display: flex;
 			align-items: center;
 			gap: 4px;
-		}
-
-		.monaco-toolbar {
-			left: 145px;
+			position: absolute;
+			margin-left: 71px;
+			margin-top: 2px;
 		}
 	}
 

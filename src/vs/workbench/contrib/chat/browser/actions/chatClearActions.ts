@@ -211,7 +211,17 @@ export function registerNewChatActions() {
 			while (editingSession.canRedo.get()) {
 				await editingSession.redoInteraction();
 			}
-			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
+
+			const currentWidget = widget.lastFocusedWidget;
+			const requestText = currentWidget?.viewModel?.model.checkpoint?.message.text;
+
+			// if the input has the same text that we just restored, clear it.
+			if (currentWidget?.inputEditor.getValue() === requestText) {
+				currentWidget?.input.setValue('', false);
+			}
+
+			currentWidget?.viewModel?.model.setCheckpoint(undefined);
+			currentWidget?.focusInput();
 		}
 	});
 }

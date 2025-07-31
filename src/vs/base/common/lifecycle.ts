@@ -795,6 +795,7 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 		}
 
 		this._store.set(key, value);
+		setParentOfDisposable(value, this);
 	}
 
 	/**
@@ -811,6 +812,9 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 	 */
 	deleteAndLeak(key: K): V | undefined {
 		const value = this._store.get(key);
+		if (value) {
+			setParentOfDisposable(value, null);
+		}
 		this._store.delete(key);
 		return value;
 	}

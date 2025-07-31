@@ -1792,6 +1792,8 @@ export class CommandCenter {
 
 	@command('git.stageFile')
 	async stageFile(uri: Uri): Promise<void> {
+		uri = uri ?? window.activeTextEditor?.document.uri;
+
 		if (!uri) {
 			return;
 		}
@@ -2103,6 +2105,8 @@ export class CommandCenter {
 
 	@command('git.unstageFile')
 	async unstageFile(uri: Uri): Promise<void> {
+		uri = uri ?? window.activeTextEditor?.document.uri;
+
 		if (!uri) {
 			return;
 		}
@@ -3451,10 +3455,9 @@ export class CommandCenter {
 			commitish = choice.refName;
 		}
 
-
-		const worktreeName = (branch ?? commitish).startsWith(branchPrefix)
-			? (branch ?? commitish).substring(branchPrefix.length)
-			: (branch ?? commitish);
+		const worktreeName = ((branch ?? commitish).startsWith(branchPrefix)
+			? (branch ?? commitish).substring(branchPrefix.length).replace(/\//g, '-')
+			: (branch ?? commitish).replace(/\//g, '-'));
 
 		// If user selects folder button, they manually select the worktree path through folder picker
 		const getWorktreePath = async (): Promise<string | undefined> => {
@@ -3559,26 +3562,22 @@ export class CommandCenter {
 	}
 
 	private async handleWorktreeError(err: any): Promise<void> {
-		const errorMessage = err.stderr;
-		const match = errorMessage.match(/worktree at '([^']+)'/) || errorMessage.match(/'([^']+)'/);
-		const path = match ? match[1] : undefined;
-
-		if (!path) {
+		const match = err.stderr.match(/^fatal: '([^']+)' is already used by worktree at '([^']+)'/);
+		if (!match) {
 			return;
 		}
 
-		const worktreeRepository = this.model.getRepository(path) || this.model.getRepository(Uri.file(path));
+		const [, branch, path] = match;
+		const worktreeRepository = this.model.getRepository(path);
 
 		if (!worktreeRepository) {
 			return;
 		}
 
-		const openWorktree = l10n.t('Open in current window');
-		const openWorktreeInNewWindow = l10n.t('Open in new window');
-		const message = l10n.t(errorMessage);
+		const openWorktree = l10n.t('Open in Current Window');
+		const openWorktreeInNewWindow = l10n.t('Open in New Window');
+		const message = l10n.t('Branch \'{0}\' is already checked out in the worktree at \'{1}\'.', branch, path);
 		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
-
-
 
 		if (choice === openWorktree) {
 			await this.openWorktreeInCurrentWindow(worktreeRepository);
