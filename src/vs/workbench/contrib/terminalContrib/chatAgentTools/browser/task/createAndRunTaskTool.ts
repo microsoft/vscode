@@ -84,7 +84,6 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		if (!exists) {
 			await this._fileService.createFile(tasksJsonUri, VSBuffer.fromString(tasksJsonContent), { overwrite: true });
 			_progress.report({ message: 'Created tasks.json file' });
-			await timeout(200);
 		} else {
 			// add to the existing tasks.json file
 			const content = await this._fileService.readFile(tasksJsonUri);
@@ -92,10 +91,18 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			tasksJson.tasks.push(newTask);
 			await this._fileService.writeFile(tasksJsonUri, VSBuffer.fromString(JSON.stringify(tasksJson, null, '\t')));
 			_progress.report({ message: 'Updated tasks.json file' });
-			await timeout(200);
 		}
 		_progress.report({ message: new MarkdownString(localize('copilotChat.fetchingTask', 'Resolving the task')) });
-		const task = (await this._tasksService.tasks())?.find(t => t._label === args.task.label);
+
+		let task: Task | undefined;
+		const start = Date.now();
+		while (Date.now() - start < 5000 && !token.isCancellationRequested) {
+			task = (await this._tasksService.tasks())?.find(t => t._label === args.task.label);
+			if (task) {
+				break;
+			}
+			await timeout(100);
+		}
 		if (!task) {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.task.label)) };
 		}
