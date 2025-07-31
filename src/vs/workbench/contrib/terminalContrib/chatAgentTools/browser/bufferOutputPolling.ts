@@ -152,7 +152,10 @@ export async function pollForOutputAndIdle(
 	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
-export function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
+export function promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
+	if (token.isCancellationRequested) {
+		return { promise: Promise.resolve(false) };
+	}
 	const chatModel = chatService.getSession(context.sessionId);
 	if (chatModel instanceof ChatModel) {
 		const request = chatModel.getRequests().at(-1);
