@@ -110,6 +110,16 @@ class RefItem implements QuickPickItem {
 		return undefined;
 	}
 
+	get refId(): string {
+		switch (this.ref.type) {
+			case RefType.Head:
+				return `refs/heads/${this.ref.name}`;
+			case RefType.RemoteHead:
+				return `refs/remotes/${this.ref.remote}/${this.ref.name}`;
+			case RefType.Tag:
+				return `refs/tags/${this.ref.name}`;
+		}
+	}
 	get refName(): string | undefined { return this.ref.name; }
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get shortCommit(): string { return (this.ref.commit || '').substring(0, this.shortCommitLength); }
@@ -3426,6 +3436,8 @@ export class CommandCenter {
 			return;
 		}
 
+		const worktrees = await repository.getWorktrees();
+
 		let branch: string | undefined = undefined;
 		let commitish: string;
 
@@ -3439,6 +3451,14 @@ export class CommandCenter {
 			commitish = 'HEAD';
 		} else {
 			if (!(choice instanceof RefItem) || !choice.refName) {
+				return;
+			}
+
+			// Check whether the selected branch is checked out in an existing worktree
+			const worktree = worktrees.find(worktree => worktree.ref === choice.refId);
+			if (worktree) {
+				const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
+				await this.handleWorktreeConflict(worktree.path, message);
 				return;
 			}
 
@@ -3547,7 +3567,7 @@ export class CommandCenter {
 		}
 
 		const [, branch, path] = match;
-		const message = l10n.t("Branch '{0}' is already checked out in the worktree at '{1}'.", branch, path);
+		const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', branch, path);
 		await this.handleWorktreeConflict(path, message);
 	}
 
@@ -3559,7 +3579,7 @@ export class CommandCenter {
 		}
 
 		const [, path] = match;
-		const message = l10n.t("A worktree already exists at '{0}'.", path);
+		const message = l10n.t('A worktree already exists at "{0}".', path);
 		await this.handleWorktreeConflict(path, message);
 	}
 
@@ -3570,8 +3590,8 @@ export class CommandCenter {
 			return;
 		}
 
-		const openWorktree = l10n.t('Open in Current Window');
-		const openWorktreeInNewWindow = l10n.t('Open in New Window');
+		const openWorktree = l10n.t('Open Worktree in Current Window');
+		const openWorktreeInNewWindow = l10n.t('Open Worktree in New Window');
 		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
 
 		if (choice === openWorktree) {

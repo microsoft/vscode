@@ -2813,7 +2813,7 @@ export class Repository {
 					result.push({
 						name: dirent.name,
 						// Remove '/.git' suffix
-						path: gitdirContent.replace(/\.git.*$/, ''),
+						path: gitdirContent.replace(/\/.git.*$/, ''),
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 					});
