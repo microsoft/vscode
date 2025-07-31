@@ -125,6 +125,7 @@ export class ChatEditor extends EditorPane {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
+		let isContributedChatSession = false;
 		if (input.resource.scheme === Schemas.vscodeChatSession) {
 			const identifier = ChatSessionUri.parse(input.resource);
 			if (identifier) {
@@ -132,6 +133,7 @@ export class ChatEditor extends EditorPane {
 				const contribution = contributions.find(c => c.type === identifier.chatSessionType);
 				if (contribution) {
 					this.widget.lockToCodingAgent(contribution.name, contribution.displayName);
+					isContributedChatSession = true;
 				} else {
 					this.widget.unlockFromCodingAgent();
 				}
@@ -148,6 +150,10 @@ export class ChatEditor extends EditorPane {
 		}
 		const viewState = options?.viewState ?? input.options.viewState;
 		this.updateModel(editorModel.model, viewState);
+
+		if (isContributedChatSession) {
+			editorModel.model.setCustomTitle(`${input.resource.authority}${input.resource.path}`); // TODO: Use actual title
+		}
 	}
 
 	private updateModel(model: IChatModel, viewState?: IChatViewState): void {
