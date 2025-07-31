@@ -737,7 +737,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 class BackgroundTerminalExecution extends Disposable {
 	private _startMarker?: IXtermMarker;
-
+	private _isActive: boolean;
 	constructor(
 		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,
@@ -747,8 +747,18 @@ class BackgroundTerminalExecution extends Disposable {
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
 		this.instance.runCommand(this._commandLine, true);
+		this._isActive = true;
+		const commandDetection = this.instance.capabilities.get(TerminalCapability.CommandDetection);
+		if (commandDetection) {
+			this._register(commandDetection.onCommandFinished(() => {
+				this._isActive = false;
+			}));
+		}
 	}
 	getOutput(): string {
 		return getOutput(this.instance, this._startMarker);
+	}
+	isActive(): Promise<boolean> {
+		return Promise.resolve(this._isActive);
 	}
 }
