@@ -27,12 +27,12 @@ export const ManageTodoListToolToolId = 'vscode_manageTodoList';
 
 export const ManageTodoListToolData: IToolData = {
 	id: ManageTodoListToolToolId,
-	toolReferenceName: 'manageTodoList',
+	toolReferenceName: 'todos',
 	when: ContextKeyExpr.equals(`config.${TodoListToolSettingId}`, true),
 	canBeReferencedInPrompt: true,
 	icon: ThemeIcon.fromId(Codicon.checklist.id),
-	displayName: 'Manage Todo Lists',
-	modelDescription: 'A tool for managing todo lists. Can create/update and read items in a todo list. Operations: write (add new todo items or update todo items), read(retrieve all todo items).',
+	displayName: 'Update Todo List',
+	modelDescription: 'Manage a structured todo list to track progress and plan tasks throughout your coding session. Use this tool VERY frequently to ensure task visibility and proper planning.\n\nWhen to use this tool:\n- Complex multi-step work requiring planning and tracking\n- When user provides multiple tasks or requests (numbered/comma-separated)\n- After receiving new instructions that require multiple steps\n- BEFORE starting work on any todo (mark as in-progress)\n- IMMEDIATELY after completing each todo (mark completed individually)\n- When breaking down larger tasks into smaller actionable steps\n- To give users visibility into your progress and planning\n\nWhen NOT to use:\n- Single, trivial tasks that can be completed in one step\n- Purely conversational/informational requests\n- When just reading files or performing simple searches\n\nCRITICAL workflow:\n1. Plan tasks by writing todo list with specific, actionable items\n2. Mark ONE todo as in-progress before starting work\n3. Complete the work for that specific todo\n4. Mark that todo as completed IMMEDIATELY\n5. Move to next todo and repeat\n\nTodo states:\n- not-started: Todo not yet begun\n- in-progress: Currently working (limit ONE at a time)\n- completed: Finished successfully\n\nIMPORTANT: Mark todos completed as soon as they are done. Do not batch completions.',
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',
@@ -40,30 +40,30 @@ export const ManageTodoListToolData: IToolData = {
 			operation: {
 				type: 'string',
 				enum: ['write', 'read'],
-				description: 'The operation to perform on todo list: write or read. When using write, you must provide the complete todo list, including any new or updated items. Partial updates are not supported.'
+				description: 'write: Replace entire todo list with new content. read: Retrieve current todo list. ALWAYS provide complete list when writing - partial updates not supported.'
 			},
 			todoList: {
 				type: 'array',
-				description: 'Array of todo items to be written.  Ignore for read operation ',
+				description: 'Complete array of all todo items (required for write operation, ignored for read). Must include ALL items - both existing and new.',
 				items: {
 					type: 'object',
 					properties: {
 						id: {
 							type: 'number',
-							description: 'Numerical identifier representing the position of the todo item in the ordered list. Lower numbers have higher priority.'
+							description: 'Unique identifier for the todo. Use sequential numbers starting from 1.'
 						},
 						title: {
 							type: 'string',
-							description: 'Short title or summary of the todo item.'
+							description: 'Concise action-oriented todo label (3-5 words). Displayed in UI.'
 						},
 						description: {
 							type: 'string',
-							description: 'Detailed description of the todo item.'
+							description: 'Detailed context, requirements, or implementation notes. Include file paths, specific methods, or acceptance criteria.'
 						},
 						status: {
 							type: 'string',
 							enum: ['not-started', 'in-progress', 'completed'],
-							description: 'Current status of the todo item.'
+							description: 'not-started: Not begun | in-progress: Currently working (max 1) | completed: Fully finished with no blockers'
 						},
 					},
 					required: ['id', 'title', 'description', 'status']
