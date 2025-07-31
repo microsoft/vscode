@@ -278,11 +278,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 									if (item && item.label) {
 										let insertTextRules: CompletionItemInsertTextRule | undefined = undefined;
 										let insertText = item.text || item.label;
-										
-										// Strip star prefix from IntelliCode starred suggestions when using label as insertText
-										if ((!item.text || item.text === '') && insertText.startsWith('★ ')) {
-											insertText = insertText.substring(2); // Remove "★ " prefix
-										}
 										if (typeof item.selectionStart === 'number') {
 											// If a debug completion item sets a selection we need to use snippets to make sure the selection is selected #90974
 											insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
