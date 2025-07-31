@@ -40,7 +40,6 @@ export class ChatEditingTimeline {
 
 	private readonly _linearHistory = observableValue<readonly IChatEditingSessionSnapshot[]>(this, []);
 	private readonly _linearHistoryIndex = observableValue<number>(this, 0);
-	private readonly _requestToLinearHistoryMap = new Map<string, number>();
 
 	private readonly _diffsBetweenStops = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 	private readonly _diffsBetweenRequests = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
@@ -88,12 +87,6 @@ export class ChatEditingTimeline {
 	 * Restore the timeline from a saved state (history array and index).
 	 */
 	public restoreFromState(state: { history: readonly IChatEditingSessionSnapshot[]; index: number }, tx: ITransaction): void {
-		this._requestToLinearHistoryMap.clear();
-		for (const [index, item] of state.history.entries()) {
-			if (item.requestId) {
-				this._requestToLinearHistoryMap.set(item.requestId, index);
-			}
-		}
 		this._linearHistory.set(state.history, tx);
 		this._linearHistoryIndex.set(state.index, tx);
 	}
@@ -268,25 +261,15 @@ export class ChatEditingTimeline {
 	}
 
 	public pushSnapshot(requestId: string, undoStop: string | undefined, snapshot: IChatEditingSessionStop) {
-		let index = 0;
 		const linearHistoryPtr = this._linearHistoryIndex.get();
 		const newLinearHistory: IChatEditingSessionSnapshot[] = [];
-		this._requestToLinearHistoryMap.clear();
 		for (const entry of this._linearHistory.get()) {
 			if (entry.startIndex >= linearHistoryPtr) {
 				break;
 			} else if (linearHistoryPtr - entry.startIndex < entry.stops.length) {
 				newLinearHistory.push({ requestId: entry.requestId, stops: entry.stops.slice(0, linearHistoryPtr - entry.startIndex), startIndex: entry.startIndex });
-				if (entry.requestId) {
-					this._requestToLinearHistoryMap.set(entry.requestId, index);
-				}
-				index++;
 			} else {
 				newLinearHistory.push(entry);
-				if (entry.requestId) {
-					this._requestToLinearHistoryMap.set(entry.requestId, index);
-				}
-				index++;
 			}
 		}
 
@@ -305,8 +288,6 @@ export class ChatEditingTimeline {
 			};
 		} else {
 			newLinearHistory.push({ requestId, startIndex: lastEntry ? lastEntry.startIndex + lastEntry.stops.length : 0, stops: [snapshot] });
-			this._requestToLinearHistoryMap.set(requestId, index);
-			index++;
 		}
 
 		transaction((tx) => {
@@ -488,9 +469,9 @@ export class ChatEditingTimeline {
 
 	private _getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive: boolean = true): IObservableWithChange<URI | undefined, void> {
 		return derived((reader) => {
-			const requestIndex = this._requestToLinearHistoryMap.get(requestId);
-			if (requestIndex === undefined) { return undefined; }
 			const history = this._linearHistory.read(reader);
+			const requestIndex = history.findIndex(s => s.requestId === requestId);
+			if (requestIndex === -1) { return undefined; }
 			const processedIndex = requestIndex + (inclusive ? 0 : 1);
 			for (let i = processedIndex; i < history.length; i++) {
 				const snapshot = history[i];
