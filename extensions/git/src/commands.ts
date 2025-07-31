@@ -3464,8 +3464,6 @@ export class CommandCenter {
 			return;
 		}
 
-		const worktrees = await repository.getWorktrees();
-
 		let branch: string | undefined = undefined;
 		let commitish: string;
 
@@ -3483,7 +3481,7 @@ export class CommandCenter {
 			}
 
 			// Check whether the selected branch is checked out in an existing worktree
-			const worktree = worktrees.find(worktree => worktree.ref === choice.refId);
+			const worktree = repository.worktrees.find(worktree => worktree.ref === choice.refId);
 			if (worktree) {
 				const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
 				await this.handleWorktreeConflict(worktree.path, message);
@@ -3526,6 +3524,14 @@ export class CommandCenter {
 			return [start, value.length];
 		};
 
+		const getValidationMessage = (value: string): InputBoxValidationMessage | undefined => {
+			const worktree = repository.worktrees.find(worktree => pathEquals(worktree.path, value));
+			return worktree ? {
+				message: l10n.t('A worktree already exists at "{0}".', value),
+				severity: InputBoxValidationSeverity.Warning
+			} : undefined;
+		};
+
 		// Default worktree path is based on the last worktree location or a worktree folder for the repository
 		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
 		const defaultWorktreePath = defaultWorktreeRoot
@@ -3540,6 +3546,7 @@ export class CommandCenter {
 		inputBox.prompt = l10n.t('Please provide a worktree path');
 		inputBox.value = defaultWorktreePath;
 		inputBox.valueSelection = getValueSelection(inputBox.value);
+		inputBox.validationMessage = getValidationMessage(inputBox.value);
 		inputBox.ignoreFocusOut = true;
 		inputBox.buttons = [
 			{
@@ -3554,6 +3561,9 @@ export class CommandCenter {
 		const worktreePath = await new Promise<string | undefined>((resolve) => {
 			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
 			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+			disposables.push(inputBox.onDidChangeValue(value => {
+				inputBox.validationMessage = getValidationMessage(value);
+			}));
 			disposables.push(inputBox.onDidTriggerButton(async () => {
 				inputBox.value = await getWorktreePath() ?? '';
 				inputBox.valueSelection = getValueSelection(inputBox.value);
