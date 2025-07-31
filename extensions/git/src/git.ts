@@ -2786,14 +2786,9 @@ export class Repository {
 			return [];
 		}
 
-		if (this.kind !== 'repository') {
-			this.logger.info('[Git][getWorktreesFS] Either a submodule or a worktree, skipping worktree detection');
-			return [];
-		}
-
 		try {
 			// List all worktree folder names
-			const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
+			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
 			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
 			const result: Worktree[] = [];
 
@@ -2812,7 +2807,7 @@ export class Repository {
 					result.push({
 						name: dirent.name,
 						// Remove '/.git' suffix
-						path: gitdirContent.replace(/\.git.*$/, ''),
+						path: gitdirContent.replace(/\/.git.*$/, ''),
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 					});
