@@ -36,6 +36,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 
 export class ReleaseNotesManager {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -59,6 +61,7 @@ export class ReleaseNotesManager {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		TokenizationRegistry.onDidChange(() => {
 			return this.updateHtml();
@@ -246,7 +249,7 @@ export class ReleaseNotesManager {
 			// handled in receive message
 		} else {
 			this.addGAParameters(uri, 'ReleaseNotes')
-				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings'] }))
+				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings', 'summarize.release.notes'] }))
 				.then(undefined, onUnexpectedError);
 		}
 	}
@@ -263,7 +266,7 @@ export class ReleaseNotesManager {
 	private async renderBody(fileContent: { text: string; base: URI }) {
 		const nonce = generateUuid();
 
-		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
+		let content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
 			shouldSanitize: false,
 			markedExtensions: [{
 				renderer: {
@@ -272,6 +275,18 @@ export class ReleaseNotesManager {
 				}
 			}]
 		});
+
+		// Remove sparkle-chat elements if chat is not enabled
+		const isChatEnabled = ChatContextKeys.enabled.getValue(this._contextKeyService);
+		if (!isChatEnabled) {
+			// Remove elements with id="sparkle-chat" (handles both self-closing and paired tags)
+			content = content.replace(/<[^>]*id="sparkle-chat"[^>]*(?:\/>|>.*?<\/[^>]*>)/gi, '');
+			// Remove any links that use the summarize.release.notes command
+			content = content.replace(/<a[^>]*href="command:summarize\.release\.notes"[^>]*>.*?<\/a>/gi, '');
+			// Remove any other chat-related sparkle elements (fallback)
+			content = content.replace(/<[^>]*sparkle-chat[^>]*>.*?<\/[^>]*>/gi, '');
+		}
+
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
