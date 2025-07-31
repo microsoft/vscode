@@ -38,12 +38,10 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	let task: IConfiguredTask | undefined;
 	const workspaceFolderToTaskMap = await taskService.getWorkspaceTasks();
 	let configTasks: IConfiguredTask[] = [];
-	if (workspaceFolderToTaskMap) {
-		for (const folder of workspaceFolderToTaskMap.keys()) {
-			const tasksConfig = configurationService.getValue('tasks', { resource: URI.parse(folder) }) as { tasks: IConfiguredTask[] } | undefined;
-			if (tasksConfig?.tasks) {
-				configTasks = configTasks.concat(tasksConfig.tasks);
-			}
+	for (const folder of workspaceFolderToTaskMap.keys()) {
+		const tasksConfig = configurationService.getValue('tasks', { resource: URI.parse(folder) }) as { tasks: IConfiguredTask[] } | undefined;
+		if (tasksConfig?.tasks) {
+			configTasks = configTasks.concat(tasksConfig.tasks);
 		}
 	}
 	for (const configTask of configTasks) {
