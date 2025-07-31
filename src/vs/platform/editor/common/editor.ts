@@ -320,11 +320,6 @@ export interface IEditorOptions {
 		 */
 		alwaysOnTop?: boolean;
 	};
-
-	/**
-	 * A hint of a possible title for the input
-	 */
-	readonly preferredTitle?: string;
 }
 
 export interface ITextEditorSelection {
