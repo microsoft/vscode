@@ -715,23 +715,13 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
-	private async getProviderDisplayName(): Promise<string> {
-		// For local provider, return default name
-		if (this.provider.chatSessionType === 'local') {
-			return 'Local';
+	private getProviderDisplayName(): string {
+		const contributions = this.chatSessionsService.getChatSessionContributions();
+		const contribution = contributions.find(c => c.type === this.provider.chatSessionType);
+		if (contribution) {
+			return contribution.displayName;
 		}
-
-		// For other providers, try to get a friendly name from the extension contributions
-		try {
-			const contributions = await this.chatSessionsService.getChatSessionContributions();
-			const contribution = contributions.find(c => c.type === this.provider.chatSessionType);
-			if (contribution) {
-				return contribution.displayName;
-			}
-		} catch (error) {
-			// Fall back to the provider type if we can't get the display name
-		}
-		return this.provider.chatSessionType;
+		return '';
 	}
 
 	private showEmptyMessage(): void {
@@ -745,30 +735,29 @@ class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		this.getProviderDisplayName().then(providerName => {
-			if (!this.messageElement) {
-				return;
-			}
+		const providerName = this.getProviderDisplayName();
+		if (!providerName) {
+			return;
+		}
 
-			const messageText = nls.localize('chatSessions.noResults', "No sessions found from {0}", providerName);
+		const messageText = nls.localize('chatSessions.noResults', "No sessions found from {0}", providerName);
 
-			// Clear the message element using DOM utility
-			clearNode(this.messageElement);
+		// Clear the message element using DOM utility
+		clearNode(this.messageElement);
 
-			const messageContainer = append(this.messageElement, $('.no-sessions-message'));
+		const messageContainer = append(this.messageElement, $('.no-sessions-message'));
 
-			append(messageContainer, $('.codicon.codicon-info'));
-			const textElement = append(messageContainer, $('span'));
-			textElement.textContent = messageText;
+		append(messageContainer, $('.codicon.codicon-info'));
+		const textElement = append(messageContainer, $('span'));
+		textElement.textContent = messageText;
 
-			// Show the message element
-			this.messageElement.style.display = 'block';
+		// Show the message element
+		this.messageElement.style.display = 'block';
 
-			// Hide the tree
-			if (this.treeContainer) {
-				this.treeContainer.style.display = 'none';
-			}
-		});
+		// Hide the tree
+		if (this.treeContainer) {
+			this.treeContainer.style.display = 'none';
+		}
 	}
 
 	private hideMessage(): void {
@@ -779,6 +768,28 @@ class SessionsViewPane extends ViewPane {
 		// Show the tree
 		if (this.treeContainer) {
 			this.treeContainer.style.display = 'block';
+		}
+	}
+
+	/**
+	 * Updates the empty state message based on current tree data.
+	 * Uses the tree's existing data to avoid redundant provider calls.
+	 */
+	private updateEmptyStateMessage(): void {
+		try {
+			// Check if the tree has the provider node and get its children count
+			if (this.tree?.hasNode(this.provider)) {
+				const providerNode = this.tree.getNode(this.provider);
+				const childCount = providerNode.children?.length || 0;
+
+				if (childCount === 0) {
+					this.showEmptyMessage();
+				} else {
+					this.hideMessage();
+				}
+			}
+		} catch (error) {
+			this.logService.error('Error checking tree data for empty state:', error);
 		}
 	}
 
@@ -799,23 +810,11 @@ class SessionsViewPane extends ViewPane {
 				},
 				async () => {
 					await this.tree!.updateChildren(this.provider);
-
-					// Check if we have any items and show/hide message accordingly
-					try {
-						const items = await this.provider.provideChatSessionItems(CancellationToken.None);
-						if (items.length === 0) {
-							this.showEmptyMessage();
-						} else {
-							this.hideMessage();
-						}
-					} catch (error) {
-						// On error, also show the empty message for non-local providers
-						if (this.provider.chatSessionType !== 'local') {
-							this.showEmptyMessage();
-						}
-					}
 				}
 			);
+
+			// Check for empty state after refresh using tree data
+			this.updateEmptyStateMessage();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error refreshing chat sessions tree:', error);
@@ -839,23 +838,11 @@ class SessionsViewPane extends ViewPane {
 				},
 				async () => {
 					await this.tree!.setInput(this.provider);
-
-					// Check if we have any items and show/hide message accordingly
-					try {
-						const items = await this.provider.provideChatSessionItems(CancellationToken.None);
-						if (items.length === 0) {
-							this.showEmptyMessage();
-						} else {
-							this.hideMessage();
-						}
-					} catch (error) {
-						// On error, also show the empty message for non-local providers
-						if (this.provider.chatSessionType !== 'local') {
-							this.showEmptyMessage();
-						}
-					}
 				}
 			);
+
+			// Check for empty state after loading using tree data
+			this.updateEmptyStateMessage();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error loading chat sessions data:', error);
