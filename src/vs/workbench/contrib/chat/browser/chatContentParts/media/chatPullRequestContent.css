@@ -9,7 +9,7 @@
 }
 
 .chat-pull-request-content-part .container {
-	padding: 16px 16px 8px;
+	padding: 12px 12px 8px;
 	display: flex;
 	flex-direction: row;
 }
@@ -29,7 +29,7 @@
 	display: flex;
 	gap: 4px;
 	font-size: large;
-	padding-bottom: 10px;
+	padding-bottom: 2px;
 	margin: unset;
 }
 
@@ -41,6 +41,10 @@
 
 .chat-pull-request-content-part .title-container .icon.codicon {
 	font-size: large;
+}
+
+.chat-pull-request-content-part .author {
+	padding-bottom: 8px;
 }
 
 .chat-pull-request-content-part .description {
