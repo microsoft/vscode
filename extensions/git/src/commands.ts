@@ -3657,6 +3657,7 @@ export class CommandCenter {
 
 		// Dispose worktree repository
 		this.model.disposeRepository(repository);
+
 		try {
 			await mainRepository.deleteWorktree(repository.root);
 		} catch (err) {
