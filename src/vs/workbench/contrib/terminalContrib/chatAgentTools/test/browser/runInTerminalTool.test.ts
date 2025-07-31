@@ -271,6 +271,79 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
+	suite('prepareToolInvocation - custom actions for dropdown', () => {
+
+		test('should generate custom actions for non-auto-approved commands', async () => {
+			// Set up a scenario where the command is not auto-approved
+			setAutoApprove({
+				ls: true, // Only ls is approved, not npm
+			});
+
+			const result = await executeToolTest({ 
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.customActions, 'Expected custom actions to be defined');
+			
+			const customActions = result!.confirmationMessages!.customActions!;
+			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
+			
+			// First action should be exact command match
+			strictEqual(customActions[0].label, 'Always allow `npm run build`');
+			strictEqual(customActions[0].data.type, 'exact');
+			strictEqual(customActions[0].data.command, 'npm run build');
+			
+			// Second action should be base command prefix match
+			strictEqual(customActions[1].label, 'Always allow `npm` commands');
+			strictEqual(customActions[1].data.type, 'prefix');
+			strictEqual(customActions[1].data.command, 'npm');
+			
+			// Third action should be configure option
+			strictEqual(customActions[2].label, 'Configure auto approve...');
+			strictEqual(customActions[2].data.type, 'configure');
+		});
+
+		test('should generate custom actions for single word commands', async () => {
+			const result = await executeToolTest({ 
+				command: 'git',
+				explanation: 'Run git command'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.customActions, 'Expected custom actions to be defined');
+			
+			const customActions = result!.confirmationMessages!.customActions!;
+			
+			// For single word commands, exact and prefix should be the same, so we should only get 2 actions
+			strictEqual(customActions.length, 2, 'Expected 2 custom actions for single word command');
+			
+			// First action should be exact command match
+			strictEqual(customActions[0].label, 'Always allow `git`');
+			strictEqual(customActions[0].data.type, 'exact');
+			strictEqual(customActions[0].data.command, 'git');
+			
+			// Second action should be configure option (no separate prefix action since it's the same)
+			strictEqual(customActions[1].label, 'Configure auto approve...');
+			strictEqual(customActions[1].data.type, 'configure');
+		});
+
+		test('should not generate custom actions for auto-approved commands', async () => {
+			setAutoApprove({
+				npm: true
+			});
+
+			const result = await executeToolTest({ 
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertAutoApproved(result);
+		});
+
+	});
+
 	suite('command re-writing', () => {
 		function createRewriteParams(command: string, chatSessionId?: string): IRunInTerminalInputParams {
 			return {

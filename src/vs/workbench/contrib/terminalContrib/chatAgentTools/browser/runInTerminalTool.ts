@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages, type IToolConfirmationAction } from '../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
@@ -230,6 +230,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					? localize('runInTerminal.background', "Run command in background terminal")
 					: localize('runInTerminal.foreground', "Run command in terminal"),
 				message: new MarkdownString(args.explanation),
+				customActions: this._generateAutoApproveActions(args.command),
 			};
 		}
 
@@ -732,6 +733,38 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			inputUserChars: state.inputUserChars,
 			inputUserSigint: state.inputUserSigint,
 		});
+	}
+
+	private _generateAutoApproveActions(command: string): IToolConfirmationAction[] {
+		const actions: IToolConfirmationAction[] = [];
+		
+		// Extract the base command (first word/executable)
+		const baseCommand = command.trim().split(/\s+/)[0];
+		
+		// Add action for exact command match
+		actions.push({
+			label: localize('autoApprove.exactCommand', 'Always allow `{0}`', command),
+			tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
+			data: { type: 'exact', command }
+		});
+		
+		// Add action for base command prefix match (only if different from exact and has arguments)
+		if (baseCommand && baseCommand !== command && command.trim().includes(' ')) {
+			actions.push({
+				label: localize('autoApprove.baseCommand', 'Always allow `{0}` commands', baseCommand),
+				tooltip: localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', baseCommand),
+				data: { type: 'prefix', command: baseCommand }
+			});
+		}
+		
+		// Add separator and configure option
+		actions.push({
+			label: localize('autoApprove.configure', 'Configure auto approve...'),
+			tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
+			data: { type: 'configure' }
+		});
+		
+		return actions;
 	}
 }
 

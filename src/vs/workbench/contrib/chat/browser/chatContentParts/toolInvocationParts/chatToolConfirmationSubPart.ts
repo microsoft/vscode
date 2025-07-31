@@ -16,6 +16,7 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -60,6 +61,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
@@ -69,7 +71,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
 		}
-		const { title, message, allowAutoConfirm, disclaimer } = toolInvocation.confirmationMessages;
+		const { title, message, allowAutoConfirm, disclaimer, customActions } = toolInvocation.confirmationMessages;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -83,6 +85,25 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			AllowWorkspace,
 			AllowGlobally,
 			AllowSession,
+			CustomAction,
+		}
+
+		// Build moreActions based on customActions or default allowAutoConfirm behavior
+		let moreActions: IChatConfirmationButton[] | undefined;
+		if (customActions && customActions.length > 0) {
+			// Use custom actions for terminal commands
+			moreActions = customActions.map(action => ({
+				label: action.label,
+				data: { outcome: ConfirmationOutcome.CustomAction, customData: action.data },
+				tooltip: action.tooltip
+			}));
+		} else if (allowAutoConfirm) {
+			// Use default tool-level auto-confirmation options
+			moreActions = [
+				{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
+				{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
+				{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballTooltip', 'Always allow this tool to run without confirmation.') },
+			];
 		}
 
 		const buttons: IChatConfirmationButton[] = [
@@ -90,11 +111,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				label: continueLabel,
 				data: ConfirmationOutcome.Allow,
 				tooltip: continueTooltip,
-				moreActions: !allowAutoConfirm ? undefined : [
-					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
-					{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
-					{ label: localize('allowGlobally', 'Always Allow'), data: ConfirmationOutcome.AllowGlobally, tooltip: localize('allowGloballTooltip', 'Always allow this tool to run without confirmation.') },
-				],
+				moreActions,
 			},
 			{
 				label: localize('cancel', "Cancel"),
@@ -287,6 +304,15 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		hasToolConfirmation.set(true);
 
 		this._register(confirmWidget.onDidClick(button => {
+			// Handle custom actions (like terminal auto-approve options)
+			if (typeof button.data === 'object' && button.data.outcome === ConfirmationOutcome.CustomAction) {
+				this._handleCustomAction(button.data.customData);
+				toolInvocation.confirmed.complete(true);
+				this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
+				return;
+			}
+
+			// Handle standard confirmation outcomes
 			switch (button.data as ConfirmationOutcome) {
 				case ConfirmationOutcome.AllowGlobally:
 					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'profile', true);
@@ -325,5 +351,32 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		container.append(part.domNode);
 
 		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+	}
+
+	private _handleCustomAction(customData: any): void {
+		if (!customData || typeof customData !== 'object') {
+			return;
+		}
+
+		switch (customData.type) {
+			case 'exact':
+				// Add exact command to auto-approve list
+				this._addToAutoApproveConfig(customData.command, true);
+				break;
+			case 'prefix':
+				// Add command prefix to auto-approve list
+				this._addToAutoApproveConfig(customData.command, true);
+				break;
+			case 'configure':
+				// Open settings to terminal auto-approve configuration
+				this.commandService.executeCommand('workbench.action.openSettings', 'chat.tools.terminal.autoApprove');
+				break;
+		}
+	}
+
+	private _addToAutoApproveConfig(pattern: string, approve: boolean): void {
+		const currentConfig = this.configurationService.getValue('chat.tools.terminal.autoApprove') as Record<string, boolean> || {};
+		const newConfig = { ...currentConfig, [pattern]: approve };
+		this.configurationService.updateValue('chat.tools.terminal.autoApprove', newConfig);
 	}
 }

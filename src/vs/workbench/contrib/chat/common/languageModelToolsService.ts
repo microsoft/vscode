@@ -209,6 +209,13 @@ export interface IToolConfirmationMessages {
 	message: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
+	customActions?: IToolConfirmationAction[];
+}
+
+export interface IToolConfirmationAction {
+	label: string;
+	tooltip?: string;
+	data: any;
 }
 
 export interface IPreparedToolInvocation {
