@@ -31,6 +31,3 @@ export class MainThreadChatStatus extends Disposable implements MainThreadChatSt
 		this._chatStatusItemService.deleteEntry(id);
 	}
 }
-
-
-
