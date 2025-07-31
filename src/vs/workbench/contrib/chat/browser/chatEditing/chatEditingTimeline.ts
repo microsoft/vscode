@@ -409,9 +409,15 @@ export class ChatEditingTimeline {
 	}
 
 	private _createDiffBetweenRequestsObservable(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
-		const modelRefs = derived((reader) => {
+		const snapshotUris = derived((reader) => {
 			const firstSnapshotUri = this._getFirstSnapshotForUriAfterRequest(uri, startRequestId, true).read(reader);
 			const lastSnapshotUri = this._getFirstSnapshotForUriAfterRequest(uri, stopRequestId, false).read(reader);
+			return [firstSnapshotUri, lastSnapshotUri];
+		});
+		const modelRefs = derived((reader) => {
+			const snapshots = snapshotUris.read(reader);
+			const firstSnapshotUri = snapshots[0];
+			const lastSnapshotUri = snapshots[1];
 			if (!firstSnapshotUri || !lastSnapshotUri) {
 				return;
 			}
