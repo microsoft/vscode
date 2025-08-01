@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
@@ -36,6 +38,9 @@ export class ChatTodoListWidget extends Disposable {
 		const container = dom.$('.chat-todo-list-widget');
 		container.style.display = 'none';
 
+		// Create header container to hold expand/collapse and clear button
+		const headerContainer = dom.$('.todo-list-header');
+
 		this.expandoElement = dom.$('.todo-list-expand');
 		this.expandoElement.setAttribute('role', 'button');
 		this.expandoElement.setAttribute('aria-expanded', 'true');
@@ -50,10 +55,27 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoElement.appendChild(expandIcon);
 		this.expandoElement.appendChild(titleElement);
 
+		// Add clear button
+		const clearButtonContainer = dom.$('.todo-clear-button-container');
+		const clearButton = new Button(clearButtonContainer, {
+			supportIcons: true,
+			title: localize('chat.todoList.clearButton', 'Clear all tasks')
+		});
+		clearButton.element.tabIndex = -1;
+		clearButton.icon = Codicon.trash;
+		this._register(clearButton);
+		this._register(clearButton.onDidClick(() => {
+			this.clearAllTodos();
+		}));
+
+		// Assemble header
+		headerContainer.appendChild(this.expandoElement);
+		headerContainer.appendChild(clearButtonContainer);
+
 		this.todoListContainer = dom.$('.todo-list-container');
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
-		container.appendChild(this.expandoElement);
+		container.appendChild(headerContainer);
 		container.appendChild(this.todoListContainer);
 
 		this._register(dom.addDisposableListener(this.expandoElement, 'click', () => {
@@ -160,6 +182,16 @@ export class ChatTodoListWidget extends Disposable {
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
 		this._onDidChangeHeight.fire();
+	}
+
+	private clearAllTodos(): void {
+		if (!this._currentSessionId) {
+			return;
+		}
+
+		const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
+		todoListStorage.setTodoList(this._currentSessionId, []);
+		this.updateTodoDisplay();
 	}
 
 	private scrollToRelevantItem(lastActiveIndex: number, firstCompletedIndex: number, firstPendingAfterCompletedIndex: number, totalItems: number): void {

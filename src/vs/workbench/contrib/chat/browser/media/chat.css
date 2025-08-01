@@ -2374,12 +2374,69 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-shadow: 0 2px 4px var(--vscode-scrollbar-shadow);
 }
 
+.chat-todo-list-widget .todo-list-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
 .chat-todo-list-widget .todo-list-expand {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 	cursor: pointer;
-	padding: 2px 0;
+	padding: 4px 8px;
+	justify-content: space-between;
+	width: 100%;
+}
+
+.chat-todo-list-widget .todo-list-expand .todo-list-title-section {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1;
+}
+
+.chat-todo-list-widget .todo-clear-button-container {
+	display: flex;
+	align-items: center;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+
+.chat-todo-list-widget .todo-list-expand:hover .todo-clear-button-container,
+.chat-todo-list-widget .todo-list-expand:focus-within .todo-clear-button-container,
+.chat-todo-list-widget .todo-clear-button-container:focus-within {
+	opacity: 1;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button {
+	padding: 2px;
+	min-width: unset;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	border: none;
+	border-radius: 3px;
+	height: 16px;
+	width: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button .codicon {
+	font-size: 14px;
+	color: var(--vscode-foreground);
 }
 
 .chat-todo-list-widget .todo-list-expand:hover {
