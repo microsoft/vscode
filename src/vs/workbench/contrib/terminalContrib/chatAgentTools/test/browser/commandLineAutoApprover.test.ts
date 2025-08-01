@@ -148,6 +148,14 @@ suite('CommandLineAutoApprover', () => {
 	});
 
 	suite('regex patterns', () => {
+		test('should handle /.*/', () => {
+			setAutoApprove({
+				"/.*/": true,
+			});
+
+			ok(isAutoApproved('echo hello'));
+		});
+
 		test('should handle regex patterns in autoApprove', () => {
 			setAutoApprove({
 				"/^echo/": true,
