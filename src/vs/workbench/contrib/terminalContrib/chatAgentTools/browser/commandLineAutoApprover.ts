@@ -185,6 +185,11 @@ export class CommandLineAutoApprover extends Disposable {
 				flags = flags.replaceAll('g', '');
 			}
 
+			// Allow .* as users expect this would match everything
+			if (regexPattern === '.*') {
+				return new RegExp(regexPattern);
+			}
+
 			try {
 				const regex = new RegExp(regexPattern, flags || undefined);
 				if (regExpLeadsToEndlessLoop(regex)) {
