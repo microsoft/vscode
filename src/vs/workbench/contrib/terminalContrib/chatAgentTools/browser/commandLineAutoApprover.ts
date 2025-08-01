@@ -112,7 +112,8 @@ export class CommandLineAutoApprover extends Disposable {
 		
 		// For bash/sh/bourne shell and unknown shells (fallback to bourne shell syntax)
 		// Handle environment variable assignments like: VAR=value VAR2=value command
-		const envVarPattern = /^([A-Za-z_][A-Za-z0-9_]*=(?:[^\s'"]|'[^']*'|"[^"]*")*\s+)+/;
+		// This regex matches one or more environment variable assignments at the start
+		const envVarPattern = /^(\s*[A-Za-z_][A-Za-z0-9_]*=(?:[^\s'"]|'[^']*'|"[^"]*")*\s+)+/;
 		const match = trimmedCommand.match(envVarPattern);
 		
 		if (match) {
