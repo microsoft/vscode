@@ -6084,7 +6084,7 @@ export const EditorOptions = {
 	renderRichScreenReaderContent: register(new EditorBooleanOption(
 		EditorOption.renderRichScreenReaderContent, 'renderRichScreenReaderContent', false,
 		{
-			description: nls.localize('renderRichScreenReaderContent', "Whether to render rich screen reader content when the `editor.editContext` is enabled."),
+			description: nls.localize('renderRichScreenReaderContent', "Whether to render rich screen reader content when `#editor.editContext#` is enabled."),
 		}
 	)),
 	stickyScroll: register(new EditorStickyScroll()),
