@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject, CancelableAsyncIterableObject, createCancelableAsyncIterable, RunOnceScheduler } from '../../../../base/common/async.js';
+import { AsyncIterableProducer, CancelableAsyncIterableObject, createCancelableAsyncIterable, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -15,7 +15,7 @@ export interface IHoverComputer<TArgs, TResult> {
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: (args: TArgs, token: CancellationToken) => AsyncIterableObject<TResult>;
+	computeAsync?: (args: TArgs, token: CancellationToken) => AsyncIterableProducer<TResult>;
 	/**
 	 * This is called after all the hover time
 	 */

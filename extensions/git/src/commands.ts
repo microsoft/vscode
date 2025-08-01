@@ -110,6 +110,16 @@ class RefItem implements QuickPickItem {
 		return undefined;
 	}
 
+	get refId(): string {
+		switch (this.ref.type) {
+			case RefType.Head:
+				return `refs/heads/${this.ref.name}`;
+			case RefType.RemoteHead:
+				return `refs/remotes/${this.ref.remote}/${this.ref.name}`;
+			case RefType.Tag:
+				return `refs/tags/${this.ref.name}`;
+		}
+	}
 	get refName(): string | undefined { return this.ref.name; }
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get shortCommit(): string { return (this.ref.commit || '').substring(0, this.shortCommitLength); }
@@ -2923,12 +2933,12 @@ export class CommandCenter {
 			try {
 				await item.run(repository, opts);
 			} catch (err) {
-				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree && err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
+				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree && err.gitErrorCode !== GitErrorCodes.WorktreeBranchAlreadyUsed) {
 					throw err;
 				}
 
-				if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
-					this.handleWorktreeError(err);
+				if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+					this.handleWorktreeBranchAlreadyUsed(err);
 					return false;
 				}
 
@@ -3397,8 +3407,36 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.createWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
-	async createWorktree(repository: Repository): Promise<void> {
+	@command('git.createWorktree')
+	async createWorktree(repository: any): Promise<void> {
+		repository = this.model.getRepository(repository);
+
+		if (!repository) {
+			// Single repository/submodule/worktree
+			if (this.model.repositories.length === 1) {
+				repository = this.model.repositories[0];
+			}
+		}
+
+		if (!repository) {
+			// Single repository/submodule
+			const repositories = this.model.repositories
+				.filter(r => r.kind === 'repository' || r.kind === 'submodule');
+
+			if (repositories.length === 1) {
+				repository = repositories[0];
+			}
+		}
+
+		if (!repository) {
+			// Multiple repositories/submodules
+			repository = await this.model.pickRepository(['repository', 'submodule']);
+		}
+
+		if (!repository) {
+			return;
+		}
+
 		await this._createWorktree(repository);
 	}
 
@@ -3442,16 +3480,14 @@ export class CommandCenter {
 				return;
 			}
 
-			// If the worktree is locked, we prompt to create a new branch
-			// otherwise we can use the existing selected branch or tag
-			const isWorktreeLocked = await this.isWorktreeLocked(repository, choice);
-			if (isWorktreeLocked) {
-				branch = await this.promptForBranchName(repository);
-
-				if (!branch) {
-					return;
-				}
+			// Check whether the selected branch is checked out in an existing worktree
+			const worktree = repository.worktrees.find(worktree => worktree.ref === choice.refId);
+			if (worktree) {
+				const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
+				await this.handleWorktreeConflict(worktree.path, message);
+				return;
 			}
+
 			commitish = choice.refName;
 		}
 
@@ -3488,6 +3524,14 @@ export class CommandCenter {
 			return [start, value.length];
 		};
 
+		const getValidationMessage = (value: string): InputBoxValidationMessage | undefined => {
+			const worktree = repository.worktrees.find(worktree => pathEquals(path.normalize(worktree.path), path.normalize(value)));
+			return worktree ? {
+				message: l10n.t('A worktree already exists at "{0}".', value),
+				severity: InputBoxValidationSeverity.Warning
+			} : undefined;
+		};
+
 		// Default worktree path is based on the last worktree location or a worktree folder for the repository
 		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
 		const defaultWorktreePath = defaultWorktreeRoot
@@ -3502,6 +3546,7 @@ export class CommandCenter {
 		inputBox.prompt = l10n.t('Please provide a worktree path');
 		inputBox.value = defaultWorktreePath;
 		inputBox.valueSelection = getValueSelection(inputBox.value);
+		inputBox.validationMessage = getValidationMessage(inputBox.value);
 		inputBox.ignoreFocusOut = true;
 		inputBox.buttons = [
 			{
@@ -3516,6 +3561,9 @@ export class CommandCenter {
 		const worktreePath = await new Promise<string | undefined>((resolve) => {
 			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
 			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+			disposables.push(inputBox.onDidChangeValue(value => {
+				inputBox.validationMessage = getValidationMessage(value);
+			}));
 			disposables.push(inputBox.onDidTriggerButton(async () => {
 				inputBox.value = await getWorktreePath() ?? '';
 				inputBox.valueSelection = getValueSelection(inputBox.value);
@@ -3537,46 +3585,53 @@ export class CommandCenter {
 				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
 			}
 		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.WorktreeAlreadyExists) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+				await this.handleWorktreeAlreadyExists(err);
+			} else if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+				await this.handleWorktreeBranchAlreadyUsed(err);
+			} else {
 				throw err;
 			}
 
-			this.handleWorktreeError(err);
 			return;
 		}
 	}
 
-	// If the user picks a branch that is present in any of the worktrees or the current branch, return true
-	// Otherwise, return false.
-	private async isWorktreeLocked(repository: Repository, choice: RefItem): Promise<boolean> {
-		if (!choice.refName) {
-			return false;
-		}
+	private async handleWorktreeBranchAlreadyUsed(err: any): Promise<void> {
+		const match = err.stderr.match(/fatal: '([^']+)' is already used by worktree at '([^']+)'/);
 
-		const worktrees = await repository.getWorktrees();
-
-		const isInWorktree = worktrees.some(worktree => worktree.ref === `refs/heads/${choice.refName}`);
-		const isCurrentBranch = repository.HEAD?.name === choice.refName;
-
-		return isInWorktree || isCurrentBranch;
-	}
-
-	private async handleWorktreeError(err: any): Promise<void> {
-		const match = err.stderr.match(/^fatal: '([^']+)' is already used by worktree at '([^']+)'/);
 		if (!match) {
 			return;
 		}
 
 		const [, branch, path] = match;
+		const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', branch, path);
+		await this.handleWorktreeConflict(path, message);
+	}
+
+	private async handleWorktreeAlreadyExists(err: any): Promise<void> {
+		const match = err.stderr.match(/fatal: '([^']+)'/);
+
+		if (!match) {
+			return;
+		}
+
+		const [, path] = match;
+		const message = l10n.t('A worktree already exists at "{0}".', path);
+		await this.handleWorktreeConflict(path, message);
+	}
+
+	private async handleWorktreeConflict(path: string, message: string): Promise<void> {
+		await this.model.openRepository(path, true);
+
 		const worktreeRepository = this.model.getRepository(path);
 
 		if (!worktreeRepository) {
 			return;
 		}
 
-		const openWorktree = l10n.t('Open in Current Window');
-		const openWorktreeInNewWindow = l10n.t('Open in New Window');
-		const message = l10n.t('Branch \'{0}\' is already checked out in the worktree at \'{1}\'.', branch, path);
+		const openWorktree = l10n.t('Open Worktree in Current Window');
+		const openWorktreeInNewWindow = l10n.t('Open Worktree in New Window');
 		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
 
 		if (choice === openWorktree) {
@@ -3584,9 +3639,9 @@ export class CommandCenter {
 		} else if (choice === openWorktreeInNewWindow) {
 			await this.openWorktreeInNewWindow(worktreeRepository);
 		}
-
 		return;
 	}
+
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
 	async deleteWorktree(repository: Repository): Promise<void> {
@@ -3640,7 +3695,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.openWorktree', { repository: true, repositoryFilter: ['worktree'] })
+	@command('git.openWorktree', { repository: true })
 	async openWorktreeInCurrentWindow(repository: Repository): Promise<void> {
 		if (!repository) {
 			return;
@@ -3650,7 +3705,7 @@ export class CommandCenter {
 		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
 	}
 
-	@command('git.openWorktreeInNewWindow', { repository: true, repositoryFilter: ['worktree'] })
+	@command('git.openWorktreeInNewWindow', { repository: true })
 	async openWorktreeInNewWindow(repository: Repository): Promise<void> {
 		if (!repository) {
 			return;

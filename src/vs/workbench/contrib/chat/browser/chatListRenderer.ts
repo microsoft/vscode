@@ -720,7 +720,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const consideredFiles: Set<string> = new Set();
 		const fileChanges: IChatChangesSummary[] = [];
 		for (const part of element.model.entireResponse.value) {
-			if (part.kind === 'textEditGroup' && !consideredFiles.has(part.uri.toString(true))) {
+			if ((part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup') && !consideredFiles.has(part.uri.toString(true))) {
 				fileChanges.push({
 					kind: 'changesSummary',
 					reference: part.uri,

@@ -936,6 +936,7 @@ export interface IChatModel extends IDisposable {
 	acceptResponseProgress(request: IChatRequestModel, progress: IChatProgress, quiet?: boolean): void;
 	setResponse(request: IChatRequestModel, result: IChatAgentResult): void;
 	completeResponse(request: IChatRequestModel): void;
+	setCustomTitle(title: string): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 }
@@ -1105,6 +1106,7 @@ export type IChatChangeEvent =
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
 	| IChatSetCheckpointEvent
+	| IChatSetCustomTitleEvent
 	;
 
 export interface IChatAddRequestEvent {
@@ -1172,6 +1174,11 @@ export interface IChatSetAgentEvent {
 	kind: 'setAgent';
 	agent: IChatAgentData;
 	command?: IChatAgentCommand;
+}
+
+export interface IChatSetCustomTitleEvent {
+	kind: 'setCustomTitle';
+	title: string;
 }
 
 export interface IChatInitEvent {
@@ -1556,8 +1563,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	setCustomTitle(title: string): void {
+	public setCustomTitle(title: string): void {
 		this._customTitle = title;
+		this._onDidChange.fire({ kind: 'setCustomTitle', title });
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
