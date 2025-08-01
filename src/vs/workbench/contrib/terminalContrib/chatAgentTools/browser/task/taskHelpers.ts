@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfiguringTask, Task } from '../../../../tasks/common/tasks.js';
@@ -66,9 +65,9 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	}
 
 	let tasksForWorkspace;
+	const workspaceFolderPath = URI.file(workspaceFolder).path;
 	for (const [folder, tasks] of workspaceFolderToTaskMap) {
-		// Use isEqual to compare URIs for cross-platform compatibility
-		if (isEqual(URI.parse(folder), URI.file(workspaceFolder))) {
+		if (URI.parse(folder).path === workspaceFolderPath) {
 			tasksForWorkspace = tasks;
 			break;
 		}
