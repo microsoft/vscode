@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AsyncIterableProducer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { registerModelAndPositionCommand } from '../../../browser/editorExtensions.js';
@@ -11,7 +12,6 @@ import { ITextModel } from '../../../common/model.js';
 import { Hover, HoverProvider } from '../../../common/languages.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { AsyncIterableProducer } from '../../../../base/common/async.js';
 
 export class HoverProviderResult {
 	constructor(
@@ -34,7 +34,7 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 	return new HoverProviderResult(provider, result, ordinal);
 }
 
-export function getHoverProviderResultsAsAsyncIterable(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): AsyncIterableProducer<HoverProviderResult> {
+export function getHoverProviderResultsAsAsyncIterable(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): AsyncIterable<HoverProviderResult> {
 	const providers = registry.ordered(model, recursive);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
 	return AsyncIterableProducer.fromPromisesResolveOrder(promises).coalesce();

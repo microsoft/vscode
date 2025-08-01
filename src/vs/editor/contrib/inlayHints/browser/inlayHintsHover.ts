@@ -150,9 +150,9 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		});
 	}
 
-	private async _resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): Promise<AsyncIterableProducer<MarkdownHover>> {
+	private async *_resolveInlayHintLabelPartHover(part: RenderedInlayHintLabelPart, token: CancellationToken): AsyncIterable<MarkdownHover> {
 		if (!part.part.location) {
-			return AsyncIterableProducer.EMPTY;
+			return;
 		}
 
 		const { uri, range } = part.part.location;
@@ -160,7 +160,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 		try {
 			const model = ref.object.textEditorModel;
 			if (!this._languageFeaturesService.hoverProvider.has(model)) {
-				return AsyncIterableProducer.EMPTY;
+				return;
 			}
 
 			for await (const item of getHoverProviderResultsAsAsyncIterable(this._languageFeaturesService.hoverProvider, model, new Position(range.startLineNumber, range.startColumn), token)) {

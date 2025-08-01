@@ -2443,6 +2443,14 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 		return AsyncIterableProducer.map(this, mapFn);
 	}
 
+	public static coalesce<T>(iterable: AsyncIterable<T | undefined | null>): AsyncIterableProducer<T> {
+		return <AsyncIterableProducer<T>>AsyncIterableProducer.filter(iterable, item => !!item);
+	}
+
+	public coalesce(): AsyncIterableProducer<NonNullable<T>> {
+		return AsyncIterableProducer.coalesce(this) as AsyncIterableProducer<NonNullable<T>>;
+	}
+
 	public static filter<T>(iterable: AsyncIterable<T>, filterFn: (item: T) => boolean): AsyncIterableProducer<T> {
 		return new AsyncIterableProducer<T>(async (emitter) => {
 			for await (const item of iterable) {
