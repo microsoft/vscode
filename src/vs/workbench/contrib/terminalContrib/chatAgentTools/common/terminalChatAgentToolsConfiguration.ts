@@ -77,7 +77,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 							],
 							description: localize('autoApprove.matchCommandLine', "Whether to match against the full command line, as opposed to splitting by sub-commands and inline commands."),
 						}
-					}
+					},
+					required: ['approve']
 				},
 				{
 					type: 'null',
