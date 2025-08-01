@@ -12,7 +12,7 @@ import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatChangesSummary as IChatFileChangesSummary, IChatService } from '../../common/chatService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
+import { IChatEditingSession, IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -24,7 +24,7 @@ import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { autorun, derived, IObservableWithChange } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IObservableWithChange } from '../../../../../base/common/observable.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -39,6 +39,8 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
+	private readonly diffsBetweenRequests = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 
 	private fileChanges: readonly IChatFileChangesSummary[];
 	private fileChangesDiffsObservable: IObservableWithChange<Map<string, IEditSessionEntryDiff>, void>;
@@ -86,7 +88,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				if (!editSession) {
 					continue;
 				}
-				const diff = editSession.getEntryDiffBetweenRequests(change.reference, firstRequestId, lastRequestId)?.read(r);
+				const diff = this.getCachedEntryDiffBetweenRequests(editSession, change.reference, firstRequestId, lastRequestId)?.read(r);
 				if (!diff) {
 					continue;
 				}
@@ -94,6 +96,16 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 			}
 			return fileChangesDiffs;
 		});
+	}
+
+	public getCachedEntryDiffBetweenRequests(editSession: IChatEditingSession, uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> | undefined {
+		const key = `${uri}\0${startRequestId}\0${stopRequestId}`;
+		let observable = this.diffsBetweenRequests.get(key);
+		if (!observable) {
+			observable = editSession.getEntryDiffBetweenRequests(uri, startRequestId, stopRequestId);
+			this.diffsBetweenRequests.set(key, observable);
+		}
+		return observable;
 	}
 
 	private renderHeader(container: HTMLElement): IDisposable {

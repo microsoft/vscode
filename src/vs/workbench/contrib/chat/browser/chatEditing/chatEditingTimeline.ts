@@ -42,7 +42,6 @@ export class ChatEditingTimeline {
 	private readonly _linearHistoryIndex = observableValue<number>(this, 0);
 
 	private readonly _diffsBetweenStops = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
-	private readonly _diffsBetweenRequests = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 	private readonly _fullDiffs = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 	private readonly _ignoreTrimWhitespaceObservable: IObservable<boolean>;
 
@@ -398,17 +397,7 @@ export class ChatEditingTimeline {
 		}
 	}
 
-	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> | undefined {
-		const key = `${uri}\0${startRequestId}\0${stopRequestId}`;
-		let observable = this._diffsBetweenRequests.get(key);
-		if (!observable) {
-			observable = this._createDiffBetweenRequestsObservable(uri, startRequestId, stopRequestId);
-			this._diffsBetweenRequests.set(key, observable);
-		}
-		return observable;
-	}
-
-	private _createDiffBetweenRequestsObservable(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
+	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
 		const snapshotUris = derivedOpts<[URI | undefined, URI | undefined]>({ equalsFn: (a, b) => arraysEqual(a, b, isEqual) },
 			reader => {
 				const firstSnapshotUri = this._getFirstSnapshotForUriAfterRequest(uri, startRequestId, true).read(reader);
