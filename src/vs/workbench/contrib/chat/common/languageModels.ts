@@ -27,15 +27,16 @@ export const enum ChatMessageRole {
 	Assistant,
 }
 
-export enum ToolResultAudience {
+export enum LanguageModelPartAudience {
 	Assistant = 0,
 	User = 1,
+	Extension = 2,
 }
 
 export interface IChatMessageTextPart {
 	type: 'text';
 	value: string;
-	audience?: ToolResultAudience[];
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatMessageImagePart {
@@ -47,7 +48,7 @@ export interface IChatMessageDataPart {
 	type: 'data';
 	mimeType: string;
 	data: VSBuffer;
-	audience?: ToolResultAudience[];
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatImageURLPart {
@@ -100,7 +101,7 @@ export interface IChatMessage {
 export interface IChatResponseTextPart {
 	type: 'text';
 	value: string;
-	audience?: ToolResultAudience[];
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatResponsePromptTsxPart {
@@ -111,7 +112,7 @@ export interface IChatResponsePromptTsxPart {
 export interface IChatResponseDataPart {
 	type: 'data';
 	value: IChatImageURLPart;
-	audience?: ToolResultAudience[];
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatResponseToolUsePart {
