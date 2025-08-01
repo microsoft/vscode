@@ -65,8 +65,13 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	}
 
 	let tasksForWorkspace;
+	const workspaceFolderPath = URI.file(workspaceFolder).path;
 	for (const [folder, tasks] of workspaceFolderToTaskMap) {
-		if (URI.file(folder).path.replaceAll('\\', '/') === URI.file(workspaceFolder).path.replaceAll('\\', '/')) {
+		const parsed = URI.parse(folder);
+		if (parsed.authority === 'vscode-remote' && parsed.path === workspaceFolderPath) {
+			tasksForWorkspace = tasks;
+			break;
+		} else if (URI.file(folder).path === workspaceFolderPath) {
 			tasksForWorkspace = tasks;
 			break;
 		}
