@@ -1704,7 +1704,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .checkpoint-file-changes-summary.chat-file-changes-collapsed .chat-summary-list,
 .interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
-display: none;
+	display: none;
 }
 
 .interactive-session .chat-used-context {
@@ -1750,6 +1750,10 @@ display: none;
 
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {
 	border-radius: 4px;
+}
+
+.interactive-session .chat-summary-list .monaco-list .monaco-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
 }
 
 .interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
