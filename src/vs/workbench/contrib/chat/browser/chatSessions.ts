@@ -715,8 +715,8 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
-	private getProviderDisplayName(): string {
-		const contributions = this.chatSessionsService.getChatSessionContributions();
+	private async getProviderDisplayName(): Promise<string> {
+		const contributions = await this.chatSessionsService.getChatSessionContributions();
 		const contribution = contributions.find(c => c.type === this.provider.chatSessionType);
 		if (contribution) {
 			return contribution.displayName;
