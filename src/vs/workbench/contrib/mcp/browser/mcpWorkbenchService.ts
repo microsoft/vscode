@@ -410,29 +410,27 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private async doInstall(server: McpWorkbenchServer, installTask: () => Promise<IWorkbenchLocalMcpServer>): Promise<IWorkbenchMcpServer> {
-		const startTime = Date.now();
 		const source = server.gallery ? 'gallery' : 'local';
 		const serverName = server.name;
 		// Check for inputs in installable config or if it comes from handleURL with inputs
 		const hasInputs = !!(server.installable?.inputs && server.installable.inputs.length > 0);
-		
+
 		this.installing.push(server);
 		this._onChange.fire(server);
-		
+
 		try {
 			await installTask();
 			const result = await this.waitAndGetInstalledMcpServer(server);
-			
+
 			// Track successful installation
 			this.telemetryService.publicLog2<McpServerInstallData, McpServerInstallClassification>('mcp/serverInstall', {
 				serverName,
 				source,
 				scope: result.local?.scope ?? 'unknown',
 				success: true,
-				duration: Date.now() - startTime,
 				hasInputs
 			});
-			
+
 			return result;
 		} catch (error) {
 			// Track failed installation
@@ -442,10 +440,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				scope: 'unknown',
 				success: false,
 				error: error instanceof Error ? error.message : String(error),
-				duration: Date.now() - startTime,
 				hasInputs
 			});
-			
+
 			throw error;
 		}
 	}

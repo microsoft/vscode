@@ -73,7 +73,6 @@ export type McpServerInstallData = {
 	scope: string;
 	success: boolean;
 	error?: string;
-	duration: number;
 	hasInputs: boolean;
 };
 
@@ -84,8 +83,7 @@ export type McpServerInstallClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation source (gallery or local)' };
 	scope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation scope (user, workspace, etc.)' };
 	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether installation succeeded' };
-	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error message if installation failed' };
-	duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Installation duration in milliseconds' };
+	error?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error message if installation failed' };
 	hasInputs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server requires input configuration' };
 };
 
