@@ -35,30 +35,9 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, LocalMcpServerScope, REMOTE_USER_CONFIG_ID, USER_CONFIG_ID, WORKSPACE_CONFIG_ID, WORKSPACE_FOLDER_CONFIG_ID_PREFIX } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
+import { McpServerInstallData, McpServerInstallClassification } from '../common/mcpServer.js';
 import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerInstallState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-
-type McpServerInstallData = {
-	serverName: string;
-	source: 'gallery' | 'local';
-	scope: string;
-	success: boolean;
-	error?: string;
-	duration: number;
-	hasInputs: boolean;
-};
-
-type McpServerInstallClassification = {
-	owner: 'connor4312';
-	comment: 'MCP server installation event tracking';
-	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server being installed' };
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation source (gallery or local)' };
-	scope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation scope (user, workspace, etc.)' };
-	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether installation succeeded' };
-	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error message if installation failed' };
-	duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation duration in milliseconds' };
-	hasInputs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server requires input configuration' };
-};
 
 interface IMcpServerStateProvider<T> {
 	(mcpWorkbenchServer: McpWorkbenchServer): T;
@@ -434,7 +413,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		const startTime = Date.now();
 		const source = server.gallery ? 'gallery' : 'local';
 		const serverName = server.name;
-		const hasInputs = !!server.installable?.config.inputs;
+		// Check for inputs in installable config or if it comes from handleURL with inputs
+		const hasInputs = !!(server.installable?.inputs && server.installable.inputs.length > 0);
 		
 		this.installing.push(server);
 		this._onChange.fire(server);

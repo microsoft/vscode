@@ -67,7 +67,7 @@ type ElicitationTelemetryClassification = {
 	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
 };
 
-type McpServerInstallData = {
+export type McpServerInstallData = {
 	serverName: string;
 	source: 'gallery' | 'local';
 	scope: string;
@@ -77,7 +77,7 @@ type McpServerInstallData = {
 	hasInputs: boolean;
 };
 
-type McpServerInstallClassification = {
+export type McpServerInstallClassification = {
 	owner: 'connor4312';
 	comment: 'MCP server installation event tracking';
 	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server being installed' };
