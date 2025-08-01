@@ -532,6 +532,23 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();
 						}
+						// Check all provider trigger characters when backspacing
+						if (!sent) {
+							for (const provider of this._terminalCompletionService.providers) {
+								if (!provider.triggerCharacters) {
+									continue;
+								}
+								for (const triggerChar of provider.triggerCharacters) {
+									if (char === triggerChar) {
+										sent = this._requestTriggerCharQuickSuggestCompletions();
+										break;
+									}
+								}
+								if (sent) {
+									break;
+								}
+							}
+						}
 					}
 				}
 			}

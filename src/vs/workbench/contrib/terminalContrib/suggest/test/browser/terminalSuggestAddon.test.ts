@@ -6,7 +6,7 @@
 import { strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PosixShellType, WindowsShellType, GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
-import { isInlineCompletionSupported } from '../../browser/terminalSuggestAddon.js';
+import { isInlineCompletionSupported, normalizePathSeparator } from '../../browser/terminalSuggestAddon.js';
 
 suite('Terminal Suggest Addon - Inline Completion, Shell Type Support', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,5 +31,27 @@ suite('Terminal Suggest Addon - Inline Completion, Shell Type Support', () => {
 		strictEqual(isInlineCompletionSupported(WindowsShellType.Wsl), false);
 		strictEqual(isInlineCompletionSupported(GeneralShellType.Python), false);
 		strictEqual(isInlineCompletionSupported(undefined), false);
+	});
+});
+
+suite('Terminal Suggest Addon - Path Normalization', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('should normalize path separators correctly', () => {
+		// Test forward slash normalization
+		strictEqual(normalizePathSeparator('path\\to\\file', '/'), 'path/to/file');
+		strictEqual(normalizePathSeparator('path/to/file', '/'), 'path/to/file');
+		strictEqual(normalizePathSeparator('path\\mixed/separators\\file', '/'), 'path/mixed/separators/file');
+
+		// Test backslash normalization
+		strictEqual(normalizePathSeparator('path/to/file', '\\'), 'path\\to\\file');
+		strictEqual(normalizePathSeparator('path\\to\\file', '\\'), 'path\\to\\file');
+		strictEqual(normalizePathSeparator('path/mixed\\separators/file', '\\'), 'path\\mixed\\separators\\file');
+
+		// Test edge cases
+		strictEqual(normalizePathSeparator('', '/'), '');
+		strictEqual(normalizePathSeparator('', '\\'), '');
+		strictEqual(normalizePathSeparator('simple', '/'), 'simple');
+		strictEqual(normalizePathSeparator('simple', '\\'), 'simple');
 	});
 });
