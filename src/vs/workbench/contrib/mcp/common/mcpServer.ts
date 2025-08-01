@@ -47,10 +47,10 @@ type ServerBootData = {
 type ServerBootClassification = {
 	owner: 'connor4312';
 	comment: 'Details the capabilities of the MCP server';
-	supportsLogging: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports logging' };
-	supportsPrompts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports prompts' };
-	supportsResources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports resource' };
-	toolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of tools the server advertises' };
+	supportsLogging: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server supports logging' };
+	supportsPrompts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server supports prompts' };
+	supportsResources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server supports resource' };
+	toolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tools the server advertises' };
 	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server' };
 	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
 };
@@ -83,10 +83,10 @@ export type McpServerInstallClassification = {
 	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server being installed' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation source (gallery or local)' };
 	scope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation scope (user, workspace, etc.)' };
-	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether installation succeeded' };
+	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether installation succeeded' };
 	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error message if installation failed' };
-	duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation duration in milliseconds' };
-	hasInputs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server requires input configuration' };
+	duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Installation duration in milliseconds' };
+	hasInputs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server requires input configuration' };
 };
 
 type ServerBootState = {
@@ -97,7 +97,7 @@ type ServerBootStateClassification = {
 	owner: 'connor4312';
 	comment: 'Details the capabilities of the MCP server';
 	state: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The server outcome' };
-	time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration in milliseconds to reach that state' };
+	time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Duration in milliseconds to reach that state' };
 };
 
 interface IToolCacheEntry {
