@@ -91,4 +91,77 @@ suite('DebugModel', () => {
 			disposable.dispose();
 		});
 	});
+
+	suite('Breakpoints', () => {
+		test('updateBreakpoints should preserve properties when updating', async () => {
+			const disposable = new DisposableStore();
+
+			try {
+				const storage = disposable.add(new TestStorageService());
+				const model = new DebugModel(
+					disposable.add(new MockDebugStorage(storage)),
+					<any>{ isDirty: () => false },
+					{ getUriIdentity: (uri: any) => uri.toString() } as any,
+					new NullLogService()
+				);
+				disposable.add(model);
+
+				const uri = { toString: () => 'file:///test.js' } as any;
+				model.addBreakpoints(uri, [{
+					lineNumber: 10,
+					column: undefined,
+					enabled: true,
+				}]);
+
+				let breakpoints = model.getBreakpoints();
+				assert.strictEqual(breakpoints.length, 1);
+				const breakpointId = breakpoints[0].getId();
+				assert.strictEqual(breakpoints[0].logMessage, undefined);
+				assert.strictEqual(breakpoints[0].condition, undefined);
+
+				const updateDataLogMessage = new Map<string, { logMessage: string }>();
+				updateDataLogMessage.set(breakpointId, { logMessage: 'Initial log message' });
+				model.updateBreakpoints(updateDataLogMessage);
+
+				breakpoints = model.getBreakpoints();
+				assert.strictEqual(breakpoints[0].logMessage, 'Initial log message');
+				assert.strictEqual(breakpoints[0].condition, undefined);
+
+				const updateDataCondition = new Map<string, {
+					condition: string;
+					hitCondition: undefined;
+					logMessage: undefined;
+				}>();
+				updateDataCondition.set(breakpointId, {
+					condition: 'x === 42',
+					hitCondition: undefined,
+					logMessage: undefined
+				});
+				model.updateBreakpoints(updateDataCondition);
+
+				breakpoints = model.getBreakpoints();
+				assert.strictEqual(breakpoints[0].condition, 'x === 42');
+				assert.strictEqual(breakpoints[0].logMessage, 'Initial log message');
+
+				const updateSecondDataCondition = new Map<string, {
+					condition: string;
+					hitCondition: undefined;
+					logMessage: undefined;
+				}>();
+				updateSecondDataCondition.set(breakpointId, {
+					condition: 'x === 43',
+					hitCondition: undefined,
+					logMessage: undefined
+				});
+				model.updateBreakpoints(updateSecondDataCondition);
+
+				breakpoints = model.getBreakpoints();
+				assert.strictEqual(breakpoints[0].condition, 'x === 43');
+				assert.strictEqual(breakpoints[0].logMessage, 'Initial log message');
+
+			} finally {
+				disposable.dispose();
+			}
+		});
+	});
 });
