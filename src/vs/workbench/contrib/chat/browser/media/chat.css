@@ -2421,15 +2421,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 2px 0;
 }
 
-.chat-todo-list-widget .todo-item[title] {
-	cursor: help;
-}
-
 .chat-todo-list-widget .todo-item[title]:hover {
 	background-color: var(--vscode-list-hoverBackground);
-	border-radius: 3px;
-	padding: 2px 4px;
-	margin: 0 -4px;
 }
 
 .chat-todo-list-widget .todo-status-icon {
