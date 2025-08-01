@@ -96,7 +96,7 @@ Types: deb
 URIs: https://packages.microsoft.com/repos/code
 Suites: stable
 Components: main
-Architectures: amd64,arm64,armhf
+Architectures: @@ARCHITECTURE@@
 Signed-By: $CODE_TRUSTED_PART
 EOF
 			if [ -f "$CODE_SOURCE_PART" ]; then
@@ -105,7 +105,7 @@ EOF
 		else
 			echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
-deb [arch=amd64,arm64,armhf] https://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
+deb [arch=@@ARCHITECTURE@@] https://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
 		fi
 
 		# Sourced from https://packages.microsoft.com/keys/microsoft.asc
