@@ -86,10 +86,13 @@ export class ChatTodoListWidget extends Disposable {
 	private createClearButton(): void {
 		this.clearButton = new Button(dom.$('.todo-clear-button-container'), {
 			supportIcons: true,
-			title: localize('chat.todoList.clearButton', 'Clear all tasks')
+			title: localize('chat.todoList.clearButton', 'Clear all tasks'),
+			ariaLabel: localize('chat.todoList.clearButton.ariaLabel', 'Clear all tasks')
 		});
 		this.clearButton.element.tabIndex = -1;
 		this.clearButton.icon = Codicon.trash;
+		// Initially hide the button
+		this.clearButton.element.style.display = 'none';
 		this._register(this.clearButton);
 		
 		this._register(this.clearButton.onDidClick(() => {
@@ -122,6 +125,8 @@ export class ChatTodoListWidget extends Disposable {
 		if (todoList.length > 0) {
 			this.renderTodoList(todoList);
 			this.domNode.style.display = 'block';
+			// Show clear button when there are todos
+			this.clearButton.element.style.display = 'block';
 		} else {
 			this.domNode.style.display = 'none';
 		}

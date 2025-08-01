@@ -2424,14 +2424,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	background-color: transparent;
+	border: none;
 }
 
 .chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.chat-todo-list-widget .todo-clear-button-container .monaco-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
 .chat-todo-list-widget .todo-clear-button-container .monaco-button .codicon {
 	font-size: 14px;
+	color: var(--vscode-foreground);
 }
 
 .chat-todo-list-widget .todo-list-container {
