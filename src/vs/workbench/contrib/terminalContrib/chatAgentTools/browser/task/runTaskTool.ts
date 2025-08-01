@@ -88,12 +88,12 @@ export class RunTaskTool implements IToolImpl {
 		}
 		let output = '';
 		if (result?.exitCode) {
-			output = `Task '${taskLabel}' failed with exit code ${result.exitCode}.`;
+			output = `Task \`${taskLabel}\` failed with exit code ${result.exitCode}.`;
 		} else {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task '${taskLabel}' finished`;
+				output += `Task \`${taskLabel}\` finished`;
 			} else {
-				output += `Task '${taskLabel}' started and will continue to run in the background.`;
+				output += `Task \`${taskLabel}\` started and will continue to run in the background.`;
 			}
 		}
 		this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {

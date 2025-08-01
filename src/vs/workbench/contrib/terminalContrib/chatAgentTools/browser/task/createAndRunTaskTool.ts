@@ -131,12 +131,12 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		}
 		let output = '';
 		if (result?.exitCode) {
-			output = `Task '${args.task.label}' failed with exit code ${result.exitCode}.`;
+			output = `Task \`${args.task.label}\` failed with exit code ${result.exitCode}.`;
 		} else {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task '${args.task.label}' finished`;
+				output += `Task \`${args.task.label}\` finished`;
 			} else {
-				output += `Task '${args.task.label}' started and will continue to run in the background.`;
+				output += `Task \`${args.task.label}\` started and will continue to run in the background.`;
 			}
 		}
 		this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
