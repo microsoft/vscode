@@ -100,13 +100,40 @@ export class CommandLineAutoApprover extends Disposable {
 		return { result: 'noMatch', reason: `Command line '${commandLine}' has no matching auto approve entries` };
 	}
 
+	private _extractCommandFromEnvAssignments(command: string, shell: string, os: OperatingSystem): string {
+		// Trim leading/trailing whitespace
+		const trimmedCommand = command.trim();
+		
+		if (isPowerShell(shell, os)) {
+			// PowerShell environment variable syntax: $env:VAR='value'; command
+			// We'll keep the current behavior as PowerShell has different patterns
+			return trimmedCommand;
+		}
+		
+		// For bash/sh/bourne shell and unknown shells (fallback to bourne shell syntax)
+		// Handle environment variable assignments like: VAR=value VAR2=value command
+		const envVarPattern = /^([A-Za-z_][A-Za-z0-9_]*=(?:[^\s'"]|'[^']*'|"[^"]*")*\s+)+/;
+		const match = trimmedCommand.match(envVarPattern);
+		
+		if (match) {
+			// Remove the environment variable assignments from the beginning
+			const actualCommand = trimmedCommand.slice(match[0].length).trim();
+			return actualCommand || trimmedCommand; // Fallback to original if nothing left
+		}
+		
+		return trimmedCommand;
+	}
+
 	private _commandMatchesRegex(regex: RegExp, command: string, shell: string, os: OperatingSystem): boolean {
-		if (regex.test(command)) {
+		// First extract the actual command from any environment variable assignments
+		const actualCommand = this._extractCommandFromEnvAssignments(command, shell, os);
+		
+		if (regex.test(actualCommand)) {
 			return true;
-		} else if (isPowerShell(shell, os) && command.startsWith('(')) {
+		} else if (isPowerShell(shell, os) && actualCommand.startsWith('(')) {
 			// Allow ignoring of the leading ( for PowerShell commands as it's a command pattern to
 			// operate on the output of a command. For example `(Get-Content README.md) ...`
-			if (regex.test(command.slice(1))) {
+			if (regex.test(actualCommand.slice(1))) {
 				return true;
 			}
 		}
