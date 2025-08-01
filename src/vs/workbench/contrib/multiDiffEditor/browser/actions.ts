@@ -56,6 +56,7 @@ export class GoToFileAction extends Action2 {
 		}
 
 		await editorService.openEditor({
+			label: item?.goToFileEditorTitle,
 			resource: targetUri,
 			options: {
 				selection: selections?.[0],

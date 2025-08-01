@@ -6,13 +6,13 @@
 import { Dimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ScrollEvent } from '../../../../base/common/scrollable.js';
+import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration } from '../../../common/model.js';
-import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
 import { HoverStartSource } from './hoverOperation.js';
-import { ScrollEvent } from '../../../../base/common/scrollable.js';
 import { AsyncIterableProducer } from '../../../../base/common/async.js';
 
 export interface IHoverPart {

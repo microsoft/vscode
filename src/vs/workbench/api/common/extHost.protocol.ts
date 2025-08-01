@@ -58,7 +58,7 @@ import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
 import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
-import { IChatSessionContent } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
@@ -1303,7 +1303,12 @@ export interface IDynamicChatAgentProps {
 	fullName?: string;
 }
 
-export interface MainThreadChatAgentsShape2 extends IDisposable {
+export interface IChatAgentProgressShape {
+	$handleProgressChunk(requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
+	$handleAnchorResolve(requestId: string, handle: string, anchor: Dto<IChatContentInlineReference>): void;
+}
+
+export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDisposable {
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
 	$registerChatParticipantDetectionProvider(handle: number): void;
 	$unregisterChatParticipantDetectionProvider(handle: number): void;
@@ -1313,9 +1318,6 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
-	$handleProgressChunk(requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
-	$handleAnchorResolve(requestId: string, handle: string, anchor: Dto<IChatContentInlineReference>): void;
-
 
 	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
@@ -1450,6 +1452,15 @@ export interface MainThreadUriOpenersShape extends IDisposable {
 export interface ExtHostUriOpenersShape {
 	$canOpenUri(id: string, uri: UriComponents, token: CancellationToken): Promise<languages.ExternalUriOpenerPriority>;
 	$openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
+}
+
+export interface MainThreadChatOutputRendererShape extends IDisposable {
+	$registerChatOutputRenderer(viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void;
+	$unregisterChatOutputRenderer(viewType: string): void;
+}
+
+export interface ExtHostChatOutputRendererShape {
+	$renderChatOutput(viewType: string, mime: string, valueData: VSBuffer, webviewHandle: string, token: CancellationToken): Promise<void>;
 }
 
 export interface MainThreadProfileContentHandlersShape {
@@ -3101,13 +3112,44 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
+export interface IChatRequestTurnDto {
+
+}
+
+export interface ChatSessionDto {
+	id: string;
+
+	history: Array<
+		| { type: 'request'; prompt: string }
+		| { type: 'response'; parts: IChatProgressDto[] }>;
+
+	hasActiveResponseCallback: boolean;
+	hasRequestHandler: boolean;
+}
+
+
 export interface MainThreadChatSessionsShape extends IDisposable {
-	$registerChatSessionsProvider(handle: number, chatSessionType: string): void;
-	$unregisterChatSessionsProvider(handle: number): void;
+	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void;
+	$unregisterChatSessionItemProvider(handle: number): void;
+	$onDidChangeChatSessionItems(chatSessionType: string): void;
+
+	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void;
+	$unregisterChatSessionContentProvider(handle: number): void;
+
+	$handleProgressChunk(handle: number, sessionId: string, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
+	$handleAnchorResolve(handle: number, sessionId: string, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
+	$handleProgressComplete(handle: number, sessionId: string, requestId: string): void;
+
+	$showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void>;
 }
 
 export interface ExtHostChatSessionsShape {
-	$provideChatSessions(handle: number, token: CancellationToken): Promise<IChatSessionContent[]>;
+	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
+
+	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
+	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;
+	$disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void>;
+	$invokeChatSessionRequestHandler(providerHandle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;
 }
 
 // --- proxy identifiers
@@ -3188,6 +3230,7 @@ export const MainContext = {
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
 	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),
+	MainThreadChatOutputRenderer: createProxyIdentifier<MainThreadChatOutputRendererShape>('MainThreadChatOutputRenderer'),
 };
 
 export const ExtHostContext = {
@@ -3233,6 +3276,7 @@ export const ExtHostContext = {
 	ExtHostStorage: createProxyIdentifier<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createProxyIdentifier<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostUriOpeners: createProxyIdentifier<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
+	ExtHostChatOutputRenderer: createProxyIdentifier<ExtHostChatOutputRendererShape>('ExtHostChatOutputRenderer'),
 	ExtHostProfileContentHandlers: createProxyIdentifier<ExtHostProfileContentHandlersShape>('ExtHostProfileContentHandlers'),
 	ExtHostOutputService: createProxyIdentifier<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHostLabelService: createProxyIdentifier<ExtHostLabelServiceShape>('ExtHostLabelService'),

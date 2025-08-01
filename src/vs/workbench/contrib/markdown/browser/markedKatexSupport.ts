@@ -75,9 +75,21 @@ export class MarkedKatexSupport {
 			'font-weight',
 			'font-size',
 			'height',
+			'min-height',
+			'max-height',
 			'width',
+			'min-width',
+			'max-width',
 			'margin',
+			'margin-top',
+			'margin-right',
+			'margin-bottom',
+			'margin-left',
 			'padding',
+			'padding-top',
+			'padding-right',
+			'padding-bottom',
+			'padding-left',
 			'top',
 			'left',
 			'right',
@@ -85,6 +97,10 @@ export class MarkedKatexSupport {
 			'vertical-align',
 			'transform',
 			'border',
+			'border-top-width',
+			'border-right-width',
+			'border-bottom-width',
+			'border-left-width',
 			'color',
 			'white-space',
 			'text-align',
@@ -150,12 +166,20 @@ export namespace MarkedKatexExtension {
 		};
 	}
 
-	function createRenderer(katex: typeof import('katex').default, options: MarkedKatexOptions, newlineAfter: boolean): marked.RendererExtensionFunction {
+	function createRenderer(katex: typeof import('katex').default, options: MarkedKatexOptions, isBlock: boolean): marked.RendererExtensionFunction {
 		return (token: marked.Tokens.Generic) => {
-			return katex.renderToString(token.text, {
-				...options,
-				displayMode: token.displayMode,
-			}) + (newlineAfter ? '\n' : '');
+			let out: string;
+			try {
+				out = katex.renderToString(token.text, {
+					...options,
+					throwOnError: true,
+					displayMode: token.displayMode,
+				});
+			} catch {
+				// On failure, just use the original text including the wrapping $ or $$
+				out = token.raw;
+			}
+			return out + (isBlock ? '\n' : '');
 		};
 	}
 
@@ -207,6 +231,9 @@ export namespace MarkedKatexExtension {
 		return {
 			name: 'blockKatex',
 			level: 'block',
+			start(src: string) {
+				return src.match(new RegExp(blockRule.source, 'm'))?.index;
+			},
 			tokenizer(src: string, tokens: marked.Token[]) {
 				const match = src.match(blockRule);
 				if (match) {

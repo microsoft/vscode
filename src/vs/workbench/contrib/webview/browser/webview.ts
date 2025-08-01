@@ -85,6 +85,7 @@ export const enum WebviewContentPurpose {
 	NotebookRenderer = 'notebookRenderer',
 	CustomEditor = 'customEditor',
 	WebviewView = 'webviewView',
+	ChatOutputItem = 'chatOutputItem',
 }
 
 export type WebviewStyles = { readonly [key: string]: string | number };
@@ -285,6 +286,8 @@ export interface IWebviewElement extends IWebview {
 	 * @param parent Element to append the webview to.
 	 */
 	mountTo(parent: HTMLElement, targetWindow: CodeWindow): void;
+
+	reinitializeAfterDismount(): void;
 }
 
 /**

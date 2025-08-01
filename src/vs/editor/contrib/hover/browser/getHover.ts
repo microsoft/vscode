@@ -40,8 +40,12 @@ export function getHoverProviderResultsAsAsyncIterable(registry: LanguageFeature
 	return AsyncIterableProducer.fromPromisesResolveOrder(promises).coalesce();
 }
 
-export function getHoversPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): Promise<Hover[]> {
-	return getHoverProviderResultsAsAsyncIterable(registry, model, position, token, recursive).map(item => item.hover).toPromise();
+export async function getHoversPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): Promise<Hover[]> {
+	const out: Hover[] = [];
+	for await (const item of getHoverProviderResultsAsAsyncIterable(registry, model, position, token, recursive)) {
+		out.push(item.hover);
+	}
+	return out;
 }
 
 registerModelAndPositionCommand('_executeHoverProvider', (accessor, model, position): Promise<Hover[]> => {

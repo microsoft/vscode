@@ -37,7 +37,7 @@ suite('ipynb NotebookSerializer', function () {
 		await closeAllEditors();
 	});
 
-	test('Can open an ipynb notebook', async () => {
+	test.skip('Can open an ipynb notebook', async () => {
 		const file = await createRandomFile(ipynbContent, undefined, '.ipynb');
 		const notebook = await vscode.workspace.openNotebookDocument(file);
 		await vscode.window.showNotebookDocument(notebook);

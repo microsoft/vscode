@@ -38,6 +38,7 @@
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.15.13",
     "@vscode/vsce": "2.20.1",
+    "ansi-colors": "^3.2.3",
     "byline": "^5.0.0",
     "debug": "^4.3.2",
     "electron-osx-sign": "^0.4.16",

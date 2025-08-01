@@ -424,6 +424,11 @@ function sanitizeRenderedMarkdown(
 	return domSanitize.sanitizeHtml(renderedMarkdown, sanitizerConfig);
 }
 
+export const allowedMarkdownHtmlTags = Object.freeze([
+	...domSanitize.basicMarkupHtmlTags,
+	'input', // Allow inputs for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
+]);
+
 export const allowedMarkdownHtmlAttributes = [
 	'align',
 	'autoplay',
@@ -483,7 +488,7 @@ function getSanitizerOptions(isTrusted: boolean | MarkdownStringTrustedOptions, 
 		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
 		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
 		allowedTags: {
-			override: options.allowedTags?.override ?? domSanitize.basicMarkupHtmlTags
+			override: options.allowedTags?.override ?? allowedMarkdownHtmlTags
 		},
 		allowedAttributes: {
 			override: allowedMarkdownHtmlAttributes,
@@ -541,15 +546,19 @@ function getSanitizerOptions(isTrusted: boolean | MarkdownStringTrustedOptions, 
 				}
 			},
 			uponSanitizeElement: (element, e) => {
+				let wantsReplaceWithPlaintext = false;
 				if (e.tagName === 'input') {
 					if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
 						element.setAttribute('disabled', '');
-					} else if (!options.replaceWithPlaintext) {
+					} else if (options.replaceWithPlaintext) {
+						wantsReplaceWithPlaintext = true;
+					} else {
 						element.remove();
+						return;
 					}
 				}
 
-				if (options.replaceWithPlaintext && !e.allowedTags[e.tagName] && e.tagName !== 'body') {
+				if (options.replaceWithPlaintext && (wantsReplaceWithPlaintext || (!e.allowedTags[e.tagName] && e.tagName !== 'body'))) {
 					if (element.parentElement) {
 						let startTagText: string;
 						let endTagText: string | undefined;

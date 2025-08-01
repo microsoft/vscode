@@ -31,7 +31,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -278,6 +278,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
 
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+
 	get currentLanguageModel() {
 		return this._currentLanguageModel?.identifier;
 	}
@@ -384,7 +385,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		this._indexOfLastOpenedContext = -1;
 		this._onDidChangeVisibility = this._register(new Emitter<boolean>());
-		this._contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
+		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this.inputEditorHeight = 0;
 		this.followupsDisposables = this._register(new DisposableStore());
 		this.attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -423,14 +424,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this.promptFileAttached = ChatContextKeys.hasPromptFile.bindTo(contextKeyService);
 		this.chatModeKindKey = ChatContextKeys.chatModeKind.bindTo(contextKeyService);
+		const chatToolCount = ChatContextKeys.chatToolCount.bindTo(contextKeyService);
+
+		this._register(autorun(reader => {
+			let count = 0;
+			for (const enabled of this.selectedToolsModel.enablementMap.read(reader).values()) {
+				if (enabled) { count++; }
+			}
+
+			chatToolCount.set(count);
+		}));
 
 		this.history = this.loadHistory();
 		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatHistoryEntry>([{ text: '', state: this.getInputState() }], ChatInputHistoryMaxEntries, historyKeyFn)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			const newOptions: IEditorOptions = {};
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
-				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
+				newOptions.ariaLabel = this._getAriaLabel();
 			}
+			if (e.affectsConfiguration('editor.wordSegmenterLocales')) {
+				newOptions.wordSegmenterLocales = this.configurationService.getValue<string | string[]>('editor.wordSegmenterLocales');
+			}
+
+			this.inputEditor.updateOptions(newOptions);
 		}));
 
 		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar, { verticalScrollMode: ScrollbarVisibility.Visible }));
@@ -473,8 +490,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initSelectedModel() {
-		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
-		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'github.copilot-chat/gpt-4o');
+		let persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
+		if (persistedSelection && persistedSelection.startsWith('github.copilot-chat/')) {
+			// Convert the persisted selection to make it backwards comptabile with the old LM API. TODO @lramos15 - Remove this after a bit
+			persistedSelection = persistedSelection.replace('github.copilot-chat/', 'copilot/');
+			this.storageService.store(this.getSelectedModelStorageKey(), persistedSelection, StorageScope.APPLICATION, StorageTarget.USER);
+		}
+		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'copilot/gpt-4.1');
 
 		if (persistedSelection) {
 			const model = this.languageModelsService.lookupLanguageModel(persistedSelection);
@@ -599,7 +621,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }))
 			.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry));
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-
 		return models;
 	}
 
@@ -672,7 +693,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const currentMode = this._currentModeObservable.get();
 		const validMode = this.chatModeService.findModeById(currentMode.id);
 		if (!validMode) {
-			this.setChatMode2(ChatMode.Agent);
+			this.setChatMode(ChatModeKind.Agent);
 			return;
 		}
 	}
@@ -707,13 +728,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
-		if (modelIsEmpty && this.entitlementService.entitlement !== ChatEntitlement.Free) {
+		if (modelIsEmpty) {
 			const storageKey = this.getDefaultModeExperimentStorageKey();
 			const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
 			if (!hasSetDefaultMode) {
+				const defaultModeKey = this.entitlementService.entitlement === ChatEntitlement.Free ? 'chat.defaultModeFree' : 'chat.defaultMode';
+				const defaultLanguageModelKey = this.entitlementService.entitlement === ChatEntitlement.Free ? 'chat.defaultLanguageModelFree' : 'chat.defaultLanguageModel';
 				Promise.all([
-					this.experimentService.getTreatment('chat.defaultMode'),
-					this.experimentService.getTreatment('chat.defaultLanguageModel'),
+					this.experimentService.getTreatment(defaultModeKey),
+					this.experimentService.getTreatment(defaultLanguageModelKey),
 				]).then(([defaultModeTreatment, defaultLanguageModelTreatment]) => {
 					if (typeof defaultModeTreatment === 'string') {
 						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);

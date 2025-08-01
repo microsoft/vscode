@@ -4432,7 +4432,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			},
 			experimental: {
 				suppressInlineSuggestions: '',
-				triggerCommandOnProviderChange: true,
+				triggerCommandOnProviderChange: false,
 			},
 		};
 
@@ -4468,14 +4468,20 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.experimental.suppressInlineSuggestions': {
 					type: 'string',
 					default: defaults.experimental.suppressInlineSuggestions,
-					tags: ['experimental', 'onExp'],
-					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated.")
+					tags: ['experimental'],
+					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated."),
+					experiment: {
+						mode: 'startup'
+					}
 				},
 				'editor.inlineSuggest.experimental.triggerCommandOnProviderChange': {
 					type: 'boolean',
 					default: defaults.experimental.triggerCommandOnProviderChange,
-					tags: ['experimental', 'onExp'],
-					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes.")
+					tags: ['experimental'],
+					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes."),
+					experiment: {
+						mode: 'startup'
+					}
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -5299,7 +5305,12 @@ class WordSegmenterLocales extends BaseEditorOption<EditorOption.wordSegmenterLo
 						}
 					}
 				],
-				description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.). The locale specification can be a string or an array of strings."),
+				description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
+				type: 'array',
+				items: {
+					type: 'string',
+				},
+				default: defaults,
 			},
 		);
 	}
@@ -6073,7 +6084,7 @@ export const EditorOptions = {
 	renderRichScreenReaderContent: register(new EditorBooleanOption(
 		EditorOption.renderRichScreenReaderContent, 'renderRichScreenReaderContent', false,
 		{
-			description: nls.localize('renderRichScreenReaderContent', "Whether to render rich screen reader content when the `editor.experimentalEditContext` is enabled."),
+			description: nls.localize('renderRichScreenReaderContent', "Whether to render rich screen reader content when the `editor.editContext` is enabled."),
 		}
 	)),
 	stickyScroll: register(new EditorStickyScroll()),
@@ -6328,7 +6339,9 @@ export const EditorOptions = {
 		10, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{
 			description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up."),
-			tags: ['onExP']
+			experiment: {
+				mode: 'startup'
+			}
 		}
 	)),
 	readOnly: register(new EditorBooleanOption(
@@ -6638,7 +6651,7 @@ export const EditorOptions = {
 	)),
 	wrapOnEscapedLineFeeds: register(new EditorBooleanOption(
 		EditorOption.wrapOnEscapedLineFeeds, 'wrapOnEscapedLineFeeds', false,
-		{ markdownDescription: nls.localize('wrapOnEscapedLineFeeds', "Controls whether literal `\\n` shall trigger a wordWrap.\nfor example\n```c\nchar* str=\"hello\\nworld\"\n```\nwill be displayed as\n```c\nchar* str=\"hello\\n\n           world\"\n```") }
+		{ markdownDescription: nls.localize('wrapOnEscapedLineFeeds', "Controls whether literal `\\n` shall trigger a wordWrap when `#editor.wordWrap#` is enabled.\n\nFor example:\n```c\nchar* str=\"hello\\nworld\"\n```\nwill be displayed as\n```c\nchar* str=\"hello\\n\n           world\"\n```") }
 	)),
 
 	// Leave these at the end (because they have dependencies!)
