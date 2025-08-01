@@ -295,9 +295,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return disposable;
 	}
 
-	async getChatSessionContributions(waitForActivation: string[]): Promise<IChatSessionsExtensionPoint[]> {
+	async getChatSessionContributions(waitForActivation?: string[]): Promise<IChatSessionsExtensionPoint[]> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		await Promise.all(waitForActivation.map(id => this._extensionService.activateByEvent(`onChatSession:${id}`)));
+		if (waitForActivation) {
+			await Promise.all(waitForActivation.map(id => this._extensionService.activateByEvent(`onChatSession:${id}`)));
+		}
 		return Array.from(this._contributions.values()).filter(contribution =>
 			this._isContributionAvailable(contribution)
 		);
