@@ -65,8 +65,9 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	}
 
 	let tasksForWorkspace;
+	const workspaceFolderPath = URI.file(workspaceFolder).path;
 	for (const [folder, tasks] of workspaceFolderToTaskMap) {
-		if (URI.parse(folder).path === URI.parse(workspaceFolder).path) {
+		if (URI.parse(folder).path === workspaceFolderPath) {
 			tasksForWorkspace = tasks;
 			break;
 		}
