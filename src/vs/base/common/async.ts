@@ -2168,18 +2168,6 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	}
 }
 
-export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
-	constructor(
-		private readonly _source: CancellationTokenSource,
-		executor: AsyncIterableExecutor<T>
-	) {
-		super(executor);
-	}
-
-	cancel(): void {
-		this._source.cancel();
-	}
-}
 
 export function createCancelableAsyncIterableProducer<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableProducer<T> {
 	const source = new CancellationTokenSource();
