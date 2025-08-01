@@ -310,6 +310,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	async canResolveItemProvider(chatViewType: string) {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+
 		// First check if the contribution is available based on its when clause
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
@@ -320,9 +322,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return true;
 		}
 
-		await this._extensionService.whenInstalledExtensionsRegistered();
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
-
 		return this._itemsProviders.has(chatViewType);
 	}
 
@@ -331,6 +331,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	async canResolveContentProvider(chatViewType: string) {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+
 		// First check if the contribution is available based on its when clause
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
@@ -341,9 +343,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return true;
 		}
 
-		await this._extensionService.whenInstalledExtensionsRegistered();
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
-
 		return this._contentProviders.has(chatViewType);
 	}
 
