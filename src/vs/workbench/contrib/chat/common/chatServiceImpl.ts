@@ -11,7 +11,7 @@ import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -22,14 +22,12 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IMcpServer, IMcpService, McpConnectionState, McpServerCacheState, McpStartServerInteraction } from '../../mcp/common/mcpTypes.js';
-import { startServerAndWaitForLiveTools } from '../../mcp/common/mcpTypesUtils.js';
+import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
@@ -636,15 +634,34 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (content.progressEvent) {
-			disposables.add(content.progressEvent(e => {
-				if (lastRequest) {
-					for (const progress of e) {
-						if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
-							model?.completeResponse(lastRequest);
-						} else {
-							model?.acceptResponseProgress(lastRequest, progress);
+		if (content.progressEvent && lastRequest) {
+			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
+			this._pendingRequests.set(model.sessionId, initialCancellationRequest);
+			const cancellationListener = new MutableDisposable();
+
+			const createCancellationListener = (token: CancellationToken) => {
+				return token.onCancellationRequested(() => {
+					content.interruptActiveResponseCallback?.().then(userConfirmedInterruption => {
+						if (!userConfirmedInterruption) {
+							// User cancelled the interruption
+							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
+							this._pendingRequests.set(model.sessionId, newCancellationRequest);
+							cancellationListener.value = createCancellationListener(newCancellationRequest.cancellationTokenSource.token);
 						}
+					});
+				});
+			};
+
+			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
+			disposables.add(cancellationListener);
+
+			disposables.add(content.progressEvent(e => {
+				for (const progress of e) {
+					if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
+						model?.completeResponse(lastRequest);
+						cancellationListener.clear();
+					} else {
+						model?.acceptResponseProgress(lastRequest, progress);
 					}
 				}
 			}));
@@ -755,31 +772,6 @@ export class ChatService extends Disposable implements IChatService {
 		return newTokenSource.token;
 	}
 
-	private async _checkForMcpAutostart(token: CancellationToken) {
-		let todo: IMcpServer[] = [];
-
-		const autoStartConfig = this.configurationService.getValue<McpAutoStartValue>(mcpAutoStartConfig);
-
-		// don't try re-running errored servers, let the user choose if they want that
-		const candidates = this.mcpService.servers.get().filter(s => s.connectionState.get().state !== McpConnectionState.Kind.Error);
-
-		if (autoStartConfig === McpAutoStartValue.OnlyNew) {
-			todo = candidates.filter(s => s.cacheState.get() === McpServerCacheState.Unknown);
-		} else if (autoStartConfig === McpAutoStartValue.NewAndOutdated) {
-			todo = candidates.filter(s => {
-				const c = s.cacheState.get();
-				return c === McpServerCacheState.Unknown || c === McpServerCacheState.Outdated;
-			});
-		}
-
-		if (!todo.length) {
-			return;
-		}
-
-		const interaction = new McpStartServerInteraction();
-		await Promise.all(todo.map(server => startServerAndWaitForLiveTools(server, { interaction }, token)));
-	}
-
 	private _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		let request: ChatRequestModel;
@@ -832,6 +824,10 @@ export class ChatService extends Disposable implements IChatService {
 			const stopWatch = new StopWatch(false);
 			store.add(token.onCancellationRequested(() => {
 				this.trace('sendRequest', `Request for session ${model.sessionId} was cancelled`);
+				if (!request) {
+					return;
+				}
+
 				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 					timeToFirstProgress: undefined,
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
@@ -933,7 +929,7 @@ export class ChatService extends Disposable implements IChatService {
 					const command = detectedCommand ?? agentSlashCommandPart?.command;
 					await Promise.all([
 						this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`),
-						this._checkForMcpAutostart(token),
+						this.mcpService.autostart(token),
 					]);
 
 					// Recompute history in case the agent or command changed

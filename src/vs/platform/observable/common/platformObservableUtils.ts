@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-import { derivedOpts, IObservable, IReader, observableFromEventOpts } from '../../../base/common/observable.js';
+import { derivedOpts, IObservable, IReader, observableFromEvent, observableFromEventOpts } from '../../../base/common/observable.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
 
@@ -40,3 +40,7 @@ export function bindContextKey<T extends ContextKeyValue>(key: RawContextKey<T>,
 	return compute_$show2FramesUp();
 }
 
+
+export function observableContextKey<T>(key: string, contextKeyService: IContextKeyService): IObservable<T | undefined> {
+	return observableFromEvent(contextKeyService.onDidChangeContext, () => contextKeyService.getContextKeyValue<T>(key));
+}

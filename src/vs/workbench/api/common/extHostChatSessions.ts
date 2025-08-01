@@ -87,7 +87,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const disposables = new DisposableStore();
 
 		this._chatSessionItemProviders.set(handle, { provider, extension, disposable: disposables });
-		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType, provider.label);
+		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType);
 		if (provider.onDidChangeChatSessionItems) {
 			disposables.add(provider.onDidChangeChatSessionItems(() => {
 				this._proxy.$onDidChangeChatSessionItems(chatSessionType);
@@ -206,6 +206,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}
 			})
 		};
+	}
+
+	async $interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void> {
+		const key = `${providerHandle}_${sessionId}`;
+		const entry = this._extHostChatSessions.get(key);
+		entry?.disposeCts.cancel();
 	}
 
 	async $disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void> {

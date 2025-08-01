@@ -567,12 +567,12 @@ export function registerChatActions() {
 						// Use the new Promise-based API to get chat sessions
 						const cancellationToken = new CancellationTokenSource();
 						try {
-							const providers = chatSessionsService.getChatSessionContributions();
+							const providers = await chatSessionsService.getChatSessionContributions();
 							const providerNSessions: { providerType: string; session: IChatSessionItem }[] = [];
 
 							for (const provider of providers) {
-								const sessions = await chatSessionsService.provideChatSessionItems(provider.id, cancellationToken.token);
-								providerNSessions.push(...sessions.map(session => ({ providerType: provider.id, session })));
+								const sessions = await chatSessionsService.provideChatSessionItems(provider.type, cancellationToken.token);
+								providerNSessions.push(...sessions.map(session => ({ providerType: provider.type, session })));
 							}
 
 							for (const session of providerNSessions) {

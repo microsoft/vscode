@@ -2766,9 +2766,9 @@ export namespace ChatToolInvocationPart {
 			kind: 'toolInvocationSerialized',
 			toolCallId: part.toolCallId,
 			toolId: part.toolName,
-			invocationMessage: part.invocationMessage || part.toolName,
-			originMessage: part.originMessage,
-			pastTenseMessage: part.pastTenseMessage,
+			invocationMessage: part.invocationMessage ? MarkdownString.from(part.invocationMessage) : part.toolName,
+			originMessage: part.originMessage ? MarkdownString.from(part.originMessage) : undefined,
+			pastTenseMessage: part.pastTenseMessage ? MarkdownString.from(part.pastTenseMessage) : undefined,
 			isConfirmed: part.isConfirmed,
 			isComplete: part.isComplete ?? true,
 			isError: part.isError ?? false,
@@ -2790,7 +2790,7 @@ export namespace ChatToolInvocationPart {
 		} else if ('commandLine' in data && 'language' in data) {
 			// ChatTerminalToolInvocationData2
 			return {
-				kind: 'terminal2',
+				kind: 'terminal',
 				commandLine: data.commandLine,
 				language: data.language
 			};

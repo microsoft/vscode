@@ -1022,6 +1022,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: auto;
 }
 
+.interactive-session .chat-input-toolbars .tool-warning-indicator {
+	position: absolute;
+	bottom: 0;
+	right: 0;
+	font-size: 9px !important;
+	color: var(--vscode-problemsWarningIcon-foreground);
+	background: var(--vscode-input-background);
+	width: fit-content;
+	height: fit-content;
+	border-radius: 100%;
+}
+
 .interactive-session .chat-input-toolbars > .chat-input-toolbar {
 	min-width: 0px;
 
@@ -2198,8 +2210,8 @@ display: none;
 			width: fit-content;
 			user-select: none;
 			position: absolute;
-			top: 5px;
-			left: 25px;
+			top: 4px;
+			margin-left: 25px;
 			background: var(--vscode-sideBar-background);
 		}
 
@@ -2216,14 +2228,14 @@ display: none;
 		.checkpoint-label-text {
 			font-size: 12px;
 			color: var(--vscode-descriptionForeground);
-			padding-right: 4px;
+			background-color: var(--vscode-sideBar-background);
+			padding: 4px;
 			display: flex;
 			align-items: center;
 			gap: 4px;
-		}
-
-		.monaco-toolbar {
-			left: 145px;
+			position: absolute;
+			margin-left: 71px;
+			margin-top: 2px;
 		}
 	}
 
