@@ -1639,6 +1639,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.insertions-and-deletions {
 		display: flex;
 		margin-right: 5px;
+		font-size: 12px;
 	}
 
 	.checkpoint-file-changes-summary-header {
