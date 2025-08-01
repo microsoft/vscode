@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IMcpServerManifest, ILocalMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -36,6 +37,28 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerInstallState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
+
+type McpServerInstallData = {
+	serverName: string;
+	source: 'gallery' | 'local';
+	scope: string;
+	success: boolean;
+	error?: string;
+	duration: number;
+	hasInputs: boolean;
+};
+
+type McpServerInstallClassification = {
+	owner: 'connor4312';
+	comment: 'MCP server installation event tracking';
+	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server being installed' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation source (gallery or local)' };
+	scope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation scope (user, workspace, etc.)' };
+	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether installation succeeded' };
+	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error message if installation failed' };
+	duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation duration in milliseconds' };
+	hasInputs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server requires input configuration' };
+};
 
 interface IMcpServerStateProvider<T> {
 	(mcpWorkbenchServer: McpWorkbenchServer): T;
@@ -168,6 +191,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		@IProductService private readonly productService: IProductService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IURLService urlService: IURLService,
 	) {
@@ -407,10 +431,43 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private async doInstall(server: McpWorkbenchServer, installTask: () => Promise<IWorkbenchLocalMcpServer>): Promise<IWorkbenchMcpServer> {
+		const startTime = Date.now();
+		const source = server.gallery ? 'gallery' : 'local';
+		const serverName = server.name;
+		const hasInputs = !!server.installable?.config.inputs;
+		
 		this.installing.push(server);
 		this._onChange.fire(server);
-		await installTask();
-		return this.waitAndGetInstalledMcpServer(server);
+		
+		try {
+			await installTask();
+			const result = await this.waitAndGetInstalledMcpServer(server);
+			
+			// Track successful installation
+			this.telemetryService.publicLog2<McpServerInstallData, McpServerInstallClassification>('mcp/serverInstall', {
+				serverName,
+				source,
+				scope: result.local?.scope ?? 'unknown',
+				success: true,
+				duration: Date.now() - startTime,
+				hasInputs
+			});
+			
+			return result;
+		} catch (error) {
+			// Track failed installation
+			this.telemetryService.publicLog2<McpServerInstallData, McpServerInstallClassification>('mcp/serverInstall', {
+				serverName,
+				source,
+				scope: 'unknown',
+				success: false,
+				error: error instanceof Error ? error.message : String(error),
+				duration: Date.now() - startTime,
+				hasInputs
+			});
+			
+			throw error;
+		}
 	}
 
 	private async waitAndGetInstalledMcpServer(server: McpWorkbenchServer): Promise<IWorkbenchMcpServer> {
