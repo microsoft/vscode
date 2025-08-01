@@ -2181,11 +2181,11 @@ export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
 	}
 }
 
-export function createCancelableAsyncIterable<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableObject<T> {
+export function createCancelableAsyncIterableProducer<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableProducer<T> {
 	const source = new CancellationTokenSource();
 	const innerIterable = callback(source.token);
 
-	return new CancelableAsyncIterableObject<T>(source, async (emitter) => {
+	return new CancelableAsyncIterableProducer<T>(source, async (emitter) => {
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
 			source.dispose();
@@ -2489,6 +2489,19 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 
 	[Symbol.asyncIterator](): AsyncIterator<T, void, void> {
 		return this._iterator;
+	}
+}
+
+export class CancelableAsyncIterableProducer<T> extends AsyncIterableProducer<T> {
+	constructor(
+		private readonly _source: CancellationTokenSource,
+		executor: AsyncIterableExecutor<T>
+	) {
+		super(executor);
+	}
+
+	cancel(): void {
+		this._source.cancel();
 	}
 }
 
