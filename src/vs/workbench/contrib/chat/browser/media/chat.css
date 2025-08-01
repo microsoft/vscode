@@ -2421,6 +2421,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 2px 0;
 }
 
+.chat-todo-list-widget .todo-item[title]:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
 .chat-todo-list-widget .todo-status-icon {
 	flex-shrink: 0;
 	font-size: 14px;

@@ -106,6 +106,11 @@ export class ChatTodoListWidget extends Disposable {
 		todoList.forEach((todo, index) => {
 			const todoElement = dom.$('.todo-item');
 
+			// Add tooltip if description exists
+			if (todo.description && todo.description.trim()) {
+				todoElement.title = todo.description;
+			}
+
 			const statusIcon = dom.$('.todo-status-icon.codicon');
 			statusIcon.classList.add(this.getStatusIconClass(todo.status));
 			statusIcon.style.color = this.getStatusIconColor(todo.status);
