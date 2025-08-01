@@ -291,6 +291,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const entriesArr: AbstractChatEditingModifiedFileEntry[] = [];
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of entries.values()) {
+			// If restoreResolvedToDisk is false, skip restoring files that are empty (deleted in between)
+			if (!restoreResolvedToDisk && (!snapshotEntry.current || snapshotEntry.current.length === 0)) {
+				continue;
+			}
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
 			const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified || restoreResolvedToDisk;
 			await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
