@@ -2375,12 +2375,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-bottom: 8px;
 }
 
+.chat-todo-list-widget .todo-list-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
 .chat-todo-list-widget .todo-list-expand {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	cursor: pointer;
 	padding: 4px 0;
+	flex: 1;
 }
 
 .chat-todo-list-widget .todo-list-expand:hover {
@@ -2401,6 +2409,29 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-todo-list-widget .todo-list-title {
 	font-weight: 600;
 	color: var(--vscode-foreground);
+}
+
+.chat-todo-list-widget .todo-clear-button-container {
+	flex-shrink: 0;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button {
+	padding: 4px;
+	min-width: auto;
+	height: 22px;
+	width: 22px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button .codicon {
+	font-size: 14px;
 }
 
 .chat-todo-list-widget .todo-list-container {

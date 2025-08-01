@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
@@ -17,6 +19,8 @@ export class ChatTodoListWidget extends Disposable {
 
 	private _isExpanded: boolean = true;
 	private expandoElement!: HTMLElement;
+	private headerElement!: HTMLElement;
+	private clearButton!: Button;
 	private todoListContainer!: HTMLElement;
 	private _currentSessionId: string | undefined;
 
@@ -36,6 +40,9 @@ export class ChatTodoListWidget extends Disposable {
 		const container = dom.$('.chat-todo-list-widget');
 		container.style.display = 'none';
 
+		// Create header container for expand/collapse and clear button
+		this.headerElement = dom.$('.todo-list-header');
+
 		this.expandoElement = dom.$('.todo-list-expand');
 		this.expandoElement.setAttribute('role', 'button');
 		this.expandoElement.setAttribute('aria-expanded', 'true');
@@ -50,10 +57,16 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoElement.appendChild(expandIcon);
 		this.expandoElement.appendChild(titleElement);
 
+		// Create clear button
+		this.createClearButton();
+
+		this.headerElement.appendChild(this.expandoElement);
+		this.headerElement.appendChild(this.clearButton.element);
+
 		this.todoListContainer = dom.$('.todo-list-container');
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
-		container.appendChild(this.expandoElement);
+		container.appendChild(this.headerElement);
 		container.appendChild(this.todoListContainer);
 
 		this._register(dom.addDisposableListener(this.expandoElement, 'click', () => {
@@ -68,6 +81,27 @@ export class ChatTodoListWidget extends Disposable {
 		}));
 
 		return container;
+	}
+
+	private createClearButton(): void {
+		this.clearButton = new Button(dom.$('.todo-clear-button-container'), {
+			supportIcons: true,
+			title: localize('chat.todoList.clearButton', 'Clear all tasks')
+		});
+		this.clearButton.element.tabIndex = -1;
+		this.clearButton.icon = Codicon.trash;
+		this._register(this.clearButton);
+		
+		this._register(this.clearButton.onDidClick(() => {
+			this.clearAllTodos();
+		}));
+	}
+
+	private clearAllTodos(): void {
+		if (this._currentSessionId) {
+			this.chatTodoListService.getChatTodoListStorage().setTodoList(this._currentSessionId, []);
+			this.updateTodoDisplay();
+		}
 	}
 
 	public updateSessionId(sessionId: string | undefined): void {
