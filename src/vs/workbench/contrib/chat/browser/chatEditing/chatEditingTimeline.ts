@@ -6,12 +6,12 @@
 
 
 import { equals as arraysEqual, binarySearch2 } from '../../../../../base/common/arrays.js';
-import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { derived, derivedOpts, IObservable, IObservableWithChange, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { equals as objectsEqual } from '../../../../../base/common/objects.js';
+import { derived, derivedOpts, IObservable, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
@@ -398,12 +398,15 @@ export class ChatEditingTimeline {
 	}
 
 	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
-		const snapshotUris = derivedOpts<[URI | undefined, URI | undefined]>({ equalsFn: (a, b) => arraysEqual(a, b, isEqual) },
+		const snapshotUris = derivedOpts<[URI | undefined, URI | undefined]>(
+			{ equalsFn: (a, b) => arraysEqual(a, b, isEqual) },
 			reader => {
-				const firstSnapshotUri = this._getFirstSnapshotForUriAfterRequest(uri, startRequestId, true).read(reader);
-				const lastSnapshotUri = this._getFirstSnapshotForUriAfterRequest(uri, stopRequestId, false).read(reader);
+				const history = this._linearHistory.read(reader);
+				const firstSnapshotUri = this._getFirstSnapshotForUriAfterRequest(history, uri, startRequestId, true);
+				const lastSnapshotUri = this._getFirstSnapshotForUriAfterRequest(history, uri, stopRequestId, false);
 				return [firstSnapshotUri, lastSnapshotUri];
-			});
+			},
+		);
 		const modelRefs = derived((reader) => {
 			const snapshots = snapshotUris.read(reader);
 			const firstSnapshotUri = snapshots[0];
@@ -463,23 +466,20 @@ export class ChatEditingTimeline {
 		});
 	}
 
-	private _getFirstSnapshotForUriAfterRequest(uri: URI, requestId: string, inclusive: boolean = true): IObservableWithChange<URI | undefined, void> {
-		return derived((reader) => {
-			const history = this._linearHistory.read(reader);
-			const requestIndex = history.findIndex(s => s.requestId === requestId);
-			if (requestIndex === -1) { return undefined; }
-			const processedIndex = requestIndex + (inclusive ? 0 : 1);
-			for (let i = processedIndex; i < history.length; i++) {
-				const snapshot = history[i];
-				for (const stop of snapshot.stops) {
-					const entry = stop.entries.get(uri);
-					if (entry) {
-						return entry.snapshotUri;
-					}
+	private _getFirstSnapshotForUriAfterRequest(history: readonly IChatEditingSessionSnapshot[], uri: URI, requestId: string, inclusive: boolean): URI | undefined {
+		const requestIndex = history.findIndex(s => s.requestId === requestId);
+		if (requestIndex === -1) { return undefined; }
+		const processedIndex = requestIndex + (inclusive ? 0 : 1);
+		for (let i = processedIndex; i < history.length; i++) {
+			const snapshot = history[i];
+			for (const stop of snapshot.stops) {
+				const entry = stop.entries.get(uri);
+				if (entry) {
+					return entry.snapshotUri;
 				}
 			}
-			return uri;
-		});
+		}
+		return uri;
 	}
 }
 
