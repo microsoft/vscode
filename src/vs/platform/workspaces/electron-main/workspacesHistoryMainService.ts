@@ -334,6 +334,15 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					args: '-n', // force new window
 					iconPath: process.execPath,
 					iconIndex: 0
+				},
+				{
+					type: 'task',
+					title: localize('newTerminal', "New Terminal"),
+					description: localize('newTerminalDesc', "Opens a new window for terminal use"),
+					program: process.execPath,
+					args: '-n', // force new window
+					iconPath: process.execPath,
+					iconIndex: 0
 				}
 			]
 		});

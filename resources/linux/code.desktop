@@ -9,7 +9,7 @@ StartupNotify=false
 StartupWMClass=@@NAME_SHORT@@
 Categories=TextEditor;Development;IDE;
 MimeType=application/x-@@NAME@@-workspace;
-Actions=new-empty-window;
+Actions=new-empty-window;new-terminal;
 Keywords=vscode;
 
 [Desktop Action new-empty-window]
@@ -24,5 +24,20 @@ Name[ko]=새 빈 창
 Name[ru]=Новое пустое окно
 Name[zh_CN]=新建空窗口
 Name[zh_TW]=開新空視窗
+Exec=@@EXEC@@ --new-window %F
+Icon=@@ICON@@
+
+[Desktop Action new-terminal]
+Name=New Terminal
+Name[cs]=Nový terminál
+Name[de]=Neues Terminal
+Name[es]=Nueva terminal
+Name[fr]=Nouveau terminal
+Name[it]=Nuovo terminale
+Name[ja]=新しいターミナル
+Name[ko]=새 터미널
+Name[ru]=Новый терминал
+Name[zh_CN]=新建终端
+Name[zh_TW]=開新終端機
 Exec=@@EXEC@@ --new-window %F
 Icon=@@ICON@@
