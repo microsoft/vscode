@@ -432,7 +432,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		if (selector.vendor) {
 			// selective activation
-			await this._extensionService.activateByEvent(`onLanguageModelChat:${selector.vendor}}`);
+			await this._extensionService.activateByEvent(`onLanguageModelChat:${selector.vendor}`);
 			await this.resolveLanguageModels([selector.vendor], !allowPromptingUser);
 		} else {
 			// activate all extensions that do language models
