@@ -2439,6 +2439,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-foreground);
 }
 
+.chat-todo-list-widget .todo-clear-button-container .monaco-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button .codicon {
+	font-size: 14px;
+	color: var(--vscode-foreground);
+}
+
 .chat-todo-list-widget .todo-list-expand:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: 4px;

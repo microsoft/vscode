@@ -21,6 +21,7 @@ export class ChatTodoListWidget extends Disposable {
 	private expandoElement!: HTMLElement;
 	private todoListContainer!: HTMLElement;
 	private clearButtonContainer!: HTMLElement;
+	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
 
 	constructor(
@@ -58,16 +59,7 @@ export class ChatTodoListWidget extends Disposable {
 
 		// Add clear button
 		this.clearButtonContainer = dom.$('.todo-clear-button-container');
-		const clearButton = new Button(this.clearButtonContainer, {
-			supportIcons: true,
-			title: localize('chat.todoList.clearButton', 'Clear all tasks')
-		});
-		clearButton.element.tabIndex = -1;
-		clearButton.icon = Codicon.trash;
-		this._register(clearButton);
-		this._register(clearButton.onDidClick(() => {
-			this.clearAllTodos();
-		}));
+		this.createClearButton();
 
 		// Assemble header
 		headerContainer.appendChild(this.expandoElement);
@@ -91,6 +83,21 @@ export class ChatTodoListWidget extends Disposable {
 		}));
 
 		return container;
+	}
+
+	private createClearButton(): void {
+		this.clearButton = new Button(this.clearButtonContainer, {
+			supportIcons: true,
+			title: localize('chat.todoList.clearButton', 'Clear all tasks'),
+			ariaLabel: localize('chat.todoList.clearButton.ariaLabel', 'Clear all tasks')
+		});
+		this.clearButton.element.tabIndex = -1;
+		this.clearButton.icon = Codicon.trash;
+		this._register(this.clearButton);
+		
+		this._register(this.clearButton.onDidClick(() => {
+			this.clearAllTodos();
+		}));
 	}
 
 	public updateSessionId(sessionId: string | undefined): void {
