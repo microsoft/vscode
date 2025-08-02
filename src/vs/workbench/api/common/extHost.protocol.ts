@@ -563,6 +563,7 @@ export interface TerminalLaunchConfig {
 	useShellEnvironment?: boolean;
 	location?: TerminalLocation | { viewColumn: number; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
 	isTransient?: boolean;
+	shellIntegrationNonce?: string;
 }
 
 
