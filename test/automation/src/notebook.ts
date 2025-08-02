@@ -68,7 +68,7 @@ export class Notebook {
 	}
 
 	async waitForMarkdownContents(markdownSelector: string, text: string): Promise<void> {
-		const selector = `${activeRowSelector} .markdown ${markdownSelector}`;
+		const selector = `${activeRowSelector} .markup ${markdownSelector}`;
 		await this.code.waitForTextContent(selector, text);
 	}
 
