@@ -21,7 +21,7 @@ import { isMacintosh, isWeb, isWindows } from '../../../../base/common/platform.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from '../../../../platform/userDataSync/common/userDataSync.js';
@@ -515,6 +515,15 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		CommandsRegistry.registerCommand('_update.state', () => {
 			return this.state;
+		});
+
+		// Register secure command to summarize release notes without exposing arbitrary prompts
+		CommandsRegistry.registerCommand('summarize.release.notes', (accessor: ServicesAccessor) => {
+			const commandService = accessor.get(ICommandService);
+			return commandService.executeCommand('workbench.action.chat.open', {
+				query: 'Summarize this release note.',
+				isPartialQuery: false
+			});
 		});
 	}
 }
