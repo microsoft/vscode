@@ -61,6 +61,9 @@
 
 .monaco-scrollable-element > .scrollbar > .slider {
 	background: var(--vscode-scrollbarSlider-background);
+	transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+	transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	transition-duration: 150ms;
 }
 
 .monaco-scrollable-element > .scrollbar > .slider:hover {
