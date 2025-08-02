@@ -12,7 +12,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { GeneralShellType, TerminalShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalLogService, TerminalShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { env as processEnv } from '../../../../../base/common/process.js';
@@ -20,7 +20,6 @@ import type { IProcessEnvironment } from '../../../../../base/common/platform.js
 import { timeout } from '../../../../../base/common/async.js';
 import { gitBashToWindowsPath } from './terminalGitBashHelpers.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -104,7 +103,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
-		@ILogService private readonly _logService: ILogService
+		@ITerminalLogService private readonly _logService: ITerminalLogService
 	) {
 		super();
 	}
@@ -132,6 +131,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	async provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType | undefined, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
+		this._logService.trace('TerminalCompletionService#provideCompletions');
 		if (!this._providers || !this._providers.values || cursorPosition < 0) {
 			return undefined;
 		}
@@ -178,6 +178,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType | undefined, promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, capabilities: ITerminalCapabilityStore, token: CancellationToken, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
+		this._logService.trace('TerminalCompletionService#_collectCompletions');
 		const completionPromises = providers.map(async provider => {
 			if (provider.shellTypes && shellType && !provider.shellTypes.includes(shellType)) {
 				return undefined;
@@ -187,7 +188,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			let completions;
 			try {
 				completions = await Promise.race([
-					provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
+					provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token).then(result => {
+						this._logService.trace(`TerminalCompletionService#_collectCompletions provider ${provider.id} finished`);
+						return result;
+					}),
 					(async () => { await timeout(timeoutMs); timedOut = true; return undefined; })()
 				]);
 			} catch (e) {
@@ -202,6 +206,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
+			this._logService.trace(`TerminalCompletionService#_collectCompletions amend ${completionItems.length} completion items`);
 			if (shellType === GeneralShellType.PowerShell) {
 				for (const completion of completionItems) {
 					completion.isFileOverride ??= completion.kind === TerminalCompletionItemKind.Method && completion.replacementIndex === 0;
@@ -218,24 +223,29 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			if (completions.resourceRequestConfig) {
 				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, `core:path:ext:${provider.id}`, capabilities, shellType);
+				this._logService.trace(`TerminalCompletionService#_collectCompletions dedupe`);
 				if (resourceCompletions) {
+					const labels = new Set(completionItems.map(c => c.label));
 					for (const item of resourceCompletions) {
-						const labels = new Set(completionItems.map(c => c.label));
 						// Ensure no duplicates such as .
 						if (!labels.has(item.label)) {
 							completionItems.push(item);
 						}
 					}
 				}
+				this._logService.trace(`TerminalCompletionService#_collectCompletions dedupe done`);
 			}
 			return completionItems;
 		});
 
 		const results = await Promise.all(completionPromises);
+		this._logService.trace('TerminalCompletionService#_collectCompletions done');
 		return results.filter(result => !!result).flat();
 	}
 
 	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore, shellType?: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
+		this._logService.trace(`TerminalCompletionService#resolveResources`);
+
 		const useWindowsStylePath = resourceRequestConfig.pathSeparator === '\\';
 		if (useWindowsStylePath) {
 			// for tests, make sure the right path separator is used
@@ -360,6 +370,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (absolute) `/src/|`  -> `/src/`
 		// - (tilde)    `~/|`     -> `~/`
 		// - (tilde)    `~/src/|` -> `~/src/`
+		this._logService.trace(`TerminalCompletionService#resolveResources cwd`);
 		if (foldersRequested) {
 			let label: string;
 			switch (type) {
@@ -394,7 +405,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (relative) `cd ./src/`  -> `cd ./src/folder1/`, ...
 		// - (absolute) `cd c:/src/` -> `cd c:/src/folder1/`, ...
 		// - (tilde)    `cd ~/src/`  -> `cd ~/src/folder1/`, ...
-		for (const child of stat.children) {
+		this._logService.trace(`TerminalCompletionService#resolveResources direct children`);
+		await Promise.all(stat.children.map(child => (async () => {
 			let kind: TerminalCompletionItemKind | undefined;
 			let detail: string | undefined = undefined;
 			if (foldersRequested && child.isDirectory) {
@@ -411,7 +423,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				}
 			}
 			if (kind === undefined) {
-				continue;
+				return;
 			}
 
 			let label = lastWordFolder;
@@ -431,7 +443,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (child.isFile && fileExtensions) {
 				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
 				if (extension && !fileExtensions.includes(extension)) {
-					continue;
+					return;
 				}
 			}
 
@@ -455,11 +467,12 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
-		}
+		})()));
 
 		// Support $CDPATH specially for the `cd` command only
 		//
 		// - (relative) `|` -> `/foo/vscode` (CDPATH has /foo which contains vscode folder)
+		this._logService.trace(`TerminalCompletionService#resolveResources CDPATH`);
 		if (type === 'relative' && foldersRequested) {
 			if (promptValue.startsWith('cd ')) {
 				const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
@@ -500,6 +513,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		//
 		// - (relative) `|` -> `../`
 		// - (relative) `./src/|` -> `./src/../`
+		this._logService.trace(`TerminalCompletionService#resolveResources parent dir`);
 		if (type === 'relative' && foldersRequested) {
 			let label = `..${resourceRequestConfig.pathSeparator}`;
 			if (lastWordFolder.length > 0) {
@@ -520,6 +534,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// input.
 		//
 		// - (relative) `|` -> `~`
+		this._logService.trace(`TerminalCompletionService#resolveResources tilde`);
 		if (type === 'relative' && !lastWordFolder.match(/[\\\/]/)) {
 			let homeResource: URI | string | undefined;
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
@@ -541,6 +556,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			});
 		}
 
+		this._logService.trace(`TerminalCompletionService#resolveResources done`);
 		return resourceCompletions;
 	}
 
