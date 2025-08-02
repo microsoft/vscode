@@ -101,6 +101,8 @@ export interface IImageVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly isPasted?: boolean;
 	readonly isURL?: boolean;
 	readonly mimeType?: string;
+	readonly url?: string;
+	readonly isLoading?: boolean;
 }
 
 export interface INotebookOutputVariableEntry extends IBaseChatRequestVariableEntry {

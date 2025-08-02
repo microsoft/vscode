@@ -26,8 +26,9 @@ import { IExtensionService, isProposedApiEnabled } from '../../../services/exten
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
+import { IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
-import { cleanupOldImages, createFileForMedia, resizeImage } from './imageUtils.js';
+import { cleanupOldImages, createFileForMedia, resizeImage, imageToHash } from './imageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 
@@ -51,6 +52,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
 		cleanupOldImages(this.fileService, this.logService, this.imagesFolder,);
@@ -113,11 +115,32 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const scaledImageContext = await getImageAttachContext(scaledImageData, mimeType, token, tempDisplayName, fileReference);
-		if (token.isCancellationRequested || !scaledImageContext) {
+		// Use resolve service with callback for loading states
+		const imageTransferData = [{
+			data: scaledImageData,
+			name: tempDisplayName,
+			mimeType: mimeType,
+			resource: fileReference,
+			icon: Codicon.fileMedia,
+			id: await imageToHash(scaledImageData)
+		}];
+
+		const imageContexts = await this.instantiationService.invokeFunction(accessor => {
+			const chatAttachmentResolveService = accessor.get(IChatAttachmentResolveService);
+			return chatAttachmentResolveService.resolveImageAttachContextWithCallback(
+				imageTransferData,
+				(updatedEntry: IChatRequestVariableEntry) => {
+					// Update the attachment when upload completes
+					widget.attachmentModel.updateContext([], [updatedEntry]);
+				}
+			);
+		});
+
+		if (token.isCancellationRequested || !imageContexts.length) {
 			return;
 		}
 
+		const scaledImageContext = imageContexts[0];
 		widget.attachmentModel.addContext(scaledImageContext);
 
 		// Make sure to attach only new contexts
@@ -129,30 +152,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		const edit = createCustomPasteEdit(model, [scaledImageContext], mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
 		return createEditSession(edit);
 	}
-}
-
-async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string, resource: URI): Promise<IChatRequestVariableEntry | undefined> {
-	const imageHash = await imageToHash(data);
-	if (token.isCancellationRequested) {
-		return undefined;
-	}
-
-	return {
-		kind: 'image',
-		value: data,
-		id: imageHash,
-		name: displayName,
-		icon: Codicon.fileMedia,
-		mimeType,
-		isPasted: true,
-		references: [{ reference: resource, kind: 'reference' }]
-	};
-}
-
-export async function imageToHash(data: Uint8Array): Promise<string> {
-	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export function isImage(array: Uint8Array): boolean {
@@ -443,7 +442,7 @@ export class ChatPasteProvidersFeature extends Disposable {
 	) {
 		super();
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, instaService.createInstance(CopyAttachmentsProvider)));
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService, instaService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
