@@ -406,7 +406,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (absolute) `cd c:/src/` -> `cd c:/src/folder1/`, ...
 		// - (tilde)    `cd ~/src/`  -> `cd ~/src/folder1/`, ...
 		this._logService.trace(`TerminalCompletionService#resolveResources direct children`);
-		for (const child of stat.children) {
+		await Promise.all(stat.children.map(child => (async () => {
 			let kind: TerminalCompletionItemKind | undefined;
 			let detail: string | undefined = undefined;
 			if (foldersRequested && child.isDirectory) {
@@ -423,7 +423,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				}
 			}
 			if (kind === undefined) {
-				continue;
+				return;
 			}
 
 			let label = lastWordFolder;
@@ -443,7 +443,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (child.isFile && fileExtensions) {
 				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
 				if (extension && !fileExtensions.includes(extension)) {
-					continue;
+					return;
 				}
 			}
 
@@ -467,7 +467,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
-		}
+		})()));
 
 		// Support $CDPATH specially for the `cd` command only
 		//
