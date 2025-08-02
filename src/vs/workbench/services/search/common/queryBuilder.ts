@@ -12,7 +12,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import { isEqual, basename, relativePath, isAbsolutePath } from '../../../../base/common/resources.js';
 import * as strings from '../../../../base/common/strings.js';
-import { assertIsDefined, isDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined, isDefined } from '../../../../base/common/types.js';
 import { URI, URI as uri, UriComponents } from '../../../../base/common/uri.js';
 import { isMultilineRegexSource } from '../../../../editor/common/model/textModelSearch.js';
 import * as nls from '../../../../nls.js';
@@ -313,7 +313,7 @@ export class QueryBuilder {
 				}
 
 				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-				assertIsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
+				assertReturnsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
 			} else {
 				if (file.fsPath) {
 					hasIncludedFile = true;

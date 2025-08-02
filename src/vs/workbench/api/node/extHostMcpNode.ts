@@ -8,27 +8,27 @@ import { readFile } from 'fs/promises';
 import { homedir } from 'os';
 import { parseEnvFile } from '../../../base/common/envfile.js';
 import { untildify } from '../../../base/common/labels.js';
+import { DisposableMap } from '../../../base/common/lifecycle.js';
+import * as path from '../../../base/common/path.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { LogLevel } from '../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandler.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
-import * as path from '../../../base/common/path.js';
-import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initDataService: IExtHostInitDataService,
+		@ILogService logService: ILogService,
 	) {
-		super(extHostRpc, initDataService);
+		super(extHostRpc, logService, initDataService);
 	}
 
-	private nodeServers = new Map<number, {
-		abortCtrl: AbortController;
-		child: ChildProcessWithoutNullStreams;
-	}>();
+	private nodeServers = this._register(new DisposableMap<number, McpStdioStateHandler>());
 
 	protected override _startMcp(id: number, launch: McpServerLaunch): void {
 		if (launch.type === McpServerTransportType.Stdio) {
@@ -41,8 +41,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	override $stopMcp(id: number): void {
 		const nodeServer = this.nodeServers.get(id);
 		if (nodeServer) {
-			nodeServer.abortCtrl.abort();
-			this.nodeServers.delete(id);
+			nodeServer.stop(); // will get removed from map when process is fully stopped
 		} else {
 			super.$stopMcp(id);
 		}
@@ -51,7 +50,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 	override $sendMessage(id: number, message: string): void {
 		const nodeServer = this.nodeServers.get(id);
 		if (nodeServer) {
-			nodeServer.child.stdin.write(message + '\n');
+			nodeServer.write(message);
 		} else {
 			super.$sendMessage(id, message);
 		}
@@ -81,7 +80,6 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			env[key] = value === null ? undefined : String(value);
 		}
 
-		const abortCtrl = new AbortController();
 		let child: ChildProcessWithoutNullStreams;
 		try {
 			const home = homedir();
@@ -101,15 +99,16 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			child = spawn(executable, args, {
 				stdio: 'pipe',
 				cwd,
-				signal: abortCtrl.signal,
 				env,
 				shell,
 			});
 		} catch (e) {
 			onError(e);
-			abortCtrl.abort();
 			return;
 		}
+
+		// Create the connection manager for graceful shutdown
+		const connectionManager = new McpStdioStateHandler(child);
 
 		this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Starting });
 
@@ -125,22 +124,22 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		child.on('spawn', () => this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Running }));
 
 		child.on('error', e => {
-			if (abortCtrl.signal.aborted) {
+			onError(e);
+		});
+		child.on('exit', code => {
+			this.nodeServers.deleteAndDispose(id);
+
+			if (code === 0 || connectionManager.stopped) {
 				this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped });
 			} else {
-				onError(e);
-			}
-		});
-		child.on('exit', code =>
-			code === 0 || abortCtrl.signal.aborted
-				? this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped })
-				: this._proxy.$onDidChangeState(id, {
+				this._proxy.$onDidChangeState(id, {
 					state: McpConnectionState.Kind.Error,
 					message: `Process exited with code ${code}`,
-				})
-		);
+				});
+			}
+		});
 
-		this.nodeServers.set(id, { abortCtrl, child });
+		this.nodeServers.set(id, connectionManager);
 	}
 }
 

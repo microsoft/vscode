@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { basename } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
-import { CompletionItemKind } from '../../../../../editor/common/languages.js';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider } from '../../../../../editor/common/languages.js';
 import { ISimpleCompletion, SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 
 export enum TerminalCompletionItemKind {
@@ -17,6 +18,8 @@ export enum TerminalCompletionItemKind {
 	Option = 5,
 	OptionValue = 6,
 	Flag = 7,
+	SymbolicLinkFile = 8,
+	SymbolicLinkFolder = 9,
 	// Kinds only for core
 	InlineSuggestion = 100,
 	InlineSuggestionAlwaysOnTop = 101,
@@ -69,6 +72,17 @@ export interface ITerminalCompletion extends ISimpleCompletion {
 	 * Whether the completion is a keyword.
 	 */
 	isKeyword?: boolean;
+
+	/**
+	 * Unresolved completion item from the language server provider/
+	 */
+	_unresolvedItem?: CompletionItem;
+
+	/**
+	 * Provider that can resolve this item
+	 */
+	_resolveProvider?: CompletionItemProvider;
+
 }
 
 export class TerminalCompletionItem extends SimpleCompletionItem {
@@ -84,14 +98,20 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 	labelLowNormalizedPath: string;
 
 	/**
-	 * A penalty that applies to files or folders starting with the underscore character.
-	 */
-	underscorePenalty: 0 | 1 = 0;
-
-	/**
 	 * The file extension part from {@link labelLow}.
 	 */
 	fileExtLow: string = '';
+
+	/**
+	 * A penalty that applies to completions that are comprised of only punctuation characters or
+	 * that applies to files or folders starting with the underscore character.
+	 */
+	punctuationPenalty: 0 | 1 = 0;
+
+	/**
+	 * Completion items details (such as docs) can be lazily resolved when focused.
+	 */
+	resolveCache?: Promise<void>;
 
 	constructor(
 		override readonly completion: ITerminalCompletion
@@ -121,11 +141,53 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 			if (completion.kind === TerminalCompletionItemKind.Folder) {
 				this.labelLowNormalizedPath = this.labelLowNormalizedPath.replace(/\/$/, '');
 			}
-			this.underscorePenalty = basename(this.labelLowNormalizedPath).startsWith('_') ? 1 : 0;
 		}
+
+		this.punctuationPenalty = shouldPenalizeForPunctuation(this.labelLowExcludeFileExt) ? 1 : 0;
 	}
+
+	/**
+	 * Resolves the completion item's details lazily when needed.
+	 */
+	async resolve(token: CancellationToken): Promise<void> {
+
+		if (this.resolveCache) {
+			return this.resolveCache;
+		}
+
+		const unresolvedItem = this.completion._unresolvedItem;
+		const provider = this.completion._resolveProvider;
+
+		if (!unresolvedItem || !provider || !provider.resolveCompletionItem) {
+			return;
+		}
+
+		this.resolveCache = (async () => {
+			try {
+				const resolved = await provider.resolveCompletionItem!(unresolvedItem, token);
+				if (resolved) {
+					// Update the completion with resolved details
+					if (resolved.detail) {
+						this.completion.detail = resolved.detail;
+					}
+					if (resolved.documentation) {
+						this.completion.documentation = resolved.documentation;
+					}
+				}
+			} catch (error) {
+				return;
+			}
+		})();
+
+		return this.resolveCache;
+	}
+
 }
 
 function isFile(completion: ITerminalCompletion): boolean {
 	return !!(completion.kind === TerminalCompletionItemKind.File || completion.isFileOverride);
+}
+
+function shouldPenalizeForPunctuation(label: string): boolean {
+	return basename(label).startsWith('_') || /^[\[\]\{\}\(\)\.,;:!?\/\\\-_@#~*%^=$]+$/.test(label);
 }

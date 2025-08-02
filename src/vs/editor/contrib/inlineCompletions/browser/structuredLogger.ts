@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
@@ -14,7 +15,7 @@ export interface IRecordableLogEntry {
 }
 
 export interface IRecordableEditorLogEntry extends IRecordableLogEntry {
-	modelUri: string;
+	modelUri: URI; // This has to be a URI, so that it gets translated automatically in remote scenarios
 	modelVersion: number;
 }
 
@@ -24,7 +25,6 @@ export type LogEntryData = IEventFetchEnd;
 export interface IDocumentEventDataSetChangeReason {
 	sourceId: 'TextModel.setChangeReason';
 	source: 'inlineSuggestion.accept' | 'snippet' | string;
-	detailedSource?: string;
 }
 
 interface IDocumentEventFetchStart {
@@ -79,7 +79,10 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 		if (!commandId) {
 			return false;
 		}
-		this._commandService.executeCommand(commandId, data);
+		try {
+			this._commandService.executeCommand(commandId, data).catch(() => { });
+		} catch (e) {
+		}
 		return true;
 	}
 }

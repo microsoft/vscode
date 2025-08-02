@@ -605,10 +605,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		}
 
 		const curLineNumber = this._editors.modified.getPosition()!.lineNumber;
-
 		let diff: DiffMapping | undefined;
 		if (target === 'next') {
-			diff = diffs.find(d => d.lineRangeMapping.modified.startLineNumber > curLineNumber) ?? diffs[0];
+			const modifiedLineCount = this._editors.modified.getModel()!.getLineCount();
+			if (modifiedLineCount === curLineNumber) {
+				diff = diffs[0];
+			} else {
+				diff = diffs.find(d => d.lineRangeMapping.modified.startLineNumber > curLineNumber) ?? diffs[0];
+			}
 		} else {
 			diff = findLast(diffs, d => d.lineRangeMapping.modified.startLineNumber < curLineNumber) ?? diffs[diffs.length - 1];
 		}

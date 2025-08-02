@@ -301,7 +301,13 @@ export class BaseIssueReporterService extends Disposable {
 
 	private async sendReporterMenu(extension: IssueReporterExtensionData): Promise<IssueReporterData | undefined> {
 		try {
-			const data = await this.issueFormService.sendReporterMenu(extension.id);
+			const timeoutPromise = new Promise<undefined>((_, reject) =>
+				setTimeout(() => reject(new Error('sendReporterMenu timed out')), 10000)
+			);
+			const data = await Promise.race([
+				this.issueFormService.sendReporterMenu(extension.id),
+				timeoutPromise
+			]);
 			return data;
 		} catch (e) {
 			console.error(e);
@@ -1056,11 +1062,12 @@ export class BaseIssueReporterService extends Disposable {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
-		url += this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
+		url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 
 		if (url.length > MAX_URL_LENGTH) {
 			try {
-				url = await this.writeToClipboard(baseUrl, issueBody) + this.addTemplateToUrl(gitHubDetails?.owner, gitHubDetails?.repositoryName);
+				url = await this.writeToClipboard(baseUrl, issueBody);
+				url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
@@ -1081,24 +1088,22 @@ export class BaseIssueReporterService extends Disposable {
 		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 	}
 
-	public addTemplateToUrl(owner?: string, repositoryName?: string): string {
+	public addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string): string {
 		const isVscode = this.issueReporterModel.getData().fileOnProduct;
-		const isCopilot = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-copilot-release';
-		const isPython = owner?.toLowerCase() === 'microsoft' && repositoryName === 'vscode-python';
+		const isMicrosoft = owner?.toLowerCase() === 'microsoft';
+		const needsTemplate = isVscode || (isMicrosoft && (repositoryName === 'vscode' || repositoryName === 'vscode-python'));
 
-		if (isVscode) {
-			return `&template=bug_report.md`;
+		if (needsTemplate) {
+			try {
+				const url = new URL(baseUrl);
+				url.searchParams.set('template', 'bug_report.md');
+				return url.toString();
+			} catch {
+				// fallback if baseUrl is not a valid URL
+				return baseUrl + '&template=bug_report.md';
+			}
 		}
-
-		if (isCopilot) {
-			return `&template=bug_report_chat.md`;
-		}
-
-		if (isPython) {
-			return `&template=bug_report.md`;
-		}
-
-		return '';
+		return baseUrl;
 	}
 
 	public getIssueUrl(): string {

@@ -9,6 +9,12 @@
 export const enum McpCommandIds {
 	AddConfiguration = 'workbench.mcp.addConfiguration',
 	Browse = 'workbench.mcp.browseServers',
+	BrowsePage = 'workbench.mcp.browseServersPage',
+	ShowInstalled = 'workbench.mcp.showInstalledServers',
+	OpenUserMcp = 'workbench.mcp.openUserMcpJson',
+	OpenRemoteUserMcp = 'workbench.mcp.openRemoteUserMcpJson',
+	OpenWorkspaceFolderMcp = 'workbench.mcp.openWorkspaceFolderMcpJson',
+	OpenWorkspaceMcp = 'workbench.mcp.openWorkspaceMcpJson',
 	BrowseResources = 'workbench.mcp.browseResources',
 	ConfigureSamplingModels = 'workbench.mcp.configureSamplingModels',
 	EditStoredInput = 'workbench.mcp.editStoredInput',
@@ -21,6 +27,7 @@ export const enum McpCommandIds {
 	ServerOptions = 'workbench.mcp.serverOptions',
 	ShowConfiguration = 'workbench.mcp.showConfiguration',
 	ShowOutput = 'workbench.mcp.showOutput',
+	StartPromptForServer = 'workbench.mcp.startPromptForServer',
 	StartServer = 'workbench.mcp.startServer',
 	StopServer = 'workbench.mcp.stopServer',
 }

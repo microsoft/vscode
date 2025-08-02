@@ -81,7 +81,7 @@ export async function activate(context: ExtensionContext, mainTelemetryReporter:
 		authProvider,
 		{
 			supportsMultipleAccounts: true,
-			supportedIssuers: [
+			supportedAuthorizationServers: [
 				Uri.parse('https://login.microsoftonline.com/*/v2.0')
 			]
 		}

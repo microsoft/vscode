@@ -4,12 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { equals } from '../../../../base/common/objects.js';
+import { PolicyTag } from '../../../../base/common/policy.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
 
+interface IAccountPolicy {
+	readonly chatPreviewFeaturesEnabled: boolean;
+	readonly mcpEnabled: boolean;
+	readonly chatAgentEnabled: boolean;
+}
+
 export class AccountPolicyService extends AbstractPolicyService implements IPolicyService {
-	private chatPreviewFeaturesEnabled: boolean = true;
+	private accountPolicy: IAccountPolicy = {
+		chatPreviewFeaturesEnabled: true,
+		mcpEnabled: true,
+		chatAgentEnabled: true
+	};
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService
@@ -18,43 +30,71 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 		this.defaultAccountService.getDefaultAccount()
 			.then(account => {
-				this._update(account?.chat_preview_features_enabled ?? true);
-				this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => this._update(account?.chat_preview_features_enabled ?? true)));
+				this._update({
+					chatPreviewFeaturesEnabled: account?.chat_preview_features_enabled ?? true,
+					mcpEnabled: account?.mcp ?? true,
+					chatAgentEnabled: account?.chat_agent_enabled ?? true
+				});
+				this._register(this.defaultAccountService.onDidChangeDefaultAccount(
+					account => this._update({
+						chatPreviewFeaturesEnabled: account?.chat_preview_features_enabled ?? true,
+						mcpEnabled: account?.mcp ?? true,
+						chatAgentEnabled: account?.chat_agent_enabled ?? true
+					})
+				));
 			});
 	}
 
-	private _update(chatPreviewFeaturesEnabled: boolean | undefined) {
-		const newValue = (chatPreviewFeaturesEnabled === undefined) || chatPreviewFeaturesEnabled;
-		if (this.chatPreviewFeaturesEnabled !== newValue) {
-			this.chatPreviewFeaturesEnabled = newValue;
+	private _update(updatedPolicy: IAccountPolicy): void {
+		if (!equals(this.accountPolicy, updatedPolicy)) {
+			this.accountPolicy = updatedPolicy;
 			this._updatePolicyDefinitions(this.policyDefinitions);
 		}
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		this.logService.trace(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
+		const updated: string[] = [];
 
-		const update: string[] = [];
+		const updateIfNeeded = (key: string, policy: PolicyDefinition, isFeatureEnabled: boolean): void => {
+			if (isFeatureEnabled) {
+				// Clear the policy if it is set
+				if (this.policies.has(key)) {
+					this.policies.delete(key);
+					updated.push(key);
+				}
+			} else {
+				// Enforce the defaultValue if not already set
+				const updatedValue = policy.defaultValue === undefined ? false : policy.defaultValue;
+				if (this.policies.get(key) !== updatedValue) {
+					this.policies.set(key, updatedValue);
+					updated.push(key);
+				}
+			}
+		};
+
+		const hasAllTags = (policy: PolicyDefinition, tags: PolicyTag[]): boolean | undefined => {
+			return policy.tags && tags.every(tag => policy.tags!.includes(tag));
+		};
+
 		for (const key in policyDefinitions) {
 			const policy = policyDefinitions[key];
-			if (policy.previewFeature) {
-				if (this.chatPreviewFeaturesEnabled) {
-					this.policies.delete(key);
-					update.push(key);
-					continue;
-				}
-				const defaultValue = policy.defaultValue;
-				const updatedValue = defaultValue === undefined ? false : defaultValue;
-				if (this.policies.get(key) === updatedValue) {
-					continue;
-				}
-				this.policies.set(key, updatedValue);
-				update.push(key);
+
+			// Map chat preview features with ACCOUNT + PREVIEW tags
+			if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.Preview])) {
+				updateIfNeeded(key, policy, this.accountPolicy?.chatPreviewFeaturesEnabled);
+			}
+			// Map MCP feature with MCP tag
+			else if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.MCP])) {
+				updateIfNeeded(key, policy, this.accountPolicy?.mcpEnabled);
+			}
+			else if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.Agent])) {
+				updateIfNeeded(key, policy, this.accountPolicy?.chatAgentEnabled);
 			}
 		}
 
-		if (update.length) {
-			this._onDidChange.fire(update);
+		if (updated.length) {
+			this._onDidChange.fire(updated);
 		}
 	}
 }

@@ -352,6 +352,14 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 
 	private dedupExtensions(system: IScannedExtension[] | undefined, user: IScannedExtension[] | undefined, development: IScannedExtension[] | undefined, targetPlatform: TargetPlatform, pickLatest: boolean): IScannedExtension[] {
 		const pick = (existing: IScannedExtension, extension: IScannedExtension, isDevelopment: boolean): boolean => {
+			if (!isDevelopment) {
+				if (existing.metadata?.isApplicationScoped && !extension.metadata?.isApplicationScoped) {
+					return false;
+				}
+				if (!existing.metadata?.isApplicationScoped && extension.metadata?.isApplicationScoped) {
+					return true;
+				}
+			}
 			if (existing.isValid && !extension.isValid) {
 				return false;
 			}

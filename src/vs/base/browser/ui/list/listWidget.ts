@@ -29,7 +29,7 @@ import { isNumber } from '../../../common/types.js';
 import './list.css';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListElementRenderDetails, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView.js';
-import { StandardMouseEvent } from '../../mouseEvent.js';
+import { IMouseWheelEvent, StandardMouseEvent } from '../../mouseEvent.js';
 import { autorun, constObservable, IObservable } from '../../../common/observable.js';
 
 interface ITraitChangeEvent {
@@ -856,7 +856,7 @@ export interface IStyleController {
 
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
 	getAriaLabel(element: T): string | IObservable<string> | null;
-	getWidgetAriaLabel(): string;
+	getWidgetAriaLabel(): string | IObservable<string>;
 	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
 	onDidChangeActiveDescendant?: Event<void>;
@@ -1530,7 +1530,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.onDidChangeSelection(this._onSelectionChange, this, this.disposables);
 
 		if (this.accessibilityProvider) {
-			this.ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
+			const ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
+			const observable = (ariaLabel && typeof ariaLabel !== 'string') ? ariaLabel : constObservable(ariaLabel);
+
+			this.disposables.add(autorun(reader => {
+				this.ariaLabel = reader.readObservable(observable);
+			}));
 		}
 
 		if (this._options.multipleSelectionSupport !== false) {
@@ -1964,6 +1969,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	style(styles: IListStyles): void {
 		this.styleController.style(styles);
+	}
+
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	private toListEvent({ indexes, browserEvent }: ITraitChangeEvent) {

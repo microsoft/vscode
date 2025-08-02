@@ -14,6 +14,7 @@ import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, IT
 import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from './taskSystem.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { RawContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export type { ITaskSummary, Task, ITaskTerminateResponse as TaskTerminateResponse };
 
@@ -87,6 +88,7 @@ export interface ITaskService {
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, IWorkspaceFolderTaskResult>>;
 	getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]>;
 	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
+	getTerminalForTask(task: Task): URI | undefined;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */

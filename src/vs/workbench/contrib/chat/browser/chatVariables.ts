@@ -7,6 +7,7 @@ import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables
 import { IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 export class ChatVariablesService implements IChatVariablesService {
 	declare _serviceBrand: undefined;
@@ -28,6 +29,28 @@ export class ChatVariablesService implements IChatVariablesService {
 		const model = widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
 		if (!model) {
 			return [];
+		}
+
+		if (widget.input.attachmentModel.attachments.length > 0 && widget.viewModel.editing) {
+			const references: IDynamicVariable[] = [];
+			for (const attachment of widget.input.attachmentModel.attachments) {
+				// If the attachment has a range, it is a dynamic variable
+				if (attachment.range) {
+					const referenceObj: IDynamicVariable = {
+						id: attachment.id,
+						fullName: attachment.name,
+						modelDescription: attachment.modelDescription,
+						range: new Range(1, attachment.range.start + 1, 1, attachment.range.endExclusive + 1),
+						icon: attachment.icon,
+						isFile: attachment.kind === 'file',
+						isDirectory: attachment.kind === 'directory',
+						data: attachment.value
+					};
+					references.push(referenceObj);
+				}
+			}
+
+			return [...model.variables, ...references];
 		}
 
 		return model.variables;

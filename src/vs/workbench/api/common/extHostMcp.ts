@@ -10,13 +10,13 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { SSEParser } from '../../../base/common/sseParser.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import { LogLevel } from '../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, getDefaultMetadataForUrl, getMetadataWithDefaultValues, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -40,6 +40,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@ILogService private readonly _logService: ILogService,
 		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService
 	) {
 		super();
@@ -52,7 +53,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	protected _startMcp(id: number, launch: McpServerLaunch): void {
 		if (launch.type === McpServerTransportType.HTTP) {
-			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy));
+			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy, this._logService));
 			return;
 		}
 
@@ -127,7 +128,7 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 				servers.push({
 					id,
 					label: item.label,
-					cacheNonce: item.version,
+					cacheNonce: item.version || '$$NONE',
 					launch: Convert.McpServerDefinition.from(item),
 				});
 			}
@@ -175,6 +176,9 @@ type HttpModeT =
 	| { value: HttpMode.Http; sessionId: string | undefined }
 	| { value: HttpMode.SSE; endpoint: string };
 
+const MAX_FOLLOW_REDIRECTS = 5;
+const REDIRECT_STATUS_CODES = [301, 302, 303, 307, 308];
+
 /**
  * Implementation of both MCP HTTP Streaming as well as legacy SSE.
  *
@@ -189,14 +193,16 @@ class McpHTTPHandle extends Disposable {
 	private readonly _cts = new CancellationTokenSource();
 	private readonly _abortCtrl = new AbortController();
 	private _authMetadata?: {
-		server: IAuthorizationServerMetadata;
-		resource?: IAuthorizationProtectedResourceMetadata;
+		authorizationServer: URI;
+		serverMetadata: IAuthorizationServerMetadata;
+		resourceMetadata?: IAuthorizationProtectedResourceMetadata;
 	};
 
 	constructor(
 		private readonly _id: number,
 		private readonly _launch: McpServerTransportHTTP,
-		private readonly _proxy: MainThreadMcpShape
+		private readonly _proxy: MainThreadMcpShape,
+		private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -209,16 +215,22 @@ class McpHTTPHandle extends Disposable {
 
 	async send(message: string) {
 		try {
-			await this._requestSequencer.queue(() => {
-				if (this._mode.value === HttpMode.SSE) {
-					return this._sendLegacySSE(this._mode.endpoint, message);
-				} else {
-					return this._sendStreamableHttp(message, this._mode.value === HttpMode.Http ? this._mode.sessionId : undefined);
-				}
-			});
+			if (this._mode.value === HttpMode.Unknown) {
+				await this._requestSequencer.queue(() => this._send(message));
+			} else {
+				await this._send(message);
+			}
 		} catch (err) {
 			const msg = `Error sending message to ${this._launch.uri}: ${String(err)}`;
 			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: msg });
+		}
+	}
+
+	_send(message: string) {
+		if (this._mode.value === HttpMode.SSE) {
+			return this._sendLegacySSE(this._mode.endpoint, message);
+		} else {
+			return this._sendStreamableHttp(message, this._mode.value === HttpMode.Http ? this._mode.sessionId : undefined);
 		}
 	}
 
@@ -241,26 +253,15 @@ class McpHTTPHandle extends Disposable {
 		}
 		await this._addAuthHeader(headers);
 
-		const doFetch = () => fetch(
+		const res = await this._fetchWithAuthRetry(
 			this._launch.uri.toString(true),
 			{
 				method: 'POST',
-				signal: this._abortCtrl.signal,
 				headers,
 				body: asBytes,
-			}
+			},
+			headers
 		);
-
-		let res = await doFetch();
-		if (res.status === 401) {
-			if (!this._authMetadata) {
-				await this._populateAuthMetadata(res);
-				await this._addAuthHeader(headers);
-				if (headers['Authorization']) {
-					res = await doFetch();
-				}
-			}
-		}
 
 		const wasUnknown = this._mode.value === HttpMode.Unknown;
 
@@ -270,7 +271,12 @@ class McpHTTPHandle extends Disposable {
 			this._mode = { value: HttpMode.Http, sessionId: nextSessionId };
 		}
 
-		if (this._mode.value === HttpMode.Unknown && res.status >= 400 && res.status < 500) {
+		if (this._mode.value === HttpMode.Unknown &&
+			// We care about 4xx errors...
+			res.status >= 400 && res.status < 500
+			// ...except for 401 and 403, which are auth errors
+			&& res.status !== 401 && res.status !== 403
+		) {
 			this._log(LogLevel.Info, `${res.status} status sending message to ${this._launch.uri}, will attempt to fall back to legacy SSE`);
 			this._sseFallbackWithMessage(message);
 			return;
@@ -284,7 +290,7 @@ class McpHTTPHandle extends Disposable {
 
 			this._proxy.$onDidChangeState(this._id, {
 				state: McpConnectionState.Kind.Error,
-				message: `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}` + retryWithSessionId ? `; will retry with new session ID` : '',
+				message: `${res.status} status sending message to ${this._launch.uri}: ${await this._getErrText(res)}` + (retryWithSessionId ? `; will retry with new session ID` : ''),
 				shouldRetry: retryWithSessionId,
 			});
 			return;
@@ -297,8 +303,7 @@ class McpHTTPHandle extends Disposable {
 			this._attachStreamableBackchannel();
 		}
 
-		// Not awaited, we don't need to block the sequencer while we read the response
-		this._handleSuccessfulStreamableHttp(res, message);
+		await this._handleSuccessfulStreamableHttp(res, message);
 	}
 
 	private async _sseFallbackWithMessage(message: string) {
@@ -309,7 +314,7 @@ class McpHTTPHandle extends Disposable {
 		}
 	}
 
-	private async _populateAuthMetadata(originalResponse: Response): Promise<void> {
+	private async _populateAuthMetadata(url: string, originalResponse: Response): Promise<void> {
 		// If there is a resource_metadata challenge, use that to get the oauth server. This is done in 2 steps.
 		// First, extract the resource_metada challenge from the WWW-Authenticate header (if available)
 		let resourceMetadataChallenge: string | undefined;
@@ -326,6 +331,10 @@ class McpHTTPHandle extends Disposable {
 		let resource: IAuthorizationProtectedResourceMetadata | undefined;
 		if (resourceMetadataChallenge) {
 			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
+			// Use URL constructor for normalization - it handles hostname case and trailing slashes
+			if (new URL(resourceMetadata.resource).toString() !== new URL(url).toString()) {
+				throw new Error(`Protected Resource Metadata resource "${resourceMetadata.resource}" does not match MCP server resolved resource "${url}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
+			}
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
@@ -347,19 +356,10 @@ class McpHTTPHandle extends Disposable {
 		}
 		try {
 			const serverMetadataResponse = await this._getAuthorizationServerMetadata(serverMetadataUrl, addtionalHeaders);
-			const serverMetadataWithDefaults = getMetadataWithDefaultValues(serverMetadataResponse);
 			this._authMetadata = {
-				server: {
-					...serverMetadataWithDefaults,
-					// HACK: For now, just use the serverMetadataUrl as the issuer. I found an example, Entra,
-					// that uses a placeholder for the tenant... https://login.microsoftonline.com/{tenant}/v2.0
-					// literally... it contains `{tenant}`... instead of `organizations`. This may change our
-					// API a bit to instead pass in these other endpoints, but for now, just user the serverMetadataUrl
-					// as the isser.
-					issuer: serverMetadataUrl,
-					scopes_supported: scopesSupported ?? serverMetadataWithDefaults.scopes_supported
-				},
-				resource
+				authorizationServer: URI.parse(serverMetadataUrl),
+				serverMetadata: serverMetadataResponse,
+				resourceMetadata: resource
 			};
 			return;
 		} catch (e) {
@@ -370,8 +370,9 @@ class McpHTTPHandle extends Disposable {
 		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
 		defaultMetadata.scopes_supported = scopesSupported ?? defaultMetadata.scopes_supported ?? [];
 		this._authMetadata = {
-			server: defaultMetadata,
-			resource
+			authorizationServer: URI.parse(serverMetadataUrl),
+			serverMetadata: defaultMetadata,
+			resourceMetadata: resource
 		};
 	}
 
@@ -385,9 +386,8 @@ class McpHTTPHandle extends Disposable {
 				...Object.fromEntries(this._launch.headers)
 			};
 		}
-		const resourceMetadataResponse = await fetch(resourceMetadata, {
+		const resourceMetadataResponse = await this._fetch(resourceMetadata, {
 			method: 'GET',
-			signal: this._abortCtrl.signal,
 			headers: {
 				...additionalHeaders,
 				'Accept': 'application/json',
@@ -409,12 +409,11 @@ class McpHTTPHandle extends Disposable {
 		// For the oauth server metadata discovery path, we _INSERT_
 		// the well known path after the origin and before the path.
 		// https://datatracker.ietf.org/doc/html/rfc8414#section-3
-		const issuer = new URL(authorizationServer);
-		const extraPath = issuer.pathname === '/' ? '' : issuer.pathname;
+		const authorizationServerUrl = new URL(authorizationServer);
+		const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 		const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
-		let authServerMetadataResponse = await fetch(pathToFetch, {
+		let authServerMetadataResponse = await this._fetch(pathToFetch, {
 			method: 'GET',
-			signal: this._abortCtrl.signal,
 			headers: {
 				...addtionalHeaders,
 				'Accept': 'application/json',
@@ -422,23 +421,36 @@ class McpHTTPHandle extends Disposable {
 			}
 		});
 		if (authServerMetadataResponse.status !== 200) {
-			// Try fetching the other discovery URL. For the openid metadata discovery
-			// path, we _ADD_ the well known path after the existing path.
-			// https://datatracker.ietf.org/doc/html/rfc8414#section-3
-			authServerMetadataResponse = await fetch(
-				URI.joinPath(URI.parse(authorizationServer), '.well-known', 'openid-configuration').toString(true),
-				{
-					method: 'GET',
-					signal: this._abortCtrl.signal,
-					headers: {
-						...addtionalHeaders,
-						'Accept': 'application/json',
-						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-					}
+			// Try fetching the OpenID Connect Discovery with path insertion.
+			// For issuer URLs with path components, this inserts the well-known path
+			// after the origin and before the path.
+			const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+			authServerMetadataResponse = await this._fetch(openidPathInsertionUrl, {
+				method: 'GET',
+				headers: {
+					...addtionalHeaders,
+					'Accept': 'application/json',
+					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 				}
-			);
+			});
 			if (authServerMetadataResponse.status !== 200) {
-				throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
+				// Try fetching the other discovery URL. For the openid metadata discovery
+				// path, we _ADD_ the well known path after the existing path.
+				// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+				authServerMetadataResponse = await this._fetch(
+					URI.joinPath(URI.parse(authorizationServer), OPENID_CONNECT_DISCOVERY_PATH).toString(true),
+					{
+						method: 'GET',
+						headers: {
+							...addtionalHeaders,
+							'Accept': 'application/json',
+							'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+						}
+					}
+				);
+				if (authServerMetadataResponse.status !== 200) {
+					throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
+				}
 			}
 		}
 		const body = await authServerMetadataResponse.json();
@@ -512,11 +524,14 @@ class McpHTTPHandle extends Disposable {
 					headers['Last-Event-ID'] = lastEventId;
 				}
 
-				res = await fetch(this._launch.uri.toString(true), {
-					method: 'GET',
-					signal: this._abortCtrl.signal,
-					headers,
-				});
+				res = await this._fetchWithAuthRetry(
+					this._launch.uri.toString(true),
+					{
+						method: 'GET',
+						headers,
+					},
+					headers
+				);
 			} catch (e) {
 				this._log(LogLevel.Info, `Error connecting to ${this._launch.uri} for async notifications, will retry`);
 				continue;
@@ -527,7 +542,11 @@ class McpHTTPHandle extends Disposable {
 				return;
 			}
 
-			retry = 0;
+			// Only reset the retry counter if we definitely get an event stream to avoid
+			// spamming servers that (incorrectly) don't return one from this endpoint.
+			if (res.headers.get('content-type')?.toLowerCase().includes('text/event-stream')) {
+				retry = 0;
+			}
 
 			const parser = new SSEParser(event => {
 				if (event.type === 'message') {
@@ -560,11 +579,14 @@ class McpHTTPHandle extends Disposable {
 
 		let res: Response;
 		try {
-			res = await fetch(this._launch.uri.toString(true), {
-				method: 'GET',
-				signal: this._abortCtrl.signal,
-				headers,
-			});
+			res = await this._fetchWithAuthRetry(
+				this._launch.uri.toString(true),
+				{
+					method: 'GET',
+					headers,
+				},
+				headers
+			);
 			if (res.status >= 300) {
 				this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `${res.status} status connecting to ${this._launch.uri} as SSE: ${await this._getErrText(res)}` });
 				return;
@@ -602,9 +624,8 @@ class McpHTTPHandle extends Disposable {
 			'Content-Length': String(asBytes.length),
 		};
 		await this._addAuthHeader(headers);
-		const res = await fetch(url, {
+		const res = await this._fetch(url, {
 			method: 'POST',
-			signal: this._abortCtrl.signal,
 			headers,
 			body: asBytes,
 		});
@@ -643,7 +664,7 @@ class McpHTTPHandle extends Disposable {
 	private async _addAuthHeader(headers: Record<string, string>) {
 		if (this._authMetadata) {
 			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.server, this._authMetadata.resource);
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata);
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
 				}
@@ -667,6 +688,88 @@ class McpHTTPHandle extends Disposable {
 			return res.statusText;
 		}
 	}
+
+	/**
+	 * Helper method to perform fetch with 401 authentication retry logic.
+	 * If the initial request returns 401 and we don't have auth metadata,
+	 * it will populate the auth metadata and retry once.
+	 */
+	private async _fetchWithAuthRetry(url: string, init: MinimalRequestInit, headers: Record<string, string>): Promise<Response> {
+		const doFetch = () => this._fetch(url, init);
+
+		let res = await doFetch();
+		if (res.status === 401) {
+			if (!this._authMetadata) {
+				await this._populateAuthMetadata(url, res);
+				await this._addAuthHeader(headers);
+				if (headers['Authorization']) {
+					// Update the headers in the init object
+					init.headers = headers;
+					res = await doFetch();
+				}
+			}
+		}
+		return res;
+	}
+
+	private async _fetch(url: string, init: MinimalRequestInit): Promise<Response> {
+		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
+			const traceObj: any = { ...init, headers: { ...init.headers } };
+			if (traceObj.body) {
+				traceObj.body = new TextDecoder().decode(traceObj.body);
+			}
+			if (traceObj.headers?.Authorization) {
+				traceObj.headers.Authorization = '***'; // don't log the auth header
+			}
+			this._log(LogLevel.Trace, `Fetching ${url} with options: ${JSON.stringify(traceObj)}`);
+		}
+
+		let currentUrl = url;
+		let response!: Response;
+		for (let redirectCount = 0; redirectCount < MAX_FOLLOW_REDIRECTS; redirectCount++) {
+			response = await fetch(currentUrl, {
+				...init,
+				signal: this._abortCtrl.signal,
+				redirect: 'manual'
+			});
+
+			// Check for redirect status codes (301, 302, 303, 307, 308)
+			if (!REDIRECT_STATUS_CODES.includes(response.status)) {
+				break;
+			}
+
+			const location = response.headers.get('location');
+			if (!location) {
+				break;
+			}
+
+			const nextUrl = new URL(location, currentUrl).toString();
+			this._log(LogLevel.Trace, `Redirect (${response.status}) from ${currentUrl} to ${nextUrl}`);
+			currentUrl = nextUrl;
+			// Per fetch spec, for 303 always use GET, keep method unless original was POST and 301/302, then GET.
+			if (response.status === 303 || ((response.status === 301 || response.status === 302) && init.method === 'POST')) {
+				init.method = 'GET';
+				delete init.body;
+			}
+		}
+
+		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
+			const headers: Record<string, string> = {};
+			response.headers.forEach((value, key) => { headers[key] = value; });
+			this._log(LogLevel.Trace, `Fetched ${currentUrl}: ${JSON.stringify({
+				status: response.status,
+				headers: headers,
+			})}`);
+		}
+
+		return response;
+	}
+}
+
+interface MinimalRequestInit {
+	method: string;
+	headers: Record<string, string>;
+	body?: Uint8Array<ArrayBuffer>;
 }
 
 function isJSON(str: string): boolean {
