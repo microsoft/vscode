@@ -38,15 +38,17 @@ type LanguageModelProviderData = {
 	readonly provider: vscode.LanguageModelChatProvider2;
 };
 
+type LMResponsePart = vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart;
+
 class LanguageModelResponseStream {
 
-	readonly stream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
+	readonly stream = new AsyncIterableSource<LMResponsePart>();
 
 	constructor(
 		readonly option: number,
-		stream?: AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>
+		stream?: AsyncIterableSource<LMResponsePart>
 	) {
-		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
+		this.stream = stream ?? new AsyncIterableSource<LMResponsePart>();
 	}
 }
 
@@ -55,7 +57,7 @@ class LanguageModelResponse {
 	readonly apiObject: vscode.LanguageModelChatResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
-	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
+	private readonly _defaultStream = new AsyncIterableSource<LMResponsePart>();
 	private _isDone: boolean = false;
 
 	constructor() {
@@ -93,15 +95,15 @@ class LanguageModelResponse {
 			return;
 		}
 
-		const partsByIndex = new Map<number, (vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart)[]>();
+		const partsByIndex = new Map<number, (LMResponsePart)[]>();
 
 		for (const fragment of Iterable.wrap(fragments)) {
 
-			let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
+			let out: LMResponsePart;
 			if (fragment.part.type === 'text') {
 				out = new extHostTypes.LanguageModelTextPart(fragment.part.value, fragment.part.audience);
 			} else if (fragment.part.type === 'data') {
-				out = new extHostTypes.LanguageModelTextPart('');
+				out = new extHostTypes.LanguageModelDataPart(fragment.part.value.data, fragment.part.value.mimeType, fragment.part.audience);
 			} else {
 				out = new extHostTypes.LanguageModelToolCallPart(fragment.part.toolCallId, fragment.part.name, fragment.part.parameters);
 			}
