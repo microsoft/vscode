@@ -816,6 +816,9 @@ registerChatEditorActions();
 registerChatToolActions();
 registerLanguageModelActions();
 
+// Register ChatAttachmentResolveService before features that depend on it
+registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
+
 registerEditorFeature(ChatPasteProvidersFeature);
 
 
@@ -842,7 +845,6 @@ registerSingleton(IChatEntitlementService, ChatEntitlementService, Instantiation
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
-registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 

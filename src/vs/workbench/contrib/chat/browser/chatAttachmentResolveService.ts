@@ -27,22 +27,33 @@ import { getOutputViewModelFromId } from '../../notebook/browser/controller/cell
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
 import { SCMHistoryItemTransferData } from '../../scm/browser/scmHistoryChatContext.js';
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../common/chatModel.js';
-import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry, IImageVariableEntry } from '../common/chatVariableEntries.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { imageToHash } from './chatPasteProviders.js';
-import { resizeImage } from './imageUtils.js';
+import { resizeImage, imageToHash } from './imageUtils.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+
+import product from '../../../../platform/product/common/product.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
+
+const defaultChat = {
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
+};
 
 export const IChatAttachmentResolveService = createDecorator<IChatAttachmentResolveService>('IChatAttachmentResolveService');
 
 export interface IChatAttachmentResolveService {
 	_serviceBrand: undefined;
 
-	resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined>;
+	resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry | undefined>;
 	resolveUntitledEditorAttachContext(editor: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined>;
 	resolveResourceAttachContext(resource: URI, isDirectory: boolean): Promise<IChatRequestVariableEntry | undefined>;
 
 	resolveImageEditorAttachContext(resource: URI, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined>;
+	resolveImageEditorAttachContextWithCallback(resource: URI, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined>;
 	resolveImageAttachContext(images: ImageTransferData[]): Promise<IChatRequestVariableEntry[]>;
+	resolveImageAttachContextWithCallback(images: ImageTransferData[], onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]>;
 	resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[];
 	resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): ISymbolVariableEntry[];
 	resolveNotebookOutputAttachContext(data: NotebookCellOutputTransferData): IChatRequestVariableEntry[];
@@ -57,12 +68,15 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		@IEditorService private editorService: IEditorService,
 		@ITextModelService private textModelService: ITextModelService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IDialogService private dialogService: IDialogService
+		@IDialogService private dialogService: IDialogService,
+		@IAuthenticationQueryService private authenticationQueryService: IAuthenticationQueryService,
+		@IAuthenticationService private authenticationService: IAuthenticationService,
+		@ISharedWebContentExtractorService private sharedWebContentExtractorService: ISharedWebContentExtractorService
 	) { }
 
 	// --- EDITORS ---
 
-	public async resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
+	public async resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry | undefined> {
 		// untitled editor
 		if (isUntitledResourceEditorInput(editor)) {
 			return await this.resolveUntitledEditorAttachContext(editor);
@@ -82,8 +96,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		if (!stat.isDirectory && !stat.isFile) {
 			return undefined;
 		}
-
-		const imageContext = await this.resolveImageEditorAttachContext(editor.resource);
+		const imageContext = await this.resolveImageEditorAttachContextWithCallback(editor.resource, onUpdate, undefined, undefined);
 		if (imageContext) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 		}
@@ -189,33 +202,161 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 			dataBuffer = readFile.value;
 		}
 
+		const providerId = defaultChat?.provider.default.id;
+		let token: string | undefined = '';
+
+		// Get all accounts for the provider
+		const accounts: any[] = [];
+		await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
+			accounts.push(account);
+		});
+
+		// Find the token from the first available account
+		if (accounts.length > 0) {
+			const sessions = await this.authenticationService.getSessions(providerId);
+			token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
+		}
+
 		const isPartiallyOmitted = /\.gif$/i.test(resource.path);
-		const imageFileContext = await this.resolveImageAttachContext([{
+		const imageFileContext = await this.resolveImageAttachContextWithCallback([{
 			id: resource.toString(),
 			name: fileName,
 			data: dataBuffer.buffer,
 			icon: Codicon.fileMedia,
 			resource: resource,
 			mimeType: mimeType,
-			omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted
+			omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted,
+			token
 		}]);
 
 		return imageFileContext[0];
 	}
 
+	public async resolveImageEditorAttachContextWithCallback(resource: URI, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined> {
+		if (!resource) {
+			return undefined;
+		}
+
+		if (mimeType) {
+			if (!getAttachableImageExtension(mimeType)) {
+				return undefined;
+			}
+		} else {
+			const match = SUPPORTED_IMAGE_EXTENSIONS_REGEX.exec(resource.path);
+			if (!match) {
+				return undefined;
+			}
+
+			mimeType = getMimeTypeFromPath(match);
+		}
+		const fileName = basename(resource);
+
+		let dataBuffer: VSBuffer | undefined;
+		if (data) {
+			dataBuffer = data;
+		} else {
+			let stat;
+			try {
+				stat = await this.fileService.stat(resource);
+			} catch {
+				return undefined;
+			}
+
+			const readFile = await this.fileService.readFile(resource);
+
+			if (stat.size > 30 * 1024 * 1024) { // 30 MB
+				this.dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
+				throw new Error('Image is too large');
+			}
+
+			dataBuffer = readFile.value;
+		}
+
+		const providerId = defaultChat?.provider.default.id;
+		let token: string | undefined = '';
+
+		// Get all accounts for the provider
+		const accounts: any[] = [];
+		await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
+			accounts.push(account);
+		});
+
+		// Find the token from the first available account
+		if (accounts.length > 0) {
+			const sessions = await this.authenticationService.getSessions(providerId);
+			token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
+		}
+
+		const isPartiallyOmitted = /\.gif$/i.test(resource.path);
+		const imageFileContext = await this.resolveImageAttachContextWithCallback([{
+			id: resource.toString(),
+			name: fileName,
+			data: dataBuffer.buffer,
+			icon: Codicon.fileMedia,
+			resource: resource,
+			mimeType: mimeType,
+			omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted,
+			token
+		}], onUpdate);
+
+		return imageFileContext[0];
+	}
+
 	public resolveImageAttachContext(images: ImageTransferData[]): Promise<IChatRequestVariableEntry[]> {
-		return Promise.all(images.map(async image => ({
-			id: image.id || await imageToHash(image.data),
-			name: image.name,
-			fullName: image.resource ? image.resource.path : undefined,
-			value: await resizeImage(image.data, image.mimeType),
-			icon: image.icon,
-			kind: 'image',
-			isFile: false,
-			isDirectory: false,
-			omittedState: image.omittedState || OmittedState.NotOmitted,
-			references: image.resource ? [{ reference: image.resource, kind: 'reference' }] : []
-		})));
+		return this.resolveImageAttachContextWithCallback(images);
+	}
+
+	public resolveImageAttachContextWithCallback(images: ImageTransferData[], onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]> {
+		return Promise.all(images.map(async image => {
+			const binaryData = await resizeImage(image.data, image.mimeType);
+			const id = image.id || await imageToHash(binaryData);
+
+			// Create initial loading entry
+			const loadingEntry: IImageVariableEntry = {
+				id,
+				name: image.name,
+				fullName: image.resource ? image.resource.path : undefined,
+				value: binaryData,
+				icon: image.icon,
+				kind: 'image',
+				omittedState: image.omittedState || OmittedState.NotOmitted,
+				references: image.resource ? [{ reference: image.resource, kind: 'reference' }] : [],
+				isLoading: true
+			};
+
+			// Start upload asynchronously and update when complete
+			if (onUpdate) {
+				this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, image.token)
+					.then(url => {
+						const updatedEntry: IImageVariableEntry = {
+							...loadingEntry,
+							url,
+							isLoading: false
+						};
+						onUpdate(updatedEntry);
+					})
+					.catch(error => {
+						console.error('Error uploading image:', error);
+						// Update with error state but keep the binary data
+						const errorEntry: IImageVariableEntry = {
+							...loadingEntry,
+							isLoading: false
+						};
+						onUpdate(errorEntry);
+					});
+			} else {
+				// Fallback to synchronous upload for backwards compatibility
+				const url = await this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, image.token);
+				const finalEntry: IImageVariableEntry = {
+					...loadingEntry,
+					url,
+					isLoading: false
+				};
+				return finalEntry;
+			}
+
+			return loadingEntry;
+		}));
 	}
 
 	// --- MARKERS ---
@@ -312,6 +453,7 @@ export type ImageTransferData = {
 	id?: string;
 	mimeType?: string;
 	omittedState?: OmittedState;
+	token?: string;
 };
 const SUPPORTED_IMAGE_EXTENSIONS_REGEX = new RegExp(`\\.(${Object.keys(CHAT_ATTACHABLE_IMAGE_MIME_TYPES).join('|')})$`, 'i');
 

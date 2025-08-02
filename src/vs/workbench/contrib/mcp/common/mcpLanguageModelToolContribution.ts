@@ -17,9 +17,13 @@ import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IImageResizeService } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { McpCommandIds } from './mcpCommandIds.js';
@@ -30,6 +34,11 @@ interface ISyncedToolData {
 	toolData: IToolData;
 	store: DisposableStore;
 }
+
+const defaultChat = {
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
+};
 
 export class McpLanguageModelToolContribution extends Disposable implements IWorkbenchContribution {
 
@@ -165,6 +174,9 @@ class McpToolImplementation implements IToolImpl {
 		@IProductService private readonly _productService: IProductService,
 		@IFileService private readonly _fileService: IFileService,
 		@IImageResizeService private readonly _imageResizeService: IImageResizeService,
+		@IAuthenticationQueryService private authenticationQueryService: IAuthenticationQueryService,
+		@IAuthenticationService private authenticationService: IAuthenticationService,
+		@ISharedWebContentExtractorService private sharedWebContentExtractorService: ISharedWebContentExtractorService
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext): Promise<IPreparedToolInvocation> {
@@ -235,7 +247,28 @@ class McpToolImplementation implements IToolImpl {
 					} catch {
 						finalData = decodeBase64(value);
 					}
-					result.content.push({ kind: 'data', value: { mimeType, data: finalData } });
+					const providerId = defaultChat?.provider.default.id;
+					let token: string | undefined = '';
+					const accounts: any[] = [];
+					await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
+						accounts.push(account);
+					});
+
+					// Find the token from the first available account
+					if (accounts.length > 0) {
+						const sessions = await this.authenticationService.getSessions(providerId);
+						token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
+					}
+
+					// Find the token from the first available account
+					if (accounts.length > 0) {
+						const sessions = await this.authenticationService.getSessions(providerId);
+						token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
+					}
+					const temp = await this.sharedWebContentExtractorService.chatImageUploader(finalData, 'mcp_tool_result.png', mimeType, token);
+					const encoder = new TextEncoder();
+					const encoded = VSBuffer.wrap(encoder.encode(temp));
+					result.content.push({ kind: 'data', value: { mimeType, data: encoded } });
 				}
 			};
 
@@ -267,7 +300,7 @@ class McpToolImplementation implements IToolImpl {
 							kind: 'data',
 							value: {
 								mimeType: item.mimeType,
-								data: await this._fileService.readFile(uri).then(f => f.value).catch(() => VSBuffer.alloc(0)),
+								data: await this._fileService.readFile(uri).then(f => f.value).catch(() => VSBuffer.alloc(0))
 							}
 						});
 					} else {

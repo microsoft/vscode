@@ -151,11 +151,26 @@ export class ChatAttachmentModel extends Disposable {
 	// Gets an image variable for a given URI, which may be a file or a web URL
 	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry | undefined> {
 		if (uri.scheme === Schemas.file && await this.fileService.canHandleResource(uri)) {
-			return await this.chatAttachmentResolveService.resolveImageEditorAttachContext(uri);
+			// Use the resolve service to create the loading entry and handle the upload
+			return await this.chatAttachmentResolveService.resolveImageEditorAttachContextWithCallback(
+				uri,
+				(updatedEntry) => {
+					// Update the existing attachment when upload completes
+					this.updateContext([], [updatedEntry]);
+				}
+			);
 		} else if (uri.scheme === Schemas.http || uri.scheme === Schemas.https) {
+			// Start async processing and return the loading entry from resolve service
 			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
 			if (extractedImages) {
-				return await this.chatAttachmentResolveService.resolveImageEditorAttachContext(uri, extractedImages);
+				return await this.chatAttachmentResolveService.resolveImageEditorAttachContextWithCallback(
+					uri,
+					(updatedEntry) => {
+						// Update the existing attachment when upload completes
+						this.updateContext([], [updatedEntry]);
+					},
+					extractedImages
+				);
 			}
 		}
 

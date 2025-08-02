@@ -26,9 +26,10 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
 import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
-import { imageToHash, isImage } from '../chatPasteProviders.js';
+import { isImage } from '../chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
+import { imageToHash } from '../imageUtils.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
