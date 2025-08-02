@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
-import { PYTHON_LANGUAGE_ID, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
+import { isLspSupportedShellType, PYTHON_LANGUAGE_ID, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
 
 export interface ILspTerminalModelContentProvider extends ITextModelContentProvider {
 	setContent(content: string): void;
@@ -58,7 +58,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	setContent(content: string): void {
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
 		// Trailing coming from Python itself shouldn't be included in the REPL.
-		if (content !== 'exit()' && this._shellType === GeneralShellType.Python) {
+		if (content !== 'exit()' && isLspSupportedShellType(this._shellType)) {
 			if (model) {
 				const existingContent = model.getValue();
 				if (existingContent === '') {
@@ -148,7 +148,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			if (!languageId) {
 				switch (extension) {
 					case 'py': languageId = PYTHON_LANGUAGE_ID; break;
-					// case 'ps1': languageId = 'powershell'; break;
+					case 'ps1': languageId = 'powershell'; break;
 					// case 'js': languageId = 'javascript'; break;
 					// case 'ts': languageId = 'typescript'; break; etc...
 				}
