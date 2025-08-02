@@ -6,14 +6,16 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
+import { IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatResponseModel } from './chatModel.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
@@ -79,6 +81,24 @@ export interface IStreamingEdits {
 
 export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
 
+export interface IModifiedEntryTelemetryInfo {
+	readonly agentId: string | undefined;
+	readonly command: string | undefined;
+	readonly sessionId: string;
+	readonly requestId: string;
+	readonly result: IChatAgentResult | undefined;
+}
+
+export interface ISnapshotEntry {
+	readonly resource: URI;
+	readonly languageId: string;
+	readonly snapshotUri: URI;
+	readonly original: string;
+	readonly current: string;
+	readonly state: ModifiedFileEntryState;
+	telemetryInfo: IModifiedEntryTelemetryInfo;
+}
+
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
@@ -86,7 +106,6 @@ export interface IChatEditingSession extends IDisposable {
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	show(previousChanges?: boolean): Promise<void>;
-	remove(...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
@@ -99,6 +118,10 @@ export interface IChatEditingSession extends IDisposable {
 	 * @param uri File in the workspace
 	 */
 	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined;
+
+	getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null>;
+
+	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined;
 
 	/**
 	 * Will lead to this object getting disposed
@@ -217,8 +240,8 @@ export interface IModifiedFileEntry {
 
 	readonly waitsForLastEdits: IObservable<boolean>;
 
-	accept(transaction: ITransaction | undefined): Promise<void>;
-	reject(transaction: ITransaction | undefined): Promise<void>;
+	accept(): Promise<void>;
+	reject(): Promise<void>;
 
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;

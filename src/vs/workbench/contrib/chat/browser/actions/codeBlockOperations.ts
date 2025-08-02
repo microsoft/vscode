@@ -30,7 +30,7 @@ import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browse
 import { CellKind, ICellEditOperation, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatUserAction, IChatService } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ICodeBlockActionContext } from '../codeBlockPart.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -61,11 +61,19 @@ export class InsertCodeBlockOperation {
 				this.notify(localize('insertCodeBlock.noActiveEditor', "To insert the code block, open a code editor or notebook editor and set the cursor at the location where to insert the code block."));
 			}
 		}
-		notifyUserAction(this.chatService, context, {
-			kind: 'insert',
-			codeBlockIndex: context.codeBlockIndex,
-			totalCharacters: context.code.length
-		});
+
+		if (isResponseVM(context.element)) {
+			const requestId = context.element.requestId;
+			const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
+			notifyUserAction(this.chatService, context, {
+				kind: 'insert',
+				codeBlockIndex: context.codeBlockIndex,
+				totalCharacters: context.code.length,
+				totalLines: context.code.split('\n').length,
+				languageId: context.languageId,
+				modelId: request?.modelId ?? '',
+			});
+		}
 	}
 
 	private async handleNotebookEditor(notebookEditor: IActiveNotebookEditor, codeBlockContext: ICodeBlockActionContext): Promise<boolean> {
@@ -159,13 +167,21 @@ export class ApplyCodeBlockOperation {
 				this.notify(localize('applyCodeBlock.noActiveEditor', "To apply this code block, open a code or notebook editor."));
 			}
 		}
-		notifyUserAction(this.chatService, context, {
-			kind: 'apply',
-			codeBlockIndex: context.codeBlockIndex,
-			totalCharacters: context.code.length,
-			codeMapper: result?.codeMapper,
-			editsProposed: !!result?.editsProposed
-		});
+
+		if (isResponseVM(context.element)) {
+			const requestId = context.element.requestId;
+			const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
+			notifyUserAction(this.chatService, context, {
+				kind: 'apply',
+				codeBlockIndex: context.codeBlockIndex,
+				totalCharacters: context.code.length,
+				codeMapper: result?.codeMapper,
+				editsProposed: !!result?.editsProposed,
+				totalLines: context.code.split('\n').length,
+				modelId: request?.modelId ?? '',
+				languageId: context.languageId,
+			});
+		}
 	}
 
 	private async evaluateURIToUse(resource: URI | undefined, activeEditorControl: IActiveCodeEditor | undefined): Promise<URI | undefined> {

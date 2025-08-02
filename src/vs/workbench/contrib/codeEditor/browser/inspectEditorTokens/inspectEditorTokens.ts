@@ -241,7 +241,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private _beginCompute(position: Position): void {
 		const grammar = this._textMateService.createTokenizer(this._model.getLanguageId());
 		const semanticTokens = this._computeSemanticTokens(position);
-		const treeSitterTree = ((this._model.tokenization as TokenizationTextModelPart).tokens.get() as TreeSitterSyntaxTokenBackend).tree.get();
+		const backend = (this._model.tokenization as TokenizationTextModelPart).tokens.get();
+		const asTreeSitterBackend = backend instanceof TreeSitterSyntaxTokenBackend ? backend : undefined;
 
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
@@ -250,6 +251,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (this._isDisposed) {
 				return;
 			}
+			const treeSitterTree = asTreeSitterBackend?.tree.get();
 			this._compute(grammar, semanticTokens, treeSitterTree, position);
 			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 			this._editor.layoutContentWidget(this);

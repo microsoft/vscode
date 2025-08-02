@@ -9,6 +9,7 @@ import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Mimes } from '../../../../base/common/mime.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -22,10 +23,9 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
-import { ChatInputPart } from './chatInputPart.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from './imageUtils.js';
 
@@ -180,7 +180,7 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 	public readonly pasteMimeTypes = [];
 
 	async prepareDocumentPaste(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
-		if (model.uri.scheme === ChatInputPart.INPUT_SCHEME) {
+		if (model.uri.scheme === Schemas.vscodeChatInput) {
 			return;
 		}
 
@@ -304,7 +304,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	) { }
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, _context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
-		if (model.uri.scheme !== ChatInputPart.INPUT_SCHEME) {
+		if (model.uri.scheme !== Schemas.vscodeChatInput) {
 			return;
 		}
 		const text = dataTransfer.get(Mimes.text);
@@ -442,9 +442,10 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@ILogService logService: ILogService,
 	) {
 		super();
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, instaService.createInstance(CopyAttachmentsProvider)));
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService)));
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, instaService.createInstance(CopyAttachmentsProvider)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 	}
 }

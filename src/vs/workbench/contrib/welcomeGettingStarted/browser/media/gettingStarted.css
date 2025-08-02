@@ -620,14 +620,30 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image > .getting-started-media,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown > .getting-started-media {
 	display: none;
+}
+
+/* Adjust grid layout when media is hidden to give steps container full height */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown {
+	grid-template-areas: "back" "title" "steps" "footer";
+	grid-template-rows: 30px max-content 1fr auto;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media > video {
 	max-width: 100%;
 	max-height: 100%;
 }
+
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer {
 	grid-area: footer;
@@ -977,10 +993,22 @@
 	text-decoration: var(--text-link-decoration);
 }
 
+/* Make arrow icons consistent with the next and back buttons in color */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-left,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-right {
+	color: var(--vscode-textLink-foreground);
+	font-size: 18px;
+}
+
+/* Make arrow icons change color on hover, consistent with button-link hover */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-left:hover,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-right:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .start-container .button-link {
 	line-height: 24px;
 }
-
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):hover {
 	color: var(--vscode-textLink-activeForeground);

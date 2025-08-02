@@ -28,6 +28,7 @@ import { ExtHostDocuments } from './extHostDocuments.js';
 import { Schemas } from '../../../base/common/network.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { structuralEquals } from '../../../base/common/equals.js';
+import { Iterable } from '../../../base/common/iterator.js';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -542,6 +543,12 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	private static _handlePool: number = 0;
 
+	readonly onDidDisposeParent: Event<void>;
+
+	private readonly _onDidDispose = new Emitter<void>();
+	readonly onDidDispose = this._onDidDispose.event;
+
+
 	#proxy: MainThreadSCMShape;
 
 	private _groups: Map<GroupHandle, ExtHostSourceControlResourceGroup> = new Map<GroupHandle, ExtHostSourceControlResourceGroup>();
@@ -556,6 +563,24 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	get rootUri(): vscode.Uri | undefined {
 		return this._rootUri;
+	}
+
+	private _contextValue: string | undefined = undefined;
+
+	get contextValue(): string | undefined {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+		return this._contextValue;
+	}
+
+	set contextValue(contextValue: string | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+
+		if (this._contextValue === contextValue) {
+			return;
+		}
+
+		this._contextValue = contextValue;
+		this.#proxy.$updateSourceControl(this.handle, { contextValue });
 	}
 
 	private _inputBox: ExtHostSCMInputBox;
@@ -675,7 +700,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { acceptInputCommand: internal });
 	}
 
-	private readonly _actionButtonDisposables = new MutableDisposable<DisposableStore>();
+	// We know what we're doing here:
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
+	private _actionButtonDisposables = new DisposableStore();
 	private _actionButton: vscode.SourceControlActionButton | undefined;
 	get actionButton(): vscode.SourceControlActionButton | undefined {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
@@ -692,26 +719,32 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			return;
 		}
 
+		// In order to prevent disposing the action button command that are still rendered in the UI
+		// until the next UI update, we ensure to dispose them after the update has been completed.
+		const oldActionButtonDisposables = this._actionButtonDisposables;
+		this._actionButtonDisposables = new DisposableStore();
+
 		this._actionButton = actionButton;
-		this._actionButtonDisposables.value = new DisposableStore();
 
 		const actionButtonDto = actionButton !== undefined ?
 			{
 				command: {
-					...this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
+					...this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables),
 					shortTitle: actionButton.command.shortTitle
 				},
 				secondaryCommands: actionButton.secondaryCommands?.map(commandGroup => {
-					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables.value!));
+					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables));
 				}),
 				enabled: actionButton.enabled
-			} satisfies SCMActionButtonDto : undefined;
+			} satisfies SCMActionButtonDto : null;
 
-		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto ?? null });
+		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto })
+			.finally(() => oldActionButtonDisposables.dispose());
 	}
 
-
-	private readonly _statusBarDisposables = new MutableDisposable<DisposableStore>();
+	// We know what we're doing here:
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
+	private _statusBarDisposables = new DisposableStore();
 	private _statusBarCommands: vscode.Command[] | undefined = undefined;
 
 	get statusBarCommands(): vscode.Command[] | undefined {
@@ -723,12 +756,17 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			return;
 		}
 
-		this._statusBarDisposables.value = new DisposableStore();
+		// In order to prevent disposing status bar commands that are still rendered in the UI
+		// until the next UI update, we ensure to dispose them after the update has been completed.
+		const oldStatusBarDisposables = this._statusBarDisposables;
+		this._statusBarDisposables = new DisposableStore();
 
 		this._statusBarCommands = statusBarCommands;
 
-		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c, this._statusBarDisposables.value!)) as ICommandDto[];
-		this.#proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
+		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c, this._statusBarDisposables)) as ICommandDto[];
+
+		this.#proxy.$updateSourceControl(this.handle, { statusBarCommands: internal })
+			.finally(() => oldStatusBarDisposables.dispose());
 	}
 
 	private _selected: boolean = false;
@@ -740,7 +778,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
-	private handle: number = ExtHostSourceControl._handlePool++;
+	readonly handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
@@ -749,7 +787,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _commands: ExtHostCommands,
 		private _id: string,
 		private _label: string,
-		private _rootUri?: vscode.Uri
+		private _rootUri?: vscode.Uri,
+		_iconPath?: vscode.IconPath,
+		_parent?: ExtHostSourceControl
 	) {
 		this.#proxy = proxy;
 
@@ -760,7 +800,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		});
 
 		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
-		this.#proxy.$registerSourceControl(this.handle, _id, _label, _rootUri, inputBoxDocumentUri);
+		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), inputBoxDocumentUri);
+
+		this.onDidDisposeParent = _parent ? _parent.onDidDispose : Event.None;
 	}
 
 	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
@@ -847,12 +889,13 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		this._groups.forEach(group => group.dispose());
 		this.#proxy.$unregisterSourceControl(this.handle);
+
+		this._onDidDispose.fire();
+		this._onDidDispose.dispose();
 	}
 }
 
 export class ExtHostSCM implements ExtHostSCMShape {
-
-	private static _handlePool: number = 0;
 
 	private _proxy: MainThreadSCMShape;
 	private readonly _telemetry: MainThreadTelemetryShape;
@@ -912,7 +955,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		type TEvent = { extensionId: string };
@@ -925,9 +968,9 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			extensionId: extension.identifier.value,
 		});
 
-		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri);
-		this._sourceControls.set(handle, sourceControl);
+		const parentSourceControl = parent ? Iterable.find(this._sourceControls.values(), s => s === parent) : undefined;
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, parentSourceControl);
+		this._sourceControls.set(sourceControl.handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
 		sourceControls.push(sourceControl);
@@ -1085,7 +1128,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 	}
 
-	async $provideHistoryItems(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
+	async $provideHistoryItems(sourceControlHandle: number, options: vscode.SourceControlHistoryOptions, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
 		try {
 			const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 			const historyItems = await historyProvider?.provideHistoryItems(options, token);

@@ -11,16 +11,17 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
+import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
-import type { IChatEditorOptions } from './chatEditor.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
-import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from './actions/chatActions.js';
+import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
+import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
@@ -37,7 +38,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
-		return ChatUri.generate(handle);
+		return ChatEditorUri.generate(handle);
 	}
 
 	static getNextCount(): number {
@@ -57,8 +58,12 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	) {
 		super();
 
-		const parsed = ChatUri.parse(resource);
-		if (typeof parsed?.handle !== 'number') {
+		if (resource.scheme === Schemas.vscodeChatEditor) {
+			const parsed = ChatEditorUri.parse(resource);
+			if (!parsed || typeof parsed !== 'number') {
+				throw new Error('Invalid chat URI');
+			}
+		} else if (resource.scheme !== Schemas.vscodeChatSession) {
 			throw new Error('Invalid chat URI');
 		}
 
@@ -112,7 +117,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
-		if (typeof this.sessionId === 'string') {
+		if (this.resource.scheme === Schemas.vscodeChatSession) {
+			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Editor, CancellationToken.None);
+		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
 				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if (!this.options.target) {
@@ -168,16 +175,16 @@ export class ChatEditorModel extends Disposable {
 	}
 }
 
-export namespace ChatUri {
 
-	export const scheme = Schemas.vscodeChatSesssion;
+export namespace ChatEditorUri {
 
+	export const scheme = Schemas.vscodeChatEditor;
 
 	export function generate(handle: number): URI {
 		return URI.from({ scheme, path: `chat-${handle}` });
 	}
 
-	export function parse(resource: URI): { handle: number } | undefined {
+	export function parse(resource: URI): number | undefined {
 		if (resource.scheme !== scheme) {
 			return undefined;
 		}
@@ -193,7 +200,7 @@ export namespace ChatUri {
 			return undefined;
 		}
 
-		return { handle };
+		return handle;
 	}
 }
 
@@ -230,4 +237,51 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 			return undefined;
 		}
 	}
+}
+
+export async function showClearEditingSessionConfirmation(editingSession: IChatEditingSession, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+	const defaultPhrase = nls.localize('chat.startEditing.confirmation.pending.message.default1', "Starting a new chat will end your current edit session.");
+	const defaultTitle = nls.localize('chat.startEditing.confirmation.title', "Start new chat?");
+	const phrase = options?.messageOverride ?? defaultPhrase;
+	const title = options?.titleOverride ?? defaultTitle;
+
+	const currentEdits = editingSession.entries.get();
+	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+
+	const { result } = await dialogService.prompt({
+		title,
+		message: phrase + ' ' + nls.localize('chat.startEditing.confirmation.pending.message.2', "Do you want to keep pending edits to {0} files?", undecidedEdits.length),
+		type: 'info',
+		cancelButton: true,
+		buttons: [
+			{
+				label: nls.localize('chat.startEditing.confirmation.acceptEdits', "Keep & Continue"),
+				run: async () => {
+					await editingSession.accept();
+					return true;
+				}
+			},
+			{
+				label: nls.localize('chat.startEditing.confirmation.discardEdits', "Undo & Continue"),
+				run: async () => {
+					await editingSession.reject();
+					return true;
+				}
+			}
+		],
+	});
+
+	return Boolean(result);
+}
+
+export function shouldShowClearEditingSessionConfirmation(editingSession: IChatEditingSession): boolean {
+	const currentEdits = editingSession.entries.get();
+	const currentEditCount = currentEdits.length;
+
+	if (currentEditCount) {
+		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+		return !!undecidedEdits.length;
+	}
+
+	return false;
 }

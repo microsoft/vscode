@@ -18,7 +18,8 @@
     "workspace"
   ],
   "enabledApiProposals": [
-    "authIssuers"
+    "authIssuers",
+    "authProviderSpecific"
   ],
   "activationEvents": [],
   "capabilities": {
@@ -35,14 +36,14 @@
       {
         "label": "GitHub",
         "id": "github",
-        "issuerGlobs": [
+        "authorizationServerGlobs": [
           "https://github.com/login/oauth"
         ]
       },
       {
         "label": "GitHub Enterprise Server",
         "id": "github-enterprise",
-        "issuerGlobs": [
+        "authorizationServerGlobs": [
           "*"
         ]
       }

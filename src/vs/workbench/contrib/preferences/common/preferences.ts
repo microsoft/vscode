@@ -40,7 +40,7 @@ export interface IPreferencesSearchService {
 
 	getLocalSearchProvider(filter: string): ISearchProvider;
 	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider | undefined;
-	getAiSearchProvider(filter: string): IAiSearchProvider;
+	getAiSearchProvider(filter: string): IAiSearchProvider | undefined;
 }
 
 export interface ISearchProvider {
@@ -109,6 +109,18 @@ export const ENABLE_LANGUAGE_FILTER = true;
 
 export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
 export const EXTENSION_FETCH_TIMEOUT_MS = 1000;
+
+export const STRING_MATCH_SEARCH_PROVIDER_NAME = 'local';
+export const TF_IDF_SEARCH_PROVIDER_NAME = 'tfIdf';
+export const FILTER_MODEL_SEARCH_PROVIDER_NAME = 'filterModel';
+export const EMBEDDINGS_ONLY_SEARCH_PROVIDER_NAME = 'embeddingsOnly';
+export const EMBEDDINGS_SEARCH_PROVIDER_NAME = 'embeddingsFull';
+export const LLM_RANKED_SEARCH_PROVIDER_NAME = 'llmRanked';
+
+export enum WorkbenchSettingsEditorSettings {
+	ShowAISearchToggle = 'workbench.settings.showAISearchToggle',
+	EnableNaturalLanguageSearch = 'workbench.settings.enableNaturalLanguageSearch',
+}
 
 export type ExtensionToggleData = {
 	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
@@ -219,6 +231,10 @@ knownTermMappings.set('powershell', 'PowerShell');
 knownTermMappings.set('javascript', 'JavaScript');
 knownTermMappings.set('typescript', 'TypeScript');
 knownTermMappings.set('github', 'GitHub');
+knownTermMappings.set('jet brains', 'JetBrains');
+knownTermMappings.set('jetbrains', 'JetBrains');
+knownTermMappings.set('re sharper', 'ReSharper');
+knownTermMappings.set('resharper', 'ReSharper');
 
 export function wordifyKey(key: string): string {
 	key = key

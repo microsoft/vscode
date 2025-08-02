@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { observableValueOpts, IObservable, ITransaction } from '../observable.js';
-
+import { IObservable, ITransaction } from '../observable.js';
+import { observableValueOpts } from './observables/observableValueOpts.js';
 
 export class ObservableSet<T> implements Set<T> {
 

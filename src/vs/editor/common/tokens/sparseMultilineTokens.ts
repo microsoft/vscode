@@ -575,9 +575,7 @@ class SparseMultilineTokensStorage {
 				SparseMultilineTokensStorage._rateLimiter.runIfNotLimited(() => {
 					console.error('Invalid Semantic Tokens Data From Extension: lineNumber > model.getLineCount()');
 				});
-			}
-
-			if (this._getEndCharacter(i) > model.getLineLength(lineNumber)) {
+			} else if (this._getEndCharacter(i) > model.getLineLength(lineNumber)) {
 				SparseMultilineTokensStorage._rateLimiter.runIfNotLimited(() => {
 					console.error('Invalid Semantic Tokens Data From Extension: end character > model.getLineLength(lineNumber)');
 				});

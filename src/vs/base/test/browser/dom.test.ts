@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -74,12 +74,6 @@ suite('dom', () => {
 		element.classList.remove('foo-bar');
 		assert(!element.classList.contains('foo-bar'));
 		assert(!element.classList.contains('bar'));
-	});
-
-	test('multibyteAwareBtoa', () => {
-		assert.ok(multibyteAwareBtoa('hello world').length > 0);
-		assert.ok(multibyteAwareBtoa('平仮名').length > 0);
-		assert.ok(multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
 	});
 
 	suite('$', () => {
