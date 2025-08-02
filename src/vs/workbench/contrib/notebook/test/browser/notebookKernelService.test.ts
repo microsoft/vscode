@@ -199,8 +199,8 @@ class TestNotebookKernel implements INotebookKernel {
 	cancelNotebookCellExecution(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
-		return AsyncIterableObject.EMPTY;
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableProducer<VariablesResult> {
+		return AsyncIterableProducer.EMPTY;
 	}
 
 	constructor(opts?: { languages?: string[]; label?: string; viewType?: string }) {

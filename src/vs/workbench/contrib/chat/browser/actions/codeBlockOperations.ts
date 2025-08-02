@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { AsyncIterableObject, AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../../base/common/charCode.js';
@@ -311,7 +311,7 @@ export class ApplyCodeBlockOperation {
 	}
 
 	private getTextEdits(codeBlock: ICodeMapperCodeBlock, chatSessionId: string | undefined, token: CancellationToken): AsyncIterable<TextEdit[]> {
-		return new AsyncIterableObject<TextEdit[]>(async executor => {
+		return new AsyncIterableProducer<TextEdit[]>(async executor => {
 			const request: ICodeMapperRequest = {
 				codeBlocks: [codeBlock],
 				chatSessionId
@@ -332,7 +332,7 @@ export class ApplyCodeBlockOperation {
 	}
 
 	private getNotebookEdits(codeBlock: ICodeMapperCodeBlock, chatSessionId: string | undefined, token: CancellationToken): AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]> {
-		return new AsyncIterableObject<[URI, TextEdit[]] | ICellEditOperation[]>(async executor => {
+		return new AsyncIterableProducer<[URI, TextEdit[]] | ICellEditOperation[]>(async executor => {
 			const request: ICodeMapperRequest = {
 				codeBlocks: [codeBlock],
 				chatSessionId,
