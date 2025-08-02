@@ -103,6 +103,7 @@ export class PathExecutableCache implements vscode.Disposable {
 		// Extract executables from PATH
 		const paths = pathValue.split(isWindows ? ';' : ':');
 		const pathSeparator = isWindows ? '\\' : '/';
+		const promisePaths: string[] = [];
 		const promises: Promise<Set<ICompletionResource> | undefined>[] = [];
 		const labels: Set<string> = new Set<string>();
 
@@ -116,6 +117,7 @@ export class PathExecutableCache implements vscode.Disposable {
 				}
 			} else {
 				// Not cached, need to scan this directory
+				promisePaths.push(pathDir);
 				promises.push(this._getExecutablesInSinglePath(pathDir, pathSeparator, labels));
 			}
 		}
@@ -123,11 +125,9 @@ export class PathExecutableCache implements vscode.Disposable {
 		// Process uncached directories
 		if (promises.length > 0) {
 			const resultSets = await Promise.all(promises);
-			let uncachedPathIndex = 0;
-
-			for (const pathDir of paths) {
+			for (const [i, resultSet] of resultSets.entries()) {
+				const pathDir = promisePaths[i];
 				if (!this._cachedExes.has(pathDir)) {
-					const resultSet = resultSets[uncachedPathIndex++];
 					this._cachedExes.set(pathDir, resultSet || new Set());
 				}
 			}
@@ -135,7 +135,12 @@ export class PathExecutableCache implements vscode.Disposable {
 
 		// Merge all results from all directories
 		const executables = new Set<ICompletionResource>();
+		const processedPaths: Set<string> = new Set();
 		for (const pathDir of paths) {
+			if (processedPaths.has(pathDir)) {
+				continue;
+			}
+			processedPaths.add(pathDir);
 			const dirExecutables = this._cachedExes.get(pathDir);
 			if (dirExecutables) {
 				for (const executable of dirExecutables) {
