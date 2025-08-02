@@ -252,13 +252,9 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const [commandsInPath, shellGlobals] = await Promise.all([
-				pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType),
-				(async () => {
-					const executables = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
-					return getShellGlobals(terminalShellType, executables?.labels, machineId, remoteAuthority);
-				})()
-			]);
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
+			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels, machineId, remoteAuthority);
+
 			const shellGlobalsArr = shellGlobals ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
@@ -294,6 +290,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					homeDirCompletion.kind = vscode.TerminalCompletionItemKind.Folder;
 				}
 			}
+
 
 			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
 				return new vscode.TerminalCompletionList(result.items, {
