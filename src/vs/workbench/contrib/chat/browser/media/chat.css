@@ -1746,6 +1746,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-left: 3px solid var(--vscode-textLink-foreground);
 }
 
+.interactive-item-container .value .chat-thinking-wrapper {
+	margin-bottom: 12px;
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	max-width: 100%;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
 .interactive-item-container .value .rendered-markdown.chat-thinking::before {
 	content: "Thinking...";
 	font-style: italic;
@@ -1793,8 +1802,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: pre-wrap;
 	word-break: break-word;
 	line-height: 1.5em;
+	padding: 4px 12px;
+}
+
+.interactive-item-container .value .thinking-content .thinking-text code {
 	font-family: var(--monaco-monospace-font);
-	padding: 4px 0;
+}
+
+.interactive-item-container .value .thinking-content .thinking-text p {
+	margin: 0 0 0.8em 0;
+}
+
+/* Ensure sections in thinking content have proper visual separation */
+.interactive-item-container .value .thinking-content .thinking-text > p {
+	position: relative;
+	padding-bottom: 0.5em;
+}
+
+/* Add subtle separator between thinking chunks */
+.interactive-item-container .value .thinking-content .thinking-text > p:not(:last-child) {
+	margin-bottom: 1.2em;
+}
+
+/* Style the first line of each paragraph to highlight section breaks */
+.interactive-item-container .value .thinking-content .thinking-text > p:not(:first-child)::before {
+	content: "";
+	display: block;
+	border-top: 1px dashed var(--vscode-editorBracketMatch-border);
+	margin-bottom: 0.8em;
+	opacity: 0.3;
+	width: 15%;
 }
 
 .interactive-item-container .value .thinking-content .thinking-text-updated {
@@ -1804,6 +1841,91 @@ have to be updated for changes to the rules above, or to support more deeply nes
 @keyframes thinking-update-flash {
 	0% {
 		background-color: var(--vscode-editor-inactiveSelectionBackground);
+	}
+	100% {
+		background-color: transparent;
+	}
+}
+
+.chat-thinking-part {
+	margin-top: 6px;
+	margin-bottom: 12px;
+}
+
+.chat-thinking-wrapper {
+	position: relative;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+	margin: 0;
+	padding: 0;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	border-radius: 6px;
+}
+
+.chat-thinking-wrapper .thinking-content {
+	animation: pulse-thinking 2s infinite ease-in-out;
+	border-left: 3px solid var(--vscode-focusBorder);
+	transition: all 0.3s ease;
+	border-radius: 6px;
+}
+
+.thinking-header-container {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 6px 8px;
+	cursor: pointer;
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.thinking-header-container.collapsible:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.thinking-collapse-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+}
+
+.thinking-collapse-button .codicon {
+	transition: transform 0.2s ease;
+}
+
+.thinking-container.collapsed {
+	display: none;
+}
+
+.thinking-content.collapsed {
+	border-left-color: var(--vscode-descriptionForeground);
+	animation: none;
+}
+
+@keyframes pulse-thinking {
+	0% {
+		box-shadow: 0 0 0 0 rgba(0, 120, 212, 0.1);
+	}
+	70% {
+		box-shadow: 0 0 0 5px rgba(0, 120, 212, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(0, 120, 212, 0);
+	}
+}
+
+.thinking-updated {
+	animation: thinking-highlight 0.5s ease;
+}
+
+@keyframes thinking-highlight {
+	0% {
+		background-color: transparent;
+	}
+	30% {
+		background-color: var(--vscode-textLink-activeForeground, rgba(0, 120, 212, 0.1));
 	}
 	100% {
 		background-color: transparent;

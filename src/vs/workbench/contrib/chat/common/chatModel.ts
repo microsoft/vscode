@@ -129,7 +129,7 @@ export type IChatProgressResponseContent =
 	| IChatPrepareToolInvocationPart
 	| IChatElicitationRequest;
 
-const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation']);
+const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation', 'thinking']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
 	return !nonHistoryKinds.has(content.kind);
 }
