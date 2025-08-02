@@ -13,6 +13,7 @@ import { setTimeout0 } from './platform.js';
 import { MicrotaskDelay } from './symbols.js';
 import { Lazy } from './lazy.js';
 
+
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
 }
@@ -1974,26 +1975,26 @@ export interface AsyncIterableExecutor<T> {
  */
 export class AsyncIterableObject<T> implements AsyncIterable<T> {
 
-	public static fromArray<T>(items: T[]): AsyncIterableObject<T> {
-		return new AsyncIterableObject<T>((writer) => {
+	public static fromArray<T>(items: T[]): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer<T>((writer) => {
 			writer.emitMany(items);
 		});
 	}
 
-	public static fromPromise<T>(promise: Promise<T[]>): AsyncIterableObject<T> {
-		return new AsyncIterableObject<T>(async (emitter) => {
+	public static fromPromise<T>(promise: Promise<T[]>): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer<T>(async (emitter) => {
 			emitter.emitMany(await promise);
 		});
 	}
 
-	public static fromPromisesResolveOrder<T>(promises: Promise<T>[]): AsyncIterableObject<T> {
-		return new AsyncIterableObject<T>(async (emitter) => {
+	public static fromPromisesResolveOrder<T>(promises: Promise<T>[]): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer<T>(async (emitter) => {
 			await Promise.all(promises.map(async (p) => emitter.emitOne(await p)));
 		});
 	}
 
-	public static merge<T>(iterables: AsyncIterable<T>[]): AsyncIterableObject<T> {
-		return new AsyncIterableObject(async (emitter) => {
+	public static merge<T>(iterables: AsyncIterable<T>[]): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer(async (emitter) => {
 			await Promise.all(iterables.map(async (iterable) => {
 				for await (const item of iterable) {
 					emitter.emitOne(item);
@@ -2060,20 +2061,20 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		};
 	}
 
-	public static map<T, R>(iterable: AsyncIterable<T>, mapFn: (item: T) => R): AsyncIterableObject<R> {
-		return new AsyncIterableObject<R>(async (emitter) => {
+	public static map<T, R>(iterable: AsyncIterable<T>, mapFn: (item: T) => R): AsyncIterableProducer<R> {
+		return new AsyncIterableProducer<R>(async (emitter) => {
 			for await (const item of iterable) {
 				emitter.emitOne(mapFn(item));
 			}
 		});
 	}
 
-	public map<R>(mapFn: (item: T) => R): AsyncIterableObject<R> {
-		return AsyncIterableObject.map(this, mapFn);
+	public map<R>(mapFn: (item: T) => R): AsyncIterableProducer<R> {
+		return AsyncIterableProducer.map(this, mapFn);
 	}
 
-	public static filter<T>(iterable: AsyncIterable<T>, filterFn: (item: T) => boolean): AsyncIterableObject<T> {
-		return new AsyncIterableObject<T>(async (emitter) => {
+	public static filter<T>(iterable: AsyncIterable<T>, filterFn: (item: T) => boolean): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer<T>(async (emitter) => {
 			for await (const item of iterable) {
 				if (filterFn(item)) {
 					emitter.emitOne(item);
@@ -2082,18 +2083,18 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		});
 	}
 
-	public filter<T2 extends T>(filterFn: (item: T) => item is T2): AsyncIterableObject<T2>;
-	public filter(filterFn: (item: T) => boolean): AsyncIterableObject<T>;
-	public filter(filterFn: (item: T) => boolean): AsyncIterableObject<T> {
-		return AsyncIterableObject.filter(this, filterFn);
+	public filter<T2 extends T>(filterFn: (item: T) => item is T2): AsyncIterableProducer<T2>;
+	public filter(filterFn: (item: T) => boolean): AsyncIterableProducer<T>;
+	public filter(filterFn: (item: T) => boolean): AsyncIterableProducer<T> {
+		return AsyncIterableProducer.filter(this, filterFn);
 	}
 
-	public static coalesce<T>(iterable: AsyncIterable<T | undefined | null>): AsyncIterableObject<T> {
-		return <AsyncIterableObject<T>>AsyncIterableObject.filter(iterable, item => !!item);
+	public static coalesce<T>(iterable: AsyncIterable<T | undefined | null>): AsyncIterableProducer<T> {
+		return <AsyncIterableProducer<T>>AsyncIterableProducer.filter(iterable, item => !!item);
 	}
 
-	public coalesce(): AsyncIterableObject<NonNullable<T>> {
-		return AsyncIterableObject.coalesce(this) as AsyncIterableObject<NonNullable<T>>;
+	public coalesce(): AsyncIterableProducer<NonNullable<T>> {
+		return AsyncIterableProducer.coalesce(this) as AsyncIterableProducer<NonNullable<T>>;
 	}
 
 	public static async toPromise<T>(iterable: AsyncIterable<T>): Promise<T[]> {
@@ -2105,7 +2106,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	}
 
 	public toPromise(): Promise<T[]> {
-		return AsyncIterableObject.toPromise(this);
+		return AsyncIterableProducer.toPromise(this);
 	}
 
 	/**
