@@ -12,7 +12,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { GeneralShellType, TerminalShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalLogService, TerminalShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { env as processEnv } from '../../../../../base/common/process.js';
@@ -20,7 +20,6 @@ import type { IProcessEnvironment } from '../../../../../base/common/platform.js
 import { timeout } from '../../../../../base/common/async.js';
 import { gitBashToWindowsPath } from './terminalGitBashHelpers.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -104,7 +103,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
-		@ILogService private readonly _logService: ILogService
+		@ITerminalLogService private readonly _logService: ITerminalLogService
 	) {
 		super();
 	}
@@ -132,6 +131,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	async provideCompletions(promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, shellType: TerminalShellType | undefined, capabilities: ITerminalCapabilityStore, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
+		this._logService.trace('TerminalCompletionService#provideCompletions');
 		if (!this._providers || !this._providers.values || cursorPosition < 0) {
 			return undefined;
 		}
@@ -178,6 +178,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType | undefined, promptValue: string, cursorPosition: number, allowFallbackCompletions: boolean, capabilities: ITerminalCapabilityStore, token: CancellationToken, explicitlyInvoked?: boolean): Promise<ITerminalCompletion[] | undefined> {
+		this._logService.trace('TerminalCompletionService#_collectCompletions');
 		const completionPromises = providers.map(async provider => {
 			if (provider.shellTypes && shellType && !provider.shellTypes.includes(shellType)) {
 				return undefined;
@@ -187,7 +188,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			let completions;
 			try {
 				completions = await Promise.race([
-					provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token),
+					provider.provideCompletions(promptValue, cursorPosition, allowFallbackCompletions, token).then(result => {
+						this._logService.trace(`TerminalCompletionService#_collectCompletions provider ${provider.id} finished`);
+						return result;
+					}),
 					(async () => { await timeout(timeoutMs); timedOut = true; return undefined; })()
 				]);
 			} catch (e) {
@@ -202,6 +206,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return undefined;
 			}
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
+			this._logService.trace(`TerminalCompletionService#_collectCompletions amend ${completionItems.length} completion items`);
 			if (shellType === GeneralShellType.PowerShell) {
 				for (const completion of completionItems) {
 					completion.isFileOverride ??= completion.kind === TerminalCompletionItemKind.Method && completion.replacementIndex === 0;
@@ -236,6 +241,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number, provider: string, capabilities: ITerminalCapabilityStore, shellType?: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
+		this._logService.trace(`TerminalCompletionService#resolveResources`);
+
 		const useWindowsStylePath = resourceRequestConfig.pathSeparator === '\\';
 		if (useWindowsStylePath) {
 			// for tests, make sure the right path separator is used
