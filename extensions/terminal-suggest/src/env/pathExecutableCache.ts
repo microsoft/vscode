@@ -105,55 +105,57 @@ export class PathExecutableCache implements vscode.Disposable {
 			const result = new Set<ICompletionResource>();
 			const fileResource = vscode.Uri.file(path);
 			const files = await vscode.workspace.fs.readDirectory(fileResource);
-			for (const [file, fileType] of files) {
-				let kind: vscode.TerminalCompletionItemKind | undefined;
-				let formattedPath: string | undefined;
-				const resource = vscode.Uri.joinPath(fileResource, file);
+			await Promise.all(
+				files.map(([file, fileType]) => (async () => {
+					let kind: vscode.TerminalCompletionItemKind | undefined;
+					let formattedPath: string | undefined;
+					const resource = vscode.Uri.joinPath(fileResource, file);
 
-				// Skip unknown or directory file types early
-				if (fileType === vscode.FileType.Unknown || fileType === vscode.FileType.Directory) {
-					continue;
-				}
-
-				try {
-					const lstat = await fs.lstat(resource.fsPath);
-					if (lstat.isSymbolicLink()) {
-						try {
-							const symlinkRealPath = await fs.realpath(resource.fsPath);
-							const isExec = await isExecutable(symlinkRealPath, this._cachedWindowsExeExtensions);
-							if (!isExec) {
-								continue;
-							}
-							kind = vscode.TerminalCompletionItemKind.Method;
-							formattedPath = `${resource.fsPath} -> ${symlinkRealPath}`;
-						} catch {
-							continue;
-						}
+					// Skip unknown or directory file types early
+					if (fileType === vscode.FileType.Unknown || fileType === vscode.FileType.Directory) {
+						return;
 					}
-				} catch {
-					// Ignore errors for unreadable files
-					continue;
-				}
 
-				formattedPath = formattedPath ?? getFriendlyResourcePath(resource, pathSeparator);
+					try {
+						const lstat = await fs.lstat(resource.fsPath);
+						if (lstat.isSymbolicLink()) {
+							try {
+								const symlinkRealPath = await fs.realpath(resource.fsPath);
+								const isExec = await isExecutable(symlinkRealPath, this._cachedWindowsExeExtensions);
+								if (!isExec) {
+									return;
+								}
+								kind = vscode.TerminalCompletionItemKind.Method;
+								formattedPath = `${resource.fsPath} -> ${symlinkRealPath}`;
+							} catch {
+								return;
+							}
+						}
+					} catch {
+						// Ignore errors for unreadable files
+						return;
+					}
 
-				// Check if already added or not executable
-				if (labels.has(file)) {
-					continue;
-				}
+					formattedPath = formattedPath ?? getFriendlyResourcePath(resource, pathSeparator);
 
-				const isExec = kind === vscode.TerminalCompletionItemKind.Method || await isExecutable(formattedPath, this._cachedWindowsExeExtensions);
-				if (!isExec) {
-					continue;
-				}
+					// Check if already added or not executable
+					if (labels.has(file)) {
+						return;
+					}
 
-				result.add({
-					label: file,
-					documentation: formattedPath,
-					kind: kind ?? vscode.TerminalCompletionItemKind.Method
-				});
-				labels.add(file);
-			}
+					const isExec = kind === vscode.TerminalCompletionItemKind.Method || await isExecutable(formattedPath, this._cachedWindowsExeExtensions);
+					if (!isExec) {
+						return;
+					}
+
+					result.add({
+						label: file,
+						documentation: formattedPath,
+						kind: kind ?? vscode.TerminalCompletionItemKind.Method
+					});
+					labels.add(file);
+				})())
+			);
 			return result;
 		} catch (e) {
 			// Ignore errors for directories that can't be read
