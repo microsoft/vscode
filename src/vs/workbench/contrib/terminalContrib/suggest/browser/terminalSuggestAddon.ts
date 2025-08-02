@@ -356,10 +356,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			items.push(this._inlineCompletionItem);
 		}
 
+		this._logService.trace('TerminalCompletionService#_collectCompletions create model');
 		const model = new TerminalCompletionModel(
 			items,
 			lineContext
 		);
+		this._logService.trace('TerminalCompletionService#_collectCompletions create model done');
+
 		if (token.isCancellationRequested) {
 			this._completionRequestTimestamp = undefined;
 			return;

@@ -223,6 +223,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			if (completions.resourceRequestConfig) {
 				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition, `core:path:ext:${provider.id}`, capabilities, shellType);
+				this._logService.trace(`TerminalCompletionService#_collectCompletions dedupe`);
 				if (resourceCompletions) {
 					for (const item of resourceCompletions) {
 						const labels = new Set(completionItems.map(c => c.label));
@@ -232,11 +233,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 						}
 					}
 				}
+				this._logService.trace(`TerminalCompletionService#_collectCompletions dedupe done`);
 			}
 			return completionItems;
 		});
 
 		const results = await Promise.all(completionPromises);
+		this._logService.trace('TerminalCompletionService#_collectCompletions done');
 		return results.filter(result => !!result).flat();
 	}
 
@@ -367,6 +370,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (absolute) `/src/|`  -> `/src/`
 		// - (tilde)    `~/|`     -> `~/`
 		// - (tilde)    `~/src/|` -> `~/src/`
+		this._logService.trace(`TerminalCompletionService#resolveResources cwd`);
 		if (foldersRequested) {
 			let label: string;
 			switch (type) {
@@ -401,6 +405,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// - (relative) `cd ./src/`  -> `cd ./src/folder1/`, ...
 		// - (absolute) `cd c:/src/` -> `cd c:/src/folder1/`, ...
 		// - (tilde)    `cd ~/src/`  -> `cd ~/src/folder1/`, ...
+		this._logService.trace(`TerminalCompletionService#resolveResources direct children`);
 		for (const child of stat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
 			let detail: string | undefined = undefined;
@@ -467,6 +472,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// Support $CDPATH specially for the `cd` command only
 		//
 		// - (relative) `|` -> `/foo/vscode` (CDPATH has /foo which contains vscode folder)
+		this._logService.trace(`TerminalCompletionService#resolveResources CDPATH`);
 		if (type === 'relative' && foldersRequested) {
 			if (promptValue.startsWith('cd ')) {
 				const config = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
@@ -507,6 +513,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		//
 		// - (relative) `|` -> `../`
 		// - (relative) `./src/|` -> `./src/../`
+		this._logService.trace(`TerminalCompletionService#resolveResources parent dir`);
 		if (type === 'relative' && foldersRequested) {
 			let label = `..${resourceRequestConfig.pathSeparator}`;
 			if (lastWordFolder.length > 0) {
@@ -527,6 +534,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// input.
 		//
 		// - (relative) `|` -> `~`
+		this._logService.trace(`TerminalCompletionService#resolveResources tilde`);
 		if (type === 'relative' && !lastWordFolder.match(/[\\\/]/)) {
 			let homeResource: URI | string | undefined;
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
@@ -548,6 +556,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			});
 		}
 
+		this._logService.trace(`TerminalCompletionService#resolveResources done`);
 		return resourceCompletions;
 	}
 
