@@ -314,6 +314,11 @@ class CodeMain {
 			}
 
 			// there's a running instance, let's connect to it
+			// Hide the dock icon since we're connecting to an existing instance
+			if (app.dock) {
+				app.dock.hide();
+			}
+
 			let client: NodeIPCClient<string>;
 			try {
 				client = await nodeIPCConnect(environmentMainService.mainIPCHandle, 'main');
