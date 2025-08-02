@@ -51,6 +51,7 @@ import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequest
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { IChatModeService } from '../common/chatModes.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { IPromptParserResult, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -307,7 +308,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IChatModeService private readonly chatModeService: IChatModeService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -2108,7 +2110,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// switch to appropriate chat mode if needed
 		if (mode && mode !== this.input.currentModeKind) {
-			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, this.input.currentModeKind, mode, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+			// Find the mode object to get its kind
+			const modeObject = this.chatModeService.findModeById(mode);
+			const modeKind = modeObject?.kind ?? ChatModeKind.Agent; // Default to Agent for custom modes
+
+			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, this.input.currentModeKind, modeKind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
 			if (!chatModeCheck) {
 				return undefined;
 			} else if (chatModeCheck.needToClearSession) {
