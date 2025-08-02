@@ -14,6 +14,7 @@ export interface PreviewSettings {
 	readonly disableSecurityWarnings: boolean;
 	readonly doubleClickToSwitchToEditor: boolean;
 	readonly webviewResourceRoot: string;
+	readonly allowScriptExecution: boolean;
 }
 
 export function getRawData(key: string): string {

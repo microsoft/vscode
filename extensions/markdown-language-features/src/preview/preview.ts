@@ -150,6 +150,14 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 					vscode.window.showWarningMessage(
 						vscode.l10n.t("Could not load 'markdown.styles': {0}", e.unloadedStyles.join(', ')));
 					break;
+
+				case 'copyText':
+					vscode.env.clipboard.writeText(e.text);
+					break;
+
+				case 'runInTerminal':
+					this._onDidRunInTerminal(e.command);
+					break;
 			}
 		}));
 
@@ -299,6 +307,11 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			this._isScrolling = true;
 			scrollEditorToLine(line, editor);
 		}
+	}
+
+	private async _onDidRunInTerminal(command: string): Promise<void> {
+		const terminal = vscode.window.activeTerminal || vscode.window.createTerminal();
+		await terminal.sendText(command);
 	}
 
 	private async _onDidClickPreview(line: number): Promise<void> {

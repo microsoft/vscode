@@ -1,0 +1,56 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.code-block-wrapper {
+	position: relative;
+	display: block;
+}
+
+.code-block-buttons {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	display: flex;
+	gap: 4px;
+	z-index: 1;
+}
+
+.terminal-button {
+	position: static;
+	height: 24px;
+	width: 24px;
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-color: var(--vscode-button-border);
+	border-radius: 4px;
+	color: var(--vscode-button-foreground);
+	cursor: pointer;
+	transition: opacity 0.2s;
+	padding: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.25;
+}
+
+.terminal-button i {
+	font-family: codicon;
+	font-style: normal;
+	font-size: 16px;
+	line-height: 16px;
+	color: var(--vscode-icon-foreground);
+}
+
+.code-block-wrapper:hover .terminal-button {
+	opacity: 0.5;
+}
+
+.terminal-button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.code-block-wrapper:hover .terminal-button:hover {
+	opacity: 1;
+}
