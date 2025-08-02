@@ -8,7 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { AutoOpenBarrier } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -21,7 +21,7 @@ import { registerActiveInstanceAction, registerTerminalAction } from '../../../t
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
-import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration, registerTerminalSuggestProvidersConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { ITerminalCompletionService, TerminalCompletionService } from './terminalCompletionService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { SuggestAddon } from './terminalSuggestAddon.js';
@@ -39,7 +39,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { env } from '../../../../../base/common/process.js';
 import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
-
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -94,6 +94,9 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				}
 			}
 		}));
+
+		// Initialize the dynamic providers configuration manager
+		TerminalSuggestProvidersConfigurationManager.initialize(this._instantiationService);
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -187,7 +190,8 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(textVirtualModel);
 
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
-		const provider = virtualProviders.find(p => p._debugDisplayName === PYLANCE_DEBUG_DISPLAY_NAME);
+		// TODO: Remove hard-coded filter for Python REPL.
+		const provider = virtualProviders.find(p => p._debugDisplayName === PYLANCE_DEBUG_DISPLAY_NAME || p._debugDisplayName === `ms-python.vscode-pylance(.["')`);
 
 		if (provider) {
 			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
@@ -208,7 +212,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
+		const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.sessionId, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 		xterm.loadAddon(addon);
 		this._loadPwshCompletionAddon(xterm);
 		this._loadLspCompletionAddon(xterm);
@@ -284,6 +288,26 @@ registerTerminalAction({
 		order: 1
 	},
 	run: (c, accessor) => accessor.get(IPreferencesService).openSettings({ query: terminalSuggestConfigSection })
+});
+
+registerTerminalAction({
+	id: TerminalSuggestCommandId.LearnMore,
+	title: localize2('workbench.action.terminal.learnMore', 'Learn More'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	menu: {
+		id: MenuId.MenubarTerminalSuggestStatusMenu,
+		group: 'center',
+		order: 1
+	},
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: TerminalContextKeys.suggestWidgetVisible
+	},
+	run: (c, accessor) => {
+		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
+	}
 });
 
 registerActiveInstanceAction({
@@ -404,11 +428,17 @@ registerActiveInstanceAction({
 	title: localize2('workbench.action.terminal.acceptSelectedSuggestion', 'Insert'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-	keybinding: {
+	keybinding: [{
 		primary: KeyCode.Tab,
 		// Tab is bound to other workbench keybindings that this needs to beat
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		weight: KeybindingWeight.WorkbenchContrib + 2,
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion)
 	},
+	{
+		primary: KeyCode.Enter,
+		when: ContextKeyExpr.and(SimpleSuggestContext.HasFocusedSuggestion, ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.SelectionMode}`, 'partial'), ContextKeyExpr.or(SimpleSuggestContext.FirstSuggestionFocused.toNegated(), SimpleSuggestContext.HasNavigated))),
+		weight: KeybindingWeight.WorkbenchContrib + 1
+	}],
 	menu: {
 		id: MenuId.MenubarTerminalSuggestStatusMenu,
 		order: 1,
@@ -426,7 +456,7 @@ registerActiveInstanceAction({
 		primary: KeyCode.Enter,
 		// Enter is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'ignore'),
+		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'never'),
 	},
 	run: async (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion(undefined, true)
 });
@@ -460,5 +490,36 @@ registerActiveInstanceAction({
 		activeInstance.sendText('\u001b[A', false); // Up arrow
 	}
 });
+
+// #endregion
+
+// #region Dynamic Providers Configuration
+
+class TerminalSuggestProvidersConfigurationManager extends Disposable {
+	private static _instance: TerminalSuggestProvidersConfigurationManager | undefined;
+
+	static initialize(instantiationService: IInstantiationService): void {
+		if (!this._instance) {
+			this._instance = instantiationService.createInstance(TerminalSuggestProvidersConfigurationManager);
+		}
+	}
+
+	constructor(
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService
+	) {
+		super();
+		this._register(this._terminalCompletionService.onDidChangeProviders(() => {
+			this._updateConfiguration();
+		}));
+		// Initial configuration
+		this._updateConfiguration();
+	}
+
+	private _updateConfiguration(): void {
+		const providers = Array.from(this._terminalCompletionService.providers);
+		const providerIds = providers.map(p => p.id).filter((id): id is string => typeof id === 'string');
+		registerTerminalSuggestProvidersConfiguration(providerIds);
+	}
+}
 
 // #endregion

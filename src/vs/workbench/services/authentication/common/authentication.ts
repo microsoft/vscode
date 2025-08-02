@@ -35,9 +35,12 @@ export interface AuthenticationSessionsChangeEvent {
 export interface AuthenticationProviderInformation {
 	id: string;
 	label: string;
-	issuerGlobs?: ReadonlyArray<string>;
+	authorizationServerGlobs?: ReadonlyArray<string>;
 }
 
+/**
+ * Options for creating an authentication session via the service.
+ */
 export interface IAuthenticationCreateSessionOptions {
 	activateImmediate?: boolean;
 	/**
@@ -46,12 +49,22 @@ export interface IAuthenticationCreateSessionOptions {
 	 */
 	account?: AuthenticationSessionAccount;
 	/**
-	 * The issuer URI to use for this creation request. If passed in, first we validate that
-	 * the provider can use this issuer, then it is passed down to the auth provider.
+	 * The authorization server URI to use for this creation request. If passed in, first we validate that
+	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
-	issuer?: URI;
+	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
+/**
+ * Options for getting authentication sessions via the service.
+ */
 export interface IAuthenticationGetSessionsOptions {
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
@@ -59,10 +72,17 @@ export interface IAuthenticationGetSessionsOptions {
 	 */
 	account?: AuthenticationSessionAccount;
 	/**
-	 * The issuer URI to use for this request. If passed in, first we validate that
-	 * the provider can use this issuer, then it is passed down to the auth provider.
+	 * The authorization server URI to use for this request. If passed in, first we validate that
+	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
-	issuer?: URI;
+	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
 export interface AllowedExtension {
@@ -82,7 +102,7 @@ export interface AllowedExtension {
 export interface IAuthenticationProviderHostDelegate {
 	/** Priority for this delegate, delegates are tested in descending priority order */
 	readonly priority: number;
-	create(serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string>;
+	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string>;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -131,6 +151,12 @@ export interface IAuthenticationService {
 	 * @param id The id of the provider to check
 	 */
 	isAuthenticationProviderRegistered(id: string): boolean;
+
+	/**
+	 * Checks if an authentication provider is dynamic
+	 * @param id The id of the provider to check
+	 */
+	isDynamicAuthenticationProvider(id: string): boolean;
 
 	/**
 	 * Registers an authentication provider
@@ -189,10 +215,10 @@ export interface IAuthenticationService {
 	removeSession(providerId: string, sessionId: string): Promise<void>;
 
 	/**
-	 * Gets a provider id for a specified issuer
-	 * @param issuer The issuer url that this provider is responsible for
+	 * Gets a provider id for a specified authorization server
+	 * @param authorizationServer The authorization server url that this provider is responsible for
 	 */
-	getOrActivateProviderIdForIssuer(issuer: URI): Promise<string | undefined>;
+	getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined>;
 
 	/**
 	 * Allows the ability register a delegate that will be used to start authentication providers
@@ -204,7 +230,7 @@ export interface IAuthenticationService {
 	 * Creates a dynamic authentication provider for the given server metadata
 	 * @param serverMetadata The metadata for the server that is being authenticated against
 	 */
-	createDynamicAuthenticationProvider(serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined>;
+	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined>;
 }
 
 export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {
@@ -294,6 +320,9 @@ export interface IAuthenticationExtensionsService {
 	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
 }
 
+/**
+ * Options passed to the authentication provider when asking for sessions.
+ */
 export interface IAuthenticationProviderSessionOptions {
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
@@ -301,10 +330,17 @@ export interface IAuthenticationProviderSessionOptions {
 	 */
 	account?: AuthenticationSessionAccount;
 	/**
-	 * The issuer that is being asked about. If this is passed in, the provider should
-	 * attempt to return sessions that are only related to this issuer.
+	 * The authorization server that is being asked about. If this is passed in, the provider should
+	 * attempt to return sessions that are only related to this authorization server.
 	 */
-	issuer?: URI;
+	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
 /**
@@ -322,14 +358,23 @@ export interface IAuthenticationProvider {
 	readonly label: string;
 
 	/**
-	 * The resolved issuers. These can still contain globs, but should be concrete URIs
+	 * The resolved authorization servers. These can still contain globs, but should be concrete URIs
 	 */
-	readonly issuers?: ReadonlyArray<URI>;
+	readonly authorizationServers?: ReadonlyArray<URI>;
 
 	/**
 	 * Indicates whether the authentication provider supports multiple accounts.
 	 */
 	readonly supportsMultipleAccounts: boolean;
+
+	/**
+	 * Optional function to provide a custom confirmation message for authentication prompts.
+	 * If not implemented, the default confirmation messages will be used.
+	 * @param extensionName - The name of the extension requesting authentication.
+	 * @param recreatingSession - Whether this is recreating an existing session.
+	 * @returns A custom confirmation message or undefined to use the default message.
+	 */
+	readonly confirmation?: (extensionName: string, recreatingSession: boolean) => string | undefined;
 
 	/**
 	 * An {@link Event} which fires when the array of sessions has changed, or data

@@ -85,6 +85,12 @@ import { NativeMcpDiscoveryHelperChannel } from '../../platform/mcp/node/nativeM
 import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
+import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
+import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
+import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
+import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpManagementChannel } from '../../platform/mcp/common/mcpManagementIpc.js';
+import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -168,7 +174,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		const config: ITelemetryServiceConfig = {
 			appenders: [oneDsAppender, new TelemetryLogAppender('', true, loggerService, environmentService, productService)],
-			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, 'remoteAgent'),
+			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, productService.date, 'remoteAgent'),
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
@@ -215,7 +221,13 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const ptyHostService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
 	services.set(IPtyService, ptyHostService);
 
+	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
+	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));
+	services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService));
+	services.set(IMcpManagementService, new SyncDescriptor(McpManagementService));
+
 	instantiationService.invokeFunction(accessor => {
+		const mcpManagementService = accessor.get(IMcpManagementService);
 		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
 		const extensionsScannerService = accessor.get(IExtensionsScannerService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
@@ -240,6 +252,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority));
 		socketServer.registerChannel('extensions', channel);
+
+		socketServer.registerChannel('mcpManagement', new McpManagementChannel(mcpManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
 		// clean up extensions folder
 		remoteExtensionsScanner.whenExtensionsReady().then(() => extensionManagementService.cleanUp());

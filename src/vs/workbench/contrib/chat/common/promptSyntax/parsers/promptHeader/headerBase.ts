@@ -6,16 +6,17 @@
 import { type TModeMetadata } from './modeHeader.js';
 import { localize } from '../../../../../../../nls.js';
 import { type TPromptMetadata } from './promptHeader.js';
-import { IMetadataRecord } from './metadata/base/record.js';
-import { PromptDescriptionMetadata } from './metadata/index.js';
+import { type IMetadataRecord } from './metadata/base/record.js';
 import { type TInstructionsMetadata } from './instructionsHeader.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { Text } from '../../../../../../../editor/common/codecs/textToken.js';
-import { ObjectStream } from '../../../../../../../editor/common/codecs/utils/objectStream.js';
+import { ObjectStream } from '../../codecs/base/utils/objectStream.js';
 import { PromptMetadataError, PromptMetadataWarning, type TDiagnostic } from './diagnostics.js';
-import { SimpleToken } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
-import { FrontMatterRecord } from '../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
-import { FrontMatterDecoder, type TFrontMatterToken } from '../../../../../../../editor/common/codecs/frontMatterCodec/frontMatterDecoder.js';
+import { SimpleToken } from '../../codecs/base/simpleCodec/tokens/tokens.js';
+import { FrontMatterRecord } from '../../codecs/base/frontMatterCodec/tokens/index.js';
+import { FrontMatterHeader } from '../../codecs/base/markdownExtensionsCodec/tokens/frontMatterHeader.js';
+import { FrontMatterDecoder, type TFrontMatterToken } from '../../codecs/base/frontMatterCodec/frontMatterDecoder.js';
+import { PromptDescriptionMetadata } from './metadata/description.js';
 
 /**
  * A metadata utility class "dehydrated" into a plain data object with
@@ -111,8 +112,15 @@ export abstract class HeaderBase<
 		return this.issues;
 	}
 
+	/**
+	 * Full range of the header in the original document.
+	 */
+	public get range(): Range {
+		return this.token.range;
+	}
+
 	constructor(
-		public readonly contentsToken: Text,
+		public readonly token: FrontMatterHeader,
 		public readonly languageId: string,
 	) {
 		super();
@@ -123,7 +131,7 @@ export abstract class HeaderBase<
 
 		this.stream = this._register(
 			new FrontMatterDecoder(
-				ObjectStream.fromArray([...contentsToken.children]),
+				ObjectStream.fromArray([...token.contentToken.children]),
 			),
 		);
 		this.stream.onData(this.onData.bind(this));
@@ -181,7 +189,7 @@ export abstract class HeaderBase<
 					token.range,
 					localize(
 						'prompt.header.metadata.diagnostics.duplicate-record',
-						"Duplicate metadata '{0}' will be ignored.",
+						"Duplicate property '{0}' will be ignored.",
 						recordName,
 					),
 				),
@@ -214,7 +222,7 @@ export abstract class HeaderBase<
 				token.range,
 				localize(
 					'prompt.header.metadata.diagnostics.unknown-record',
-					"Unknown metadata '{0}' will be ignored.",
+					"Unknown property '{0}' will be ignored.",
 					recordName,
 				),
 			),
@@ -227,7 +235,7 @@ export abstract class HeaderBase<
 	private onError(error: Error): void {
 		this.issues.push(
 			new PromptMetadataError(
-				this.contentsToken.range,
+				this.token.range,
 				localize(
 					'prompt.header.diagnostics.parsing-error',
 					"Failed to parse prompt header: {0}",
@@ -241,7 +249,7 @@ export abstract class HeaderBase<
 	 * Promise that resolves when parsing process of
 	 * the prompt header completes.
 	 */
-	public get settled(): Promise<void> {
+	public get settled(): Promise<boolean> {
 		return this.stream.settled;
 	}
 

@@ -340,6 +340,7 @@ suite('Inline Completions', () => {
 
 		test('when accepting word by word', async function () {
 			// The user types the text as suggested and the provider reports a different suggestion.
+			// Even when triggering explicitly, we want to keep the suggestion.
 
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
@@ -356,7 +357,7 @@ suite('Inline Completions', () => {
 
 					await ctx.model.triggerExplicitly(); // reset to provider truth
 					await timeout(10000);
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["foo[ baz]"]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), ([]));
 				}
 			);
 		});
@@ -417,6 +418,48 @@ suite('Inline Completions', () => {
 						'foob[ar]',
 						'foob[az]'
 					]);
+				}
+			);
+		});
+
+		test('Push item to preserve to front', async function () {
+			const provider = new MockInlineCompletionsProvider(true);
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
+					context.keyboardType('foo');
+					await timeout(1000);
+
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([
+						{
+							position: "(1,4)",
+							triggerKind: 0,
+							text: "foo"
+						}
+					]));
+					assert.deepStrictEqual(context.getAndClearViewStates(),
+						([
+							"",
+							"foo[bar]"
+						])
+					);
+
+					provider.setReturnValues([{ insertText: 'foobar1', range: new Range(1, 1, 1, 4) }, { insertText: 'foobar', range: new Range(1, 1, 1, 4) }]);
+
+					await model.triggerExplicitly();
+					await timeout(1000);
+
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([
+						{
+							position: "(1,4)",
+							triggerKind: 1,
+							text: "foo"
+						}
+					]));
+					assert.deepStrictEqual(context.getAndClearViewStates(),
+						([])
+					);
 				}
 			);
 		});
@@ -578,7 +621,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`console.log("hello");`,
-						`console.log("hello");`,
+						`console.log`,
 						``
 					].join('\n')
 				);
@@ -607,7 +650,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`console.log("hello");`,
-						`console.warn("hello");`,
+						`console.warn`,
 						``
 					].join('\n')
 				);
@@ -678,7 +721,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`for (let i)`,
-						`for (let i`,
+						`for `,
 						``
 					].join('\n')
 				);
@@ -711,7 +754,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`console.log("hello" + )`,
-						`console.warnnnn("hello" + `,
+						`console.warnnnn`,
 						``
 					].join('\n')
 				);

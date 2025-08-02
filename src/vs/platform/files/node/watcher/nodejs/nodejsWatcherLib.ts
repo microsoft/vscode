@@ -13,7 +13,6 @@ import { basename, dirname, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { realpath } from '../../../../../base/node/extpath.js';
 import { Promises } from '../../../../../base/node/pfs.js';
 import { FileChangeFilter, FileChangeType, IFileChange } from '../../../common/files.js';
 import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from '../../../common/watcher.js';
@@ -67,7 +66,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		let result = this.request.path;
 
 		try {
-			result = await realpath(this.request.path);
+			result = await Promises.realpath(this.request.path);
 
 			if (this.request.path !== result) {
 				this.trace(`correcting a path to watch that seems to be a symbolic link (original: ${this.request.path}, real: ${result})`);

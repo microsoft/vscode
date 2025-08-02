@@ -754,6 +754,15 @@ export class NullLogService extends NullLogger implements ILogService {
 	declare readonly _serviceBrand: undefined;
 }
 
+export class NullLoggerService extends AbstractLoggerService {
+	constructor() {
+		super(LogLevel.Off, URI.parse('log:///log'));
+	}
+	protected override doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
+		return new NullLogger();
+	}
+}
+
 export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
 	if (environmentService.verbose) {
 		return LogLevel.Trace;

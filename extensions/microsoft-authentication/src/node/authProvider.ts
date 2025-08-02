@@ -156,7 +156,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	async getSessions(scopes: string[] | undefined, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession[]> {
 		const askingForAll = scopes === undefined;
-		const scopeData = new ScopeData(scopes, options?.issuer);
+		const scopeData = new ScopeData(scopes, options?.authorizationServer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
@@ -186,7 +186,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	}
 
 	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		const scopeData = new ScopeData(scopes, options.issuer);
+		const scopeData = new ScopeData(scopes, options.authorizationServer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
