@@ -383,6 +383,33 @@ suite('TextModelSearch', () => {
 		);
 	});
 
+	test('issue #250813: regex alternation with whole word', () => {
+		const text = [
+			'aaaabbbb',
+			'aaaa'
+		].join('\n');
+		
+		// Test case 1: "aaaa|aaaabbbb" should find both lines
+		assertFindMatches(
+			text,
+			'aaaa|aaaabbbb', true, false, USUAL_WORD_SEPARATORS,
+			[
+				[1, 1, 1, 9],  // aaaabbbb on line 1
+				[2, 1, 2, 5]   // aaaa on line 2
+			]
+		);
+
+		// Test case 2: "aaaabbbb|aaaa" should also find both lines
+		assertFindMatches(
+			text,
+			'aaaabbbb|aaaa', true, false, USUAL_WORD_SEPARATORS,
+			[
+				[1, 1, 1, 9],  // aaaabbbb on line 1
+				[2, 1, 2, 5]   // aaaa on line 2
+			]
+		);
+	});
+
 	test('findNextMatch without regex', () => {
 		const model = createTextModel('line line one\nline two\nthree');
 
