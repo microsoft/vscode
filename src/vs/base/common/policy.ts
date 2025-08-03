@@ -8,7 +8,8 @@ export type PolicyName = string;
 export enum PolicyTag {
 	Account = 'ACCOUNT',
 	MCP = 'MCP',
-	Preview = 'PREVIEW'
+	Preview = 'PREVIEW',
+	Agent = 'AGENT',
 }
 
 export interface IPolicy {

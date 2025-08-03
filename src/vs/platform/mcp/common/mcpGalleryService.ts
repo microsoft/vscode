@@ -178,7 +178,8 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 
 		let icon: { light: string; dark: string } | undefined;
-		if (this.productService.extensionsGallery?.mcpUrl !== this.getMcpGalleryUrl()) {
+		const mcpGalleryUrl = this.getMcpGalleryUrl();
+		if (mcpGalleryUrl && this.productService.extensionsGallery?.mcpUrl !== mcpGalleryUrl) {
 			if (item.iconUrl) {
 				icon = {
 					light: item.iconUrl,

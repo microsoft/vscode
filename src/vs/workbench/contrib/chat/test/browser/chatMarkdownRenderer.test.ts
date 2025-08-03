@@ -79,10 +79,18 @@ suite('ChatMarkdownRenderer', () => {
 	});
 
 	test('self-closing elements', async () => {
-		const md = new MarkdownString('<area><hr><br><input type="text" value="test">');
-		md.supportHtml = true;
-		const result = store.add(testRenderer.render(md));
-		await assertSnapshot(result.element.outerHTML);
+		{
+			const md = new MarkdownString('<area><hr><br><input type="text" value="test">');
+			md.supportHtml = true;
+			const result = store.add(testRenderer.render(md));
+			await assertSnapshot(result.element.outerHTML);
+		}
+		{
+			const md = new MarkdownString('<area><hr><br><input type="checkbox">');
+			md.supportHtml = true;
+			const result = store.add(testRenderer.render(md));
+			await assertSnapshot(result.element.outerHTML);
+		}
 	});
 
 	test('html comments', async () => {

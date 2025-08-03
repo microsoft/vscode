@@ -49,7 +49,7 @@ suite('ChatSelectedTools', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const mcpSource: ToolDataSource = { type: 'mcp', label: 'MCP', collectionId: '', definitionId: '' };
+	const mcpSource: ToolDataSource = { type: 'mcp', label: 'MCP', collectionId: '', definitionId: '', instructions: '', serverLabel: '' };
 	test('Can\'t enable/disable MCP tools directly #18161', () => {
 
 		return runWithFakedTimers({}, async () => {
@@ -107,7 +107,7 @@ suite('ChatSelectedTools', () => {
 			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);
 			selectedTools.set(toSet, false);
 
-			const map = selectedTools.asEnablementMap();
+			const map = selectedTools.enablementMap.get();
 			assert.strictEqual(map.size, 3); // 3 tools
 
 			assert.strictEqual(map.get(toolData1), true);
@@ -172,7 +172,7 @@ suite('ChatSelectedTools', () => {
 			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);
 			selectedTools.set(toSet, false);
 
-			const map = selectedTools.asEnablementMap();
+			const map = selectedTools.enablementMap.get();
 			assert.strictEqual(map.size, 3); // 3 tools
 
 			// User toolset is enabled - all tools are enabled

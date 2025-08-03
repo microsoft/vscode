@@ -4,21 +4,79 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
-import type { IShellLaunchConfig } from './terminal.js';
+import { IShellLaunchConfig, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from './terminal.js';
 
 /**
  * Aggressively escape non-windows paths to prepare for being sent to a shell. This will do some
  * escaping inaccurately to be careful about possible script injection via the file path. For
  * example, we're trying to prevent this sort of attack: `/foo/file$(echo evil)`.
  */
-export function escapeNonWindowsPath(path: string): string {
+export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType): string {
 	let newPath = path;
 	if (newPath.includes('\\')) {
 		newPath = newPath.replace(/\\/g, '\\\\');
 	}
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
+
+	// Define shell-specific escaping rules
+	interface ShellEscapeConfig {
+		// How to handle paths with both single and double quotes
+		bothQuotes: (path: string) => string;
+		// How to handle paths with only single quotes
+		singleQuotes: (path: string) => string;
+		// How to handle paths with no single quotes (may have double quotes)
+		noSingleQuotes: (path: string) => string;
+	}
+
+	let escapeConfig: ShellEscapeConfig;
+	switch (shellType) {
+		case PosixShellType.Bash:
+		case PosixShellType.Sh:
+		case PosixShellType.Zsh:
+		case WindowsShellType.GitBash:
+			escapeConfig = {
+				bothQuotes: (path) => `$'${path.replace(/'/g, '\\\'')}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\\\'')}'`,
+				noSingleQuotes: (path) => `'${path}'`
+			};
+			break;
+		case PosixShellType.Fish:
+			escapeConfig = {
+				bothQuotes: (path) => `"${path.replace(/"/g, '\\"')}"`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\\\'')}'`,
+				noSingleQuotes: (path) => `'${path}'`
+			};
+			break;
+		case GeneralShellType.PowerShell:
+			// PowerShell should be handled separately in preparePathForShell
+			// but if we get here, use PowerShell escaping
+			escapeConfig = {
+				bothQuotes: (path) => `"${path.replace(/"/g, '`"')}"`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\'\'')}'`,
+				noSingleQuotes: (path) => `'${path}'`
+			};
+			break;
+		default:
+			// Default to POSIX shell escaping for unknown shells
+			escapeConfig = {
+				bothQuotes: (path) => `$'${path.replace(/'/g, '\\\'')}'`,
+				singleQuotes: (path) => `'${path.replace(/'/g, '\\\'')}'`,
+				noSingleQuotes: (path) => `'${path}'`
+			};
+			break;
+	}
+
+	// Remove dangerous characters except single and double quotes, which we'll escape properly
+	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<]/g;
 	newPath = newPath.replace(bannedChars, '');
-	return `'${newPath}'`;
+
+	// Apply shell-specific escaping based on quote content
+	if (newPath.includes('\'') && newPath.includes('"')) {
+		return escapeConfig.bothQuotes(newPath);
+	} else if (newPath.includes('\'')) {
+		return escapeConfig.singleQuotes(newPath);
+	} else {
+		return escapeConfig.noSingleQuotes(newPath);
+	}
 }
 
 /**

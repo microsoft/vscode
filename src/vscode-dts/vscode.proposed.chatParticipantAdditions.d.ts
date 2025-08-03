@@ -66,10 +66,10 @@ declare module 'vscode' {
 
 	export class ChatResponseConfirmationPart {
 		title: string;
-		message: string;
+		message: string | MarkdownString;
 		data: any;
 		buttons?: string[];
-		constructor(title: string, message: string, data: any, buttons?: string[]);
+		constructor(title: string, message: string | MarkdownString, data: any, buttons?: string[]);
 	}
 
 	export class ChatResponseCodeCitationPart {
@@ -84,8 +84,72 @@ declare module 'vscode' {
 		constructor(toolName: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart;
+	export interface ChatTerminalToolInvocationData {
+		commandLine: {
+			original: string;
+			userEdited?: string;
+			toolEdited?: string;
+		};
+		language: string;
+	}
 
+	export class ChatToolInvocationPart {
+		toolName: string;
+		toolCallId: string;
+		isError?: boolean;
+		invocationMessage?: string | MarkdownString;
+		originMessage?: string | MarkdownString;
+		pastTenseMessage?: string | MarkdownString;
+		isConfirmed?: boolean;
+		isComplete?: boolean;
+		toolSpecificData?: ChatTerminalToolInvocationData;
+
+		constructor(toolName: string, toolCallId: string, isError?: boolean);
+	}
+
+	/**
+	 * Represents a single file diff entry in a multi diff view.
+	 */
+	export interface ChatResponseDiffEntry {
+		/**
+		 * The original file URI (undefined for new files).
+		 */
+		originalUri?: Uri;
+
+		/**
+		 * The modified file URI (undefined for deleted files).
+		 */
+		modifiedUri?: Uri;
+
+		/**
+		 * Optional URI to navigate to when clicking on the file.
+		 */
+		goToFileUri?: Uri;
+	}
+
+	/**
+	 * Represents a part of a chat response that shows multiple file diffs.
+	 */
+	export class ChatResponseMultiDiffPart {
+		/**
+		 * Array of file diff entries to display.
+		 */
+		value: ChatResponseDiffEntry[];
+
+		/**
+		 * The title for the multi diff editor.
+		 */
+		title: string;
+
+		/**
+		 * Create a new ChatResponseMultiDiffPart.
+		 * @param value Array of file diff entries.
+		 * @param title The title for the multi diff editor.
+		 */
+		constructor(value: ChatResponseDiffEntry[], title: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -171,6 +235,15 @@ declare module 'vscode' {
 		constructor(extensions: string[]);
 	}
 
+	export class ChatResponsePullRequestPart {
+		readonly uri: Uri;
+		readonly linkTag: string;
+		readonly title: string;
+		readonly description: string;
+		readonly author: string;
+		constructor(uri: Uri, title: string, description: string, author: string, linkTag: string);
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -205,7 +278,7 @@ declare module 'vscode' {
 		 * TODO@API should this be MarkdownString?
 		 * TODO@API should actually be a more generic function that takes an array of buttons
 		 */
-		confirmation(title: string, message: string, data: any, buttons?: string[]): void;
+		confirmation(title: string, message: string | MarkdownString, data: any, buttons?: string[]): void;
 
 		/**
 		 * Push a warning to this stream. Short-hand for
@@ -258,6 +331,50 @@ declare module 'vscode' {
 		readonly tools: Map<string, boolean>;
 	}
 
+	export namespace lm {
+		/**
+		 * Fired when the set of tools on a chat request changes.
+		 */
+		export const onDidChangeChatRequestTools: Event<ChatRequest>;
+	}
+
+	export class LanguageModelToolExtensionSource {
+		/**
+		 * ID of the extension that published the tool.
+		 */
+		readonly id: string;
+
+		/**
+		 * Label of the extension that published the tool.
+		 */
+		readonly label: string;
+
+		private constructor(id: string, label: string);
+	}
+
+	export class LanguageModelToolMCPSource {
+		/**
+		 * Editor-configured label of the MCP server that published the tool.
+		 */
+		readonly label: string;
+
+		/**
+		 * Server-defined name of the MCP server.
+		 */
+		readonly name: string;
+
+		/**
+		 * Server-defined instructions for MCP tool use.
+		 */
+		readonly instructions?: string;
+
+		private constructor(label: string, name: string, instructions?: string);
+	}
+
+	export interface LanguageModelToolInformation {
+		source: LanguageModelToolExtensionSource | LanguageModelToolMCPSource | undefined;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
@@ -307,6 +424,10 @@ declare module 'vscode' {
 			participant?: string;
 			command?: string;
 		};
+		/**
+		 * An optional detail string that will be rendered at the end of the response in certain UI contexts.
+		 */
+		details?: string;
 	}
 
 	export namespace chat {
@@ -401,6 +522,15 @@ declare module 'vscode' {
 		outcome: ChatEditingSessionActionOutcome;
 	}
 
+	export interface ChatEditingHunkAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'chatEditingHunkAction';
+		uri: Uri;
+		lineCount: number;
+		outcome: ChatEditingSessionActionOutcome;
+		hasRemainingEdits: boolean;
+	}
+
 	export enum ChatEditingSessionActionOutcome {
 		Accepted = 1,
 		Rejected = 2,
@@ -409,7 +539,7 @@ declare module 'vscode' {
 
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction | ChatEditingHunkAction;
 	}
 
 	export interface ChatPromptReference {

@@ -283,9 +283,9 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ChatEditingShowChangesAction.ID,
-			title: ChatEditingShowChangesAction.LABEL,
+			title: { value: ChatEditingShowChangesAction.LABEL, original: ChatEditingShowChangesAction.LABEL },
 			tooltip: ChatEditingShowChangesAction.LABEL,
-			f1: false,
+			f1: true,
 			icon: Codicon.diffMultiple,
 			precondition: hasUndecidedChatEditingResourceContextKey,
 			menu: [
@@ -397,7 +397,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false)),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ChatContextKeys.lockedToCodingAgent.negate()),
 				}
 			]
 		});
@@ -429,7 +429,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.restoreCheckpoint',
-			title: localize2('chat.restoreCheckpoint.label', "Restore checkpoint"),
+			title: localize2('chat.restoreCheckpoint.label', "Restore Checkpoint"),
 			tooltip: localize2('chat.restoreCheckpoint.tooltip', "Restores workspace and chat to this point"),
 			f1: false,
 			category: CHAT_CATEGORY,
@@ -446,7 +446,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ChatContextKeys.isRequest
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate())
 				}
 			]
 		});
@@ -471,6 +471,61 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 
 		widget?.viewModel?.model.setCheckpoint(item.id);
 		await restoreSnapshotWithConfirmation(accessor, item);
+	}
+});
+
+registerAction2(class RestoreLastCheckpoint extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.restoreLastCheckpoint',
+			title: localize2('chat.restoreLastCheckpoint.label', "Restore to last checkpoint"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.discard,
+			menu: [
+				{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true), ChatContextKeys.lockedToCodingAgent.negate()),
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		let item: ChatTreeItem | undefined = args[0];
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
+		}
+
+		const chatModel = chatService.getSession(item.sessionId);
+		if (!chatModel) {
+			return;
+		}
+
+		const session = chatModel.editingSession;
+		if (!session) {
+			return;
+		}
+
+		await restoreSnapshotWithConfirmation(accessor, item);
+
+		if (isResponseVM(item)) {
+			widget?.viewModel?.model.setCheckpoint(item.requestId);
+			const request = chatModel.getRequests().find(request => request.id === item.requestId);
+			if (request) {
+				widget?.focusInput();
+				widget?.input.setValue(request.message.text, false);
+			}
+		}
 	}
 });
 
@@ -669,9 +724,9 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ViewPreviousEditsAction.Id,
-			title: ViewPreviousEditsAction.Label,
+			title: { value: ViewPreviousEditsAction.Label, original: ViewPreviousEditsAction.Label },
 			tooltip: ViewPreviousEditsAction.Label,
-			f1: false,
+			f1: true,
 			icon: Codicon.diffMultiple,
 			precondition: hasUndecidedChatEditingResourceContextKey.negate(),
 			menu: [

@@ -6,13 +6,14 @@
 import { Action } from '../../../../base/common/actions.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IMarkdownString, markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../chat/common/chatModel.js';
-import { IChatElicitationRequest, IChatService } from '../../chat/common/chatService.js';
+import { IChatService } from '../../chat/common/chatService.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IMcpElicitationService, IMcpServer, IMcpToolCallContext } from '../common/mcpTypes.js';
 import { MCP } from '../common/modelContextProtocol.js';
@@ -43,6 +44,8 @@ export class McpElicitationService implements IMcpElicitationService {
 							title: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
 							arguments: [server.collection.id, server.definition.id],
 						}), { isTrusted: true }),
+						localize('mcp.elicit.accept', 'Respond'),
+						localize('mcp.elicit.reject', 'Cancel'),
 						async () => {
 							const p = this._doElicit(elicitation, token);
 							resolve(p);
@@ -318,29 +321,5 @@ export class McpElicitationService implements IMcpElicitationService {
 			return { isValid: false, message: localize('mcp.elicit.validation.maximum', 'Maximum value is {0}', schema.maximum) };
 		}
 		return { isValid: true, parsedValue: parsed };
-	}
-}
-
-class ChatElicitationRequestPart implements IChatElicitationRequest {
-	public readonly kind = 'elicitation';
-	public state: 'pending' | 'accepted' | 'rejected' = 'pending';
-	public acceptedResult?: Record<string, unknown>;
-
-	constructor(
-		public readonly title: string | IMarkdownString,
-		public readonly message: string | IMarkdownString,
-		public readonly originMessage: string | IMarkdownString,
-		public readonly accept: () => Promise<void>,
-		public readonly reject: () => Promise<void>,
-	) { }
-
-	public toJSON() {
-		return {
-			kind: 'elicitation',
-			title: this.title,
-			message: this.message,
-			state: this.state === 'pending' ? 'rejected' : this.state,
-			acceptedResult: this.acceptedResult,
-		} satisfies Partial<IChatElicitationRequest>;
 	}
 }

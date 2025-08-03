@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-l9e7E37hgQqoIAqcFRgQ5/0NqMMW93mQmYAsUcDUyZ4=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-qzQMf4WjRXHohkk4Hg1T0LJIElTDtjITLXbR/RuGA/Q=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1120,6 +1120,21 @@
 
 						if (wasFocused) {
 							contentWindow.focus();
+						}
+
+						// Get body size
+						const docEl = contentDocument.documentElement;
+						if (docEl) {
+							const postSize = () => {
+								hostMessaging.postMessage('updated-intrinsic-content-size', {
+									width: docEl.offsetWidth,
+									height: docEl.offsetHeight
+								});
+							};
+
+							const resizeObserver = new ResizeObserver(postSize);
+							resizeObserver.observe(docEl);
+							postSize();
 						}
 
 						pendingMessages.forEach((message) => {

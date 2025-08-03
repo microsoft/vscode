@@ -8,6 +8,7 @@ import { decodeBase64 } from './buffer.js';
 const WELL_KNOWN_ROUTE = '/.well-known';
 export const AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-protected-resource`;
 export const AUTH_SERVER_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-authorization-server`;
+export const OPENID_CONNECT_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/openid-configuration`;
 export const AUTH_SCOPE_SEPARATOR = ' ';
 
 //#region types
@@ -735,14 +736,14 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost/',
-				'http://127.0.0.1/',
+				'http://localhost',
+				'http://127.0.0.1',
 				// Added these for any server that might do
 				// only exact match on the redirect URI even
 				// though the spec says it should not care
 				// about the port.
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
 			],
 			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
 			token_endpoint_auth_method: 'none',
@@ -817,36 +818,4 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 		}
 		throw new Error('Failed to parse JWT token');
 	}
-}
-
-/**
- * Extracts the resource server base URL from an OAuth protected resource metadata discovery endpoint URL.
- *
- * @param discoveryUrl The full URL to the OAuth protected resource metadata discovery endpoint
- * @returns The base URL of the resource server
- *
- * @example
- * ```typescript
- * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource')
- * // Returns: 'https://mcp.example.com/'
- *
- * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource/mcp')
- * // Returns: 'https://mcp.example.com/mcp'
- * ```
- */
-export function getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl: string): string {
-	const url = new URL(discoveryUrl);
-
-	// Remove the well-known discovery path only if it appears at the beginning
-	if (!url.pathname.startsWith(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH)) {
-		throw new Error(`Invalid discovery URL: expected path to start with ${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`);
-	}
-
-	const pathWithoutDiscovery = url.pathname.substring(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH.length);
-
-	// Construct the base URL
-	const baseUrl = new URL(url.origin);
-	baseUrl.pathname = pathWithoutDiscovery || '/';
-
-	return baseUrl.toString();
 }

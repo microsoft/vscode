@@ -608,14 +608,23 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			tokenRequest.append('client_secret', this._clientSecret);
 		}
 
-		const response = await fetch(this._serverMetadata.token_endpoint, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				'Accept': 'application/json'
-			},
-			body: tokenRequest.toString()
-		});
+		this._logger.info('Exchanging authorization code for token...');
+		this._logger.trace(`Url: ${this._serverMetadata.token_endpoint}`);
+		this._logger.trace(`Token request body: ${tokenRequest.toString()}`);
+		let response: Response;
+		try {
+			response = await fetch(this._serverMetadata.token_endpoint, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Accept': 'application/json'
+				},
+				body: tokenRequest.toString()
+			});
+		} catch (err) {
+			this._logger.error(`Failed to exchange authorization code for token: ${err}`);
+			throw new Error(`Failed to exchange authorization code for token: ${err}`);
+		}
 
 		if (!response.ok) {
 			const text = await response.text();
@@ -624,6 +633,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 		const result = await response.json();
 		if (isAuthorizationTokenResponse(result)) {
+			this._logger.info(`Successfully exchanged authorization code for token.`);
 			return result;
 		} else if (isAuthorizationErrorResponse(result) && result.error === AuthorizationErrorType.InvalidClient) {
 			this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);

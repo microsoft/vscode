@@ -609,4 +609,5 @@ export const codiconsLibrary = {
 	searchSparkle: register('search-sparkle', 0xec50),
 	editSparkle: register('edit-sparkle', 0xec51),
 	copilotSnooze: register('copilot-snooze', 0xec52),
+	sendToRemoteAgent: register('send-to-remote-agent', 0xec53),
 } as const;

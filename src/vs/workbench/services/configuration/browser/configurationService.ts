@@ -8,7 +8,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { equals } from '../../../../base/common/objects.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Queue, Barrier, Promises, Delayer } from '../../../../base/common/async.js';
+import { Queue, Barrier, Promises, Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../../../../platform/configuration/common/configurationModels.js';
@@ -47,6 +47,7 @@ import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/e
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
+import { ASSIGNMENT_REFETCH_INTERVAL } from '../../../../platform/assignment/common/assignment.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -1338,7 +1339,9 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	static readonly ID = 'workbench.contrib.configurationDefaultOverridesContribution';
 
 	private readonly processedExperimentalSettings = new Set<string>();
+	private readonly autoRefetchExperimentalSettings = new Set<string>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	private readonly autoRefetchExperimentalSettingsScheduler: RunOnceScheduler;
 
 	constructor(
 		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
@@ -1348,17 +1351,23 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	) {
 		super();
 
+		this.autoRefetchExperimentalSettingsScheduler = new RunOnceScheduler(() => {
+			this.processExperimentalSettings(this.autoRefetchExperimentalSettings, true);
+			this.autoRefetchExperimentalSettingsScheduler.schedule();
+		}, ASSIGNMENT_REFETCH_INTERVAL);
+
 		this.updateDefaults();
 
 		// When configuration is updated make sure to apply experimental configuration overrides
-		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties)));
+		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties, false)));
+
 	}
 
 	private async updateDefaults(): Promise<void> {
 		this.logService.trace('ConfigurationService#updateDefaults: begin');
 		try {
 			// Check for experiments
-			await this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()));
+			await this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()), false);
 		} finally {
 			// Invalidate defaults cache after extensions have registered
 			// and after the experiments have been resolved to prevent
@@ -1367,26 +1376,28 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 			this.logService.trace('ConfigurationService#updateDefaults: resetting the defaults');
 			this.configurationService.reloadConfiguration(ConfigurationTarget.DEFAULT);
 		}
+
+		// Schedule auto-refetch of experimental settings
+		this.autoRefetchExperimentalSettingsScheduler.schedule();
 	}
 
-	private async processExperimentalSettings(properties: Iterable<string>): Promise<void> {
+	private async processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void> {
 		const overrides: IStringDictionary<any> = {};
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		for (const property of properties) {
 			const schema = allProperties[property];
-			const tags = schema?.tags;
-			// Many experimental settings refer to in-development or unstable settings.
-			// onExP more clearly indicates that the setting could be
-			// part of an experiment.
-			if (!tags || !tags.some(tag => tag.toLowerCase() === 'onexp')) {
+			if (!schema.experiment) {
 				continue;
 			}
-			if (this.processedExperimentalSettings.has(property)) {
+			if (!autoRefetch && this.processedExperimentalSettings.has(property)) {
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
+			if (schema.experiment.mode === 'auto') {
+				this.autoRefetchExperimentalSettings.add(property);
+			}
 			try {
-				const value = await this.workbenchAssignmentService.getTreatment(`config.${property}`);
+				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
 				if (!isUndefined(value) && !equals(value, schema.default)) {
 					overrides[property] = value;
 				}

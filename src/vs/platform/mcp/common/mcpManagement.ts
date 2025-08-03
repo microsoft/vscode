@@ -19,7 +19,6 @@ export interface ILocalMcpServer {
 	readonly version?: string;
 	readonly mcpResource: URI;
 	readonly location?: URI;
-	readonly id?: string;
 	readonly displayName?: string;
 	readonly url?: string;
 	readonly description?: string;
@@ -192,6 +191,7 @@ export interface IMcpManagementService {
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 	getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
+	canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString;
 	install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
@@ -203,8 +203,15 @@ export interface IAllowedMcpServersService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeAllowedMcpServers: Event<void>;
-	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer): true | IMarkdownString;
+	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 }
 
 export const mcpEnabledConfig = 'chat.mcp.enabled';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
+export const mcpAutoStartConfig = 'chat.mcp.autostart';
+
+export const enum McpAutoStartValue {
+	Never = 'never',
+	OnlyNew = 'onlyNew',
+	NewAndOutdated = 'newAndOutdated',
+}

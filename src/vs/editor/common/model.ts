@@ -25,7 +25,7 @@ import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
 import { TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
-import { TextModelEditReason } from './textModelEditReason.js';
+import { TextModelEditSource } from './textModelEditSource.js';
 import { TextEdit } from './core/edits/textEdit.js';
 
 /**
@@ -1212,7 +1212,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	*/
-	edit(edit: TextEdit, options?: { reason?: TextModelEditReason }): void;
+	edit(edit: TextEdit, options?: { reason?: TextModelEditSource }): void;
 
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
@@ -1226,7 +1226,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null;
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup, reason?: TextModelEditSource): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of
@@ -1242,7 +1242,7 @@ export interface ITextModel {
 	 */
 	applyEdits(operations: readonly IIdentifiedSingleEditOperation[]): void;
 	/** @internal */
-	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], reason: TextModelEditReason): void;
+	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], reason: TextModelEditSource): void;
 	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
 	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
 
