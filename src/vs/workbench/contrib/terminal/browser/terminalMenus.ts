@@ -602,7 +602,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.Unsplit,
 						title: terminalStrings.unsplit.value
 					},
-					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal),
+					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminalTabFocused),
 					group: ContextMenuGroup.Config
 				}
 			},
