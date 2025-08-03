@@ -298,6 +298,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			: this._initForegroundTerminal(chatSessionId, termId, token));
 
 		this._terminalService.setActiveInstance(toolTerminal.instance);
+		this._terminalService.revealTerminal(toolTerminal.instance, true);
 		const timingConnectMs = Date.now() - timingStart;
 
 		const xterm = await toolTerminal.instance.xtermReadyPromise;
@@ -330,7 +331,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 					outputAndIdle = await racePollingOrPrompt(
 						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
-						() => promptForMorePolling(command, invocation.context!, this._chatService),
+						() => promptForMorePolling(command, token, invocation.context!, this._chatService),
 						outputAndIdle,
 						token,
 						this._languageModelsService,

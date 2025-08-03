@@ -141,7 +141,8 @@ class ChatLifecycleHandler extends Disposable {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -153,6 +154,10 @@ class ChatLifecycleHandler extends Disposable {
 	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 		const running = this.chatService.requestInProgressObs.read(undefined);
 		if (!running) {
+			return false;
+		}
+
+		if (ChatContextKeys.skipChatRequestInProgressMessage.getValue(this.contextKeyService) === true) {
 			return false;
 		}
 
