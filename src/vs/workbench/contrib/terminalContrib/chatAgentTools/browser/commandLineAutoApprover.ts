@@ -100,35 +100,32 @@ export class CommandLineAutoApprover extends Disposable {
 		return { result: 'noMatch', reason: `Command line '${commandLine}' has no matching auto approve entries` };
 	}
 
-	private _extractCommandFromEnvAssignments(command: string, shell: string, os: OperatingSystem): string {
-		// Trim leading/trailing whitespace
-		const trimmedCommand = command.trim();
-		
+	private _removeEnvAssignments(command: string, shell: string, os: OperatingSystem): string {
+		const trimmedCommand = command.trimStart();
+
+		// PowerShell environment variable syntax is `$env:VAR='value';` and treated as a different
+		// command
 		if (isPowerShell(shell, os)) {
-			// PowerShell environment variable syntax: $env:VAR='value'; command
-			// We'll keep the current behavior as PowerShell has different patterns
 			return trimmedCommand;
 		}
-		
+
 		// For bash/sh/bourne shell and unknown shells (fallback to bourne shell syntax)
 		// Handle environment variable assignments like: VAR=value VAR2=value command
 		// This regex matches one or more environment variable assignments at the start
 		const envVarPattern = /^(\s*[A-Za-z_][A-Za-z0-9_]*=(?:[^\s'"]|'[^']*'|"[^"]*")*\s+)+/;
 		const match = trimmedCommand.match(envVarPattern);
-		
+
 		if (match) {
-			// Remove the environment variable assignments from the beginning
-			const actualCommand = trimmedCommand.slice(match[0].length).trim();
+			const actualCommand = trimmedCommand.slice(match[0].length).trimStart();
 			return actualCommand || trimmedCommand; // Fallback to original if nothing left
 		}
-		
+
 		return trimmedCommand;
 	}
 
 	private _commandMatchesRegex(regex: RegExp, command: string, shell: string, os: OperatingSystem): boolean {
-		// First extract the actual command from any environment variable assignments
-		const actualCommand = this._extractCommandFromEnvAssignments(command, shell, os);
-		
+		const actualCommand = this._removeEnvAssignments(command, shell, os);
+
 		if (regex.test(actualCommand)) {
 			return true;
 		} else if (isPowerShell(shell, os) && actualCommand.startsWith('(')) {
