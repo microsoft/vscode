@@ -126,6 +126,8 @@ export interface IChatListItemRendererOptions {
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly checkpointEnabled?: boolean;
+	readonly editEnabled?: boolean;
 }
 
 export interface IChatWidgetViewOptions {

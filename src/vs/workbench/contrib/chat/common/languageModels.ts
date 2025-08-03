@@ -121,6 +121,15 @@ export interface IChatResponseToolUsePart {
 	parameters: any;
 }
 
+export interface IChatResponseThinkingPart {
+	type: 'thinking';
+	value: string;
+	id?: string;
+	metadata?: string;
+}
+
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart;
+
 export interface IChatResponsePullRequestPart {
 	type: 'pullRequest';
 	uri: URI;
@@ -131,8 +140,6 @@ export interface IChatResponsePullRequestPart {
 }
 
 export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
-
-export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart;
 
 export interface IChatResponseFragment {
 	index: number;

@@ -1804,7 +1804,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 2px 6px 2px 2px;
 }
 
-.interactive-session .chat-file-changes-label .monaco-button:hover {
+.interactive-session .chat-file-changes-label .monaco-button:hover,
+.interactive-session .chat-thinking-summary-header .monaco-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -1827,6 +1828,275 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-file-changes-label .monaco-button .codicon,
 .interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: 12px;
+}
+
+/* Thinking widget - styled similar to checkpoint file changes summary */
+.interactive-session .interactive-response .value .chat-thinking-summary {
+	display: flex;
+	flex-direction: column;
+	flex-wrap: wrap;
+	align-items: center;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	margin: 4px 0;
+	outline: none;
+}
+
+.chat-thinking-summary-header {
+	padding: 3px;
+	width: 100%;
+	display: flex;
+	box-sizing: border-box;
+	justify-content: space-between;
+}
+
+.chat-thinking-summary-header .monaco-button-mdlabel {
+	display: flex;
+	width: 100%;
+	text-align: left;
+	align-items: center;
+}
+
+.chat-thinking-summary-header .chat-thinking-label,
+.chat-thinking-summary-header .chat-thinking-label .monaco-button {
+	width: 100%;
+	outline: none;
+}
+
+.chat-thinking-summary-header .chat-thinking-label .monaco-button .codicon {
+	font-size: 16px;
+}
+
+.chat-thinking-content {
+	max-width: 100%;
+	padding: 8px 12px;
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.interactive-session .chat-thinking-summary.chat-thinking-collapsed .chat-thinking-content {
+	display: none;
+}
+
+.chat-thinking-content .thinking-text {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.5em;
+	color: var(--vscode-editor-foreground);
+}
+
+.chat-thinking-content .thinking-text code {
+	font-family: var(--monaco-monospace-font);
+	background: var(--vscode-textCodeBlock-background);
+	padding: 2px 4px;
+	border-radius: 3px;
+}
+
+.chat-thinking-content .thinking-text pre {
+	background: var(--vscode-textCodeBlock-background);
+	padding: 8px 12px;
+	border-radius: 4px;
+	overflow-x: auto;
+	margin: 8px 0;
+}
+
+.chat-thinking-content .thinking-text pre code {
+	background: transparent;
+	padding: 0;
+}
+
+.chat-thinking-content .thinking-metadata {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid var(--vscode-widget-border);
+	font-size: 0.9em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-session .interactive-response .chat-thinking-label .monaco-button,
+.interactive-session .interactive-response .chat-thinking-label .monaco-text-button {
+	padding: 2px;
+	outline: none;
+}
+
+.interactive-session .chat-thinking-label .monaco-button {
+	outline: none;
+}
+
+.interactive-session .chat-thinking-label .monaco-button .codicon,
+.interactive-session .chat-thinking-label .monaco-text-button .codicon {
+	margin-right: 6px;
+	font-size: 16px;
+}
+
+.interactive-session .thinking-text {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.5em;
+	color: var(--vscode-editor-foreground);
+}
+
+.interactive-session .thinking-text code {
+	font-family: var(--monaco-monospace-font);
+}
+
+.interactive-session .thinking-metadata {
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--vscode-widget-border);
+	font-size: 0.9em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-item-container .value .tool-input-output-part .thinking-text p {
+	margin: 0 0 0.8em 0;
+}
+
+.interactive-item-container .value .tool-input-output-part .thinking-metadata {
+	margin-top: 12px;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+	padding-top: 8px;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+
+/* Legacy thinking content part styles - keep for backwards compatibility */
+.interactive-item-container .value .rendered-markdown.chat-thinking,
+.interactive-item-container .value .thinking-content {
+	background-color: var(--vscode-chat-slashCommandBackground);
+	border-radius: 6px;
+	padding: 10px;
+	position: relative;
+	margin-bottom: 8px;
+	border-left: 3px solid var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value .chat-thinking-wrapper {
+	margin-bottom: 12px;
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	max-width: 100%;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.interactive-item-container .value .rendered-markdown.chat-thinking::before {
+	content: "Thinking...";
+	font-style: italic;
+	color: var(--vscode-textLink-foreground);
+	font-weight: 600;
+	display: block;
+	margin-bottom: 6px;
+}
+
+.interactive-item-container .value .thinking-content .thinking-header {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 6px;
+	align-items: center;
+}
+
+.interactive-item-container .value .thinking-content .thinking-label {
+	font-style: italic;
+	color: var(--vscode-textLink-foreground);
+	font-weight: 600;
+}
+
+.interactive-item-container .value .thinking-content .thinking-dots {
+	display: inline-block;
+	min-width: 18px;
+	margin-left: 2px;
+}
+
+.interactive-item-container .value .rendered-markdown.chat-thinking .thinking-icon,
+.interactive-item-container .value .thinking-content .thinking-icon {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .value .rendered-markdown.chat-thinking .thinking-metadata,
+.interactive-item-container .value .thinking-content .thinking-metadata {
+	margin-top: 8px;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+	padding-top: 6px;
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.interactive-item-container .value .thinking-content .thinking-text {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.5em;
+	padding: 4px 12px;
+}
+
+.interactive-item-container .value .thinking-content .thinking-text code {
+	font-family: var(--monaco-monospace-font);
+}
+
+.interactive-item-container .value .thinking-content .thinking-text p {
+	margin: 0 0 0.8em 0;
+}
+
+.interactive-item-container .value .thinking-content .thinking-text > p {
+	position: relative;
+	padding-bottom: 0.5em;
+}
+
+.interactive-item-container .value .thinking-content .thinking-text > p:not(:last-child) {
+	margin-bottom: 1.2em;
+}
+
+.chat-thinking-part {
+	margin-top: 6px;
+	margin-bottom: 12px;
+}
+
+.chat-thinking-wrapper {
+	position: relative;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+	margin: 0;
+	padding: 0;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	border-radius: 6px;
+}
+
+.chat-thinking-wrapper .thinking-content {
+	border-left: 3px solid var(--vscode-focusBorder);
+	transition: all 0.3s ease;
+	border-radius: 6px;
+}
+
+.thinking-header-container {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 6px 8px;
+	cursor: pointer;
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.thinking-header-container.collapsible:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.thinking-collapse-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+}
+
+.thinking-container.collapsed {
+	display: none;
+}
+
+.thinking-content.collapsed {
+	border-left-color: var(--vscode-descriptionForeground);
 }
 
 .interactive-item-container .progress-container {

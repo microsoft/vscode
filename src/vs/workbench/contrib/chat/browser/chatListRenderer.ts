@@ -49,7 +49,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -71,6 +71,7 @@ import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
+import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
@@ -912,6 +913,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, elementIndex: number, templateData: IChatListItemTemplate): void {
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
+
+		// Process all parts, with special handling for thinking parts
 		partsToRender.forEach((partToRender, contentIndex) => {
 			if (!partToRender) {
 				// null=no change
@@ -945,7 +948,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							alreadyRenderedPart.domNode.remove();
 						}
 					} else if (newPart.domNode) {
-						templateData.value.appendChild(newPart.domNode);
+						if (partToRender.kind === 'thinking') {
+							// Insert thinking part at the beginning of the container
+							templateData.value.insertBefore(newPart.domNode, templateData.value.firstChild);
+						} else {
+							// Regular append for other content types
+							templateData.value.appendChild(newPart.domNode);
+						}
 					}
 				} catch (err) {
 					this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
@@ -973,6 +982,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const data = this.getDataForProgressiveRender(element);
 
 		// An unregistered setting for development- skip the word counting and smoothing, just render content as it comes in
+		// We always want to render thinking parts immediately for a smoother experience
 		const renderImmediately = this.configService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
 
 		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
@@ -985,9 +995,38 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// The part will hide itself if the list is empty.
 		partsToRender.push({ kind: 'references', references: element.contentReferences });
 
+		// First, find and combine all thinking parts into a single one that will be placed at the top
+		const thinkingParts = renderableResponse.filter(part => part.kind === 'thinking');
+		let combinedThinkingPart: IChatThinkingPart | null = null;
+
+		if (thinkingParts.length > 0) {
+			// Combine all thinking parts into a single part
+			const combinedValue = thinkingParts
+				.map(part => part.value || '')
+				.join('');
+
+			// Use the metadata from the last thinking part if available
+			const lastThinkingPart = thinkingParts[thinkingParts.length - 1];
+
+			combinedThinkingPart = {
+				kind: 'thinking',
+				value: combinedValue,
+				metadata: lastThinkingPart.metadata,
+				id: 'combined-thinking-' + Date.now()
+			};
+
+			// Add the combined thinking part at the beginning
+			partsToRender.push(combinedThinkingPart);
+		}
+
 		let moreContentAvailable = false;
 		for (let i = 0; i < renderableResponse.length; i++) {
 			const part = renderableResponse[i];
+			// Skip individual thinking parts since we've combined them
+			if (part.kind === 'thinking') {
+				continue;
+			}
+
 			if (part.kind === 'markdownContent' && !renderImmediately) {
 				const wordCountResult = getNWords(part.content.value, numNeededWords);
 				this.traceLayout('getNextProgressiveRenderContent', `  Chunk ${i}: Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
@@ -998,9 +1037,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 					// Consumed full markdown chunk- need to ensure that all following non-markdown parts are rendered
 					for (const nextPart of renderableResponse.slice(i + 1)) {
-						if (nextPart.kind !== 'markdownContent') {
+						if (nextPart.kind !== 'markdownContent' && nextPart.kind !== 'thinking') {
 							i++;
 							partsToRender.push(nextPart);
+						} else if (nextPart.kind === 'thinking') {
+							i++; // Skip thinking parts
 						} else {
 							break;
 						}
@@ -1091,11 +1132,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private diff(renderedParts: ReadonlyArray<IChatContentPart>, contentToRender: ReadonlyArray<IChatRendererContent>, element: ChatTreeItem): ReadonlyArray<IChatRendererContent | null> {
 		const diff: (IChatRendererContent | null)[] = [];
+		// // Process each content part
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
 			const renderedPart = renderedParts[i];
 
-			if (!renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
+			// Special case for thinking parts - we want to update them rather than replace them
+			if (content.kind === 'thinking' && renderedPart instanceof ChatThinkingContentPart) {
+				// Update the existing thinking part instead of replacing it
+				renderedPart.update(content);
+				diff.push(null); // No change needed in the diff
+			} else if (!renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
 				diff.push(content);
 			} else {
 				// null -> no change
@@ -1144,6 +1191,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderChatErrorDetails(context, content, templateData);
 			} else if (content.kind === 'elicitation') {
 				return this.renderElicitation(context, content, templateData);
+			} else if (content.kind === 'thinking') {
+				return this.renderThinking(context, content, templateData);
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
 			}
@@ -1339,6 +1388,39 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const part = this.instantiationService.createInstance(ChatElicitationContentPart, elicitation, context);
 		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
+	}
+
+	private renderThinking(context: IChatContentPartRenderContext, thinking: IChatThinkingPart, templateData: IChatListItemTemplate): IChatContentPart {
+		// Check if there's already a thinking part in the rendered parts
+		let existingThinkingPart: ChatThinkingContentPart | undefined;
+
+		if (templateData.renderedParts) {
+			existingThinkingPart = templateData.renderedParts.find(part =>
+				part instanceof ChatThinkingContentPart) as ChatThinkingContentPart | undefined;
+		}
+
+		if (existingThinkingPart) {
+			// Update the existing thinking part with new content
+			existingThinkingPart.update(thinking);
+			return existingThinkingPart;
+		} else {
+			// Create a new thinking part
+			const thinkingPart = templateData.instantiationService.createInstance(
+				ChatThinkingContentPart,
+				thinking,
+				context
+			);
+
+			// Add a special class to identify thinking content at the container level
+			thinkingPart.domNode.classList.add('chat-thinking-part');
+
+			// Handle height changes for smooth rendering
+			thinkingPart.addDisposable(thinkingPart.onDidChangeHeight(() => {
+				this.updateItemHeight(templateData);
+			}));
+
+			return thinkingPart;
+		}
 	}
 
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
