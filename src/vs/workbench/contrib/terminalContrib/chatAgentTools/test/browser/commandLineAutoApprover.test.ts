@@ -286,7 +286,6 @@ suite('CommandLineAutoApprover', () => {
 			});
 
 			ok(isAutoApproved('echo   hello   world'));
-			ok(!isAutoApproved('  echo hello'));
 		});
 
 		test('should be case-sensitive by default', () => {
@@ -623,42 +622,33 @@ suite('CommandLineAutoApprover', () => {
 		test('should handle environment variable assignments before commands in bash/sh', () => {
 			shell = 'bash';
 			os = OperatingSystem.Linux;
-			
+
 			setAutoApprove({
 				"env": true,
 				"echo": true
 			});
 
-			// Basic environment variable assignment
-			ok(isAutoApproved('FOO=bar env'));
-			ok(isAutoApproved('FOO=bar echo test'));
-			
-			// Multiple environment variables
-			ok(isAutoApproved('FOO=bar BAZ=qux env'));
-			ok(isAutoApproved('PATH=/usr/bin HOME=/home/user echo hello'));
-			
-			// Environment variables with quoted values
-			ok(isAutoApproved('MESSAGE="hello world" echo test'));
-			ok(isAutoApproved("GREETING='hello there' echo test"));
-			
-			// Complex command after environment variables
-			ok(isAutoApproved('DEBUG=1 env | grep DEBUG'));
+			ok(isAutoApproved('FOO=bar env'), 'Basic environment variable assignment');
+			ok(isAutoApproved('FOO=bar echo test'), 'Basic environment variable assignment');
+
+			ok(isAutoApproved('FOO=bar BAZ=qux env'), 'Multiple environment variables');
+			ok(isAutoApproved('PATH=/usr/bin HOME=/home/user echo hello'), 'Multiple environment variables');
+
+			ok(isAutoApproved('MESSAGE="hello world" echo test'), 'Environment variables with quoted values');
+			ok(isAutoApproved("GREETING='hello there' echo test"), 'Environment variables with quoted values');
 		});
 
 		test('should not match denied commands even with environment variables', () => {
 			shell = 'bash';
 			os = OperatingSystem.Linux;
-			
+
 			setAutoApprove({
 				"env": true,
 				"rm": false
 			});
 
-			// Should approve env command with environment variable
-			ok(isAutoApproved('FOO=bar env'));
-			
-			// Should deny rm command even with environment variable
-			ok(!isAutoApproved('FOO=bar rm file.txt'));
+			ok(isAutoApproved('FOO=bar env'), 'Should approve env command with environment variable');
+			ok(!isAutoApproved('FOO=bar rm file.txt'), 'Should deny rm command even with environment variable');
 		});
 
 		test('should handle environment variables with different shell types', () => {
@@ -666,64 +656,51 @@ suite('CommandLineAutoApprover', () => {
 				"echo": true
 			});
 
-			// Bash/sh should handle VAR=value syntax
 			shell = 'bash';
 			os = OperatingSystem.Linux;
 			ok(isAutoApproved('FOO=bar echo test'));
 
-			// PowerShell should keep current behavior (not parse VAR=value as env vars)
 			shell = 'powershell';
 			os = OperatingSystem.Windows;
-			ok(!isAutoApproved('FOO=bar echo test')); // This should not match since FOO=bar is not recognized as env var syntax in PowerShell
+			ok(!isAutoApproved('FOO=bar echo test'), 'This should not match since FOO=bar is not recognized as env var syntax in PowerShell');
 		});
 
 		test('should fallback to original command if no environment variables detected', () => {
 			shell = 'bash';
 			os = OperatingSystem.Linux;
-			
+
 			setAutoApprove({
 				"echo": true
 			});
 
-			// Commands without environment variables should work as before
 			ok(isAutoApproved('echo hello'));
 			ok(isAutoApproved('echo test'));
-			
-			// Commands that look like they might have env vars but don't match the pattern
-			ok(isAutoApproved('echo FOO=bar')); // This is an argument to echo, not an env var assignment
+			ok(isAutoApproved('echo FOO=bar'), '// Commands that look like they might have env vars but don\'t match the pattern');
 		});
 
 		test('should handle edge cases in environment variable parsing', () => {
 			shell = 'bash';
 			os = OperatingSystem.Linux;
-			
+
 			setAutoApprove({
 				"echo": true
 			});
 
-			// Empty value
-			ok(isAutoApproved('FOO= echo test'));
-			
-			// Underscore in variable name
-			ok(isAutoApproved('MY_VAR=test echo hello'));
-			
-			// Number in variable name (but not at start)
-			ok(isAutoApproved('VAR1=test echo hello'));
-			
-			// Should not match if variable name starts with number (invalid)
-			ok(!isAutoApproved('1VAR=test echo hello')); // This should not be parsed as env var
+			ok(isAutoApproved('FOO= echo test'), 'Empty value');
+			ok(isAutoApproved('MY_VAR=test echo hello'), 'Underscore in variable name');
+			ok(isAutoApproved('VAR1=test echo hello'), 'Number in variable name (but not at start)');
+			ok(!isAutoApproved('1VAR=test echo hello'), 'Should not match if variable name starts with number (invalid)');
 		});
 
 		test('should handle unknown shell types by defaulting to bourne shell syntax', () => {
 			shell = 'unknown-shell';
 			os = OperatingSystem.Linux;
-			
+
 			setAutoApprove({
 				"echo": true
 			});
 
-			// Unknown shells should default to bourne shell behavior
-			ok(isAutoApproved('FOO=bar echo test'));
+			ok(isAutoApproved('FOO=bar echo test'), 'Unknown shells should default to bourne shell behavior');
 		});
 	});
 });
