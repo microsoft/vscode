@@ -299,7 +299,7 @@ export class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
 						part instanceof extHostTypes.ChatResponseExtensionsPart ||
-						part instanceof extHostTypes.ChatResponseThinkingProgressPart
+						part instanceof extHostTypes.ChatResponseThinkingProgressPart ||
 						part instanceof extHostTypes.ChatResponsePullRequestPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {

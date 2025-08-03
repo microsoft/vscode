@@ -1421,7 +1421,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			return thinkingPart;
 		}
-    
+	}
+
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatCheckpointFileChangesSummaryContentPart, content, context);
 		part.addDisposable(part.onDidChangeHeight(() => { this.updateItemHeight(templateData); }));
