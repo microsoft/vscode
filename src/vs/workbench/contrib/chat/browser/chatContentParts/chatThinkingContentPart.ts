@@ -37,9 +37,15 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	private markdownResult: IDisposable | undefined;
 	private metadataMarkdownResult: IDisposable | undefined;
 
+	// Time tracking for dynamic label
+	private startTime: number = Date.now();
+	private isComplete: boolean = false;
+	private labelUpdateInterval: number | undefined;
+	private expandButton: ButtonWithIcon | undefined;
+
 	constructor(
 		content: IChatThinkingPart,
-		_context: IChatContentPartRenderContext,
+		private readonly _context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -65,7 +71,8 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	private renderHeader(container: HTMLElement): IDisposable {
 		const buttonContainer = container.appendChild($('.chat-thinking-label'));
 		const expandButton = new ButtonWithIcon(buttonContainer, {});
-		expandButton.label = 'Thinking';
+		this.expandButton = expandButton;
+		this.updateLabel();
 
 		const setExpansionState = () => {
 			expandButton.icon = this.isCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
@@ -73,6 +80,9 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 			this._onDidChangeHeight.fire();
 		};
 		setExpansionState();
+
+		// Start updating the label periodically
+		this.startLabelUpdates();
 
 		const disposables = new DisposableStore();
 		disposables.add(expandButton);
@@ -82,6 +92,46 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		}));
 
 		return toDisposable(() => disposables.dispose());
+	}
+
+	private updateLabel(): void {
+		if (!this.expandButton) {
+			return;
+		}
+
+		const elapsedMs = Date.now() - this.startTime;
+		const elapsedSeconds = Math.floor(elapsedMs / 1000);
+
+		if (this.isComplete) {
+			this.expandButton.label = `Thought for ${elapsedSeconds}s`;
+		} else {
+			this.expandButton.label = `Thinking for ${elapsedSeconds}s...`;
+		}
+	}
+
+	private startLabelUpdates(): void {
+		if (this.labelUpdateInterval) {
+			const targetWindow = dom.getWindow(this.domNode);
+			targetWindow.clearInterval(this.labelUpdateInterval);
+		}
+
+		// Update every second while thinking
+		const targetWindow = dom.getWindow(this.domNode);
+		this.labelUpdateInterval = targetWindow.setInterval(() => {
+			if (!this.isComplete) {
+				this.updateLabel();
+			} else {
+				this.stopLabelUpdates();
+			}
+		}, 1000);
+	}
+
+	private stopLabelUpdates(): void {
+		if (this.labelUpdateInterval) {
+			const targetWindow = dom.getWindow(this.domNode);
+			targetWindow.clearInterval(this.labelUpdateInterval);
+			this.labelUpdateInterval = undefined;
+		}
 	}
 
 	private renderContent(): IDisposable {
@@ -99,8 +149,7 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		}
 
 		return {
-			dispose: () => {
-			}
+			dispose: () => { }
 		};
 	}
 
@@ -182,15 +231,26 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 			contentChanged = true;
 		}
 
-		if (contentChanged && this.isCollapsed) {
-			this.isCollapsed = false;
-			this.domNode.classList.remove('chat-thinking-collapsed');
+		if (contentChanged) {
+			if (this.isCollapsed) {
+				this.isCollapsed = false;
+				this.domNode.classList.remove('chat-thinking-collapsed');
+				this._onDidChangeHeight.fire();
+			}
+
 			this._onDidChangeHeight.fire();
 		}
 
-		if (contentChanged) {
-			this._onDidChangeHeight.fire();
+		// Check if the entire response is complete
+		if (this._context.element.isComplete && !this.isComplete) {
+			this.markAsComplete();
 		}
+	}
+
+	private markAsComplete(): void {
+		this.isComplete = true;
+		this.updateLabel();
+		this.stopLabelUpdates();
 	}
 
 	private renderMarkdown(content: string): void {
@@ -212,6 +272,8 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	}
 
 	override dispose(): void {
+		this.stopLabelUpdates();
+
 		if (this.markdownResult) {
 			this.markdownResult.dispose();
 			this.markdownResult = undefined;
