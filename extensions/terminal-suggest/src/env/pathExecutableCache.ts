@@ -19,9 +19,8 @@ const isWindows = osIsWindows();
 export class PathExecutableCache implements vscode.Disposable {
 	private _disposables: vscode.Disposable[] = [];
 
-	private _cachedPathValue: string | undefined;
 	private _cachedWindowsExeExtensions: { [key: string]: boolean | undefined } | undefined;
-	private _cachedExes: { completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined;
+	private _cachedExes: Map<string, Set<ICompletionResource> | undefined> = new Map();
 
 	constructor() {
 		if (isWindows) {
@@ -29,7 +28,7 @@ export class PathExecutableCache implements vscode.Disposable {
 			this._disposables.push(vscode.workspace.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(SettingsIds.CachedWindowsExecutableExtensions)) {
 					this._cachedWindowsExeExtensions = vscode.workspace.getConfiguration(SettingsIds.SuggestPrefix).get(SettingsIds.CachedWindowsExecutableExtensionsSuffixOnly);
-					this._cachedExes = undefined;
+					this._cachedExes.clear();
 				}
 			}));
 		}
@@ -41,9 +40,13 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 	}
 
-	refresh(): void {
-		this._cachedExes = undefined;
-		this._cachedPathValue = undefined;
+	refresh(directory?: string): void {
+		console.trace('clear cache');
+		if (directory) {
+			this._cachedExes.delete(directory);
+		} else {
+			this._cachedExes.clear();
+		}
 	}
 
 	async getExecutablesInPath(env: ITerminalEnvironment = process.env, shellType?: TerminalShellType): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
@@ -65,35 +68,56 @@ export class PathExecutableCache implements vscode.Disposable {
 			return;
 		}
 
-		// Check cache
-		if (this._cachedExes && this._cachedPathValue === pathValue) {
-			return this._cachedExes;
-		}
-
 		// Extract executables from PATH
 		const paths = pathValue.split(isWindows ? ';' : ':');
 		const pathSeparator = isWindows ? '\\' : '/';
+		const promisePaths: string[] = [];
 		const promises: Promise<Set<ICompletionResource> | undefined>[] = [];
 		const labels: Set<string> = new Set<string>();
-		for (const path of paths) {
-			promises.push(this._getExecutablesInPath(path, pathSeparator, labels));
+
+		for (const pathDir of paths) {
+			// Check if this directory is already cached
+			const cachedExecutables = this._cachedExes.get(pathDir);
+			if (cachedExecutables) {
+				for (const executable of cachedExecutables) {
+					const labelText = typeof executable.label === 'string' ? executable.label : executable.label.label;
+					labels.add(labelText);
+				}
+			} else {
+				// Not cached, need to scan this directory
+				promisePaths.push(pathDir);
+				promises.push(this._getExecutablesInPath(pathDir, pathSeparator, labels));
+			}
 		}
 
-		// Merge all results
+		// Process uncached directories
+		if (promises.length > 0) {
+			const resultSets = await Promise.all(promises);
+			for (const [i, resultSet] of resultSets.entries()) {
+				const pathDir = promisePaths[i];
+				if (!this._cachedExes.has(pathDir)) {
+					this._cachedExes.set(pathDir, resultSet || new Set());
+				}
+			}
+		}
+
+		// Merge all results from all directories
 		const executables = new Set<ICompletionResource>();
-		const resultSets = await Promise.all(promises);
-		for (const resultSet of resultSets) {
-			if (resultSet) {
-				for (const executable of resultSet) {
+		const processedPaths: Set<string> = new Set();
+		for (const pathDir of paths) {
+			if (processedPaths.has(pathDir)) {
+				continue;
+			}
+			processedPaths.add(pathDir);
+			const dirExecutables = this._cachedExes.get(pathDir);
+			if (dirExecutables) {
+				for (const executable of dirExecutables) {
 					executables.add(executable);
 				}
 			}
 		}
 
-		// Return
-		this._cachedPathValue = pathValue;
-		this._cachedExes = { completionResources: executables, labels };
-		return this._cachedExes;
+		return { completionResources: executables, labels };
 	}
 
 	private async _getExecutablesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
@@ -190,7 +214,7 @@ export async function watchPathDirectories(context: vscode.ExtensionContext, env
 			const watcher = filesystem.watch(dir, { persistent: false }, () => {
 				if (pathExecutableCache) {
 					// Refresh cache when directory contents change
-					pathExecutableCache.refresh();
+					pathExecutableCache.refresh(dir);
 				}
 			});
 
