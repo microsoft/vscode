@@ -11,7 +11,6 @@ import { localize, localize2 } from '../../../../nls.js';
 export const terminalStrings = {
 	terminal: localize('terminal', "Terminal"),
 	new: localize('terminal.new', "New Terminal"),
-	newInView: localize('terminal.newInView', "New in Terminal View"),
 	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
 	currentSessionCategory: localize('currentSessionCategory', 'current session'),
 	previousSessionCategory: localize('previousSessionCategory', 'previous session'),
