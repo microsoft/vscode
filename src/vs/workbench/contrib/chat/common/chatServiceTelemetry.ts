@@ -3,8 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ChatAgentVoteDirection, ChatCopyKind, IChatUserActionEvent } from './chatService.js';
+import { IChatAgentData } from './chatAgents.js';
+import { ChatRequestModel, IChatRequestVariableData } from './chatModel.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from './chatParserTypes.js';
+import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUserActionEvent } from './chatService.js';
+import { isImageVariableEntry } from './chatVariableEntries.js';
+import { ChatAgentLocation } from './constants.js';
+import { ILanguageModelsService } from './languageModels.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
@@ -124,9 +132,48 @@ type ChatEditHunkClassification = {
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
+export type ChatProviderInvokedEvent = {
+	timeToFirstProgress: number | undefined;
+	totalTime: number | undefined;
+	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled' | 'filtered';
+	requestType: 'string' | 'followup' | 'slashCommand';
+	chatSessionId: string;
+	agent: string;
+	agentExtensionId: string | undefined;
+	slashCommand: string | undefined;
+	location: ChatAgentLocation;
+	citations: number;
+	numCodeBlocks: number;
+	isParticipantDetected: boolean;
+	enableCommandDetection: boolean;
+	attachmentKinds: string[];
+	model: string | undefined;
+};
+
+export type ChatProviderInvokedClassification = {
+	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time in milliseconds from invoking the provider to getting the first data.' };
+	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the ChatProvider resulted in an error.' };
+	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
+	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of agent used.' };
+	agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
+	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location at which chat request was made.' };
+	citations: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of public code citations that were returned with the response.' };
+	numCodeBlocks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code blocks in the response.' };
+	isParticipantDetected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the participant was automatically detected.' };
+	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether participation detection was disabled for this invocation.' };
+	attachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The types of variables/attachments that the user included with their query.' };
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model used to generate the response.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the performance of Chat agents.';
+};
+
 export class ChatServiceTelemetry {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
 	) { }
 
 	notifyUserAction(action: IChatUserActionEvent): void {
@@ -178,6 +225,44 @@ export class ChatServiceTelemetry {
 		}
 	}
 
+	sendInvokedTelemetry({ timeToFirstProgress, totalTime, result, requestType, detectedAgent, agentPart, agentSlashCommandPart, commandPart, sessionId, location, request, options, enableCommandDetection }: {
+		timeToFirstProgress: number | undefined;
+		totalTime: number | undefined;
+		result: ChatProviderInvokedEvent['result'];
+		requestType: ChatProviderInvokedEvent['requestType'];
+		detectedAgent: IChatAgentData | undefined;
+		agentPart: ChatRequestAgentPart | undefined;
+		agentSlashCommandPart: ChatRequestAgentSubcommandPart | undefined;
+		commandPart: ChatRequestSlashCommandPart | undefined;
+		sessionId: string;
+		location: ChatAgentLocation;
+		request: ChatRequestModel;
+		options: IChatSendRequestOptions | undefined;
+		enableCommandDetection: boolean;
+	}) {
+		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+			timeToFirstProgress,
+			totalTime,
+			result,
+			requestType,
+			agent: detectedAgent?.id ?? agentPart?.agent.id ?? '',
+			agentExtensionId: detectedAgent?.extensionId.value ?? agentPart?.agent.extensionId.value ?? '',
+			slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
+			chatSessionId: sessionId,
+			enableCommandDetection,
+			isParticipantDetected: !!detectedAgent,
+			location,
+			citations: request.response?.codeCitations.length ?? 0,
+			numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
+			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
+			model: this.resolveModelId(options?.userSelectedModelId),
+		});
+	}
+
+	private resolveModelId(userSelectedModelId: string | undefined): string | undefined {
+		return userSelectedModelId && this.languageModelsService.lookupLanguageModel(userSelectedModelId)?.id;
+	}
+
 	retrievedFollowups(agentId: string, command: string | undefined, numFollowups: number): void {
 		this.telemetryService.publicLog2<ChatFollowupsRetrievedEvent, ChatFollowupsRetrievedClassification>('chatFollowupsRetrieved', {
 			agentId,
@@ -185,4 +270,65 @@ export class ChatServiceTelemetry {
 			numFollowups,
 		});
 	}
+
+	private attachmentKindsForTelemetry(variableData: IChatRequestVariableData): string[] {
+		// this shows why attachments still have to be cleaned up somewhat
+		return variableData.variables.map(v => {
+			if (v.kind === 'implicit') {
+				return 'implicit';
+			} else if (v.range) {
+				// 'range' is range within the prompt text
+				if (v.kind === 'tool') {
+					return 'toolInPrompt';
+				} else if (v.kind === 'toolset') {
+					return 'toolsetInPrompt';
+				} else {
+					return 'fileInPrompt';
+				}
+			} else if (v.kind === 'command') {
+				return 'command';
+			} else if (v.kind === 'symbol') {
+				return 'symbol';
+			} else if (isImageVariableEntry(v)) {
+				return 'image';
+			} else if (v.kind === 'directory') {
+				return 'directory';
+			} else if (v.kind === 'tool') {
+				return 'tool';
+			} else if (v.kind === 'toolset') {
+				return 'toolset';
+			} else {
+				if (URI.isUri(v.value)) {
+					return 'file';
+				} else if (isLocation(v.value)) {
+					return 'location';
+				} else {
+					return 'otherAttachment';
+				}
+			}
+		});
+	}
+}
+
+function getCodeBlocks(text: string): string[] {
+	const lines = text.split('\n');
+	const codeBlockLanguages: string[] = [];
+
+	let codeBlockState: undefined | { readonly delimiter: string; readonly languageId: string };
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+
+		if (codeBlockState) {
+			if (new RegExp(`^\\s*${codeBlockState.delimiter}\\s*$`).test(line)) {
+				codeBlockLanguages.push(codeBlockState.languageId);
+				codeBlockState = undefined;
+			}
+		} else {
+			const match = line.match(/^(\s*)(`{3,}|~{3,})(\w*)/);
+			if (match) {
+				codeBlockState = { delimiter: match[2], languageId: match[3] };
+			}
+		}
+	}
+	return codeBlockLanguages;
 }
