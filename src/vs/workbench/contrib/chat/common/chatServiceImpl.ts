@@ -31,7 +31,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
-import { ChatServiceTelemetry } from './chatServiceTelemetry.js';
+import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
@@ -735,6 +735,15 @@ export class ChatService extends Disposable implements IChatService {
 		const agentSlashCommandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 		const commandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 		const requests = [...model.getRequests()];
+		const requestTelemetry = this.instantiationService.createInstance(ChatRequestTelemetry, {
+			agentPart,
+			agentSlashCommandPart,
+			commandPart,
+			sessionId: model.sessionId,
+			location: model.initialLocation,
+			options,
+			enableCommandDetection
+		});
 
 		let gotProgress = false;
 		const requestType = commandPart ? 'slashCommand' : 'string';
@@ -784,21 +793,14 @@ export class ChatService extends Disposable implements IChatService {
 					return;
 				}
 
-				this._chatServiceTelemetry.sendInvokedTelemetry({
+				requestTelemetry.complete({
 					timeToFirstProgress: undefined,
 					result: 'cancelled',
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
 					totalTime: stopWatch.elapsed(),
 					requestType,
 					detectedAgent,
-					agentPart,
-					agentSlashCommandPart,
-					commandPart,
-					sessionId: model.sessionId,
-					location: model.initialLocation,
 					request,
-					options,
-					enableCommandDetection
 				});
 
 				model.cancelRequest(request);
@@ -937,20 +939,13 @@ export class ChatService extends Disposable implements IChatService {
 							rawResult.errorDetails ? 'error' :
 								'success';
 
-					this._chatServiceTelemetry.sendInvokedTelemetry({
+					requestTelemetry.complete({
 						timeToFirstProgress: rawResult.timings?.firstProgress,
 						totalTime: rawResult.timings?.totalElapsed,
 						result,
 						requestType,
 						detectedAgent,
-						agentPart,
-						agentSlashCommandPart,
-						commandPart,
-						sessionId: model.sessionId,
-						location,
 						request,
-						options,
-						enableCommandDetection
 					});
 
 					model.setResponse(request, rawResult);
@@ -973,19 +968,12 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			} catch (err) {
 				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
-				this._chatServiceTelemetry.sendInvokedTelemetry({
+				requestTelemetry.complete({
 					timeToFirstProgress: undefined,
 					totalTime: undefined,
 					result: 'error',
 					requestType,
-					sessionId: model.sessionId,
-					location,
-					enableCommandDetection,
-					agentPart,
-					agentSlashCommandPart,
-					commandPart,
 					detectedAgent,
-					options,
 					request,
 				});
 				if (request) {

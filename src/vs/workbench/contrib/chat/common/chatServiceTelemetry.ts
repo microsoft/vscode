@@ -173,7 +173,6 @@ export type ChatProviderInvokedClassification = {
 export class ChatServiceTelemetry {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
 	) { }
 
 	notifyUserAction(action: IChatUserActionEvent): void {
@@ -225,49 +224,84 @@ export class ChatServiceTelemetry {
 		}
 	}
 
-	sendInvokedTelemetry({ timeToFirstProgress, totalTime, result, requestType, detectedAgent, agentPart, agentSlashCommandPart, commandPart, sessionId, location, request, options, enableCommandDetection }: {
-		timeToFirstProgress: number | undefined;
-		totalTime: number | undefined;
-		result: ChatProviderInvokedEvent['result'];
-		requestType: ChatProviderInvokedEvent['requestType'];
-		detectedAgent: IChatAgentData | undefined;
-		agentPart: ChatRequestAgentPart | undefined;
-		agentSlashCommandPart: ChatRequestAgentSubcommandPart | undefined;
-		commandPart: ChatRequestSlashCommandPart | undefined;
-		sessionId: string;
-		location: ChatAgentLocation;
-		request: ChatRequestModel;
-		options: IChatSendRequestOptions | undefined;
-		enableCommandDetection: boolean;
-	}) {
-		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
-			timeToFirstProgress,
-			totalTime,
-			result,
-			requestType,
-			agent: detectedAgent?.id ?? agentPart?.agent.id ?? '',
-			agentExtensionId: detectedAgent?.extensionId.value ?? agentPart?.agent.extensionId.value ?? '',
-			slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
-			chatSessionId: sessionId,
-			enableCommandDetection,
-			isParticipantDetected: !!detectedAgent,
-			location,
-			citations: request.response?.codeCitations.length ?? 0,
-			numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
-			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
-			model: this.resolveModelId(options?.userSelectedModelId),
-		});
-	}
-
-	private resolveModelId(userSelectedModelId: string | undefined): string | undefined {
-		return userSelectedModelId && this.languageModelsService.lookupLanguageModel(userSelectedModelId)?.id;
-	}
-
 	retrievedFollowups(agentId: string, command: string | undefined, numFollowups: number): void {
 		this.telemetryService.publicLog2<ChatFollowupsRetrievedEvent, ChatFollowupsRetrievedClassification>('chatFollowupsRetrieved', {
 			agentId,
 			command,
 			numFollowups,
+		});
+	}
+}
+
+function getCodeBlocks(text: string): string[] {
+	const lines = text.split('\n');
+	const codeBlockLanguages: string[] = [];
+
+	let codeBlockState: undefined | { readonly delimiter: string; readonly languageId: string };
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+
+		if (codeBlockState) {
+			if (new RegExp(`^\\s*${codeBlockState.delimiter}\\s*$`).test(line)) {
+				codeBlockLanguages.push(codeBlockState.languageId);
+				codeBlockState = undefined;
+			}
+		} else {
+			const match = line.match(/^(\s*)(`{3,}|~{3,})(\w*)/);
+			if (match) {
+				codeBlockState = { delimiter: match[2], languageId: match[3] };
+			}
+		}
+	}
+	return codeBlockLanguages;
+}
+
+export class ChatRequestTelemetry {
+	private isComplete = false;
+
+	constructor(private readonly opts: {
+		agentPart: ChatRequestAgentPart | undefined;
+		agentSlashCommandPart: ChatRequestAgentSubcommandPart | undefined;
+		commandPart: ChatRequestSlashCommandPart | undefined;
+		sessionId: string;
+		location: ChatAgentLocation;
+		options: IChatSendRequestOptions | undefined;
+		enableCommandDetection: boolean;
+	},
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
+	) { }
+
+	complete({ timeToFirstProgress, totalTime, result, requestType, request, detectedAgent }: {
+		timeToFirstProgress: number | undefined;
+		totalTime: number | undefined;
+		result: ChatProviderInvokedEvent['result'];
+		requestType: ChatProviderInvokedEvent['requestType'];
+		// Should rearrange so these 2 can be in the constructor
+		request: ChatRequestModel;
+		detectedAgent: IChatAgentData | undefined;
+	}) {
+		if (this.isComplete) {
+			return;
+		}
+
+		this.isComplete = true;
+		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+			timeToFirstProgress,
+			totalTime,
+			result,
+			requestType,
+			agent: detectedAgent?.id ?? this.opts.agentPart?.agent.id ?? '',
+			agentExtensionId: detectedAgent?.extensionId.value ?? this.opts.agentPart?.agent.extensionId.value ?? '',
+			slashCommand: this.opts.agentSlashCommandPart ? this.opts.agentSlashCommandPart.command.name : this.opts.commandPart?.slashCommand.command,
+			chatSessionId: this.opts.sessionId,
+			enableCommandDetection: this.opts.enableCommandDetection,
+			isParticipantDetected: !!detectedAgent,
+			location: this.opts.location,
+			citations: request.response?.codeCitations.length ?? 0,
+			numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
+			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
+			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
 		});
 	}
 
@@ -308,27 +342,8 @@ export class ChatServiceTelemetry {
 			}
 		});
 	}
-}
 
-function getCodeBlocks(text: string): string[] {
-	const lines = text.split('\n');
-	const codeBlockLanguages: string[] = [];
-
-	let codeBlockState: undefined | { readonly delimiter: string; readonly languageId: string };
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i];
-
-		if (codeBlockState) {
-			if (new RegExp(`^\\s*${codeBlockState.delimiter}\\s*$`).test(line)) {
-				codeBlockLanguages.push(codeBlockState.languageId);
-				codeBlockState = undefined;
-			}
-		} else {
-			const match = line.match(/^(\s*)(`{3,}|~{3,})(\w*)/);
-			if (match) {
-				codeBlockState = { delimiter: match[2], languageId: match[3] };
-			}
-		}
+	private resolveModelId(userSelectedModelId: string | undefined): string | undefined {
+		return userSelectedModelId && this.languageModelsService.lookupLanguageModel(userSelectedModelId)?.id;
 	}
-	return codeBlockLanguages;
 }
