@@ -383,8 +383,9 @@ export function registerTerminalActions() {
 				primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow,
 				secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow]
 			},
-			when: TerminalContextKeys.focus,
-			weight: KeybindingWeight.WorkbenchContrib
+			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.splitTerminalActive),
+			// Should win over send sequence commands https://github.com/microsoft/vscode/issues/259326
+			weight: KeybindingWeight.WorkbenchContrib + 1
 		},
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c) => {
@@ -403,8 +404,9 @@ export function registerTerminalActions() {
 				primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.RightArrow,
 				secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow]
 			},
-			when: TerminalContextKeys.focus,
-			weight: KeybindingWeight.WorkbenchContrib
+			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.splitTerminalActive),
+			// Should win over send sequence commands https://github.com/microsoft/vscode/issues/259326
+			weight: KeybindingWeight.WorkbenchContrib + 1
 		},
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c) => {
