@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -24,28 +25,21 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	private currentThinkingValue: string;
 	private currentMetadata?: string;
 	private readonly thinkingChunks: Map<string, string> = new Map();
-	private isCollapsed = false;
 
 	private readonly _onDidChangeHeight = new Emitter<void>();
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private readonly textContainer: HTMLElement;
 	private readonly thinkingContainer: HTMLElement;
-	private readonly thinkingContentWrapper: HTMLElement;
-	private readonly collapseButton: HTMLElement;
-	private readonly headerContainer: HTMLElement;
+	private readonly messageContainer: HTMLElement;
 	private metadataContainer?: HTMLElement;
 	private readonly renderer: MarkdownRenderer;
+	private readonly expandButton: ButtonWithIcon;
+	private readonly _expanded = observableValue(this, false);
 
 	// Track markdown rendering results for disposal
 	private markdownResult: IDisposable | undefined;
 	private metadataMarkdownResult: IDisposable | undefined;
-
-	// Animation handling
-	private animationRequestId?: number;
-	private animationFrame = 0;
-	private readonly MAX_ANIMATION_FRAMES = 3;
-	private readonly ANIMATION_FRAME_INTERVAL = 400; // ms
 
 	addDisposable<T extends IDisposable>(disposable: T): T {
 		return this._register(disposable);
@@ -69,62 +63,61 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 			this.thinkingChunks.set(content.id, content.value || '');
 		}
 
-		// Create the main wrapper element
-		this.domNode = dom.$('div.chat-thinking-wrapper');
+		// Create the main wrapper element styled like tool dropdown
+		const elements = dom.$('.chat-thinking-widget');
+		this.domNode = elements;
 		this.domNode.setAttribute('role', 'region');
 		this.domNode.setAttribute('aria-label', 'Thinking process');
 
-		// Create the thinking content container with styling
-		this.thinkingContentWrapper = dom.$('div.thinking-content');
-		dom.append(this.domNode, this.thinkingContentWrapper);
+		// Create the header/expando directly without tool container
+		this.expandButton = this._register(new ButtonWithIcon(this.domNode, {}));
+		this.expandButton.element.classList.add('chat-thinking-title', 'monaco-text-button');
 
-		// Create a header container for the thinking part
-		this.headerContainer = dom.$('div.thinking-header-container');
-		dom.append(this.thinkingContentWrapper, this.headerContainer);
+		// Create the title structure like the tool parts
+		const titleEl = dom.$('.chat-thinking-title-inner');
+		const iconEl = dom.$('.chat-thinking-title-icon');
 
-		// Add the thinking header with icon
-		const thinkingHeader = dom.$('div.thinking-header');
-		dom.append(this.headerContainer, thinkingHeader);
-
-		const thinkingLabel = dom.$('span.thinking-label');
+		// Add thinking label (no dots or icon)
+		const thinkingLabel = dom.$('span');
 		thinkingLabel.textContent = 'Thinking';
-		dom.append(thinkingHeader, thinkingLabel);
+		titleEl.appendChild(thinkingLabel);
 
-		// Add animated dots
-		const animatedDots = dom.$('span.thinking-dots');
-		dom.append(thinkingLabel, animatedDots);
-		this.startDotsAnimation();
+		// No status icon needed
+		// iconEl is empty but we keep it for structure consistency
 
-		const iconContainer = dom.$('div.thinking-icon');
-		dom.append(thinkingHeader, iconContainer);
-		dom.append(iconContainer, dom.$('span.codicon.codicon-lightbulb'));
+		// Append title and icon to button label
+		this.expandButton.labelElement.append(titleEl, iconEl);
 
-		// Add collapse/expand button
-		this.collapseButton = dom.$('div.thinking-collapse-button');
-		dom.append(this.headerContainer, this.collapseButton);
-		dom.append(this.collapseButton, dom.$('span.codicon.codicon-chevron-up'));
-
-		// Make the header clickable to toggle collapse state
-		this.headerContainer.classList.add('collapsible');
-		this._register(dom.addDisposableListener(this.headerContainer, dom.EventType.CLICK, () => this.toggleCollapsed()));
-		this._register(dom.addDisposableListener(this.headerContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				this.toggleCollapsed();
-				event.preventDefault();
-				event.stopPropagation();
+		const toggle = (e: Event) => {
+			if (!e.defaultPrevented) {
+				const value = this._expanded.get();
+				this._expanded.set(!value, undefined);
+				e.preventDefault();
 			}
-		}));
-		this.headerContainer.tabIndex = 0;
-		this.headerContainer.setAttribute('aria-label', 'Toggle thinking content visibility');
+		};
 
-		// Create the content container
+		this._register(this.expandButton.onDidClick(toggle));
+
+		// Create the collapsible content container
+		this.messageContainer = dom.$('div.chat-thinking-message');
+		this.domNode.appendChild(this.messageContainer);
+
+		// Set up expand/collapse behavior now that elements exist
+		this._register(autorun(r => {
+			const value = this._expanded.read(r);
+			this.expandButton.icon = value ? Codicon.chevronDown : Codicon.chevronRight;
+			this.messageContainer.toggleAttribute('hidden', !value);
+			this.domNode.classList.toggle('expanded', value);
+			this._onDidChangeHeight.fire();
+		}));
+
+		// Create the thinking container inside the message container
 		this.thinkingContainer = dom.$('div.thinking-container');
-		dom.append(this.thinkingContentWrapper, this.thinkingContainer);
+		this.messageContainer.appendChild(this.thinkingContainer);
 
 		// thinking content
 		this.textContainer = dom.$('div.thinking-text.markdown-content');
-		dom.append(this.thinkingContainer, this.textContainer);
+		this.thinkingContainer.appendChild(this.textContainer);
 
 		// Set initial content if any
 		if (this.currentThinkingValue) {
@@ -134,7 +127,7 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		// Add metadata container if needed
 		if (this.currentMetadata) {
 			this.metadataContainer = dom.$('div.thinking-metadata');
-			dom.append(this.thinkingContainer, this.metadataContainer);
+			this.thinkingContainer.appendChild(this.metadataContainer);
 
 			// Render metadata as markdown too
 			const metadataMarkdown = this.renderer.render(new MarkdownString(this.currentMetadata));
@@ -142,36 +135,12 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 			this.metadataContainer.appendChild(metadataMarkdown.element);
 		}
 
-		// Register cleanup for animation
+		// Register cleanup
 		this._register({
 			dispose: () => {
-				if (this.animationRequestId) {
-					clearTimeout(this.animationRequestId);
-					this.animationRequestId = undefined;
-				}
+				// No animation cleanup needed anymore
 			}
 		});
-	}
-
-	private startDotsAnimation(): void {
-		const updateDots = () => {
-			const dots = this.domNode.querySelector('.thinking-dots');
-			if (dots) {
-				this.animationFrame = (this.animationFrame + 1) % this.MAX_ANIMATION_FRAMES;
-				const dotsText = '.'.repeat(this.animationFrame + 1);
-				dots.textContent = dotsText;
-			}
-
-			this.animationRequestId = setTimeout(() => {
-				if (this.domNode && this.domNode.isConnected) {
-					const window = dom.getWindow(this.domNode);
-					window.requestAnimationFrame(updateDots);
-				}
-			}, this.ANIMATION_FRAME_INTERVAL) as any;
-		};
-
-		const window = dom.getWindow(this.domNode);
-		window.requestAnimationFrame(updateDots);
 	}
 
 	hasSameContent(other: any): boolean {
@@ -294,26 +263,14 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		// Add a subtle highlight effect to the thinking content container when updated
 		if (contentChanged) {
 			// Flash effect on update
-			this.thinkingContentWrapper.classList.add('thinking-updated');
+			this.messageContainer.classList.add('thinking-updated');
 			setTimeout(() => {
-				this.thinkingContentWrapper.classList.remove('thinking-updated');
+				this.messageContainer.classList.remove('thinking-updated');
 			}, 500);
 
 			// If we're collapsed and got an update, auto-expand to show new content
-			if (this.isCollapsed) {
-				this.isCollapsed = false;
-				this.thinkingContainer.classList.remove('collapsed');
-				this.thinkingContentWrapper.classList.remove('collapsed');
-
-				// Update the collapse button icon
-				const collapseIcon = this.collapseButton.querySelector('.codicon');
-				if (collapseIcon) {
-					collapseIcon.classList.add('codicon-chevron-up');
-					collapseIcon.classList.remove('codicon-chevron-down');
-				}
-
-				// Update accessibility attribute
-				this.domNode.setAttribute('aria-expanded', 'true');
+			if (!this._expanded.get()) {
+				this._expanded.set(true, undefined);
 			}
 
 			this._onDidChangeHeight.fire();
@@ -384,30 +341,6 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		setTimeout(() => {
 			this.textContainer.classList.remove('thinking-text-updated');
 		}, 300);
-	}
-
-	/**
-	 * Toggle the collapsed state of the thinking part
-	 */
-	private toggleCollapsed(): void {
-		this.isCollapsed = !this.isCollapsed;
-
-		// Update the visual state
-		this.thinkingContainer.classList.toggle('collapsed', this.isCollapsed);
-		this.thinkingContentWrapper.classList.toggle('collapsed', this.isCollapsed);
-
-		// Update the collapse button icon
-		const collapseIcon = this.collapseButton.querySelector('.codicon');
-		if (collapseIcon) {
-			collapseIcon.classList.toggle('codicon-chevron-up', !this.isCollapsed);
-			collapseIcon.classList.toggle('codicon-chevron-down', this.isCollapsed);
-		}
-
-		// Update accessibility attributes
-		this.domNode.setAttribute('aria-expanded', this.isCollapsed ? 'false' : 'true');
-
-		// Notify about the height change
-		this._onDidChangeHeight.fire();
 	}
 
 	/**

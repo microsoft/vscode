@@ -1735,7 +1735,136 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 }
 
-/* Thinking content part styles */
+/* Thinking widget - dedicated styling similar to confirmation widget */
+.interactive-item-container .value .chat-thinking-widget {
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+	background: var(--vscode-editor-background);
+	margin: 4px 0;
+	overflow: hidden;
+}
+
+.interactive-item-container .value .chat-thinking-widget .tool-input-output-part {
+	padding: 5px;
+}
+
+.interactive-item-container .value .chat-thinking-widget .chat-thinking-title {
+	display: flex;
+	align-items: center;
+	border-bottom: 1px solid var(--vscode-widget-border);
+	cursor: pointer;
+	user-select: none;
+	gap: 6px;
+	width: 100%;
+	border-radius: 0;
+	justify-content: flex-start;
+}
+
+.interactive-item-container .value .chat-thinking-widget .chat-thinking-title:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.interactive-item-container .value .chat-thinking-widget .chat-thinking-title:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.interactive-item-container .value .chat-thinking-widget .chat-thinking-title-inner {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.interactive-item-container .value .chat-thinking-widget .thinking-label {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.interactive-item-container .value .chat-thinking-widget .chat-thinking-title-icon {
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+}
+
+.interactive-item-container .value .chat-thinking-widget .chat-thinking-message {
+	padding: 5px 12px;
+	background: var(--vscode-editor-background);
+	display: none;
+}
+
+.interactive-item-container .value .chat-thinking-widget.expanded .chat-thinking-message {
+	display: block;
+}
+
+.interactive-item-container .value .chat-thinking-widget .thinking-container {
+	background: var(--vscode-editor-background);
+}
+
+.interactive-item-container .value .chat-thinking-widget .thinking-text {
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.5em;
+	color: var(--vscode-editor-foreground);
+}
+
+.interactive-item-container .value .chat-thinking-widget .thinking-text code {
+	font-family: var(--monaco-monospace-font);
+}
+
+.interactive-item-container .value .chat-thinking-widget .thinking-metadata {
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--vscode-widget-border);
+	font-size: 0.9em;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Visual feedback for thinking updates */
+.interactive-item-container .value .chat-thinking-widget .thinking-updated {
+	background-color: var(--vscode-editor-hoverHighlightBackground);
+	transition: background-color 0.3s ease;
+}
+
+.interactive-item-container .value .chat-thinking-widget .thinking-text-updated {
+	background-color: var(--vscode-editor-hoverHighlightBackground);
+	transition: background-color 0.3s ease;
+}
+
+.interactive-item-container .value .tool-input-output-part .thinking-text code {
+	font-family: var(--monaco-monospace-font);
+}
+
+.interactive-item-container .value .tool-input-output-part .thinking-text p {
+	margin: 0 0 0.8em 0;
+}
+
+.interactive-item-container .value .tool-input-output-part .thinking-metadata {
+	margin-top: 12px;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+	padding-top: 8px;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.interactive-item-container .value .tool-input-output-part .thinking-updated {
+	animation: thinking-update-flash 0.3s ease-out;
+}
+
+@keyframes thinking-update-flash {
+	0% {
+		background-color: var(--vscode-editor-inactiveSelectionBackground);
+	}
+	100% {
+		background-color: transparent;
+	}
+}
+
+/* Legacy thinking content part styles - keep for backwards compatibility */
 .interactive-item-container .value .rendered-markdown.chat-thinking,
 .interactive-item-container .value .thinking-content {
 	background-color: var(--vscode-chat-slashCommandBackground);
