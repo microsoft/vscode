@@ -278,7 +278,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
 
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
-	private readonly _hasUserSelectableModels: IContextKey<boolean>;
+
 	get currentLanguageModel() {
 		return this._currentLanguageModel?.identifier;
 	}
@@ -424,7 +424,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this.promptFileAttached = ChatContextKeys.hasPromptFile.bindTo(contextKeyService);
 		this.chatModeKindKey = ChatContextKeys.chatModeKind.bindTo(contextKeyService);
-		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(contextKeyService);
 		const chatToolCount = ChatContextKeys.chatToolCount.bindTo(contextKeyService);
 
 		this._register(autorun(reader => {
@@ -641,7 +640,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		this._currentLanguageModel = model;
-		this._hasUserSelectableModels.set(true);
 
 		if (this.cachedDimensions) {
 			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name

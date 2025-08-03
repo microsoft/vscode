@@ -819,35 +819,3 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 		throw new Error('Failed to parse JWT token');
 	}
 }
-
-/**
- * Extracts the resource server base URL from an OAuth protected resource metadata discovery endpoint URL.
- *
- * @param discoveryUrl The full URL to the OAuth protected resource metadata discovery endpoint
- * @returns The base URL of the resource server
- *
- * @example
- * ```typescript
- * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource')
- * // Returns: 'https://mcp.example.com/'
- *
- * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource/mcp')
- * // Returns: 'https://mcp.example.com/mcp'
- * ```
- */
-export function getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl: string): string {
-	const url = new URL(discoveryUrl);
-
-	// Remove the well-known discovery path only if it appears at the beginning
-	if (!url.pathname.startsWith(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH)) {
-		throw new Error(`Invalid discovery URL: expected path to start with ${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`);
-	}
-
-	const pathWithoutDiscovery = url.pathname.substring(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH.length);
-
-	// Construct the base URL
-	const baseUrl = new URL(url.origin);
-	baseUrl.pathname = pathWithoutDiscovery || '/';
-
-	return baseUrl.toString();
-}
