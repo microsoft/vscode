@@ -331,7 +331,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 					outputAndIdle = await racePollingOrPrompt(
 						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
-						() => promptForMorePolling(command, invocation.context!, this._chatService),
+						() => promptForMorePolling(command, token, invocation.context!, this._chatService),
 						outputAndIdle,
 						token,
 						this._languageModelsService,

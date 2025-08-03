@@ -148,6 +148,14 @@ suite('CommandLineAutoApprover', () => {
 	});
 
 	suite('regex patterns', () => {
+		test('should handle /.*/', () => {
+			setAutoApprove({
+				"/.*/": true,
+			});
+
+			ok(isAutoApproved('echo hello'));
+		});
+
 		test('should handle regex patterns in autoApprove', () => {
 			setAutoApprove({
 				"/^echo/": true,
@@ -301,11 +309,19 @@ suite('CommandLineAutoApprover', () => {
 			ok(isAutoApproved('pwsh.exe -File D:\\foo.bar\\a-script.ps1 -AnotherArg'));
 		});
 
+		test('should ignore the empty string key', () => {
+			setAutoApprove({
+				"": true
+			});
+
+			ok(!isAutoApproved('echo hello'));
+		});
+
 		test('should handle empty regex patterns that could cause endless loops', () => {
 			setAutoApprove({
 				"//": true,
 				"/(?:)/": true,
-				"/*/": true,            // Invalid regex pattern  
+				"/*/": true,            // Invalid regex pattern
 				"/.**/": true           // Invalid regex pattern
 			});
 
@@ -549,7 +565,7 @@ suite('CommandLineAutoApprover', () => {
 		test('should handle invalid regex patterns with matchCommandLine gracefully', () => {
 			setAutoApproveWithCommandLine({
 				"/*/": { approve: true, matchCommandLine: true },                    // Invalid regex - nothing to repeat
-				"/(?:+/": { approve: true, matchCommandLine: true },                 // Invalid regex - incomplete quantifier  
+				"/(?:+/": { approve: true, matchCommandLine: true },                 // Invalid regex - incomplete quantifier
 				"/[/": { approve: true, matchCommandLine: true },                    // Invalid regex - unclosed character class
 				"/^echo/": { approve: true, matchCommandLine: true },                // Valid pattern
 				"ls": { approve: true, matchCommandLine: true }                      // Valid string pattern

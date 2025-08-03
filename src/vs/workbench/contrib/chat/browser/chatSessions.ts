@@ -715,8 +715,8 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
-	private getProviderDisplayName(): string {
-		const contributions = this.chatSessionsService.getChatSessionContributions();
+	private async getProviderDisplayName(): Promise<string> {
+		const contributions = await this.chatSessionsService.getChatSessionContributions();
 		const contribution = contributions.find(c => c.type === this.provider.chatSessionType);
 		if (contribution) {
 			return contribution.displayName;
@@ -724,7 +724,7 @@ class SessionsViewPane extends ViewPane {
 		return '';
 	}
 
-	private showEmptyMessage(): void {
+	private async showEmptyMessage(): Promise<void> {
 		if (!this.messageElement) {
 			return;
 		}
@@ -735,7 +735,7 @@ class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		const providerName = this.getProviderDisplayName();
+		const providerName = await this.getProviderDisplayName();
 		if (!providerName) {
 			return;
 		}
@@ -775,7 +775,7 @@ class SessionsViewPane extends ViewPane {
 	 * Updates the empty state message based on current tree data.
 	 * Uses the tree's existing data to avoid redundant provider calls.
 	 */
-	private updateEmptyStateMessage(): void {
+	private async updateEmptyStateMessage(): Promise<void> {
 		try {
 			// Check if the tree has the provider node and get its children count
 			if (this.tree?.hasNode(this.provider)) {
@@ -783,7 +783,7 @@ class SessionsViewPane extends ViewPane {
 				const childCount = providerNode.children?.length || 0;
 
 				if (childCount === 0) {
-					this.showEmptyMessage();
+					await this.showEmptyMessage();
 				} else {
 					this.hideMessage();
 				}
@@ -814,7 +814,7 @@ class SessionsViewPane extends ViewPane {
 			);
 
 			// Check for empty state after refresh using tree data
-			this.updateEmptyStateMessage();
+			await this.updateEmptyStateMessage();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error refreshing chat sessions tree:', error);
@@ -842,7 +842,7 @@ class SessionsViewPane extends ViewPane {
 			);
 
 			// Check for empty state after loading using tree data
-			this.updateEmptyStateMessage();
+			await this.updateEmptyStateMessage();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error loading chat sessions data:', error);
@@ -909,9 +909,14 @@ class SessionsViewPane extends ViewPane {
 				const ckey = this.contextKeyService.createKey('chatSessionType', element.provider.chatSessionType);
 				ckey.reset();
 
+				const options: IChatEditorOptions = {
+					pinned: true,
+					preferredTitle: element.label
+				};
+
 				await this.editorService.openEditor({
 					resource: ChatSessionUri.forSession(element.provider.chatSessionType, element.id),
-					options: { pinned: true } satisfies IChatEditorOptions
+					options,
 				});
 			}
 		}));
