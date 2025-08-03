@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
+import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
@@ -13,6 +14,10 @@ interface IAutoApproveRule {
 	regex: RegExp;
 	sourceText: string;
 }
+
+export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
+
+const neverMatchRegex = /(?!.*)/;
 
 export class CommandLineAutoApprover extends Disposable {
 	private _denyListRules: IAutoApproveRule[] = [];
@@ -26,56 +31,73 @@ export class CommandLineAutoApprover extends Disposable {
 		super();
 		this.updateConfiguration();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove)) {
+			if (
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible)
+			) {
 				this.updateConfiguration();
 			}
 		}));
 	}
 
 	updateConfiguration() {
-		const { denyListRules, allowListRules, allowListCommandLineRules, denyListCommandLineRules } = this._mapAutoApproveConfigToRules(this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove));
+		let configValue = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoApprove);
+		const deprecatedValue = this._configurationService.getValue(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible);
+		if (deprecatedValue && typeof deprecatedValue === 'object' && configValue && typeof configValue === 'object') {
+			configValue = {
+				...configValue,
+				...deprecatedValue
+			};
+		}
+
+		const {
+			denyListRules,
+			allowListRules,
+			allowListCommandLineRules,
+			denyListCommandLineRules
+		} = this._mapAutoApproveConfigToRules(configValue);
 		this._allowListRules = allowListRules;
 		this._denyListRules = denyListRules;
 		this._allowListCommandLineRules = allowListCommandLineRules;
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { isAutoApproved: boolean; reason: string } {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; reason: string } {
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRegex(rule.regex, command, shell, os)) {
-				return { isAutoApproved: false, reason: `Command '${command}' is denied by deny list rule: ${rule.sourceText}` };
+				return { result: 'denied', reason: `Command '${command}' is denied by deny list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// Check the allow list to see if the command is allowed to run without explicit approval
 		for (const rule of this._allowListRules) {
 			if (this._commandMatchesRegex(rule.regex, command, shell, os)) {
-				return { isAutoApproved: true, reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}` };
+				return { result: 'approved', reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267
 
 		// Fallback is always to require approval
-		return { isAutoApproved: false, reason: `Command '${command}' has no matching auto approve entries` };
+		return { result: 'noMatch', reason: `Command '${command}' has no matching auto approve entries` };
 	}
 
-	isCommandLineAutoApproved(commandLine: string): { isAutoApproved: boolean; reason: string } {
+	isCommandLineAutoApproved(commandLine: string): { result: ICommandApprovalResult; reason: string } {
 		// Check the deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
-				return { isAutoApproved: false, reason: `Command line '${commandLine}' is denied by deny list rule: ${rule.sourceText}` };
+				return { result: 'denied', reason: `Command line '${commandLine}' is denied by deny list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// Check if the full command line matches any of the allow list command line regexes
 		for (const rule of this._allowListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
-				return { isAutoApproved: true, reason: `Command line '${commandLine}' is approved by allow list rule: ${rule.sourceText}` };
+				return { result: 'approved', reason: `Command line '${commandLine}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
-		return { isAutoApproved: false, reason: `Command line '${commandLine}' has no matching auto approve entries` };
+		return { result: 'noMatch', reason: `Command line '${commandLine}' has no matching auto approve entries` };
 	}
 
 	private _commandMatchesRegex(regex: RegExp, command: string, shell: string, os: OperatingSystem): boolean {
@@ -157,11 +179,32 @@ export class CommandLineAutoApprover extends Disposable {
 		const regexPattern = regexMatch?.groups?.pattern;
 		if (regexPattern) {
 			let flags = regexMatch.groups?.flags;
-			// Remove global flag as it can cause confusion
+			// Remove global flag as it changes how the regex state works which we need to handle
+			// internally
 			if (flags) {
 				flags = flags.replaceAll('g', '');
 			}
-			return new RegExp(regexPattern, flags || undefined);
+
+			// Allow .* as users expect this would match everything
+			if (regexPattern === '.*') {
+				return new RegExp(regexPattern);
+			}
+
+			try {
+				const regex = new RegExp(regexPattern, flags || undefined);
+				if (regExpLeadsToEndlessLoop(regex)) {
+					return neverMatchRegex;
+				}
+
+				return regex;
+			} catch (error) {
+				return neverMatchRegex;
+			}
+		}
+
+		// The empty string should be ignored, rather than approve everything
+		if (value === '') {
+			return neverMatchRegex;
 		}
 
 		// Escape regex special characters

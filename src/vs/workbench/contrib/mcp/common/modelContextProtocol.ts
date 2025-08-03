@@ -677,9 +677,7 @@ export namespace MCP {
 	/**
 	 * Describes a message returned as part of a prompt.
 	 *
-	 * This is similar to `SamplingMessage`, but also supports the embedding of
-	 * resources from the MCP server.
-	 */
+	 * This is similar to `	 */
 	export interface PromptMessage {
 		role: Role;
 		content: ContentBlock;

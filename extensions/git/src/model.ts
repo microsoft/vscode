@@ -770,6 +770,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return;
 			}
 
+			if (repository.kind === 'worktree') {
+				this.logger.trace('[Model][open] Automatic detection of git worktrees is not skipped.');
+				return;
+			}
+
 			if (repository.worktrees.length > worktreesLimit) {
 				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length));
 				statusListener.dispose();

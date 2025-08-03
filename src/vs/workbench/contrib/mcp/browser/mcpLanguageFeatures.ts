@@ -22,7 +22,7 @@ import { ConfigurationResolverExpression, IResolvedValue } from '../../../servic
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpConfigPath, IMcpService, IMcpWorkbenchService, McpConnectionState } from '../common/mcpTypes.js';
+import { IMcpConfigPath, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, McpConnectionState } from '../common/mcpTypes.js';
 
 const diagnosticOwner = 'vscode.mcp';
 
@@ -191,7 +191,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 						command: {
 							id: McpCommandIds.RestartServer,
 							title: localize('mcp.restart', "Restart"),
-							arguments: [server.definition.id],
+							arguments: [server.definition.id, { autoTrustChanges: true } satisfies IMcpServerStartOpts],
 						},
 					});
 					if (canDebug) {
@@ -200,7 +200,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							command: {
 								id: McpCommandIds.RestartServer,
 								title: localize('mcp.debug', "Debug"),
-								arguments: [server.definition.id, { debug: true }],
+								arguments: [server.definition.id, { debug: true, autoTrustChanges: true } satisfies IMcpServerStartOpts],
 							},
 						});
 					}
@@ -242,7 +242,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 						command: {
 							id: McpCommandIds.RestartServer,
 							title: localize('mcp.restart', "Restart"),
-							arguments: [server.definition.id],
+							arguments: [server.definition.id, { autoTrustChanges: true } satisfies IMcpServerStartOpts],
 						},
 					});
 					if (canDebug) {
@@ -251,7 +251,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							command: {
 								id: McpCommandIds.RestartServer,
 								title: localize('mcp.debug', "Debug"),
-								arguments: [server.definition.id, { debug: true }],
+								arguments: [server.definition.id, { autoTrustChanges: true, debug: true } satisfies IMcpServerStartOpts],
 							},
 						});
 					}
@@ -262,7 +262,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 						command: {
 							id: McpCommandIds.StartServer,
 							title: '$(debug-start) ' + localize('mcp.start', "Start"),
-							arguments: [server.definition.id],
+							arguments: [server.definition.id, { autoTrustChanges: true } satisfies IMcpServerStartOpts],
 						},
 					});
 					if (canDebug) {
@@ -271,7 +271,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 							command: {
 								id: McpCommandIds.StartServer,
 								title: localize('mcp.debug', "Debug"),
-								arguments: [server.definition.id, { debug: true }],
+								arguments: [server.definition.id, { autoTrustChanges: true, debug: true } satisfies IMcpServerStartOpts],
 							},
 						});
 					}

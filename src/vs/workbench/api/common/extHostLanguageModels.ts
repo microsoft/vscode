@@ -102,6 +102,7 @@ class LanguageModelResponse {
 				out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
 			} else if (fragment.part.type === 'thinking') {
 				out = new extHostTypes.LanguageModelThinkingPart(fragment.part.value, fragment.part.id, fragment.part.metadata);
+
 			} else if (fragment.part.type === 'data') {
 				out = new extHostTypes.LanguageModelTextPart('');
 			} else {
@@ -298,11 +299,12 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			if (fragment.part instanceof extHostTypes.LanguageModelToolCallPart) {
 				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.input, toolCallId: fragment.part.callId };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
-				part = { type: 'text', value: fragment.part.value };
+				part = { type: 'text', value: fragment.part.value, audience: fragment.part.audience };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelDataPart) {
 				part = { type: 'data', value: { mimeType: fragment.part.mimeType as ChatImageMimeType, data: VSBuffer.wrap(fragment.part.data) } };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelThinkingPart) {
 				part = { type: 'thinking', value: fragment.part.value, id: fragment.part.id, metadata: fragment.part.metadata };
+
 			}
 
 			if (!part) {

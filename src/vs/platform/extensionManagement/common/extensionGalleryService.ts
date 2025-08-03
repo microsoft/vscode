@@ -878,7 +878,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	private async isValidVersion(
 		extension: { id: string; version: string; isPreReleaseVersion: boolean; targetPlatform: TargetPlatform; manifestAsset: IGalleryExtensionAsset | null; engine: string | undefined; enabledApiProposals: string[] | undefined },
-		{ targetPlatform, compatible, productVersion, version }: ExtensionVersionCriteria,
+		{ targetPlatform, compatible, productVersion, version }: Omit<ExtensionVersionCriteria, 'targetPlatform'> & { targetPlatform: TargetPlatform | undefined },
 		publisherDisplayName: string,
 		allTargetPlatforms: TargetPlatform[]
 	): Promise<boolean> {
@@ -908,7 +908,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}
 		}
 
-		if (!isTargetPlatformCompatible(extension.targetPlatform, allTargetPlatforms, targetPlatform)) {
+		if (targetPlatform && !isTargetPlatformCompatible(extension.targetPlatform, allTargetPlatforms, targetPlatform)) {
 			return false;
 		}
 
@@ -1694,7 +1694,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						{
 							compatible: !!onlyCompatible,
 							productVersion,
-							targetPlatform: onlyCompatible?.targetPlatform ?? CURRENT_TARGET_PLATFORM,
+							targetPlatform: onlyCompatible?.targetPlatform,
 							version: onlyCompatible?.version ?? version.version
 						},
 						galleryExtensions[0].publisher.displayName,
@@ -1706,11 +1706,16 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}));
 
 		const result: IGalleryExtensionVersion[] = [];
-		const seen = new Set<string>();
+		const seen = new Map<string, number>();
 		for (const version of sortExtensionVersions(versions, onlyCompatible?.targetPlatform ?? CURRENT_TARGET_PLATFORM)) {
-			if (!seen.has(version.version)) {
-				seen.add(version.version);
-				result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
+			const index = seen.get(version.version);
+			const existing = index !== undefined ? result[index] : undefined;
+			const targetPlatform = getTargetPlatformForExtensionVersion(version);
+			if (!existing) {
+				seen.set(version.version, result.length);
+				result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version), targetPlatforms: [targetPlatform] });
+			} else {
+				existing.targetPlatforms.push(targetPlatform);
 			}
 		}
 

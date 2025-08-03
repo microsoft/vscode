@@ -214,6 +214,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._timeline.getEntryDiffBetweenStops(uri, requestId, stopId);
 	}
 
+	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string) {
+		return this._timeline.getEntryDiffBetweenRequests(uri, startRequestId, stopRequestId);
+	}
+
 	public createSnapshot(requestId: string, undoStop: string | undefined, makeEmpty = undoStop !== undefined): void {
 		this._timeline.pushSnapshot(
 			requestId,

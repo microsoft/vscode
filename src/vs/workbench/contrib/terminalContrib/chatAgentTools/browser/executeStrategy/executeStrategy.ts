@@ -15,7 +15,14 @@ export interface ITerminalExecuteStrategy {
 	 * Executes a command line and gets a result designed to be passed directly to an LLM. The
 	 * result will include information about the exit code.
 	 */
-	execute(commandLine: string, token: CancellationToken): Promise<{ result: string; exitCode?: number; error?: string }>;
+	execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult>;
+}
+
+export interface ITerminalExecuteStrategyResult {
+	output: string | undefined;
+	additionalInformation?: string;
+	exitCode?: number;
+	error?: string;
 }
 
 export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number): Promise<void> {

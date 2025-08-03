@@ -10,13 +10,16 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { ChatContextKeys } from './chatContextKeys.js';
 
 export const enum ChatMessageRole {
 	System,
@@ -24,9 +27,15 @@ export const enum ChatMessageRole {
 	Assistant,
 }
 
+export enum ToolResultAudience {
+	Assistant = 0,
+	User = 1,
+}
+
 export interface IChatMessageTextPart {
 	type: 'text';
 	value: string;
+	audience?: ToolResultAudience[];
 }
 
 export interface IChatMessageImagePart {
@@ -38,6 +47,7 @@ export interface IChatMessageDataPart {
 	type: 'data';
 	mimeType: string;
 	data: VSBuffer;
+	audience?: ToolResultAudience[];
 }
 
 export interface IChatImageURLPart {
@@ -90,6 +100,7 @@ export interface IChatMessage {
 export interface IChatResponseTextPart {
 	type: 'text';
 	value: string;
+	audience?: ToolResultAudience[];
 }
 
 export interface IChatResponsePromptTsxPart {
@@ -100,6 +111,7 @@ export interface IChatResponsePromptTsxPart {
 export interface IChatResponseDataPart {
 	type: 'data';
 	value: IChatImageURLPart;
+	audience?: ToolResultAudience[];
 }
 
 export interface IChatResponseToolUsePart {
@@ -117,6 +129,17 @@ export interface IChatResponseThinkingPart {
 }
 
 export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart;
+
+export interface IChatResponsePullRequestPart {
+	type: 'pullRequest';
+	uri: URI;
+	title: string;
+	description: string;
+	author: string;
+	linkTag: string;
+}
+
+export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
 export interface IChatResponseFragment {
 	index: number;
@@ -283,16 +306,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
 	private readonly _modelPickerUserPreferences: Record<string, boolean> = {}; // We use a record instead of a map for better serialization when storing
 
+	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<void>());
 	readonly onDidChangeLanguageModels: Event<void> = this._onLanguageModelChange.event;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
-
+		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._storageService.getObject<Record<string, boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
+
+		this._store.add(this.onDidChangeLanguageModels(() => {
+			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));
+		}));
 
 		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
 

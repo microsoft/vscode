@@ -18,9 +18,9 @@ export const GetTerminalOutputToolData: IToolData = {
 	inputSchema: {
 		type: 'object',
 		properties: {
-			command: {
+			id: {
 				type: 'string',
-				description: 'The ID of the terminal command output to check.'
+				description: 'The ID of the terminal to check.'
 			},
 		},
 		required: [

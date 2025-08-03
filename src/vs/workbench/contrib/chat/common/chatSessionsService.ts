@@ -3,15 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IChatProgress } from './chatService.js';
+import { IChatAgentRequest } from './chatAgents.js';
+import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 
+export interface IChatSessionsExtensionPoint {
+	readonly id: string;
+	readonly type: string;
+	readonly name: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly extensionDescription: IRelaxedExtensionDescription;
+	readonly when?: string;
+}
 export interface IChatSessionItem {
+
 	id: string;
 	label: string;
 	iconPath?: URI | {
@@ -20,64 +32,52 @@ export interface IChatSessionItem {
 	} | ThemeIcon;
 }
 
+export interface ChatSession extends IDisposable {
+	readonly id: string;
+	readonly onWillDispose: Event<void>;
+
+	history: Array<
+		| { type: 'request'; prompt: string }
+		| { type: 'response'; parts: IChatProgress[] }>;
+
+	readonly progressEvent?: Event<IChatProgress[]>;
+	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
+
+	requestHandler?: (
+		request: IChatAgentRequest,
+		progress: (progress: IChatProgress[]) => void,
+		history: [],
+		token: CancellationToken
+	) => Promise<void>;
+}
+
+
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 }
 
+export interface IChatSessionContentProvider {
+	readonly chatSessionType: string;
+	provideChatSessionContent(id: string, token: CancellationToken): Promise<ChatSession>;
+}
+
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
-	registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable;
+	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
+	readonly onDidChangeSessionItems: Event<string>;
+	readonly onDidChangeAvailability: Event<void>;
+	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
+	getChatSessionContributions(waitForActivation?: string[]): Promise<IChatSessionsExtensionPoint[]>;
+	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
+	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
+	getChatSessionItemProviders(): IChatSessionItemProvider[];
+	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
+	registerChatSessionContentProvider(provider: IChatSessionContentProvider): IDisposable;
 	hasChatSessionItemProviders: boolean;
-	provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]>;
+	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
+	notifySessionItemsChange(chatSessionType: string): void;
+	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
-
-export class ChatSessionsService extends Disposable implements IChatSessionsService {
-	readonly _serviceBrand: undefined;
-	private _providers: Map<number, IChatSessionItemProvider> = new Map();
-
-	constructor(
-		@ILogService private readonly _logService: ILogService,
-	) {
-		super();
-	}
-
-	public async provideChatSessionItems(token: CancellationToken): Promise<{ provider: IChatSessionItemProvider; session: IChatSessionItem }[]> {
-		const results: { provider: IChatSessionItemProvider; session: IChatSessionItem }[] = [];
-
-		// Iterate through all registered providers and collect their results
-		for (const [handle, provider] of this._providers) {
-			try {
-				if (provider.provideChatSessionItems) {
-					const sessions = await provider.provideChatSessionItems(token);
-					results.push(...sessions.map(session => ({ provider, session })));
-				}
-			} catch (error) {
-				this._logService.error(`Error getting chat sessions from provider ${handle}:`, error);
-			}
-			if (token.isCancellationRequested) {
-				break;
-			}
-		}
-
-		return results;
-	}
-
-	public registerChatSessionItemProvider(handle: number, provider: IChatSessionItemProvider): IDisposable {
-		this._providers.set(handle, provider);
-		return {
-			dispose: () => {
-				this._providers.delete(handle);
-			}
-		};
-	}
-
-	public get hasChatSessionItemProviders(): boolean {
-		return this._providers.size > 0;
-	}
-}
-
-registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
-

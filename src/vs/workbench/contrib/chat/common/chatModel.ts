@@ -20,12 +20,13 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
@@ -106,6 +107,7 @@ export type IChatProgressHistoryResponseContent =
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatResponseCodeblockUriPart
 	| IChatTreeData
+	| IChatMultiDiffData
 	| IChatContentInlineReference
 	| IChatProgressMessage
 	| IChatCommandButton
@@ -116,7 +118,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatNotebookEditGroup
 	| IChatConfirmation
 	| IChatExtensionsContent
-	| IChatThinkingPart;
+	| IChatThinkingPart
+	| IChatPullRequestContent;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -369,10 +372,12 @@ class AbstractResponse implements IResponse {
 				case 'toolInvocation':
 				case 'toolInvocationSerialized':
 				case 'extensions':
+				case 'pullRequest':
 				case 'undoStop':
 				case 'prepareToolInvocation':
 				case 'elicitation':
 				case 'thinking':
+				case 'multiDiffData':
 					// Ignore
 					continue;
 				case 'inlineReference':
@@ -965,8 +970,15 @@ export interface IChatModel extends IDisposable {
 	acceptResponseProgress(request: IChatRequestModel, progress: IChatProgress, quiet?: boolean): void;
 	setResponse(request: IChatRequestModel, result: IChatAgentResult): void;
 	completeResponse(request: IChatRequestModel): void;
+	setCustomTitle(title: string): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
+}
+
+export const IChatModelService = createDecorator<IChatModelService>('chatModelService');
+
+export interface IChatModelService {
+	readonly _serviceBrand: undefined;
 }
 
 export interface ISerializableChatsData {
@@ -1128,6 +1140,7 @@ export type IChatChangeEvent =
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
 	| IChatSetCheckpointEvent
+	| IChatSetCustomTitleEvent
 	;
 
 export interface IChatAddRequestEvent {
@@ -1195,6 +1208,11 @@ export interface IChatSetAgentEvent {
 	kind: 'setAgent';
 	agent: IChatAgentData;
 	command?: IChatAgentCommand;
+}
+
+export interface IChatSetCustomTitleEvent {
+	kind: 'setCustomTitle';
+	title: string;
 }
 
 export interface IChatInitEvent {
@@ -1579,8 +1597,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	setCustomTitle(title: string): void {
+	public setCustomTitle(title: string): void {
 		this._customTitle = title;
+		this._onDidChange.fire({ kind: 'setCustomTitle', title });
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
