@@ -1639,6 +1639,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.insertions-and-deletions {
 		display: flex;
 		margin-right: 5px;
+		font-size: 12px;
 	}
 
 	.checkpoint-file-changes-summary-header {
@@ -1704,7 +1705,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .checkpoint-file-changes-summary.chat-file-changes-collapsed .chat-summary-list,
 .interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
-display: none;
+	display: none;
 }
 
 .interactive-session .chat-used-context {
@@ -1750,6 +1751,10 @@ display: none;
 
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {
 	border-radius: 4px;
+}
+
+.interactive-session .chat-summary-list .monaco-list .monaco-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
 }
 
 .interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
@@ -2414,6 +2419,10 @@ display: none;
 	align-items: center;
 	gap: 8px;
 	padding: 2px 0;
+}
+
+.chat-todo-list-widget .todo-item[title]:hover {
+	background-color: var(--vscode-list-hoverBackground);
 }
 
 .chat-todo-list-widget .todo-status-icon {

@@ -278,6 +278,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
 
 	private _currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+
 	get currentLanguageModel() {
 		return this._currentLanguageModel?.identifier;
 	}
@@ -620,7 +621,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }))
 			.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry));
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-
 		return models;
 	}
 

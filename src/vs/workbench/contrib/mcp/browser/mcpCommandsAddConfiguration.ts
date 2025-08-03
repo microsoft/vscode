@@ -85,7 +85,9 @@ const enum AddConfigurationCopilotCommand {
 	StartFlow = 'github.copilot.chat.mcp.setup.flow',
 }
 
-type ValidatePackageResult = { state: 'ok'; publisher: string } | { state: 'error'; error: string };
+type ValidatePackageResult =
+	{ state: 'ok'; publisher: string; name?: string; version?: string }
+	| { state: 'error'; error: string };
 
 type AddServerData = {
 	packageType: string;
@@ -319,7 +321,11 @@ export class McpAddConfigurationCommand {
 				loadingQuickPick.title = result?.error || 'Unknown error loading package';
 				loadingQuickPick.items = [{ id: LoadAction.Retry, label: localize('mcp.error.retry', 'Try a different package') }, { id: LoadAction.Cancel, label: localize('cancel', 'Cancel') }];
 			} else {
-				loadingQuickPick.title = localize('mcp.confirmPublish', 'Install {0} from {1}?', packageName, result.publisher);
+				loadingQuickPick.title = localize(
+					'mcp.confirmPublish', 'Install {0}{1} from {2}?',
+					result.name ?? packageName,
+					result.version ? `@${result.version}` : '',
+					result.publisher);
 				loadingQuickPick.items = [
 					{ id: LoadAction.Allow, label: localize('allow', "Allow") },
 					{ id: LoadAction.Cancel, label: localize('cancel', 'Cancel') }

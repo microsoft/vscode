@@ -21,3 +21,22 @@
 	margin-right: 4px;
 	margin-left: 4px;
 }
+
+/* Style for empty state message */
+.chat-sessions-message {
+	padding: 20px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-sessions-message .no-sessions-message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	font-style: italic;
+}
+
+.chat-sessions-message .no-sessions-message .codicon {
+	opacity: 0.7;
+}
