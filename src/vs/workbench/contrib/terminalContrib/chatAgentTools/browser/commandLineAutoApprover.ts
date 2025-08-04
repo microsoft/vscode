@@ -207,7 +207,26 @@ export class CommandLineAutoApprover extends Disposable {
 			return neverMatchRegex;
 		}
 
-		// Escape regex special characters
+		// Check if this looks like a path (contains path separators)
+		if (value.includes('/') || value.includes('\\')) {
+			// Handle path-like strings with flexible separator and optional ./ prefix matching
+			
+			// Replace path separators with placeholders first, before escaping
+			let pathPattern = value.replace(/[/\\]/g, '§PATH_SEP§');
+			
+			// Now escape all regex special characters 
+			pathPattern = pathPattern.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+			
+			// Replace placeholders with character class that matches both / and \
+			pathPattern = pathPattern.replace(/§PATH_SEP§/g, '[/\\\\]');
+			
+			// Create pattern that optionally matches ./ or .\ at the start
+			const finalPattern = `^(?:\\.[/\\\\])?${pathPattern}\\b`;
+			
+			return new RegExp(finalPattern);
+		}
+
+		// Escape regex special characters for non-path strings
 		const sanitizedValue = value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
 
 		// Regular strings should match the start of the command line and be a word boundary
