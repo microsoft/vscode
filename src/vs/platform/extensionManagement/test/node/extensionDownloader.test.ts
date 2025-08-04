@@ -22,6 +22,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -67,6 +69,7 @@ suite('ExtensionDownloader Tests', () => {
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, logService);
+		instantiationService.stub(IUriIdentityService, disposables.add(new UriIdentityService(fileService)));
 		instantiationService.stub(INativeEnvironmentService, { extensionsDownloadLocation: joinPath(ROOT, 'CachedExtensionVSIXs') });
 		instantiationService.stub(IExtensionGalleryService, {
 			async download(extension, location, operation) {
@@ -125,7 +128,7 @@ suite('ExtensionDownloader Tests', () => {
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: false }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, undefined);
+		assert.strictEqual(actual.verificationStatus, ExtensionSignatureVerificationCode.NotSigned);
 	});
 
 	test('download completes successfully for an unsigned extension even when signature verification throws error', async () => {
@@ -133,7 +136,7 @@ suite('ExtensionDownloader Tests', () => {
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: false }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, undefined);
+		assert.strictEqual(actual.verificationStatus, ExtensionSignatureVerificationCode.NotSigned);
 	});
 
 	function aTestObject(options: { verificationResult: boolean | string }): ExtensionsDownloader {

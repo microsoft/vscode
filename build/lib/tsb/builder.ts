@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
 import * as utils from './utils';
-import * as colors from 'ansi-colors';
-import * as ts from 'typescript';
-import * as Vinyl from 'vinyl';
+import colors from 'ansi-colors';
+import ts from 'typescript';
+import Vinyl from 'vinyl';
 import { RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
 export interface IConfiguration {
@@ -42,6 +42,10 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 	const _log = config.logFn;
 
 	const host = new LanguageServiceHost(cmd, projectFile, _log);
+
+	const outHost = new LanguageServiceHost({ ...cmd, options: { ...cmd.options, sourceRoot: cmd.options.outDir } }, cmd.options.outDir ?? '', _log);
+	const toBeCheckedForCycles: string[] = [];
+
 	const service = ts.createLanguageService(host, ts.createDocumentRegistry());
 	const lastBuildVersion: { [path: string]: string } = Object.create(null);
 	const lastDtsHash: { [path: string]: string } = Object.create(null);
@@ -61,6 +65,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 		if (!file.contents) {
 			host.removeScriptSnapshot(file.path);
+			delete lastBuildVersion[normalize(file.path)];
 		} else {
 			host.addScriptSnapshot(file.path, new VinylScriptSnapshot(file));
 		}
@@ -305,6 +310,14 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 							lastDtsHash[fileName] = value.signature;
 							filesWithChangedSignature.push(fileName);
 						}
+
+						// line up for cycle check
+						const jsValue = value.files.find(candidate => candidate.basename.endsWith('.js'));
+						if (jsValue) {
+							outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), new Date()));
+							toBeCheckedForCycles.push(normalize(jsValue.path));
+						}
+
 					}).catch(e => {
 						// can't just skip this or make a result up..
 						host.error(`ERROR emitting ${fileName}`);
@@ -389,6 +402,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 					}
 				}
 
+
 				// (last) done
 				else {
 					resolve();
@@ -410,16 +424,37 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			workOnNext();
 
 		}).then(() => {
+			// check for cyclic dependencies
+			const cycles = outHost.getCyclicDependencies(toBeCheckedForCycles);
+			toBeCheckedForCycles.length = 0;
+
+			for (const [filename, error] of cycles) {
+				const cyclicDepErrors: ts.Diagnostic[] = [];
+				if (error) {
+					cyclicDepErrors.push({
+						category: ts.DiagnosticCategory.Error,
+						code: 1,
+						file: undefined,
+						start: undefined,
+						length: undefined,
+						messageText: `CYCLIC dependency: ${error}`
+					});
+				}
+				newErrors[filename] = cyclicDepErrors;
+			}
+
+		}).then(() => {
+
 			// store the build versions to not rebuilt the next time
 			newLastBuildVersion.forEach((value, key) => {
 				lastBuildVersion[key] = value;
 			});
 
 			// print old errors and keep them
-			utils.collections.forEach(oldErrors, entry => {
-				entry.value.forEach(diag => onError(diag));
-				newErrors[entry.key] = entry.value;
-			});
+			for (const [key, value] of Object.entries(oldErrors)) {
+				value.forEach(diag => onError(diag));
+				newErrors[key] = value;
+			}
 			oldErrors = newErrors;
 
 			// print stats
@@ -427,7 +462,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			const MB = 1024 * 1024;
 			_log(
 				'[tsb]',
-				`time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`
+				`time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`
 			);
 			headUsed = headNow;
 		});
@@ -503,7 +538,7 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		this._snapshots = Object.create(null);
 		this._filesInProject = new Set(_cmdLine.fileNames);
 		this._filesAdded = new Set();
-		this._dependencies = new utils.graph.Graph<string>(s => s);
+		this._dependencies = new utils.graph.Graph<string>();
 		this._dependenciesRecomputeList = [];
 		this._fileNameToDeclaredModule = Object.create(null);
 
@@ -576,10 +611,6 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		}
 		if (!old || old.getVersion() !== snapshot.getVersion()) {
 			this._dependenciesRecomputeList.push(filename);
-			const node = this._dependencies.lookup(filename);
-			if (node) {
-				node.outgoing = Object.create(null);
-			}
 
 			// (cheap) check for declare module
 			LanguageServiceHost._declareModule.lastIndex = 0;
@@ -597,10 +628,11 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 	}
 
 	removeScriptSnapshot(filename: string): boolean {
+		filename = normalize(filename);
+		this._log('removeScriptSnapshot', filename);
 		this._filesInProject.delete(filename);
 		this._filesAdded.delete(filename);
 		this._projectVersion++;
-		filename = normalize(filename);
 		delete this._fileNameToDeclaredModule[filename];
 		return delete this._snapshots[filename];
 	}
@@ -628,8 +660,21 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		filename = normalize(filename);
 		const node = this._dependencies.lookup(filename);
 		if (node) {
-			utils.collections.forEach(node.incoming, entry => target.push(entry.key));
+			node.incoming.forEach(entry => target.push(entry.data));
 		}
+	}
+
+	getCyclicDependencies(filenames: string[]): Map<string, string | undefined> {
+		// Ensure dependencies are up to date
+		while (this._dependenciesRecomputeList.length) {
+			this._processFile(this._dependenciesRecomputeList.pop()!);
+		}
+		const cycles = this._dependencies.findCycles(filenames.sort((a, b) => a.localeCompare(b)));
+		const result = new Map<string, string | undefined>();
+		for (const [key, value] of cycles) {
+			result.set(key, value?.join(' -> '));
+		}
+		return result;
 	}
 
 	_processFile(filename: string): void {
@@ -644,6 +689,9 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		}
 		const info = ts.preProcessFile(snapshot.getText(0, snapshot.getLength()), true);
 
+		// (0) clear out old dependencies
+		this._dependencies.resetNode(filename);
+
 		// (1) ///-references
 		info.referencedFiles.forEach(ref => {
 			const resolvedPath = path.resolve(path.dirname(filename), ref.fileName);
@@ -654,9 +702,19 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 
 		// (2) import-require statements
 		info.importedFiles.forEach(ref => {
+
+			if (!ref.fileName.startsWith('.')) {
+				// node module?
+				return;
+			}
+			if (ref.fileName.endsWith('.css')) {
+				return;
+			}
+
 			const stopDirname = normalize(this.getCurrentDirectory());
 			let dirname = filename;
 			let found = false;
+
 
 			while (!found && dirname.indexOf(stopDirname) === 0) {
 				dirname = path.dirname(dirname);
@@ -672,6 +730,10 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 
 				} else if (this.getScriptSnapshot(normalizedPath + '.d.ts')) {
 					this._dependencies.inertEdge(filename, normalizedPath + '.d.ts');
+					found = true;
+
+				} else if (this.getScriptSnapshot(normalizedPath + '.js')) {
+					this._dependencies.inertEdge(filename, normalizedPath + '.js');
 					found = true;
 				}
 			}

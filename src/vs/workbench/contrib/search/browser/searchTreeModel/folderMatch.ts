@@ -534,8 +534,8 @@ export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl im
 			}
 			parent = folderMatch;
 		}
-
-		return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch, root, searchInstanceID);
+		const contentPatternToUse = typeof (this._query.contentPattern) === 'string' ? { pattern: this._query.contentPattern } : this._query.contentPattern;
+		return this.createFileMatch(contentPatternToUse, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch, root, searchInstanceID);
 	}
 }
 
@@ -552,10 +552,11 @@ export class FolderMatchNoRootImpl extends FolderMatchImpl implements ISearchTre
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch, searchInstanceID: string): ISearchTreeFileMatch {
+		const contentPatternToUse = typeof (this._query.contentPattern) === 'string' ? { pattern: this._query.contentPattern } : this._query.contentPattern;
 		// TODO: can probably just create FileMatchImpl if we don't expect cell results from the file.
 		const fileMatch = this._register(this.instantiationService.createInstance(
 			NotebookCompatibleFileMatch,
-			this._query.contentPattern,
+			contentPatternToUse,
 			this._query.previewOptions,
 			this._query.maxResults,
 			this, rawFileMatch,

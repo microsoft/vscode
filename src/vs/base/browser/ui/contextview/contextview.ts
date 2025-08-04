@@ -61,7 +61,9 @@ export interface IDelegate {
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
 	onHide?(data?: unknown): void;
 
-	// context views with higher layers are rendered over contet views with lower layers
+	/**
+	 * context views with higher layers are rendered higher in z-index order
+	 */
 	layer?: number; // Default: 0
 }
 
@@ -309,9 +311,9 @@ export class ContextView extends Disposable {
 		const viewSizeWidth = DOM.getTotalWidth(this.view);
 		const viewSizeHeight = DOM.getTotalHeight(this.view);
 
-		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
-		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
-		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment || AnchorAxisAlignment.VERTICAL;
+		const anchorPosition = this.delegate!.anchorPosition ?? AnchorPosition.BELOW;
+		const anchorAlignment = this.delegate!.anchorAlignment ?? AnchorAlignment.LEFT;
+		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment ?? AnchorAxisAlignment.VERTICAL;
 
 		let top: number;
 		let left: number;

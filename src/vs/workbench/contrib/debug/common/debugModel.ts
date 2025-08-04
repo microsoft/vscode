@@ -331,6 +331,24 @@ export class Expression extends ExpressionContainer implements IExpression {
 		return `${this.name}\n${this.value}`;
 	}
 
+	toJSON() {
+		return {
+			sessionId: this.getSession()?.getId(),
+			variable: this.toDebugProtocolObject(),
+		};
+	}
+
+	toDebugProtocolObject(): DebugProtocol.Variable {
+		return {
+			name: this.name,
+			variablesReference: this.reference || 0,
+			memoryReference: this.memoryReference,
+			value: this.value,
+			type: this.type,
+			evaluateName: this.name
+		};
+	}
+
 	async setExpression(value: string, stackFrame: IStackFrame): Promise<void> {
 		if (!this.session) {
 			return;
@@ -406,6 +424,16 @@ export class Variable extends ExpressionContainer implements IExpression {
 		return this.name ? `${this.name}: ${this.value}` : this.value;
 	}
 
+	toJSON() {
+		return {
+			sessionId: this.getSession()?.getId(),
+			container: this.parent instanceof Expression
+				? { expression: this.parent.name }
+				: (this.parent as (Variable | Scope)).toDebugProtocolObject(),
+			variable: this.toDebugProtocolObject()
+		};
+	}
+
 	protected override adoptLazyResponse(response: DebugProtocol.Variable): void {
 		this.evaluateName = response.evaluateName;
 	}
@@ -416,6 +444,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 			variablesReference: this.reference || 0,
 			memoryReference: this.memoryReference,
 			value: this.value,
+			type: this.type,
 			evaluateName: this.evaluateName
 		};
 	}
@@ -542,10 +571,10 @@ export class StackFrame implements IStackFrame {
 	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined> {
 		const threadStopReason = this.thread.stoppedDetails?.reason;
 		if (this.instructionPointerReference &&
-			(threadStopReason === 'instruction breakpoint' ||
-				(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction') ||
+			((threadStopReason === 'instruction breakpoint' && !preserveFocus) ||
+				(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction' && !preserveFocus) ||
 				editorService.activeEditor instanceof DisassemblyViewInput)) {
-			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true });
+			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true, preserveFocus });
 		}
 
 		if (this.source.available) {
@@ -744,10 +773,11 @@ export class MemoryRegion extends Disposable implements IMemoryRegion {
 	public readonly onDidInvalidate = this.invalidateEmitter.event;
 
 	/** @inheritdoc */
-	public readonly writable = !!this.session.capabilities.supportsWriteMemoryRequest;
+	public readonly writable: boolean;
 
 	constructor(private readonly memoryReference: string, private readonly session: IDebugSession) {
 		super();
+		this.writable = !!this.session.capabilities.supportsWriteMemoryRequest;
 		this._register(session.onDidInvalidateMemory(e => {
 			if (e.body.memoryReference === memoryReference) {
 				this.invalidate(e.body.offset, e.body.count - e.body.offset);
@@ -1489,6 +1519,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 			}
 			if (s.state === State.Inactive && s.configuration.name === session.configuration.name) {
 				// Make sure to remove all inactive sessions that are using the same configuration as the new session
+				s.dispose();
 				return false;
 			}
 

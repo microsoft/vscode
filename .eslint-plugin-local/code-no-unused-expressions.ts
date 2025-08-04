@@ -58,7 +58,7 @@ module.exports = {
 			allowTernary = config.allowTernary || false,
 			allowTaggedTemplates = config.allowTaggedTemplates || false;
 
-		// eslint-disable-next-line jsdoc/require-description
+		 
 		/**
 		 * @param node any node
 		 * @returns whether the given node structurally represents a directive
@@ -68,7 +68,7 @@ module.exports = {
 				node.expression.type === 'Literal' && typeof node.expression.value === 'string';
 		}
 
-		// eslint-disable-next-line jsdoc/require-description
+		 
 		/**
 		 * @param predicate ([a] -> Boolean) the function used to make the determination
 		 * @param list the input list
@@ -83,7 +83,7 @@ module.exports = {
 			return list.slice();
 		}
 
-		// eslint-disable-next-line jsdoc/require-description
+		 
 		/**
 		 * @param node a Program or BlockStatement node
 		 * @returns the leading sequence of directive nodes in the given node's body
@@ -92,7 +92,7 @@ module.exports = {
 			return takeWhile(looksLikeDirective, node.body);
 		}
 
-		// eslint-disable-next-line jsdoc/require-description
+		 
 		/**
 		 * @param node any node
 		 * @param ancestors the given node's ancestors

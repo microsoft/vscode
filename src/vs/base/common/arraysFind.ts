@@ -5,15 +5,17 @@
 
 import { Comparator } from './arrays.js';
 
-export function findLast<T>(array: readonly T[], predicate: (item: T) => boolean): T | undefined {
-	const idx = findLastIdx(array, predicate);
+export function findLast<T, R extends T>(array: readonly T[], predicate: (item: T) => item is R, fromIndex?: number): R | undefined;
+export function findLast<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex?: number): T | undefined;
+export function findLast<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex = array.length - 1): T | undefined {
+	const idx = findLastIdx(array, predicate, fromIndex);
 	if (idx === -1) {
 		return undefined;
 	}
 	return array[idx];
 }
 
-export function findLastIdx<T>(array: readonly T[], predicate: (item: T) => boolean, fromIndex = array.length - 1): number {
+export function findLastIdx<T>(array: readonly T[], predicate: (item: T) => unknown, fromIndex = array.length - 1): number {
 	for (let i = fromIndex; i >= 0; i--) {
 		const element = array[i];
 

@@ -5,14 +5,25 @@
 
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
 import { Position } from '../../../../common/core/position.js';
 import { ITextModel } from '../../../../common/model.js';
-import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from '../../../../common/languages.js';
-import { ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
+import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
+import { Range } from '../../../../common/core/range.js';
+import { TextEdit } from '../../../../common/core/edits/textEdit.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -20,6 +31,10 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 	private callHistory = new Array<unknown>();
 	private calledTwiceIn50Ms = false;
+
+	constructor(
+		public readonly enableForwardStability = false,
+	) { }
 
 	public setReturnValue(value: InlineCompletion | undefined, delayMs: number = 0): void {
 		this.returnValue = value ? [value] : [];
@@ -45,7 +60,7 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 	private lastTimeMs: number | undefined = undefined;
 
-	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken) {
+	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions> {
 		const currentTimeMs = new Date().getTime();
 		if (this.lastTimeMs && currentTimeMs - this.lastTimeMs < 50) {
 			this.calledTwiceIn50Ms = true;
@@ -58,16 +73,82 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 			text: model.getValue()
 		});
 		const result = new Array<InlineCompletion>();
-		result.push(...this.returnValue);
+		for (const v of this.returnValue) {
+			const x = { ...v };
+			if (!x.range) {
+				x.range = model.getFullModelRange();
+			}
+			result.push(x);
+		}
 
 		if (this.delayMs > 0) {
 			await timeout(this.delayMs);
 		}
 
-		return { items: result };
+		return { items: result, enableForwardStability: this.enableForwardStability };
 	}
-	freeInlineCompletions() { }
+	disposeInlineCompletions() { }
 	handleItemDidShow() { }
+}
+
+export class MockSearchReplaceCompletionsProvider implements InlineCompletionsProvider {
+	private _map = new Map<string, string>();
+
+	public add(search: string, replace: string): void {
+		this._map.set(search, replace);
+	}
+
+	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions> {
+		const text = model.getValue();
+		for (const [search, replace] of this._map) {
+			const idx = text.indexOf(search);
+			// replace idx...idx+text.length with replace
+			if (idx !== -1) {
+				const range = Range.fromPositions(model.getPositionAt(idx), model.getPositionAt(idx + search.length));
+				return {
+					items: [
+						{ range, insertText: replace, isInlineEdit: true }
+					]
+				};
+			}
+		}
+		return { items: [] };
+	}
+	disposeInlineCompletions() { }
+	handleItemDidShow() { }
+}
+
+export class InlineEditContext extends Disposable {
+	public readonly prettyViewStates = new Array<string | undefined>();
+
+	constructor(model: InlineCompletionsModel, private readonly editor: ITestCodeEditor) {
+		super();
+
+		const edit = derived(reader => {
+			const state = model.state.read(reader);
+			return state ? new TextEdit(state.edits) : undefined;
+		});
+
+		this._register(autorun(reader => {
+			/** @description update */
+			const e = edit.read(reader);
+			let view: string | undefined;
+
+			if (e) {
+				view = e.toString(this.editor.getValue());
+			} else {
+				view = undefined;
+			}
+
+			this.prettyViewStates.push(view);
+		}));
+	}
+
+	public getAndClearViewStates(): (string | undefined)[] {
+		const arr = [...this.prettyViewStates];
+		this.prettyViewStates.length = 0;
+		return arr;
+	}
 }
 
 export class GhostTextContext extends Disposable {
@@ -108,27 +189,140 @@ export class GhostTextContext extends Disposable {
 	}
 
 	public cursorUp(): void {
-		CoreNavigationCommands.CursorUp.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorUp, null);
 	}
 
 	public cursorRight(): void {
-		CoreNavigationCommands.CursorRight.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorRight, null);
 	}
 
 	public cursorLeft(): void {
-		CoreNavigationCommands.CursorLeft.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorLeft, null);
 	}
 
 	public cursorDown(): void {
-		CoreNavigationCommands.CursorDown.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorDown, null);
 	}
 
 	public cursorLineEnd(): void {
-		CoreNavigationCommands.CursorLineEnd.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorLineEnd, null);
 	}
 
 	public leftDelete(): void {
-		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreEditingCommands.DeleteLeft, null);
 	}
 }
 
+export interface IWithAsyncTestCodeEditorAndInlineCompletionsModel {
+	editor: ITestCodeEditor;
+	editorViewModel: ViewModel;
+	model: InlineCompletionsModel;
+	context: GhostTextContext;
+	store: DisposableStore;
+}
+
+export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
+	text: string,
+	options: TestCodeEditorInstantiationOptions & { provider?: InlineCompletionsProvider; fakeClock?: boolean },
+	callback: (args: IWithAsyncTestCodeEditorAndInlineCompletionsModel) => Promise<T>): Promise<T> {
+	return await runWithFakedTimers({
+		useFakeTimers: options.fakeClock,
+	}, async () => {
+		const disposableStore = new DisposableStore();
+
+		try {
+			if (options.provider) {
+				const languageFeaturesService = new LanguageFeaturesService();
+				if (!options.serviceCollection) {
+					options.serviceCollection = new ServiceCollection();
+				}
+				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
+				options.serviceCollection.set(IAccessibilitySignalService, {
+					playSignal: async () => { },
+					isSoundEnabled(signal: unknown) { return false; },
+				} as any);
+				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
+				disposableStore.add(d);
+			}
+
+			let result: T;
+			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
+				const controller = instantiationService.createInstance(InlineCompletionsController, editor);
+				controller.testOnlyDisableUi();
+				const model = controller.model.get()!;
+				const context = new GhostTextContext(model, editor);
+				try {
+					result = await callback({ editor, editorViewModel, model, context, store: disposableStore });
+				} finally {
+					context.dispose();
+					model.dispose();
+					controller.dispose();
+				}
+			});
+
+			if (options.provider instanceof MockInlineCompletionsProvider) {
+				options.provider.assertNotCalledTwiceWithin50ms();
+			}
+
+			return result!;
+		} finally {
+			disposableStore.dispose();
+		}
+	});
+}
+
+export class AnnotatedString {
+	public readonly value: string;
+	public readonly markers: { mark: string; idx: number }[];
+
+	constructor(src: string, annotations: string[] = ['↓']) {
+		const markers = findMarkers(src, annotations);
+		this.value = markers.textWithoutMarkers;
+		this.markers = markers.results;
+	}
+
+	getMarkerOffset(markerIdx = 0): number {
+		if (markerIdx >= this.markers.length) {
+			throw new BugIndicatingError(`Marker index ${markerIdx} out of bounds`);
+		}
+		return this.markers[markerIdx].idx;
+	}
+}
+
+function findMarkers(text: string, markers: string[]): {
+	results: { mark: string; idx: number }[];
+	textWithoutMarkers: string;
+} {
+	const results: { mark: string; idx: number }[] = [];
+	let textWithoutMarkers = '';
+
+	markers.sort((a, b) => b.length - a.length);
+
+	let pos = 0;
+	for (let i = 0; i < text.length;) {
+		let foundMarker = false;
+		for (const marker of markers) {
+			if (text.startsWith(marker, i)) {
+				results.push({ mark: marker, idx: pos });
+				i += marker.length;
+				foundMarker = true;
+				break;
+			}
+		}
+		if (!foundMarker) {
+			textWithoutMarkers += text[i];
+			pos++;
+			i++;
+		}
+	}
+
+	return { results, textWithoutMarkers };
+}
+
+export class AnnotatedText extends AnnotatedString {
+	private readonly _transformer = new PositionOffsetTransformer(this.value);
+
+	getMarkerPosition(markerIdx = 0): Position {
+		return this._transformer.getPosition(this.getMarkerOffset(markerIdx));
+	}
+}

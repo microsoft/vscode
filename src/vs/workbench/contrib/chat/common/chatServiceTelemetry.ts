@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IChatUserActionEvent, ChatAgentVoteDirection, ChatCopyKind } from './chatService.js';
+import { ChatAgentVoteDirection, ChatCopyKind, IChatUserActionEvent } from './chatService.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
@@ -69,20 +68,6 @@ type ChatApplyClassification = {
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
-type ChatCommandEvent = {
-	commandId: string;
-	agentId: string;
-	command: string | undefined;
-};
-
-type ChatCommandClassification = {
-	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command that was executed.' };
-	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
-	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the related slash command.' };
-	owner: 'roblourens';
-	comment: 'Provides insight into the usage of Chat features.';
-};
-
 type ChatFollowupEvent = {
 	agentId: string;
 	command: string | undefined;
@@ -123,6 +108,22 @@ type ChatFollowupsRetrievedClassification = {
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
+type ChatEditHunkEvent = {
+	agentId: string;
+	outcome: 'accepted' | 'rejected';
+	lineCount: number;
+	hasRemainingEdits: boolean;
+};
+
+type ChatEditHunkClassification = {
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the related chat agent.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of the edit hunk action.' };
+	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the relevant change.' };
+	hasRemainingEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there are remaining edits in the file after this action.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of Chat features.';
+};
+
 export class ChatServiceTelemetry {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -156,15 +157,6 @@ export class ChatServiceTelemetry {
 				command: action.command,
 				editsProposed: !!action.action.editsProposed,
 			});
-		} else if (action.action.kind === 'command') {
-			// TODO not currently called
-			const command = CommandsRegistry.getCommand(action.action.commandButton.command.id);
-			const commandId = command ? action.action.commandButton.command.id : 'INVALID';
-			this.telemetryService.publicLog2<ChatCommandEvent, ChatCommandClassification>('interactiveSessionCommand', {
-				commandId,
-				agentId: action.agentId ?? '',
-				command: action.command,
-			});
 		} else if (action.action.kind === 'runInTerminal') {
 			this.telemetryService.publicLog2<ChatTerminalEvent, ChatTerminalClassification>('interactiveSessionRunInTerminal', {
 				languageId: action.action.languageId ?? '',
@@ -175,6 +167,13 @@ export class ChatServiceTelemetry {
 			this.telemetryService.publicLog2<ChatFollowupEvent, ChatFollowupClassification>('chatFollowupClicked', {
 				agentId: action.agentId ?? '',
 				command: action.command,
+			});
+		} else if (action.action.kind === 'chatEditingHunkAction') {
+			this.telemetryService.publicLog2<ChatEditHunkEvent, ChatEditHunkClassification>('chatEditHunk', {
+				agentId: action.agentId ?? '',
+				outcome: action.action.outcome,
+				lineCount: action.action.lineCount,
+				hasRemainingEdits: action.action.hasRemainingEdits,
 			});
 		}
 	}

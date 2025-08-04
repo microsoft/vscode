@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../base/browser/domStylesheets.js';
 import { GlobalPointerMoveMonitor } from '../../base/browser/globalPointerMoveMonitor.js';
 import { StandardMouseEvent } from '../../base/browser/mouseEvent.js';
 import { RunOnceScheduler } from '../../base/common/async.js';
@@ -63,7 +64,7 @@ export class EditorPagePosition {
 }
 
 /**
- * Coordinates relative to the the (top;left) of the editor that can be used safely with other internal editor metrics.
+ * Coordinates relative to the (top;left) of the editor that can be used safely with other internal editor metrics.
  * **NOTE**: This position is obtained by taking page coordinates and transforming them relative to the
  * editor's (top;left) position in a way in which scale transformations are taken into account.
  * **NOTE**: These coordinates could be negative if the mouse position is outside the editor.
@@ -149,13 +150,13 @@ export class EditorMouseEventFactory {
 	}
 
 	public onContextMenu(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'contextmenu', (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
 
 	public onMouseUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'mouseup', (e: MouseEvent) => {
+		return dom.addDisposableListener(target, dom.EventType.MOUSE_UP, (e: MouseEvent) => {
 			callback(this._create(e));
 		});
 	}
@@ -179,7 +180,7 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseMove(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'mousemove', (e) => callback(this._create(e)));
+		return dom.addDisposableListener(target, dom.EventType.MOUSE_MOVE, (e) => callback(this._create(e)));
 	}
 }
 
@@ -368,7 +369,7 @@ class RefCountedCssRule {
 		public readonly properties: CssProperties,
 	) {
 		this._styleElementDisposables = new DisposableStore();
-		this._styleElement = dom.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
+		this._styleElement = domStylesheetsJs.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
 		this._styleElement.textContent = this.getCssText(this.className, this.properties);
 	}
 

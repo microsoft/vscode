@@ -3,337 +3,247 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
-import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { themeColorFromId } from '../../../../../base/common/themables.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { clamp } from '../../../../../base/common/numbers.js';
+import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
-import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { LineRange } from '../../../../../editor/common/core/lineRange.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
-import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
-import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
-import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
-import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
-import { IChatAgentResult } from '../../common/chatAgents.js';
-import { IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { IChatService } from '../../common/chatService.js';
-import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { editorBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { IEditorPane } from '../../../../common/editor.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
+import { ChatUserAction, IChatService } from '../../common/chatService.js';
 
-export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
+class AutoAcceptControl {
+	constructor(
+		readonly total: number,
+		readonly remaining: number,
+		readonly cancel: () => void
+	) { }
+}
 
-	public static readonly scheme = 'modified-file-entry';
-	static lastEntryId = 0;
-	public readonly entryId = `${ChatEditingModifiedFileEntry.scheme}::${++ChatEditingModifiedFileEntry.lastEntryId}`;
+export const pendingRewriteMinimap = registerColor('minimap.chatEditHighlight',
+	transparent(editorBackground, 0.6),
+	localize('editorSelectionBackground', "Color of pending edit regions in the minimap"));
 
-	public readonly docSnapshot: ITextModel;
-	private readonly doc: ITextModel;
 
-	get originalURI(): URI {
-		return this.docSnapshot.uri;
-	}
+export abstract class AbstractChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
-	get originalModel(): ITextModel {
-		return this.docSnapshot;
-	}
+	static readonly scheme = 'modified-file-entry';
 
-	get modifiedURI(): URI {
-		return this.doc.uri;
-	}
+	private static lastEntryId = 0;
 
-	get modifiedModel(): ITextModel {
-		return this.doc;
-	}
+	readonly entryId = `${AbstractChatEditingModifiedFileEntry.scheme}::${++AbstractChatEditingModifiedFileEntry.lastEntryId}`;
 
-	private readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
-	public get state(): IObservable<WorkingSetEntryState> {
-		return this._stateObs;
-	}
+	protected readonly _onDidDelete = this._register(new Emitter<void>());
+	readonly onDidDelete = this._onDidDelete.event;
 
-	private readonly _isCurrentlyBeingModifiedObs = observableValue<boolean>(this, false);
-	public get isCurrentlyBeingModified(): IObservable<boolean> {
-		return this._isCurrentlyBeingModifiedObs;
-	}
+	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Modified);
+	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;
 
-	private _isFirstEditAfterStartOrSnapshot: boolean = true;
-	private _isApplyingEdits: boolean = false;
-	private _diffOperation: Promise<any> | undefined;
-	private _diffOperationIds: number = 0;
+	protected readonly _waitsForLastEdits = observableValue<boolean>(this, false);
+	readonly waitsForLastEdits: IObservable<boolean> = this._waitsForLastEdits;
 
-	private readonly _diffInfo = observableValue<IDocumentDiff>(this, nullDocumentDiff);
-	get diffInfo(): IObservable<IDocumentDiff> {
-		return this._diffInfo;
-	}
+	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
+	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined> = this._isCurrentlyBeingModifiedByObs;
 
-	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []); }, 3000));
-	private _editDecorations: string[] = [];
+	protected readonly _lastModifyingResponseObs = observableValueOpts<IChatResponseModel | undefined>({ equalsFn: (a, b) => a?.requestId === b?.requestId }, undefined);
+	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined> = this._lastModifyingResponseObs;
 
-	private static readonly _editDecorationOptions = ModelDecorationOptions.register({
-		isWholeLine: true,
-		description: 'chat-editing',
-		className: 'rangeHighlight',
-		marginClassName: 'rangeHighlight',
-		overviewRuler: {
-			position: OverviewRulerLane.Full,
-			color: themeColorFromId(editorSelectionBackground)
-		},
+	protected readonly _lastModifyingResponseInProgressObs = this._lastModifyingResponseObs.map((value, r) => {
+		return value?.isInProgress.read(r) ?? false;
 	});
+
+	protected readonly _rewriteRatioObs = observableValue<number>(this, 0);
+	readonly rewriteRatio: IObservable<number> = this._rewriteRatioObs;
+
+	private readonly _reviewModeTempObs = observableValue<true | undefined>(this, undefined);
+	readonly reviewMode: IObservable<boolean>;
+
+	private readonly _autoAcceptCtrl = observableValue<AutoAcceptControl | undefined>(this, undefined);
+	readonly autoAcceptController: IObservable<AutoAcceptControl | undefined> = this._autoAcceptCtrl;
+
+	protected readonly _autoAcceptTimeout: IObservable<number>;
 
 	get telemetryInfo(): IModifiedEntryTelemetryInfo {
 		return this._telemetryInfo;
 	}
 
+	readonly createdInRequestId: string | undefined;
+
 	get lastModifyingRequestId() {
 		return this._telemetryInfo.requestId;
 	}
 
+	private _refCounter: number = 1;
+
+	readonly abstract originalURI: URI;
+
+	protected readonly _userEditScheduler = this._register(new RunOnceScheduler(() => this._notifySessionAction('userModified'), 1000));
+
 	constructor(
-		public readonly resource: URI,
-		resourceRef: IReference<IResolvedTextEditorModel>,
-		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
-		private _telemetryInfo: IModifiedEntryTelemetryInfo,
-		@IModelService modelService: IModelService,
-		@ITextModelService textModelService: ITextModelService,
-		@ILanguageService languageService: ILanguageService,
-		@IBulkEditService public readonly bulkEditService: IBulkEditService,
-		@IChatService private readonly _chatService: IChatService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
+		readonly modifiedURI: URI,
+		protected _telemetryInfo: IModifiedEntryTelemetryInfo,
+		kind: ChatEditKind,
+		@IConfigurationService configService: IConfigurationService,
+		@IFilesConfigurationService protected _fileConfigService: IFilesConfigurationService,
+		@IChatService protected readonly _chatService: IChatService,
+		@IFileService protected readonly _fileService: IFileService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this.doc = resourceRef.object.textEditorModel;
-		const docSnapshot = this.docSnapshot = this._register(
-			modelService.createModel(
-				createTextBufferFactoryFromSnapshot(this.doc.createSnapshot()),
-				languageService.createById(this.doc.getLanguageId()),
-				ChatEditingTextModelContentProvider.getFileURI(this.entryId, resource.path),
-				false
-			)
-		);
 
-		// Create a reference to this model to avoid it being disposed from under our nose
-		(async () => {
-			const reference = await textModelService.createModelReference(docSnapshot.uri);
-			if (this._store.isDisposed) {
-				reference.dispose();
-				return;
+		if (kind === ChatEditKind.Created) {
+			this.createdInRequestId = this._telemetryInfo.requestId;
+		}
+
+		if (this.modifiedURI.scheme !== Schemas.untitled && this.modifiedURI.scheme !== Schemas.vscodeNotebookCell) {
+			this._register(this._fileService.watch(this.modifiedURI));
+			this._register(this._fileService.onDidFilesChange(e => {
+				if (e.affects(this.modifiedURI) && kind === ChatEditKind.Created && e.gotDeleted()) {
+					this._onDidDelete.fire();
+				}
+			}));
+		}
+
+		// review mode depends on setting and temporary override
+		const autoAcceptRaw = observableConfigValue('chat.editing.autoAcceptDelay', 0, configService);
+		this._autoAcceptTimeout = derived(r => {
+			const value = autoAcceptRaw.read(r);
+			return clamp(value, 0, 100);
+		});
+		this.reviewMode = derived(r => {
+			const configuredValue = this._autoAcceptTimeout.read(r);
+			const tempValue = this._reviewModeTempObs.read(r);
+			return tempValue ?? configuredValue === 0;
+		});
+
+		this._store.add(toDisposable(() => this._lastModifyingResponseObs.set(undefined, undefined)));
+
+		const autoSaveOff = this._store.add(new MutableDisposable());
+		this._store.add(autorun(r => {
+			if (this._waitsForLastEdits.read(r)) {
+				autoSaveOff.value = _fileConfigService.disableAutoSave(this.modifiedURI);
+			} else {
+				autoSaveOff.clear();
 			}
-			this._register(reference);
-		})();
+		}));
 
-		this._register(resourceRef);
+		this._store.add(autorun(r => {
+			const inProgress = this._lastModifyingResponseInProgressObs.read(r);
+			if (inProgress === false && !this.reviewMode.read(r)) {
+				// AUTO accept mode (when request is done)
 
-		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
+				const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
+				const future = Date.now() + acceptTimeout;
+				const update = () => {
 
-		this._register(toDisposable(() => {
-			this._clearCurrentEditLineDecoration();
+					const reviewMode = this.reviewMode.get();
+					if (reviewMode) {
+						// switched back to review mode
+						this._autoAcceptCtrl.set(undefined, undefined);
+						return;
+					}
+
+					const remain = Math.round(future - Date.now());
+					if (remain <= 0) {
+						this.accept();
+					} else {
+						const handle = setTimeout(update, 100);
+						this._autoAcceptCtrl.set(new AutoAcceptControl(acceptTimeout, remain, () => {
+							clearTimeout(handle);
+							this._autoAcceptCtrl.set(undefined, undefined);
+						}), undefined);
+					}
+				};
+				update();
+			}
 		}));
 	}
 
-	private _clearCurrentEditLineDecoration() {
-		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []);
+	override dispose(): void {
+		if (--this._refCounter === 0) {
+			super.dispose();
+		}
+	}
+
+	acquire() {
+		this._refCounter++;
+		return this;
+	}
+
+	enableReviewModeUntilSettled(): void {
+
+		this._reviewModeTempObs.set(true, undefined);
+
+		const cleanup = autorun(r => {
+			// reset config when settled
+			const resetConfig = this.state.read(r) !== ModifiedFileEntryState.Modified;
+			if (resetConfig) {
+				this._store.delete(cleanup);
+				this._reviewModeTempObs.set(undefined, undefined);
+			}
+		});
+
+		this._store.add(cleanup);
 	}
 
 	updateTelemetryInfo(telemetryInfo: IModifiedEntryTelemetryInfo) {
 		this._telemetryInfo = telemetryInfo;
 	}
 
-	createSnapshot(requestId: string | undefined): ISnapshotEntry {
-		this._isFirstEditAfterStartOrSnapshot = true;
-		return {
-			resource: this.modifiedURI,
-			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(requestId, this.modifiedURI.path),
-			original: this.originalModel.getValue(),
-			current: this.modifiedModel.getValue(),
-			state: this.state.get(),
-			telemetryInfo: this._telemetryInfo
-		};
-	}
-
-	restoreFromSnapshot(snapshot: ISnapshotEntry) {
-		this._stateObs.set(snapshot.state, undefined);
-		this.docSnapshot.setValue(snapshot.original);
-		this._setDocValue(snapshot.current);
-	}
-
-	resetToInitialValue(value: string) {
-		this._setDocValue(value);
-	}
-
-	acceptStreamingEditsStart(tx: ITransaction) {
-		this._isCurrentlyBeingModifiedObs.set(false, tx);
-		this._clearCurrentEditLineDecoration();
-	}
-
-	acceptStreamingEditsEnd(tx: ITransaction) {
-		this._isCurrentlyBeingModifiedObs.set(false, tx);
-		this._clearCurrentEditLineDecoration();
-	}
-
-	private _mirrorEdits(event: IModelContentChangedEvent) {
-
-		if (this._isApplyingEdits) {
-			// ignore edits that we are making
-			return;
-		}
-
-		// mirror edits that "others" are doing into the document snapshot. this is done
-		// so that subsequent diffing will not identify these edits are changes. the logic
-		// is simple: use the diff info to transpose each edit from `doc` into `docSnapshot`
-		// but ignore edits are inside AI-changes
-		const diff = this._diffInfo.get();
-		const edits: IIdentifiedSingleEditOperation[] = [];
-
-		for (const edit of event.changes) {
-
-			let isOverlapping = false;
-			let changeDelta = 0;
-
-			for (const change of diff.changes) {
-				const modifiedRange = lineRangeAsRange(change.modified, this.doc);
-
-				if (modifiedRange.getEndPosition().isBefore(Range.getStartPosition(edit.range))) {
-					const originalRange = lineRangeAsRange(change.original, this.docSnapshot);
-					changeDelta -= this.docSnapshot.getValueLengthInRange(originalRange);
-					changeDelta += this.doc.getValueLengthInRange(modifiedRange);
-
-				} else if (Range.areIntersectingOrTouching(modifiedRange, edit.range)) {
-					// overlapping
-					isOverlapping = true;
-					break;
-
-				} else {
-					// changes past the edit aren't relevant
-					break;
-				}
-			}
-
-			if (isOverlapping) {
-				// change overlapping with AI change aren't mirrored
-				continue;
-			}
-
-			const offset = edit.rangeOffset - changeDelta;
-			const start = this.docSnapshot.getPositionAt(offset);
-			const end = this.docSnapshot.getPositionAt(offset + edit.rangeLength);
-			edits.push(EditOperation.replace(Range.fromPositions(start, end), edit.text));
-		}
-
-		this.docSnapshot.applyEdits(edits);
-	}
-
-	acceptAgentEdits(textEdits: TextEdit[]): void {
-
-		// highlight edits
-		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, textEdits.map(edit => {
-			return {
-				options: ChatEditingModifiedFileEntry._editDecorationOptions,
-				range: edit.range
-			} satisfies IModelDeltaDecoration;
-		}));
-		this._editDecorationClear.schedule();
-
-		// push stack element for the first edit
-		if (this._isFirstEditAfterStartOrSnapshot) {
-			this._isFirstEditAfterStartOrSnapshot = false;
-			const request = this._chatService.getSession(this._telemetryInfo.sessionId)?.getRequests().at(-1);
-			const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
-			this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
-		}
-
-		this._applyEdits(textEdits.map(TextEdit.asEditOperation));
-
-		transaction((tx) => {
-			this._stateObs.set(WorkingSetEntryState.Modified, tx);
-			this._isCurrentlyBeingModifiedObs.set(true, tx);
-		});
-	}
-
-	private _applyEdits(edits: ISingleEditOperation[]) {
-		// make the actual edit
-		this._isApplyingEdits = true;
-		try {
-			this.doc.pushEditOperations(null, edits, () => null);
-		} finally {
-			this._isApplyingEdits = false;
-		}
-
-		// trigger diff computation but only at first, when done, or when last
-		const myDiffOperationId = ++this._diffOperationIds;
-		Promise.resolve(this._diffOperation).then(() => {
-			if (this._diffOperationIds === myDiffOperationId) {
-				this._diffOperation = this._updateDiffInfo();
-			}
-		});
-	}
-
-	private async _updateDiffInfo(): Promise<void> {
-
-		const [diff] = await Promise.all([
-			this._editorWorkerService.computeDiff(
-				this.docSnapshot.uri,
-				this.doc.uri,
-				{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
-				'advanced'
-			),
-			timeout(800) // DON't diff too fast
-		]);
-
-		this._diffInfo.set(diff ?? nullDocumentDiff, undefined);
-	}
-
-	async accept(transaction: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
+	async accept(): Promise<void> {
+		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
-		this.docSnapshot.setValue(this.doc.createSnapshot());
-		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
-		await this.collapse(transaction);
-		this._notifyAction('accepted');
+		await this._doAccept();
+		transaction(tx => {
+			this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
+			this._autoAcceptCtrl.set(undefined, tx);
+		});
+
+		this._notifySessionAction('accepted');
 	}
 
-	async reject(transaction: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
+	protected abstract _doAccept(): Promise<void>;
+
+	async reject(): Promise<void> {
+		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
-		this._setDocValue(this.docSnapshot.getValue());
-
-		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
-		await this.collapse(transaction);
-		this._notifyAction('rejected');
+		this._notifySessionAction('rejected');
+		await this._doReject();
+		transaction(tx => {
+			this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
+			this._autoAcceptCtrl.set(undefined, tx);
+		});
 	}
 
-	private _setDocValue(value: string): void {
-		this.doc.pushStackElement();
-		const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
+	protected abstract _doReject(): Promise<void>;
 
-		this._applyEdits([edit]);
-
-		this.doc.pushStackElement();
+	protected _notifySessionAction(outcome: 'accepted' | 'rejected' | 'userModified') {
+		this._notifyAction({ kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome });
 	}
 
-	async collapse(transaction: ITransaction | undefined): Promise<void> {
-		this._multiDiffEntryDelegate.collapse(transaction);
-	}
-
-	private _notifyAction(outcome: 'accepted' | 'rejected') {
+	protected _notifyAction(action: ChatUserAction) {
 		this._chatService.notifyUserAction({
-			action: { kind: 'chatEditingSessionAction', uri: this.resource, hasRemainingEdits: false, outcome },
+			action,
 			agentId: this._telemetryInfo.agentId,
 			command: this._telemetryInfo.command,
 			sessionId: this._telemetryInfo.sessionId,
@@ -341,29 +251,72 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			result: this._telemetryInfo.result
 		});
 	}
-}
 
-export interface IModifiedEntryTelemetryInfo {
-	agentId: string | undefined;
-	command: string | undefined;
-	sessionId: string;
-	requestId: string;
-	result: IChatAgentResult | undefined;
-}
+	private readonly _editorIntegrations = this._register(new DisposableMap<IEditorPane, IModifiedFileEntryEditorIntegration>());
 
-export interface ISnapshotEntry {
-	readonly resource: URI;
-	readonly languageId: string;
-	readonly snapshotUri: URI;
-	readonly original: string;
-	readonly current: string;
-	readonly state: WorkingSetEntryState;
-	telemetryInfo: IModifiedEntryTelemetryInfo;
-}
+	getEditorIntegration(pane: IEditorPane): IModifiedFileEntryEditorIntegration {
+		let value = this._editorIntegrations.get(pane);
+		if (!value) {
+			value = this._createEditorIntegration(pane);
+			this._editorIntegrations.set(pane, value);
+		}
+		return value;
+	}
 
-export const lineRangeAsRange = (lineRange: LineRange, model: ITextModel) => {
-	return model.validateRange(lineRange.isEmpty
-		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, Number.MAX_SAFE_INTEGER)
-		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER)
-	);
-};
+	/**
+	 * Create the editor integration for this entry and the given editor pane. This will only be called
+	 * once (and cached) per pane. The integration is meant to be scoped to this entry only and when the
+	 * passed pane/editor changes input, then the editor integration must handle that, e.g use default/null
+	 * values
+	 */
+	protected abstract _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
+
+	abstract readonly changesCount: IObservable<number>;
+
+	acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
+		this._resetEditsState(tx);
+		this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
+		this._lastModifyingResponseObs.set(responseModel, tx);
+		this._autoAcceptCtrl.get()?.cancel();
+
+		const undoRedoElement = this._createUndoRedoElement(responseModel);
+		if (undoRedoElement) {
+			this._undoRedoService.pushElement(undoRedoElement);
+		}
+	}
+
+	protected abstract _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined;
+
+	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void>;
+
+	async acceptStreamingEditsEnd() {
+		this._resetEditsState(undefined);
+
+		if (await this._areOriginalAndModifiedIdentical()) {
+			// ACCEPT if identical
+			await this.accept();
+		}
+	}
+
+	protected abstract _areOriginalAndModifiedIdentical(): Promise<boolean>;
+
+	protected _resetEditsState(tx: ITransaction | undefined): void {
+		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
+		this._rewriteRatioObs.set(0, tx);
+		this._waitsForLastEdits.set(false, tx);
+	}
+
+	// --- snapshot
+
+	abstract createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
+
+	abstract equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean;
+
+	abstract restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk?: boolean): Promise<void>;
+
+	// --- inital content
+
+	abstract resetToInitialContent(): Promise<void>;
+
+	abstract initialContent: string;
+}

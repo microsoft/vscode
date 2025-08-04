@@ -331,9 +331,9 @@ export abstract class DeleteWordCommand extends EditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+		const languageConfigurationService = accessor?.get(ILanguageConfigurationService);
 
-		if (!editor.hasModel()) {
+		if (!editor.hasModel() || !languageConfigurationService) {
 			return;
 		}
 		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.wordSegmenterLocales));
@@ -473,8 +473,7 @@ export class DeleteInsideWord extends EditorAction {
 		super({
 			id: 'deleteInsideWord',
 			precondition: EditorContextKeys.writable,
-			label: nls.localize('deleteInsideWord', "Delete Word"),
-			alias: 'Delete Word'
+			label: nls.localize2('deleteInsideWord', "Delete Word"),
 		});
 	}
 

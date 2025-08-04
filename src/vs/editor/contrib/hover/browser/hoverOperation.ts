@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject, CancelableAsyncIterableObject, createCancelableAsyncIterable, RunOnceScheduler } from '../../../../base/common/async.js';
+import { AsyncIterableProducer, CancelableAsyncIterableProducer, createCancelableAsyncIterableProducer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -15,7 +15,7 @@ export interface IHoverComputer<TArgs, TResult> {
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: (args: TArgs, token: CancellationToken) => AsyncIterableObject<TResult>;
+	computeAsync?: (args: TArgs, token: CancellationToken) => AsyncIterableProducer<TResult>;
 	/**
 	 * This is called after all the hover time
 	 */
@@ -37,7 +37,8 @@ export const enum HoverStartMode {
 
 export const enum HoverStartSource {
 	Mouse = 0,
-	Keyboard = 1
+	Click = 1,
+	Keyboard = 2
 }
 
 export class HoverResult<TArgs, TResult> {
@@ -69,7 +70,7 @@ export class HoverOperation<TArgs, TResult> extends Disposable {
 	private readonly _loadingMessageScheduler = this._register(new Debouncer((options: TArgs) => this._triggerLoadingMessage(options), 0));
 
 	private _state = HoverOperationState.Idle;
-	private _asyncIterable: CancelableAsyncIterableObject<TResult> | null = null;
+	private _asyncIterable: CancelableAsyncIterableProducer<TResult> | null = null;
 	private _asyncIterableDone: boolean = false;
 	private _result: TResult[] = [];
 	private _options: TArgs | undefined;
@@ -107,6 +108,7 @@ export class HoverOperation<TArgs, TResult> extends Disposable {
 	}
 
 	private _setState(state: HoverOperationState, options: TArgs): void {
+		this._options = options;
 		this._state = state;
 		this._fireResult(options);
 	}
@@ -117,7 +119,7 @@ export class HoverOperation<TArgs, TResult> extends Disposable {
 
 		if (this._computer.computeAsync) {
 			this._asyncIterableDone = false;
-			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(options, token));
+			this._asyncIterable = createCancelableAsyncIterableProducer(token => this._computer.computeAsync!(options, token));
 
 			(async () => {
 				try {

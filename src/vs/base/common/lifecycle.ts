@@ -44,6 +44,34 @@ export interface IDisposableTracker {
 	markAsSingleton(disposable: IDisposable): void;
 }
 
+export class GCBasedDisposableTracker implements IDisposableTracker {
+
+	private readonly _registry = new FinalizationRegistry<string>(heldValue => {
+		console.warn(`[LEAKED DISPOSABLE] ${heldValue}`);
+	});
+
+	trackDisposable(disposable: IDisposable): void {
+		const stack = new Error('CREATED via:').stack!;
+		this._registry.register(disposable, stack, disposable);
+	}
+
+	setParent(child: IDisposable, parent: IDisposable | null): void {
+		if (parent) {
+			this._registry.unregister(child);
+		} else {
+			this.trackDisposable(child);
+		}
+	}
+
+	markAsDisposed(disposable: IDisposable): void {
+		this._registry.unregister(disposable);
+	}
+
+	markAsSingleton(disposable: IDisposable): void {
+		this._registry.unregister(disposable);
+	}
+}
+
 export interface DisposableInfo {
 	value: IDisposable;
 	source: string | null;
@@ -767,6 +795,7 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 		}
 
 		this._store.set(key, value);
+		setParentOfDisposable(value, this);
 	}
 
 	/**
@@ -783,6 +812,9 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 	 */
 	deleteAndLeak(key: K): V | undefined {
 		const value = this._store.get(key);
+		if (value) {
+			setParentOfDisposable(value, null);
+		}
 		this._store.delete(key);
 		return value;
 	}
@@ -798,4 +830,20 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 	[Symbol.iterator](): IterableIterator<[K, V]> {
 		return this._store[Symbol.iterator]();
 	}
+}
+
+/**
+ * Call `then` on a Promise, unless the returned disposable is disposed.
+ */
+export function thenIfNotDisposed<T>(promise: Promise<T>, then: (result: T) => void): IDisposable {
+	let disposed = false;
+	promise.then(result => {
+		if (disposed) {
+			return;
+		}
+		then(result);
+	});
+	return toDisposable(() => {
+		disposed = true;
+	});
 }

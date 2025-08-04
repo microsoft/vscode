@@ -22,5 +22,11 @@ export const enum MarshalledId {
 	TestItemContext,
 	Date,
 	TestMessageMenuArgs,
-	ChatViewContext
+	ChatViewContext,
+	LanguageModelToolResult,
+	LanguageModelTextPart,
+	LanguageModelPromptTsxPart,
+	LanguageModelDataPart,
+	ChatSessionContext,
+	ChatResponsePullRequestPart,
 }

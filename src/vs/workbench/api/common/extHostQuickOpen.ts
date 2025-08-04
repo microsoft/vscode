@@ -283,6 +283,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _busy = false;
 		private _ignoreFocusOut = true;
 		private _value = '';
+		private _valueSelection: readonly [number, number] | undefined = undefined;
 		private _placeholder: string | undefined;
 		private _buttons: QuickInputButton[] = [];
 		private _handlesToButtons = new Map<number, QuickInputButton>();
@@ -290,7 +291,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeValueEmitter = new Emitter<string>();
 		private readonly _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
 		private readonly _onDidHideEmitter = new Emitter<void>();
-		private _updateTimeout: any;
+		private _updateTimeout: Timeout | undefined;
 		private _pendingUpdate: TransferQuickInput = { id: this._id };
 
 		private _disposed = false;
@@ -365,6 +366,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set value(value: string) {
 			this._value = value;
 			this.update({ value });
+		}
+
+		get valueSelection() {
+			return this._valueSelection;
+		}
+
+		set valueSelection(valueSelection: readonly [number, number] | undefined) {
+			this._valueSelection = valueSelection;
+			this.update({ valueSelection });
 		}
 
 		get placeholder() {
@@ -713,7 +723,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		private _password = false;
 		private _prompt: string | undefined;
-		private _valueSelection: readonly [number, number] | undefined;
 		private _validationMessage: string | InputBoxValidationMessage | undefined;
 
 		constructor(extension: IExtensionDescription, onDispose: () => void) {
@@ -737,15 +746,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set prompt(prompt: string | undefined) {
 			this._prompt = prompt;
 			this.update({ prompt });
-		}
-
-		get valueSelection() {
-			return this._valueSelection;
-		}
-
-		set valueSelection(valueSelection: readonly [number, number] | undefined) {
-			this._valueSelection = valueSelection;
-			this.update({ valueSelection });
 		}
 
 		get validationMessage() {

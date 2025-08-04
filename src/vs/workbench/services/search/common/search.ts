@@ -17,7 +17,7 @@ import { ITelemetryData } from '../../../../platform/telemetry/common/telemetry.
 import { Event } from '../../../../base/common/event.js';
 import * as paths from '../../../../base/common/path.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { GlobPattern, TextSearchCompleteMessageType } from './searchExtTypes.js';
+import { AISearchKeyword, GlobPattern, TextSearchCompleteMessageType } from './searchExtTypes.js';
 import { isThenable } from '../../../../base/common/async.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 
@@ -155,6 +155,7 @@ export type IRawAITextQuery = IAITextQueryProps<UriComponents>;
 
 export type IRawQuery = IRawTextQuery | IRawFileQuery | IRawAITextQuery;
 export type ISearchQuery = ITextQuery | IFileQuery | IAITextQuery;
+export type ITextSearchQuery = ITextQuery | IAITextQuery;
 
 export const enum QueryType {
 	File = 1,
@@ -237,10 +238,14 @@ export interface IProgressMessage {
 	message: string;
 }
 
-export type ISearchProgressItem = IFileMatch | IProgressMessage;
+export type ISearchProgressItem = IFileMatch | IProgressMessage | AISearchKeyword;
 
 export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
 	return !!(<IFileMatch>p).resource;
+}
+
+export function isAIKeyword(p: ISearchProgressItem): p is AISearchKeyword {
+	return !!(<AISearchKeyword>p).keyword;
 }
 
 export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProgressItem): p is IProgressMessage {
@@ -262,6 +267,7 @@ export interface ISearchCompleteStats {
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
 	exit?: SearchCompletionExitCode;
+	aiKeywords?: AISearchKeyword[];
 }
 
 export const enum SearchCompletionExitCode {
@@ -414,6 +420,12 @@ export const enum SearchSortOrder {
 	CountAscending = 'countAscending'
 }
 
+export const enum SemanticSearchBehavior {
+	Auto = 'auto',
+	Manual = 'manual',
+	RunOnEmpty = 'runOnEmpty',
+}
+
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
 	useRipgrep: boolean;
@@ -458,6 +470,10 @@ export interface ISearchConfigurationProperties {
 	defaultViewMode: ViewMode;
 	experimental: {
 		closedNotebookRichContentResults: boolean;
+	};
+	searchView: {
+		semanticSearchBehavior: string;
+		keywordSuggestions: boolean;
 	};
 }
 

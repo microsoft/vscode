@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { MarkdownRenderOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import './renderedMarkdown.css';
-import { applyFontInfo } from '../../../config/domFontInfo.js';
-import { ICodeEditor } from '../../../editorBrowser.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../common/languages/modesRegistry.js';
 import { tokenizeToString } from '../../../../common/languages/textToHtmlTokenizer.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { ICodeEditor } from '../../../editorBrowser.js';
+import './renderedMarkdown.css';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	readonly element: HTMLElement;
@@ -40,27 +39,20 @@ export class MarkdownRenderer {
 		}
 	});
 
-	private readonly _onDidRenderAsync = new Emitter<void>();
-	readonly onDidRenderAsync = this._onDidRenderAsync.event;
-
 	constructor(
 		private readonly _options: IMarkdownRendererOptions,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	dispose(): void {
-		this._onDidRenderAsync.dispose();
-	}
-
-	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
+	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
 		if (!markdown) {
-			const element = document.createElement('span');
+			const element = outElement ?? document.createElement('span');
 			return { element, dispose: () => { } };
 		}
 
 		const disposables = new DisposableStore();
-		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, markedOptions));
+		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, outElement));
 		rendered.element.classList.add('rendered-markdown');
 		return {
 			element: rendered.element,
@@ -68,7 +60,7 @@ export class MarkdownRenderer {
 		};
 	}
 
-	protected _getRenderOptions(markdown: IMarkdownString, disposables: DisposableStore): MarkdownRenderOptions {
+	private _getRenderOptions(markdown: IMarkdownString, disposables: DisposableStore): MarkdownRenderOptions {
 		return {
 			codeBlockRenderer: async (languageAlias, value) => {
 				// In markdown,
@@ -103,10 +95,9 @@ export class MarkdownRenderer {
 
 				return element;
 			},
-			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
 			actionHandler: {
 				callback: (link) => this.openMarkdownLink(link, markdown),
-				disposables: disposables
+				disposables
 			}
 		};
 	}
@@ -116,12 +107,13 @@ export class MarkdownRenderer {
 	}
 }
 
-export async function openLinkFromMarkdown(openerService: IOpenerService, link: string, isTrusted: boolean | MarkdownStringTrustedOptions | undefined): Promise<boolean> {
+export async function openLinkFromMarkdown(openerService: IOpenerService, link: string, isTrusted: boolean | MarkdownStringTrustedOptions | undefined, skipValidation?: boolean): Promise<boolean> {
 	try {
 		return await openerService.open(link, {
 			fromUserGesture: true,
 			allowContributedOpeners: true,
 			allowCommands: toAllowCommandsOption(isTrusted),
+			skipValidation
 		});
 	} catch (e) {
 		onUnexpectedError(e);

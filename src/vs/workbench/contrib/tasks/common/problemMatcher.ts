@@ -779,9 +779,9 @@ export namespace Config {
 	export interface IBackgroundMonitor {
 
 		/**
-		* If set to true the watcher is in active mode when the task
-		* starts. This is equals of issuing a line that matches the
-		* beginsPattern.
+		* If set to true the watcher starts in active mode. This is the
+		* same as outputting a line that matches beginsPattern when the
+		* task starts.
 		*/
 		activeOnStart?: boolean;
 
@@ -987,6 +987,10 @@ export class ProblemPatternParser extends Parser {
 			}
 			result.push(pattern);
 		}
+		if (!result || result.length === 0) {
+			this.error(localize('ProblemPatternParser.problemPattern.emptyPattern', 'The problem pattern is invalid. It must contain at least one pattern.'));
+			return null;
+		}
 		if (result[0].kind === undefined) {
 			result[0].kind = ProblemLocationKind.Location;
 		}
@@ -1042,6 +1046,10 @@ export class ProblemPatternParser extends Parser {
 	}
 
 	private validateProblemPattern(values: IProblemPattern[]): boolean {
+		if (!values || values.length === 0) {
+			this.error(localize('ProblemPatternParser.problemPattern.emptyPattern', 'The problem pattern is invalid. It must contain at least one pattern.'));
+			return false;
+		}
 		let file: boolean = false, message: boolean = false, location: boolean = false, line: boolean = false;
 		const locationKind = (values[0].kind === undefined) ? ProblemLocationKind.Location : values[0].kind;
 
@@ -1323,7 +1331,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginsPattern')
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
 					},
 					beginsPattern: {
 						oneOf: [
@@ -1353,7 +1361,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
 					},
 					beginsPattern: {
 						oneOf: [

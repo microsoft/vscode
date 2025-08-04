@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { List } from '../../../../base/browser/ui/list/listWidget.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, isFrameDeemphasized } from '../common/debug.js';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, isFrameDeemphasized, IDataBreakpointInfoResponse, DataBreakpointSetType } from '../common/debug.js';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread } from '../common/debugModel.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -36,10 +36,12 @@ import { showLoadedScriptMenu } from '../common/loadedScriptsPicker.js';
 import { showDebugSessionMenu } from './debugSessionPicker.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
-import { CONTEXT_IN_CHAT_SESSION } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
+export const COPY_ADDRESS_ID = 'editor.debug.action.copyAddress';
+export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
 export const COPY_STACK_TRACE_ID = 'debug.copyStackTrace';
 export const REVERSE_CONTINUE_ID = 'workbench.action.debug.reverseContinue';
@@ -66,6 +68,7 @@ export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
 export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
+export const COPY_WATCH_EXPRESSION_COMMAND_ID = 'debug.copyWatchExpression';
 export const SET_EXPRESSION_COMMAND_ID = 'debug.setWatchExpression';
 export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
 export const NEXT_DEBUG_CONSOLE_ID = 'workbench.action.debug.nextConsole';
@@ -78,6 +81,9 @@ export const CALLSTACK_DOWN_ID = 'workbench.action.debug.callStackDown';
 export const ADD_TO_WATCH_ID = 'debug.addToWatchExpressions';
 export const COPY_EVALUATE_PATH_ID = 'debug.copyEvaluatePath';
 export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
+export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
+export const BREAK_WHEN_VALUE_IS_ACCESSED_ID = 'debug.breakWhenValueIsAccessed';
+export const BREAK_WHEN_VALUE_IS_READ_ID = 'debug.breakWhenValueIsRead';
 
 export const DEBUG_COMMAND_CATEGORY: ILocalizedString = nls.localize2('debug', 'Debug');
 export const RESTART_LABEL = nls.localize2('restartDebug', "Restart");
@@ -104,6 +110,7 @@ export const CALLSTACK_UP_LABEL = nls.localize2('callStackUp', "Navigate Up Call
 export const CALLSTACK_DOWN_LABEL = nls.localize2('callStackDown', "Navigate Down Call Stack");
 export const COPY_EVALUATE_PATH_LABEL = nls.localize2('copyAsExpression', "Copy as Expression");
 export const COPY_VALUE_LABEL = nls.localize2('copyValue', "Copy Value");
+export const COPY_ADDRESS_LABEL = nls.localize2('copyAddress', "Copy Address");
 export const ADD_TO_WATCH_LABEL = nls.localize2('addToWatchExpressions', "Add to Watch");
 
 export const SELECT_DEBUG_CONSOLE_LABEL = nls.localize2('selectDebugConsole', "Select Debug Console");
@@ -111,6 +118,12 @@ export const SELECT_DEBUG_SESSION_LABEL = nls.localize2('selectDebugSession', "S
 
 export const DEBUG_QUICK_ACCESS_PREFIX = 'debug ';
 export const DEBUG_CONSOLE_QUICK_ACCESS_PREFIX = 'debug consoles ';
+
+let dataBreakpointInfoResponse: IDataBreakpointInfoResponse | undefined;
+
+export function setDataBreakpointInfoResponse(resp: IDataBreakpointInfoResponse | undefined) {
+	dataBreakpointInfoResponse = resp;
+}
 
 interface CallStackContext {
 	sessionId: string;
@@ -680,14 +693,6 @@ CommandsRegistry.registerCommand({
 });
 
 CommandsRegistry.registerCommand({
-	id: FOCUS_REPL_ID,
-	handler: async (accessor) => {
-		const viewsService = accessor.get(IViewsService);
-		await viewsService.openView(REPL_VIEW_ID, true);
-	}
-});
-
-CommandsRegistry.registerCommand({
 	id: 'debug.startFromConfig',
 	handler: async (accessor, config: IConfig) => {
 		const debugService = accessor.get(IDebugService);
@@ -906,6 +911,36 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_CHANGES_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'write' });
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_IS_ACCESSED_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'readWrite' });
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_IS_READ_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'read' });
+		}
+	}
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'debug.removeBreakpoint',
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -1014,7 +1049,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		CONTEXT_IN_DEBUG_MODE,
 		PanelFocusContext.toNegated(),
 		EditorContextKeys.editorTextFocus,
-		CONTEXT_IN_CHAT_SESSION.toNegated()),
+		ChatContextKeys.inChatSession.toNegated()),
 	group: 'debug',
 	order: 1
 });

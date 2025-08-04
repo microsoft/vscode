@@ -110,15 +110,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		picker.buttons = [{
 			location: QuickInputButtonLocation.Inline,
 			iconClass: ThemeIcon.asClassName(Codicon.goToSearch),
-			tooltip: localize('goToSearch', "See in Search Panel")
+			tooltip: localize('goToSearch', "Open in Search View")
 		}];
 		this.editorViewState.reset();
 		disposables.add(picker.onDidTriggerButton(async () => {
-			if (this.searchModel.searchResult.count() > 0) {
-				await this.moveToSearchViewlet(undefined);
-			} else {
-				this._viewsService.openView(VIEW_ID, true);
-			}
+			await this.moveToSearchViewlet(undefined);
 			picker.hide();
 		}));
 
@@ -311,7 +307,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					},
 					buttons: [{
 						iconClass: ThemeIcon.asClassName(searchActivityBarIcon),
-						tooltip: localize('showMore', "See in Search Panel"),
+						tooltip: localize('showMore', "Open in Search View"),
 					}],
 					ariaLabel: `Match at location ${element.range().startLineNumber}:${element.range().startColumn} - ${previewText}`,
 					accept: async (keyMods, event) => {

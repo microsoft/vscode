@@ -28,7 +28,8 @@ export const nullExtensionDescription = Object.freeze<IExtensionDescription>({
 	isBuiltin: false,
 	targetPlatform: TargetPlatform.UNDEFINED,
 	isUserBuiltin: false,
-	isUnderDevelopment: false
+	isUnderDevelopment: false,
+	preRelease: false,
 });
 
 export type WebWorkerExtHostConfigValue = boolean | 'auto';
@@ -106,9 +107,16 @@ export const enum ExtensionHostStartup {
 	 */
 	EagerManualStart = 2,
 	/**
-	 * The extension host should be launched lazily and only when it has extensions it needs to host. It needs a `$startExtensionHost` call.
+	 * The extension host should be launched lazily and only when it has extensions it needs to host. It doesn't require a `$startExtensionHost` call.
 	 */
-	Lazy = 3,
+	LazyAutoStart = 3,
+}
+
+export interface IExtensionInspectInfo {
+	readonly port: number;
+	readonly host: string;
+	readonly devtoolsUrl?: string;
+	readonly devtoolsLabel?: string;
 }
 
 export interface IExtensionHost {
@@ -125,7 +133,7 @@ export interface IExtensionHost {
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol>;
-	getInspectPort(): { port: number; host: string } | undefined;
+	getInspectPort(): IExtensionInspectInfo | undefined;
 	enableInspectPort(): Promise<boolean>;
 	disconnect?(): Promise<void>;
 	dispose(): void;
@@ -368,7 +376,7 @@ export interface IResponsiveStateChangeEvent {
 	/**
 	 * Return the inspect port or `0`. `0` means inspection is not possible.
 	 */
-	getInspectListener(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined>;
+	getInspectListener(tryEnableInspector: boolean): Promise<IExtensionInspectInfo | undefined>;
 }
 
 export const enum ActivationKind {
@@ -511,7 +519,7 @@ export interface IExtensionService {
 	/**
 	 * Return the inspect ports (if inspection is possible) for extension hosts of kind `extensionHostKind`.
 	 */
-	getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<{ port: number; host: string }[]>;
+	getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<IExtensionInspectInfo[]>;
 
 	/**
 	 * Stops the extension hosts.
@@ -559,7 +567,9 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 		location: extensionDescription.extensionLocation,
 		targetPlatform: extensionDescription.targetPlatform,
 		validations: [],
-		isValid: true
+		isValid: true,
+		preRelease: extensionDescription.preRelease,
+		publisherDisplayName: extensionDescription.publisherDisplayName,
 	};
 }
 
@@ -575,6 +585,7 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
+		preRelease: extension.preRelease,
 		...extension.manifest
 	};
 }
@@ -596,7 +607,7 @@ export class NullExtensionService implements IExtensionService {
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }
-	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<{ port: number; host: string }[]> { return Promise.resolve([]); }
+	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<IExtensionInspectInfo[]> { return Promise.resolve([]); }
 	async stopExtensionHosts(): Promise<boolean> { return true; }
 	async startExtensionHosts(): Promise<void> { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }

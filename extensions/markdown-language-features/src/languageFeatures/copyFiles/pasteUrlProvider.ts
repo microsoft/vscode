@@ -6,9 +6,9 @@
 import * as vscode from 'vscode';
 import { IMdParser } from '../../markdownEngine';
 import { Mime } from '../../util/mimes';
-import { createInsertUriListEdit } from './shared';
-import { InsertMarkdownLink, findValidUriInText, shouldInsertMarkdownLinkByDefault } from './smartDropOrPaste';
 import { UriList } from '../../util/uriList';
+import { createInsertUriListEdit, linkEditKind } from './shared';
+import { InsertMarkdownLink, findValidUriInText, shouldInsertMarkdownLinkByDefault } from './smartDropOrPaste';
 
 /**
  * Adds support for pasting text uris to create markdown links.
@@ -17,7 +17,7 @@ import { UriList } from '../../util/uriList';
  */
 class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
-	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'link');
+	public static readonly kind = linkEditKind;
 
 	public static readonly pasteMimeTypes = [Mime.textPlain];
 
@@ -29,7 +29,7 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
-		_context: vscode.DocumentPasteEditContext,
+		context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
 		const pasteUrlSetting = vscode.workspace.getConfiguration('markdown', document)
@@ -44,12 +44,17 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
+		// TODO: If the user has explicitly requested to paste as a markdown link,
+		// try to paste even if we don't have a valid uri
 		const uriText = findValidUriInText(text);
 		if (!uriText) {
 			return;
 		}
 
-		const edit = createInsertUriListEdit(document, ranges, UriList.from(uriText), { preserveAbsoluteUris: true });
+		const edit = createInsertUriListEdit(document, ranges, UriList.from(uriText), {
+			linkKindHint: context.only,
+			preserveAbsoluteUris: true
+		});
 		if (!edit) {
 			return;
 		}
@@ -61,7 +66,7 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
 		if (!(await shouldInsertMarkdownLinkByDefault(this._parser, document, pasteUrlSetting, ranges, token))) {
 			pasteEdit.yieldTo = [
-				vscode.DocumentDropOrPasteEditKind.Empty.append('text'),
+				vscode.DocumentDropOrPasteEditKind.Text,
 				vscode.DocumentDropOrPasteEditKind.Empty.append('uri')
 			];
 		}

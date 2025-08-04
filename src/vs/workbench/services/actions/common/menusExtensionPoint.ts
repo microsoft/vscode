@@ -106,6 +106,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugVariablesContext', "The debug variables view context menu")
 	},
 	{
+		key: 'debug/watch/context',
+		id: MenuId.DebugWatchContext,
+		description: localize('menus.debugWatchContext', "The debug watch view context menu")
+	},
+	{
 		key: 'debug/toolBar',
 		id: MenuId.DebugToolBar,
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
@@ -183,8 +188,20 @@ const apiMenus: IAPIMenu[] = [
 	},
 	{
 		key: 'scm/historyItem/context',
-		id: MenuId.SCMChangesContext,
+		id: MenuId.SCMHistoryItemContext,
 		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/historyItem/hover',
+		id: MenuId.SCMHistoryItemHover,
+		description: localize('menus.historyItemHover', "The Source Control history item hover menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/historyItemRef/context',
+		id: MenuId.SCMHistoryItemRefContext,
+		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
@@ -306,8 +323,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'issue/reporter',
 		id: MenuId.IssueReporter,
-		description: localize('issue.reporter', "The contributed issue reporter menu"),
-		proposed: 'contribIssueReporter'
+		description: localize('issue.reporter', "The contributed issue reporter menu")
 	},
 	{
 		key: 'testing/item/context',
@@ -427,7 +443,33 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.DiffEditorSelectionToolbar,
 		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
 		proposed: 'contribDiffEditorGutterToolBarMenus'
-	}
+	},
+	{
+		key: 'searchPanel/aiResults/commands',
+		id: MenuId.SearchActionMenu,
+		description: localize('searchPanel.aiResultsCommands', "The commands that will contribute to the menu rendered as buttons next to the AI search title"),
+	},
+	{
+		key: 'editor/context/chat',
+		id: MenuId.ChatTextEditorMenu,
+		description: localize('menus.chatTextEditor', "The Chat submenu in the text editor context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatParticipantPrivate'
+	},
+	{
+		key: 'terminal/context/chat',
+		id: MenuId.ChatTerminalMenu,
+		description: localize('menus.chatTerminal', "The Chat submenu in the terminal context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatParticipantPrivate'
+	},
+	{
+		key: 'chat/chatSessions',
+		id: MenuId.ChatSessionsMenu,
+		description: localize('menus.chatSessions', "The Chat Sessions menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
 ];
 
 namespace schema {
@@ -1038,11 +1080,19 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		// Add to commandPalette array any commands not explicitly contributed to it
 		const implicitlyOnCommandPalette = index(commands, c => c.id);
-		for (const command of menus['commandPalette']) {
-			delete implicitlyOnCommandPalette[command.command];
+		if (menus['commandPalette']) {
+			for (const command of menus['commandPalette']) {
+				delete implicitlyOnCommandPalette[command.command];
+			}
 		}
-		for (const command in implicitlyOnCommandPalette) {
-			menus['commandPalette'].push({ command });
+
+		if (Object.keys(implicitlyOnCommandPalette).length) {
+			if (!menus['commandPalette']) {
+				menus['commandPalette'] = [];
+			}
+			for (const command in implicitlyOnCommandPalette) {
+				menus['commandPalette'].push({ command });
+			}
 		}
 
 		for (const context in menus) {

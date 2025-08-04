@@ -18,7 +18,7 @@ import { IWorkingCopyService } from '../../workingCopy/common/workingCopyService
 import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID, IWorkingCopySaveEvent } from '../../workingCopy/common/workingCopy.js';
 import { IEncodingSupport, ILanguageSupport, ITextFileService } from '../../textfile/common/textfiles.js';
 import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ensureValidWordDefinition } from '../../../../editor/common/core/wordHelper.js';
 import { IEditorService } from '../../editor/common/editorService.js';
@@ -144,6 +144,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService);
 
+		this.dirty = this.hasAssociatedFilePath || !!this.initialValue;
+
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
 
@@ -237,7 +239,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#region Dirty
 
-	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
+	private dirty: boolean;
 
 	isDirty(): boolean {
 		return this.dirty;
@@ -347,7 +349,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		// Listen to text model events
-		const textEditorModel = assertIsDefined(this.textEditorModel);
+		const textEditorModel = assertReturnsDefined(this.textEditorModel);
 		this.installModelListeners(textEditorModel);
 
 		// Only adjust name and dirty state etc. if we
