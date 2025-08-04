@@ -130,6 +130,7 @@ export class ChatEditor extends EditorPane {
 		if (input.resource.scheme === Schemas.vscodeChatSession) {
 			const identifier = ChatSessionUri.parse(input.resource);
 			if (identifier) {
+				await this.chatSessionsService.canResolveContentProvider(input.resource.authority);
 				const contributions = this.chatSessionsService.getChatSessionContributions();
 				const contribution = contributions.find(c => c.type === identifier.chatSessionType);
 				if (contribution) {
