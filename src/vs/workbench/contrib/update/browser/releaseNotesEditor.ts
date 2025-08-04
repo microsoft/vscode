@@ -273,6 +273,11 @@ export class ReleaseNotesManager {
 			}]
 		});
 
+		// Remove HTML comment markers around table of contents navigation
+		const processedContent = content
+			.replace(/<!--\s*TOC\s*/gi, '')
+			.replace(/\s*Navigation End\s*-->/gi, '');
+
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
@@ -539,7 +544,7 @@ export class ReleaseNotesManager {
 				</style>
 			</head>
 			<body>
-				${content}
+				${processedContent}
 				<script nonce="${nonce}">
 					const vscode = acquireVsCodeApi();
 					const container = document.createElement('p');
