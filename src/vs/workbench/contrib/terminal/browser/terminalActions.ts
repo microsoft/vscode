@@ -358,7 +358,8 @@ export function registerTerminalActions() {
 			const instance = await c.service.createTerminal({
 				location: {
 					viewColumn: AUX_WINDOW_GROUP,
-				}
+					auxiliary: { compact: true },
+				},
 			});
 			await instance.focusWhenReady();
 		}
