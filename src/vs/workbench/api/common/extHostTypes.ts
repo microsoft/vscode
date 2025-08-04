@@ -5030,16 +5030,17 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	}
 }
 
-export enum ToolResultAudience {
+export enum LanguageModelPartAudience {
 	Assistant = 0,
 	User = 1,
+	Extension = 2,
 }
 
 export class LanguageModelTextPart implements vscode.LanguageModelTextPart2 {
 	value: string;
-	audience: vscode.ToolResultAudience[] | undefined;
+	audience: vscode.LanguageModelPartAudience[] | undefined;
 
-	constructor(value: string, audience?: vscode.ToolResultAudience[]) {
+	constructor(value: string, audience?: vscode.LanguageModelPartAudience[]) {
 		this.value = value;
 		audience = audience;
 	}
@@ -5056,9 +5057,9 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart2 {
 export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 	mimeType: string;
 	data: Uint8Array<ArrayBufferLike>;
-	audience: vscode.ToolResultAudience[] | undefined;
+	audience: vscode.LanguageModelPartAudience[] | undefined;
 
-	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string, audience?: vscode.ToolResultAudience[]) {
+	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string, audience?: vscode.LanguageModelPartAudience[]) {
 		this.mimeType = mimeType;
 		this.data = data;
 		this.audience = audience;
