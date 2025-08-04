@@ -109,7 +109,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
-		extensionPoint.setHandler(extensions => {
+		this._register(extensionPoint.setHandler(extensions => {
 			for (const ext of extensions) {
 				if (!isProposedApiEnabled(ext.description, 'chatSessionsProvider')) {
 					continue;
@@ -131,7 +131,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					this._register(this.registerContribution(c));
 				}
 			}
-		});
+		}));
 
 		// Listen for context changes and re-evaluate contributions
 		this._register(Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(this._contextKeys))(() => {
