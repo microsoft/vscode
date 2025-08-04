@@ -86,7 +86,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	trackPromptInputToVirtualFile(content: string): void {
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		if (content !== 'exit()' && this._shellType === GeneralShellType.Python) {
+		if (this._shellType === GeneralShellType.Python) {
 			if (model) {
 				const existingContent = model.getValue();
 				const delimiterIndex = existingContent.lastIndexOf(VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
