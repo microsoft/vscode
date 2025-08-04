@@ -76,7 +76,7 @@ export class TerminalViewPane extends ViewPane {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
@@ -89,10 +89,8 @@ export class TerminalViewPane extends ViewPane {
 		@IMenuService private readonly _menuService: IMenuService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, hoverService);
+		super(options, keybindingService, contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, hoverService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
 			this._onDidChangeViewWelcomeState.fire();
 		}));
