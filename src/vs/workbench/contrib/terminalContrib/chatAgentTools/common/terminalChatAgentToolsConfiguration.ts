@@ -87,6 +87,32 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			]
 		},
 		default: {
+			// Safe and common readonly commands (automatically approved)
+			echo: true,
+			ls: true,
+			pwd: true,
+			cat: true,
+			head: true,
+			tail: true,
+			grep: true,
+			find: true,
+			which: true,
+			whoami: true,
+			date: true,
+			hostname: true,
+			ps: true,
+			wc: true,
+			sort: true,
+			uniq: true,
+			// PowerShell equivalents
+			'/^Get-ChildItem\\b/i': true,
+			'/^Get-Content\\b/i': true,
+			'/^Get-Location\\b/i': true,
+			'/^Get-Date\\b/i': true,
+			'/^Get-Host\\b/i': true,
+			'/^Get-Process\\b/i': true,
+			'/^Get-Service\\b/i': true,
+			// Dangerous commands (require explicit approval)
 			rm: false,
 			rmdir: false,
 			del: false,

@@ -618,4 +618,78 @@ suite('CommandLineAutoApprover', () => {
 			});
 		});
 	});
+
+	suite('default configuration', () => {
+		test('should auto-approve safe readonly commands by default', () => {
+			// Don't set any configuration - use defaults
+			setAutoApprove({});
+
+			// Unix/Linux safe commands should be auto-approved by default
+			ok(isAutoApproved('echo hello'));
+			ok(isAutoApproved('ls -la'));
+			ok(isAutoApproved('pwd'));
+			ok(isAutoApproved('cat file.txt'));
+			ok(isAutoApproved('head -10 file.txt'));
+			ok(isAutoApproved('tail -f log.txt'));
+			ok(isAutoApproved('grep pattern file.txt'));
+			ok(isAutoApproved('find . -name "*.txt"'));
+			ok(isAutoApproved('which node'));
+			ok(isAutoApproved('whoami'));
+			ok(isAutoApproved('date'));
+			ok(isAutoApproved('hostname'));
+			ok(isAutoApproved('ps aux'));
+			ok(isAutoApproved('wc -l file.txt'));
+			ok(isAutoApproved('sort file.txt'));
+			ok(isAutoApproved('uniq file.txt'));
+
+			// Dangerous commands should be denied by default
+			ok(!isAutoApproved('rm file.txt'));
+			ok(!isAutoApproved('rmdir directory'));
+			ok(!isAutoApproved('del file.txt'));
+			ok(!isAutoApproved('kill 1234'));
+			ok(!isAutoApproved('curl -X POST http://example.com'));
+			ok(!isAutoApproved('wget http://example.com/script.sh'));
+			ok(!isAutoApproved('eval "dangerous code"'));
+			ok(!isAutoApproved('chmod 777 file.txt'));
+			ok(!isAutoApproved('chown user file.txt'));
+		});
+
+		test('should auto-approve PowerShell safe commands by default', () => {
+			// Don't set any configuration - use defaults
+			setAutoApprove({});
+
+			// PowerShell safe commands should be auto-approved by default
+			ok(isAutoApproved('Get-ChildItem'));
+			ok(isAutoApproved('Get-ChildItem C:\\'));
+			ok(isAutoApproved('get-childitem')); // case insensitive
+			ok(isAutoApproved('Get-Content file.txt'));
+			ok(isAutoApproved('GET-CONTENT file.txt')); // case insensitive
+			ok(isAutoApproved('Get-Location'));
+			ok(isAutoApproved('Get-Date'));
+			ok(isAutoApproved('Get-Host'));
+			ok(isAutoApproved('Get-Process'));
+			ok(isAutoApproved('Get-Service'));
+
+			// PowerShell dangerous commands should be denied by default
+			ok(!isAutoApproved('Remove-Item file.txt'));
+			ok(!isAutoApproved('REMOVE-ITEM file.txt')); // case insensitive
+		});
+
+		test('should allow overriding defaults with explicit configuration', () => {
+			// Override defaults with explicit configuration
+			setAutoApprove({
+				echo: false, // Deny a usually safe command
+				rm: true     // Allow a usually dangerous command
+			});
+
+			// Overridden commands should follow explicit config
+			ok(!isAutoApproved('echo hello')); // Now denied
+			ok(isAutoApproved('rm file.txt'));  // Now allowed
+
+			// Non-overridden defaults should still work
+			ok(isAutoApproved('ls -la'));
+			ok(isAutoApproved('pwd'));
+			ok(!isAutoApproved('kill 1234'));
+		});
+	});
 });
