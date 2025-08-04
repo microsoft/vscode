@@ -122,7 +122,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
 				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-				() => promptForMorePolling(args.task.label, invocation.context!, this._chatService),
+				() => promptForMorePolling(args.task.label, token, invocation.context!, this._chatService),
 				outputAndIdle,
 				token,
 				this._languageModelsService,
@@ -131,12 +131,12 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		}
 		let output = '';
 		if (result?.exitCode) {
-			output = `Task failed with exit code.`;
+			output = `Task \`${args.task.label}\` failed with exit code ${result.exitCode}.`;
 		} else {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task finished`;
+				output += `Task \`${args.task.label}\` finished`;
 			} else {
-				output += `Task started and will continue to run in the background.`;
+				output += `Task \`${args.task.label}\` started and will continue to run in the background.`;
 			}
 		}
 		this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
@@ -197,7 +197,7 @@ export const CreateAndRunTaskToolData: IToolData = {
 	id: 'create_and_run_task',
 	toolReferenceName: 'createAndRunTask',
 	displayName: localize('createAndRunTask.displayName', 'Create and run Task'),
-	modelDescription: localize('createAndRunTask.modelDescription', 'For a workspace, this tool will create a task based on the package.json, README.md, and project structure so that the project can be built and run.'),
+	modelDescription: localize('createAndRunTask.modelDescription', 'Creates and runs a build, run, or custom task for the workspace by generating or adding to a tasks.json file based on the project structure (such as package.json or README.md). If the user asks to build, run, launch and they have no tasks.json file, use this tool. If they ask to create or add a task, use this tool.'),
 	userDescription: localize('createAndRunTask.userDescription', "Create and run a task in the workspace"),
 	source: ToolDataSource.Internal,
 	inputSchema: {

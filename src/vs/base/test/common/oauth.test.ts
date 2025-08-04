@@ -8,7 +8,6 @@ import * as sinon from 'sinon';
 import {
 	getClaimsFromJWT,
 	getDefaultMetadataForUrl,
-	getResourceServerBaseUrlFromDiscoveryUrl,
 	isAuthorizationAuthorizeResponse,
 	isAuthorizationDeviceResponse,
 	isAuthorizationErrorResponse,
@@ -622,106 +621,6 @@ suite('OAuth', () => {
 				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Text parsing failed/
 			);
-		});
-	});
-
-	suite('getResourceServerBaseUrlFromDiscoveryUrl', () => {
-		test('should extract base URL from discovery URL at root', () => {
-			const discoveryUrl = 'https://mcp.example.com/.well-known/oauth-protected-resource';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://mcp.example.com/');
-		});
-
-		test('should extract base URL from discovery URL with subpath', () => {
-			const discoveryUrl = 'https://mcp.example.com/.well-known/oauth-protected-resource/mcp';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://mcp.example.com/mcp');
-		});
-
-		test('should extract base URL from discovery URL with nested subpath', () => {
-			const discoveryUrl = 'https://api.example.com/.well-known/oauth-protected-resource/v1/services/mcp';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://api.example.com/v1/services/mcp');
-		});
-
-		test('should handle discovery URL with port number', () => {
-			const discoveryUrl = 'https://localhost:8443/.well-known/oauth-protected-resource/api';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://localhost:8443/api');
-		});
-
-		test('should handle discovery URL with query parameters', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api?version=1';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/api');
-		});
-
-		test('should handle discovery URL with fragment', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api#section';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/api');
-		});
-
-		test('should handle discovery URL ending with trailing slash', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api/';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/api/');
-		});
-
-		test('should handle HTTP URLs', () => {
-			const discoveryUrl = 'http://localhost:3000/.well-known/oauth-protected-resource/dev';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'http://localhost:3000/dev');
-		});
-
-		test('should throw error for URL without discovery path', () => {
-			const discoveryUrl = 'https://example.com/some/other/path';
-			assert.throws(
-				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
-				/Invalid discovery URL: expected path to start with \/\.well-known\/oauth-protected-resource/
-			);
-		});
-
-		test('should throw error for URL with partial discovery path', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth';
-			assert.throws(
-				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
-				/Invalid discovery URL: expected path to start with \/\.well-known\/oauth-protected-resource/
-			);
-		});
-
-		test('should throw error for URL with discovery path not at beginning', () => {
-			const discoveryUrl = 'https://example.com/api/.well-known/oauth-protected-resource';
-			assert.throws(
-				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
-				/Invalid discovery URL: expected path to start with \/\.well-known\/oauth-protected-resource/
-			);
-		});
-
-		test('should throw error for invalid URL format', () => {
-			const discoveryUrl = 'not-a-valid-url';
-			assert.throws(
-				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
-				TypeError
-			);
-		});
-
-		test('should handle empty path after discovery path', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/');
-		});
-
-		test('should preserve URL encoding in subpath', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api%20v1';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/api%20v1');
-		});
-
-		test('should normalize hostname case consistently', () => {
-			const discoveryUrl = 'https://MCP.EXAMPLE.COM/.well-known/oauth-protected-resource';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://mcp.example.com/');
 		});
 	});
 

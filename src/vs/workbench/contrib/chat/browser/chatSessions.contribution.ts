@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -25,6 +26,8 @@ import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+
+const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -275,7 +278,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isDynamic: true,
 			isCodingAgent: true, // TODO: Influences chat UI (eg: locks chat to participant, hides UX elements, etc...)
 			slashCommands: [],
-			locations: [ChatAgentLocation.Panel], // TODO: This doesn't appear to be respected
+			locations: [ChatAgentLocation.Panel],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask], // TODO: These are no longer respected
 			disambiguation: [],
 			metadata: {
@@ -292,7 +295,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return disposable;
 	}
 
-	getChatSessionContributions(): IChatSessionsExtensionPoint[] {
+	async getChatSessionContributions(waitForActivation?: string[]): Promise<IChatSessionsExtensionPoint[]> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		if (waitForActivation) {
+			await Promise.all(waitForActivation.map(id => this._extensionService.activateByEvent(`onChatSession:${id}`)));
+		}
 		return Array.from(this._contributions.values()).filter(contribution =>
 			this._isContributionAvailable(contribution)
 		);
@@ -482,6 +489,17 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 
 		if (chatSession?.requestHandler) {
 			await chatSession.requestHandler(request, progress, [], token);
+		} else {
+			// TODO(jospicer): Temporary while we work on API for dynamic agent to trigger a session
+			const content = new MarkdownString(
+				localize('chatSessionNotFound', "Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS),
+			);
+			progress(
+				[{
+					kind: 'markdownContent',
+					content,
+				}]
+			);
 		}
 
 		return {};

@@ -44,6 +44,7 @@ type ShellGlobalsCacheEntry = {
 
 type ShellGlobalsCacheEntryWithMeta = ShellGlobalsCacheEntry & { timestamp: number };
 const cachedGlobals: Map<string, ShellGlobalsCacheEntryWithMeta> = new Map();
+const inflightRequests: Map<string, Promise<ICompletionResource[] | undefined>> = new Map();
 let pathExecutableCache: PathExecutableCache;
 const CACHE_KEY = 'terminalSuggestGlobalsCacheV2';
 let globalStorageUri: vscode.Uri;
@@ -75,7 +76,6 @@ const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithS
 	[TerminalShellType.PowerShell, getPwshGlobals],
 ]);
 
-
 async function getShellGlobals(
 	shellType: TerminalShellType,
 	existingCommands?: Set<string>,
@@ -105,8 +105,11 @@ async function getShellGlobals(
 				shouldRefresh = true;
 			}
 			if (!shouldRefresh && cached.commands) {
-				// Trigger background refresh
-				void fetchAndCacheShellGlobals(shellType, existingCommands, machineId, remoteAuthority, true);
+				// NOTE: This used to trigger a background refresh in order to ensure all commands
+				// are up to date, but this ends up launching way too many processes. Especially on
+				// Windows where this caused significant performance issues as processes can block
+				// the extension host for several seconds
+				// (https://github.com/microsoft/vscode/issues/259343).
 				return cached.commands;
 			}
 		}
@@ -122,30 +125,50 @@ async function fetchAndCacheShellGlobals(
 	remoteAuthority?: string,
 	background?: boolean
 ): Promise<ICompletionResource[] | undefined> {
-	try {
-		let execShellType = shellType;
-		if (shellType === TerminalShellType.GitBash) {
-			execShellType = TerminalShellType.Bash; // Git Bash is a bash shell
-		}
-		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: execShellType, windowsHide: true };
-		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
-		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
-		if (machineId) {
-			const cacheKey = getCacheKey(machineId, remoteAuthority, shellType);
-			cachedGlobals.set(cacheKey, {
-				commands: normalizedCommands,
-				existingCommands: existingCommands ? Array.from(existingCommands) : undefined,
-				timestamp: Date.now()
-			});
-			await writeGlobalsCache();
-		}
-		return normalizedCommands;
-	} catch (error) {
-		if (!background) {
-			console.error('Error fetching builtin commands:', error);
-		}
-		return;
+	const cacheKey = getCacheKey(machineId ?? 'no-machine-id', remoteAuthority, shellType);
+
+	// Check if there's already an in-flight request for this cache key
+	const existingRequest = inflightRequests.get(cacheKey);
+	if (existingRequest) {
+		// Wait for the existing request to complete rather than spawning a new process
+		return existingRequest;
 	}
+
+	// Create a new request and store it in the inflight map
+	const requestPromise = (async () => {
+		try {
+			let execShellType = shellType;
+			if (shellType === TerminalShellType.GitBash) {
+				execShellType = TerminalShellType.Bash; // Git Bash is a bash shell
+			}
+			const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: execShellType, windowsHide: true };
+			const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
+			const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
+			if (machineId) {
+				const cacheKey = getCacheKey(machineId, remoteAuthority, shellType);
+				cachedGlobals.set(cacheKey, {
+					commands: normalizedCommands,
+					existingCommands: existingCommands ? Array.from(existingCommands) : undefined,
+					timestamp: Date.now()
+				});
+				await writeGlobalsCache();
+			}
+			return normalizedCommands;
+		} catch (error) {
+			if (!background) {
+				console.error('Error fetching builtin commands:', error);
+			}
+			return;
+		} finally {
+			// Always remove the promise from inflight requests when done
+			inflightRequests.delete(cacheKey);
+		}
+	})();
+
+	// Store the promise in the inflight map
+	inflightRequests.set(cacheKey, requestPromise);
+
+	return requestPromise;
 }
 
 
@@ -231,20 +254,15 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const [commandsInPath, shellGlobals] = await Promise.all([
-				pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType),
-				(async () => {
-					const executables = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
-					return getShellGlobals(terminalShellType, executables?.labels, machineId, remoteAuthority);
-				})()
-			]);
-			const shellGlobalsArr = shellGlobals ?? [];
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
+			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels, machineId, remoteAuthority) ?? [];
+
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
 				return;
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
-			const commands = [...shellGlobalsArr, ...commandsInPath.completionResources];
+			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const currentCommandString = getCurrentCommandAndArgs(terminalContext.commandLine, terminalContext.cursorPosition, terminalShellType);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
@@ -274,6 +292,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
+
 			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
 				return new vscode.TerminalCompletionList(result.items, {
 					filesRequested: result.filesRequested,
@@ -287,6 +306,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}, '/', '\\'));
 	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
+
+	context.subscriptions.push(vscode.commands.registerCommand('terminal.integrated.suggest.clearCachedGlobals', () => {
+		cachedGlobals.clear();
+	}));
 }
 
 /**
