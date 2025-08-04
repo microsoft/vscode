@@ -446,7 +446,6 @@ export const allowedMarkdownHtmlAttributes = [
 	'autoplay',
 	'alt',
 	'checked',
-	'class',
 	'colspan',
 	'controls',
 	'disabled',
