@@ -288,6 +288,13 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
 
 	/**
+	 * Creates and focuses a terminal.
+	 * @param options The options to create the terminal with, when not specified the default
+	 * profile will be used at the default target.
+	 */
+	createAndFocusTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
+
+	/**
 	 * Creates a detached xterm instance which is not attached to the DOM or
 	 * tracked as a terminal instance.
 	 * @params options The options to create the terminal with
