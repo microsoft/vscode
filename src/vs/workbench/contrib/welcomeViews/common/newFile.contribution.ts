@@ -11,7 +11,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -19,6 +19,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 
 const builtInSource = localize('Built-In', "Built-In");
 const category: ILocalizedString = localize2('Create', 'Create');
@@ -37,7 +38,8 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.MenubarFileMenu,
 				group: '1_new',
-				order: 2
+				order: 2,
+				when: ContextKeyExpr.true()
 			}
 		});
 	}
@@ -206,6 +208,11 @@ class NewFileTemplatesManager extends Disposable {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(NewFileTemplatesManager, LifecyclePhase.Restored);
+
+// Add "New File..." to Empty Editor Group and Editor Tabs Bar Context Menus for auxiliary windows
+for (const menuId of [MenuId.EmptyEditorGroupContext, MenuId.EditorTabsBarContext]) {
+	MenuRegistry.appendMenuItem(menuId, { command: { id: 'welcome.showNewFileEntries', title: localize('newFileDialog', "New File...") }, group: '1_file', order: 5 });
+}
 
 MenuRegistry.appendMenuItem(MenuId.NewFile, {
 	group: 'file',
