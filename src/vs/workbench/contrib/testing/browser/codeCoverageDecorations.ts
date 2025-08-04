@@ -38,7 +38,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputButton, IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
@@ -792,7 +791,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 	run(accessor: ServicesAccessor, coverageOrUri?: FileCoverage | URI, editor?: ICodeEditor): void {
 		const testCoverageService = accessor.get(ITestCoverageService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const openerService = accessor.get(IOpenerService);
+		const commandService = accessor.get(ICommandService);
 		const activeEditor = isCodeEditor(editor) ? editor : accessor.get(ICodeEditorService).getActiveCodeEditor();
 		let coverage: FileCoverage | undefined;
 		if (coverageOrUri instanceof FileCoverage) {
@@ -835,12 +834,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 			activeItem: items.find((item): item is TItem => 'item' in item && item.item === coverage),
 			placeHolder: coverUtils.labels.pickShowCoverage,
 			onDidTriggerItemButton: (context) => {
-				if (context.item.testId) {
-					const test = result.getTestById(context.item.testId.toString());
-					if (test?.uri) {
-						openerService.open(test?.uri, { fromUserGesture: true });
-					}
-				}
+				commandService.executeCommand('vscode.revealTest', context.item.testId?.toString());
 			},
 			onDidFocus: (entry) => {
 				if (!entry.testId) {
