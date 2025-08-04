@@ -16,11 +16,22 @@ import { TerminalShellType } from '../terminalSuggestMain';
 
 const isWindows = osIsWindows();
 
+export interface IExecutablesInPath {
+	completionResources: Set<ICompletionResource> | undefined;
+	labels: Set<string> | undefined;
+}
+
 export class PathExecutableCache implements vscode.Disposable {
 	private _disposables: vscode.Disposable[] = [];
 
 	private _cachedWindowsExeExtensions: { [key: string]: boolean | undefined } | undefined;
 	private _cachedExes: Map<string, Set<ICompletionResource> | undefined> = new Map();
+
+	private _inProgressRequest: {
+		env: ITerminalEnvironment;
+		shellType: TerminalShellType | undefined;
+		promise: Promise<IExecutablesInPath | undefined>;
+	} | undefined;
 
 	constructor() {
 		if (isWindows) {
@@ -41,7 +52,6 @@ export class PathExecutableCache implements vscode.Disposable {
 	}
 
 	refresh(directory?: string): void {
-		console.trace('clear cache');
 		if (directory) {
 			this._cachedExes.delete(directory);
 		} else {
@@ -49,7 +59,29 @@ export class PathExecutableCache implements vscode.Disposable {
 		}
 	}
 
-	async getExecutablesInPath(env: ITerminalEnvironment = process.env, shellType?: TerminalShellType): Promise<{ completionResources: Set<ICompletionResource> | undefined; labels: Set<string> | undefined } | undefined> {
+	async getExecutablesInPath(env: ITerminalEnvironment = process.env, shellType?: TerminalShellType): Promise<IExecutablesInPath | undefined> {
+		if (this._inProgressRequest &&
+			this._inProgressRequest.env === env &&
+			this._inProgressRequest.shellType === shellType
+		) {
+			return this._inProgressRequest.promise;
+		}
+
+		const promise = this._doGetExecutablesInPath(env, shellType);
+
+		this._inProgressRequest = {
+			env,
+			shellType,
+			promise,
+		};
+
+		await promise;
+		this._inProgressRequest = undefined;
+
+		return promise;
+	}
+
+	private async _doGetExecutablesInPath(env: ITerminalEnvironment, shellType?: TerminalShellType): Promise<IExecutablesInPath | undefined> {
 		// Create cache key
 		let pathValue: string | undefined;
 		if (shellType === TerminalShellType.GitBash) {
@@ -86,7 +118,7 @@ export class PathExecutableCache implements vscode.Disposable {
 			} else {
 				// Not cached, need to scan this directory
 				promisePaths.push(pathDir);
-				promises.push(this._getExecutablesInPath(pathDir, pathSeparator, labels));
+				promises.push(this._getExecutablesInSinglePath(pathDir, pathSeparator, labels));
 			}
 		}
 
@@ -120,7 +152,7 @@ export class PathExecutableCache implements vscode.Disposable {
 		return { completionResources: executables, labels };
 	}
 
-	private async _getExecutablesInPath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
+	private async _getExecutablesInSinglePath(path: string, pathSeparator: string, labels: Set<string>): Promise<Set<ICompletionResource> | undefined> {
 		try {
 			const dirExists = await fs.stat(path).then(stat => stat.isDirectory()).catch(() => false);
 			if (!dirExists) {
