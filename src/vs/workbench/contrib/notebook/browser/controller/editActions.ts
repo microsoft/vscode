@@ -45,6 +45,7 @@ import { NotebookInlineVariablesController } from '../contrib/notebookVariables/
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
+const QUIT_EDIT_ALL_CELLS_COMMAND_ID = 'notebook.quitEditAllCells';
 export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 export const SELECT_NOTEBOOK_INDENTATION_ID = 'notebook.selectIndentation';
 export const COMMENT_SELECTED_CELLS_ID = 'notebook.commentSelectedCells';
@@ -148,6 +149,53 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 		}
 
 		await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+	}
+});
+
+registerAction2(class QuitEditAllCellsAction extends NotebookAction {
+	constructor() {
+		super(
+			{
+				id: QUIT_EDIT_ALL_CELLS_COMMAND_ID,
+				title: localize('notebookActions.quitEditAllCells', "Stop Editing All Cells"),
+				f1: true,
+				keybinding: {
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						NOTEBOOK_EDITOR_EDITABLE
+					),
+					primary: KeyMod.CtrlCmd | KeyCode.Escape,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				precondition: ContextKeyExpr.and(
+					NOTEBOOK_EDITOR_FOCUSED,
+					NOTEBOOK_EDITOR_EDITABLE
+				)
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		if (!context.notebookEditor.hasModel()) {
+			return;
+		}
+
+		const viewModel = context.notebookEditor.getViewModel();
+		if (!viewModel) {
+			return;
+		}
+
+		// Find all cells that are currently in editing state
+		const editingCells = viewModel.viewCells.filter(cell => 
+			cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Editing
+		);
+
+		// Update each editing cell to preview state
+		editingCells.forEach(cell => {
+			cell.updateEditState(CellEditState.Preview, QUIT_EDIT_ALL_CELLS_COMMAND_ID);
+		});
+
+		// Focus the notebook editor to maintain focus
+		context.notebookEditor.focus();
 	}
 });
 
