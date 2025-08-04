@@ -225,6 +225,23 @@ suite('RPCProtocol', () => {
 		});
 	});
 
+	test('serializes FileOperationError correctly', function (done) {
+		delegate = (a1: number, a2: number) => {
+			// Create an error that looks like FileOperationError
+			const error = new Error('File modified since last read') as any;
+			error.fileOperationResult = 3; // FILE_MODIFIED_SINCE
+			error.options = { unlock: true };
+			throw error;
+		};
+		bProxy.$m(4, 1).then((res) => {
+			assert.fail('unexpected');
+		}, (err) => {
+			assert.strictEqual(err.message, 'File modified since last read');
+			assert.strictEqual(err.fileOperationResult, 3);
+			assert.deepStrictEqual(err.options, { unlock: true });
+		}).finally(done);
+	});
+
 	test('SerializableObjectWithBuffers is correctly transfered', function (done) {
 		delegate = (a1: SerializableObjectWithBuffers<{ string: string; buff: VSBuffer }>, a2: number) => {
 			return new SerializableObjectWithBuffers({ string: a1.value.string + ' world', buff: a1.value.buff });
