@@ -51,7 +51,7 @@ export class TerminalIconPicker extends Disposable {
 		});
 	}
 
-	async pickIcons(): Promise<ThemeIcon | undefined> {
+	async pickIcons(source: 'commandPalette' | 'terminalTab'): Promise<ThemeIcon | undefined> {
 		const dimension = new Dimension(486, 260);
 		return new Promise<ThemeIcon | undefined>(resolve => {
 			this._register(this._iconSelectBox.onDidSelect(e => {
@@ -59,14 +59,26 @@ export class TerminalIconPicker extends Disposable {
 				this._iconSelectBox.dispose();
 			}));
 			this._iconSelectBox.clearInput();
+
 			const body = getActiveDocument().body;
 			const bodyRect = body.getBoundingClientRect();
+
+			let targetX = bodyRect.left + (bodyRect.width - dimension.width) / 2;
+			let targetY = bodyRect.top + this._layoutService.activeContainerOffset.quickPickTop - 2;
+
+			if (source === 'terminalTab') {
+				// Example positioning: near top-left where terminal tabs usually are
+				targetX = bodyRect.left + 50; // adjust as needed
+				targetY = bodyRect.top + 100;  // adjust as needed
+			}
+			// else keep default centered position for commandPalette
+
 			const hoverWidget = this._hoverService.showInstantHover({
 				content: this._iconSelectBox.domNode,
 				target: {
 					targetElements: [body],
-					x: bodyRect.left + (bodyRect.width - dimension.width) / 2,
-					y: bodyRect.top + this._layoutService.activeContainerOffset.quickPickTop - 2
+					x: targetX,
+					y: targetY
 				},
 				position: {
 					hoverPosition: HoverPosition.BELOW,
@@ -75,6 +87,7 @@ export class TerminalIconPicker extends Disposable {
 					sticky: true,
 				},
 			}, true);
+
 			if (hoverWidget) {
 				this._register(hoverWidget);
 			}
