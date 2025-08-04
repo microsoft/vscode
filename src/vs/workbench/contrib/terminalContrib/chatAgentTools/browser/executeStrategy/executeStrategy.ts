@@ -141,6 +141,7 @@ export async function waitForIdleWithPromptHeuristics(
 			}
 
 			// If we detect a common prompt pattern, we're done
+			// Note: Logging is handled by the calling strategy (e.g., noneExecuteStrategy)
 			if (detectsCommonPromptPattern(content)) {
 				return;
 			}
