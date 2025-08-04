@@ -206,7 +206,7 @@ export function setupTerminalMenus(): void {
 			id: TerminalCommandId.CreateTerminalEditorSameGroup,
 			title: terminalStrings.new
 		},
-		group: '1_file',
+		group: '1_zzz_file',
 		order: 30,
 		when: TerminalContextKeys.processSupported
 	});
@@ -216,7 +216,7 @@ export function setupTerminalMenus(): void {
 			id: TerminalCommandId.CreateTerminalEditorSameGroup,
 			title: terminalStrings.new
 		},
-		group: '1_file',
+		group: '1_zzz_file',
 		order: 30,
 		when: TerminalContextKeys.processSupported
 	});
