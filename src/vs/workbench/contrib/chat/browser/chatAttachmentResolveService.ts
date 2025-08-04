@@ -50,10 +50,8 @@ export interface IChatAttachmentResolveService {
 	resolveUntitledEditorAttachContext(editor: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined>;
 	resolveResourceAttachContext(resource: URI, isDirectory: boolean): Promise<IChatRequestVariableEntry | undefined>;
 
-	resolveImageEditorAttachContext(resource: URI, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined>;
-	resolveImageEditorAttachContextWithCallback(resource: URI, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined>;
-	resolveImageAttachContext(images: ImageTransferData[]): Promise<IChatRequestVariableEntry[]>;
-	resolveImageAttachContextWithCallback(images: ImageTransferData[], onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]>;
+	resolveImageEditorAttachContext(resource: URI, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined>;
+	resolveImageAttachContext(images: ImageTransferData[], onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]>;
 	resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[];
 	resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): ISymbolVariableEntry[];
 	resolveNotebookOutputAttachContext(data: NotebookCellOutputTransferData): IChatRequestVariableEntry[];
@@ -96,7 +94,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		if (!stat.isDirectory && !stat.isFile) {
 			return undefined;
 		}
-		const imageContext = await this.resolveImageEditorAttachContextWithCallback(editor.resource, onUpdate, undefined, undefined);
+		const imageContext = await this.resolveImageEditorAttachContext(editor.resource, onUpdate, undefined, undefined);
 		if (imageContext) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 		}
@@ -161,78 +159,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 
 	// --- IMAGES ---
 
-	public async resolveImageEditorAttachContext(resource: URI, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined> {
-		if (!resource) {
-			return undefined;
-		}
-
-		if (mimeType) {
-			if (!getAttachableImageExtension(mimeType)) {
-				return undefined;
-			}
-		} else {
-			const match = SUPPORTED_IMAGE_EXTENSIONS_REGEX.exec(resource.path);
-			if (!match) {
-				return undefined;
-			}
-
-			mimeType = getMimeTypeFromPath(match);
-		}
-		const fileName = basename(resource);
-
-		let dataBuffer: VSBuffer | undefined;
-		if (data) {
-			dataBuffer = data;
-		} else {
-
-			let stat;
-			try {
-				stat = await this.fileService.stat(resource);
-			} catch {
-				return undefined;
-			}
-
-			const readFile = await this.fileService.readFile(resource);
-
-			if (stat.size > 30 * 1024 * 1024) { // 30 MB
-				this.dialogService.error(localize('imageTooLarge', 'Image is too large'), localize('imageTooLargeMessage', 'The image {0} is too large to be attached.', fileName));
-				throw new Error('Image is too large');
-			}
-
-			dataBuffer = readFile.value;
-		}
-
-		const providerId = defaultChat?.provider.default.id;
-		let token: string | undefined = '';
-
-		// Get all accounts for the provider
-		const accounts: any[] = [];
-		await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
-			accounts.push(account);
-		});
-
-		// Find the token from the first available account
-		if (accounts.length > 0) {
-			const sessions = await this.authenticationService.getSessions(providerId);
-			token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
-		}
-
-		const isPartiallyOmitted = /\.gif$/i.test(resource.path);
-		const imageFileContext = await this.resolveImageAttachContextWithCallback([{
-			id: resource.toString(),
-			name: fileName,
-			data: dataBuffer.buffer,
-			icon: Codicon.fileMedia,
-			resource: resource,
-			mimeType: mimeType,
-			omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted,
-			token
-		}]);
-
-		return imageFileContext[0];
-	}
-
-	public async resolveImageEditorAttachContextWithCallback(resource: URI, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined> {
+	public async resolveImageEditorAttachContext(resource: URI, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined> {
 		if (!resource) {
 			return undefined;
 		}
@@ -288,7 +215,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		}
 
 		const isPartiallyOmitted = /\.gif$/i.test(resource.path);
-		const imageFileContext = await this.resolveImageAttachContextWithCallback([{
+		const imageFileContext = await this.resolveImageAttachContext([{
 			id: resource.toString(),
 			name: fileName,
 			data: dataBuffer.buffer,
@@ -302,11 +229,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		return imageFileContext[0];
 	}
 
-	public resolveImageAttachContext(images: ImageTransferData[]): Promise<IChatRequestVariableEntry[]> {
-		return this.resolveImageAttachContextWithCallback(images);
-	}
-
-	public resolveImageAttachContextWithCallback(images: ImageTransferData[], onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]> {
+	public resolveImageAttachContext(images: ImageTransferData[], onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]> {
 		return Promise.all(images.map(async image => {
 			const binaryData = await resizeImage(image.data, image.mimeType);
 			const id = image.id || await imageToHash(binaryData);

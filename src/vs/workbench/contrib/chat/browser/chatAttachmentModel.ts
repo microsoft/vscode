@@ -152,7 +152,7 @@ export class ChatAttachmentModel extends Disposable {
 	async asImageVariableEntry(uri: URI): Promise<IChatRequestVariableEntry | undefined> {
 		if (uri.scheme === Schemas.file && await this.fileService.canHandleResource(uri)) {
 			// Use the resolve service to create the loading entry and handle the upload
-			return await this.chatAttachmentResolveService.resolveImageEditorAttachContextWithCallback(
+			return await this.chatAttachmentResolveService.resolveImageEditorAttachContext(
 				uri,
 				(updatedEntry) => {
 					// Update the existing attachment when upload completes
@@ -163,10 +163,9 @@ export class ChatAttachmentModel extends Disposable {
 			// Start async processing and return the loading entry from resolve service
 			const extractedImages = await this.webContentExtractorService.readImage(uri, CancellationToken.None);
 			if (extractedImages) {
-				return await this.chatAttachmentResolveService.resolveImageEditorAttachContextWithCallback(
+				return await this.chatAttachmentResolveService.resolveImageEditorAttachContext(
 					uri,
 					(updatedEntry) => {
-						// Update the existing attachment when upload completes
 						this.updateContext([], [updatedEntry]);
 					},
 					extractedImages

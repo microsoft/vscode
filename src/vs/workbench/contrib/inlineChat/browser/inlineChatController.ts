@@ -1198,7 +1198,8 @@ export class InlineChatController1 implements IEditorContribution {
 		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
 			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
 			if (extractedImages) {
-				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment, extractedImages);
+				// @justschen TODO: use uploader here (needs attachment model to update context)
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment, undefined, extractedImages);
 			}
 		}
 
@@ -1507,7 +1508,7 @@ export class InlineChatController2 implements IEditorContribution {
 		} else if (attachment.scheme === Schemas.http || attachment.scheme === Schemas.https) {
 			const extractedImages = await this._webContentExtractorService.readImage(attachment, CancellationToken.None);
 			if (extractedImages) {
-				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment, extractedImages);
+				return await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment, undefined, extractedImages);
 			}
 		}
 		return undefined;

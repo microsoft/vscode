@@ -361,7 +361,7 @@ export class ChatDragAndDrop extends Themable {
 			imageTransferData.push(...imageTransferDataFromUrl.filter(data => !!data));
 		}
 
-		return await this.chatAttachmentResolveService.resolveImageAttachContextWithCallback(imageTransferData, (updatedEntry) => {
+		return await this.chatAttachmentResolveService.resolveImageAttachContext(imageTransferData, (updatedEntry) => {
 			// Update the attachment when upload completes
 			this.attachmentModel.updateContext([], [updatedEntry]);
 		});

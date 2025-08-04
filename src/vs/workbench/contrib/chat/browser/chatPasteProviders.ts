@@ -127,7 +127,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 
 		const imageContexts = await this.instantiationService.invokeFunction(accessor => {
 			const chatAttachmentResolveService = accessor.get(IChatAttachmentResolveService);
-			return chatAttachmentResolveService.resolveImageAttachContextWithCallback(
+			return chatAttachmentResolveService.resolveImageAttachContext(
 				imageTransferData,
 				(updatedEntry: IChatRequestVariableEntry) => {
 					// Update the attachment when upload completes
