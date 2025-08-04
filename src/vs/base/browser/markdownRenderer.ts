@@ -213,7 +213,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	// Remove/disable inputs
-	for (const input of element.getElementsByTagName('input')) {
+	for (const input of [...element.getElementsByTagName('input')]) {
 		if (input.attributes.getNamedItem('type')?.value === 'checkbox') {
 			input.setAttribute('disabled', '');
 		} else {
