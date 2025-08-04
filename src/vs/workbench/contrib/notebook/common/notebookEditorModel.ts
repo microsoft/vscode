@@ -233,7 +233,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 		// Override save behavior to avoid transferring the buffer across the wire 3 times
 		if (saveWithReducedCommunication) {
-			this.setSaveDelegate().catch(console.error);
+			this.setSaveDelegate().catch(error => this._notebookLogService.error('WorkingCopyModel', `Failed to set save delegate: ${error}`));
 		}
 	}
 
@@ -247,7 +247,12 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 				if (!serializer) {
 					this._notebookLogService.info('WorkingCopyModel', 'No serializer found for notebook model, checking if provider still needs to be resolved');
-					serializer = await this.getNotebookSerializer();
+					serializer = await this.getNotebookSerializer().catch(error => {
+						this._notebookLogService.error('WorkingCopyModel', `Failed to get notebook serializer: ${error}`);
+						// The serializer was set initially but somehow is no longer available
+						this.save = undefined;
+						throw new NotebookSaveError('Failed to get notebook serializer');
+					});
 				}
 
 				if (token.isCancellationRequested) {
@@ -257,11 +262,11 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				const stat = await serializer.save(this._notebookModel.uri, this._notebookModel.versionId, options, token);
 				return stat;
 			} catch (error) {
-				if (!token.isCancellationRequested) {
+				if (!token.isCancellationRequested && error.name !== 'Canceled') {
 					type notebookSaveErrorData = {
 						isRemote: boolean;
 						isIPyNbWorkerSerializer: boolean;
-						error: Error;
+						error: string;
 					};
 					type notebookSaveErrorClassification = {
 						owner: 'amunger';
@@ -271,10 +276,11 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 						error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 					};
 					const isIPynb = this._notebookModel.viewType === 'jupyter-notebook' || this._notebookModel.viewType === 'interactive';
+					const errorMessage = error.name === 'NotebookSaveError' ? error.message : 'Unknown error';
 					this._telemetryService.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
 						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
 						isIPyNbWorkerSerializer: isIPynb && this._configurationService.getValue<boolean>('ipynb.experimental.serialization'),
-						error: error
+						error: errorMessage
 					});
 				}
 
@@ -313,7 +319,8 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	async getNotebookSerializer(): Promise<INotebookSerializer> {
 		const info = await this._notebookService.withNotebookDataProvider(this.notebookModel.viewType);
 		if (!(info instanceof SimpleNotebookProviderInfo)) {
-			throw new Error('CANNOT open file notebook with this provider');
+			const message = 'CANNOT open notebook with this provider';
+			throw new NotebookSaveError(message);
 		}
 
 		return info.serializer;
@@ -348,3 +355,10 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 }
 
 //#endregion
+
+class NotebookSaveError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'NotebookSaveError';
+	}
+}
