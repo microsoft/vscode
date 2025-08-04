@@ -157,20 +157,7 @@ registerAction2(class QuitEditAllCellsAction extends NotebookAction {
 		super(
 			{
 				id: QUIT_EDIT_ALL_CELLS_COMMAND_ID,
-				title: localize('notebookActions.quitEditAllCells', "Stop Editing All Cells"),
-				f1: true,
-				keybinding: {
-					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
-						NOTEBOOK_EDITOR_EDITABLE
-					),
-					primary: KeyMod.CtrlCmd | KeyCode.Escape,
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				precondition: ContextKeyExpr.and(
-					NOTEBOOK_EDITOR_FOCUSED,
-					NOTEBOOK_EDITOR_EDITABLE
-				)
+				title: localize('notebookActions.quitEditAllCells', "Stop Editing All Cells")
 			});
 	}
 
@@ -184,18 +171,19 @@ registerAction2(class QuitEditAllCellsAction extends NotebookAction {
 			return;
 		}
 
-		// Find all cells that are currently in editing state
-		const editingCells = viewModel.viewCells.filter(cell => 
+		const activeCell = context.notebookEditor.getActiveCell();
+
+		const editingCells = viewModel.viewCells.filter(cell =>
 			cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Editing
 		);
 
-		// Update each editing cell to preview state
 		editingCells.forEach(cell => {
 			cell.updateEditState(CellEditState.Preview, QUIT_EDIT_ALL_CELLS_COMMAND_ID);
 		});
 
-		// Focus the notebook editor to maintain focus
-		context.notebookEditor.focus();
+		if (activeCell) {
+			await context.notebookEditor.focusNotebookCell(activeCell, 'container', { skipReveal: true });
+		}
 	}
 });
 
