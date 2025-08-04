@@ -39,6 +39,10 @@ export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number
 /**
  * Detects if the given text content appears to end with a common prompt pattern.
  * This is used as a heuristic to determine if a command has finished executing.
+ * 
+ * The idea is to do basic regex checks after the initial timeout to extend the
+ * timeout if it doesn't look like a common prompt format, giving commands more
+ * time to complete before assuming they're done.
  */
 export function detectsCommonPromptPattern(content: string): boolean {
 	if (!content || content.trim().length === 0) {
@@ -102,6 +106,9 @@ export function detectsCommonPromptPattern(content: string): boolean {
  * Enhanced version of waitForIdle that uses prompt detection heuristics.
  * After the initial timeout, checks if the terminal content looks like a common prompt.
  * If not, extends the timeout to give the command more time to complete.
+ * 
+ * This addresses the need for better heuristics around prompt characters for evaluating
+ * no shell integration command finished state, as requested in the issue.
  */
 export async function waitForIdleWithPromptHeuristics(
 	onData: Event<unknown>,
@@ -118,12 +125,13 @@ export async function waitForIdleWithPromptHeuristics(
 		if (xterm) {
 			// Get the current visible content from the terminal
 			const buffer = xterm.raw.buffer.active;
-			const viewportHeight = xterm.raw.rows;
 			let content = '';
 			
-			// Read the last few lines of the terminal to detect prompt patterns
-			const startLine = Math.max(0, buffer.baseY + buffer.cursorY - viewportHeight + 1);
-			const endLine = buffer.baseY + buffer.cursorY + 1;
+			// Read the current line and a few lines above to detect prompt patterns
+			// Focus on the area around the cursor, which is most likely to contain the prompt
+			const currentLine = buffer.baseY + buffer.cursorY;
+			const startLine = Math.max(0, currentLine - 2); // Read up to 2 lines above
+			const endLine = Math.min(buffer.length, currentLine + 1); // Read current line
 			
 			for (let i = startLine; i < endLine; i++) {
 				const line = buffer.getLine(i);
