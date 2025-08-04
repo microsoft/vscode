@@ -290,6 +290,10 @@ class CodeMain {
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
+		// hide from dock immediately 
+		if (app.dock) {
+      app.dock.hide();
+  }
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -314,10 +318,7 @@ class CodeMain {
 			}
 
 			// there's a running instance, let's connect to it
-			// Hide the dock icon since we're connecting to an existing instance
-			if (app.dock) {
-				app.dock.hide();
-			}
+			
 
 			let client: NodeIPCClient<string>;
 			try {
