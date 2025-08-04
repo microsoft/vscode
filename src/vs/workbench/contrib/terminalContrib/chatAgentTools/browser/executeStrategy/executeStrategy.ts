@@ -37,6 +37,116 @@ export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number
 }
 
 /**
+ * Detects if the given text content appears to end with a common prompt pattern.
+ * This is used as a heuristic to determine if a command has finished executing.
+ */
+export function detectsCommonPromptPattern(content: string): boolean {
+	if (!content || content.trim().length === 0) {
+		return false;
+	}
+
+	// Split content into lines and check the last non-empty line
+	const lines = content.split('\n');
+	let lastLine = '';
+	for (let i = lines.length - 1; i >= 0; i--) {
+		const line = lines[i].trim();
+		if (line.length > 0) {
+			lastLine = line;
+			break;
+		}
+	}
+
+	if (!lastLine) {
+		return false;
+	}
+
+	// PowerShell prompt: PS C:\> or similar patterns
+	if (/PS\s+[A-Z]:\\.*>\s*$/.test(lastLine)) {
+		return true;
+	}
+
+	// Command Prompt: C:\path>
+	if (/^[A-Z]:\\.*>\s*$/.test(lastLine)) {
+		return true;
+	}
+
+	// Bash-style prompts ending with $ 
+	if (/\$\s*$/.test(lastLine)) {
+		return true;
+	}
+
+	// Root prompts ending with #
+	if (/#\s*$/.test(lastLine)) {
+		return true;
+	}
+
+	// Python REPL prompt
+	if (/^>>>\s*$/.test(lastLine)) {
+		return true;
+	}
+
+	// Custom prompts ending with the starship character ❯ (\u276f)
+	if (/\u276f\s*$/.test(lastLine)) {
+		return true;
+	}
+
+	// Generic prompts ending with common prompt characters
+	if (/[>%]\s*$/.test(lastLine)) {
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Enhanced version of waitForIdle that uses prompt detection heuristics.
+ * After the initial timeout, checks if the terminal content looks like a common prompt.
+ * If not, extends the timeout to give the command more time to complete.
+ */
+export async function waitForIdleWithPromptHeuristics(
+	onData: Event<unknown>,
+	instance: ITerminalInstance,
+	initialTimeoutMs: number,
+	extendedTimeoutMs: number = 2000
+): Promise<void> {
+	// First, wait for the initial timeout period
+	await waitForIdle(onData, initialTimeoutMs);
+
+	// Get the current terminal content to check for prompt patterns
+	try {
+		const xterm = await instance.xtermReadyPromise;
+		if (xterm) {
+			// Get the current visible content from the terminal
+			const buffer = xterm.raw.buffer.active;
+			const viewportHeight = xterm.raw.rows;
+			let content = '';
+			
+			// Read the last few lines of the terminal to detect prompt patterns
+			const startLine = Math.max(0, buffer.baseY + buffer.cursorY - viewportHeight + 1);
+			const endLine = buffer.baseY + buffer.cursorY + 1;
+			
+			for (let i = startLine; i < endLine; i++) {
+				const line = buffer.getLine(i);
+				if (line) {
+					content += line.translateToString(true) + '\n';
+				}
+			}
+
+			// If we detect a common prompt pattern, we're done
+			if (detectsCommonPromptPattern(content)) {
+				return;
+			}
+
+			// Otherwise, wait for the extended timeout period
+			await waitForIdle(onData, extendedTimeoutMs);
+		}
+	} catch (error) {
+		// If there's an error getting terminal content, fall back to extended timeout
+		await waitForIdle(onData, extendedTimeoutMs);
+	}
+}
+
+/**
  * Tracks the terminal for being idle on a prompt input. This must be called before `executeCommand`
  * is called.
  */
