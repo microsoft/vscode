@@ -394,12 +394,17 @@ export class InlineEditsView extends Disposable {
 
 			const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < InlineEditsWordReplacementView.MAX_LENGTH && TextLength.ofRange(m.modifiedRange).columnCount < InlineEditsWordReplacementView.MAX_LENGTH);
 			if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
-				// Make sure there is no insertion, even if we grow them
-				if (
-					!inner.some(m => m.originalRange.isEmpty()) ||
-					!growEditsUntilWhitespace(inner.map(m => new TextReplacement(m.originalRange, '')), inlineEdit.originalText).some(e => e.range.isEmpty() && TextLength.ofRange(e.range).columnCount < InlineEditsWordReplacementView.MAX_LENGTH)
-				) {
-					return InlineCompletionViewKind.WordReplacements;
+				// Do not show indentation changes with word replacement view
+				const modifiedText = inner.map(m => newText.getValueOfRange(m.modifiedRange));
+				const originalText = inner.map(m => model.inlineEdit.originalText.getValueOfRange(m.originalRange));
+				if (!modifiedText.some(v => v.includes('\t')) && !originalText.some(v => v.includes('\t'))) {
+					// Make sure there is no insertion, even if we grow them
+					if (
+						!inner.some(m => m.originalRange.isEmpty()) ||
+						!growEditsUntilWhitespace(inner.map(m => new TextReplacement(m.originalRange, '')), inlineEdit.originalText).some(e => e.range.isEmpty() && TextLength.ofRange(e.range).columnCount < InlineEditsWordReplacementView.MAX_LENGTH)
+					) {
+						return InlineCompletionViewKind.WordReplacements;
+					}
 				}
 			}
 		}
