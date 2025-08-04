@@ -84,4 +84,23 @@ suite('Errors', () => {
 		assert.strictEqual(deserializedError.cause?.message, 'Cause error');
 		assert.strictEqual(deserializedError.cause?.stack, serializedCause.stack);
 	});
+
+	test('Transform FileOperationError-like error for Serialization', function () {
+		// Create an error that looks like FileOperationError
+		const error = new Error('File modified since last read') as any;
+		error.fileOperationResult = 3; // FILE_MODIFIED_SINCE
+		error.options = { unlock: true };
+
+		const serializedError = transformErrorForSerialization(error);
+		assert.strictEqual(serializedError.name, 'Error');
+		assert.strictEqual(serializedError.message, 'File modified since last read');
+		assert.strictEqual(serializedError.fileOperationResult, 3);
+		assert.deepStrictEqual(serializedError.fileOperationOptions, { unlock: true });
+
+		const deserializedError = transformErrorFromSerialization(serializedError);
+		assert.strictEqual(deserializedError.name, 'Error');
+		assert.strictEqual(deserializedError.message, 'File modified since last read');
+		assert.strictEqual((deserializedError as any).fileOperationResult, 3);
+		assert.deepStrictEqual((deserializedError as any).options, { unlock: true });
+	});
 });

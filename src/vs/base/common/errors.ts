@@ -128,6 +128,8 @@ export interface SerializedError {
 	readonly noTelemetry: boolean;
 	readonly code?: string;
 	readonly cause?: SerializedError;
+	fileOperationResult?: number;
+	fileOperationOptions?: any;
 }
 
 type ErrorWithCode = Error & {
@@ -138,9 +140,10 @@ export function transformErrorForSerialization(error: Error): SerializedError;
 export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
-		const { name, message, cause } = error;
+		const { name, message } = error;
+		const cause = (error as any).cause;
 		const stack: string = (<any>error).stacktrace || (<any>error).stack;
-		return {
+		const result: SerializedError = {
 			$isError: true,
 			name,
 			message,
@@ -149,6 +152,16 @@ export function transformErrorForSerialization(error: any): any {
 			cause: cause ? transformErrorForSerialization(cause) : undefined,
 			code: (<ErrorWithCode>error).code
 		};
+
+		// Handle FileOperationError special properties
+		if ('fileOperationResult' in error && typeof error.fileOperationResult === 'number') {
+			result.fileOperationResult = error.fileOperationResult;
+			if ('options' in error) {
+				result.fileOperationOptions = error.options;
+			}
+		}
+
+		return result;
 	}
 
 	// return as is
@@ -157,19 +170,36 @@ export function transformErrorForSerialization(error: any): any {
 
 export function transformErrorFromSerialization(data: SerializedError): Error {
 	let error: Error;
-	if (data.noTelemetry) {
-		error = new ErrorNoTelemetry();
-	} else {
+	
+	// Check if this was a FileOperationError
+	if (typeof data.fileOperationResult === 'number') {
+		// Create an error that looks like FileOperationError
 		error = new Error();
 		error.name = data.name;
+		error.message = data.message;
+		error.stack = data.stack;
+		
+		// Add FileOperationError-specific properties
+		(error as any).fileOperationResult = data.fileOperationResult;
+		if (data.fileOperationOptions !== undefined) {
+			(error as any).options = data.fileOperationOptions;
+		}
+	} else {
+		if (data.noTelemetry) {
+			error = new ErrorNoTelemetry();
+		} else {
+			error = new Error();
+			error.name = data.name;
+		}
+		error.message = data.message;
+		error.stack = data.stack;
 	}
-	error.message = data.message;
-	error.stack = data.stack;
+	
 	if (data.code) {
 		(<ErrorWithCode>error).code = data.code;
 	}
 	if (data.cause) {
-		error.cause = transformErrorFromSerialization(data.cause);
+		(error as any).cause = transformErrorFromSerialization(data.cause);
 	}
 	return error;
 }

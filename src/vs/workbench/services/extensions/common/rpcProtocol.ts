@@ -929,7 +929,12 @@ class MessageIO {
 
 	public static deserializeReplyErrError(buff: MessageBuffer): Error {
 		const err = buff.readLongString();
-		return JSON.parse(err);
+		const parsed = JSON.parse(err);
+		// If it's a serialized error, transform it properly
+		if (parsed && typeof parsed === 'object' && parsed.$isError) {
+			return errors.transformErrorFromSerialization(parsed);
+		}
+		return parsed;
 	}
 
 	private static _serializeReplyErrEmpty(req: number): VSBuffer {
