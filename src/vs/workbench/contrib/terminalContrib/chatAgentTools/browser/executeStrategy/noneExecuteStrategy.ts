@@ -15,6 +15,10 @@ import { waitForIdle, waitForIdleWithChildProcessMonitoring, type ITerminalExecu
  * available in this case. This uses similar strategies to the basic integration strategy, but
  * with `sendText` instead of `shellIntegration.executeCommand` and relying on idle events instead
  * of execution events.
+ * 
+ * Enhanced with child process monitoring to avoid premature completion when commands spawn
+ * sub-processes. Uses adaptive timeouts: longer waits (60s) for commands that spawn processes,
+ * shorter waits (30s) for commands in already-busy terminals.
  */
 export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 	readonly type = 'none';

@@ -40,7 +40,15 @@ export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number
  * Enhanced idle waiting that considers child process status as an additional hint.
  * When child processes are present, it extends the waiting time to avoid premature completion.
  * 
+ * This addresses the issue where commands with child processes (like build tools, servers, etc.)
+ * could be considered "complete" after just 1 second of idle time, even though sub-processes
+ * were still running.
+ * 
  * The strategy is: wait for (idle AND no child processes) OR max timeout
+ * 
+ * @param instance - The terminal instance to monitor
+ * @param baseIdleDurationMs - Base idle duration before considering command complete (typically 1000ms)
+ * @param maxWaitTimeMs - Maximum time to wait regardless of child processes (default 30s)
  */
 export async function waitForIdleWithChildProcessMonitoring(
 	instance: ITerminalInstance,
