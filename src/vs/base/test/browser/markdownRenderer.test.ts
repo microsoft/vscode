@@ -355,7 +355,7 @@ suite('MarkdownRenderer', () => {
 			const result = store.add(renderMarkdown(mds)).element;
 
 			// Inputs should always be disabled too
-			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input disabled="" type="checkbox"></p>`);
+			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input type="checkbox" disabled=""></p>`);
 		});
 	});
 
