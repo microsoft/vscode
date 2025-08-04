@@ -14,6 +14,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import * as files from '../../../platform/files/common/files.js';
 import { Cache } from './cache.js';
@@ -318,16 +319,16 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		this.trace(`enter saveNotebook(versionId: ${versionId}, ${uri.toString()})`);
 
 		if (!serializer) {
-			throw new Error('NO serializer found');
+			throw new NotebookSaveError('NO serializer found');
 		}
 
 		const document = this._documents.get(uri);
 		if (!document) {
-			throw new Error('Document NOT found');
+			throw new NotebookSaveError('Document NOT found');
 		}
 
 		if (document.versionId !== versionId) {
-			throw new Error('Document version mismatch, expected: ' + versionId + ', actual: ' + document.versionId);
+			throw new NotebookSaveError('Document version mismatch, expected: ' + versionId + ', actual: ' + document.versionId);
 		}
 
 		if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {
@@ -359,11 +360,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		await this._validateWriteFile(uri, options);
 
 		if (token.isCancellationRequested) {
-			throw new Error('canceled');
+			throw new CancellationError();
 		}
 		const bytes = await serializer.serializer.serializeNotebook(data, token);
 		if (token.isCancellationRequested) {
-			throw new Error('canceled');
+			throw new CancellationError();
 		}
 
 		// Don't accept any cancellation beyond this point, we need to report the result of the file write
@@ -735,5 +736,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	private trace(msg: string): void {
 		this._logService.trace(`[Extension Host Notebook] ${msg}`);
+	}
+}
+
+export class NotebookSaveError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'NotebookSaveError';
 	}
 }

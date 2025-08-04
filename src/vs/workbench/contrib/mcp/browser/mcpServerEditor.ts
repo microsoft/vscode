@@ -529,7 +529,7 @@ export class McpServerEditor extends EditorPane {
 			return '';
 		}
 
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, { shouldSanitize: true, token });
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, {}, token);
 		if (token?.isCancellationRequested) {
 			return '';
 		}
