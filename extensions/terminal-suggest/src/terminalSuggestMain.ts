@@ -44,6 +44,7 @@ type ShellGlobalsCacheEntry = {
 
 type ShellGlobalsCacheEntryWithMeta = ShellGlobalsCacheEntry & { timestamp: number };
 const cachedGlobals: Map<string, ShellGlobalsCacheEntryWithMeta> = new Map();
+const inflightRequests: Map<string, Promise<ICompletionResource[] | undefined>> = new Map();
 let pathExecutableCache: PathExecutableCache;
 const CACHE_KEY = 'terminalSuggestGlobalsCacheV2';
 let globalStorageUri: vscode.Uri;
@@ -122,30 +123,50 @@ async function fetchAndCacheShellGlobals(
 	remoteAuthority?: string,
 	background?: boolean
 ): Promise<ICompletionResource[] | undefined> {
-	try {
-		let execShellType = shellType;
-		if (shellType === TerminalShellType.GitBash) {
-			execShellType = TerminalShellType.Bash; // Git Bash is a bash shell
-		}
-		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: execShellType, windowsHide: true };
-		const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
-		const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
-		if (machineId) {
-			const cacheKey = getCacheKey(machineId, remoteAuthority, shellType);
-			cachedGlobals.set(cacheKey, {
-				commands: normalizedCommands,
-				existingCommands: existingCommands ? Array.from(existingCommands) : undefined,
-				timestamp: Date.now()
-			});
-			await writeGlobalsCache();
-		}
-		return normalizedCommands;
-	} catch (error) {
-		if (!background) {
-			console.error('Error fetching builtin commands:', error);
-		}
-		return;
+	const cacheKey = getCacheKey(machineId ?? 'no-machine-id', remoteAuthority, shellType);
+
+	// Check if there's already an in-flight request for this cache key
+	const existingRequest = inflightRequests.get(cacheKey);
+	if (existingRequest) {
+		// Wait for the existing request to complete rather than spawning a new process
+		return existingRequest;
 	}
+
+	// Create a new request and store it in the inflight map
+	const requestPromise = (async () => {
+		try {
+			let execShellType = shellType;
+			if (shellType === TerminalShellType.GitBash) {
+				execShellType = TerminalShellType.Bash; // Git Bash is a bash shell
+			}
+			const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell: execShellType, windowsHide: true };
+			const mixedCommands: (string | ICompletionResource)[] | undefined = await getShellSpecificGlobals.get(shellType)?.(options, existingCommands);
+			const normalizedCommands = mixedCommands?.map(command => typeof command === 'string' ? ({ label: command }) : command);
+			if (machineId) {
+				const cacheKey = getCacheKey(machineId, remoteAuthority, shellType);
+				cachedGlobals.set(cacheKey, {
+					commands: normalizedCommands,
+					existingCommands: existingCommands ? Array.from(existingCommands) : undefined,
+					timestamp: Date.now()
+				});
+				await writeGlobalsCache();
+			}
+			return normalizedCommands;
+		} catch (error) {
+			if (!background) {
+				console.error('Error fetching builtin commands:', error);
+			}
+			return;
+		} finally {
+			// Always remove the promise from inflight requests when done
+			inflightRequests.delete(cacheKey);
+		}
+	})();
+
+	// Store the promise in the inflight map
+	inflightRequests.set(cacheKey, requestPromise);
+
+	return requestPromise;
 }
 
 
@@ -231,13 +252,9 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const [commandsInPath, shellGlobals] = await Promise.all([
-				pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType),
-				(async () => {
-					const executables = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
-					return getShellGlobals(terminalShellType, executables?.labels, machineId, remoteAuthority);
-				})()
-			]);
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
+			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels, machineId, remoteAuthority);
+
 			const shellGlobalsArr = shellGlobals ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
@@ -273,6 +290,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					homeDirCompletion.kind = vscode.TerminalCompletionItemKind.Folder;
 				}
 			}
+
 
 			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
 				return new vscode.TerminalCompletionList(result.items, {

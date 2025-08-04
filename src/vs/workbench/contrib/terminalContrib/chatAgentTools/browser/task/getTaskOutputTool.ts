@@ -20,7 +20,6 @@ export const GetTaskOutputToolData: IToolData = {
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
 	modelDescription: 'Get the output of a task',
 	source: ToolDataSource.Internal,
-	canBeReferencedInPrompt: true,
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -89,7 +88,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		return {
 			content: [{
 				kind: 'text',
-				value: `Output of task ${taskLabel}: ${getOutput(terminal)}`
+				value: `Output of task \`${taskLabel}\`: ${getOutput(terminal)}`
 			}]
 		};
 	}

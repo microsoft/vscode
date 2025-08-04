@@ -148,6 +148,14 @@ suite('CommandLineAutoApprover', () => {
 	});
 
 	suite('regex patterns', () => {
+		test('should handle /.*/', () => {
+			setAutoApprove({
+				"/.*/": true,
+			});
+
+			ok(isAutoApproved('echo hello'));
+		});
+
 		test('should handle regex patterns in autoApprove', () => {
 			setAutoApprove({
 				"/^echo/": true,
@@ -300,6 +308,75 @@ suite('CommandLineAutoApprover', () => {
 			ok(isAutoApproved('pwsh.exe -File D:\\foo.bar\\a-script.ps1'));
 			ok(isAutoApproved('pwsh.exe -File D:\\foo.bar\\a-script.ps1 -AnotherArg'));
 		});
+
+		test('should ignore the empty string key', () => {
+			setAutoApprove({
+				"": true
+			});
+
+			ok(!isAutoApproved('echo hello'));
+		});
+
+		test('should handle empty regex patterns that could cause endless loops', () => {
+			setAutoApprove({
+				"//": true,
+				"/(?:)/": true,
+				"/*/": true,            // Invalid regex pattern
+				"/.**/": true           // Invalid regex pattern
+			});
+
+			// These patterns should not cause endless loops and should not match any commands
+			// Invalid patterns should be handled gracefully and not match anything
+			ok(!isAutoApproved('echo hello'));
+			ok(!isAutoApproved('ls'));
+			ok(!isAutoApproved(''));
+		});
+
+		test('should handle regex patterns that would cause endless loops', () => {
+			setAutoApprove({
+				"/a*/": true,
+				"/b?/": true,
+				"/(x|)*/": true,
+				"/(?:)*/": true
+			});
+
+			// Commands should still work normally, endless loop patterns should be safely handled
+			ok(!isAutoApproved('echo hello'));
+			ok(!isAutoApproved('ls'));
+			ok(!isAutoApproved('a'));
+			ok(!isAutoApproved('b'));
+		});
+
+		test('should handle mixed valid and problematic regex patterns', () => {
+			setAutoApprove({
+				"/^echo/": true,        // Valid pattern
+				"//": true,             // Empty pattern
+				"/^ls/": true,          // Valid pattern
+				"/a*/": true,           // Potential endless loop
+				"pwd": true             // Valid string pattern
+			});
+
+			ok(isAutoApproved('echo hello'));
+			ok(isAutoApproved('ls -la'));
+			ok(isAutoApproved('pwd'));
+			ok(!isAutoApproved('rm file'));
+		});
+
+		test('should handle invalid regex patterns gracefully', () => {
+			setAutoApprove({
+				"/*/": true,                    // Invalid regex - nothing to repeat
+				"/(?:+/": true,                 // Invalid regex - incomplete quantifier
+				"/[/": true,                    // Invalid regex - unclosed character class
+				"/^echo/": true,                // Valid pattern
+				"ls": true                      // Valid string pattern
+			});
+
+			// Valid patterns should still work
+			ok(isAutoApproved('echo hello'));
+			ok(isAutoApproved('ls -la'));
+			// Invalid patterns should not match anything and not cause crashes
+			ok(!isAutoApproved('random command'));
+		});
 	});
 
 	suite('PowerShell-specific commands', () => {
@@ -438,6 +515,67 @@ suite('CommandLineAutoApprover', () => {
 			ok(isCommandLineAutoApproved('npm run build'));
 			ok(!isCommandLineAutoApproved('npm install --force'));
 			ok(!isCommandLineAutoApproved('powershell -File script.ps1 -ExecutionPolicy Bypass'));
+		});
+
+		test('should handle empty regex patterns with matchCommandLine that could cause endless loops', () => {
+			setAutoApproveWithCommandLine({
+				"//": { approve: true, matchCommandLine: true },
+				"/(?:)/": { approve: true, matchCommandLine: true },
+				"/*/": { approve: true, matchCommandLine: true },            // Invalid regex pattern
+				"/.**/": { approve: true, matchCommandLine: true }           // Invalid regex pattern
+			});
+
+			// These patterns should not cause endless loops and should not match any commands
+			// Invalid patterns should be handled gracefully and not match anything
+			ok(!isCommandLineAutoApproved('echo hello'));
+			ok(!isCommandLineAutoApproved('ls'));
+			ok(!isCommandLineAutoApproved(''));
+		});
+
+		test('should handle regex patterns with matchCommandLine that would cause endless loops', () => {
+			setAutoApproveWithCommandLine({
+				"/a*/": { approve: true, matchCommandLine: true },
+				"/b?/": { approve: true, matchCommandLine: true },
+				"/(x|)*/": { approve: true, matchCommandLine: true },
+				"/(?:)*/": { approve: true, matchCommandLine: true }
+			});
+
+			// Commands should still work normally, endless loop patterns should be safely handled
+			ok(!isCommandLineAutoApproved('echo hello'));
+			ok(!isCommandLineAutoApproved('ls'));
+			ok(!isCommandLineAutoApproved('a'));
+			ok(!isCommandLineAutoApproved('b'));
+		});
+
+		test('should handle mixed valid and problematic regex patterns with matchCommandLine', () => {
+			setAutoApproveWithCommandLine({
+				"/^echo/": { approve: true, matchCommandLine: true },        // Valid pattern
+				"//": { approve: true, matchCommandLine: true },             // Empty pattern
+				"/^ls/": { approve: true, matchCommandLine: true },          // Valid pattern
+				"/a*/": { approve: true, matchCommandLine: true },           // Potential endless loop
+				"pwd": { approve: true, matchCommandLine: true }             // Valid string pattern
+			});
+
+			ok(isCommandLineAutoApproved('echo hello'));
+			ok(isCommandLineAutoApproved('ls -la'));
+			ok(isCommandLineAutoApproved('pwd'));
+			ok(!isCommandLineAutoApproved('rm file'));
+		});
+
+		test('should handle invalid regex patterns with matchCommandLine gracefully', () => {
+			setAutoApproveWithCommandLine({
+				"/*/": { approve: true, matchCommandLine: true },                    // Invalid regex - nothing to repeat
+				"/(?:+/": { approve: true, matchCommandLine: true },                 // Invalid regex - incomplete quantifier
+				"/[/": { approve: true, matchCommandLine: true },                    // Invalid regex - unclosed character class
+				"/^echo/": { approve: true, matchCommandLine: true },                // Valid pattern
+				"ls": { approve: true, matchCommandLine: true }                      // Valid string pattern
+			});
+
+			// Valid patterns should still work
+			ok(isCommandLineAutoApproved('echo hello'));
+			ok(isCommandLineAutoApproved('ls -la'));
+			// Invalid patterns should not match anything and not cause crashes
+			ok(!isCommandLineAutoApproved('random command'));
 		});
 	});
 

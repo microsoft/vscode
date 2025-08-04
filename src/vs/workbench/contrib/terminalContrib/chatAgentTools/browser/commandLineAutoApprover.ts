@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
+import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
@@ -15,6 +16,8 @@ interface IAutoApproveRule {
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
+
+const neverMatchRegex = /(?!.*)/;
 
 export class CommandLineAutoApprover extends Disposable {
 	private _denyListRules: IAutoApproveRule[] = [];
@@ -176,11 +179,32 @@ export class CommandLineAutoApprover extends Disposable {
 		const regexPattern = regexMatch?.groups?.pattern;
 		if (regexPattern) {
 			let flags = regexMatch.groups?.flags;
-			// Remove global flag as it can cause confusion
+			// Remove global flag as it changes how the regex state works which we need to handle
+			// internally
 			if (flags) {
 				flags = flags.replaceAll('g', '');
 			}
-			return new RegExp(regexPattern, flags || undefined);
+
+			// Allow .* as users expect this would match everything
+			if (regexPattern === '.*') {
+				return new RegExp(regexPattern);
+			}
+
+			try {
+				const regex = new RegExp(regexPattern, flags || undefined);
+				if (regExpLeadsToEndlessLoop(regex)) {
+					return neverMatchRegex;
+				}
+
+				return regex;
+			} catch (error) {
+				return neverMatchRegex;
+			}
+		}
+
+		// The empty string should be ignored, rather than approve everything
+		if (value === '') {
+			return neverMatchRegex;
 		}
 
 		// Escape regex special characters

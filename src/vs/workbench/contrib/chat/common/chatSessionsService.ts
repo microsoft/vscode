@@ -34,6 +34,7 @@ export interface IChatSessionItem {
 
 export interface ChatSession extends IDisposable {
 	readonly id: string;
+	readonly onWillDispose: Event<void>;
 
 	history: Array<
 		| { type: 'request'; prompt: string }
@@ -67,7 +68,7 @@ export interface IChatSessionsService {
 	readonly onDidChangeSessionItems: Event<string>;
 	readonly onDidChangeAvailability: Event<void>;
 	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
-	getChatSessionContributions(): IChatSessionsExtensionPoint[];
+	getChatSessionContributions(waitForActivation?: string[]): Promise<IChatSessionsExtensionPoint[]>;
 	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
 	getChatSessionItemProviders(): IChatSessionItemProvider[];

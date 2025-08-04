@@ -127,7 +127,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 						existing.store.clear();
 						// We need to re-register both the data and implementation, as the
 						// implementation is discarded when the data is removed (#245921)
-						registerTool(tool, toolData, store);
+						registerTool(tool, toolData, existing.store);
 					}
 					toDelete.delete(tool.id);
 				} else {

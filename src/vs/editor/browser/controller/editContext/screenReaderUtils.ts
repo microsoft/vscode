@@ -6,7 +6,7 @@
 import { EndOfLinePreference } from '../../../common/model.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { Selection } from '../../../common/core/selection.js';
+import { Selection, SelectionDirection } from '../../../common/core/selection.js';
 import { EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
@@ -48,7 +48,7 @@ export class SimplePagedScreenReaderStrategy implements IPagedScreenReaderStrate
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): ISimpleScreenReaderContentState {
+	public fromEditorSelection(model: ISimpleModel, selection: Selection, linesPerPage: number, trimLongText: boolean): ISimpleScreenReaderContentState {
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
 		const LIMIT_CHARS = 500;
@@ -93,11 +93,20 @@ export class SimplePagedScreenReaderStrategy implements IPagedScreenReaderStrate
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
+		let selectionStart: number;
+		let selectionEnd: number;
+		if (selection.getDirection() === SelectionDirection.LTR) {
+			selectionStart = pretext.length;
+			selectionEnd = pretext.length + text.length;
+		} else {
+			selectionEnd = pretext.length;
+			selectionStart = pretext.length + text.length;
+		}
 		return {
 			value: pretext + text + posttext,
 			selection: selection,
-			selectionStart: pretext.length,
-			selectionEnd: pretext.length + text.length,
+			selectionStart,
+			selectionEnd,
 			startPositionWithinEditor: pretextRange.getStartPosition(),
 			newlineCountBeforeSelection: pretextRange.endLineNumber - pretextRange.startLineNumber,
 		};
