@@ -76,7 +76,6 @@ const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithS
 	[TerminalShellType.PowerShell, getPwshGlobals],
 ]);
 
-
 async function getShellGlobals(
 	shellType: TerminalShellType,
 	existingCommands?: Set<string>,
@@ -106,8 +105,11 @@ async function getShellGlobals(
 				shouldRefresh = true;
 			}
 			if (!shouldRefresh && cached.commands) {
-				// Trigger background refresh
-				void fetchAndCacheShellGlobals(shellType, existingCommands, machineId, remoteAuthority, true);
+				// NOTE: This used to trigger a background refresh in order to ensure all commands
+				// are up to date, but this ends up launching way too many processes. Especially on
+				// Windows where this caused significant performance issues as processes can block
+				// the extension host for several seconds
+				// (https://github.com/microsoft/vscode/issues/259343).
 				return cached.commands;
 			}
 		}
@@ -253,15 +255,14 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
-			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels, machineId, remoteAuthority);
+			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels, machineId, remoteAuthority) ?? [];
 
-			const shellGlobalsArr = shellGlobals ?? [];
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
 				return;
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
-			const commands = [...shellGlobalsArr, ...commandsInPath.completionResources];
+			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const currentCommandString = getCurrentCommandAndArgs(terminalContext.commandLine, terminalContext.cursorPosition, terminalShellType);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
@@ -305,6 +306,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}, '/', '\\'));
 	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
+
+	context.subscriptions.push(vscode.commands.registerCommand('terminal.integrated.suggest.clearCachedGlobals', () => {
+		cachedGlobals.clear();
+	}));
 }
 
 /**
