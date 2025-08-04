@@ -188,6 +188,26 @@ export function setupTerminalMenus(): void {
 		]
 	);
 
+	MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, {
+		command: {
+			id: TerminalCommandId.CreateTerminalEditorSameGroup,
+			title: terminalStrings.new
+		},
+		group: '1_file',
+		order: 30,
+		when: TerminalContextKeys.processSupported
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, {
+		command: {
+			id: TerminalCommandId.CreateTerminalEditorSameGroup,
+			title: terminalStrings.new
+		},
+		group: '1_file',
+		order: 30,
+		when: TerminalContextKeys.processSupported
+	});
+
 	MenuRegistry.appendMenuItems(
 		[
 			{
@@ -602,7 +622,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.Unsplit,
 						title: terminalStrings.unsplit.value
 					},
-					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal),
+					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminalTabFocused),
 					group: ContextMenuGroup.Config
 				}
 			},
