@@ -19,7 +19,6 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 
 const builtInSource = localize('Built-In', "Built-In");
 const category: ILocalizedString = localize2('Create', 'Create');
