@@ -32,6 +32,7 @@ import type { IXtermCore } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { Barrier } from '../../../../base/common/async.js';
 import type { IProgressState } from '@xterm/addon-progress';
+import type { TerminalEditorInput } from './terminalEditorInput.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -84,7 +85,7 @@ export interface ITerminalInstanceService {
 	 * @param launchConfig The shell launch config.
 	 * @param target The target of the terminal.
 	 */
-	createInstance(launchConfig: IShellLaunchConfig, target: TerminalLocation): ITerminalInstance;
+	createInstance(launchConfig: IShellLaunchConfig, target: TerminalLocation, editorOptions?: TerminalEditorLocation): ITerminalInstance;
 
 	/**
 	 * Gets the registered backend for a remote authority (undefined = local). This is a convenience
@@ -288,6 +289,13 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
 
 	/**
+	 * Creates and focuses a terminal.
+	 * @param options The options to create the terminal with, when not specified the default
+	 * profile will be used at the default target.
+	 */
+	createAndFocusTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
+
+	/**
 	 * Creates a detached xterm instance which is not attached to the DOM or
 	 * tracked as a terminal instance.
 	 * @params options The options to create the terminal with
@@ -402,7 +410,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
 	resolveResource(instance: ITerminalInstance): URI;
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput;
-	getInputFromResource(resource: URI): EditorInput;
+	getInputFromResource(resource: URI): TerminalEditorInput;
 }
 
 export const terminalEditorId = 'terminalEditor';

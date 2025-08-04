@@ -86,9 +86,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				},
 			]
 		},
-		tags: [
-			'experimental'
-		],
 		default: {
 			rm: false,
 			rmdir: false,

@@ -27,15 +27,16 @@ export const enum ChatMessageRole {
 	Assistant,
 }
 
-export enum ToolResultAudience {
+export enum LanguageModelPartAudience {
 	Assistant = 0,
 	User = 1,
+	Extension = 2,
 }
 
 export interface IChatMessageTextPart {
 	type: 'text';
 	value: string;
-	audience?: ToolResultAudience[];
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatMessageImagePart {
@@ -47,7 +48,7 @@ export interface IChatMessageDataPart {
 	type: 'data';
 	mimeType: string;
 	data: VSBuffer;
-	audience?: ToolResultAudience[];
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatImageURLPart {
@@ -100,7 +101,7 @@ export interface IChatMessage {
 export interface IChatResponseTextPart {
 	type: 'text';
 	value: string;
-	audience?: ToolResultAudience[];
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatResponsePromptTsxPart {
@@ -111,7 +112,7 @@ export interface IChatResponsePromptTsxPart {
 export interface IChatResponseDataPart {
 	type: 'data';
 	value: IChatImageURLPart;
-	audience?: ToolResultAudience[];
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatResponseToolUsePart {
@@ -362,13 +363,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._logService.warn(`[LM] Cannot update model picker preference for unknown model ${modelIdentifier}`);
 			return;
 		}
-		delete this._modelPickerUserPreferences[modelIdentifier];
-		if (model.isUserSelectable !== showInModelPicker) {
-			this._modelPickerUserPreferences[modelIdentifier] = showInModelPicker;
+
+		this._modelPickerUserPreferences[modelIdentifier] = showInModelPicker;
+		if (showInModelPicker === model.isUserSelectable) {
+			delete this._modelPickerUserPreferences[modelIdentifier];
 			this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
-			this._onLanguageModelChange.fire();
-			this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
+		} else if (model.isUserSelectable !== showInModelPicker) {
+			this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
 		}
+		this._onLanguageModelChange.fire();
+		this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
 	}
 
 	getVendors(): IUserFriendlyLanguageModel[] {

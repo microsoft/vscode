@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isKeyboardEvent, isMouseEvent, isPointerEvent } from '../../../../base/browser/dom.js';
+import { isKeyboardEvent, isMouseEvent, isPointerEvent, getActiveWindow } from '../../../../base/browser/dom.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -47,7 +47,7 @@ import { IConfigurationResolverService } from '../../../services/configurationRe
 import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
@@ -56,6 +56,7 @@ import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminal
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
+import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { InstanceContext } from './terminalContextMenu.js';
 import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
@@ -344,6 +345,25 @@ export function registerTerminalActions() {
 		}
 	});
 
+	registerTerminalAction({
+		id: TerminalCommandId.NewInNewWindow,
+		title: terminalStrings.newInNewWindow,
+		precondition: sharedWhenClause.terminalAvailable,
+		keybinding: {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.Backquote,
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyMod.Alt | KeyCode.Backquote },
+			weight: KeybindingWeight.WorkbenchContrib
+		},
+		run: async (c) => {
+			const instance = await c.service.createTerminal({
+				location: {
+					viewColumn: AUX_WINDOW_GROUP,
+				}
+			});
+			await instance.focusWhenReady();
+		}
+	});
+
 	registerContextualInstanceAction({
 		id: TerminalCommandId.MoveToEditor,
 		title: terminalStrings.moveToEditor,
@@ -383,8 +403,9 @@ export function registerTerminalActions() {
 				primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow,
 				secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow]
 			},
-			when: TerminalContextKeys.focus,
-			weight: KeybindingWeight.WorkbenchContrib
+			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.splitTerminalActive),
+			// Should win over send sequence commands https://github.com/microsoft/vscode/issues/259326
+			weight: KeybindingWeight.WorkbenchContrib + 1
 		},
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c) => {
@@ -403,8 +424,9 @@ export function registerTerminalActions() {
 				primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.RightArrow,
 				secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow]
 			},
-			when: TerminalContextKeys.focus,
-			weight: KeybindingWeight.WorkbenchContrib
+			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.splitTerminalActive),
+			// Should win over send sequence commands https://github.com/microsoft/vscode/issues/259326
+			weight: KeybindingWeight.WorkbenchContrib + 1
 		},
 		precondition: sharedWhenClause.terminalAvailable,
 		run: async (c) => {
@@ -1178,6 +1200,7 @@ export function registerTerminalActions() {
 			let eventOrOptions = isObject(args) ? args as MouseEvent | ICreateTerminalOptions : undefined;
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
+			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (eventOrOptions && isMouseEvent(eventOrOptions) && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
 				await c.service.createTerminal({ location: { splitActiveTerminal: true } });
@@ -1186,6 +1209,10 @@ export function registerTerminalActions() {
 
 			if (c.service.isProcessSupportRegistered) {
 				eventOrOptions = !eventOrOptions || isMouseEvent(eventOrOptions) ? {} : eventOrOptions;
+
+				if (isAuxiliaryWindow(getActiveWindow()) && !eventOrOptions.location) {
+					eventOrOptions.location = { viewColumn: editorGroupToColumn(editorGroupsService, editorGroupsService.activeGroup) };
+				}
 
 				let instance: ITerminalInstance | undefined;
 				if (folders.length <= 1) {

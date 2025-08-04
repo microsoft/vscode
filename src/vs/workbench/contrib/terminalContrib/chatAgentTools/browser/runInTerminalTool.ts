@@ -186,15 +186,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		});
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
+		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
+		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
+		if (toolEditedCommand === args.command) {
+			toolEditedCommand = undefined;
+		}
+
 		let confirmationMessages: IToolConfirmationMessages | undefined;
 		if (this._alternativeRecommendation) {
 			confirmationMessages = undefined;
 		} else {
-			const subCommands = splitCommandLineIntoSubCommands(args.command, shell, os);
+			const actualCommand = toolEditedCommand ?? args.command;
+			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
 			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
-			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
+			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
 			const autoApproveReasons: string[] = [
 				...subCommandResults.map(e => e.reason),
 				commandLineResult.reason,
@@ -231,12 +238,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					: localize('runInTerminal.foreground', "Run command in terminal"),
 				message: new MarkdownString(args.explanation),
 			};
-		}
-
-		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
-		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
-		if (toolEditedCommand === args.command) {
-			toolEditedCommand = undefined;
 		}
 
 		return {
