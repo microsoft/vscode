@@ -325,10 +325,10 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 			}
 			else if (serverPackage.registry_name === PackageType.NUGET) {
 				args.push(serverPackage.version ? `${serverPackage.name}@${serverPackage.version}` : serverPackage.name);
-			}
-
-			if (serverPackage.package_arguments && serverPackage.registry_name === PackageType.NUGET) {
-				args.push('--');
+				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
+				if (serverPackage.package_arguments?.length) {
+					args.push('--');
+				}
 			}
 
 			for (const arg of serverPackage.package_arguments ?? []) {
