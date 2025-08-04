@@ -65,7 +65,6 @@ export class QuickInputTreeController extends Disposable {
 				alwaysConsumeMouseWheel: true,
 				hideTwistiesOfChildlessElements: true,
 				renderIndentGuides: RenderIndentGuides.None,
-
 				expandOnDoubleClick: true,
 				expandOnlyOnTwistieClick: true,
 				disableExpandOnSpacebar: true,
