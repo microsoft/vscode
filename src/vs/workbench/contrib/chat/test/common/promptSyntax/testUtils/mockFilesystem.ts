@@ -6,7 +6,7 @@
 import { URI } from '../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
-import { wait } from '../../../../../../../base/test/common/testUtils.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 
 /**
@@ -58,7 +58,7 @@ export class MockFilesystem {
 		// wait for the filesystem event to settle before proceeding
 		// this is temporary workaround and should be fixed once we
 		// improve behavior of the `settled()` / `allSettled()` methods
-		await wait(25);
+		await timeout(25);
 
 		return result;
 	}

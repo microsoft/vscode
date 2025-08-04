@@ -286,6 +286,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const editor = editorInstaService.createInstance(CodeEditorWidget, editorContainer, {
 			...this.editorOptions.getDefaultValue(),
+			allowVariableLineHeights: false,
 			dimension: {
 				width: 0,
 				height: 0

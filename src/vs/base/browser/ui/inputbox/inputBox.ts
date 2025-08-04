@@ -8,7 +8,6 @@ import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
 import { IHistoryNavigationWidget } from '../../history.js';
-import { MarkdownRenderOptions } from '../../markdownRenderer.js';
 import { ActionBar } from '../actionbar/actionbar.js';
 import * as aria from '../aria/aria.js';
 import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview.js';
@@ -485,14 +484,14 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				const renderOptions: MarkdownRenderOptions = {
-					inline: true,
-					className: 'monaco-inputbox-message'
-				};
 
-				const spanElement = (this.message.formatContent
-					? renderFormattedText(this.message.content!, renderOptions)
-					: renderText(this.message.content!, renderOptions));
+				const spanElement = $('span.monaco-inputbox-message');
+				if (this.message.formatContent) {
+					renderFormattedText(this.message.content!, undefined, spanElement);
+				} else {
+					renderText(this.message.content!, undefined, spanElement);
+				}
+
 				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);

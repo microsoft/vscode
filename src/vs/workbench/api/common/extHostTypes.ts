@@ -584,9 +584,9 @@ export class RemoteAuthorityResolverError extends Error {
 
 	public readonly _message: string | undefined;
 	public readonly _code: RemoteAuthorityResolverErrorCode;
-	public readonly _detail: any;
+	public readonly _detail: unknown;
 
-	constructor(message?: string, code: RemoteAuthorityResolverErrorCode = RemoteAuthorityResolverErrorCode.Unknown, detail?: any) {
+	constructor(message?: string, code: RemoteAuthorityResolverErrorCode = RemoteAuthorityResolverErrorCode.Unknown, detail?: unknown) {
 		super(message);
 
 		this._message = message;
@@ -1845,7 +1845,7 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 export class InlineSuggestionList implements vscode.InlineCompletionList {
 	items: vscode.InlineCompletionItem[];
 
-	commands: vscode.Command[] | undefined = undefined;
+	commands: (vscode.Command | { command: vscode.Command; icon: vscode.ThemeIcon })[] | undefined = undefined;
 
 	suppressSuggestions: boolean | undefined = undefined;
 
@@ -2154,6 +2154,8 @@ export enum TerminalCompletionItemKind {
 	Option = 5,
 	OptionValue = 6,
 	Flag = 7,
+	SymbolicLinkFile = 8,
+	SymbolicLinkFolder = 9
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
@@ -3313,6 +3315,14 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 export enum InlineCompletionTriggerKind {
 	Invoke = 0,
 	Automatic = 1,
+}
+
+export enum InlineCompletionsDisposeReasonKind {
+	Other = 0,
+	Empty = 1,
+	TokenCancellation = 2,
+	LostRace = 3,
+	NotTaken = 4,
 }
 
 @es5ClassCompat
@@ -4578,11 +4588,11 @@ export class ChatResponseMarkdownWithVulnerabilitiesPart {
 
 export class ChatResponseConfirmationPart {
 	title: string;
-	message: string;
+	message: string | vscode.MarkdownString;
 	data: any;
 	buttons?: string[];
 
-	constructor(title: string, message: string, data: any, buttons?: string[]) {
+	constructor(title: string, message: string | vscode.MarkdownString, data: any, buttons?: string[]) {
 		this.title = title;
 		this.message = message;
 		this.data = data;
@@ -4596,6 +4606,15 @@ export class ChatResponseFileTreePart {
 	constructor(value: vscode.ChatResponseFileTree[], baseUri: vscode.Uri) {
 		this.value = value;
 		this.baseUri = baseUri;
+	}
+}
+
+export class ChatResponseMultiDiffPart {
+	value: vscode.ChatResponseDiffEntry[];
+	title: string;
+	constructor(value: vscode.ChatResponseDiffEntry[], title: string) {
+		this.value = value;
+		this.title = title;
 	}
 }
 
@@ -4693,6 +4712,27 @@ export class ChatResponseExtensionsPart {
 	}
 }
 
+export class ChatResponsePullRequestPart {
+	constructor(
+		public readonly uri: vscode.Uri,
+		public readonly title: string,
+		public readonly description: string,
+		public readonly author: string,
+		public readonly linkTag: string
+	) {
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.ChatResponsePullRequestPart,
+			uri: this.uri,
+			title: this.title,
+			description: this.description,
+			author: this.author
+		};
+	}
+}
+
 export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
@@ -4734,6 +4774,36 @@ export class ChatPrepareToolInvocationPart {
 	}
 }
 
+
+export interface ChatTerminalToolInvocationData2 {
+	commandLine: {
+		original: string;
+		userEdited?: string;
+		toolEdited?: string;
+	};
+	language: string;
+}
+
+export class ChatToolInvocationPart {
+	toolName: string;
+	toolCallId: string;
+	isError?: boolean;
+	invocationMessage?: string | vscode.MarkdownString;
+	originMessage?: string | vscode.MarkdownString;
+	pastTenseMessage?: string | vscode.MarkdownString;
+	isConfirmed?: boolean;
+	isComplete?: boolean;
+	toolSpecificData?: ChatTerminalToolInvocationData2;
+
+	constructor(toolName: string,
+		toolCallId: string,
+		isError?: boolean) {
+		this.toolName = toolName;
+		this.toolCallId = toolCallId;
+		this.isError = isError;
+	}
+}
+
 export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 	constructor(
 		readonly prompt: string,
@@ -4755,6 +4825,16 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 	) { }
 }
 
+export class ChatResponseTurn2 implements vscode.ChatResponseTurn2 {
+
+	constructor(
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ChatResponseExtensionsPart | ChatToolInvocationPart>,
+		readonly result: vscode.ChatResult,
+		readonly participant: string,
+		readonly command?: string
+	) { }
+}
+
 export enum ChatLocation {
 	Panel = 1,
 	Terminal = 2,
@@ -4766,6 +4846,12 @@ export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
 	Omitted = 3
+}
+
+export enum ChatResponseClearToPreviousToolInvocationReason {
+	NoReason = 0,
+	FilteredContentRetry = 1,
+	CopyrightContentRetry = 2,
 }
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
@@ -4827,15 +4913,6 @@ export class LanguageModelToolResultPart2 implements vscode.LanguageModelToolRes
 		this.content = content;
 		this.isError = isError ?? false;
 	}
-}
-
-export class PreparedTerminalToolInvocation {
-	constructor(
-		public readonly command: string,
-		public readonly language: string,
-		public readonly confirmationMessages?: vscode.LanguageModelToolConfirmationMessages,
-		public readonly presentation?: 'hidden'
-	) { }
 }
 
 export enum ChatErrorLevel {
@@ -4953,28 +5030,39 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	}
 }
 
-export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
-	value: string;
+export enum LanguageModelPartAudience {
+	Assistant = 0,
+	User = 1,
+	Extension = 2,
+}
 
-	constructor(value: string) {
+export class LanguageModelTextPart implements vscode.LanguageModelTextPart2 {
+	value: string;
+	audience: vscode.LanguageModelPartAudience[] | undefined;
+
+	constructor(value: string, audience?: vscode.LanguageModelPartAudience[]) {
 		this.value = value;
+		audience = audience;
 	}
 
 	toJSON() {
 		return {
 			$mid: MarshalledId.LanguageModelTextPart,
 			value: this.value,
+			audience: this.audience,
 		};
 	}
 }
 
-export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
+export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 	mimeType: string;
 	data: Uint8Array<ArrayBufferLike>;
+	audience: vscode.LanguageModelPartAudience[] | undefined;
 
-	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string) {
+	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string, audience?: vscode.LanguageModelPartAudience[]) {
 		this.mimeType = mimeType;
 		this.data = data;
+		this.audience = audience;
 	}
 
 	static image(data: Uint8Array<ArrayBufferLike>, mimeType: ChatImageMimeType): vscode.LanguageModelDataPart {
@@ -4995,6 +5083,7 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 			$mid: MarshalledId.LanguageModelDataPart,
 			mimeType: this.mimeType,
 			data: this.data,
+			audience: this.audience
 		};
 	}
 }
@@ -5123,6 +5212,14 @@ export enum LanguageModelChatToolMode {
 	Required = 2
 }
 
+export class LanguageModelToolExtensionSource implements vscode.LanguageModelToolExtensionSource {
+	constructor(public readonly id: string, public readonly label: string) { }
+}
+
+export class LanguageModelToolMCPSource implements vscode.LanguageModelToolMCPSource {
+	constructor(public readonly label: string, public readonly name: string, public readonly instructions: string | undefined) { }
+}
+
 //#endregion
 
 //#region ai
@@ -5165,23 +5262,7 @@ export enum KeywordRecognitionStatus {
 
 //#endregion
 
-//#region InlineEdit
-
-export class InlineEdit implements vscode.InlineEdit {
-	constructor(
-		public readonly text: string,
-		public readonly range: Range,
-	) { }
-}
-
-export enum InlineEditTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
-}
-
-//#endregion
-
-//#region MC
+//#region MCP
 export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition {
 	cwd?: URI;
 

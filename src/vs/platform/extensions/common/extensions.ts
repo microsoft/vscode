@@ -104,7 +104,7 @@ export interface ICodeActionContribution {
 export interface IAuthenticationContribution {
 	readonly id: string;
 	readonly label: string;
-	readonly issuerGlobs?: string[];
+	readonly authorizationServerGlobs?: string[];
 }
 
 export interface IWalkthroughStep {

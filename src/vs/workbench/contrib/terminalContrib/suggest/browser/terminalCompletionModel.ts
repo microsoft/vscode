@@ -52,9 +52,10 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		return 1;
 	}
 
-	// Sort by underscore penalty (eg. `__init__/` should be penalized)
-	if (a.underscorePenalty !== b.underscorePenalty) {
-		return a.underscorePenalty - b.underscorePenalty;
+	if (a.punctuationPenalty !== b.punctuationPenalty) {
+		// Sort by underscore penalty (eg. `__init__/` should be penalized)
+		// Sort by punctuation penalty (eg. `;` should be penalized)
+		return a.punctuationPenalty - b.punctuationPenalty;
 	}
 
 	// Sort files of the same name by extension
@@ -78,6 +79,23 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		score = a.fileExtLow.length - b.fileExtLow.length;
 		if (score !== 0) {
 			return score;
+		}
+	}
+
+	// Boost main and master branches for git commands
+	// HACK: Currently this just matches leading line content, it should eventually check the
+	//       completion type is a branch
+	if (a.completion.kind === TerminalCompletionItemKind.Argument && b.completion.kind === TerminalCompletionItemKind.Argument && /^\s*git\b/.test(leadingLineContent)) {
+		const aLabel = typeof a.completion.label === 'string' ? a.completion.label : a.completion.label.label;
+		const bLabel = typeof b.completion.label === 'string' ? b.completion.label : b.completion.label.label;
+		const aIsMainOrMaster = aLabel === 'main' || aLabel === 'master';
+		const bIsMainOrMaster = bLabel === 'main' || bLabel === 'master';
+
+		if (aIsMainOrMaster && !bIsMainOrMaster) {
+			return -1;
+		}
+		if (bIsMainOrMaster && !aIsMainOrMaster) {
+			return 1;
 		}
 	}
 

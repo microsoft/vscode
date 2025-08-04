@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from '../../../../base/common/arrays.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -18,263 +17,30 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { Location, SymbolKind, TextEdit, isLocation } from '../../../../editor/common/languages.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
+import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { ISCMHistoryItem } from '../../scm/common/history.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
-import { IChatRequestVariableValue } from './chatVariables.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
-
-interface IBaseChatRequestVariableEntry {
-	id: string;
-	fullName?: string;
-	icon?: ThemeIcon;
-	name: string;
-	modelDescription?: string;
-
-	/**
-	 * The offset-range in the prompt. This means this entry has been explicitly typed out
-	 * by the user.
-	 */
-	range?: IOffsetRange;
-	value: IChatRequestVariableValue;
-	references?: IChatContentReference[];
-
-	omittedState?: OmittedState;
-}
-
-export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
-	kind: 'generic';
-}
-
-export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
-	kind: 'directory';
-}
-
-export interface IChatRequestFileEntry extends IBaseChatRequestVariableEntry {
-	kind: 'file';
-}
-
-export const enum OmittedState {
-	NotOmitted,
-	Partial,
-	Full,
-}
-
-export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'tool';
-}
-
-export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'toolset';
-	readonly value: undefined;
-}
-
-export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'implicit';
-	readonly isFile: true;
-	readonly value: URI | Location | undefined;
-	readonly isSelection: boolean;
-	readonly isPromptFile: boolean;
-	enabled: boolean;
-}
-
-export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'paste';
-	code: string;
-	language: string;
-	pastedLines: string;
-
-	// This is only used for old serialized data and should be removed once we no longer support it
-	fileName: string;
-
-	// This is only undefined on old serialized data
-	copiedFrom: {
-		readonly uri: URI;
-		readonly range: IRange;
-	} | undefined;
-}
-
-export interface ISymbolVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'symbol';
-	readonly value: Location;
-	readonly symbolKind: SymbolKind;
-}
-
-export interface ICommandResultVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'command';
-}
-
-export interface IImageVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'image';
-	readonly isPasted?: boolean;
-	readonly isURL?: boolean;
-	readonly mimeType?: string;
-}
-
-export interface INotebookOutputVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
-	readonly kind: 'notebookOutput';
-	readonly outputIndex?: number;
-	readonly mimeType?: string;
-}
-
-export interface IDiagnosticVariableEntryFilterData {
-	readonly owner?: string;
-	readonly problemMessage?: string;
-	readonly filterUri?: URI;
-	readonly filterSeverity?: MarkerSeverity;
-	readonly filterRange?: IRange;
-}
-
-/**
- * Chat variable that represents an attached prompt file.
- */
-export interface IPromptVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'file';
-	readonly value: URI | Location;
-	readonly isRoot: boolean;
-	readonly modelDescription: string;
-}
-
-export namespace IDiagnosticVariableEntryFilterData {
-	export const icon = Codicon.error;
-
-	export function fromMarker(marker: IMarker): IDiagnosticVariableEntryFilterData {
-		return {
-			filterUri: marker.resource,
-			owner: marker.owner,
-			problemMessage: marker.message,
-			filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn }
-		};
-	}
-
-	export function toEntry(data: IDiagnosticVariableEntryFilterData): IDiagnosticVariableEntry {
-		return {
-			id: id(data),
-			name: label(data),
-			icon,
-			value: data,
-			kind: 'diagnostic',
-			...data,
-		};
-	}
-
-	export function id(data: IDiagnosticVariableEntryFilterData) {
-		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
-	}
-
-	export function label(data: IDiagnosticVariableEntryFilterData) {
-		const enum TrimThreshold {
-			MaxChars = 30,
-			MaxSpaceLookback = 10,
-		}
-		if (data.problemMessage) {
-			if (data.problemMessage.length < TrimThreshold.MaxChars) {
-				return data.problemMessage;
-			}
-
-			// Trim the message, on a space if it would not lose too much
-			// data (MaxSpaceLookback) or just blindly otherwise.
-			const lastSpace = data.problemMessage.lastIndexOf(' ', TrimThreshold.MaxChars);
-			if (lastSpace === -1 || lastSpace + TrimThreshold.MaxSpaceLookback < TrimThreshold.MaxChars) {
-				return data.problemMessage.substring(0, TrimThreshold.MaxChars) + '…';
-			}
-			return data.problemMessage.substring(0, lastSpace) + '…';
-		}
-		let labelStr = localize('chat.attachment.problems.all', "All Problems");
-		if (data.filterUri) {
-			labelStr = localize('chat.attachment.problems.inFile', "Problems in {0}", basename(data.filterUri));
-		}
-
-		return labelStr;
-	}
-}
-
-export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry, IDiagnosticVariableEntryFilterData {
-	readonly kind: 'diagnostic';
-}
-
-export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'element';
-}
-
-export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'promptFile';
-}
-
-export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
-	readonly kind: 'scmHistoryItem';
-	readonly value: URI;
-	readonly historyItem: ISCMHistoryItem;
-}
-
-export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
-	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
-	| IChatRequestToolEntry | IChatRequestToolSetEntry
-	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| IPromptFileVariableEntry | ISCMHistoryItemVariableEntry;
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatClearToPreviousToolInvocation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext, ChatResponseClearToPreviousToolInvocationReason } from './chatService.js';
+import { IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 
-export namespace IChatRequestVariableEntry {
+export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
+	png: 'image/png',
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	gif: 'image/gif',
+	webp: 'image/webp',
+};
 
-	/**
-	 * Returns URI of the passed variant entry. Return undefined if not found.
-	 */
-	export function toUri(entry: IChatRequestVariableEntry): URI | undefined {
-		return URI.isUri(entry.value)
-			? entry.value
-			: isLocation(entry.value)
-				? entry.value.uri
-				: undefined;
-	}
-}
-
-
-export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
-	return obj.kind === 'implicit';
-}
-
-export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
-	return obj.kind === 'paste';
-}
-
-export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
-	return obj.kind === 'image';
-}
-
-export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): obj is INotebookOutputVariableEntry {
-	return obj.kind === 'notebookOutput';
-}
-
-export function isElementVariableEntry(obj: IChatRequestVariableEntry): obj is IElementVariableEntry {
-	return obj.kind === 'element';
-}
-
-export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {
-	return obj.kind === 'diagnostic';
-}
-
-export function isChatRequestFileEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry {
-	return obj.kind === 'file';
-}
-
-export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
-	const entry = obj as IChatRequestVariableEntry;
-	return typeof entry === 'object' &&
-		entry !== null &&
-		typeof entry.id === 'string' &&
-		typeof entry.name === 'string';
-}
-
-export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemVariableEntry {
-	return obj.kind === 'scmHistoryItem';
+export function getAttachableImageExtension(mimeType: string): string | undefined {
+	return Object.entries(CHAT_ATTACHABLE_IMAGE_MIME_TYPES).find(([_, value]) => value === mimeType)?.[0];
 }
 
 export interface IChatRequestVariableData {
@@ -297,6 +63,8 @@ export interface IChatRequestModel {
 	readonly response?: IChatResponseModel;
 	readonly editedFileEvents?: IChatAgentEditedFileEvent[];
 	shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	shouldBeBlocked: boolean;
+	readonly modelId?: string;
 }
 
 export interface IChatTextEditGroupState {
@@ -339,6 +107,7 @@ export type IChatProgressHistoryResponseContent =
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatResponseCodeblockUriPart
 	| IChatTreeData
+	| IChatMultiDiffData
 	| IChatContentInlineReference
 	| IChatProgressMessage
 	| IChatCommandButton
@@ -348,7 +117,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatTextEditGroup
 	| IChatNotebookEditGroup
 	| IChatConfirmation
-	| IChatExtensionsContent;
+	| IChatExtensionsContent
+	| IChatPullRequestContent;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -358,7 +128,9 @@ export type IChatProgressResponseContent =
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatUndoStop
-	| IChatPrepareToolInvocationPart;
+	| IChatPrepareToolInvocationPart
+	| IChatElicitationRequest
+	| IChatClearToPreviousToolInvocation;
 
 const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
@@ -401,6 +173,7 @@ export interface IChatResponseModel {
 	readonly isPendingConfirmation: IObservable<boolean>;
 	readonly isInProgress: IObservable<boolean>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	shouldBeBlocked: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
@@ -451,6 +224,8 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly message: IParsedChatRequest;
 	public readonly isCompleteAddedRequest: boolean;
 	public readonly modelId?: string;
+
+	public shouldBeBlocked: boolean = false;
 
 	private _session: ChatModel;
 	private readonly _attempt: number;
@@ -576,14 +351,21 @@ class AbstractResponse implements IResponse {
 		for (const part of parts) {
 			let segment: { text: string; isBlock?: boolean } | undefined;
 			switch (part.kind) {
+				case 'clearToPreviousToolInvocation':
+					currentBlockSegments = [];
+					blocks.length = 0;
+					continue;
 				case 'treeData':
 				case 'progressMessage':
 				case 'codeblockUri':
 				case 'toolInvocation':
 				case 'toolInvocationSerialized':
 				case 'extensions':
+				case 'pullRequest':
 				case 'undoStop':
 				case 'prepareToolInvocation':
+				case 'elicitation':
+				case 'multiDiffData':
 					// Ignore
 					continue;
 				case 'inlineReference':
@@ -597,6 +379,10 @@ class AbstractResponse implements IResponse {
 					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
 					break;
 				case 'confirmation':
+					if (part.message instanceof MarkdownString) {
+						segment = { text: `${part.title}\n${part.message.value}`, isBlock: true };
+						break;
+					}
 					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
 					break;
 				default:
@@ -684,8 +470,38 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._updateRepr(true);
 	}
 
+	clearToPreviousToolInvocation(message?: string): void {
+		// look through the response parts and find the last tool invocation, then slice the response parts to that point
+		let lastToolInvocationIndex = -1;
+		for (let i = this._responseParts.length - 1; i >= 0; i--) {
+			const part = this._responseParts[i];
+			if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+				lastToolInvocationIndex = i;
+				break;
+			}
+		}
+		if (lastToolInvocationIndex !== -1) {
+			this._responseParts = this._responseParts.slice(0, lastToolInvocationIndex + 1);
+		} else {
+			this._responseParts = [];
+		}
+		if (message) {
+			this._responseParts.push({ kind: 'warning', content: new MarkdownString(message) });
+		}
+		this._updateRepr(true);
+	}
+
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask, quiet?: boolean): void {
-		if (progress.kind === 'markdownContent') {
+		if (progress.kind === 'clearToPreviousToolInvocation') {
+			if (progress.reason === ChatResponseClearToPreviousToolInvocationReason.CopyrightContentRetry) {
+				this.clearToPreviousToolInvocation(localize('copyrightContentRetry', "Response cleared due to possible match to public code, retrying with modified prompt."));
+			} else if (progress.reason === ChatResponseClearToPreviousToolInvocationReason.FilteredContentRetry) {
+				this.clearToPreviousToolInvocation(localize('filteredContentRetry', "Response cleared due to content safety filters, retrying with modified prompt."));
+			} else {
+				this.clearToPreviousToolInvocation();
+			}
+			return;
+		} else if (progress.kind === 'markdownContent') {
 
 			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
 			// the MD be chopped up by text edit groups (and likely other non-renderable parts)
@@ -799,6 +615,7 @@ export interface IChatResponseModelParameters {
 	followups?: ReadonlyArray<IChatFollowup>;
 	isCompleteAddedRequest?: boolean;
 	shouldBeRemovedOnSend?: IChatRequestDisablement;
+	shouldBeBlocked?: boolean;
 	restoredId?: string;
 }
 
@@ -818,6 +635,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _result?: IChatAgentResult;
 	private _shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly isCompleteAddedRequest: boolean;
+	private _shouldBeBlocked: boolean = false;
+
+	public get shouldBeBlocked() {
+		return this._shouldBeBlocked;
+	}
 
 	public get session() {
 		return this._session;
@@ -951,6 +773,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._followups = params.followups ? [...params.followups] : undefined;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this._shouldBeRemovedOnSend = params.shouldBeRemovedOnSend;
+		this._shouldBeBlocked = params.shouldBeBlocked ?? false;
 
 		// If we are creating a response with some existing content, consider it stale
 		this._isStale = Array.isArray(params.responseContent) && (params.responseContent.length !== 0 || isMarkdownString(params.responseContent) && params.responseContent.value.length !== 0);
@@ -980,6 +803,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
 		this.id = params.restoredId ?? 'response_' + generateUuid();
+
+		this._register(this._session.onDidChange((e) => {
+			if (e.kind === 'setCheckpoint') {
+				const isDisabled = e.disabledResponseIds.has(this.id);
+				const didChange = this._shouldBeBlocked === isDisabled;
+				this._shouldBeBlocked = isDisabled;
+				if (didChange) {
+					this._onDidChange.fire(defaultChatResponseModelChangeReason);
+				}
+			}
+		}));
 	}
 
 	/**
@@ -1111,7 +945,7 @@ export interface IChatRequestDisablement {
 	afterUndoStop?: string;
 }
 
-export interface IChatModel {
+export interface IChatModel extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
@@ -1131,8 +965,21 @@ export interface IChatModel {
 	 */
 	setDisabledRequests(requestIds: IChatRequestDisablement[]): void;
 	getRequests(): IChatRequestModel[];
+	setCheckpoint(requestId: string | undefined): void;
+	readonly checkpoint: IChatRequestModel | undefined;
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string): IChatRequestModel;
+	acceptResponseProgress(request: IChatRequestModel, progress: IChatProgress, quiet?: boolean): void;
+	setResponse(request: IChatRequestModel, result: IChatAgentResult): void;
+	completeResponse(request: IChatRequestModel): void;
+	setCustomTitle(title: string): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
+}
+
+export const IChatModelService = createDecorator<IChatModelService>('chatModelService');
+
+export interface IChatModelService {
+	readonly _serviceBrand: undefined;
 }
 
 export interface ISerializableChatsData {
@@ -1168,6 +1015,7 @@ export interface ISerializableChatRequestData {
 	timestamp?: number;
 	confirmation?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	modelId?: string;
 }
 
 export interface IExportableChatData {
@@ -1292,11 +1140,19 @@ export type IChatChangeEvent =
 	| IChatMoveEvent
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
+	| IChatSetCheckpointEvent
+	| IChatSetCustomTitleEvent
 	;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IChatRequestModel;
+}
+
+export interface IChatSetCheckpointEvent {
+	kind: 'setCheckpoint';
+	disabledRequestIds: Set<string>;
+	disabledResponseIds: Set<string>;
 }
 
 export interface IChatChangedRequestEvent {
@@ -1355,6 +1211,11 @@ export interface IChatSetAgentEvent {
 	command?: IChatAgentCommand;
 }
 
+export interface IChatSetCustomTitleEvent {
+	kind: 'setCustomTitle';
+	title: string;
+}
+
 export interface IChatInitEvent {
 	kind: 'initialize';
 }
@@ -1365,7 +1226,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		const message = typeof firstRequestMessage === 'string' ?
 			firstRequestMessage :
 			firstRequestMessage.text;
-		return message.split('\n')[0].substring(0, 50);
+		return message.split('\n')[0].substring(0, 200);
 	}
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
@@ -1417,7 +1278,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	private get _defaultAgent() {
-		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, ChatMode.Ask);
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, ChatModeKind.Ask);
 	}
 
 	get requesterUsername(): string {
@@ -1549,6 +1410,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					restoredId: raw.requestId,
 					confirmation: raw.confirmation,
 					editedFileEvents: raw.editedFileEvents,
+					modelId: raw.modelId,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
@@ -1571,7 +1433,8 @@ export class ChatModel extends Disposable implements IChatModel {
 						voteDownReason: raw.voteDownReason,
 						result,
 						followups: raw.followups,
-						restoredId: raw.responseId
+						restoredId: raw.responseId,
+						shouldBeBlocked: request.shouldBeBlocked,
 					});
 					request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
@@ -1636,6 +1499,54 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
+	resetCheckpoint(): void {
+		for (const request of this._requests) {
+			request.shouldBeBlocked = false;
+		}
+	}
+
+	setCheckpoint(requestId: string | undefined) {
+		let checkpoint: ChatRequestModel | undefined;
+		let checkpointIndex = -1;
+		if (requestId !== undefined) {
+			this._requests.forEach((request, index) => {
+				if (request.id === requestId) {
+					checkpointIndex = index;
+					checkpoint = request;
+					request.shouldBeBlocked = true;
+				}
+			});
+
+			if (!checkpoint) {
+				return; // Invalid request ID
+			}
+		}
+
+		const disabledRequestIds = new Set<string>();
+		const disabledResponseIds = new Set<string>();
+		for (let i = this._requests.length - 1; i >= 0; i -= 1) {
+			const request = this._requests[i];
+			if (this._checkpoint && !checkpoint) {
+				request.shouldBeBlocked = false;
+			} else if (checkpoint && i >= checkpointIndex) {
+				request.shouldBeBlocked = true;
+				disabledRequestIds.add(request.id);
+				if (request.response) {
+					disabledResponseIds.add(request.response.id);
+				}
+			} else if (checkpoint && i < checkpointIndex) {
+				request.shouldBeBlocked = false;
+			}
+		}
+
+		this._checkpoint = checkpoint;
+		this._onDidChange.fire({
+			kind: 'setCheckpoint',
+			disabledRequestIds,
+			disabledResponseIds
+		});
+	}
+
 	private _checkpoint: ChatRequestModel | undefined = undefined;
 	public get checkpoint() {
 		return this._checkpoint;
@@ -1687,8 +1598,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	setCustomTitle(title: string): void {
+	public setCustomTitle(title: string): void {
 		this._customTitle = title;
+		this._onDidChange.fire({ kind: 'setCustomTitle', title });
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
@@ -1844,6 +1756,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					timestamp: r.timestamp,
 					confirmation: r.confirmation,
 					editedFileEvents: r.editedFileEvents,
+					modelId: r.modelId,
 				};
 			}),
 		};
@@ -1932,4 +1845,40 @@ export enum ChatRequestEditedFileEventKind {
 export interface IChatAgentEditedFileEvent {
 	readonly uri: URI;
 	readonly eventKind: ChatRequestEditedFileEventKind;
+}
+
+/** URI for a resource embedded in a chat request/response */
+export namespace ChatResponseResource {
+	export const scheme = 'vscode-chat-response-resource';
+
+	export function createUri(sessionId: string, requestId: string, toolCallId: string, index: number, basename?: string): URI {
+		return URI.from({
+			scheme: ChatResponseResource.scheme,
+			authority: sessionId,
+			path: `/tool/${requestId}/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
+		});
+	}
+
+	export function parseUri(uri: URI): undefined | { sessionId: string; requestId: string; toolCallId: string; index: number } {
+		if (uri.scheme !== ChatResponseResource.scheme) {
+			return undefined;
+		}
+
+		const parts = uri.path.split('/');
+		if (parts.length < 5) {
+			return undefined;
+		}
+
+		const [, kind, requestId, toolCallId, index] = parts;
+		if (kind !== 'tool') {
+			return undefined;
+		}
+
+		return {
+			sessionId: uri.authority,
+			requestId: requestId,
+			toolCallId: toolCallId,
+			index: Number(index),
+		};
+	}
 }

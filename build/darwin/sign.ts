@@ -118,8 +118,16 @@ async function main(buildDir?: string): Promise<void> {
 }
 
 if (require.main === module) {
-	main(process.argv[2]).catch(err => {
+	main(process.argv[2]).catch(async err => {
 		console.error(err);
+		const tempDir = process.env['AGENT_TEMPDIRECTORY'];
+		if (tempDir) {
+			const keychain = path.join(tempDir, 'buildagent.keychain');
+			const identities = await spawn('security', ['find-identity', '-p', 'codesigning', '-v', keychain]);
+			console.error(`Available identities:\n${identities}`);
+			const dump = await spawn('security', ['dump-keychain', keychain]);
+			console.error(`Keychain dump:\n${dump}`);
+		}
 		process.exit(1);
 	});
 }

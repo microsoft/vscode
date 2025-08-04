@@ -6,7 +6,6 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { CodeLens, CodeLensList, CodeLensProvider } from '../../../../../editor/common/languages.js';
 import { isITextModel, ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
@@ -14,11 +13,12 @@ import { localize } from '../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { showToolsPicker } from '../actions/chatToolPicker.js';
-import { ILanguageModelToolsService, IToolData, ToolSet } from '../../common/languageModelToolsService.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../../common/promptSyntax/constants.js';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../../common/promptSyntax/promptTypes.js';
 import { PromptToolsMetadata } from '../../common/promptSyntax/parsers/promptHeader/metadata/tools.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
+import { PromptFileRewriter } from './promptFileRewriter.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {
 
@@ -48,23 +48,30 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 
 		const parser = this.promptsService.getSyntaxParserFor(model);
 
-		const { header } = await parser
-			.start()
-			.settled();
-
-		if (token.isCancellationRequested) {
+		await parser.start(token).settled();
+		const { header } = parser;
+		if (!header) {
 			return undefined;
 		}
 
-		const tools = header?.metadata.tools;
-		if (!tools) {
+		const completed = await header.settled;
+		if (!completed || token.isCancellationRequested) {
+			return undefined;
+		}
+
+		if (('tools' in header.metadataUtility) === false) {
+			return undefined;
+		}
+
+		const { tools } = header.metadataUtility;
+		if (tools === undefined) {
 			return undefined;
 		}
 
 		const codeLens: CodeLens = {
 			range: tools.range.collapseToStart(),
 			command: {
-				title: localize('eee', "Configure Tools..."),
+				title: localize('configure-tools.capitalized.ellipsis', "Configure Tools..."),
 				id: this.cmdId,
 				arguments: [model, tools]
 			}
@@ -74,31 +81,12 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 
 	private async updateTools(model: ITextModel, tools: PromptToolsMetadata) {
 
-		const toolNames = new Set(tools.toolNames);
-		const selectedToolsNow = new Map<ToolSet | IToolData, boolean>();
-
-		for (const tool of this.languageModelToolsService.getTools()) {
-			selectedToolsNow.set(tool, toolNames.has(tool.toolReferenceName ?? tool.displayName));
-		}
-		for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-			selectedToolsNow.set(toolSet, toolNames.has(toolSet.toolReferenceName));
-		}
-
-		const newSelectedAfter = await this.instantiationService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools"), selectedToolsNow);
+		const selectedToolsNow = tools.value ? this.languageModelToolsService.toToolAndToolSetEnablementMap(tools.value) : new Map();
+		const newSelectedAfter = await this.instantiationService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools"), undefined, selectedToolsNow);
 		if (!newSelectedAfter) {
 			return;
 		}
-
-		const newToolNames: string[] = [];
-		for (const [item, picked] of newSelectedAfter) {
-			if (picked) {
-				newToolNames.push(item.toolReferenceName ?? item.displayName);
-			}
-		}
-
-		model.pushStackElement();
-		model.pushEditOperations(null, [EditOperation.replaceMove(tools.range, `tools: [${newToolNames.map(s => `'${s}'`).join(', ')}]`)], () => null);
-		model.pushStackElement();
+		await this.instantiationService.createInstance(PromptFileRewriter).rewriteTools(model, newSelectedAfter, tools.range);
 	}
 }
 

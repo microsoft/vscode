@@ -37,9 +37,11 @@ import { IChatFollowup, IChatService } from '../../common/chatService.js';
 import { ChatService } from '../../common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -50,7 +52,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
-	modes: [ChatMode.Ask],
+	modes: [ChatModeKind.Ask],
 	metadata: {},
 	slashCommands: [],
 	disambiguation: [],
@@ -84,7 +86,7 @@ const chatAgentWithMarkdown: IChatAgent = {
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
-	modes: [ChatMode.Ask],
+	modes: [ChatModeKind.Ask],
 	metadata: {},
 	slashCommands: [],
 	disambiguation: [],
@@ -106,7 +108,7 @@ function getAgentData(id: string): IChatAgentData {
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		locations: [ChatAgentLocation.Panel],
-		modes: [ChatMode.Ask],
+		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],
@@ -124,7 +126,8 @@ suite('ChatService', () => {
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChatVariablesService, new MockChatVariablesService()],
-			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
+			[IMcpService, new TestMcpService()],
 		)));
 		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -287,6 +290,7 @@ suite('ChatService', () => {
 		assert(chatModel2);
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
+		chatModel2.dispose();
 	});
 
 	test('can deserialize with response', async () => {
@@ -315,6 +319,7 @@ suite('ChatService', () => {
 		assert(chatModel2);
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
+		chatModel2.dispose();
 	});
 });
 

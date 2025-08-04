@@ -8,17 +8,18 @@ import * as sinon from 'sinon';
 import {
 	getClaimsFromJWT,
 	getDefaultMetadataForUrl,
-	getMetadataWithDefaultValues,
 	isAuthorizationAuthorizeResponse,
+	isAuthorizationDeviceResponse,
+	isAuthorizationErrorResponse,
 	isAuthorizationDynamicClientRegistrationResponse,
 	isAuthorizationProtectedResourceMetadata,
 	isAuthorizationServerMetadata,
 	isAuthorizationTokenResponse,
-	isDynamicClientRegistrationResponse,
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
 	IAuthorizationJWTClaims,
-	IAuthorizationServerMetadata
+	IAuthorizationServerMetadata,
+	DEFAULT_AUTH_FLOW_PORT
 } from '../../common/oauth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { encodeBase64, VSBuffer } from '../../common/buffer.js';
@@ -63,7 +64,7 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse(null), false);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse(undefined), false);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({}), false);
-			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({ client_id: 'missing-name' }), false);
+			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({ client_id: 'just-id' }), true);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse({ client_name: 'missing-id' }), false);
 			assert.strictEqual(isAuthorizationDynamicClientRegistrationResponse('not an object'), false);
 		});
@@ -100,64 +101,91 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationTokenResponse('not an object'), false);
 		});
 
-		test('isDynamicClientRegistrationResponse should correctly identify client registration response', () => {
+		test('isAuthorizationDeviceResponse should correctly identify device authorization response', () => {
 			// Valid response
-			assert.strictEqual(isDynamicClientRegistrationResponse({
-				client_id: 'client-123',
-				client_name: 'Test Client'
+			assert.strictEqual(isAuthorizationDeviceResponse({
+				device_code: 'device-code-123',
+				user_code: 'ABCD-EFGH',
+				verification_uri: 'https://example.com/verify',
+				expires_in: 1800
+			}), true);
+
+			// Valid response with optional fields
+			assert.strictEqual(isAuthorizationDeviceResponse({
+				device_code: 'device-code-123',
+				user_code: 'ABCD-EFGH',
+				verification_uri: 'https://example.com/verify',
+				verification_uri_complete: 'https://example.com/verify?user_code=ABCD-EFGH',
+				expires_in: 1800,
+				interval: 5
 			}), true);
 
 			// Invalid cases
-			assert.strictEqual(isDynamicClientRegistrationResponse(null), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse(undefined), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse({}), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse({ client_id: 'missing-name' }), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse({ client_name: 'missing-id' }), false);
-			assert.strictEqual(isDynamicClientRegistrationResponse('not an object'), false);
+			assert.strictEqual(isAuthorizationDeviceResponse(null), false);
+			assert.strictEqual(isAuthorizationDeviceResponse(undefined), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({}), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({ device_code: 'missing-others' }), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({ user_code: 'missing-others' }), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({ verification_uri: 'missing-others' }), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({ expires_in: 1800 }), false);
+			assert.strictEqual(isAuthorizationDeviceResponse({
+				device_code: 'device-code-123',
+				user_code: 'ABCD-EFGH',
+				verification_uri: 'https://example.com/verify'
+				// Missing expires_in
+			}), false);
+			assert.strictEqual(isAuthorizationDeviceResponse('not an object'), false);
+		});
+
+		test('isAuthorizationErrorResponse should correctly identify error response', () => {
+			// Valid error response
+			assert.strictEqual(isAuthorizationErrorResponse({
+				error: 'authorization_pending',
+				error_description: 'The authorization request is still pending'
+			}), true);
+
+			// Valid error response with different error codes
+			assert.strictEqual(isAuthorizationErrorResponse({
+				error: 'slow_down',
+				error_description: 'Polling too fast'
+			}), true);
+
+			assert.strictEqual(isAuthorizationErrorResponse({
+				error: 'access_denied',
+				error_description: 'The user denied the request'
+			}), true);
+
+			assert.strictEqual(isAuthorizationErrorResponse({
+				error: 'expired_token',
+				error_description: 'The device code has expired'
+			}), true);
+
+			// Valid response with optional error_uri
+			assert.strictEqual(isAuthorizationErrorResponse({
+				error: 'invalid_request',
+				error_description: 'The request is missing a required parameter',
+				error_uri: 'https://example.com/error'
+			}), true);
+
+			// Invalid cases
+			assert.strictEqual(isAuthorizationErrorResponse(null), false);
+			assert.strictEqual(isAuthorizationErrorResponse(undefined), false);
+			assert.strictEqual(isAuthorizationErrorResponse({}), false);
+			assert.strictEqual(isAuthorizationErrorResponse({ error_description: 'missing-error' }), false);
+			assert.strictEqual(isAuthorizationErrorResponse('not an object'), false);
 		});
 	});
 
 	suite('Utility Functions', () => {
 		test('getDefaultMetadataForUrl should return correct default endpoints', () => {
-			const issuer = new URL('https://auth.example.com');
-			const metadata = getDefaultMetadataForUrl(issuer);
+			const authorizationServer = new URL('https://auth.example.com');
+			const metadata = getDefaultMetadataForUrl(authorizationServer);
 
 			assert.strictEqual(metadata.issuer, 'https://auth.example.com/');
 			assert.strictEqual(metadata.authorization_endpoint, 'https://auth.example.com/authorize');
 			assert.strictEqual(metadata.token_endpoint, 'https://auth.example.com/token');
 			assert.strictEqual(metadata.registration_endpoint, 'https://auth.example.com/register');
 			assert.deepStrictEqual(metadata.response_types_supported, ['code', 'id_token', 'id_token token']);
-		});
-
-		test('getMetadataWithDefaultValues should fill in missing endpoints', () => {
-			const minimal: IAuthorizationServerMetadata = {
-				issuer: 'https://auth.example.com',
-				response_types_supported: ['code']
-			};
-
-			const complete = getMetadataWithDefaultValues(minimal);
-
-			assert.strictEqual(complete.issuer, 'https://auth.example.com');
-			assert.strictEqual(complete.authorization_endpoint, 'https://auth.example.com/authorize');
-			assert.strictEqual(complete.token_endpoint, 'https://auth.example.com/token');
-			assert.strictEqual(complete.registration_endpoint, 'https://auth.example.com/register');
-			assert.deepStrictEqual(complete.response_types_supported, ['code']);
-		});
-
-		test('getMetadataWithDefaultValues should preserve custom endpoints', () => {
-			const custom: IAuthorizationServerMetadata = {
-				issuer: 'https://auth.example.com',
-				authorization_endpoint: 'https://auth.example.com/custom-authorize',
-				token_endpoint: 'https://auth.example.com/custom-token',
-				registration_endpoint: 'https://auth.example.com/custom-register',
-				response_types_supported: ['code', 'token']
-			};
-
-			const complete = getMetadataWithDefaultValues(custom);
-
-			assert.strictEqual(complete.authorization_endpoint, 'https://auth.example.com/custom-authorize');
-			assert.strictEqual(complete.token_endpoint, 'https://auth.example.com/custom-token');
-			assert.strictEqual(complete.registration_endpoint, 'https://auth.example.com/custom-register');
 		});
 	});
 
@@ -255,10 +283,15 @@ suite('OAuth', () => {
 				json: async () => mockResponse
 			} as Response);
 
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
 			const result = await fetchDynamicRegistration(
-				'https://auth.example.com/register',
-				'Test Client',
-				['https://custom-redirect.com/callback']
+				serverMetadata,
+				'Test Client'
 			);
 
 			// Verify fetch was called correctly
@@ -272,12 +305,15 @@ suite('OAuth', () => {
 			const requestBody = JSON.parse(options.body as string);
 			assert.strictEqual(requestBody.client_name, 'Test Client');
 			assert.strictEqual(requestBody.client_uri, 'https://code.visualstudio.com');
-			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token']);
+			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code']);
 			assert.deepStrictEqual(requestBody.response_types, ['code']);
 			assert.deepStrictEqual(requestBody.redirect_uris, [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'https://custom-redirect.com/callback'
+				'http://localhost',
+				'http://127.0.0.1',
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
 			]);
 
 			// Verify response is processed correctly
@@ -287,12 +323,19 @@ suite('OAuth', () => {
 		test('fetchDynamicRegistration should throw error on non-OK response', async () => {
 			fetchStub.resolves({
 				ok: false,
-				statusText: 'Bad Request'
+				statusText: 'Bad Request',
+				text: async () => 'Bad Request'
 			} as Response);
 
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
 			await assert.rejects(
-				async () => await fetchDynamicRegistration('https://auth.example.com/register', 'Test Client'),
-				/Registration failed: Bad Request/
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Registration to https:\/\/auth\.example\.com\/register failed: Bad Request/
 			);
 		});
 
@@ -302,9 +345,328 @@ suite('OAuth', () => {
 				json: async () => ({ invalid: 'response' }) // Missing required fields
 			} as Response);
 
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
 			await assert.rejects(
-				async () => await fetchDynamicRegistration('https://auth.example.com/register', 'Test Client'),
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Invalid authorization dynamic client registration response/
+			);
+		});
+
+		test('fetchDynamicRegistration should filter grant types based on server metadata', async () => {
+			// Setup successful response
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code'],
+				grant_types_supported: ['authorization_code', 'client_credentials', 'refresh_token'] // Mix of supported and unsupported
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client');
+
+			// Verify fetch was called correctly
+			assert.strictEqual(fetchStub.callCount, 1);
+			const [, options] = fetchStub.firstCall.args;
+
+			// Verify request body contains only the intersection of supported grant types
+			const requestBody = JSON.parse(options.body as string);
+			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token']); // client_credentials should be filtered out
+		});
+
+		test('fetchDynamicRegistration should use default grant types when server metadata has none', async () => {
+			// Setup successful response
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+				// No grant_types_supported specified
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client');
+
+			// Verify fetch was called correctly
+			assert.strictEqual(fetchStub.callCount, 1);
+			const [, options] = fetchStub.firstCall.args;
+
+			// Verify request body contains default grant types
+			const requestBody = JSON.parse(options.body as string);
+			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code']);
+		});
+
+		test('fetchDynamicRegistration should throw error when registration endpoint is missing', async () => {
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				response_types_supported: ['code']
+				// registration_endpoint is missing
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Server does not support dynamic registration/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle structured error response', async () => {
+			const errorResponse = {
+				error: 'invalid_client_metadata',
+				error_description: 'The client metadata is invalid'
+			};
+
+			fetchStub.resolves({
+				ok: false,
+				text: async () => JSON.stringify(errorResponse)
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Registration to https:\/\/auth\.example\.com\/register failed: invalid_client_metadata: The client metadata is invalid/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle structured error response without description', async () => {
+			const errorResponse = {
+				error: 'invalid_redirect_uri'
+			};
+
+			fetchStub.resolves({
+				ok: false,
+				text: async () => JSON.stringify(errorResponse)
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Registration to https:\/\/auth\.example\.com\/register failed: invalid_redirect_uri/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle malformed JSON error response', async () => {
+			fetchStub.resolves({
+				ok: false,
+				text: async () => 'Invalid JSON {'
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Registration to https:\/\/auth\.example\.com\/register failed: Invalid JSON \{/
+			);
+		});
+
+		test('fetchDynamicRegistration should include scopes in request when provided', async () => {
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client', ['read', 'write']);
+
+			// Verify request includes scopes
+			const [, options] = fetchStub.firstCall.args;
+			const requestBody = JSON.parse(options.body as string);
+			assert.strictEqual(requestBody.scope, 'read write');
+		});
+
+		test('fetchDynamicRegistration should omit scope from request when not provided', async () => {
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client');
+
+			// Verify request does not include scope when not provided
+			const [, options] = fetchStub.firstCall.args;
+			const requestBody = JSON.parse(options.body as string);
+			assert.strictEqual(requestBody.scope, undefined);
+		});
+
+		test('fetchDynamicRegistration should handle empty scopes array', async () => {
+			const mockResponse = {
+				client_id: 'generated-client-id',
+				client_name: 'Test Client'
+			};
+
+			fetchStub.resolves({
+				ok: true,
+				json: async () => mockResponse
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await fetchDynamicRegistration(serverMetadata, 'Test Client', []);
+
+			// Verify request includes empty scope
+			const [, options] = fetchStub.firstCall.args;
+			const requestBody = JSON.parse(options.body as string);
+			assert.strictEqual(requestBody.scope, '');
+		});
+
+		test('fetchDynamicRegistration should handle network fetch failure', async () => {
+			fetchStub.rejects(new Error('Network error'));
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Network error/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle response.json() failure', async () => {
+			fetchStub.resolves({
+				ok: true,
+				json: async () => {
+					throw new Error('JSON parsing failed');
+				}
+			} as unknown as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/JSON parsing failed/
+			);
+		});
+
+		test('fetchDynamicRegistration should handle response.text() failure for error cases', async () => {
+			fetchStub.resolves({
+				ok: false,
+				text: async () => {
+					throw new Error('Text parsing failed');
+				}
+			} as unknown as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Text parsing failed/
+			);
+		});
+	});
+
+	suite('Client ID Fallback Scenarios', () => {
+		let sandbox: sinon.SinonSandbox;
+		let fetchStub: sinon.SinonStub;
+
+		setup(() => {
+			sandbox = sinon.createSandbox();
+			fetchStub = sandbox.stub(globalThis, 'fetch');
+		});
+
+		teardown(() => {
+			sandbox.restore();
+		});
+
+		test('fetchDynamicRegistration should throw specific error for missing registration endpoint', async () => {
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				response_types_supported: ['code']
+				// registration_endpoint is missing
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				{
+					message: 'Server does not support dynamic registration'
+				}
+			);
+		});
+
+		test('fetchDynamicRegistration should throw specific error for DCR failure', async () => {
+			fetchStub.resolves({
+				ok: false,
+				text: async () => 'DCR not supported'
+			} as Response);
+
+			const serverMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code']
+			};
+
+			await assert.rejects(
+				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
+				/Registration to https:\/\/auth\.example\.com\/register failed: DCR not supported/
 			);
 		});
 	});

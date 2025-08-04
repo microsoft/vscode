@@ -69,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	let before = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
 	let githubEnterpriseAuthProvider = initGHES(context, uriHandler);
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
 		if (e.affectsConfiguration('github-enterprise.uri')) {
 			const after = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
 			if (before !== after) {

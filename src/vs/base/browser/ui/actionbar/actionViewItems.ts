@@ -19,7 +19,7 @@ import * as platform from '../../../common/platform.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
 import * as nls from '../../../../nls.js';
-import type { IManagedHover } from '../hover/hover.js';
+import type { IManagedHover, IManagedHoverContent } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface IBaseActionViewItemOptions {
@@ -221,23 +221,22 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		return this.action.tooltip;
 	}
 
+	protected getHoverContents(): IManagedHoverContent | undefined {
+		return this.getTooltip();
+	}
+
 	protected updateTooltip(): void {
 		if (!this.element) {
 			return;
 		}
-		const title = this.getTooltip() ?? '';
+		const title = this.getHoverContents() ?? '';
 		this.updateAriaLabel();
 
-		if (this.options.hoverDelegate?.showNativeHover) {
-			/* While custom hover is not inside custom hover */
-			this.element.title = title;
-		} else {
-			if (!this.customHover && title !== '') {
-				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-				this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
-			} else if (this.customHover) {
-				this.customHover.update(title);
-			}
+		if (!this.customHover && title !== '') {
+			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
+			this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
+		} else if (this.customHover) {
+			this.customHover.update(title);
 		}
 	}
 

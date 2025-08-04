@@ -6,7 +6,9 @@
 import { PromptMetadataRecord } from './base/record.js';
 import { localize } from '../../../../../../../../nls.js';
 import { PromptMetadataDiagnostic, PromptMetadataError, PromptMetadataWarning } from '../diagnostics.js';
-import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterSequence } from '../../../codecs/base/frontMatterCodec/tokens/frontMatterSequence.js';
+import { FrontMatterArray, FrontMatterRecord, FrontMatterString, FrontMatterToken, FrontMatterValueToken } from '../../../codecs/base/frontMatterCodec/tokens/index.js';
+import { Range } from '../../../../../../../../editor/common/core/range.js';
 
 /**
  * Name of the metadata record in the prompt header.
@@ -16,7 +18,20 @@ const RECORD_NAME = 'tools';
 /**
  * Prompt `tools` metadata record inside the prompt header.
  */
-export class PromptToolsMetadata extends PromptMetadataRecord {
+export class PromptToolsMetadata extends PromptMetadataRecord<string[]> {
+
+	/**
+	 * List of all valid tool names that were found in
+	 * this metadata record.
+	 */
+	public override get value(): string[] | undefined {
+		if (this.validToolNames === undefined) {
+			return [];
+		}
+
+		return [...this.validToolNames.keys()];
+	}
+
 	public override get recordName(): string {
 		return RECORD_NAME;
 	}
@@ -30,19 +45,9 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 	 * List of all valid tool names that were found in
 	 * this metadata record.
 	 */
-	private validToolNames: Set<string> | undefined;
+	private validToolNames: Map<string, Range> | undefined;
 
-	/**
-	 * List of all valid tool names that were found in
-	 * this metadata record.
-	 */
-	public get toolNames(): readonly string[] {
-		if (this.validToolNames === undefined) {
-			return [];
-		}
 
-		return [...this.validToolNames.values()];
-	}
 
 	constructor(
 		recordToken: FrontMatterRecord,
@@ -65,8 +70,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 					valueToken.range,
 					localize(
 						'prompt.header.metadata.tools.diagnostics.invalid-value-type',
-						"The '{0}' metadata must be an array of tool names, got '{2}'.",
-						RECORD_NAME,
+						"Must be an array of tool names, got '{0}'.",
 						valueToken.valueTypeName.toString(),
 					),
 				),
@@ -79,7 +83,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 		this.valueToken = valueToken;
 
 		// validate that all array items
-		this.validToolNames = new Set<string>();
+		this.validToolNames = new Map<string, Range>();
 		for (const item of this.valueToken.items) {
 			this.issues.push(
 				...this.validateToolName(item, this.validToolNames),
@@ -89,26 +93,32 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 		return this.issues;
 	}
 
+	public getToolRange(toolName: string): Range | undefined {
+		return this.validToolNames?.get(toolName);
+	}
+
 	/**
 	 * Validate an individual provided value token that is used
 	 * for a tool name.
 	 */
 	private validateToolName(
 		valueToken: FrontMatterValueToken,
-		validToolNames: Set<string>,
+		validToolNames: Map<string, Range>,
 	): readonly PromptMetadataDiagnostic[] {
 		const issues: PromptMetadataDiagnostic[] = [];
 
-		// tool name must be a string
-		if ((valueToken instanceof FrontMatterString) === false) {
+		// tool name must be a quoted or an unquoted 'string'
+		if (
+			(valueToken instanceof FrontMatterString) === false &&
+			(valueToken instanceof FrontMatterSequence) === false
+		) {
 			issues.push(
 				new PromptMetadataWarning(
 					valueToken.range,
 					localize(
 						'prompt.header.metadata.tools.diagnostics.invalid-tool-name-type',
-						"Unexpected tool name '{0}', expected '{1}'.",
-						valueToken.text,
-						'string',
+						"Unexpected tool name '{0}', expected a string literal.",
+						valueToken.text
 					),
 				),
 			);
@@ -148,7 +158,7 @@ export class PromptToolsMetadata extends PromptMetadataRecord {
 			return issues;
 		}
 
-		validToolNames.add(cleanToolName);
+		validToolNames.set(cleanToolName, valueToken.range);
 		return issues;
 	}
 
