@@ -38,7 +38,8 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IQuickInputButton, IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
@@ -791,6 +792,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 	run(accessor: ServicesAccessor, coverageOrUri?: FileCoverage | URI, editor?: ICodeEditor): void {
 		const testCoverageService = accessor.get(ITestCoverageService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const openerService = accessor.get(IOpenerService);
 		const activeEditor = isCodeEditor(editor) ? editor : accessor.get(ICodeEditorService).getActiveCodeEditor();
 		let coverage: FileCoverage | undefined;
 		if (coverageOrUri instanceof FileCoverage) {
@@ -811,23 +813,35 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const result = coverage.fromResult;
 		const previousSelection = testCoverageService.filterToTest.get();
 
-		type TItem = { label: string; testId: TestId | undefined };
+		type TItem = { label: string; testId: TestId | undefined; buttons?: IQuickInputButton[] };
 
+		const buttons: IQuickInputButton[] = [{
+			iconClass: 'codicon-go-to-file',
+			tooltip: 'Go to Test',
+		}];
 		const items: QuickPickInput<TItem>[] = [
 			{ label: coverUtils.labels.allTests, testId: undefined },
 			{ type: 'separator' },
-			...tests.map(id => ({ label: coverUtils.getLabelForItem(result, id, commonPrefix), testId: id })),
+			...tests.map(id => ({ label: coverUtils.getLabelForItem(result, id, commonPrefix), testId: id, buttons })),
 		];
 
 		// These handle the behavior that reveals the start of coverage when the
 		// user picks from the quickpick. Scroll position is restored if the user
-		// exits without picking an item, or picks "all tets".
+		// exits without picking an item, or picks "all tests".
 		const scrollTop = activeEditor?.getScrollTop() || 0;
 		const revealScrollCts = new MutableDisposable<CancellationTokenSource>();
 
 		quickInputService.pick(items, {
 			activeItem: items.find((item): item is TItem => 'item' in item && item.item === coverage),
 			placeHolder: coverUtils.labels.pickShowCoverage,
+			onDidTriggerItemButton: (context) => {
+				if (context.item.testId) {
+					const test = result.getTestById(context.item.testId.toString());
+					if (test?.uri) {
+						openerService.open(test?.uri, { fromUserGesture: true });
+					}
+				}
+			},
 			onDidFocus: (entry) => {
 				if (!entry.testId) {
 					revealScrollCts.clear();
