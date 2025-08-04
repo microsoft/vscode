@@ -62,6 +62,7 @@ import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -877,7 +878,14 @@ export function registerTerminalActions() {
 				order: 4,
 				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 				isHiddenByDefault: true
-			}
+			},
+			...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
+				group: '1_shellIntegration',
+				order: 4,
+				when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+				isHiddenByDefault: true
+			})),
 		],
 		run: (activeInstance) => activeInstance.xterm?.markTracker.scrollToPreviousMark(undefined, undefined, activeInstance.capabilities.has(TerminalCapability.CommandDetection))
 	});
@@ -899,7 +907,14 @@ export function registerTerminalActions() {
 				order: 5,
 				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 				isHiddenByDefault: true
-			}
+			},
+			...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
+				group: '1_shellIntegration',
+				order: 5,
+				when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+				isHiddenByDefault: true
+			})),
 		],
 		run: (activeInstance) => {
 			activeInstance.xterm?.markTracker.scrollToNextMark();
