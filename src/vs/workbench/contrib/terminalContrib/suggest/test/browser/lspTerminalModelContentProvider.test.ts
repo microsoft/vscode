@@ -129,4 +129,43 @@ suite('LspTerminalModelContentProvider', () => {
 			assert.strictEqual(actualUri.toString(), expectedUri.toString());
 		});
 	});
+
+	suite('shellTypeChanged', () => {
+		test('should clear virtual document when shell type changes from Python to non-Python', () => {
+			// Set initial content in the mock text model
+			getValueSpy.returns('some python content\n' + VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
+
+			// Change shell type from Python to undefined (regular shell)
+			lspTerminalModelContentProvider.shellTypeChanged(undefined);
+
+			// Should clear the document content
+			assert.strictEqual(setValueSpy.calledWith(''), true, 'Should clear document content when leaving Python shell');
+		});
+
+		test('should not clear virtual document when shell type changes within Python or to Python', () => {
+			// Change shell type from Python to Python (no-op)
+			lspTerminalModelContentProvider.shellTypeChanged(GeneralShellType.Python);
+
+			// Should not clear the document
+			assert.strictEqual(setValueSpy.called, false, 'Should not clear document when staying in Python shell');
+
+			// Change from non-Python to Python
+			lspTerminalModelContentProvider.shellTypeChanged(undefined);
+			setValueSpy.resetHistory();
+			lspTerminalModelContentProvider.shellTypeChanged(GeneralShellType.Python);
+
+			// Should not clear the document
+			assert.strictEqual(setValueSpy.calledWith(''), false, 'Should not clear document when entering Python shell');
+		});
+
+		test('should update shellType getter when shell type changes', () => {
+			assert.strictEqual(lspTerminalModelContentProvider.shellType, GeneralShellType.Python, 'Initial shell type should be Python');
+
+			lspTerminalModelContentProvider.shellTypeChanged(undefined);
+			assert.strictEqual(lspTerminalModelContentProvider.shellType, undefined, 'Shell type should be updated to undefined');
+
+			lspTerminalModelContentProvider.shellTypeChanged(GeneralShellType.PowerShell);
+			assert.strictEqual(lspTerminalModelContentProvider.shellType, GeneralShellType.PowerShell, 'Shell type should be updated to PowerShell');
+		});
+	});
 });

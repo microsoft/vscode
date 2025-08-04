@@ -47,7 +47,20 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 	// Listens to onDidChangeShellType event from `terminal.suggest.contribution.ts`
 	shellTypeChanged(shellType: TerminalShellType | undefined): void {
+		const previousShellType = this._shellType;
 		this._shellType = shellType;
+		
+		// Clear virtual document content when moving away from Python shell
+		if (previousShellType === GeneralShellType.Python && shellType !== GeneralShellType.Python) {
+			const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
+			if (model && !model.isDisposed()) {
+				model.setValue('');
+			}
+		}
+	}
+
+	get shellType(): TerminalShellType | undefined {
+		return this._shellType;
 	}
 
 	/**

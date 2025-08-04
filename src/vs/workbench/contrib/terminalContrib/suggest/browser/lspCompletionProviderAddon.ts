@@ -13,6 +13,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
 import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	readonly id = 'lsp';
@@ -39,6 +40,10 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 	}
 
 	async provideCompletions(value: string, cursorPosition: number, allowFallbackCompletions: false, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined> {
+		// Early return if the shell type is no longer Python
+		if (this._lspTerminalModelContentProvider.shellType !== GeneralShellType.Python) {
+			return undefined;
+		}
 
 		// Apply edit for non-executed current commandline --> Pretend we are typing in the real-document.
 		this._lspTerminalModelContentProvider.trackPromptInputToVirtualFile(value);
