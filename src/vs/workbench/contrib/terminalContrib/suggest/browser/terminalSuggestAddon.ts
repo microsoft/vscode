@@ -442,6 +442,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		return false;
 	}
 
+	private _checkProviderTriggerCharacters(char: string): boolean {
+		for (const provider of this._terminalCompletionService.providers) {
+			if (!provider.triggerCharacters) {
+				continue;
+			}
+			for (const triggerChar of provider.triggerCharacters) {
+				if (char === triggerChar) {
+					return this._requestTriggerCharQuickSuggestCompletions();
+				}
+			}
+		}
+		return false;
+	}
+
 	private _wasLastInputRightArrowKey(): boolean {
 		return !!this._lastUserData?.match(/^\x1b[\[O]?C$/);
 	}
@@ -534,20 +548,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						}
 						// Check all provider trigger characters when backspacing
 						if (!sent) {
-							for (const provider of this._terminalCompletionService.providers) {
-								if (!provider.triggerCharacters) {
-									continue;
-								}
-								for (const triggerChar of provider.triggerCharacters) {
-									if (char === triggerChar) {
-										sent = this._requestTriggerCharQuickSuggestCompletions();
-										break;
-									}
-								}
-								if (sent) {
-									break;
-								}
-							}
+							sent = this._checkProviderTriggerCharacters(char);
 						}
 					}
 				}
