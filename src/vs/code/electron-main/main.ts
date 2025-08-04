@@ -304,6 +304,10 @@ class CodeMain {
 			mainProcessNodeIpcServer = await nodeIPCServe(environmentMainService.mainIPCHandle);
 			mark('code/didStartMainServer');
 			Event.once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
+			// If this instance is the only one, show the dock icon
+   if (app.dock) {
+       app.dock.show();
+   }
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
