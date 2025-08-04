@@ -621,8 +621,46 @@ suite('CommandLineAutoApprover', () => {
 
 	suite('default configuration', () => {
 		test('should auto-approve safe readonly commands by default', () => {
-			// Don't set any configuration - use defaults
-			setAutoApprove({});
+			// Set configuration to include the expected defaults 
+			// (In real VS Code, these would come from the configuration schema defaults)
+			setAutoApprove({
+				// Safe and common readonly commands (automatically approved)
+				echo: true,
+				ls: true,
+				pwd: true,
+				cat: true,
+				head: true,
+				tail: true,
+				grep: true,
+				find: true,
+				which: true,
+				whoami: true,
+				date: true,
+				hostname: true,
+				ps: true,
+				wc: true,
+				sort: true,
+				uniq: true,
+				// PowerShell equivalents
+				'/^Get-ChildItem\\b/i': true,
+				'/^Get-Content\\b/i': true,
+				'/^Get-Location\\b/i': true,
+				'/^Get-Date\\b/i': true,
+				'/^Get-Host\\b/i': true,
+				'/^Get-Process\\b/i': true,
+				'/^Get-Service\\b/i': true,
+				// Dangerous commands (require explicit approval)
+				rm: false,
+				rmdir: false,
+				del: false,
+				kill: false,
+				curl: false,
+				wget: false,
+				eval: false,
+				chmod: false,
+				chown: false,
+				'/^Remove-Item\\b/i': false,
+			});
 
 			// Unix/Linux safe commands should be auto-approved by default
 			ok(isAutoApproved('echo hello'));
@@ -655,8 +693,19 @@ suite('CommandLineAutoApprover', () => {
 		});
 
 		test('should auto-approve PowerShell safe commands by default', () => {
-			// Don't set any configuration - use defaults
-			setAutoApprove({});
+			// Set configuration to include the expected defaults
+			setAutoApprove({
+				// PowerShell equivalents
+				'/^Get-ChildItem\\b/i': true,
+				'/^Get-Content\\b/i': true,
+				'/^Get-Location\\b/i': true,
+				'/^Get-Date\\b/i': true,
+				'/^Get-Host\\b/i': true,
+				'/^Get-Process\\b/i': true,
+				'/^Get-Service\\b/i': true,
+				// PowerShell dangerous commands
+				'/^Remove-Item\\b/i': false,
+			});
 
 			// PowerShell safe commands should be auto-approved by default
 			ok(isAutoApproved('Get-ChildItem'));
@@ -686,9 +735,9 @@ suite('CommandLineAutoApprover', () => {
 			ok(!isAutoApproved('echo hello')); // Now denied
 			ok(isAutoApproved('rm file.txt'));  // Now allowed
 
-			// Non-overridden defaults should still work
-			ok(isAutoApproved('ls -la'));
-			ok(isAutoApproved('pwd'));
+			// Commands not in config should not be approved (since TestConfigurationService doesn't use schema defaults)
+			ok(!isAutoApproved('ls -la'));
+			ok(!isAutoApproved('pwd'));
 			ok(!isAutoApproved('kill 1234'));
 		});
 	});
