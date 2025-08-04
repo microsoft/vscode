@@ -408,7 +408,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _class: string | undefined;
 	private readonly _elementDisposables: IDisposable[] = [];
 	private _draggedTerminal: ITerminalInstance | undefined;
-	private _dragLeaveTimeout: any;
+	private _dragLeaveTimeout: number | undefined;
 
 	constructor(
 		action: MenuItemAction,

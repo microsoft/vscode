@@ -594,7 +594,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	private _autoFocusDisposable: IDisposable = Disposable.None;
 	private _primaryBackend: ITerminalBackend | undefined;
 	private _draggedTerminals: ITerminalInstance[] = [];
-	private _dragLeaveTimeout: any;
+	private _dragLeaveTimeout: number | undefined;
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
