@@ -265,10 +265,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
 		},
 		'chat.emptyChatState.enabled': {
 			type: 'boolean',
