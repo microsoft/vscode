@@ -39,7 +39,13 @@ export class SharedWebContentExtractorService implements ISharedWebContentExtrac
 
 	async chatImageUploader(binaryData: VSBuffer, name: string, mimeType: string | undefined, token: string | undefined): Promise<string> {
 		if (mimeType && token) {
-			const url = `https://uploads.github.com/copilot/chat/attachments?name=${name}&content_type=${mimeType}`;
+			const sanitizedName = name.replace(/\s+/g, '').replace(/%20/g, '');
+			let uploadName = sanitizedName;
+			const subtype = mimeType.split('/')[1].split('+')[0].toLowerCase();
+			if (!uploadName.toLowerCase().endsWith(`.${subtype}`)) {
+				uploadName = `${uploadName}.${subtype}`;
+			}
+			const url = `https://uploads.github.com/copilot/chat/attachments?name=${uploadName}&content_type=${mimeType}`;
 
 			const init: RequestInit = {
 				method: 'POST',

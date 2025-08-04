@@ -199,21 +199,6 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 			dataBuffer = readFile.value;
 		}
 
-		const providerId = defaultChat?.provider.default.id;
-		let token: string | undefined = '';
-
-		// Get all accounts for the provider
-		const accounts: any[] = [];
-		await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
-			accounts.push(account);
-		});
-
-		// Find the token from the first available account
-		if (accounts.length > 0) {
-			const sessions = await this.authenticationService.getSessions(providerId);
-			token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
-		}
-
 		const isPartiallyOmitted = /\.gif$/i.test(resource.path);
 		const imageFileContext = await this.resolveImageAttachContext([{
 			id: resource.toString(),
@@ -222,8 +207,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 			icon: Codicon.fileMedia,
 			resource: resource,
 			mimeType: mimeType,
-			omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted,
-			token
+			omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted
 		}], onUpdate);
 
 		return imageFileContext[0];
@@ -233,6 +217,21 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		return Promise.all(images.map(async image => {
 			const binaryData = await resizeImage(image.data, image.mimeType);
 			const id = image.id || await imageToHash(binaryData);
+
+			const providerId = defaultChat?.provider.default.id;
+			let token: string | undefined = '';
+
+			// Get all accounts for the provider
+			const accounts: any[] = [];
+			await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
+				accounts.push(account);
+			});
+
+			// Find the token from the first available account
+			if (accounts.length > 0) {
+				const sessions = await this.authenticationService.getSessions(providerId);
+				token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
+			}
 
 			// Create initial loading entry
 			const loadingEntry: IImageVariableEntry = {
@@ -249,7 +248,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 
 			// Start upload asynchronously and update when complete
 			if (onUpdate) {
-				this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, image.token)
+				this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, token)
 					.then(url => {
 						const updatedEntry: IImageVariableEntry = {
 							...loadingEntry,
@@ -269,7 +268,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 					});
 			} else {
 				// Fallback to synchronous upload for backwards compatibility
-				const url = await this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, image.token);
+				const url = await this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, token);
 				const finalEntry: IImageVariableEntry = {
 					...loadingEntry,
 					url,
@@ -376,7 +375,6 @@ export type ImageTransferData = {
 	id?: string;
 	mimeType?: string;
 	omittedState?: OmittedState;
-	token?: string;
 };
 const SUPPORTED_IMAGE_EXTENSIONS_REGEX = new RegExp(`\\.(${Object.keys(CHAT_ATTACHABLE_IMAGE_MIME_TYPES).join('|')})$`, 'i');
 

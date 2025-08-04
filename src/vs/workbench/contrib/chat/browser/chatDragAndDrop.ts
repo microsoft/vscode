@@ -256,7 +256,6 @@ export class ChatDragAndDrop extends Themable {
 		if (editorDragData.length > 0) {
 			return coalesce(await Promise.all(editorDragData.map(editorInput => {
 				return this.chatAttachmentResolveService.resolveEditorAttachContext(editorInput, (updatedEntry) => {
-					// Update the attachment when upload completes
 					this.attachmentModel.updateContext([], [updatedEntry]);
 				});
 			})));
@@ -268,7 +267,6 @@ export class ChatDragAndDrop extends Themable {
 			if (uriList.length) {
 				return coalesce(await Promise.all(
 					uriList.map(uri => this.chatAttachmentResolveService.resolveEditorAttachContext({ resource: URI.parse(uri) }, (updatedEntry) => {
-						// Update the attachment when upload completes
 						this.attachmentModel.updateContext([], [updatedEntry]);
 					}))
 				));

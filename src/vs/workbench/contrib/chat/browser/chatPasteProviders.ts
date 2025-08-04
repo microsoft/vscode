@@ -52,7 +52,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 	) {
 		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
 		cleanupOldImages(this.fileService, this.logService, this.imagesFolder,);
@@ -125,16 +125,13 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			id: await imageToHash(scaledImageData)
 		}];
 
-		const imageContexts = await this.instantiationService.invokeFunction(accessor => {
-			const chatAttachmentResolveService = accessor.get(IChatAttachmentResolveService);
-			return chatAttachmentResolveService.resolveImageAttachContext(
-				imageTransferData,
-				(updatedEntry: IChatRequestVariableEntry) => {
-					// Update the attachment when upload completes
-					widget.attachmentModel.updateContext([], [updatedEntry]);
-				}
-			);
-		});
+		const imageContexts = await this.chatAttachmentResolveService.resolveImageAttachContext(
+			imageTransferData,
+			(updatedEntry: IChatRequestVariableEntry) => {
+				// Update the attachment when upload completes
+				widget.attachmentModel.updateContext([], [updatedEntry]);
+			}
+		);
 
 		if (token.isCancellationRequested || !imageContexts.length) {
 			return;
@@ -439,10 +436,11 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
+		@IChatAttachmentResolveService chatAttachmentResolveService: IChatAttachmentResolveService
 	) {
 		super();
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, instaService.createInstance(CopyAttachmentsProvider)));
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService, instaService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService, chatAttachmentResolveService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
