@@ -831,7 +831,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const revealScrollCts = new MutableDisposable<CancellationTokenSource>();
 
 		quickInputService.pick(items, {
-			activeItem: items.find((item): item is TItem => 'item' in item && item.item === coverage),
+			activeItem: items.find((item): item is TItem => 'testId' in item && item.testId?.toString() === previousSelection?.toString()),
 			placeHolder: coverUtils.labels.pickShowCoverage,
 			onDidTriggerItemButton: (context) => {
 				commandService.executeCommand('vscode.revealTest', context.item.testId?.toString());
