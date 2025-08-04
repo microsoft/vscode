@@ -197,12 +197,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const checkOutputInputFocus = (e: FocusEvent) => {
 		lastFocusedOutput = getOutputContainer(e);
 		let activeElement = window.document.activeElement;
-		if (!activeElement) {
-			return;
-		}
 
 		// Check for shadow root
-		if (activeElement.shadowRoot) {
+		if (activeElement?.shadowRoot) {
 			activeElement = activeElement.shadowRoot.activeElement;
 		}
 
