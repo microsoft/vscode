@@ -452,7 +452,15 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		}));
 
 		// Clean up on dispose
-		this._register(toDisposable(() => dispose(this._elementDisposables)));
+		this._register(toDisposable(() => {
+			dispose(this._elementDisposables);
+			// Clean up drag tracking
+			if (this._dragLeaveTimeout) {
+				clearTimeout(this._dragLeaveTimeout);
+				this._dragLeaveTimeout = undefined;
+			}
+			this._draggedTerminal = undefined;
+		}));
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {

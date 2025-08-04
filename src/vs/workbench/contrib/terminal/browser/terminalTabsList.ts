@@ -826,6 +826,16 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		document.addEventListener('dragend', handleDragEnd);
 		document.addEventListener('dragleave', handleDragLeave);
 	}
+
+	override dispose(): void {
+		// Clean up drag tracking
+		if (this._dragLeaveTimeout) {
+			clearTimeout(this._dragLeaveTimeout);
+			this._dragLeaveTimeout = undefined;
+		}
+		this._draggedTerminals = [];
+		super.dispose();
+	}
 }
 
 class TabDecorationsProvider extends Disposable implements IDecorationsProvider {
