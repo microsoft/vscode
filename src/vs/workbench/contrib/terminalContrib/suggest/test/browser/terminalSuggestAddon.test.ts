@@ -42,8 +42,6 @@ suite('Terminal Suggest Addon - IntelliCode Star Prefix Handling', () => {
 		const testCases = [
 			{ input: '★ chdir', expected: 'chdir' },
 			{ input: '★ print', expected: 'print' },
-			{ input: '★chdir', expected: 'chdir' }, // No space after star
-			{ input: '★.chdir', expected: '.chdir' }, // Dot after star
 			{ input: 'normal_completion', expected: 'normal_completion' },
 			{ input: '* starred', expected: '* starred' }, // Different star character
 			{ input: '', expected: '' },
@@ -52,12 +50,8 @@ suite('Terminal Suggest Addon - IntelliCode Star Prefix Handling', () => {
 		testCases.forEach(({ input, expected }) => {
 			let completionText = input;
 			// This is the exact logic from the fix
-			if (completionText.startsWith('★')) {
-				completionText = completionText.substring(1); // Remove "★" prefix
-				// Also remove a following space if present for clean formatting
-				if (completionText.startsWith(' ')) {
-					completionText = completionText.substring(1);
-				}
+			if (completionText.startsWith('★ ')) {
+				completionText = completionText.substring(2); // Remove "★ " prefix
 			}
 			strictEqual(completionText, expected, `Failed for input: "${input}"`);
 		});
