@@ -162,7 +162,8 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		const sessionId = responseModel.session.sessionId;
 		const request = responseModel.session.getRequests().at(-1);
-		const source = EditSources.chatApplyEdits({ modelId: request?.modelId, requestId: request?.id, sessionId: sessionId });
+		const languageId = this.modifiedModel.getLanguageId();
+		const source = EditSources.chatApplyEdits({ modelId: request?.modelId, requestId: request?.id, sessionId: sessionId, languageId });
 
 		if (isAtomicEdits) {
 			// EDIT and DONE
