@@ -3504,9 +3504,8 @@ export class CommandCenter {
 					await this.handleWorktreeConflict(worktree.path, message);
 					return;
 				}
+				commitish = choice.refName;
 			}
-
-			commitish = choice.refName;
 		}
 
 		const worktreeName = ((branch ?? commitish).startsWith(branchPrefix)
