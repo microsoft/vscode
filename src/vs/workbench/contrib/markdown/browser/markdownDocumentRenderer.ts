@@ -192,7 +192,6 @@ interface IRenderMarkdownDocumentOptions {
 	readonly shouldSanitize?: boolean;
 	readonly allowUnknownProtocols?: boolean;
 	readonly markedExtensions?: marked.MarkedExtension[];
-	readonly token?: CancellationToken;
 }
 
 /**
@@ -204,7 +203,8 @@ export async function renderMarkdownDocument(
 	text: string,
 	extensionService: IExtensionService,
 	languageService: ILanguageService,
-	options?: IRenderMarkdownDocumentOptions
+	options?: IRenderMarkdownDocumentOptions,
+	token?: CancellationToken,
 ): Promise<string> {
 	const m = new marked.Marked(
 		MarkedHighlight.markedHighlight({
@@ -215,7 +215,7 @@ export async function renderMarkdownDocument(
 				}
 
 				await extensionService.whenInstalledExtensionsRegistered();
-				if (options?.token?.isCancellationRequested) {
+				if (token?.isCancellationRequested) {
 					return '';
 				}
 
