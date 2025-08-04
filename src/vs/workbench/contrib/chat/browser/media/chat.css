@@ -36,7 +36,8 @@
 
 .interactive-item-container .header.hidden,
 .interactive-item-container .header .avatar-container.hidden,
-.interactive-item-container .header .username.hidden {
+.interactive-item-container .header .username.hidden,
+.thinking-container.hidden {
 	display: none;
 }
 
@@ -1831,7 +1832,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Thinking widget - styled similar to checkpoint file changes summary */
-.interactive-session .interactive-response .value .chat-thinking-summary {
+.interactive-item-container.interactive-response .thinking-container .chat-thinking-summary {
 	display: flex;
 	flex-direction: column;
 	flex-wrap: wrap;
@@ -1873,7 +1874,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-top: 1px solid var(--vscode-chat-requestBorder);
 }
 
-.interactive-session .chat-thinking-summary.chat-thinking-collapsed .chat-thinking-content {
+.interactive-item-container.interactive-response .thinking-container .chat-thinking-summary.chat-thinking-collapsed .chat-thinking-content {
 	display: none;
 }
 
@@ -1912,34 +1913,34 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 }
 
-.interactive-session .interactive-response .chat-thinking-label .monaco-button,
-.interactive-session .interactive-response .chat-thinking-label .monaco-text-button {
+.interactive-item-container.interactive-response .thinking-container .chat-thinking-label .monaco-button,
+.interactive-item-container.interactive-response .thinking-container .chat-thinking-label .monaco-text-button {
 	padding: 2px;
 	outline: none;
 }
 
-.interactive-session .chat-thinking-label .monaco-button {
+.interactive-item-container.interactive-response .thinking-container .chat-thinking-label .monaco-button {
 	outline: none;
 }
 
-.interactive-session .chat-thinking-label .monaco-button .codicon,
-.interactive-session .chat-thinking-label .monaco-text-button .codicon {
+.interactive-item-container.interactive-response .thinking-container .chat-thinking-label .monaco-button .codicon,
+.interactive-item-container.interactive-response .thinking-container .chat-thinking-label .monaco-text-button .codicon {
 	margin-right: 6px;
 	font-size: 16px;
 }
 
-.interactive-session .thinking-text {
+.interactive-item-container.interactive-response .thinking-container .thinking-text {
 	white-space: pre-wrap;
 	word-break: break-word;
 	line-height: 1.5em;
 	color: var(--vscode-editor-foreground);
 }
 
-.interactive-session .thinking-text code {
+.interactive-item-container.interactive-response .thinking-container .thinking-text code {
 	font-family: var(--monaco-monospace-font);
 }
 
-.interactive-session .thinking-metadata {
+.interactive-item-container.interactive-response.thinking-container .thinking-metadata {
 	margin-top: 8px;
 	padding-top: 8px;
 	border-top: 1px solid var(--vscode-widget-border);
@@ -1947,11 +1948,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 }
 
-.interactive-item-container .value .tool-input-output-part .thinking-text p {
+.interactive-item-container.interactive-response .thinking-container .tool-input-output-part .thinking-text p {
 	margin: 0 0 0.8em 0;
 }
 
-.interactive-item-container .value .tool-input-output-part .thinking-metadata {
+.interactive-item-container.interactive-response .thinking-container .tool-input-output-part .thinking-metadata {
 	margin-top: 12px;
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
@@ -1962,8 +1963,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 
 /* Legacy thinking content part styles - keep for backwards compatibility */
-.interactive-item-container .value .rendered-markdown.chat-thinking,
-.interactive-item-container .value .thinking-content {
+.interactive-item-container.interactive-response .thinking-container .rendered-markdown.chat-thinking,
+.interactive-item-container.interactive-response .thinking-container .thinking-content {
 	background-color: var(--vscode-chat-slashCommandBackground);
 	border-radius: 6px;
 	padding: 10px;
@@ -1972,7 +1973,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-left: 3px solid var(--vscode-textLink-foreground);
 }
 
-.interactive-item-container .value .chat-thinking-wrapper {
+.interactive-item-container.interactive-response .thinking-container .chat-thinking-wrapper {
 	margin-bottom: 12px;
 	position: sticky;
 	top: 0;
@@ -1981,7 +1982,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.interactive-item-container .value .rendered-markdown.chat-thinking::before {
+.interactive-item-container.interactive-response .thinking-container .rendered-markdown.chat-thinking::before {
 	content: "Thinking...";
 	font-style: italic;
 	color: var(--vscode-textLink-foreground);
@@ -1990,32 +1991,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-bottom: 6px;
 }
 
-.interactive-item-container .value .thinking-content .thinking-header {
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-header {
 	display: flex;
 	justify-content: space-between;
 	margin-bottom: 6px;
 	align-items: center;
 }
 
-.interactive-item-container .value .thinking-content .thinking-label {
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-label {
 	font-style: italic;
 	color: var(--vscode-textLink-foreground);
 	font-weight: 600;
 }
 
-.interactive-item-container .value .thinking-content .thinking-dots {
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-dots {
 	display: inline-block;
 	min-width: 18px;
 	margin-left: 2px;
 }
 
-.interactive-item-container .value .rendered-markdown.chat-thinking .thinking-icon,
-.interactive-item-container .value .thinking-content .thinking-icon {
+.interactive-item-container.interactive-response .thinking-container .rendered-markdown.chat-thinking .thinking-icon,
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-icon {
 	color: var(--vscode-textLink-foreground);
 }
 
-.interactive-item-container .value .rendered-markdown.chat-thinking .thinking-metadata,
-.interactive-item-container .value .thinking-content .thinking-metadata {
+.interactive-item-container.interactive-response .thinking-container .rendered-markdown.chat-thinking .thinking-metadata,
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-metadata {
 	margin-top: 8px;
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
@@ -2024,27 +2025,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-top: 1px solid var(--vscode-chat-requestBorder);
 }
 
-.interactive-item-container .value .thinking-content .thinking-text {
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-text {
 	white-space: pre-wrap;
 	word-break: break-word;
 	line-height: 1.5em;
 	padding: 4px 12px;
 }
 
-.interactive-item-container .value .thinking-content .thinking-text code {
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-text code {
 	font-family: var(--monaco-monospace-font);
 }
 
-.interactive-item-container .value .thinking-content .thinking-text p {
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-text p {
 	margin: 0 0 0.8em 0;
 }
 
-.interactive-item-container .value .thinking-content .thinking-text > p {
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-text > p {
 	position: relative;
 	padding-bottom: 0.5em;
 }
 
-.interactive-item-container .value .thinking-content .thinking-text > p:not(:last-child) {
+.interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-text > p:not(:last-child) {
 	margin-bottom: 1.2em;
 }
 

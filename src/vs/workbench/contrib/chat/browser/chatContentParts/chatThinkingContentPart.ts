@@ -14,6 +14,7 @@ import { IChatContentPartRenderContext, IChatContentPart } from './chatContentPa
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { isResponseVM, ChatResponseViewModel } from '../../common/chatViewModel.js';
 
 export class ChatThinkingContentPart extends Disposable implements IChatContentPart {
 
@@ -96,6 +97,19 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		this._register(this.renderHeader(headerDomNode));
 		this._register(this.renderContent());
 
+		// Listen for response completion to immediately update the timer
+		if (isResponseVM(this._context.element)) {
+			const responseVM = this._context.element as ChatResponseViewModel;
+			this._register(responseVM.onDidChange(() => {
+				if (this._context.element.isComplete && !this._isDisposed) {
+					const timerState = ChatThinkingContentPart.getTimerState(this.responseId);
+					if (!timerState.isComplete) {
+						this.markComplete();
+					}
+				}
+			}));
+		}
+
 		this.startTimer();
 	}
 
@@ -141,7 +155,7 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 				return;
 			}
 			this.updateLabel();
-		}, 1000);
+		}, 500);
 	}
 
 	private stopTimer(): void {
@@ -292,20 +306,11 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 			this._onDidChangeHeight.fire();
 		}
 
+		// Check for completion immediately
 		if (this._context.element.isComplete) {
 			const timerState = ChatThinkingContentPart.getTimerState(this.responseId);
 			if (!timerState.isComplete) {
-				const currentElapsed = Date.now() - timerState.startTime;
-				if (currentElapsed >= 500) {
-					this.markComplete();
-				} else {
-					setTimeout(() => {
-						const currentState = ChatThinkingContentPart.getTimerState(this.responseId);
-						if (!currentState.isComplete && !this._isDisposed) {
-							this.markComplete();
-						}
-					}, 500 - currentElapsed);
-				}
+				this.markComplete();
 			}
 		}
 	}

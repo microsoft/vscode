@@ -108,6 +108,7 @@ export interface IChatListItemTemplate {
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly value: HTMLElement;
+	readonly thinkingContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly instantiationService: IInstantiationService;
 	readonly templateDisposables: IDisposable;
@@ -359,6 +360,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			valueParent = rhsContainer;
 		}
 
+		// Create thinking container first to ensure it's always at the top of valueParent
+		const thinkingContainer = dom.append(valueParent, $('.thinking-container'));
+		thinkingContainer.classList.add('hidden');
+
 		const header = dom.append(headerParent, $('.header'));
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
@@ -473,7 +478,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, thinkingContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
 		return template;
 	}
 
@@ -486,6 +491,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
 			dom.clearNode(templateData.value);
+			dom.clearNode(templateData.thinkingContainer);
+			templateData.thinkingContainer.classList.add('hidden');
 		}
 	}
 
@@ -914,7 +921,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
 
-		// Process all parts, with special handling for thinking parts
 		partsToRender.forEach((partToRender, contentIndex) => {
 			if (!partToRender) {
 				// null=no change
@@ -942,28 +948,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				try {
 					if (alreadyRenderedPart?.domNode) {
 						if (newPart.domNode) {
-							// This method can throw HierarchyRequestError
-							alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+							if (partToRender.kind === 'thinking') {
+								templateData.thinkingContainer.classList.remove('hidden');
+								if (templateData.thinkingContainer.contains(alreadyRenderedPart.domNode)) {
+									alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+								} else {
+									alreadyRenderedPart.domNode.remove();
+									templateData.thinkingContainer.appendChild(newPart.domNode);
+								}
+							} else {
+								alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+							}
 						} else {
 							alreadyRenderedPart.domNode.remove();
 						}
 					} else if (newPart.domNode) {
 						if (partToRender.kind === 'thinking') {
-							// Always insert thinking part at the absolute beginning of the container
-							// Find the first non-thinking element to insert before it
-							let insertionPoint = templateData.value.firstChild;
-
-							// Skip any existing thinking parts to ensure we place this thinking part first
-							while (insertionPoint && (insertionPoint as HTMLElement).classList?.contains('chat-thinking-summary')) {
-								insertionPoint = insertionPoint.nextSibling;
-							}
-
-							if (insertionPoint) {
-								templateData.value.insertBefore(newPart.domNode, insertionPoint);
-							} else {
-								// If no insertion point found, append at the end (shouldn't normally happen)
-								templateData.value.appendChild(newPart.domNode);
-							}
+							templateData.thinkingContainer.classList.remove('hidden');
+							templateData.thinkingContainer.appendChild(newPart.domNode);
 						} else {
 							// Regular append for other content types
 							templateData.value.appendChild(newPart.domNode);
@@ -973,7 +975,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
 				}
 			} else {
-				alreadyRenderedPart?.domNode?.remove();
+				if (alreadyRenderedPart?.domNode) {
+					alreadyRenderedPart.domNode.remove();
+				}
 			}
 		});
 
@@ -986,6 +990,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				delete renderedParts[i];
 			}
 		}
+		const hasThinkingParts = contentForThisTurn.some(part => part.kind === 'thinking');
+		templateData.thinkingContainer.classList.toggle('hidden', !hasThinkingParts);
+
 		this.ensureThinkingPartsAtTop(templateData);
 	}
 
@@ -1422,7 +1429,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				context
 			);
 
-			// Add a special class to identify thinking content at the container level
+			// Add a special class to identify thinking content
 			thinkingPart.domNode.classList.add('chat-thinking-part');
 
 			// Handle height changes for smooth rendering
@@ -1435,7 +1442,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
-	 * Ensures that thinking parts are always positioned at the top of the container
+	 * Manages thinking parts within the dedicated thinking container
 	 */
 	private ensureThinkingPartsAtTop(templateData: IChatListItemTemplate): void {
 		if (!templateData.renderedParts) {
@@ -1443,22 +1450,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Find all thinking parts
-		const thinkingParts: ChatThinkingContentPart[] = [];
-		templateData.renderedParts.forEach(part => {
-			if (part instanceof ChatThinkingContentPart) {
-				thinkingParts.push(part);
-			}
-		});
+		const hasThinkingParts = templateData.renderedParts.some(part =>
+			part instanceof ChatThinkingContentPart
+		);
 
-		// Move each thinking part to the top of the container
-		thinkingParts.forEach(thinkingPart => {
-			if (thinkingPart.domNode.parentNode === templateData.value) {
-				// Remove from current position
-				thinkingPart.domNode.remove();
-				// Insert at the beginning
-				templateData.value.insertBefore(thinkingPart.domNode, templateData.value.firstChild);
-			}
-		});
+		templateData.thinkingContainer.classList.toggle('hidden', !hasThinkingParts);
 	}
 
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {

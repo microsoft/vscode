@@ -166,6 +166,8 @@ declare module 'vscode' {
 	 */
 	export class ChatResponseThinkingProgressPart extends ChatResponseProgressPart {
 		value: string;
+		id?: string;
+		metadata?: string;
 		task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>;
 
 		/**
@@ -173,7 +175,7 @@ declare module 'vscode' {
 		 * @param value An initial progress message
 		 * @param task A task that will emit thinking parts during its execution
 		 */
-		constructor(value: string, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>);
+		constructor(value: string, id?: string, metadata?: string, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>);
 	}
 
 	export class ChatResponseReferencePart2 {

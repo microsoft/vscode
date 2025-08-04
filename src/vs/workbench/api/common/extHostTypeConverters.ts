@@ -2704,8 +2704,8 @@ export namespace ChatResponseThinkingProgressPart {
 		return {
 			kind: 'thinking',
 			value: part.value,
-			id: undefined, // ID will be set by the thinking task if provided
-			metadata: undefined // Metadata will be set by the thinking task if provided
+			id: part.id,
+			metadata: part.metadata
 		};
 	}
 	export function to(part: Dto<IChatThinkingPart>): vscode.ChatResponseThinkingProgressPart {
@@ -2859,7 +2859,7 @@ export namespace ChatToolInvocationPart {
 }
 
 export namespace ChatTask {
-	export function from(part: vscode.ChatResponseProgressPart2 | vscode.ChatResponseThinkingProgressPart): IChatTaskDto {
+	export function from(part: vscode.ChatResponseProgressPart2): IChatTaskDto {
 		return {
 			kind: 'progressTask',
 			content: MarkdownString.from(part.value),
