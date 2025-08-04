@@ -17,6 +17,33 @@ import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownR
 
 export class ChatThinkingContentPart extends Disposable implements IChatContentPart {
 
+	private static readonly timerRegistry = new Map<string, {
+		startTime: number;
+		completionTime?: number;
+		isComplete: boolean;
+		elapsedAtLastUpdate: number;
+	}>();
+
+	private static getTimerState(responseId: string): { startTime: number; completionTime?: number; isComplete: boolean; elapsedAtLastUpdate: number } {
+		if (!this.timerRegistry.has(responseId)) {
+			const startTime = Date.now();
+			this.timerRegistry.set(responseId, {
+				startTime,
+				isComplete: false,
+				elapsedAtLastUpdate: 0
+			});
+		}
+		return this.timerRegistry.get(responseId)!;
+	}
+
+	private static markResponseComplete(responseId: string): void {
+		const state = this.getTimerState(responseId);
+		if (!state.isComplete) {
+			state.completionTime = Date.now();
+			state.isComplete = true;
+		}
+	}
+
 	readonly domNode: HTMLElement;
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
@@ -37,11 +64,10 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	private markdownResult: IDisposable | undefined;
 	private metadataMarkdownResult: IDisposable | undefined;
 
-	// Time tracking for dynamic label
-	private startTime: number = Date.now();
-	private isComplete: boolean = false;
-	private labelUpdateInterval: number | undefined;
-	private expandButton: ButtonWithIcon | undefined;
+	private readonly responseId: string;
+	private timerInterval?: number;
+	private expandButton?: ButtonWithIcon;
+	private _isDisposed: boolean = false;
 
 	constructor(
 		content: IChatThinkingPart,
@@ -49,6 +75,9 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.responseId = this._context.element.id;
+		ChatThinkingContentPart.getTimerState(this.responseId);
 
 		this.renderer = instantiationService.createInstance(MarkdownRenderer, {});
 		this.currentThinkingValue = content.value || '';
@@ -66,6 +95,12 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 
 		this._register(this.renderHeader(headerDomNode));
 		this._register(this.renderContent());
+
+		this.startTimer();
+	}
+
+	public get chatResponseId(): string {
+		return this.responseId;
 	}
 
 	private renderHeader(container: HTMLElement): IDisposable {
@@ -81,9 +116,6 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		};
 		setExpansionState();
 
-		// Start updating the label periodically
-		this.startLabelUpdates();
-
 		const disposables = new DisposableStore();
 		disposables.add(expandButton);
 		disposables.add(expandButton.onDidClick(() => {
@@ -94,44 +126,64 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		return toDisposable(() => disposables.dispose());
 	}
 
-	private updateLabel(): void {
-		if (!this.expandButton) {
+	private startTimer(): void {
+		const timerState = ChatThinkingContentPart.getTimerState(this.responseId);
+
+		if (this.timerInterval || this._isDisposed || timerState.isComplete) {
 			return;
 		}
 
-		const elapsedMs = Date.now() - this.startTime;
-		const elapsedSeconds = Math.floor(elapsedMs / 1000);
+		const targetWindow = dom.getWindow(this.domNode);
+		this.timerInterval = targetWindow.setInterval(() => {
+			const currentState = ChatThinkingContentPart.getTimerState(this.responseId);
+			if (this._isDisposed || currentState.isComplete || !this.expandButton) {
+				this.stopTimer();
+				return;
+			}
+			this.updateLabel();
+		}, 1000);
+	}
 
-		if (this.isComplete) {
+	private stopTimer(): void {
+		if (this.timerInterval !== undefined) {
+			const targetWindow = dom.getWindow(this.domNode);
+			targetWindow.clearInterval(this.timerInterval);
+			this.timerInterval = undefined;
+		}
+	}
+
+	private updateLabel(): void {
+		if (!this.expandButton || this._isDisposed) {
+			return;
+		}
+
+		const timerState = ChatThinkingContentPart.getTimerState(this.responseId);
+		const currentTime = timerState.completionTime || Date.now();
+		const elapsedMs = currentTime - timerState.startTime;
+
+		let elapsedSeconds: number;
+		if (timerState.isComplete) {
+			elapsedSeconds = Math.max(1, Math.ceil(elapsedMs / 1000));
+		} else {
+			elapsedSeconds = Math.max(1, Math.floor(elapsedMs / 1000));
+		}
+
+		if (timerState.isComplete) {
 			this.expandButton.label = `Thought for ${elapsedSeconds}s`;
 		} else {
 			this.expandButton.label = `Thinking for ${elapsedSeconds}s...`;
 		}
 	}
 
-	private startLabelUpdates(): void {
-		if (this.labelUpdateInterval) {
-			const targetWindow = dom.getWindow(this.domNode);
-			targetWindow.clearInterval(this.labelUpdateInterval);
+	private markComplete(): void {
+		const timerState = ChatThinkingContentPart.getTimerState(this.responseId);
+		if (timerState.isComplete) {
+			return;
 		}
 
-		// Update every second while thinking
-		const targetWindow = dom.getWindow(this.domNode);
-		this.labelUpdateInterval = targetWindow.setInterval(() => {
-			if (!this.isComplete) {
-				this.updateLabel();
-			} else {
-				this.stopLabelUpdates();
-			}
-		}, 1000);
-	}
-
-	private stopLabelUpdates(): void {
-		if (this.labelUpdateInterval) {
-			const targetWindow = dom.getWindow(this.domNode);
-			targetWindow.clearInterval(this.labelUpdateInterval);
-			this.labelUpdateInterval = undefined;
-		}
+		ChatThinkingContentPart.markResponseComplete(this.responseId);
+		this.stopTimer();
+		this.updateLabel();
 	}
 
 	private renderContent(): IDisposable {
@@ -182,6 +234,11 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	}
 
 	update(newContent: IChatThinkingPart): void {
+		// Early exit if disposed to prevent any interference
+		if (this._isDisposed) {
+			return;
+		}
+
 		let contentChanged = false;
 
 		if (newContent.id && newContent.id.startsWith('combined-thinking-')) {
@@ -232,25 +289,25 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		}
 
 		if (contentChanged) {
-			if (this.isCollapsed) {
-				this.isCollapsed = false;
-				this.domNode.classList.remove('chat-thinking-collapsed');
-				this._onDidChangeHeight.fire();
-			}
-
 			this._onDidChangeHeight.fire();
 		}
 
-		// Check if the entire response is complete
-		if (this._context.element.isComplete && !this.isComplete) {
-			this.markAsComplete();
+		if (this._context.element.isComplete) {
+			const timerState = ChatThinkingContentPart.getTimerState(this.responseId);
+			if (!timerState.isComplete) {
+				const currentElapsed = Date.now() - timerState.startTime;
+				if (currentElapsed >= 500) {
+					this.markComplete();
+				} else {
+					setTimeout(() => {
+						const currentState = ChatThinkingContentPart.getTimerState(this.responseId);
+						if (!currentState.isComplete && !this._isDisposed) {
+							this.markComplete();
+						}
+					}, 500 - currentElapsed);
+				}
+			}
 		}
-	}
-
-	private markAsComplete(): void {
-		this.isComplete = true;
-		this.updateLabel();
-		this.stopLabelUpdates();
 	}
 
 	private renderMarkdown(content: string): void {
@@ -272,7 +329,9 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	}
 
 	override dispose(): void {
-		this.stopLabelUpdates();
+		this._isDisposed = true;
+		this.stopTimer();
+		this.expandButton = undefined;
 
 		if (this.markdownResult) {
 			this.markdownResult.dispose();

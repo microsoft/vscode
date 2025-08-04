@@ -949,8 +949,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						}
 					} else if (newPart.domNode) {
 						if (partToRender.kind === 'thinking') {
-							// Insert thinking part at the beginning of the container
-							templateData.value.insertBefore(newPart.domNode, templateData.value.firstChild);
+							// Always insert thinking part at the absolute beginning of the container
+							// Find the first non-thinking element to insert before it
+							let insertionPoint = templateData.value.firstChild;
+
+							// Skip any existing thinking parts to ensure we place this thinking part first
+							while (insertionPoint && (insertionPoint as HTMLElement).classList?.contains('chat-thinking-summary')) {
+								insertionPoint = insertionPoint.nextSibling;
+							}
+
+							if (insertionPoint) {
+								templateData.value.insertBefore(newPart.domNode, insertionPoint);
+							} else {
+								// If no insertion point found, append at the end (shouldn't normally happen)
+								templateData.value.appendChild(newPart.domNode);
+							}
 						} else {
 							// Regular append for other content types
 							templateData.value.appendChild(newPart.domNode);
@@ -973,6 +986,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				delete renderedParts[i];
 			}
 		}
+		this.ensureThinkingPartsAtTop(templateData);
 	}
 
 	/**
@@ -991,11 +1005,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let numNeededWords = data.numWordsToRender;
 		const partsToRender: IChatRendererContent[] = [];
 
-		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
-		// The part will hide itself if the list is empty.
-		partsToRender.push({ kind: 'references', references: element.contentReferences });
-
-		// First, find and combine all thinking parts into a single one that will be placed at the top
 		const thinkingParts = renderableResponse.filter(part => part.kind === 'thinking');
 		let combinedThinkingPart: IChatThinkingPart | null = null;
 
@@ -1015,9 +1024,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				id: 'combined-thinking-' + Date.now()
 			};
 
-			// Add the combined thinking part at the beginning
 			partsToRender.push(combinedThinkingPart);
 		}
+		partsToRender.push({ kind: 'references', references: element.contentReferences });
 
 		let moreContentAvailable = false;
 		for (let i = 0; i < renderableResponse.length; i++) {
@@ -1391,12 +1400,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderThinking(context: IChatContentPartRenderContext, thinking: IChatThinkingPart, templateData: IChatListItemTemplate): IChatContentPart {
-		// Check if there's already a thinking part in the rendered parts
+		// Check if there's already a thinking part for THIS specific response
 		let existingThinkingPart: ChatThinkingContentPart | undefined;
 
 		if (templateData.renderedParts) {
 			existingThinkingPart = templateData.renderedParts.find(part =>
-				part instanceof ChatThinkingContentPart) as ChatThinkingContentPart | undefined;
+				part instanceof ChatThinkingContentPart &&
+				// Ensure it belongs to the same response using the response ID
+				part.chatResponseId === context.element.id) as ChatThinkingContentPart | undefined;
 		}
 
 		if (existingThinkingPart) {
@@ -1404,7 +1415,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			existingThinkingPart.update(thinking);
 			return existingThinkingPart;
 		} else {
-			// Create a new thinking part
+			// Create a new thinking part for this specific response
 			const thinkingPart = templateData.instantiationService.createInstance(
 				ChatThinkingContentPart,
 				thinking,
@@ -1421,6 +1432,33 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			return thinkingPart;
 		}
+	}
+
+	/**
+	 * Ensures that thinking parts are always positioned at the top of the container
+	 */
+	private ensureThinkingPartsAtTop(templateData: IChatListItemTemplate): void {
+		if (!templateData.renderedParts) {
+			return;
+		}
+
+		// Find all thinking parts
+		const thinkingParts: ChatThinkingContentPart[] = [];
+		templateData.renderedParts.forEach(part => {
+			if (part instanceof ChatThinkingContentPart) {
+				thinkingParts.push(part);
+			}
+		});
+
+		// Move each thinking part to the top of the container
+		thinkingParts.forEach(thinkingPart => {
+			if (thinkingPart.domNode.parentNode === templateData.value) {
+				// Remove from current position
+				thinkingPart.domNode.remove();
+				// Insert at the beginning
+				templateData.value.insertBefore(thinkingPart.domNode, templateData.value.firstChild);
+			}
+		});
 	}
 
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
