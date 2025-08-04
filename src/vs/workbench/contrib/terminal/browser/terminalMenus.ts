@@ -54,7 +54,7 @@ export function setupTerminalMenus(): void {
 					group: TerminalMenuBarGroup.Create,
 					command: {
 						id: TerminalCommandId.NewInNewWindow,
-						title: localize({ key: 'miNewInNewWindow', comment: ['&& denotes a mnemonic'] }, "New in New &&Window"),
+						title: localize({ key: 'miNewInNewWindow', comment: ['&& denotes a mnemonic'] }, "New Terminal &&Window"),
 						precondition: ContextKeyExpr.has(TerminalContextKeyStrings.IsOpen)
 					},
 					order: 2,
@@ -724,7 +724,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 
 	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.New, terminalStrings.new, undefined, true, () => terminalService.createAndFocusTerminal())));
-	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.NewInNewWindow, terminalStrings.newInNewWindow.short, undefined, true, () => terminalService.createAndFocusTerminal({
+	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.NewInNewWindow, terminalStrings.newInNewWindow.value, undefined, true, () => terminalService.createAndFocusTerminal({
 		location: {
 			viewColumn: AUX_WINDOW_GROUP,
 			auxiliary: { compact: true },
