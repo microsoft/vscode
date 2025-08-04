@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { isLspSupportedShellType, PYTHON_LANGUAGE_ID, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
 
 export interface ILspTerminalModelContentProvider extends ITextModelContentProvider {
@@ -57,8 +57,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 */
 	setContent(content: string): void {
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		// Trailing coming from Python itself shouldn't be included in the REPL.
-		if (content !== 'exit()' && isLspSupportedShellType(this._shellType)) {
+		if (isLspSupportedShellType(this._shellType)) {
 			if (model) {
 				const existingContent = model.getValue();
 				if (existingContent === '') {
@@ -86,7 +85,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	trackPromptInputToVirtualFile(content: string): void {
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		if (this._shellType === GeneralShellType.Python) {
+		if (isLspSupportedShellType(this._shellType)) {
 			if (model) {
 				const existingContent = model.getValue();
 				const delimiterIndex = existingContent.lastIndexOf(VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
@@ -113,7 +112,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			// Inconsistent repro: Covering case where commandDetection is available but onCommandFinished becomes available later
 			if (this._commandDetection && this._commandDetection.onCommandFinished) {
 				this._onCommandFinishedListener.value = this._register(this._commandDetection.onCommandFinished((e) => {
-					if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
+					if (e.exitCode === 0 && isLspSupportedShellType(this._shellType)) {
 						this.setContent(e.command);
 					}
 
