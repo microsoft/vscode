@@ -121,9 +121,18 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		}
 
 		if (label) {
-			this._headingLabel.textContent = strings.escape(label);
-			this._headingLabel.setAttribute('aria-label', label);
+			// Remove redundant URL prefixes from GitHub PR review headers
+			const cleanedLabel = this.removeUrlPrefix(label);
+			this._headingLabel.textContent = strings.escape(cleanedLabel);
+			this._headingLabel.setAttribute('aria-label', cleanedLabel);
 		}
+	}
+
+	private removeUrlPrefix(label: string): string {
+		// Match URL patterns at the beginning of the label (http:// or https://)
+		// Also handle leading whitespace before the URL
+		const urlPrefixRegex = /^\s*https?:\/\/[^\s]+\s*/;
+		return label.replace(urlPrefixRegex, '').trim();
 	}
 
 	updateHeight(headHeight: number) {
