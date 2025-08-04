@@ -278,12 +278,12 @@ function replaceWithPlainTextHook(element: Element, data: dompurify.SanitizeElem
 }
 
 export function convertTagToPlaintext(element: Element): DocumentFragment {
-	const tagName = element.tagName.toLowerCase();
 	let startTagText: string;
 	let endTagText: string | undefined;
 	if (element.nodeType === Node.COMMENT_NODE) {
 		startTagText = `<!--${element.textContent}-->`;
 	} else {
+		const tagName = element.tagName.toLowerCase();
 		const isSelfClosing = selfClosingTags.includes(tagName);
 		const attrString = element.attributes.length ?
 			' ' + Array.from(element.attributes)

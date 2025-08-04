@@ -213,15 +213,15 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	// Remove/disable inputs
-	for (const e of element.getElementsByTagName('input')) {
-		if (e.attributes.getNamedItem('type')?.value === 'checkbox') {
-			e.setAttribute('disabled', '');
+	for (const input of element.getElementsByTagName('input')) {
+		if (input.attributes.getNamedItem('type')?.value === 'checkbox') {
+			input.setAttribute('disabled', '');
 		} else {
 			if (options.sanitizerConfig?.replaceWithPlaintext) {
-				const replacement = convertTagToPlaintext(element);
-				element.parentElement?.replaceChild(replacement, element);
+				const replacement = convertTagToPlaintext(input);
+				input.parentElement?.replaceChild(replacement, input);
 			} else {
-				e.remove();
+				input.remove();
 			}
 		}
 	}
@@ -464,6 +464,7 @@ export const allowedMarkdownHtmlAttributes = [
 	'type',
 	'width',
 	'start',
+	'value',
 
 	// Custom markdown attributes
 	'data-code',
