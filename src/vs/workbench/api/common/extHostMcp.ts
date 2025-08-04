@@ -332,7 +332,10 @@ class McpHTTPHandle extends Disposable {
 		if (resourceMetadataChallenge) {
 			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
 			// Use URL constructor for normalization - it handles hostname case and trailing slashes
-			if (new URL(resourceMetadata.resource).toString() !== new URL(url).toString()) {
+			function normalizeUrl(u: string): string {
+				return new URL(u).toString().replace(/\/+$/, '');
+			}
+			if (normalizeUrl(resourceMetadata.resource) !== normalizeUrl(url)) {
 				throw new Error(`Protected Resource Metadata resource "${resourceMetadata.resource}" does not match MCP server resolved resource "${url}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
 			}
 			// TODO:@TylerLeonhardt support multiple authorization servers
