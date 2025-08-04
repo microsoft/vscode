@@ -272,7 +272,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const queue: IChatResponseFragment[] = [];
 		const sendNow = () => {
 			if (queue.length > 0) {
-				this._proxy.$reportResponsePart(requestId, queue);
+				this._proxy.$reportResponsePart(requestId, new SerializableObjectWithBuffers(queue));
 				queue.length = 0;
 			}
 		};
@@ -484,10 +484,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return internalMessages;
 	}
 
-	async $acceptResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {
+	async $acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponseFragment | IChatResponseFragment[]>): Promise<void> {
 		const data = this._pendingRequest.get(requestId);
 		if (data) {
-			data.res.handleFragment(chunk);
+			data.res.handleFragment(chunk.value);
 		}
 	}
 
