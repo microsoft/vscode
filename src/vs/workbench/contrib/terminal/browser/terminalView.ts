@@ -407,6 +407,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _altCommand: string | undefined;
 	private _class: string | undefined;
 	private readonly _elementDisposables: IDisposable[] = [];
+	private _draggedTerminal: ITerminalInstance | undefined;
+	private _dragLeaveTimeout: any;
 
 	constructor(
 		action: MenuItemAction,
@@ -492,6 +494,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				const instance = this._terminalGroupService.activeInstance;
 				if (e.dataTransfer && instance) {
 					e.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify([instance.resource.toString()]));
+					// Track the dragged terminal instance for potential new window creation
+					this._trackTerminalDrag(instance);
 				}
 			}));
 		}
@@ -545,6 +549,44 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			}
 			this.updateTooltip();
 		}
+	}
+
+	private _trackTerminalDrag(instance: ITerminalInstance): void {
+		this._draggedTerminal = instance;
+		
+		// Clear any existing timeout
+		if (this._dragLeaveTimeout) {
+			clearTimeout(this._dragLeaveTimeout);
+		}
+
+		// Add document-level drag event listeners to detect when drag leaves the application
+		const handleDragEnd = () => {
+			this._draggedTerminal = undefined;
+			document.removeEventListener('dragend', handleDragEnd);
+			document.removeEventListener('dragleave', handleDragLeave);
+			if (this._dragLeaveTimeout) {
+				clearTimeout(this._dragLeaveTimeout);
+				this._dragLeaveTimeout = undefined;
+			}
+		};
+
+		const handleDragLeave = (e: DragEvent) => {
+			// Check if we're leaving the document entirely
+			if (e.relatedTarget === null && this._draggedTerminal) {
+				// Set a timeout to check if we've really left the application
+				// This prevents false positives when dragging over child elements
+				this._dragLeaveTimeout = setTimeout(() => {
+					if (this._draggedTerminal) {
+						// Move the terminal to a new editor window
+						this._terminalService.moveIntoNewEditor(this._draggedTerminal);
+						this._draggedTerminal = undefined;
+					}
+				}, 100);
+			}
+		};
+
+		document.addEventListener('dragend', handleDragEnd);
+		document.addEventListener('dragleave', handleDragLeave);
 	}
 
 	private _openContextMenu() {

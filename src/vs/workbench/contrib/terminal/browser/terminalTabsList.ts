@@ -593,6 +593,8 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
 	private _primaryBackend: ITerminalBackend | undefined;
+	private _draggedTerminals: ITerminalInstance[] = [];
+	private _dragLeaveTimeout: any;
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -619,6 +621,12 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		this._autoFocusInstance = undefined;
 		this._autoFocusDisposable.dispose();
 		this._autoFocusDisposable = Disposable.None;
+		
+		// Clear drag tracking timeout if we're leaving within the application
+		if (this._dragLeaveTimeout) {
+			clearTimeout(this._dragLeaveTimeout);
+			this._dragLeaveTimeout = undefined;
+		}
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
@@ -633,6 +641,8 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
 			originalEvent.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(terminals.map(e => e.resource.toString())));
+			// Track the dragged terminals for potential new window creation
+			this._trackTerminalDrag(terminals);
 		}
 	}
 
@@ -775,6 +785,46 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 
 		instance.focus();
 		await instance.sendPath(resource, false);
+	}
+
+	private _trackTerminalDrag(terminals: ITerminalInstance[]): void {
+		this._draggedTerminals = terminals;
+		
+		// Clear any existing timeout
+		if (this._dragLeaveTimeout) {
+			clearTimeout(this._dragLeaveTimeout);
+		}
+
+		// Add document-level drag event listeners to detect when drag leaves the application
+		const handleDragEnd = () => {
+			this._draggedTerminals = [];
+			document.removeEventListener('dragend', handleDragEnd);
+			document.removeEventListener('dragleave', handleDragLeave);
+			if (this._dragLeaveTimeout) {
+				clearTimeout(this._dragLeaveTimeout);
+				this._dragLeaveTimeout = undefined;
+			}
+		};
+
+		const handleDragLeave = (e: DragEvent) => {
+			// Check if we're leaving the document entirely
+			if (e.relatedTarget === null && this._draggedTerminals.length > 0) {
+				// Set a timeout to check if we've really left the application
+				// This prevents false positives when dragging over child elements
+				this._dragLeaveTimeout = setTimeout(() => {
+					if (this._draggedTerminals.length > 0) {
+						// Move terminals to new editor windows
+						for (const terminal of this._draggedTerminals) {
+							this._terminalService.moveIntoNewEditor(terminal);
+						}
+						this._draggedTerminals = [];
+					}
+				}, 100);
+			}
+		};
+
+		document.addEventListener('dragend', handleDragEnd);
+		document.addEventListener('dragleave', handleDragLeave);
 	}
 }
 
