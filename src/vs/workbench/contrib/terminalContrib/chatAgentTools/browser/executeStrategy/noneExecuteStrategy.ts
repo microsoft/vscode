@@ -46,6 +46,13 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 				throw new CancellationError();
 			}
 
+			// Check if there are already child processes before executing - this can help identify
+			// if the terminal is already busy with another command
+			const hasChildProcessesBeforeExecution = this._instance.hasChildProcesses;
+			if (hasChildProcessesBeforeExecution) {
+				this._log('Warning: Child processes detected before command execution');
+			}
+
 			// Record where the command started. If the marker gets disposed, re-created it where
 			// the cursor is. This can happen in prompts where they clear the line and rerender it
 			// like powerlevel10k's transient prompt
@@ -63,8 +70,10 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			this._instance.sendText(commandLine, true);
 
 			// Assume the command is done when it's idle
-			this._log('Waiting for idle (with child process monitoring)');
-			await waitForIdleWithChildProcessMonitoring(this._instance, 1000);
+			// Use a longer timeout if we didn't have child processes before but might have them now
+			const maxWaitTime = hasChildProcessesBeforeExecution ? 30000 : 60000; // Longer wait for commands that spawn processes
+			this._log(`Waiting for idle (with child process monitoring, max wait: ${maxWaitTime}ms)`);
+			await waitForIdleWithChildProcessMonitoring(this._instance, 1000, maxWaitTime);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -80,6 +89,13 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 				this._log('Failed to fetch output via markers');
 				additionalInformationLines.push('Failed to retrieve command output');
 			}
+
+			// Add information about child processes for debugging
+			const finalHasChildProcesses = this._instance.hasChildProcesses;
+			if (hasChildProcessesBeforeExecution !== finalHasChildProcesses) {
+				this._log(`Child process state changed: ${hasChildProcessesBeforeExecution} -> ${finalHasChildProcesses}`);
+			}
+
 			return {
 				output,
 				additionalInformation: additionalInformationLines.length > 0 ? additionalInformationLines.join('\n') : undefined,
