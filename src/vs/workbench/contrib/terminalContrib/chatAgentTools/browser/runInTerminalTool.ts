@@ -119,13 +119,13 @@ const telemetryIgnoredSequences = [
 	'\x1b[O', // Focus out
 ];
 
-const promptInjectionWarningCommands = [
+const promptInjectionWarningCommandsLower = [
 	'curl',
 	'wget',
 ];
-const promptInjectionWarningCommandsPwshOnly = [
-	'Invoke-RestMethod',
-	'Invoke-WebRequest',
+const promptInjectionWarningCommandsLowerPwshOnly = [
+	'invoke-restmethod',
+	'invoke-webrequest',
 	'irm',
 	'iwr',
 ];
@@ -247,10 +247,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Add a disclaimer warning about prompt injection for common commands that return
 			// content from the web
 			let disclaimer: IMarkdownString | undefined;
-			const subCommandsFirstWordOnly = subCommands.map(command => command.split(' ')[0]);
+			const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
 			if (!isAutoApproved && (
-				subCommandsFirstWordOnly.some(command => promptInjectionWarningCommands.includes(command)) ||
-				(isPowerShell(shell, os) && subCommandsFirstWordOnly.some(command => promptInjectionWarningCommandsPwshOnly.includes(command)))
+				subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
+				(isPowerShell(shell, os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
 			)) {
 				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
 			}
