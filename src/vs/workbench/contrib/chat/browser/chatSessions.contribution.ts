@@ -13,12 +13,9 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IChatWidgetService } from '../browser/chat.js';
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
@@ -68,42 +65,6 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 	}
 });
 
-export class ChatSessionsContribution extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-	) {
-		super();
-
-		extensionPoint.setHandler(extensions => {
-			for (const ext of extensions) {
-				if (!isProposedApiEnabled(ext.description, 'chatSessionsProvider')) {
-					continue;
-				}
-				if (!Array.isArray(ext.value)) {
-					continue;
-				}
-				for (const contribution of ext.value) {
-					const c: IChatSessionsExtensionPoint = {
-						id: contribution.id,
-						type: contribution.type,
-						name: contribution.name,
-						displayName: contribution.displayName,
-						description: contribution.description,
-						when: contribution.when,
-						extensionDescription: ext.description,
-					};
-					this.logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.type}' name='${c.name}')`);
-					this._register(this.chatSessionsService.registerContribution(c)); // TODO: Is it for contribution to own this? I think not
-				}
-			}
-		});
-	}
-}
-
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ChatSessionsContribution, LifecyclePhase.Restored);
-
 class ContributedChatSessionData implements IDisposable {
 	private readonly _disposableStore: DisposableStore;
 
@@ -148,6 +109,29 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._register(extensionPoint.setHandler(extensions => {
+			for (const ext of extensions) {
+				if (!isProposedApiEnabled(ext.description, 'chatSessionsProvider')) {
+					continue;
+				}
+				if (!Array.isArray(ext.value)) {
+					continue;
+				}
+				for (const contribution of ext.value) {
+					const c: IChatSessionsExtensionPoint = {
+						id: contribution.id,
+						type: contribution.type,
+						name: contribution.name,
+						displayName: contribution.displayName,
+						description: contribution.description,
+						when: contribution.when,
+						extensionDescription: ext.description,
+					};
+					this._logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.type}' name='${c.name}')`);
+					this._register(this.registerContribution(c));
+				}
+			}
+		}));
 
 		// Listen for context changes and re-evaluate contributions
 		this._register(Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(this._contextKeys))(() => {
@@ -295,11 +279,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return disposable;
 	}
 
-	async getChatSessionContributions(waitForActivation?: string[]): Promise<IChatSessionsExtensionPoint[]> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
-		if (waitForActivation) {
-			await Promise.all(waitForActivation.map(id => this._extensionService.activateByEvent(`onChatSession:${id}`)));
-		}
+	getChatSessionContributions(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values()).filter(contribution =>
 			this._isContributionAvailable(contribution)
 		);
@@ -314,7 +294,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	async canResolveItemProvider(chatViewType: string) {
-		// First check if the contribution is available based on its when clause
+		await this._extensionService.whenInstalledExtensionsRegistered();
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
@@ -324,7 +304,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return true;
 		}
 
-		await this._extensionService.whenInstalledExtensionsRegistered();
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
 
 		return this._itemsProviders.has(chatViewType);
@@ -335,7 +314,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	async canResolveContentProvider(chatViewType: string) {
-		// First check if the contribution is available based on its when clause
+		await this._extensionService.whenInstalledExtensionsRegistered();
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
@@ -345,7 +324,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return true;
 		}
 
-		await this._extensionService.whenInstalledExtensionsRegistered();
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
 
 		return this._contentProviders.has(chatViewType);

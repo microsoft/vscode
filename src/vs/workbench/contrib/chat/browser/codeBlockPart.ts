@@ -132,13 +132,13 @@ export function parseLocalFileData(text: string) {
 }
 
 export interface ICodeBlockActionContext {
-	code: string;
-	codemapperUri?: URI;
-	languageId?: string;
-	codeBlockIndex: number;
-	element: unknown;
+	readonly code: string;
+	readonly codemapperUri?: URI;
+	readonly languageId?: string;
+	readonly codeBlockIndex: number;
+	readonly element: unknown;
 
-	chatSessionId: string | undefined;
+	readonly chatSessionId: string | undefined;
 }
 
 export interface ICodeBlockRenderOptions {
@@ -286,6 +286,14 @@ export class CodeBlockPart extends Disposable {
 		this._register(this.editor.onDidFocusEditorWidget(() => {
 			this.element.classList.add('focused');
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
+		}));
+		this._register(Event.any(
+			this.editor.onDidChangeModel,
+			this.editor.onDidChangeModelContent
+		)(() => {
+			if (this.currentCodeBlockData) {
+				this.updateContexts(this.currentCodeBlockData);
+			}
 		}));
 
 		// Parent list scrolled
@@ -455,15 +463,7 @@ export class CodeBlockPart extends Disposable {
 			this.editor.revealRangeInCenter(data.range, ScrollType.Immediate);
 		}
 
-		this.toolbar.context = {
-			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
-			codeBlockIndex: data.codeBlockIndex,
-			element: data.element,
-			languageId: textModel.getLanguageId(),
-			codemapperUri: data.codemapperUri,
-			chatSessionId: data.chatSessionId
-		} satisfies ICodeBlockActionContext;
-		this.resourceContextKey.set(textModel.uri);
+		this.updateContexts(data);
 	}
 
 	private getVulnerabilitiesLabel(): string {
@@ -476,6 +476,23 @@ export class CodeBlockPart extends Disposable {
 			localize('vulnerabilitiesSingular', "{0} vulnerability", 1);
 		const icon = (element: IChatResponseViewModel) => element.vulnerabilitiesListExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 		return `${referencesLabel} $(${icon(this.currentCodeBlockData.element as IChatResponseViewModel).id})`;
+	}
+
+	private updateContexts(data: ICodeBlockData) {
+		const textModel = this.editor.getModel();
+		if (!textModel) {
+			return;
+		}
+
+		this.toolbar.context = {
+			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
+			codeBlockIndex: data.codeBlockIndex,
+			element: data.element,
+			languageId: textModel.getLanguageId(),
+			codemapperUri: data.codemapperUri,
+			chatSessionId: data.chatSessionId
+		} satisfies ICodeBlockActionContext;
+		this.resourceContextKey.set(textModel.uri);
 	}
 }
 

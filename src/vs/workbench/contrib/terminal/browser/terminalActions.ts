@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isKeyboardEvent, isMouseEvent, isPointerEvent } from '../../../../base/browser/dom.js';
+import { isKeyboardEvent, isMouseEvent, isPointerEvent, getActiveWindow } from '../../../../base/browser/dom.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -56,11 +56,14 @@ import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminal
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
+import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { InstanceContext } from './terminalContextMenu.js';
 import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { timeout } from '../../../../base/common/async.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -327,7 +330,9 @@ export function registerTerminalActions() {
 			// called when a terminal is the active editor
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const instance = await c.service.createTerminal({
-				location: { viewColumn: editorGroupToColumn(editorGroupsService, editorGroupsService.activeGroup) }
+				location: {
+					viewColumn: editorGroupToColumn(editorGroupsService, editorGroupsService.activeGroup),
+				}
 			});
 			await instance.focusWhenReady();
 		}
@@ -357,9 +362,16 @@ export function registerTerminalActions() {
 			const instance = await c.service.createTerminal({
 				location: {
 					viewColumn: AUX_WINDOW_GROUP,
-				}
+					auxiliary: { compact: true },
+				},
 			});
 			await instance.focusWhenReady();
+			// HACK: Since it's a new window it should be unlocked, despite the configuration, this
+			// is using a timeout as it's auto locked after several events firing in code internal
+			// to the editor.
+			await timeout(100);
+			const g = c.editorService.getInputFromResource(instance.resource).group;
+			g?.lock(false);
 		}
 	});
 
@@ -875,7 +887,14 @@ export function registerTerminalActions() {
 				order: 4,
 				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 				isHiddenByDefault: true
-			}
+			},
+			...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
+				group: '1_shellIntegration',
+				order: 4,
+				when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+				isHiddenByDefault: true
+			})),
 		],
 		run: (activeInstance) => activeInstance.xterm?.markTracker.scrollToPreviousMark(undefined, undefined, activeInstance.capabilities.has(TerminalCapability.CommandDetection))
 	});
@@ -897,7 +916,14 @@ export function registerTerminalActions() {
 				order: 5,
 				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 				isHiddenByDefault: true
-			}
+			},
+			...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
+				group: '1_shellIntegration',
+				order: 5,
+				when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+				isHiddenByDefault: true
+			})),
 		],
 		run: (activeInstance) => {
 			activeInstance.xterm?.markTracker.scrollToNextMark();
@@ -1199,6 +1225,7 @@ export function registerTerminalActions() {
 			let eventOrOptions = isObject(args) ? args as MouseEvent | ICreateTerminalOptions : undefined;
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
+			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (eventOrOptions && isMouseEvent(eventOrOptions) && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
 				await c.service.createTerminal({ location: { splitActiveTerminal: true } });
@@ -1207,6 +1234,10 @@ export function registerTerminalActions() {
 
 			if (c.service.isProcessSupportRegistered) {
 				eventOrOptions = !eventOrOptions || isMouseEvent(eventOrOptions) ? {} : eventOrOptions;
+
+				if (isAuxiliaryWindow(getActiveWindow()) && !eventOrOptions.location) {
+					eventOrOptions.location = { viewColumn: editorGroupToColumn(editorGroupsService, editorGroupsService.activeGroup) };
+				}
 
 				let instance: ITerminalInstance | undefined;
 				if (folders.length <= 1) {
