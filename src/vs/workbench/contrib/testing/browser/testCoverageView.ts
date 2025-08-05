@@ -102,6 +102,10 @@ export class TestCoverageView extends ViewPane {
 		super.layoutBody(height, width);
 		this.tree.value?.layout(height, width);
 	}
+
+	public collapseAll(): void {
+		this.tree.value?.collapseAll();
+	}
 }
 
 let fnNodeId = 0;
@@ -379,6 +383,10 @@ class TestCoverageTree extends Disposable {
 
 	public layout(height: number, width: number) {
 		this.tree.layout(height, width);
+	}
+
+	public collapseAll() {
+		this.tree.collapseAll();
 	}
 
 	private updateWithDetails(el: IPrefixTreeNode<FileCoverage>, details: readonly CoverageDetails[]) {
@@ -753,6 +761,7 @@ registerAction2(class TestCoverageChangeSortingAction extends ViewAction<TestCov
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', Testing.CoverageViewId),
 				group: 'navigation',
+				order: 1,
 			}
 		});
 	}
@@ -779,5 +788,26 @@ registerAction2(class TestCoverageChangeSortingAction extends ViewAction<TestCov
 				quickInput.dispose();
 			}
 		}));
+	}
+});
+
+registerAction2(class TestCoverageCollapseAllAction extends ViewAction<TestCoverageView> {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageViewCollapseAll,
+			viewId: Testing.CoverageViewId,
+			title: localize2('testing.coverageCollapseAll', 'Collapse All Coverage'),
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', Testing.CoverageViewId),
+				group: 'navigation',
+				order: 2,
+			}
+		});
+	}
+
+	override runInView(_accessor: ServicesAccessor, view: TestCoverageView) {
+		view.collapseAll();
 	}
 });

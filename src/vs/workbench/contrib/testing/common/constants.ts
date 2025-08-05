@@ -71,6 +71,7 @@ export const enum TestCommandId {
 	CoverageSelectedAction = 'testing.coverageSelected',
 	CoverageToggleToolbar = 'testing.coverageToggleToolbar',
 	CoverageViewChangeSorting = 'testing.coverageViewChangeSorting',
+	CoverageViewCollapseAll = 'testing.coverageViewCollapseAll',
 	DebugAction = 'testing.debug',
 	DebugAllAction = 'testing.debugAll',
 	DebugAtCursor = 'testing.debugAtCursor',
