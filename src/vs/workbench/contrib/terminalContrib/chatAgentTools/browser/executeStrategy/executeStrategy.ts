@@ -49,11 +49,6 @@ export interface IPromptDetectionResult {
 
 /**
  * Detects if the given text content appears to end with a common prompt pattern.
- * This is used as a heuristic to determine if a command has finished executing.
- *
- * The idea is to do basic regex checks after the initial timeout to extend the
- * timeout if it doesn't look like a common prompt format, giving commands more
- * time to complete before assuming they're done.
  */
 export function detectsCommonPromptPattern(cursorLine: string): IPromptDetectionResult {
 	if (cursorLine.trim().length === 0) {
@@ -99,12 +94,9 @@ export function detectsCommonPromptPattern(cursorLine: string): IPromptDetection
 }
 
 /**
- * Enhanced version of waitForIdle that uses prompt detection heuristics.
- * After the initial timeout, checks if the terminal content looks like a common prompt.
+ * Enhanced version of {@link waitForIdle} that uses prompt detection heuristics. After the terminal
+ * idles for the specified period, checks if the terminal's cursor line looks like a common prompt.
  * If not, extends the timeout to give the command more time to complete.
- *
- * This addresses the need for better heuristics around prompt characters for evaluating
- * no shell integration command finished state, as requested in the issue.
  */
 export async function waitForIdleWithPromptHeuristics(
 	onData: Event<unknown>,
