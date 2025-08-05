@@ -541,7 +541,7 @@ configurationRegistry.registerConfiguration({
 			default: 'default',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'auto'
+				mode: 'startup'
 			}
 		},
 		'chat.todoListTool.enabled': {
