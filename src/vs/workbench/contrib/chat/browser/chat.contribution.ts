@@ -536,12 +536,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
-			enum: ['default', 'apple'],
+			enum: ['default', 'google'],
 			description: nls.localize('chat.signInDialogVariant', "Control variations of the sign-in dialog."),
 			default: 'default',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		'chat.todoListTool.enabled': {
