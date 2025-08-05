@@ -387,8 +387,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
-			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
-			default: false,
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
+			default: true,
 			tags: ['preview'],
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
