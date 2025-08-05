@@ -28,7 +28,7 @@ while IFS= read -r file; do
         sub_dir="${file#extensions/}"
         top_level_dir="${sub_dir%%/*}"
         if [[ ! " ${changed_dirs[@]} " =~ " $top_level_dir " ]]; then
-            changed_dirs+=("$top_level_dir")
+            changed_dirs+=("extensions/$top_level_dir")
         fi
     fi
 done <<< "$changed_files"
