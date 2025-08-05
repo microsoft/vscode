@@ -63,7 +63,7 @@ interface IRunTestToolParams {
 	testNames?: string[];
 }
 
-class RunTestTool extends Disposable implements IToolImpl {
+class RunTestTool implements IToolImpl {
 	public static readonly ID = 'runTests';
 	public static readonly DEFINITION: IToolData = {
 		id: this.ID,
@@ -107,9 +107,7 @@ class RunTestTool extends Disposable implements IToolImpl {
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ITestResultService private readonly _testResultService: ITestResultService,
-	) {
-		super();
-	}
+	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params: IRunTestToolParams = invocation.parameters;
