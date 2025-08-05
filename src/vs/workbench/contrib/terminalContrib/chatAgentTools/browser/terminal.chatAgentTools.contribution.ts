@@ -10,11 +10,11 @@ import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../chat/common/languageModelToolsService.js';
-import { GetTerminalOutputTool, GetTerminalOutputToolData } from './getTerminalOutputTool.js';
-import { RunInTerminalTool, RunInTerminalToolData } from './runInTerminalTool.js';
-import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './task/createAndRunTaskTool.js';
-import { GetTaskOutputTool, GetTaskOutputToolData } from './task/getTaskOutputTool.js';
-import { RunTaskTool, RunTaskToolData } from './task/runTaskTool.js';
+import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
+import { RunInTerminalTool, RunInTerminalToolData } from './tools/runInTerminalTool.js';
+import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
+import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
+import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 
 // #region Workbench contributions
 
