@@ -1,0 +1,170 @@
+# Workflow for scanning code with CodeQL
+name: CodeQL monorepo
+
+# Trigger workflow
+on:
+  schedule:
+    - cron: '0 3 * * *' # Runs every day at 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      scan-folder:
+        description: 'Type the folder to scan (leave empty to scan all folders)'
+        default: ''
+  push:
+    #branches: [main]
+    paths-ignore:
+      - 'docs/**'  # Ignore changes in docs directory
+      - '*'        # Ignore files on root
+  pull_request:
+    #branches: [main]
+    paths-ignore:
+      - 'docs/**'  # Ignore changes in docs directory
+      - '*'        # Ignore files on root
+
+jobs:
+  # Job to generate list of directories to scan
+  generate-dir-list:
+    name: Generate directory list
+    runs-on: ubuntu-latest
+    outputs:
+      dir-list: ${{ steps.find-dirs.outputs.dir-list }}
+
+    steps:
+      # Check out the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Find directories with changes to scan, all directories on workflow_dispatch or schedule, or a specific directory on workflow_dispatch
+      - name: Find directories to scan
+        id: find-dirs
+        run: |
+          # scan updated directories by default
+          chmod +x ./.github/scripts/list-updated-dirs.sh
+          dir_list=$(./.github/scripts/list-updated-dirs.sh)
+          # force to scan all folders on schedule or workflow_dispatch if no folder is specified
+          if [ "${{ github.event_name }}" = "schedule" ] || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -z "${{ github.event.inputs.scan-folder }}" ]; }; then
+            chmod +x ./.github/scripts/list-all-dirs.sh
+            dir_list=$(./.github/scripts/list-all-dirs.sh)
+          fi
+          # force to scan a specific folder on workflow_dispatch if a folder is specified
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.scan-folder }}" ]; then
+            dir_list='["${{ github.event.inputs.scan-folder }}"]'
+          fi
+          echo $dir_list
+          if [ -z "$dir_list" ] || [ "$dir_list" = "[]" ]; then
+            echo "::warning::No directories found to scan - No changes on files"
+            exit 0
+          fi
+          echo "dir-list=$dir_list" >> $GITHUB_OUTPUT
+
+  # Job to perform CodeQL analysis on directories
+  codeql:
+    if: needs.generate-dir-list.outputs.dir-list != '[]' && needs.generate-dir-list.outputs.dir-list != ''  # Run only if dir-list is not empty
+    name: CodeQL
+    needs: generate-dir-list  # Depends on directory list job
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write  # Allow writing security events
+      actions: read           # Allow reading actions
+      contents: read          # Allow reading repository contents
+
+    #uncomment for testing purposes
+    #continue-on-error: true
+
+    strategy:
+      matrix:
+        target-dir: ${{ fromJson(needs.generate-dir-list.outputs.dir-list) }}      # Iterate over directories
+        exclude:
+          - target-dir: docs  # Exclude docs directory from scanning
+
+    steps:
+      # Check out the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        # with:
+        #   sparse-checkout: |
+        #     .github
+        #     ${{ matrix.target-dir }}
+
+      # Detect languages in the target directory
+      - name: Detect languages in directory
+        id: detect-languages
+        run: |
+          chmod +x ./.github/scripts/detect-languages.sh
+          languages=$(./.github/scripts/detect-languages.sh "${{ matrix.target-dir }}" "0")
+          languages_compiled=$(./.github/scripts/detect-languages.sh "${{ matrix.target-dir }}" "1")
+          echo "languages=$languages"
+          echo "languages_compiled=$languages_compiled"
+          if [ -z "$languages" ] && [ -z "$languages_compiled" ]; then
+            echo "::error::No CodeQL-supported languages found in $TARGET_DIR"
+            exit 1
+          fi
+          echo "languages=$languages" >> $GITHUB_OUTPUT
+          echo "languages_compiled=$languages_compiled" >> $GITHUB_OUTPUT
+
+      # Initialize CodeQL to scan non buildable languages
+      - name: Initialize CodeQL (non buildable languages)
+        if: ${{ steps.detect-languages.outputs.languages != '' }}
+        uses: github/codeql-action/init@v3
+        with:
+          config: |
+            paths:
+              - '${{ matrix.target-dir }}'
+          languages: ${{ steps.detect-languages.outputs.languages }}  # Use detected non buildable languages
+
+      # Run CodeQL analysis on the code on non buildable languages
+      - name: Perform CodeQL Analysis (non buildable languages)
+        if: ${{ steps.detect-languages.outputs.languages != '' }}
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/project:${{ matrix.target-dir }}"
+
+      # Check if we have the building script
+      # If we have the building script, we will run it to build the project and run CodeQL having buildmode=manual
+      # If we don't have the building script, we will run CodeQL having buildmode=none
+      - name: Customized CodeQL configuration
+        id: detect-building-script
+        if: ${{ steps.detect-languages.outputs.languages_compiled != '' }}
+        run: |
+          # echo "::warning::Using customized the workflow for ${{ matrix.target-dir }} - languages detected: ${{ steps.detect-languages.outputs.languages_compiled }}"
+          # Check if multiple compiled languages are detected
+          if echo "${{ steps.detect-languages.outputs.languages_compiled }}" | grep -q ","; then
+            echo "::error::Multiple compiled languages detected on the same folder: ${{ steps.detect-languages.outputs.languages_compiled }}"
+            exit 1
+          fi
+          # Build the project using the detected language (check if build scripts are on build directory)
+          if [ ! -f "./.github/build/${{ matrix.target-dir }}.sh" ]; then
+            echo "::warning::Build script not found for ${{ matrix.target-dir }}, trying build-mode:none"
+            echo "buildmode=none" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::Build script found for ${{ matrix.target-dir }}, running build-mode:manual"
+            echo "buildmode=manual" >> $GITHUB_OUTPUT
+          fi
+
+      # Initialize CodeQL to scan buildable languages
+      - name: Initialize CodeQL (buildable languages)
+        if: ${{ steps.detect-languages.outputs.languages_compiled != '' }}
+        uses: github/codeql-action/init@v3
+        with:
+          config: |
+            paths:
+              - '${{ matrix.target-dir }}'
+          languages: ${{ steps.detect-languages.outputs.languages_compiled }}  # Use detected buildable languages
+          build-mode: ${{ steps.detect-building-script.outputs.buildmode }}
+
+      # Build the project using the detected language (if the build script is found on build directory)
+      - name: Build project
+        if: ${{ steps.detect-languages.outputs.languages_compiled != '' && steps.detect-building-script.outputs.buildmode == 'manual' }}
+        run: |
+          # Build the project using the detected language (build scripts are on build directory)
+          if [ -f "./.github/build/${{ matrix.target-dir }}.sh" ]; then
+            chmod +x ./.github/build/${{ matrix.target-dir }}.sh
+            ./.github/build/${{ matrix.target-dir }}.sh "${{ matrix.target-dir }}"
+          fi
+
+      # Run CodeQL analysis on the code on buildable languages
+      - name: Perform CodeQL Analysis (buildable languages)
+        if: ${{ steps.detect-languages.outputs.languages_compiled != '' }}
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/project:${{ matrix.target-dir }}"
