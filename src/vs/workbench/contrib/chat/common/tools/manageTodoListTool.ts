@@ -23,7 +23,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 
 export const TodoListToolSettingId = 'chat.todoListTool.enabled';
 
-export const ManageTodoListToolToolId = 'vscode_manageTodoList';
+export const ManageTodoListToolToolId = 'manage_todo_list';
 
 export const ManageTodoListToolData: IToolData = {
 	id: ManageTodoListToolToolId,
