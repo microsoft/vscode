@@ -216,19 +216,17 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 			const providerId = this.productService.defaultChatAgent?.provider?.default?.id ?? '';
 			let token: string | undefined = '';
 
-			// Get all accounts for the provider
 			const accounts: any[] = [];
 			await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
 				accounts.push(account);
 			});
 
-			// Find the token from the first available account
 			if (accounts.length > 0) {
 				const sessions = await this.authenticationService.getSessions(providerId);
 				token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
 			}
 
-			// Create initial loading entry
+			// initial loading entry
 			const loadingEntry: IImageVariableEntry = {
 				id,
 				name: image.name,
@@ -241,7 +239,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 				isLoading: true
 			};
 
-			// Start upload asynchronously and update when complete
+			// async upload, update when done
 			if (onUpdate) {
 				this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, token)
 					.then(url => {
@@ -253,8 +251,6 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 						onUpdate(updatedEntry);
 					})
 					.catch(error => {
-						console.error('Error uploading image:', error);
-						// Update with error state but keep the binary data
 						const errorEntry: IImageVariableEntry = {
 							...loadingEntry,
 							isLoading: false
@@ -262,7 +258,6 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 						onUpdate(errorEntry);
 					});
 			} else {
-				// Fallback to synchronous upload for backwards compatibility
 				const url = await this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, token);
 				const finalEntry: IImageVariableEntry = {
 					...loadingEntry,

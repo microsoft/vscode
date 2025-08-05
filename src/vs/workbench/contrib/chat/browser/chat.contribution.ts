@@ -812,12 +812,9 @@ registerChatEditorActions();
 registerChatToolActions();
 registerLanguageModelActions();
 
-// Register ChatAttachmentResolveService before features that depend on it
-registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
-
 registerEditorFeature(ChatPasteProvidersFeature);
 
-
+registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);

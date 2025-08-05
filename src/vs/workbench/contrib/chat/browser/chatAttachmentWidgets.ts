@@ -317,7 +317,6 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		element.style.cursor = 'pointer';
 		disposable.add(dom.addDisposableListener(element, 'click', clickHandler));
 	}
-
 	const supportsVision = modelSupportsVision(currentLanguageModel);
 
 	// Show loading spinner or image icon based on loading state
@@ -335,7 +334,6 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
 	} else if (isLoading) {
-		// Show loading state in hover
 		hoverElement.textContent = localize('chat.imageAttachmentLoading', "Uploading image...");
 		disposable.add(hoverService.setupDelayedHover(element, { content: hoverElement, appearance: { showPointer: true } }));
 	} else {
