@@ -29,7 +29,7 @@ import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTermina
 import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
 import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
-import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
+import { CommandLineAutoApprover, type ICommandApprovalResult } from './commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from './executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from './executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from './executeStrategy/noneExecuteStrategy.js';
@@ -240,6 +240,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.info(`- ${reason}`);
 			}
 
+			// Send telemetry about auto approval process
+			this._sendTelemetryPrepare(actualCommand, shell, os, subCommandResults, commandLineResult, subCommands, inlineSubCommands);
+
 			// Add a disclaimer warning about prompt injection for common commands that return
 			// content from the web
 			let disclaimer: IMarkdownString | undefined;
@@ -396,7 +399,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetry(toolTerminal.instance, {
+				this._sendTelemetryInvoke(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
@@ -464,7 +467,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} finally {
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetry(toolTerminal.instance, {
+				this._sendTelemetryInvoke(toolTerminal.instance, {
 					didUserEditCommand,
 					didToolEditCommand,
 					isBackground: false,
@@ -685,7 +688,145 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _sendTelemetry(instance: ITerminalInstance, state: {
+	private _sendTelemetryPrepare(commandLine: string, shell: string, os: OperatingSystem, subCommandResults: Array<{ result: ICommandApprovalResult; reason: string }>, commandLineResult: { result: ICommandApprovalResult; reason: string }, subCommands: string[], inlineSubCommands: string[]) {
+		// Count approval types for sub-commands
+		let subCommandsApproved = 0;
+		let subCommandsDenied = 0;
+		let subCommandsNoMatch = 0;
+		let subCommandsRegexApproved = 0;
+		let subCommandsDefaultApproved = 0;
+
+		for (const result of subCommandResults) {
+			switch (result.result) {
+				case 'approved':
+					subCommandsApproved++;
+					if (result.reason.includes('allow list rule: /')) {
+						subCommandsRegexApproved++;
+					} else {
+						subCommandsDefaultApproved++;
+					}
+					break;
+				case 'denied':
+					subCommandsDenied++;
+					break;
+				case 'noMatch':
+					subCommandsNoMatch++;
+					break;
+			}
+		}
+
+		// Determine command line approval type
+		let commandLineRegexApproved = false;
+		let commandLineDefaultApproved = false;
+		if (commandLineResult.result === 'approved') {
+			commandLineRegexApproved = commandLineResult.reason.includes('allow list rule: /');
+			commandLineDefaultApproved = !commandLineRegexApproved;
+		}
+
+		// Calculate command and argument metrics
+		const firstCommand = subCommands[0]?.trim().split(/\s+/)[0] || '';
+		const argCount = commandLine.trim().split(/\s+/).length - 1;
+
+		type TelemetryEvent = {
+			terminalSessionId: string;
+
+			// Overall approval status
+			overallApproved: 0 | 1;
+			overallDenied: 0 | 1;
+
+			// Sub-command breakdown
+			subCommandCount: number;
+			subCommandsApproved: number;
+			subCommandsDenied: number;
+			subCommandsNoMatch: number;
+			subCommandsRegexApproved: number;
+			subCommandsDefaultApproved: number;
+
+			// Command line approval
+			commandLineApproved: 0 | 1;
+			commandLineDenied: 0 | 1;
+			commandLineRegexApproved: 0 | 1;
+			commandLineDefaultApproved: 0 | 1;
+
+			// Inline sub-command count
+			inlineSubCommandCount: number;
+
+			// Command characteristics
+			commandLength: number;
+			argCount: number;
+			firstCommand: string;
+		};
+		type TelemetryClassification = {
+			owner: 'tyriar';
+			comment: 'Understanding the auto approval behavior of the runInTerminal tool';
+
+			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
+
+			overallApproved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the overall command was auto-approved' };
+			overallDenied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the overall command was denied by deny list' };
+
+			subCommandCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sub-commands found in the command line' };
+			subCommandsApproved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sub-commands that were auto-approved' };
+			subCommandsDenied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sub-commands that were denied' };
+			subCommandsNoMatch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sub-commands that had no matching rules' };
+			subCommandsRegexApproved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sub-commands approved by regex rules' };
+			subCommandsDefaultApproved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of sub-commands approved by default/string rules' };
+
+			commandLineApproved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the full command line was auto-approved' };
+			commandLineDenied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the full command line was denied' };
+			commandLineRegexApproved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was approved by a regex rule' };
+			commandLineDefaultApproved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was approved by a default/string rule' };
+
+			inlineSubCommandCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of inline sub-commands (command substitution) found' };
+
+			commandLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total length of the command line in characters' };
+			argCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of arguments in the command' };
+			firstCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The first command in the command line' };
+		};
+
+		// Determine overall approval status
+		let overallApproved = false;
+		let overallDenied = false;
+
+		if (subCommandResults.some(e => e.result === 'denied')) {
+			overallDenied = true;
+		} else if (commandLineResult.result === 'denied') {
+			overallDenied = true;
+		} else {
+			if (subCommandResults.every(e => e.result === 'approved')) {
+				overallApproved = true;
+			} else if (commandLineResult.result === 'approved') {
+				overallApproved = true;
+			}
+		}
+
+		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
+			terminalSessionId: 'prepare-phase', // No terminal session available yet during prepare
+
+			overallApproved: overallApproved ? 1 : 0,
+			overallDenied: overallDenied ? 1 : 0,
+
+			subCommandCount: subCommands.length,
+			subCommandsApproved,
+			subCommandsDenied,
+			subCommandsNoMatch,
+			subCommandsRegexApproved,
+			subCommandsDefaultApproved,
+
+			commandLineApproved: commandLineResult.result === 'approved' ? 1 : 0,
+			commandLineDenied: commandLineResult.result === 'denied' ? 1 : 0,
+			commandLineRegexApproved: commandLineRegexApproved ? 1 : 0,
+			commandLineDefaultApproved: commandLineDefaultApproved ? 1 : 0,
+
+			inlineSubCommandCount: inlineSubCommands.length,
+
+			commandLength: commandLine.length,
+			argCount,
+			firstCommand,
+		});
+	}
+
+	private _sendTelemetryInvoke(instance: ITerminalInstance, state: {
 		didUserEditCommand: boolean;
 		didToolEditCommand: boolean;
 		error: string | undefined;
