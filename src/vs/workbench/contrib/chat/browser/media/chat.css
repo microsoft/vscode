@@ -64,6 +64,17 @@
 	overflow: hidden;
 }
 
+.voice-button-wrapper {
+    position: relative;
+    overflow: visible;
+}
+
+.voice-button-wrapper .voice-animate {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+}
+
 .interactive-item-container .detail-container .detail .agentOrSlashCommandDetected A {
 	cursor: pointer;
 	color: var(--vscode-textLink-foreground);
