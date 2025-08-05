@@ -783,7 +783,7 @@ suite('CommandLineAutoApprover', () => {
 			ok(isAutoApproved('abc'), 'Should approve abc normally in PowerShell');
 		});
 
-		test('should handle environment variables with cmd.exe special handling', () => {
+		test('should handle commands that look like env vars but are not in cmd.exe', () => {
 			shell = 'cmd.exe';
 			os = OperatingSystem.Windows;
 
@@ -791,8 +791,10 @@ suite('CommandLineAutoApprover', () => {
 				".\\test": true
 			});
 
-			// Environment variables are handled before cmd special processing
-			ok(isAutoApproved('SET VAR=value && test arg'), 'Should handle env vars with cmd special handling');
+			// In cmd.exe, "SET VAR=value" is a separate command, not env var assignment syntax like bash
+			// The transformation should still work for the actual command part
+			ok(!isAutoApproved('SET VAR=value'), 'Should not approve SET command (not in our approve list)');
+			ok(isAutoApproved('test arg'), 'Should approve test command when prefixed version is approved');
 		});
 
 		test('should handle regex patterns with cmd.exe special handling', () => {
