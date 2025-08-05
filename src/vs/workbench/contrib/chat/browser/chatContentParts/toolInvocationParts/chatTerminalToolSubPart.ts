@@ -27,13 +27,23 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
+/**
+ * @deprecated This is the old API shape, we should support this for a while before removing it so
+ * we don't break existing chats
+ */
+interface ILegacyChatTerminalToolInvocationData {
+	kind: 'terminal';
+	command: string;
+	language: string;
+}
+
 export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
-		terminalData: IChatTerminalToolInvocationData,
+		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: MarkdownRenderer,
 		private readonly editorPool: EditorPool,
@@ -50,6 +60,19 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
+		}
+
+		// Migrate forward the old tool data format
+		if ('command' in terminalData) {
+			terminalData = {
+				kind: 'terminal',
+				commandLine: {
+					original: terminalData.command,
+					toolEdited: undefined,
+					userEdited: undefined
+				},
+				language: terminalData.language
+			} satisfies IChatTerminalToolInvocationData;
 		}
 
 		const title = toolInvocation.confirmationMessages.title;
