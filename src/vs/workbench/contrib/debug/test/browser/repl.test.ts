@@ -234,6 +234,67 @@ suite('Debug - REPL', () => {
 		assert.strictEqual((<ReplOutputElement>repl.getReplElements()[2]).value, 'second global line');
 	});
 
+	test('repl identical line collapsing - character by character', () => {
+		const session = disposables.add(createTestSession(model));
+		const repl = new ReplModel(configurationService);
+
+		// Test case 1: Character-by-character output should NOT be collapsed
+		// These should print "111\n", not "(3)1"
+		repl.appendToRepl(session, { output: '1', sev: severity.Info });
+		repl.appendToRepl(session, { output: '1', sev: severity.Info });
+		repl.appendToRepl(session, { output: '1', sev: severity.Info });
+		repl.appendToRepl(session, { output: '\n', sev: severity.Info });
+
+		let elements = <ReplOutputElement[]>repl.getReplElements();
+		// Should be one element with "111\n" value, not collapsed
+		assert.strictEqual(elements.length, 1);
+		assert.strictEqual(elements[0].value, '111\n');
+		assert.strictEqual(elements[0].count, 1);
+
+		repl.removeReplExpressions();
+
+		// Test case 2: Character-by-character with mixed output
+		repl.appendToRepl(session, { output: '5', sev: severity.Info });
+		repl.appendToRepl(session, { output: '5', sev: severity.Info });
+		repl.appendToRepl(session, { output: '\n', sev: severity.Info });
+
+		elements = <ReplOutputElement[]>repl.getReplElements();
+		// Should be one element with "55\n" value, not "(2)5"
+		assert.strictEqual(elements.length, 1);
+		assert.strictEqual(elements[0].value, '55\n');
+		assert.strictEqual(elements[0].count, 1);
+	});
+
+	test('repl identical line collapsing - single event multiple lines', () => {
+		const session = disposables.add(createTestSession(model));
+		const repl = new ReplModel(configurationService);
+
+		// Test case: Single event with multiple identical lines should be collapsed
+		// This should be collapsed into "(2)hello"
+		repl.appendToRepl(session, { output: 'hello\nhello\n', sev: severity.Info });
+
+		const elements = <ReplOutputElement[]>repl.getReplElements();
+		// Should be one collapsed element with count 2
+		assert.strictEqual(elements.length, 1);
+		assert.strictEqual(elements[0].value, 'hello\n');
+		assert.strictEqual(elements[0].count, 2);
+	});
+
+	test('repl identical line collapsing - mixed scenarios', () => {
+		const session = disposables.add(createTestSession(model));
+		const repl = new ReplModel(configurationService);
+
+		// Test case: Mix of single events and multi-line events
+		repl.appendToRepl(session, { output: 'test\n', sev: severity.Info });
+		repl.appendToRepl(session, { output: 'test\ntest\n', sev: severity.Info });
+
+		const elements = <ReplOutputElement[]>repl.getReplElements();
+		// Should be one collapsed element with count 3
+		assert.strictEqual(elements.length, 1);
+		assert.strictEqual(elements[0].value, 'test\n');
+		assert.strictEqual(elements[0].count, 3);
+	});
+
 	test('repl filter', async () => {
 		const session = disposables.add(createTestSession(model));
 		const repl = new ReplModel(configurationService);

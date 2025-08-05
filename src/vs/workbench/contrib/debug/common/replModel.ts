@@ -304,24 +304,114 @@ export class ReplModel {
 			return;
 		}
 
+		this.appendOutputToRepl(session, output, sev, source);
+	}
+
+	private appendOutputToRepl(session: IDebugSession, output: string, sev: severity, source?: IReplElementSource): void {
+		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-		if (previousElement instanceof ReplOutputElement && previousElement.severity === sev) {
-			const config = this.configurationService.getValue<IDebugConfiguration>('debug');
-			if (previousElement.value === output && areSourcesEqual(previousElement.sourceData, source) && config.console.collapseIdenticalLines) {
-				previousElement.count++;
-				// No need to fire an event, just the count updates and badge will adjust automatically
-				return;
-			}
+
+		// Handle concatenation of incomplete lines first
+		if (previousElement instanceof ReplOutputElement && previousElement.severity === sev && areSourcesEqual(previousElement.sourceData, source)) {
 			if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
+				// Concatenate with previous incomplete line
+				const combinedOutput = previousElement.value + output;
 				this.replElements[this.replElements.length - 1] = new ReplOutputElement(
-					session, getUniqueId(), previousElement.value + output, sev, source);
+					session, getUniqueId(), combinedOutput, sev, source);
 				this._onDidChangeElements.fire(undefined);
+				
+				// If the combined output now contains complete lines and collapsing is enabled, 
+				// try to apply line-based collapsing
+				if (config.console.collapseIdenticalLines && (combinedOutput.includes('\n') || combinedOutput.includes('\r\n'))) {
+					this.applyLineLevelCollapsing(session, sev, source);
+				}
 				return;
 			}
 		}
 
-		const element = new ReplOutputElement(session, getUniqueId(), output, sev, source);
-		this.addReplElement(element);
+		// If collapsing is enabled and the output contains line breaks, parse and collapse at line level
+		if (config.console.collapseIdenticalLines && (output.includes('\n') || output.includes('\r\n'))) {
+			this.processMultiLineOutput(session, output, sev, source);
+		} else {
+			// For simple output without line breaks, use the original logic
+			if (previousElement instanceof ReplOutputElement && previousElement.severity === sev && areSourcesEqual(previousElement.sourceData, source)) {
+				if (previousElement.value === output && config.console.collapseIdenticalLines) {
+					previousElement.count++;
+					// No need to fire an event, just the count updates and badge will adjust automatically
+					return;
+				}
+			}
+
+			const element = new ReplOutputElement(session, getUniqueId(), output, sev, source);
+			this.addReplElement(element);
+		}
+	}
+
+	private processMultiLineOutput(session: IDebugSession, output: string, sev: severity, source?: IReplElementSource): void {
+		// Split output into lines, preserving line endings
+		const lines = this.splitIntoLines(output);
+		
+		for (const line of lines) {
+			if (line.length === 0) continue;
+			
+			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
+			
+			// Check if this line can be collapsed with the previous one
+			if (previousElement instanceof ReplOutputElement && 
+				previousElement.severity === sev && 
+				areSourcesEqual(previousElement.sourceData, source) &&
+				previousElement.value === line) {
+				previousElement.count++;
+				// No need to fire an event, just the count updates and badge will adjust automatically
+			} else {
+				const element = new ReplOutputElement(session, getUniqueId(), line, sev, source);
+				this.addReplElement(element);
+			}
+		}
+	}
+
+	private splitIntoLines(text: string): string[] {
+		// Split text into lines while preserving line endings
+		const lines: string[] = [];
+		let start = 0;
+		
+		for (let i = 0; i < text.length; i++) {
+			if (text[i] === '\n') {
+				// Include the \n in the line
+				lines.push(text.substring(start, i + 1));
+				start = i + 1;
+			} else if (text[i] === '\r' && i + 1 < text.length && text[i + 1] === '\n') {
+				// Include the \r\n in the line
+				lines.push(text.substring(start, i + 2));
+				start = i + 2;
+				i++; // Skip the \n since we processed \r\n together
+			}
+		}
+		
+		// Add any remaining text as a line (text without line ending)
+		if (start < text.length) {
+			lines.push(text.substring(start));
+		}
+		
+		return lines;
+	}
+
+	private applyLineLevelCollapsing(session: IDebugSession, sev: severity, source?: IReplElementSource): void {
+		// Apply line-level collapsing to the last element if it contains multiple lines
+		const lastElement = this.replElements[this.replElements.length - 1];
+		if (!(lastElement instanceof ReplOutputElement) || lastElement.severity !== sev || !areSourcesEqual(lastElement.sourceData, source)) {
+			return;
+		}
+
+		const lines = this.splitIntoLines(lastElement.value);
+		if (lines.length <= 1) {
+			return; // No multiple lines to collapse
+		}
+
+		// Remove the last element and reprocess it as multiple lines
+		this.replElements.pop();
+		this.processMultiLineOutput(session, lastElement.value, sev, source);
+		this._onDidChangeElements.fire(undefined);
 	}
 
 	startGroup(session: IDebugSession, name: string, autoExpand: boolean, sourceData?: IReplElementSource): void {
