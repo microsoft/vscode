@@ -700,9 +700,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { acceptInputCommand: internal });
 	}
 
-	// We know what we're doing here:
-	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
-	private _actionButtonDisposables = new DisposableStore();
+	private readonly _actionButtonDisposables = new MutableDisposable<DisposableStore>();
 	private _actionButton: vscode.SourceControlActionButton | undefined;
 	get actionButton(): vscode.SourceControlActionButton | undefined {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
@@ -719,32 +717,26 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			return;
 		}
 
-		// In order to prevent disposing the action button command that are still rendered in the UI
-		// until the next UI update, we ensure to dispose them after the update has been completed.
-		const oldActionButtonDisposables = this._actionButtonDisposables;
-		this._actionButtonDisposables = new DisposableStore();
-
 		this._actionButton = actionButton;
+		this._actionButtonDisposables.value = new DisposableStore();
 
 		const actionButtonDto = actionButton !== undefined ?
 			{
 				command: {
-					...this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables),
+					...this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
 					shortTitle: actionButton.command.shortTitle
 				},
 				secondaryCommands: actionButton.secondaryCommands?.map(commandGroup => {
-					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables));
+					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables.value!));
 				}),
 				enabled: actionButton.enabled
-			} satisfies SCMActionButtonDto : null;
+			} satisfies SCMActionButtonDto : undefined;
 
-		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto })
-			.finally(() => oldActionButtonDisposables.dispose());
+		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto ?? null });
 	}
 
-	// We know what we're doing here:
-	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
-	private _statusBarDisposables = new DisposableStore();
+
+	private readonly _statusBarDisposables = new MutableDisposable<DisposableStore>();
 	private _statusBarCommands: vscode.Command[] | undefined = undefined;
 
 	get statusBarCommands(): vscode.Command[] | undefined {
@@ -756,17 +748,12 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			return;
 		}
 
-		// In order to prevent disposing status bar commands that are still rendered in the UI
-		// until the next UI update, we ensure to dispose them after the update has been completed.
-		const oldStatusBarDisposables = this._statusBarDisposables;
-		this._statusBarDisposables = new DisposableStore();
+		this._statusBarDisposables.value = new DisposableStore();
 
 		this._statusBarCommands = statusBarCommands;
 
-		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c, this._statusBarDisposables)) as ICommandDto[];
-
-		this.#proxy.$updateSourceControl(this.handle, { statusBarCommands: internal })
-			.finally(() => oldStatusBarDisposables.dispose());
+		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c, this._statusBarDisposables.value!)) as ICommandDto[];
+		this.#proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
 	}
 
 	private _selected: boolean = false;
