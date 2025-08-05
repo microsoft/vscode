@@ -217,11 +217,10 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 			const chatProviderId = this.productService.defaultChatAgent?.provider?.default?.id;
 			const chatExtensionId = this.productService.defaultChatAgent?.chatExtensionId;
 
-			let preferredAccountName: string | undefined;
 			let token: string | undefined;
 
 			if (chatExtensionId && chatProviderId) {
-				preferredAccountName = this.authenticationQueryService.extension(chatExtensionId).provider(chatProviderId).getPreferredAccount();
+				const preferredAccountName = this.authenticationQueryService.extension(chatExtensionId).provider(chatProviderId).getPreferredAccount();
 				const sessions = await this.authenticationService.getSessions(chatProviderId);
 				token = sessions?.find(s => s.account.label === preferredAccountName)?.accessToken;
 			}
