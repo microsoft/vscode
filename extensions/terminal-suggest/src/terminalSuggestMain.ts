@@ -32,7 +32,6 @@ export const enum TerminalShellType {
 	Fish = 'fish',
 	Zsh = 'zsh',
 	PowerShell = 'pwsh',
-	Python = 'python',
 	GitBash = 'gitbash',
 }
 
@@ -494,7 +493,7 @@ function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<strin
 	return env;
 }
 
-function getTerminalShellType(shellType: string | undefined): TerminalShellType | undefined {
+export function getTerminalShellType(shellType: string | undefined): TerminalShellType | undefined {
 	switch (shellType) {
 		case 'bash':
 			return TerminalShellType.Bash;
@@ -507,7 +506,8 @@ function getTerminalShellType(shellType: string | undefined): TerminalShellType 
 		case 'fish':
 			return TerminalShellType.Fish;
 		case 'python':
-			return TerminalShellType.Python;
+			// Python REPLs should not receive terminal-suggest completions
+			return undefined;
 		default:
 			return undefined;
 	}
