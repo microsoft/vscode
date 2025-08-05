@@ -4,6 +4,8 @@ applyTo: 'src/vscode-dts/**/*.d.ts,src/vs/workbench/api/**/*.ts'
 
 # VS Code API Development
 
+> See also: [VS Code Extension API Guidelines](https://github.com/microsoft/vscode/wiki/Extension-API-guidelines)
+
 <!-- TODO: Add more details about the API development process -->
 
 ## Adding a New Proposed API
@@ -126,6 +128,9 @@ const extHostYourFeature = rpcProtocol.set(ExtHostContext.ExtHostYourFeature,
 ```
 
 **2. Add your API to a namespace:**
+
+This is where the proposal check occurs. Use `checkProposedApiEnabled(extension, 'yourFeatureName')` to ensure only enabled extensions can access the proposed API.
+
 ```typescript
 const yourNamespace: typeof vscode.yourNamespace = {
     yourMethod(): Thenable<void> {
@@ -134,6 +139,7 @@ const yourNamespace: typeof vscode.yourNamespace = {
     }
 };
 ```
+
 
 **3. Add the namespace to the `api` object that gets returned:**
 ```typescript
