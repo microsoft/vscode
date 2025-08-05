@@ -1,0 +1,27 @@
+{
+    "name": "iln-revolutionary-language-unification",
+    "displayName": "ILN - Revolutionary Language Unification",
+    "description": "One language, all paradigms. ILN unifies Go concurrency, Rust safety, JS reactivity, Python ML, and more.",
+    "version": "1.0.0",
+    "publisher": "anzize-daouda",
+    "author": { "name": "Anzize Daouda", "email": "nexusstudio100@gmail.com" },
+    "homepage": "https://github.com/Tryboy869/iln-nexus",
+    "repository": { "type": "git", "url": "https://github.com/Tryboy869/iln-nexus" },
+    "engines": { "vscode": "^1.80.0" },
+    "categories": ["Programming Languages", "Education", "Other"],
+    "activationEvents": [
+        "onLanguage:python", "onLanguage:javascript", "onLanguage:typescript",
+        "onLanguage:go", "onLanguage:rust", "onLanguage:java", "onLanguage:cpp"
+    ],
+    "main": "./out/extension.js",
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.80.0",
+        "@types/node": "^20.0.0",
+        "typescript": "^5.0.0"
+    }
+}
