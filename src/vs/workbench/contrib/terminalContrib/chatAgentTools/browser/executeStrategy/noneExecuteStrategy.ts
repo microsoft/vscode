@@ -64,7 +64,8 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Assume the command is done when it's idle
 			this._log('Waiting for idle with prompt heuristics');
-			await waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000);
+			const promptResult = await waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000);
+			this._log(`Prompt detection result: ${promptResult.detected ? 'detected' : 'not detected'} - ${promptResult.reason}`);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
