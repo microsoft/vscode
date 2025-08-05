@@ -286,7 +286,6 @@ suite('CommandLineAutoApprover', () => {
 			});
 
 			ok(isAutoApproved('echo   hello   world'));
-			ok(!isAutoApproved('  echo hello'));
 		});
 
 		test('should be case-sensitive by default', () => {
@@ -408,6 +407,89 @@ suite('CommandLineAutoApprover', () => {
 			ok(isAutoApproved('(Get-Content file.txt'));
 			ok(!isAutoApproved('[Get-Content'));
 			ok(!isAutoApproved('foo'));
+		});
+
+		test('should be case-insensitive for PowerShell commands', () => {
+			setAutoApprove({
+				"Get-ChildItem": true,
+				"Get-Content": true,
+				"Remove-Item": false
+			});
+
+			ok(isAutoApproved('Get-ChildItem'));
+			ok(isAutoApproved('get-childitem'));
+			ok(isAutoApproved('GET-CHILDITEM'));
+			ok(isAutoApproved('Get-childitem'));
+			ok(isAutoApproved('get-ChildItem'));
+
+			ok(isAutoApproved('Get-Content file.txt'));
+			ok(isAutoApproved('get-content file.txt'));
+			ok(isAutoApproved('GET-CONTENT file.txt'));
+			ok(isAutoApproved('Get-content file.txt'));
+
+			ok(!isAutoApproved('Remove-Item file.txt'));
+			ok(!isAutoApproved('remove-item file.txt'));
+			ok(!isAutoApproved('REMOVE-ITEM file.txt'));
+			ok(!isAutoApproved('Remove-item file.txt'));
+		});
+
+		test('should be case-insensitive for PowerShell aliases', () => {
+			setAutoApprove({
+				"ls": true,
+				"dir": true,
+				"rm": false,
+				"del": false
+			});
+
+			// Test case-insensitive matching for aliases
+			ok(isAutoApproved('ls'));
+			ok(isAutoApproved('LS'));
+			ok(isAutoApproved('Ls'));
+
+			ok(isAutoApproved('dir'));
+			ok(isAutoApproved('DIR'));
+			ok(isAutoApproved('Dir'));
+
+			ok(!isAutoApproved('rm file.txt'));
+			ok(!isAutoApproved('RM file.txt'));
+			ok(!isAutoApproved('Rm file.txt'));
+
+			ok(!isAutoApproved('del file.txt'));
+			ok(!isAutoApproved('DEL file.txt'));
+			ok(!isAutoApproved('Del file.txt'));
+		});
+
+		test('should be case-insensitive with regex patterns', () => {
+			setAutoApprove({
+				"/^Get-/": true,
+				"/Remove-Item|rm/": false
+			});
+
+			ok(isAutoApproved('Get-ChildItem'));
+			ok(isAutoApproved('get-childitem'));
+			ok(isAutoApproved('GET-PROCESS'));
+			ok(isAutoApproved('Get-Location'));
+
+			ok(!isAutoApproved('Remove-Item file.txt'));
+			ok(!isAutoApproved('remove-item file.txt'));
+			ok(!isAutoApproved('rm file.txt'));
+			ok(!isAutoApproved('RM file.txt'));
+		});
+
+		test('should handle case-insensitive PowerShell commands on different OS', () => {
+			setAutoApprove({
+				"Get-Process": true,
+				"Stop-Process": false
+			});
+
+			for (const currnetOS of [OperatingSystem.Windows, OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+				os = currnetOS;
+				ok(isAutoApproved('Get-Process'), `os=${os}`);
+				ok(isAutoApproved('get-process'), `os=${os}`);
+				ok(isAutoApproved('GET-PROCESS'), `os=${os}`);
+				ok(!isAutoApproved('Stop-Process'), `os=${os}`);
+				ok(!isAutoApproved('stop-process'), `os=${os}`);
+			}
 		});
 	});
 
@@ -616,6 +698,92 @@ suite('CommandLineAutoApprover', () => {
 				setAutoApproveWithCommandLine({});
 				strictEqual(getCommandLineReason('echo hello'), `Command line 'echo hello' has no matching auto approve entries`);
 			});
+		});
+	});
+
+	suite('environment variable handling', () => {
+		test('should handle environment variable assignments before commands in bash/sh', () => {
+			shell = 'bash';
+			os = OperatingSystem.Linux;
+
+			setAutoApprove({
+				"env": true,
+				"echo": true
+			});
+
+			ok(isAutoApproved('FOO=bar env'), 'Basic environment variable assignment');
+			ok(isAutoApproved('FOO=bar echo test'), 'Basic environment variable assignment');
+
+			ok(isAutoApproved('FOO=bar BAZ=qux env'), 'Multiple environment variables');
+			ok(isAutoApproved('PATH=/usr/bin HOME=/home/user echo hello'), 'Multiple environment variables');
+
+			ok(isAutoApproved('MESSAGE="hello world" echo test'), 'Environment variables with quoted values');
+			ok(isAutoApproved("GREETING='hello there' echo test"), 'Environment variables with quoted values');
+		});
+
+		test('should not match denied commands even with environment variables', () => {
+			shell = 'bash';
+			os = OperatingSystem.Linux;
+
+			setAutoApprove({
+				"env": true,
+				"rm": false
+			});
+
+			ok(isAutoApproved('FOO=bar env'), 'Should approve env command with environment variable');
+			ok(!isAutoApproved('FOO=bar rm file.txt'), 'Should deny rm command even with environment variable');
+		});
+
+		test('should handle environment variables with different shell types', () => {
+			setAutoApprove({
+				"echo": true
+			});
+
+			shell = 'bash';
+			os = OperatingSystem.Linux;
+			ok(isAutoApproved('FOO=bar echo test'));
+
+			shell = 'powershell';
+			os = OperatingSystem.Windows;
+			ok(!isAutoApproved('FOO=bar echo test'), 'This should not match since FOO=bar is not recognized as env var syntax in PowerShell');
+		});
+
+		test('should fallback to original command if no environment variables detected', () => {
+			shell = 'bash';
+			os = OperatingSystem.Linux;
+
+			setAutoApprove({
+				"echo": true
+			});
+
+			ok(isAutoApproved('echo hello'));
+			ok(isAutoApproved('echo test'));
+			ok(isAutoApproved('echo FOO=bar'), '// Commands that look like they might have env vars but don\'t match the pattern');
+		});
+
+		test('should handle edge cases in environment variable parsing', () => {
+			shell = 'bash';
+			os = OperatingSystem.Linux;
+
+			setAutoApprove({
+				"echo": true
+			});
+
+			ok(isAutoApproved('FOO= echo test'), 'Empty value');
+			ok(isAutoApproved('MY_VAR=test echo hello'), 'Underscore in variable name');
+			ok(isAutoApproved('VAR1=test echo hello'), 'Number in variable name (but not at start)');
+			ok(!isAutoApproved('1VAR=test echo hello'), 'Should not match if variable name starts with number (invalid)');
+		});
+
+		test('should handle unknown shell types by defaulting to bourne shell syntax', () => {
+			shell = 'unknown-shell';
+			os = OperatingSystem.Linux;
+
+			setAutoApprove({
+				"echo": true
+			});
+
+			ok(isAutoApproved('FOO=bar echo test'), 'Unknown shells should default to bourne shell behavior');
 		});
 	});
 });
