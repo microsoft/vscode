@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -63,7 +64,7 @@ export class QuickInputTreeController extends Disposable {
 				findWidgetEnabled: false,
 				alwaysConsumeMouseWheel: true,
 				hideTwistiesOfChildlessElements: true,
-
+				renderIndentGuides: RenderIndentGuides.None,
 				expandOnDoubleClick: true,
 				expandOnlyOnTwistieClick: true,
 				disableExpandOnSpacebar: true,
