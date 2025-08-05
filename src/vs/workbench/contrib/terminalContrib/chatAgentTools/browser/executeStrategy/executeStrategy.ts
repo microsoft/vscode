@@ -37,6 +37,83 @@ export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number
 }
 
 /**
+ * Enhanced idle waiting that considers child process status as an additional hint.
+ * When child processes are present, it extends the waiting time to avoid premature completion.
+ * 
+ * This addresses the issue where commands with child processes (like build tools, servers, etc.)
+ * could be considered "complete" after just 1 second of idle time, even though sub-processes
+ * were still running.
+ * 
+ * The strategy is: wait for (idle AND no child processes) OR max timeout
+ * 
+ * @param instance - The terminal instance to monitor
+ * @param baseIdleDurationMs - Base idle duration before considering command complete (typically 1000ms)
+ * @param maxWaitTimeMs - Maximum time to wait regardless of child processes (default 30s)
+ */
+export async function waitForIdleWithChildProcessMonitoring(
+	instance: ITerminalInstance,
+	baseIdleDurationMs: number,
+	maxWaitTimeMs: number = 30000 // 30 second maximum to prevent hanging
+): Promise<void> {
+	const store = new DisposableStore();
+	try {
+		const deferred = new DeferredPromise<void>();
+		
+		let hasReachedMaxWait = false;
+		let isIdle = false;
+		
+		// Check if we can complete: idle AND no child processes (OR max wait exceeded)
+		const checkCompletion = () => {
+			if (hasReachedMaxWait || (isIdle && !instance.hasChildProcesses)) {
+				deferred.complete();
+				return true;
+			}
+			return false;
+		};
+
+		// Idle detection scheduler
+		const idleScheduler = store.add(new RunOnceScheduler(() => {
+			isIdle = true;
+			checkCompletion();
+		}, baseIdleDurationMs));
+
+		// Maximum wait time enforcement
+		const maxWaitScheduler = store.add(new RunOnceScheduler(() => {
+			hasReachedMaxWait = true;
+			checkCompletion();
+		}, maxWaitTimeMs));
+
+		// Listen to data events to reset idle state
+		store.add(instance.onData(() => {
+			if (!hasReachedMaxWait) {
+				isIdle = false;
+				idleScheduler.schedule();
+			}
+		}));
+
+		// Listen to child process changes - if no children, try to complete
+		store.add(instance.onDidChangeHasChildProcesses((hasChildProcesses) => {
+			if (!hasChildProcesses && !hasReachedMaxWait) {
+				// Child processes finished, check completion after a brief delay for stability
+				setTimeout(() => {
+					if (!hasReachedMaxWait) {
+						checkCompletion();
+					}
+				}, 100);
+			}
+		}));
+
+		// Start the timers
+		idleScheduler.schedule();
+		maxWaitScheduler.schedule();
+
+		return await deferred.p;
+	} finally {
+		store.dispose();
+	}
+}
+
+/**
  * Tracks the terminal for being idle on a prompt input. This must be called before `executeCommand`
  * is called.
  */
