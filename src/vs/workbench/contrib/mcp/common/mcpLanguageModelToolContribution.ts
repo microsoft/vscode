@@ -241,27 +241,24 @@ class McpToolImplementation implements IToolImpl {
 					} catch {
 						finalData = decodeBase64(value);
 					}
-					const providerId = this._productService.defaultChatAgent?.provider?.default?.id ?? '';
-					let token: string | undefined = '';
-					const accounts: any[] = [];
-					await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
-						accounts.push(account);
-					});
+					const chatProviderId = this._productService.defaultChatAgent?.provider?.default?.id ?? '';
+					const chatExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
 
-					// Find the token from the first available account
-					if (accounts.length > 0) {
-						const sessions = await this.authenticationService.getSessions(providerId);
-						token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
+					let preferredAccountName: string | undefined;
+					let token: string | undefined;
+
+					if (chatExtensionId) {
+						preferredAccountName = this.authenticationQueryService.extension(chatExtensionId).provider(chatProviderId).getPreferredAccount();
 					}
 
-					// Find the token from the first available account
-					if (accounts.length > 0) {
-						const sessions = await this.authenticationService.getSessions(providerId);
-						token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
+					if (preferredAccountName) {
+						const sessions = await this.authenticationService.getSessions(chatProviderId);
+						token = sessions?.find(s => s.account.label === preferredAccountName)?.accessToken;
 					}
-					const temp = await this.sharedWebContentExtractorService.chatImageUploader(finalData, 'mcp_tool_result.png', mimeType, token);
+
+					const uri = await this.sharedWebContentExtractorService.chatImageUploader(finalData, 'mcp_tool_result.png', mimeType, token);
 					const encoder = new TextEncoder();
-					const encoded = VSBuffer.wrap(encoder.encode(temp));
+					const encoded = VSBuffer.wrap(encoder.encode(uri.toString()));
 					result.content.push({ kind: 'data', value: { mimeType, data: encoded } });
 				}
 			};

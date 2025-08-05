@@ -40,12 +40,13 @@ export const IChatAttachmentResolveService = createDecorator<IChatAttachmentReso
 export interface IChatAttachmentResolveService {
 	_serviceBrand: undefined;
 
-	resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry | undefined>;
+	// updates the variable entry with a new entry once the image is uploaded.
+	resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, updateCallback?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry | undefined>;
 	resolveUntitledEditorAttachContext(editor: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined>;
 	resolveResourceAttachContext(resource: URI, isDirectory: boolean): Promise<IChatRequestVariableEntry | undefined>;
 
-	resolveImageEditorAttachContext(resource: URI, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined>;
-	resolveImageAttachContext(images: ImageTransferData[], onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]>;
+	resolveImageEditorAttachContext(resource: URI, updateCallback?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined>;
+	resolveImageAttachContext(images: ImageTransferData[], updateCallback?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]>;
 	resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[];
 	resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): ISymbolVariableEntry[];
 	resolveNotebookOutputAttachContext(data: NotebookCellOutputTransferData): IChatRequestVariableEntry[];
@@ -69,7 +70,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 
 	// --- EDITORS ---
 
-	public async resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry | undefined> {
+	public async resolveEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput, updateCallback?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry | undefined> {
 		// untitled editor
 		if (isUntitledResourceEditorInput(editor)) {
 			return await this.resolveUntitledEditorAttachContext(editor);
@@ -89,7 +90,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		if (!stat.isDirectory && !stat.isFile) {
 			return undefined;
 		}
-		const imageContext = await this.resolveImageEditorAttachContext(editor.resource, onUpdate, undefined, undefined);
+		const imageContext = await this.resolveImageEditorAttachContext(editor.resource, updateCallback, undefined, undefined);
 		if (imageContext) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 		}
@@ -154,7 +155,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 
 	// --- IMAGES ---
 
-	public async resolveImageEditorAttachContext(resource: URI, onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined> {
+	public async resolveImageEditorAttachContext(resource: URI, updateCallback?: (updatedEntry: IChatRequestVariableEntry) => void, data?: VSBuffer, mimeType?: string): Promise<IChatRequestVariableEntry | undefined> {
 		if (!resource) {
 			return undefined;
 		}
@@ -203,27 +204,29 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 			resource: resource,
 			mimeType: mimeType,
 			omittedState: isPartiallyOmitted ? OmittedState.Partial : OmittedState.NotOmitted
-		}], onUpdate);
+		}], updateCallback);
 
 		return imageFileContext[0];
 	}
 
-	public resolveImageAttachContext(images: ImageTransferData[], onUpdate?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]> {
+	public resolveImageAttachContext(images: ImageTransferData[], updateCallback?: (updatedEntry: IChatRequestVariableEntry) => void): Promise<IChatRequestVariableEntry[]> {
 		return Promise.all(images.map(async image => {
 			const binaryData = await resizeImage(image.data, image.mimeType);
 			const id = image.id || await imageToHash(binaryData);
 
-			const providerId = this.productService.defaultChatAgent?.provider?.default?.id ?? '';
-			let token: string | undefined = '';
+			const chatProviderId = this.productService.defaultChatAgent?.provider?.default?.id ?? '';
+			const chatExtensionId = this.productService.defaultChatAgent?.chatExtensionId;
 
-			const accounts: any[] = [];
-			await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
-				accounts.push(account);
-			});
+			let preferredAccountName: string | undefined;
+			let token: string | undefined;
 
-			if (accounts.length > 0) {
-				const sessions = await this.authenticationService.getSessions(providerId);
-				token = sessions?.find(s => s.account.label === accounts[0].accountName)?.accessToken;
+			if (chatExtensionId) {
+				preferredAccountName = this.authenticationQueryService.extension(chatExtensionId).provider(chatProviderId).getPreferredAccount();
+			}
+
+			if (preferredAccountName) {
+				const sessions = await this.authenticationService.getSessions(chatProviderId);
+				token = sessions?.find(s => s.account.label === preferredAccountName)?.accessToken;
 			}
 
 			// initial loading entry
@@ -240,28 +243,28 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 			};
 
 			// async upload, update when done
-			if (onUpdate) {
+			if (updateCallback) {
 				this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, token)
-					.then(url => {
+					.then(uri => {
 						const updatedEntry: IImageVariableEntry = {
 							...loadingEntry,
-							url,
+							url: uri.toString(),
 							isLoading: false
 						};
-						onUpdate(updatedEntry);
+						updateCallback(updatedEntry);
 					})
 					.catch(error => {
 						const errorEntry: IImageVariableEntry = {
 							...loadingEntry,
 							isLoading: false
 						};
-						onUpdate(errorEntry);
+						updateCallback(errorEntry);
 					});
 			} else {
-				const url = await this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, token);
+				const uri = await this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, token);
 				const finalEntry: IImageVariableEntry = {
 					...loadingEntry,
-					url,
+					url: uri.toString(),
 					isLoading: false
 				};
 				return finalEntry;

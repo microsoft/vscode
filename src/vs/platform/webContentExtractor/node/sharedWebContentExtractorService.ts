@@ -37,40 +37,39 @@ export class SharedWebContentExtractorService implements ISharedWebContentExtrac
 	}
 
 
-	async chatImageUploader(binaryData: VSBuffer, name: string, mimeType: string | undefined, token: string | undefined): Promise<string> {
-		if (mimeType && token) {
-			const sanitizedName = name.replace(/\s+/g, '').replace(/%20/g, '');
-			let uploadName = sanitizedName;
-			const subtype = mimeType.split('/')[1].split('+')[0].toLowerCase();
-			if (!uploadName.toLowerCase().endsWith(`.${subtype}`)) {
-				uploadName = `${uploadName}.${subtype}`;
-			}
-			const url = `https://uploads.github.com/copilot/chat/attachments?name=${uploadName}&content_type=${mimeType}`;
-
-			const init: RequestInit = {
-				method: 'POST',
-				body: new Uint8Array(binaryData.buffer),
-				credentials: 'include',
-				headers: {
-					'Content-Type': 'application/octet-stream',
-					'Authorization': `Bearer ${token}`
-				}
-			};
-
-			try {
-				const response = await fetch(url, init);
-				if (!response.ok) {
-					console.error(`Invalid GitHub URL provided: ${response.status} ${response.statusText}`);
-					return '';
-				}
-				const result = await response.json();
-				return result.url;
-			} catch (error) {
-				console.error('Error uploading image:', error);
-				return '';
-			}
+	async chatImageUploader(binaryData: VSBuffer, name: string, mimeType: string | undefined, token: string | undefined): Promise<URI> {
+		if (!mimeType || !token) {
+			throw new Error('Missing required mimeType or token for image upload');
 		}
-		return '';
+
+		const sanitizedName = name.replace(/\s+/g, '').replace(/%20/g, '');
+		let uploadName = sanitizedName;
+		const subtype = mimeType.split('/')[1].split('+')[0].toLowerCase();
+		if (!uploadName.toLowerCase().endsWith(`.${subtype}`)) {
+			uploadName = `${uploadName}.${subtype}`;
+		}
+		const url = `https://uploads.github.com/copilot/chat/attachments?name=${uploadName}&content_type=${mimeType}`;
+
+		const init: RequestInit = {
+			method: 'POST',
+			body: new Uint8Array(binaryData.buffer),
+			credentials: 'include',
+			headers: {
+				'Content-Type': 'application/octet-stream',
+				'Authorization': `Bearer ${token}`
+			}
+		};
+
+		try {
+			const response = await fetch(url, init);
+			if (!response.ok) {
+				throw new Error(`Invalid GitHub URL provided: ${response.status} ${response.statusText}`);
+			}
+			const result = await response.json();
+			return URI.parse(result.url);
+		} catch (error) {
+			throw new Error(`Error uploading image: ${error}`);
+		}
 	}
 
 }
