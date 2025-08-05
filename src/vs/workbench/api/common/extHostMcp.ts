@@ -332,12 +332,20 @@ class McpHTTPHandle extends Disposable {
 		if (resourceMetadataChallenge) {
 			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
 			// Use URL constructor for normalization - it handles hostname case and trailing slashes
-			function normalizeUrl(u: string): string {
-				return new URL(u).toString().replace(/\/+$/, '');
+			const resourceUrl = new URL(resourceMetadata.resource).toString();
+			const challengeUrl = new URL(url).toString();
+
+			if (resourceUrl !== challengeUrl) {
+				let hint = "";
+				if (resourceMetadata.resource.endsWith("/") !== url.endsWith("/")) {
+					hint = " (Hint: Check for trailing slash differences)";
+				}
+				throw new Error(
+					`Protected Resource Metadata resource "${resourceMetadata.resource}" does not match MCP server resolved resource "${url}".${hint}
+                These must match exactly as per OAuth spec: https://datatracker.ietf.org/doc/html/rfc9728#section-3.3`
+				);
 			}
-			if (normalizeUrl(resourceMetadata.resource) !== normalizeUrl(url)) {
-				throw new Error(`Protected Resource Metadata resource "${resourceMetadata.resource}" does not match MCP server resolved resource "${url}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
-			}
+
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
