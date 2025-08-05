@@ -153,11 +153,8 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		dom.append(element, renderedMessage.element);
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget,
-			title,
-			undefined,
-			element,
-			buttons,
 			this.context.container,
+			{ title, message: element, buttons },
 		));
 
 		if (disclaimer) {

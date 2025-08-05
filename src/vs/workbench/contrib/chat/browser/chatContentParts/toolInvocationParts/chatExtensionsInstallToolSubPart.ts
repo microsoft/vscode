@@ -74,11 +74,12 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 
 			const confirmWidget = this._register(instantiationService.createInstance(
 				ChatConfirmationWidget,
-				toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
-				undefined,
-				toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Continue when finished."),
-				buttons,
 				context.container,
+				{
+					title: toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
+					message: toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Continue when finished."),
+					buttons,
+				}
 			));
 			this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			dom.append(this.domNode, confirmWidget.domNode);
