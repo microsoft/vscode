@@ -467,13 +467,9 @@ async function showToolsPickerTree(
 			}
 		}
 
-		// Special MCP handling: MCP toolset is enabled only if all tools are enabled
-		for (const item of toolsService.toolSets.get()) {
-			if (item.source.type === 'mcp') {
-				const toolsInSet = Array.from(item.getTools());
-				result.set(item, toolsInSet.every(tool => result.get(tool)));
-			}
-		}
+		// Note: MCP toolset state is determined by the bucket's checked state,
+		// not by whether all individual tools are enabled. Individual tool states
+		// are managed independently.
 	};
 	collectResults();
 
@@ -967,12 +963,8 @@ async function showToolsPickerLegacy(
 
 	store.dispose();
 
-	// in the result, a MCP toolset is only enabled if all tools in the toolset are enabled
-	for (const item of toolsService.toolSets.get()) {
-		if (item.source.type === 'mcp') {
-			const toolsInSet = Array.from(item.getTools());
-			result.set(item, toolsInSet.every(tool => result.get(tool)));
-		}
-	}
+	// Note: MCP toolset state is determined by the bucket's checked state,
+	// not by whether all individual tools are enabled. Individual tool states
+	// are managed independently.
 	return didAccept ? result : undefined;
 }
