@@ -44,7 +44,6 @@ exports.code = [
 	createModuleDescription('vs/code/node/cliProcessMain'),
 	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-browser/workbench/workbench'),
-	createModuleDescription('vs/workbench/contrib/webview/browser/pre/service-worker')
 ];
 
 exports.codeWeb = createModuleDescription('vs/code/browser/workbench/workbench');

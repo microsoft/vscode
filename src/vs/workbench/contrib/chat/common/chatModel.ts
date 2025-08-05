@@ -20,12 +20,13 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatClearToPreviousToolInvocation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext, ChatResponseClearToPreviousToolInvocationReason } from './chatService.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
@@ -106,6 +107,7 @@ export type IChatProgressHistoryResponseContent =
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatResponseCodeblockUriPart
 	| IChatTreeData
+	| IChatMultiDiffData
 	| IChatContentInlineReference
 	| IChatProgressMessage
 	| IChatCommandButton
@@ -115,7 +117,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatTextEditGroup
 	| IChatNotebookEditGroup
 	| IChatConfirmation
-	| IChatExtensionsContent;
+	| IChatExtensionsContent
+	| IChatPullRequestContent;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -126,7 +129,8 @@ export type IChatProgressResponseContent =
 	| IChatToolInvocationSerialized
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
-	| IChatElicitationRequest;
+	| IChatElicitationRequest
+	| IChatClearToPreviousToolInvocation;
 
 const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
@@ -347,15 +351,21 @@ class AbstractResponse implements IResponse {
 		for (const part of parts) {
 			let segment: { text: string; isBlock?: boolean } | undefined;
 			switch (part.kind) {
+				case 'clearToPreviousToolInvocation':
+					currentBlockSegments = [];
+					blocks.length = 0;
+					continue;
 				case 'treeData':
 				case 'progressMessage':
 				case 'codeblockUri':
 				case 'toolInvocation':
 				case 'toolInvocationSerialized':
 				case 'extensions':
+				case 'pullRequest':
 				case 'undoStop':
 				case 'prepareToolInvocation':
 				case 'elicitation':
+				case 'multiDiffData':
 					// Ignore
 					continue;
 				case 'inlineReference':
@@ -369,6 +379,10 @@ class AbstractResponse implements IResponse {
 					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
 					break;
 				case 'confirmation':
+					if (part.message instanceof MarkdownString) {
+						segment = { text: `${part.title}\n${part.message.value}`, isBlock: true };
+						break;
+					}
 					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
 					break;
 				default:
@@ -456,8 +470,38 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._updateRepr(true);
 	}
 
+	clearToPreviousToolInvocation(message?: string): void {
+		// look through the response parts and find the last tool invocation, then slice the response parts to that point
+		let lastToolInvocationIndex = -1;
+		for (let i = this._responseParts.length - 1; i >= 0; i--) {
+			const part = this._responseParts[i];
+			if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+				lastToolInvocationIndex = i;
+				break;
+			}
+		}
+		if (lastToolInvocationIndex !== -1) {
+			this._responseParts = this._responseParts.slice(0, lastToolInvocationIndex + 1);
+		} else {
+			this._responseParts = [];
+		}
+		if (message) {
+			this._responseParts.push({ kind: 'warning', content: new MarkdownString(message) });
+		}
+		this._updateRepr(true);
+	}
+
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask, quiet?: boolean): void {
-		if (progress.kind === 'markdownContent') {
+		if (progress.kind === 'clearToPreviousToolInvocation') {
+			if (progress.reason === ChatResponseClearToPreviousToolInvocationReason.CopyrightContentRetry) {
+				this.clearToPreviousToolInvocation(localize('copyrightContentRetry', "Response cleared due to possible match to public code, retrying with modified prompt."));
+			} else if (progress.reason === ChatResponseClearToPreviousToolInvocationReason.FilteredContentRetry) {
+				this.clearToPreviousToolInvocation(localize('filteredContentRetry', "Response cleared due to content safety filters, retrying with modified prompt."));
+			} else {
+				this.clearToPreviousToolInvocation();
+			}
+			return;
+		} else if (progress.kind === 'markdownContent') {
 
 			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
 			// the MD be chopped up by text edit groups (and likely other non-renderable parts)
@@ -901,7 +945,7 @@ export interface IChatRequestDisablement {
 	afterUndoStop?: string;
 }
 
-export interface IChatModel {
+export interface IChatModel extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
@@ -927,8 +971,15 @@ export interface IChatModel {
 	acceptResponseProgress(request: IChatRequestModel, progress: IChatProgress, quiet?: boolean): void;
 	setResponse(request: IChatRequestModel, result: IChatAgentResult): void;
 	completeResponse(request: IChatRequestModel): void;
+	setCustomTitle(title: string): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
+}
+
+export const IChatModelService = createDecorator<IChatModelService>('chatModelService');
+
+export interface IChatModelService {
+	readonly _serviceBrand: undefined;
 }
 
 export interface ISerializableChatsData {
@@ -1090,6 +1141,7 @@ export type IChatChangeEvent =
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
 	| IChatSetCheckpointEvent
+	| IChatSetCustomTitleEvent
 	;
 
 export interface IChatAddRequestEvent {
@@ -1159,6 +1211,11 @@ export interface IChatSetAgentEvent {
 	command?: IChatAgentCommand;
 }
 
+export interface IChatSetCustomTitleEvent {
+	kind: 'setCustomTitle';
+	title: string;
+}
+
 export interface IChatInitEvent {
 	kind: 'initialize';
 }
@@ -1169,7 +1226,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		const message = typeof firstRequestMessage === 'string' ?
 			firstRequestMessage :
 			firstRequestMessage.text;
-		return message.split('\n')[0].substring(0, 50);
+		return message.split('\n')[0].substring(0, 200);
 	}
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
@@ -1541,8 +1598,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	setCustomTitle(title: string): void {
+	public setCustomTitle(title: string): void {
 		this._customTitle = title;
+		this._onDidChange.fire({ kind: 'setCustomTitle', title });
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {

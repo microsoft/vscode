@@ -23,6 +23,7 @@ import { getRepositoryResourceCount } from './util.js';
 import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Command } from '../../../../editor/common/languages.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const ActiveRepositoryContextKeys = {
 	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
@@ -179,9 +180,13 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		// Source control provider status bar entry
 		if (this.scmService.repositoryCount > 1) {
+			const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
+				? `$(${repository.provider.iconPath.id})`
+				: '$(repo)';
+
 			const repositoryStatusbarEntry: IStatusbarEntry = {
 				name: localize('status.scm.provider', "Source Control Provider"),
-				text: `$(repo) ${repository.provider.name}`,
+				text: `${icon} ${repository.provider.name}`,
 				ariaLabel: label,
 				tooltip: label,
 				command: 'scm.setActiveProvider'

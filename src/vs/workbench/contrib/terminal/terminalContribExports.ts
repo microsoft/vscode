@@ -8,6 +8,7 @@ import { TerminalAccessibilityCommandId, defaultTerminalAccessibilityCommandsToS
 import { terminalAccessibilityConfiguration } from '../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js';
 import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/chat/common/terminalInitialHintConfiguration.js';
+import { terminalChatAgentToolsConfiguration } from '../terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
 import { TerminalDeveloperCommandId } from '../terminalContrib/developer/common/terminal.developer.js';
 import { defaultTerminalFindCommandToSkipShell } from '../terminalContrib/find/common/terminal.find.js';
@@ -39,6 +40,7 @@ export const enum TerminalContribSettingId {
 export const terminalContribConfiguration: IConfigurationNode['properties'] = {
 	...terminalAccessibilityConfiguration,
 	...terminalAutoRepliesConfiguration,
+	...terminalChatAgentToolsConfiguration,
 	...terminalInitialHintConfiguration,
 	...terminalCommandGuideConfiguration,
 	...terminalHistoryConfiguration,

@@ -143,6 +143,12 @@ export interface IChatEditingSession extends IDisposable {
 	 */
 	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
 
+	/**
+	 * Gets the document diff of a change made to a URI between one request to another one.
+	 * @returns The observable or undefined if there is no diff between the requests.
+	 */
+	getEntryDiffBetweenRequests(uri: URI, startRequestIs: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined>;
+
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
