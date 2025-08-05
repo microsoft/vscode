@@ -142,7 +142,7 @@ export class PatternInputWidget extends Widget {
 		this.domNode.classList.add('monaco-findInput');
 		const history = options.history || [];
 
-		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
+		this.inputBox = this._register(new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: options.placeholder,
 			showPlaceholderOnFocus: options.showPlaceholderOnFocus,
 			tooltip: options.tooltip,
@@ -153,7 +153,7 @@ export class PatternInputWidget extends Widget {
 			history: new Set(history),
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			inputBoxStyles: options.inputBoxStyles
-		}, this.contextKeyService);
+		}, this.contextKeyService));
 		this._register(this.inputBox.onDidChange(() => this._onSubmit.fire(true)));
 
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);

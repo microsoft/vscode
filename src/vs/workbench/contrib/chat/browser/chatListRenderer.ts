@@ -193,12 +193,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	constructor(
 		editorOptions: ChatEditorOptions,
-		private readonly rendererOptions: IChatListItemRendererOptions,
+		private rendererOptions: IChatListItemRendererOptions,
 		private readonly delegate: IChatRendererDelegate,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		private viewModel: IChatViewModel | undefined,
-		private disableEdits: boolean = false,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
@@ -220,6 +219,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
 		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
+	}
+
+	public updateOptions(options: IChatListItemRendererOptions): void {
+		this.rendererOptions = { ...this.rendererOptions, ...options };
 	}
 
 	get templateId(): string {
@@ -427,7 +430,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
 		dom.append(codiconRestoreContainer, $('span.codicon.codicon-bookmark'));
 		const label = dom.append(checkpointRestoreContainer, $('span.checkpoint-label-text'));
-		label.textContent = localize('checkpointRestore', 'Checkpoint restored');
+		label.textContent = localize('checkpointRestore', 'Checkpoint Restored');
 		const checkpointRestoreToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointRestoreContainer, MenuId.ChatMessageRestoreCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
@@ -552,11 +555,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.checkpointToolbar.context = element;
-		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || !this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled));
+		const checkpointEnabled = this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled)
+			&& (this.rendererOptions.restorable ?? true);
+
+		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || !(checkpointEnabled));
 
 		// Only show restore container when we have a checkpoint and not editing
 		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1);
-		templateData.checkpointRestoreContainer.classList.toggle('hidden', !shouldShowRestore || !this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled));
+		templateData.checkpointRestoreContainer.classList.toggle('hidden', !(shouldShowRestore && checkpointEnabled));
 
 		const editing = element.id === this.viewModel?.editing?.id;
 		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';
@@ -567,7 +573,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.requestHover.classList.toggle('editing', editing && isInput);
 		templateData.requestHover.classList.toggle('hidden', (!!this.viewModel?.editing && !editing) || isResponseVM(element));
 		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
-		templateData.requestHover.classList.toggle('checkpoints-enabled', this.configService.getValue<boolean>(ChatConfiguration.CheckpointsEnabled));
+		templateData.requestHover.classList.toggle('checkpoints-enabled', checkpointEnabled);
 		templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.CLICK, (e) => {
 			const current = templateData.currentElement;
 			if (current && this.viewModel?.editing && current.id !== this.viewModel.editing.id) {
@@ -696,21 +702,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
-		if (this.shouldShowFileChangesSummary(element)) {
-			const fileChanges: IChatChangesSummary[] = [];
-			for (const part of element.model.entireResponse.value) {
-				if (part.kind === 'textEditGroup') {
-					fileChanges.push({
-						kind: 'changesSummary',
-						reference: part.uri,
-						sessionId: element.sessionId,
-						requestId: element.requestId,
-					});
-				}
-			}
-			if (fileChanges.length) {
-				content.push({ kind: 'changesSummary', fileChanges });
-			}
+		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
+		if (fileChangesSummaryPart) {
+			content.push(fileChangesSummaryPart);
 		}
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
@@ -719,13 +713,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.updateItemHeightOnRender(element, templateData);
 	}
 
+	private getChatFileChangesSummaryPart(element: IChatResponseViewModel): IChatChangesSummaryPart | undefined {
+		if (!this.shouldShowFileChangesSummary(element)) {
+			return undefined;
+		}
+		const consideredFiles: Set<string> = new Set();
+		const fileChanges: IChatChangesSummary[] = [];
+		for (const part of element.model.entireResponse.value) {
+			if ((part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup') && !consideredFiles.has(part.uri.toString(true))) {
+				fileChanges.push({
+					kind: 'changesSummary',
+					reference: part.uri,
+					sessionId: element.sessionId,
+					requestId: element.requestId,
+				});
+				consideredFiles.add(part.uri.toString(true));
+			}
+		}
+		if (!fileChanges.length) {
+			return undefined;
+		}
+		return { kind: 'changesSummary', fileChanges };
+	}
+
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
 		if (element.id === this.viewModel?.editing?.id) {
 			this._onDidRerender.fire(templateData);
 		}
 
-		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && !this.disableEdits) {
+		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && this.rendererOptions.editable) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
@@ -1019,21 +1036,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isPaused = element.model.isPaused.get();
 			partsToRender.push({ kind: 'working', isPaused, setPaused: p => element.model.setPaused(p) });
 		}
-		if (this.shouldShowFileChangesSummary(element)) {
-			const fileChanges: IChatChangesSummary[] = [];
-			for (const part of element.model.entireResponse.value) {
-				if (part.kind === 'textEditGroup') {
-					fileChanges.push({
-						kind: 'changesSummary',
-						reference: part.uri,
-						sessionId: element.sessionId,
-						requestId: element.requestId,
-					});
-				}
-			}
-			if (fileChanges.length > 0) {
-				partsToRender.push({ kind: 'changesSummary', fileChanges });
-			}
+		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
+		if (fileChangesSummaryPart) {
+			partsToRender.push(fileChangesSummaryPart);
 		}
 
 		return { content: partsToRender, moreContentAvailable };
@@ -1363,7 +1368,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, {});
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
-			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && !this.disableEdits) {
+			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
 					if (this.viewModel?.editing?.id === element.id) {

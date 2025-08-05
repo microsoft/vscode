@@ -17,6 +17,7 @@ import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPic
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Event } from '../../../../../base/common/event.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 
 suite('LanguageModels', function () {
 
@@ -35,7 +36,8 @@ suite('LanguageModels', function () {
 				}
 			},
 			new NullLogService(),
-			new TestStorageService()
+			new TestStorageService(),
+			new MockContextKeyService()
 		);
 
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelExtensionPoint.name)!;

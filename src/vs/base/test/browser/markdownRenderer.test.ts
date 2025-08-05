@@ -346,6 +346,17 @@ suite('MarkdownRenderer', () => {
 			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
 		});
+
+		test('Should only allow checkbox inputs', () => {
+			const mds = new MarkdownString(
+				'text: <input type="text">\ncheckbox:<input type="checkbox">',
+				{ supportHtml: true });
+
+			const result = store.add(renderMarkdown(mds)).element;
+
+			// Inputs should always be disabled too
+			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input type="checkbox" disabled=""></p>`);
+		});
 	});
 
 	suite('fillInIncompleteTokens', () => {

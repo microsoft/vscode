@@ -28,13 +28,9 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSecretState);
 
 		this._register(this.secretStorageService.onDidChangeSecret((e: string) => {
-			try {
-				const { extensionId, key } = this.parseKey(e);
-				if (extensionId && key) {
-					this._proxy.$onDidChangePassword({ extensionId, key });
-				}
-			} catch (e) {
-				// Core can use non-JSON values as keys, so we may not be able to parse them.
+			const parsedKey = this.parseKey(e);
+			if (parsedKey) {
+				this._proxy.$onDidChangePassword(parsedKey);
 			}
 		}));
 	}
@@ -85,7 +81,7 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 		const allKeys = await this.secretStorageService.keys();
 		const keys = allKeys
 			.map(key => this.parseKey(key))
-			.filter(({ extensionId: id }) => id === extensionId)
+			.filter((parsedKey): parsedKey is { extensionId: string; key: string } => parsedKey !== undefined && parsedKey.extensionId === extensionId)
 			.map(({ key }) => key); // Return only my keys
 		this.logService.trace(`[mainThreadSecretState] Got ${keys.length}key(s) for: `, extensionId);
 		return keys;
@@ -95,7 +91,11 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 		return JSON.stringify({ extensionId, key });
 	}
 
-	private parseKey(key: string): { extensionId: string; key: string } {
-		return JSON.parse(key);
+	private parseKey(key: string): { extensionId: string; key: string } | undefined {
+		try {
+			return JSON.parse(key);
+		} catch {
+			return undefined;
+		}
 	}
 }

@@ -84,7 +84,6 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		if (!exists) {
 			await this._fileService.createFile(tasksJsonUri, VSBuffer.fromString(tasksJsonContent), { overwrite: true });
 			_progress.report({ message: 'Created tasks.json file' });
-			await timeout(200);
 		} else {
 			// add to the existing tasks.json file
 			const content = await this._fileService.readFile(tasksJsonUri);
@@ -92,10 +91,18 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			tasksJson.tasks.push(newTask);
 			await this._fileService.writeFile(tasksJsonUri, VSBuffer.fromString(JSON.stringify(tasksJson, null, '\t')));
 			_progress.report({ message: 'Updated tasks.json file' });
-			await timeout(200);
 		}
 		_progress.report({ message: new MarkdownString(localize('copilotChat.fetchingTask', 'Resolving the task')) });
-		const task = (await this._tasksService.tasks())?.find(t => t._label === args.task.label);
+
+		let task: Task | undefined;
+		const start = Date.now();
+		while (Date.now() - start < 5000 && !token.isCancellationRequested) {
+			task = (await this._tasksService.tasks())?.find(t => t._label === args.task.label);
+			if (task) {
+				break;
+			}
+			await timeout(100);
+		}
 		if (!task) {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.task.label)) };
 		}
@@ -115,7 +122,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
 				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-				() => promptForMorePolling(args.task.label, invocation.context!, this._chatService),
+				() => promptForMorePolling(args.task.label, token, invocation.context!, this._chatService),
 				outputAndIdle,
 				token,
 				this._languageModelsService,
@@ -124,12 +131,12 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		}
 		let output = '';
 		if (result?.exitCode) {
-			output = `Task failed with exit code.`;
+			output = `Task \`${args.task.label}\` failed with exit code ${result.exitCode}.`;
 		} else {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task finished`;
+				output += `Task \`${args.task.label}\` finished`;
 			} else {
-				output += `Task started and will continue to run in the background.`;
+				output += `Task \`${args.task.label}\` started and will continue to run in the background.`;
 			}
 		}
 		this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
@@ -188,10 +195,9 @@ export class CreateAndRunTaskTool implements IToolImpl {
 
 export const CreateAndRunTaskToolData: IToolData = {
 	id: 'create_and_run_task',
-	toolReferenceName: 'createAndRunTask2',
-	canBeReferencedInPrompt: true,
+	toolReferenceName: 'createAndRunTask',
 	displayName: localize('createAndRunTask.displayName', 'Create and run Task'),
-	modelDescription: localize('createAndRunTask.modelDescription', 'For a workspace, this tool will create a task based on the package.json, README.md, and project structure so that the project can be built and run.'),
+	modelDescription: localize('createAndRunTask.modelDescription', 'Creates and runs a build, run, or custom task for the workspace by generating or adding to a tasks.json file based on the project structure (such as package.json or README.md). If the user asks to build, run, launch and they have no tasks.json file, use this tool. If they ask to create or add a task, use this tool.'),
 	userDescription: localize('createAndRunTask.userDescription', "Create and run a task in the workspace"),
 	source: ToolDataSource.Internal,
 	inputSchema: {

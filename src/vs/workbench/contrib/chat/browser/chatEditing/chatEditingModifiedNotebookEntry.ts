@@ -226,7 +226,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		try {
 			this._isProcessingResponse.set(true, undefined);
 			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.originalURI, this.modifiedURI);
-			if (id !== this.computeRequestId) {
+			if (id !== this.computeRequestId || this._store.isDisposed) {
 				return;
 			}
 			const result = computeDiff(this.originalModel, this.modifiedModel, notebookDiff);
@@ -746,6 +746,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			return true;
 		};
 		this.resolveCellModel(cell.uri).then(modifiedModel => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			// We want decorators for the cell just as we display decorators for modified cells.
 			// This way we have the ability to accept/reject the entire cell.
 			this.getOrCreateModifiedTextFileEntryForCell(cell, modifiedModel, originalModel);
@@ -966,9 +969,21 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (!cell) {
 			throw new Error('Cell not found');
 		}
-		const model = this.cellTextModelMap.get(cell.uri) || this._register(await this.textModelService.createModelReference(cell.uri)).object.textEditorModel;
-		this.cellTextModelMap.set(cell.uri, model);
-		return model;
+		const model = this.cellTextModelMap.get(cell.uri);
+		if (model) {
+			this.cellTextModelMap.set(cell.uri, model);
+			return model;
+		} else {
+			const textEditorModel = await this.textModelService.createModelReference(cell.uri);
+			if (this._store.isDisposed) {
+				textEditorModel.dispose();
+			} else {
+				this._register(textEditorModel);
+			}
+			const model = textEditorModel.object.textEditorModel;
+			this.cellTextModelMap.set(cell.uri, model);
+			return model;
+		}
 	}
 
 	getOrCreateModifiedTextFileEntryForCell(cell: NotebookCellTextModel, modifiedCellModel: ITextModel, originalCellModel: ITextModel): ChatEditingNotebookCellEntry | undefined {
@@ -976,7 +991,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (cellEntry) {
 			return cellEntry;
 		}
-
+		if (this._store.isDisposed) {
+			return;
+		}
 		const disposables = new DisposableStore();
 		cellEntry = this._register(this._instantiationService.createInstance(ChatEditingNotebookCellEntry, this.modifiedResourceRef.object.resource, cell, modifiedCellModel, originalCellModel, disposables));
 		this.cellEntryMap.set(cell.uri, cellEntry);

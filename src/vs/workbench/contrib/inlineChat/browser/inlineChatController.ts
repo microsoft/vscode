@@ -64,6 +64,7 @@ import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachment
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
+import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -1425,7 +1426,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 			const session = visibleSessionObs.read(r);
 			const entry = session?.editingSession.readEntry(session.uri, r);
-			const pane = this._editorService.visibleEditorPanes.find(candidate => candidate.getControl() === this._editor);
+			const pane = this._editorService.visibleEditorPanes.find(candidate => candidate.getControl() === this._editor || isNotebookWithCellEditor(candidate, this._editor));
 			if (pane && entry) {
 				entry?.getEditorIntegration(pane);
 			}
