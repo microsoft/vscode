@@ -102,6 +102,12 @@ export enum ChatResponseReferencePartStatusKind {
 	Omitted = 3
 }
 
+export enum ChatResponseClearToPreviousToolInvocationReason {
+	NoReason = 0,
+	FilteredContentRetry = 1,
+	CopyrightContentRetry = 2,
+}
+
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference | string;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
@@ -229,6 +235,11 @@ export interface IChatTextEdit {
 	done?: boolean;
 }
 
+export interface IChatClearToPreviousToolInvocation {
+	kind: 'clearToPreviousToolInvocation';
+	reason: ChatResponseClearToPreviousToolInvocationReason;
+}
+
 export interface IChatNotebookEdit {
 	uri: URI;
 	edits: ICellEditOperation[];
@@ -266,6 +277,8 @@ export interface IChatTerminalToolInvocationData {
 		userEdited?: string;
 		toolEdited?: string;
 	};
+	/** Message for model recommending the use of an alternative tool */
+	alternativeRecommendation?: string;
 	language: string;
 }
 
@@ -370,6 +383,7 @@ export type IChatProgress =
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
+	| IChatClearToPreviousToolInvocation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
