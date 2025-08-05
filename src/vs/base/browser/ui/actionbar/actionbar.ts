@@ -95,17 +95,17 @@ export class ActionBar extends Disposable implements IActionRunner {
 	protected readonly actionsList: HTMLElement;
 
 	private readonly _onDidBlur = this._register(new Emitter<void>());
-	readonly onDidBlur = this._onDidBlur.event;
+	get onDidBlur() { return this._onDidBlur.event; }
 
 	private readonly _onDidCancel = this._register(new Emitter<void>({ onWillAddFirstListener: () => this.cancelHasListener = true }));
-	readonly onDidCancel = this._onDidCancel.event;
+	get onDidCancel() { return this._onDidCancel.event; }
 	private cancelHasListener = false;
 
 	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidRun = this._onDidRun.event;
+	get onDidRun() { return this._onDidRun.event; }
 
 	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
-	readonly onWillRun = this._onWillRun.event;
+	get onWillRun() { return this._onWillRun.event; }
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
