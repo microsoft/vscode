@@ -246,7 +246,7 @@ export class ReleaseNotesManager {
 			// handled in receive message
 		} else {
 			this.addGAParameters(uri, 'ReleaseNotes')
-				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings', 'summarize.release.notes'] }))
+				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings'] }))
 				.then(undefined, onUnexpectedError);
 		}
 	}
