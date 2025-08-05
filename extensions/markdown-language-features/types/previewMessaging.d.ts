@@ -38,6 +38,16 @@ export namespace FromWebviewMessage {
 		readonly unloadedStyles: readonly string[];
 	}
 
+	export interface RunInTerminal extends BaseMessage {
+		readonly type: 'runInTerminal';
+		readonly command: string;
+	}
+
+	export interface CopyText extends BaseMessage {
+		readonly type: 'copyText';
+		readonly text: string;
+	}
+
 	export type Type =
 		| CacheImageSizes
 		| RevealLine
@@ -45,6 +55,8 @@ export namespace FromWebviewMessage {
 		| ClickLink
 		| ShowPreviewSecuritySelector
 		| PreviewStyleLoadError
+		| RunInTerminal
+		| CopyText
 		;
 }
 
