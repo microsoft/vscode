@@ -261,15 +261,12 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 						updateCallback(errorEntry);
 					});
 			} else {
-				const uri = await this.sharedWebContentExtractorService.chatImageUploader(VSBuffer.wrap(binaryData), image.name, image.mimeType, token);
 				const finalEntry: IImageVariableEntry = {
 					...loadingEntry,
-					url: uri.toString(),
 					isLoading: false
 				};
 				return finalEntry;
 			}
-
 			return loadingEntry;
 		}));
 	}

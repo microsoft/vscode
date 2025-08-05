@@ -256,10 +256,14 @@ class McpToolImplementation implements IToolImpl {
 						token = sessions?.find(s => s.account.label === preferredAccountName)?.accessToken;
 					}
 
-					const uri = await this.sharedWebContentExtractorService.chatImageUploader(finalData, 'mcp_tool_result.png', mimeType, token);
-					const encoder = new TextEncoder();
-					const encoded = VSBuffer.wrap(encoder.encode(uri.toString()));
-					result.content.push({ kind: 'data', value: { mimeType, data: encoded } });
+					try {
+						const uri = await this.sharedWebContentExtractorService.chatImageUploader(finalData, 'mcp_tool_result.png', mimeType, token);
+						const encoder = new TextEncoder();
+						const encoded = VSBuffer.wrap(encoder.encode(uri.toString()));
+						result.content.push({ kind: 'data', value: { mimeType, data: encoded } });
+					} catch (error) {
+						result.content.push({ kind: 'data', value: { mimeType, data: finalData } });
+					}
 				}
 			};
 
