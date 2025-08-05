@@ -128,6 +128,7 @@ export class CommandLineAutoApprover extends Disposable {
 		const actualCommand = this._removeEnvAssignments(command, shell, os);
 		const isPwsh = isPowerShell(shell, os);
 
+		// PowerShell is case insensitive regardless of platform
 		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(actualCommand)) {
 			return true;
 		} else if (isPwsh && actualCommand.startsWith('(')) {
