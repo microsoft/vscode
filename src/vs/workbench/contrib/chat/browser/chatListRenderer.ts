@@ -794,7 +794,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			};
 			const newPart = this.renderChatContentPart(data, templateData, context);
 			if (newPart) {
-
 				if (this.rendererOptions.renderDetectedCommandsWithRequest
 					&& !inlineSlashCommandRendered
 					&& element.agentOrSlashCommandDetected && element.slashCommand
@@ -948,6 +947,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				try {
 					if (alreadyRenderedPart?.domNode) {
 						if (newPart.domNode) {
+							// Check if this is a read/search tool invocation that should go in thinking container
+							const isReadOrSearchTool = partToRender.kind === 'toolInvocation' && (
+								partToRender.toolId.includes('read') ||
+								partToRender.toolId.includes('search') ||
+								partToRender.toolId.includes('applyPatch') ||
+								partToRender.toolId.includes('find'));
+
 							if (partToRender.kind === 'thinking') {
 								templateData.thinkingContainer.classList.remove('hidden');
 								if (templateData.thinkingContainer.contains(alreadyRenderedPart.domNode)) {
@@ -956,6 +962,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 									alreadyRenderedPart.domNode.remove();
 									templateData.thinkingContainer.appendChild(newPart.domNode);
 								}
+							} else if (isReadOrSearchTool) {
+								// Find existing ChatThinkingContentPart and add tool invocation to it
+								const existingThinkingPart = templateData.renderedParts?.find(part =>
+									part instanceof ChatThinkingContentPart &&
+									part.chatResponseId === context.element.id) as ChatThinkingContentPart | undefined;
+
+								if (existingThinkingPart && newPart.domNode) {
+									alreadyRenderedPart.domNode.remove();
+									existingThinkingPart.addToolInvocation(newPart.domNode);
+								} else {
+									// No existing thinking part - render as regular content
+									alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+								}
 							} else {
 								alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
 							}
@@ -963,9 +982,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							alreadyRenderedPart.domNode.remove();
 						}
 					} else if (newPart.domNode) {
+						// Check if this is a read/search tool invocation that should go in thinking container
+						const isReadOrSearchTool = partToRender.kind === 'toolInvocation' && (
+							partToRender.toolId.includes('read') ||
+							partToRender.toolId.includes('search') ||
+							partToRender.toolId.includes('applyPatch') ||
+							partToRender.toolId.includes('find')
+						);
+
 						if (partToRender.kind === 'thinking') {
 							templateData.thinkingContainer.classList.remove('hidden');
 							templateData.thinkingContainer.appendChild(newPart.domNode);
+						} else if (isReadOrSearchTool) {
+							// Find existing ChatThinkingContentPart and add tool invocation to it
+							const existingThinkingPart = templateData.renderedParts?.find(part =>
+								part instanceof ChatThinkingContentPart &&
+								part.chatResponseId === context.element.id) as ChatThinkingContentPart | undefined;
+
+							if (existingThinkingPart && newPart.domNode) {
+								existingThinkingPart.addToolInvocation(newPart.domNode);
+							} else {
+								// No existing thinking part - render as regular content
+								templateData.value.appendChild(newPart.domNode);
+							}
 						} else {
 							// Regular append for other content types
 							templateData.value.appendChild(newPart.domNode);
@@ -1012,38 +1051,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let numNeededWords = data.numWordsToRender;
 		const partsToRender: IChatRendererContent[] = [];
 
-		const thinkingParts = renderableResponse.filter(part => part.kind === 'thinking');
-		let combinedThinkingPart: IChatThinkingPart | null = null;
-
-		if (thinkingParts.length > 0) {
-			// Combine all thinking parts into a single part
-			const combinedValue = thinkingParts
-				.map(part => part.value || '')
-				.join('');
-
-			// Use the metadata from the last thinking part if available
-			const lastThinkingPart = thinkingParts[thinkingParts.length - 1];
-
-			combinedThinkingPart = {
-				kind: 'thinking',
-				value: combinedValue,
-				metadata: lastThinkingPart.metadata,
-				id: 'combined-thinking-' + Date.now()
-			};
-
-			partsToRender.push(combinedThinkingPart);
-		}
 		partsToRender.push({ kind: 'references', references: element.contentReferences });
 
 		let moreContentAvailable = false;
 		for (let i = 0; i < renderableResponse.length; i++) {
 			const part = renderableResponse[i];
-			// Skip individual thinking parts since we've combined them
-			if (part.kind === 'thinking') {
-				continue;
-			}
 
-			if (part.kind === 'markdownContent' && !renderImmediately) {
+			if (part.kind === 'thinking') {
+				partsToRender.push(part);
+			} else if (part.kind === 'markdownContent' && !renderImmediately) {
 				const wordCountResult = getNWords(part.content.value, numNeededWords);
 				this.traceLayout('getNextProgressiveRenderContent', `  Chunk ${i}: Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
 				numNeededWords -= wordCountResult.returnedWordCount;
@@ -1053,11 +1069,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 					// Consumed full markdown chunk- need to ensure that all following non-markdown parts are rendered
 					for (const nextPart of renderableResponse.slice(i + 1)) {
-						if (nextPart.kind !== 'markdownContent' && nextPart.kind !== 'thinking') {
+						if (nextPart.kind !== 'markdownContent') {
 							i++;
 							partsToRender.push(nextPart);
-						} else if (nextPart.kind === 'thinking') {
-							i++; // Skip thinking parts
 						} else {
 							break;
 						}
@@ -1413,7 +1427,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (templateData.renderedParts) {
 			existingThinkingPart = templateData.renderedParts.find(part =>
 				part instanceof ChatThinkingContentPart &&
-				// Ensure it belongs to the same response using the response ID
 				part.chatResponseId === context.element.id) as ChatThinkingContentPart | undefined;
 		}
 
@@ -1429,10 +1442,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				context
 			);
 
-			// Add a special class to identify thinking content
 			thinkingPart.domNode.classList.add('chat-thinking-part');
-
-			// Handle height changes for smooth rendering
 			thinkingPart.addDisposable(thinkingPart.onDidChangeHeight(() => {
 				this.updateItemHeight(templateData);
 			}));

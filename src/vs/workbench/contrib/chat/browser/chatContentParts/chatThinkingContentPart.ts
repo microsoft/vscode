@@ -55,6 +55,7 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	private currentThinkingValue: string;
 	private currentMetadata?: string;
 	private readonly thinkingChunks: Map<string, string> = new Map();
+	private readonly toolInvocations: HTMLElement[] = [];
 
 	private readonly renderer: MarkdownRenderer;
 	private contentContainer!: HTMLElement;
@@ -63,6 +64,7 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 
 	private isCollapsed: boolean = true;
 	private markdownResult: IDisposable | undefined;
+	private markdownResults: IDisposable[] = [];
 	private metadataMarkdownResult: IDisposable | undefined;
 
 	private readonly responseId: string;
@@ -255,43 +257,31 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 
 		let contentChanged = false;
 
-		if (newContent.id && newContent.id.startsWith('combined-thinking-')) {
-			if (newContent.value && newContent.value !== this.currentThinkingValue) {
-				const formattedValue = newContent.value
-					.split(/(<\|im_sep\|>|<\|lim_sep\|>)/g)
-					.filter(part => part && !part.match(/(<\|im_sep\|>|<\|lim_sep\|>)/))
-					.map(part => part.trim())
-					.join('\n\n');
+		const chunkValue = newContent.value || '';
+		const parsedChunkValue = chunkValue.replace(/<\|im_sep\|>\*{4,}/g, '');
 
-				this.currentThinkingValue = formattedValue;
-				this.renderMarkdown(formattedValue);
+		if (newContent.id && !this.thinkingChunks.has(newContent.id)) {
+			this.thinkingChunks.set(newContent.id, parsedChunkValue);
+
+			if (parsedChunkValue.trim()) {
+				this.addThinkingText(parsedChunkValue.trim());
+				this.currentThinkingValue = (this.currentThinkingValue || '') + (this.currentThinkingValue ? '\n\n' : '') + parsedChunkValue.trim();
 				contentChanged = true;
 			}
-		}
-		else if (newContent.id && !this.thinkingChunks.has(newContent.id)) {
-			this.thinkingChunks.set(newContent.id, newContent.value || '');
-
-			const combinedValue = Array.from(this.thinkingChunks.values())
-				.map(chunk => chunk.trim())
-				.join('\n\n');
-
-			if (combinedValue.length > 0 && combinedValue !== this.currentThinkingValue) {
-				this.currentThinkingValue = combinedValue;
-				this.renderMarkdown(combinedValue);
-				contentChanged = true;
-			}
-		} else if (newContent.value && newContent.value !== this.currentThinkingValue) {
+		} else if (parsedChunkValue && parsedChunkValue !== this.currentThinkingValue) {
 			const existingContent = this.currentThinkingValue || '';
 
-			if (newContent.value.length > existingContent.length && newContent.value.includes(existingContent)) {
-				this.currentThinkingValue = newContent.value;
-				this.renderMarkdown(newContent.value);
-				contentChanged = true;
-			} else if (!existingContent.includes(newContent.value)) {
+			if (parsedChunkValue.length > existingContent.length && parsedChunkValue.includes(existingContent)) {
+				const newPart = parsedChunkValue.substring(existingContent.length).trim();
+				if (newPart) {
+					this.addThinkingText(newPart);
+					this.currentThinkingValue = parsedChunkValue;
+					contentChanged = true;
+				}
+			} else if (!existingContent.includes(parsedChunkValue)) {
+				this.addThinkingText(parsedChunkValue.trim());
 				const separator = existingContent ? '\n\n' : '';
-				const newFullContent = existingContent + separator + newContent.value.trim();
-				this.currentThinkingValue = newFullContent;
-				this.renderMarkdown(newFullContent);
+				this.currentThinkingValue = existingContent + separator + parsedChunkValue.trim();
 				contentChanged = true;
 			}
 		}
@@ -315,18 +305,67 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		}
 	}
 
+	/**
+	 * Add a tool invocation element to the thinking content
+	 */
+	addToolInvocation(toolElement: HTMLElement): void {
+		if (this._isDisposed) {
+			return;
+		}
+
+		// Store reference to the tool invocation
+		this.toolInvocations.push(toolElement);
+
+		// Add the tool element to the content container
+		if (this.contentContainer) {
+			this.contentContainer.appendChild(toolElement);
+			this._onDidChangeHeight.fire();
+		}
+	}
+
+	private addThinkingText(content: string): void {
+		// Create a new thinking-text container and append it to chat-thinking-content
+		const newTextContainer = $('.thinking-text.markdown-content');
+
+		const markdownResult = this.renderer.render(new MarkdownString(content));
+		newTextContainer.appendChild(markdownResult.element);
+		this.contentContainer.appendChild(newTextContainer);
+
+		if (!this.markdownResults) {
+			this.markdownResults = [];
+		}
+		this.markdownResults.push(markdownResult);
+	}
+
 	private renderMarkdown(content: string): void {
 		if (this.markdownResult) {
 			this.markdownResult.dispose();
 			this.markdownResult = undefined;
 		}
 
-		dom.clearNode(this.textContainer);
+		// Clean the content to remove unwanted markers
+		const cleanedContent = content
+			.replace(/<\|im_sep\|>\*{4,}/g, '')  // Remove <|im_sep|>**** markers
+			.replace(/<\|lim_sep\|>\*{4,}/g, '') // Remove <|lim_sep|>**** markers
+			.trim();
 
-		const markdownResult = this.renderer.render(new MarkdownString(content));
+		if (!cleanedContent) {
+			return; // Don't render empty content
+		}
+
+		// Create a new thinking-text container and append it to chat-thinking-content
+		const newTextContainer = $('.thinking-text.markdown-content');
+
+		const markdownResult = this.renderer.render(new MarkdownString(cleanedContent));
 		this.markdownResult = markdownResult;
 
-		this.textContainer.appendChild(markdownResult.element);
+		newTextContainer.appendChild(markdownResult.element);
+
+		// Append the new thinking text to the bottom of chat-thinking-content
+		this.contentContainer.appendChild(newTextContainer);
+
+		// Update textContainer reference to the newest one
+		this.textContainer = newTextContainer;
 	}
 
 	addDisposable<T extends IDisposable>(disposable: T): T {
@@ -337,11 +376,19 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		this._isDisposed = true;
 		this.stopTimer();
 		this.expandButton = undefined;
+		this.toolInvocations.forEach(element => {
+			if (element.parentNode) {
+				element.parentNode.removeChild(element);
+			}
+		});
+		this.toolInvocations.length = 0;
 
 		if (this.markdownResult) {
 			this.markdownResult.dispose();
 			this.markdownResult = undefined;
 		}
+		this.markdownResults.forEach(result => result.dispose());
+		this.markdownResults.length = 0;
 
 		if (this.metadataMarkdownResult) {
 			this.metadataMarkdownResult.dispose();

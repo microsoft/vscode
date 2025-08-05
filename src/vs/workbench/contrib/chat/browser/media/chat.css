@@ -1998,6 +1998,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 }
 
+.interactive-item-container.interactive-response .thinking-container .chat-tool-invocation-part .chat-inline-anchor-widget {
+	color: inherit;
+}
+
 .interactive-item-container.interactive-response .thinking-container .thinking-content .thinking-label {
 	font-style: italic;
 	color: var(--vscode-textLink-foreground);
