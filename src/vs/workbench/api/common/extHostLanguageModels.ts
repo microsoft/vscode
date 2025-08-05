@@ -95,7 +95,7 @@ class LanguageModelResponse {
 			return;
 		}
 
-		const partsByIndex = new Map<number, (LMResponsePart)[]>();
+		const partsByIndex = new Map<number, LMResponsePart[]>();
 
 		for (const fragment of Iterable.wrap(fragments)) {
 
