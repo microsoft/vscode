@@ -320,10 +320,18 @@ export class ReplModel {
 					session, getUniqueId(), combinedOutput, sev, source);
 				this._onDidChangeElements.fire(undefined);
 				
-				// If the combined output now contains complete lines and collapsing is enabled, 
-				// try to apply line-based collapsing
+				// If the combined output now forms a complete line and collapsing is enabled, 
+				// check if it can be collapsed with previous elements
+				if (config.console.collapseIdenticalLines && (combinedOutput.endsWith('\n') || combinedOutput.endsWith('\r\n'))) {
+					this.tryCollapseCompleteLine(sev, source);
+				}
+				
+				// If the combined output contains multiple lines, apply line-level collapsing
 				if (config.console.collapseIdenticalLines && (combinedOutput.includes('\n') || combinedOutput.includes('\r\n'))) {
-					this.applyLineLevelCollapsing(session, sev, source);
+					const lines = this.splitIntoLines(combinedOutput);
+					if (lines.length > 1) {
+						this.applyLineLevelCollapsing(session, sev, source);
+					}
 				}
 				return;
 			}
@@ -344,6 +352,32 @@ export class ReplModel {
 
 			const element = new ReplOutputElement(session, getUniqueId(), output, sev, source);
 			this.addReplElement(element);
+		}
+	}
+
+	private tryCollapseCompleteLine(sev: severity, source?: IReplElementSource): void {
+		// Try to collapse the last element with the second-to-last if they are identical complete lines
+		if (this.replElements.length < 2) {
+			return;
+		}
+		
+		const lastElement = this.replElements[this.replElements.length - 1];
+		const secondToLastElement = this.replElements[this.replElements.length - 2];
+		
+		if (lastElement instanceof ReplOutputElement && 
+			secondToLastElement instanceof ReplOutputElement &&
+			lastElement.severity === sev && 
+			secondToLastElement.severity === sev &&
+			areSourcesEqual(lastElement.sourceData, source) &&
+			areSourcesEqual(secondToLastElement.sourceData, source) &&
+			lastElement.value === secondToLastElement.value &&
+			lastElement.count === 1 && 
+			(lastElement.value.endsWith('\n') || lastElement.value.endsWith('\r\n'))) {
+			
+			// Collapse the last element into the second-to-last
+			secondToLastElement.count += lastElement.count;
+			this.replElements.pop();
+			this._onDidChangeElements.fire(undefined);
 		}
 	}
 
@@ -410,7 +444,25 @@ export class ReplModel {
 
 		// Remove the last element and reprocess it as multiple lines
 		this.replElements.pop();
-		this.processMultiLineOutput(session, lastElement.value, sev, source);
+		
+		// Process each line and try to collapse with existing elements
+		for (const line of lines) {
+			if (line.length === 0) continue;
+			
+			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
+			
+			// Check if this line can be collapsed with the previous one
+			if (previousElement instanceof ReplOutputElement && 
+				previousElement.severity === sev && 
+				areSourcesEqual(previousElement.sourceData, source) &&
+				previousElement.value === line) {
+				previousElement.count++;
+			} else {
+				const element = new ReplOutputElement(session, getUniqueId(), line, sev, source);
+				this.addReplElement(element);
+			}
+		}
+		
 		this._onDidChangeElements.fire(undefined);
 	}
 
