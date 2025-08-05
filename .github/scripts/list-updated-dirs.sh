@@ -24,16 +24,11 @@ changed_files=$(git diff "$base_commit" HEAD --name-only 2>/dev/null || echo "")
 # Extract top-level directories from changed files
 changed_dirs=()
 while IFS= read -r file; do
-    if [ -n "$file" ]; then
-        # Get top-level directory (before first '/')
-        top_dir="${file%%/*}"
-        if [ -n "$top_dir" ] && [[ ! "$top_dir" =~ ^\. ]]; then
-            # Add to array if not already present and doesn't start with '.'
-            if [[ ! " ${changed_dirs[@]} " =~ " $top_dir " ]]; then
-                if [[ "$file" == extensions/* ]]; then
-                    changed_dirs+=("$top_dir")
-                fi
-            fi
+    if [[ "$file" == extensions/*/* ]]; then
+        sub_dir="${file#extensions/}"
+        top_level_dir="${sub_dir%%/*}"
+        if [[ ! " ${changed_dirs[@]} " =~ " $top_level_dir " ]]; then
+            changed_dirs+=("$top_level_dir")
         fi
     fi
 done <<< "$changed_files"
