@@ -126,10 +126,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
-	// HACK: Per-tool call state, saved globally
-	// TODO: These should not be part of the state as different sessions could get confused https://github.com/microsoft/vscode/issues/255889
-	private _alternativeRecommendation?: IToolResult;
-
 	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
 	public static getBackgroundOutput(id: string): string {
 		const backgroundExecution = RunInTerminalTool._backgroundExecutions.get(id);
@@ -176,8 +172,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
-		this._alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
-		const presentation = this._alternativeRecommendation ? 'hidden' : undefined;
+		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
+		const presentation = alternativeRecommendation ? 'hidden' : undefined;
 
 		const os = await this._osBackend;
 		const shell = await this._terminalProfileResolverService.getDefaultShell({
@@ -193,7 +189,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		let confirmationMessages: IToolConfirmationMessages | undefined;
-		if (this._alternativeRecommendation) {
+		if (alternativeRecommendation) {
 			confirmationMessages = undefined;
 		} else {
 			const actualCommand = toolEditedCommand ?? args.command;
@@ -250,23 +246,27 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					toolEdited: toolEditedCommand
 				},
 				language,
+				alternativeRecommendation,
 			}
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		if (this._alternativeRecommendation) {
-			return this._alternativeRecommendation;
-		}
-
-		const args = invocation.parameters as IRunInTerminalInputParams;
-
-		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
-
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		if (toolSpecificData.alternativeRecommendation) {
+			return {
+				content: [{
+					kind: 'text',
+					value: toolSpecificData.alternativeRecommendation
+				}]
+			};
+		}
+
+		const args = invocation.parameters as IRunInTerminalInputParams;
+		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
 
 		const chatSessionId = invocation.context?.sessionId ?? 'no-chat-session';

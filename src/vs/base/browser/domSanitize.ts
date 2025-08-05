@@ -184,9 +184,15 @@ export interface DomSanitizerConfig {
 		readonly override?: readonly string[];
 	};
 
+	/**
+	 * If set, replaces unsupported tags with their plaintext representation instead of removing them.
+	 *
+	 * For example, <p><bad>"text"</bad></p> becomes <p>"<bad>text</bad>"</p>.
+	 */
+	readonly replaceWithPlaintext?: boolean;
+
 	// TODO: move these into more controlled api
 	readonly _do_not_use_hooks?: {
-		readonly uponSanitizeElement?: UponSanitizeElementCb;
 		readonly uponSanitizeAttribute?: UponSanitizeAttributeCb;
 	};
 }
@@ -238,8 +244,8 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 			config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
 			config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https]));
 
-		if (config?._do_not_use_hooks?.uponSanitizeElement) {
-			store.add(addDompurifyHook('uponSanitizeElement', config?._do_not_use_hooks.uponSanitizeElement));
+		if (config?.replaceWithPlaintext) {
+			store.add(addDompurifyHook('uponSanitizeElement', replaceWithPlainTextHook));
 		}
 
 		if (config?._do_not_use_hooks?.uponSanitizeAttribute) {
@@ -253,6 +259,56 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 	} finally {
 		store.dispose();
 	}
+}
+
+const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
+function replaceWithPlainTextHook(element: Element, data: dompurify.SanitizeElementHookEvent, _config: dompurify.Config) {
+	if (!data.allowedTags[data.tagName] && data.tagName !== 'body') {
+		const replacement = convertTagToPlaintext(element);
+		if (element.nodeType === Node.COMMENT_NODE) {
+			// Workaround for https://github.com/cure53/DOMPurify/issues/1005
+			// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
+			// an exception. Instead we insert the text node before the comment.
+			element.parentElement?.insertBefore(replacement, element);
+		} else {
+			element.parentElement?.replaceChild(replacement, element);
+		}
+	}
+}
+
+export function convertTagToPlaintext(element: Element): DocumentFragment {
+	let startTagText: string;
+	let endTagText: string | undefined;
+	if (element.nodeType === Node.COMMENT_NODE) {
+		startTagText = `<!--${element.textContent}-->`;
+	} else {
+		const tagName = element.tagName.toLowerCase();
+		const isSelfClosing = selfClosingTags.includes(tagName);
+		const attrString = element.attributes.length ?
+			' ' + Array.from(element.attributes)
+				.map(attr => `${attr.name}="${attr.value}"`)
+				.join(' ')
+			: '';
+		startTagText = `<${tagName}${attrString}>`;
+		if (!isSelfClosing) {
+			endTagText = `</${tagName}>`;
+		}
+	}
+
+	const fragment = document.createDocumentFragment();
+	const textNode = element.ownerDocument.createTextNode(startTagText);
+	fragment.appendChild(textNode);
+	while (element.firstChild) {
+		fragment.appendChild(element.firstChild);
+	}
+
+	const endTagTextNode = endTagText ? element.ownerDocument.createTextNode(endTagText) : undefined;
+	if (endTagTextNode) {
+		fragment.appendChild(endTagTextNode);
+	}
+
+	return fragment;
 }
 
 /**
