@@ -9,7 +9,6 @@ import * as os from 'os';
 import { performance } from 'perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
-import { fileURLToPath } from 'url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
 import { product } from './bootstrap-meta.js';
@@ -20,8 +19,6 @@ import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 import { INLSConfiguration } from './vs/nls.js';
 import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 perf.mark('code/didStartMain');
 
@@ -129,7 +126,7 @@ if (userLocale) {
 		osLocale,
 		commit: product.commit,
 		userDataPath,
-		nlsMetadataPath: __dirname
+		nlsMetadataPath: import.meta.dirname
 	});
 }
 
@@ -691,7 +688,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 			userLocale: 'en',
 			osLocale,
 			resolvedLanguage: 'en',
-			defaultMessagesFile: path.join(__dirname, 'nls.messages.json'),
+			defaultMessagesFile: path.join(import.meta.dirname, 'nls.messages.json'),
 
 			// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
 			locale: 'en',
@@ -707,7 +704,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 		osLocale,
 		commit: product.commit,
 		userDataPath,
-		nlsMetadataPath: __dirname
+		nlsMetadataPath: import.meta.dirname
 	});
 }
 
