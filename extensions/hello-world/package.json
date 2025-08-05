@@ -16,7 +16,8 @@
 	"main": "./out/extension",
 	"scripts": {
 		"compile": "gulp compile-extension:hello-world",
-		"watch": "gulp watch-extension:hello-world"
+		"watch": "gulp watch-extension:hello-world",
+		"audit-fix": "npm audit fix"
 	},
 	"contributes": {
 		"commands": [
