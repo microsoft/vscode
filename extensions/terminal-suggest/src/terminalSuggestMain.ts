@@ -249,7 +249,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
 			const terminalShellType = getTerminalShellType(shellType);
 			if (!terminalShellType) {
-				console.debug('#terminalCompletions No shell type found for terminal');
+				console.debug('#terminalCompletions No shell type found for terminal, shell:', shellType);
 				return;
 			}
 
