@@ -89,9 +89,14 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: {
 			// Safe and common readonly commands (automatically approved)
 			echo: true,
+			'Write-Host': true,
+			'Write-Output': true,
 			ls: true,
+			'Get-ChildItem': true,
 			pwd: true,
+			'Get-Location': true,
 			cat: true,
+			'Get-Content': true,
 			head: true,
 			tail: true,
 			grep: true,
@@ -99,30 +104,52 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			which: true,
 			whoami: true,
 			date: true,
+			'Get-Date': true,
 			hostname: true,
+			'Get-Host': true,
 			ps: true,
+			'Get-Process': true,
 			wc: true,
 			sort: true,
 			uniq: true,
-			// PowerShell equivalents
-			'/^Get-ChildItem\\b/i': true,
-			'/^Get-Content\\b/i': true,
-			'/^Get-Location\\b/i': true,
-			'/^Get-Date\\b/i': true,
-			'/^Get-Host\\b/i': true,
-			'/^Get-Process\\b/i': true,
-			'/^Get-Service\\b/i': true,
-			// Dangerous commands (require explicit approval)
+
+			// There are countless dangerous commands available on the command line, the defaults here
+			// include common ones that the user is likely to want to explicitly approve first. This is
+			// not intended to be a catch all as the user needs to opt-in to auto-approve commands, it
+			// provides additional safety when the commands get approved by broad rules or via LLM-based
+			// approval
+
+			// Deleting files
 			rm: false,
 			rmdir: false,
 			del: false,
+			'Remove-Item': false,
+			ri: false,
+			rd: false,
+			erase: false,
+			// Killing processes, dangerous thing to do generally
 			kill: false,
+			'Stop-Process': false,
+			spps: false,
+			taskkill: false,
+			'taskkill.exe': false,
+			// Web requests, prompt injection concerns
 			curl: false,
 			wget: false,
-			eval: false,
+			'Invoke-RestMethod': false,
+			'Invoke-WebRequest': false,
+			'irm': false,
+			'iwr': false,
+			// File permissions and ownership, messing with these can cause hard to diagnose issues
 			chmod: false,
 			chown: false,
-			'/^Remove-Item\\b/i': false,
+			'Set-ItemProperty': false,
+			'sp': false,
+			'Set-Acl': false,
+			// Eval string, can lead to anything else running
+			eval: false,
+			'Invoke-Expression': false,
+			iex: false,
 		},
 	}
 };
