@@ -416,7 +416,6 @@ suite('CommandLineAutoApprover', () => {
 				"Remove-Item": false
 			});
 
-			// Test various case combinations for allowed commands
 			ok(isAutoApproved('Get-ChildItem'));
 			ok(isAutoApproved('get-childitem'));
 			ok(isAutoApproved('GET-CHILDITEM'));
@@ -428,7 +427,6 @@ suite('CommandLineAutoApprover', () => {
 			ok(isAutoApproved('GET-CONTENT file.txt'));
 			ok(isAutoApproved('Get-content file.txt'));
 
-			// Test various case combinations for denied commands
 			ok(!isAutoApproved('Remove-Item file.txt'));
 			ok(!isAutoApproved('remove-item file.txt'));
 			ok(!isAutoApproved('REMOVE-ITEM file.txt'));
@@ -467,7 +465,6 @@ suite('CommandLineAutoApprover', () => {
 				"/Remove-Item|rm/": false
 			});
 
-			// Test case-insensitive regex matching (should work even without 'i' flag in PowerShell)
 			ok(isAutoApproved('Get-ChildItem'));
 			ok(isAutoApproved('get-childitem'));
 			ok(isAutoApproved('GET-PROCESS'));
@@ -485,29 +482,14 @@ suite('CommandLineAutoApprover', () => {
 				"Stop-Process": false
 			});
 
-			// Test on Windows
-			os = OperatingSystem.Windows;
-			ok(isAutoApproved('Get-Process'));
-			ok(isAutoApproved('get-process'));
-			ok(isAutoApproved('GET-PROCESS'));
-			ok(!isAutoApproved('Stop-Process'));
-			ok(!isAutoApproved('stop-process'));
-
-			// Test on Linux (PowerShell Core)
-			os = OperatingSystem.Linux;
-			ok(isAutoApproved('Get-Process'));
-			ok(isAutoApproved('get-process'));
-			ok(isAutoApproved('GET-PROCESS'));
-			ok(!isAutoApproved('Stop-Process'));
-			ok(!isAutoApproved('stop-process'));
-
-			// Test on macOS (PowerShell Core)
-			os = OperatingSystem.Macintosh;
-			ok(isAutoApproved('Get-Process'));
-			ok(isAutoApproved('get-process'));
-			ok(isAutoApproved('GET-PROCESS'));
-			ok(!isAutoApproved('Stop-Process'));
-			ok(!isAutoApproved('stop-process'));
+			for (const currnetOS of [OperatingSystem.Windows, OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+				os = currnetOS;
+				ok(isAutoApproved('Get-Process'), `os=${os}`);
+				ok(isAutoApproved('get-process'), `os=${os}`);
+				ok(isAutoApproved('GET-PROCESS'), `os=${os}`);
+				ok(!isAutoApproved('Stop-Process'), `os=${os}`);
+				ok(!isAutoApproved('stop-process'), `os=${os}`);
+			}
 		});
 	});
 
