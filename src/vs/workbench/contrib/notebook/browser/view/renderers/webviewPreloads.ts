@@ -172,6 +172,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return;
 	}
 	let lastFocusedOutput: { id: string } | undefined = undefined;
+	let lastInputFocusedOutput: { id: string } | undefined = undefined;
 	const handleOutputFocusOut = (event: FocusEvent) => {
 		const outputFocus = event && getOutputContainer(event);
 		if (!outputFocus) {
@@ -179,12 +180,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 		// Possible we're tabbing through the elements of the same output.
 		// Lets see if focus is set back to the same output.
+		const wasInputFocused = lastInputFocusedOutput?.id === outputFocus.id;
 		lastFocusedOutput = undefined;
+		lastInputFocusedOutput = undefined;
 		setTimeout(() => {
 			if (lastFocusedOutput?.id === outputFocus.id) {
 				return;
 			}
 			postNotebookMessage<webviewMessages.IOutputBlurMessage>('outputBlur', outputFocus);
+			
+			// If input was focused and we're leaving the output, send input unfocus message
+			if (wasInputFocused && lastInputFocusedOutput?.id !== outputFocus.id) {
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id: outputFocus.id });
+			}
 		}, 0);
 	};
 
@@ -203,11 +211,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (isEditableElement(activeElement) || activeElement.tagName === 'SELECT') {
 				const id = lastFocusedOutput?.id;
 				if (id) {
+					lastInputFocusedOutput = lastFocusedOutput;
 					postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
-
-					activeElement.addEventListener('blur', () => {
-						postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
-					}, { once: true });
 				}
 				return;
 			}
