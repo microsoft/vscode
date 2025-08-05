@@ -28,11 +28,12 @@ import { ITerminalService, type ITerminalInstance } from '../../../terminal/brow
 import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
-import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
+import { getOutput } from './bufferOutputPolling.js';
 import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from './executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from './executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from './executeStrategy/noneExecuteStrategy.js';
+import { OutputMonitor, OutputMonitorAction } from './outputMonitor.js';
 import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
@@ -318,29 +319,19 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (args.isBackground) {
 			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } | undefined = undefined;
+			let outputMonitor: OutputMonitor | undefined = undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
 
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
+				outputMonitor = new OutputMonitor(execution, this._languageModelsService);
+				store.add(outputMonitor);
+
+				outputAndIdle = await outputMonitor.startMonitoring(this._chatService, command, invocation.context!, token);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
-				}
-
-				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					outputAndIdle = await racePollingOrPrompt(
-						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
-						() => promptForMorePolling(command, token, invocation.context!, this._chatService),
-						outputAndIdle,
-						token,
-						this._languageModelsService,
-						execution
-					);
-					if (token.isCancellationRequested) {
-						throw new CancellationError();
-					}
 				}
 
 				let resultText = (
@@ -387,6 +378,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					pollDurationMs: outputAndIdle?.pollDurationMs,
 					inputUserChars,
 					inputUserSigint,
+					outputMonitorActions: outputMonitor?.actions,
 				});
 			}
 		} else {
@@ -676,6 +668,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		exitCode: number | undefined;
 		inputUserChars: number;
 		inputUserSigint: boolean;
+		outputMonitorActions?: OutputMonitorAction[];
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
