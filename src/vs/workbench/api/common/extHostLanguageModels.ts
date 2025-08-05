@@ -5,6 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { AsyncIterableObject, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -16,17 +17,16 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { ChatImageMimeType, IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../contrib/chat/common/languageModels.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../contrib/chat/common/modelPicker/modelPickerWidget.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
 import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../contrib/chat/common/modelPicker/modelPickerWidget.js';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -38,15 +38,17 @@ type LanguageModelProviderData = {
 	readonly provider: vscode.LanguageModelChatProvider2;
 };
 
+type LMResponsePart = vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart;
+
 class LanguageModelResponseStream {
 
-	readonly stream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
+	readonly stream = new AsyncIterableSource<LMResponsePart>();
 
 	constructor(
 		readonly option: number,
-		stream?: AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>
+		stream?: AsyncIterableSource<LMResponsePart>
 	) {
-		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
+		this.stream = stream ?? new AsyncIterableSource<LMResponsePart>();
 	}
 }
 
@@ -55,7 +57,7 @@ class LanguageModelResponse {
 	readonly apiObject: vscode.LanguageModelChatResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
-	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
+	private readonly _defaultStream = new AsyncIterableSource<LMResponsePart>();
 	private _isDone: boolean = false;
 
 	constructor() {
@@ -93,15 +95,15 @@ class LanguageModelResponse {
 			return;
 		}
 
-		const partsByIndex = new Map<number, (vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart)[]>();
+		const partsByIndex = new Map<number, LMResponsePart[]>();
 
 		for (const fragment of Iterable.wrap(fragments)) {
 
-			let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
+			let out: LMResponsePart;
 			if (fragment.part.type === 'text') {
 				out = new extHostTypes.LanguageModelTextPart(fragment.part.value, fragment.part.audience);
 			} else if (fragment.part.type === 'data') {
-				out = new extHostTypes.LanguageModelTextPart('');
+				out = new extHostTypes.LanguageModelDataPart(fragment.part.data.buffer, fragment.part.mimeType, fragment.part.audience);
 			} else {
 				out = new extHostTypes.LanguageModelToolCallPart(fragment.part.toolCallId, fragment.part.name, fragment.part.parameters);
 			}
@@ -270,7 +272,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const queue: IChatResponseFragment[] = [];
 		const sendNow = () => {
 			if (queue.length > 0) {
-				this._proxy.$reportResponsePart(requestId, queue);
+				this._proxy.$reportResponsePart(requestId, new SerializableObjectWithBuffers(queue));
 				queue.length = 0;
 			}
 		};
@@ -298,7 +300,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.part.value, audience: fragment.part.audience };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelDataPart) {
-				part = { type: 'data', value: { mimeType: fragment.part.mimeType as ChatImageMimeType, data: VSBuffer.wrap(fragment.part.data) }, audience: fragment.part.audience };
+				part = { type: 'data', mimeType: fragment.part.mimeType, data: VSBuffer.wrap(fragment.part.data), audience: fragment.part.audience };
 			}
 
 			if (!part) {
@@ -482,10 +484,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return internalMessages;
 	}
 
-	async $acceptResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {
+	async $acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponseFragment | IChatResponseFragment[]>): Promise<void> {
 		const data = this._pendingRequest.get(requestId);
 		if (data) {
-			data.res.handleFragment(chunk);
+			data.res.handleFragment(chunk.value);
 		}
 	}
 
