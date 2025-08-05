@@ -31,15 +31,9 @@ import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDia
 import { getPromptsTypeForLanguageId, PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { resizeImage, imageToHash } from './imageUtils.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-
-import product from '../../../../platform/product/common/product.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
-
-const defaultChat = {
-	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
-};
 
 export const IChatAttachmentResolveService = createDecorator<IChatAttachmentResolveService>('IChatAttachmentResolveService');
 
@@ -69,7 +63,8 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		@IDialogService private dialogService: IDialogService,
 		@IAuthenticationQueryService private authenticationQueryService: IAuthenticationQueryService,
 		@IAuthenticationService private authenticationService: IAuthenticationService,
-		@ISharedWebContentExtractorService private sharedWebContentExtractorService: ISharedWebContentExtractorService
+		@ISharedWebContentExtractorService private sharedWebContentExtractorService: ISharedWebContentExtractorService,
+		@IProductService private productService: IProductService
 	) { }
 
 	// --- EDITORS ---
@@ -218,7 +213,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 			const binaryData = await resizeImage(image.data, image.mimeType);
 			const id = image.id || await imageToHash(binaryData);
 
-			const providerId = defaultChat?.provider.default.id;
+			const providerId = this.productService.defaultChatAgent?.provider?.default?.id ?? '';
 			let token: string | undefined = '';
 
 			// Get all accounts for the provider

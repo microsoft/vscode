@@ -17,7 +17,6 @@ import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IImageResizeService } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -34,11 +33,6 @@ interface ISyncedToolData {
 	toolData: IToolData;
 	store: DisposableStore;
 }
-
-const defaultChat = {
-	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
-};
 
 export class McpLanguageModelToolContribution extends Disposable implements IWorkbenchContribution {
 
@@ -247,7 +241,7 @@ class McpToolImplementation implements IToolImpl {
 					} catch {
 						finalData = decodeBase64(value);
 					}
-					const providerId = defaultChat?.provider.default.id;
+					const providerId = this._productService.defaultChatAgent?.provider?.default?.id ?? '';
 					let token: string | undefined = '';
 					const accounts: any[] = [];
 					await this.authenticationQueryService.provider(providerId).forEachAccount(async account => {
