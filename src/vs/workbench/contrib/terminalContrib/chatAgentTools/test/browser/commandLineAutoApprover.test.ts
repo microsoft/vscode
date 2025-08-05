@@ -701,6 +701,147 @@ suite('CommandLineAutoApprover', () => {
 		});
 	});
 
+	suite('cmd.exe special handling for local executables', () => {
+		setup(() => {
+			shell = 'cmd.exe';
+			os = OperatingSystem.Windows;
+		});
+
+		test('should not auto-approve command without path separators when only base command is approved', () => {
+			setAutoApprove({
+				"abc": true
+			});
+
+			// 'abc' could resolve to 'abc.bat' in the current directory on cmd.exe
+			// The user approved 'abc' but not '.\abc', so this should not be approved
+			ok(!isAutoApproved('abc'), 'Should not approve abc when it could resolve to local abc.bat');
+			ok(!isAutoApproved('abc arg1 arg2'), 'Should not approve abc with args when it could resolve to local abc.bat');
+		});
+
+		test('should auto-approve command when prefixed version is explicitly approved', () => {
+			setAutoApprove({
+				".\\abc": true
+			});
+
+			ok(isAutoApproved('abc'), 'Should approve abc when .\\abc is approved');
+			ok(isAutoApproved('abc arg1 arg2'), 'Should approve abc with args when .\\abc is approved');
+		});
+
+		test('should auto-approve commands with path separators normally', () => {
+			setAutoApprove({
+				"C:\\tools\\myapp": true,
+				"./script": true,
+				"bin/tool": true
+			});
+
+			ok(isAutoApproved('C:\\tools\\myapp'), 'Should approve full path commands');
+			ok(isAutoApproved('./script arg'), 'Should approve relative path commands');
+			ok(isAutoApproved('bin/tool --flag'), 'Should approve commands with forward slashes');
+		});
+
+		test('should handle mixed scenarios correctly', () => {
+			setAutoApprove({
+				"echo": true, // This won't work for 'echo' due to cmd special handling
+				".\\echo": true, // This will work for 'echo'
+				"C:\\Windows\\System32\\cmd.exe": true,
+				"notepad": false
+			});
+
+			ok(!isAutoApproved('echo hello'), 'Should not approve echo when only base command is approved');
+			ok(isAutoApproved('C:\\Windows\\System32\\cmd.exe /c dir'), 'Should approve full path commands');
+			ok(!isAutoApproved('notepad file.txt'), 'Should deny notepad even with cmd special handling');
+		});
+
+		test('should handle cmd.exe variations', () => {
+			setAutoApprove({
+				".\\test": true
+			});
+
+			// Test different ways cmd.exe might be specified
+			for (const cmdShell of ['cmd.exe', 'cmd', 'CMD.EXE', 'C:\\Windows\\System32\\cmd.exe']) {
+				shell = cmdShell;
+				ok(isAutoApproved('test arg'), `Should work with shell: ${cmdShell}`);
+			}
+		});
+
+		test('should not affect other shells', () => {
+			setAutoApprove({
+				"abc": true
+			});
+
+			// Test that bash/sh don't get the cmd.exe special handling
+			shell = 'bash';
+			os = OperatingSystem.Linux;
+			ok(isAutoApproved('abc'), 'Should approve abc normally in bash');
+
+			shell = 'zsh';
+			os = OperatingSystem.Macintosh;
+			ok(isAutoApproved('abc arg'), 'Should approve abc with args normally in zsh');
+
+			shell = 'pwsh';
+			os = OperatingSystem.Windows;
+			ok(isAutoApproved('abc'), 'Should approve abc normally in PowerShell');
+		});
+
+		test('should handle environment variables with cmd.exe special handling', () => {
+			shell = 'cmd.exe';
+			os = OperatingSystem.Windows;
+
+			setAutoApprove({
+				".\\test": true
+			});
+
+			// Environment variables are handled before cmd special processing
+			ok(isAutoApproved('SET VAR=value && test arg'), 'Should handle env vars with cmd special handling');
+		});
+
+		test('should handle regex patterns with cmd.exe special handling', () => {
+			setAutoApprove({
+				"/^\\\\.\\\\test/": true, // Matches .\test
+				"/^test$/": false // Denies just 'test'
+			});
+
+			ok(isAutoApproved('test'), 'Should approve test when prefixed regex matches');
+			ok(isAutoApproved('test arg1'), 'Should approve test with args when prefixed regex matches');
+		});
+
+		test('should handle complex command scenarios', () => {
+			setAutoApprove({
+				".\\build": true,
+				"npm": false, // Deny npm without path
+				".\\npm": false, // Also deny local npm
+				"git": true // This won't work due to cmd special handling
+			});
+
+			ok(isAutoApproved('build --release'), 'Should approve build when prefixed version is approved');
+			ok(!isAutoApproved('npm install'), 'Should deny npm');
+			ok(!isAutoApproved('git status'), 'Should not approve git when only base command is approved');
+		});
+
+		test('should handle empty and whitespace commands', () => {
+			setAutoApprove({
+				".\\test": true
+			});
+
+			ok(!isAutoApproved(''), 'Should not approve empty command');
+			ok(!isAutoApproved('   '), 'Should not approve whitespace-only command');
+		});
+
+		test('should work on Windows only', () => {
+			setAutoApprove({
+				"abc": true
+			});
+
+			// Test that non-Windows platforms don't get cmd special handling even with cmd.exe shell
+			shell = 'cmd.exe';
+			os = OperatingSystem.Linux;
+			ok(isAutoApproved('abc'), 'Should approve abc normally on Linux even with cmd.exe shell');
+
+			os = OperatingSystem.Macintosh;
+			ok(isAutoApproved('abc'), 'Should approve abc normally on macOS even with cmd.exe shell');
+		});
+	});
+
 	suite('environment variable handling', () => {
 		test('should handle environment variable assignments before commands in bash/sh', () => {
 			shell = 'bash';

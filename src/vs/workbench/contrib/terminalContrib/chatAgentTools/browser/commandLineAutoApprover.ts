@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import type { OperatingSystem } from '../../../../../base/common/platform.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
@@ -101,6 +101,15 @@ export class CommandLineAutoApprover extends Disposable {
 		return { result: 'noMatch', reason: `Command line '${commandLine}' has no matching auto approve entries` };
 	}
 
+	private _isCmdShell(shell: string, os: OperatingSystem): boolean {
+		if (os !== OperatingSystem.Windows) {
+			return false;
+		}
+		
+		const shellLower = shell.toLowerCase();
+		return shellLower.includes('cmd.exe') || shellLower.endsWith('cmd');
+	}
+
 	private _removeEnvAssignments(command: string, shell: string, os: OperatingSystem): string {
 		const trimmedCommand = command.trimStart();
 
@@ -127,14 +136,39 @@ export class CommandLineAutoApprover extends Disposable {
 	private _commandMatchesRule(rule: IAutoApproveRule, command: string, shell: string, os: OperatingSystem): boolean {
 		const actualCommand = this._removeEnvAssignments(command, shell, os);
 		const isPwsh = isPowerShell(shell, os);
+		const isCmdShell = this._isCmdShell(shell, os);
+
+		// Get the command to test against the rule
+		let commandToTest = actualCommand;
+
+		// Special handling for cmd.exe: if the command has no path separators,
+		// it could resolve to a local executable file (like abc.bat), so we need
+		// to check against the prefixed version to ensure proper security validation
+		if (isCmdShell && actualCommand) {
+			const commandParts = actualCommand.trim().split(/\s+/);
+			const firstCommand = commandParts[0];
+			
+			// Check if the first command has no path separators (no \, /, or :)
+			if (firstCommand && !/[\\\/:]/.test(firstCommand)) {
+				// For cmd.exe, a command without path separators like 'abc' could resolve
+				// to local files like '.\abc.bat'. We need to test against the prefixed version
+				// to ensure the user intended to approve local file execution
+				const prefixedCommand = `.\\${firstCommand}`;
+				if (commandParts.length > 1) {
+					commandToTest = `${prefixedCommand} ${commandParts.slice(1).join(' ')}`;
+				} else {
+					commandToTest = prefixedCommand;
+				}
+			}
+		}
 
 		// PowerShell is case insensitive regardless of platform
-		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(actualCommand)) {
+		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(commandToTest)) {
 			return true;
-		} else if (isPwsh && actualCommand.startsWith('(')) {
+		} else if (isPwsh && commandToTest.startsWith('(')) {
 			// Allow ignoring of the leading ( for PowerShell commands as it's a command pattern to
 			// operate on the output of a command. For example `(Get-Content README.md) ...`
-			if (rule.regexCaseInsensitive.test(actualCommand.slice(1))) {
+			if (rule.regexCaseInsensitive.test(commandToTest.slice(1))) {
 				return true;
 			}
 		}
@@ -218,7 +252,7 @@ export class CommandLineAutoApprover extends Disposable {
 			// Remove global flag as it changes how the regex state works which we need to handle
 			// internally
 			if (flags) {
-				flags = flags.replaceAll('g', '');
+				flags = flags.replace(/g/g, '');
 			}
 
 			// Allow .* as users expect this would match everything
