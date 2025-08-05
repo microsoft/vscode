@@ -449,7 +449,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 			for (const triggerChar of provider.triggerCharacters) {
 				if (char === triggerChar) {
-					return this._requestTriggerCharQuickSuggestCompletions();
+					return true;
 				}
 			}
 		}
@@ -542,13 +542,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						if (
 							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
 							// with git branches in particular
-							this._isFilteringDirectories && char.match(/[\\\/]$/)
+							this._isFilteringDirectories && char.match(/[\\\/]$/) ||
+							this._checkProviderTriggerCharacters(char)
 						) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();
-						}
-						// Check all provider trigger characters when backspacing
-						if (!sent) {
-							sent = this._checkProviderTriggerCharacters(char);
 						}
 					}
 				}
