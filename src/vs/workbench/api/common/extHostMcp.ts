@@ -340,12 +340,11 @@ class McpHTTPHandle extends Disposable {
 				if (resourceMetadata.resource.endsWith("/") !== url.endsWith("/")) {
 					hint = " (Hint: Check for trailing slash differences)";
 				}
+
 				throw new Error(
-					`Protected Resource Metadata resource "${resourceMetadata.resource}" does not match MCP server resolved resource "${url}".${hint}
-                These must match exactly as per OAuth spec: https://datatracker.ietf.org/doc/html/rfc9728#section-3.3`
+					`Protected Resource Metadata resource "${resourceMetadata.resource}" does not match MCP server resolved resource "${url}".${hint} These must match exactly as per OAuth spec: https://datatracker.ietf.org/doc/html/rfc9728#section-3.3`
 				);
 			}
-
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
