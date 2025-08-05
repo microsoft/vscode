@@ -6,8 +6,8 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
 
 export interface IRecordableLogEntry {
 	sourceId: string;
@@ -62,27 +62,24 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 	}
 
 	public readonly isEnabled;
-	private readonly _contextKeyValue;
+	private readonly _isEnabledContextKeyValue;
 
 	constructor(
-		private readonly _contextKey: string,
+		private readonly _key: string,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService
+		@IDataChannelService private readonly _dataChannelService: IDataChannelService,
 	) {
 		super();
-		this._contextKeyValue = observableContextKey<string>(this._contextKey, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
-		this.isEnabled = this._contextKeyValue.map(v => v !== undefined);
+		this._isEnabledContextKeyValue = observableContextKey<boolean>('structuredLogger.enabled:' + this._key, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
+		this.isEnabled = this._isEnabledContextKeyValue.map(v => v !== undefined);
 	}
 
 	public log(data: T): boolean {
-		const commandId = this._contextKeyValue.get();
-		if (!commandId) {
+		const enabled = this._isEnabledContextKeyValue.get();
+		if (!enabled) {
 			return false;
 		}
-		try {
-			this._commandService.executeCommand(commandId, data).catch(() => { });
-		} catch (e) {
-		}
+		this._dataChannelService.getDataChannel<T>('structuredLogger:' + this._key).sendData(data);
 		return true;
 	}
 }
