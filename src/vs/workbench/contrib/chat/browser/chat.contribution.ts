@@ -387,8 +387,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
-			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
-			default: false,
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
+			default: true,
 			tags: ['preview'],
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
@@ -541,7 +541,7 @@ configurationRegistry.registerConfiguration({
 			default: 'default',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		'chat.todoListTool.enabled': {

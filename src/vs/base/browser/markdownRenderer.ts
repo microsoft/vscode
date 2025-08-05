@@ -20,6 +20,7 @@ import { escape } from '../common/strings.js';
 import { URI } from '../common/uri.js';
 import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
+import { convertTagToPlaintext } from './domSanitize.js';
 import { DomEmitter } from './event.js';
 import { FormattedTextRenderOptions } from './formattedTextRenderer.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
@@ -209,6 +210,20 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			}
 			activateLink(markdown, options, keyboardEvent);
 		}));
+	}
+
+	// Remove/disable inputs
+	for (const input of [...element.getElementsByTagName('input')]) {
+		if (input.attributes.getNamedItem('type')?.value === 'checkbox') {
+			input.setAttribute('disabled', '');
+		} else {
+			if (options.sanitizerConfig?.replaceWithPlaintext) {
+				const replacement = convertTagToPlaintext(input);
+				input.parentElement?.replaceChild(replacement, input);
+			} else {
+				input.remove();
+			}
+		}
 	}
 
 	return {
@@ -412,15 +427,12 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 	}
 }
 
-
-const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
-
 function sanitizeRenderedMarkdown(
 	renderedMarkdown: string,
 	isTrusted: boolean | MarkdownStringTrustedOptions,
 	options: MarkdownSanitizerConfig = {},
 ): TrustedHTML {
-	const sanitizerConfig = getSanitizerOptions(isTrusted, options);
+	const sanitizerConfig = getDomSanitizerConfig(isTrusted, options);
 	return domSanitize.sanitizeHtml(renderedMarkdown, sanitizerConfig);
 }
 
@@ -434,7 +446,6 @@ export const allowedMarkdownHtmlAttributes = [
 	'autoplay',
 	'alt',
 	'checked',
-	'class',
 	'colspan',
 	'controls',
 	'disabled',
@@ -452,6 +463,7 @@ export const allowedMarkdownHtmlAttributes = [
 	'type',
 	'width',
 	'start',
+	'value',
 
 	// Custom markdown attributes
 	'data-code',
@@ -462,7 +474,7 @@ export const allowedMarkdownHtmlAttributes = [
 	'class',
 ];
 
-function getSanitizerOptions(isTrusted: boolean | MarkdownStringTrustedOptions, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
+function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
 	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -507,6 +519,7 @@ function getSanitizerOptions(isTrusted: boolean | MarkdownStringTrustedOptions, 
 				Schemas.vscodeRemoteResource,
 			]
 		},
+		replaceWithPlaintext: options.replaceWithPlaintext,
 		_do_not_use_hooks: {
 			uponSanitizeAttribute: (element, e) => {
 				if (options.customAttrSanitizer) {
@@ -545,61 +558,6 @@ function getSanitizerOptions(isTrusted: boolean | MarkdownStringTrustedOptions, 
 					e.keepAttr = false;
 				}
 			},
-			uponSanitizeElement: (element, e) => {
-				let wantsReplaceWithPlaintext = false;
-				if (e.tagName === 'input') {
-					if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
-						element.setAttribute('disabled', '');
-					} else if (options.replaceWithPlaintext) {
-						wantsReplaceWithPlaintext = true;
-					} else {
-						element.remove();
-						return;
-					}
-				}
-
-				if (options.replaceWithPlaintext && (wantsReplaceWithPlaintext || (!e.allowedTags[e.tagName] && e.tagName !== 'body'))) {
-					if (element.parentElement) {
-						let startTagText: string;
-						let endTagText: string | undefined;
-						if (e.tagName === '#comment') {
-							startTagText = `<!--${element.textContent}-->`;
-						} else {
-							const isSelfClosing = selfClosingTags.includes(e.tagName);
-							const attrString = element.attributes.length ?
-								' ' + Array.from(element.attributes)
-									.map(attr => `${attr.name}="${attr.value}"`)
-									.join(' ')
-								: '';
-							startTagText = `<${e.tagName}${attrString}>`;
-							if (!isSelfClosing) {
-								endTagText = `</${e.tagName}>`;
-							}
-						}
-
-						const fragment = document.createDocumentFragment();
-						const textNode = element.parentElement.ownerDocument.createTextNode(startTagText);
-						fragment.appendChild(textNode);
-						const endTagTextNode = endTagText ? element.parentElement.ownerDocument.createTextNode(endTagText) : undefined;
-						while (element.firstChild) {
-							fragment.appendChild(element.firstChild);
-						}
-
-						if (endTagTextNode) {
-							fragment.appendChild(endTagTextNode);
-						}
-
-						if (element.nodeType === Node.COMMENT_NODE) {
-							// Workaround for https://github.com/cure53/DOMPurify/issues/1005
-							// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
-							// an exception. Instead we insert the text node before the comment.
-							element.parentElement.insertBefore(fragment, element);
-						} else {
-							element.parentElement.replaceChild(fragment, element);
-						}
-					}
-				}
-			}
 		}
 	};
 }

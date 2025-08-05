@@ -240,6 +240,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				listInactiveFocusBackground: quickInputListFocusBackground,
 				listFocusOutline: activeContrastBorder,
 				listInactiveFocusOutline: activeContrastBorder,
+				treeStickyScrollBackground: quickInputBackground,
 			}),
 			pickerGroup: {
 				pickerGroupBorder: asCssVariable(pickerGroupBorder),

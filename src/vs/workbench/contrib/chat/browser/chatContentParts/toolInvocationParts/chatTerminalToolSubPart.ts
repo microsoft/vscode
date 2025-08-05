@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { thenIfNotDisposed } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,13 +18,14 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, type IChatTerminalToolInvocationData } from '../../../common/chatService.js';
+import type { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { EditorPool } from '../chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
@@ -38,6 +39,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		private readonly renderer: MarkdownRenderer,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
+		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -52,8 +54,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			throw new Error('Confirmation messages are missing');
 		}
 
-		const title = toolInvocation.confirmationMessages.title;
-		const message = toolInvocation.confirmationMessages.message;
+		const { title, message, disclaimer } = toolInvocation.confirmationMessages;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -136,6 +137,10 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			this.context.container,
 		));
 
+		if (disclaimer) {
+			this._appendMarkdownPart(element, disclaimer, codeBlockRenderOptions);
+		}
+
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
 		this._register(confirmWidget.onDidClick(button => {
 			toolInvocation.confirmed.complete(button.data);
@@ -154,5 +159,23 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			scheme: Schemas.vscodeChatCodeBlock,
 			path: generateUuid(),
 		});
+	}
+
+	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
+		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, {
+			kind: 'markdownContent',
+			content: typeof message === 'string' ? new MarkdownString().appendText(message) : message
+		},
+			this.context,
+			this.editorPool,
+			false,
+			this.codeBlockStartIndex,
+			this.renderer,
+			this.currentWidthDelegate(),
+			this.codeBlockModelCollection,
+			{ codeBlockRenderOptions }
+		));
+		dom.append(container, part.domNode);
+		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 	}
 }
