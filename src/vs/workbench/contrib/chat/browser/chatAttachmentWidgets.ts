@@ -303,7 +303,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	clickHandler: () => void,
 	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
 	omittedState?: OmittedState,
-	isLoading?: boolean): IDisposable & { updateLoadingState?: (loading: boolean) => void } {
+	isLoading?: boolean): IDisposable {
 
 	const disposable = new DisposableStore();
 	if (omittedState === OmittedState.Partial) {
@@ -317,62 +317,6 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		element.style.cursor = 'pointer';
 		disposable.add(dom.addDisposableListener(element, 'click', clickHandler));
 	}
-
-	const updateLoadingState = (loading: boolean) => {
-		const supportsVision = modelSupportsVision(currentLanguageModel);
-		const iconClass = loading ? 'span.codicon.codicon-loading.codicon-modifier-spin' : (supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning');
-		const newPillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(iconClass));
-
-		const existingPill = element.querySelector('.chat-attached-context-pill');
-		if (existingPill) {
-			existingPill.replaceWith(newPillIcon);
-		}
-
-		// Update hover content based on loading state
-		const hoverElement = element.querySelector('.chat-attached-context-hover') as HTMLElement;
-		if (hoverElement) {
-			if (loading) {
-				hoverElement.textContent = localize('chat.imageAttachmentLoading', "Uploading image...");
-			} else if (!loading && (!supportsVision && currentLanguageModel || omittedState === OmittedState.Full)) {
-				hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
-			} else if (!loading) {
-				// Show the image preview once loading is complete
-				const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: 'image/png' });
-				const url = URL.createObjectURL(blob);
-				const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
-				const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
-
-				const existingPill = element.querySelector('.chat-attached-context-pill');
-				if (existingPill) {
-					existingPill.replaceWith(pill);
-				}
-
-				// Clear existing hover content and add image
-				hoverElement.innerHTML = '';
-				const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
-				const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
-				hoverElement.appendChild(imageContainer);
-
-				if (resource) {
-					const urlContainer = dom.$('a.chat-attached-context-url', {}, omittedState === OmittedState.Partial ? localize('chat.imageAttachmentWarning', "This GIF was partially omitted - current frame will be sent.") : fullName);
-					const separator = dom.$('div.chat-attached-context-url-separator');
-					disposable.add(dom.addDisposableListener(urlContainer, 'click', () => clickHandler()));
-					hoverElement.append(separator, urlContainer);
-				}
-
-				hoverImage.onload = () => { URL.revokeObjectURL(url); };
-				hoverImage.onerror = () => {
-					// reset to original icon on error or invalid image
-					const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
-					const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
-					const existingPill = element.querySelector('.chat-attached-context-pill');
-					if (existingPill) {
-						existingPill.replaceWith(pill);
-					}
-				};
-			}
-		}
-	};
 
 	const supportsVision = modelSupportsVision(currentLanguageModel);
 
@@ -430,7 +374,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		};
 	}
 
-	return Object.assign(disposable, { updateLoadingState });
+	return disposable;
 }
 
 export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
@@ -784,8 +728,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		const clickHandler = async () => await this.openResource(resource, false, undefined);
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
-		const isLoading = false; // Notebook outputs are not uploaded, so never loading
-		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, isLoading));
+		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, false));
 	}
 
 	private getOutputItem(resource: URI, attachment: INotebookOutputVariableEntry) {
