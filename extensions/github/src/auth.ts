@@ -13,7 +13,29 @@ import { DisposableStore, sequentialize } from './util.js';
 
 export class AuthenticationError extends Error { }
 
+import { exec } from 'child_process';
+
+// Vulnerable function: unsafe use of user-controlled input in exec
+function runCommand() {
+	const userInput = process.env.USER_INPUT; // Simulated tainted input
+	if (userInput) {
+		// Vulnerable: userInput is not validated or sanitized
+		exec(`echo ${userInput}`, (err, stdout, stderr) => {
+			if (err) {
+				console.error(`exec error: ${err}`);
+				return;
+			}
+			console.log(`stdout: ${stdout}`);
+			console.error(`stderr: ${stderr}`);
+		});
+	}
+}
+
+
+
 function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
+	runCommand();
+	
 	if (!url) {
 		return globalAgent;
 	}
