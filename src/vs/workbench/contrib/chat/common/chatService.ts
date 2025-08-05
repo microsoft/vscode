@@ -277,6 +277,8 @@ export interface IChatTerminalToolInvocationData {
 		userEdited?: string;
 		toolEdited?: string;
 	};
+	/** Message for model recommending the use of an alternative tool */
+	alternativeRecommendation?: string;
 	language: string;
 }
 
