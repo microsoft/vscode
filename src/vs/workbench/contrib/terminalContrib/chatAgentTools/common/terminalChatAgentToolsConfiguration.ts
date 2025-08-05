@@ -86,12 +86,45 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				},
 			]
 		},
-		// There are countless dangerous commands available on the command line, the defaults here
-		// include common ones that the user is likely to want to explicitly approve first. This is
-		// not intended to be a catch all as the user needs to opt-in to auto-approve commands, it
-		// provides additional safety when the commands get approved by broad rules or via LLM-based
-		// approval
 		default: {
+			// Safe and common readonly commands (automatically approved)
+			echo: true,
+			'Write-Host': true,
+			'Write-Output': true,
+			ls: true,
+			find: true,
+			'Get-ChildItem': true,
+			pwd: true,
+			'Get-Location': true,
+			cat: true,
+			head: true,
+			tail: true,
+			'Get-Content': true,
+			grep: true,
+			wc: true,
+			'Select-Object': true,
+			'Select-String': true,
+			'Where-Obejct': true,
+			'Measure-Object': true,
+			sort: true,
+			uniq: true,
+			'Sort-Object': true,
+			which: true,
+			'Get-Command': true,
+			date: true,
+			'Get-Date': true,
+			hostname: true,
+			'Get-Host': true,
+			ps: true,
+			'Get-Process': true,
+			whoami: true,
+
+			// There are countless dangerous commands available on the command line, the defaults here
+			// include common ones that the user is likely to want to explicitly approve first. This is
+			// not intended to be a catch all as the user needs to opt-in to auto-approve commands, it
+			// provides additional safety when the commands get approved by broad rules or via LLM-based
+			// approval
+
 			// Deleting files
 			rm: false,
 			rmdir: false,
