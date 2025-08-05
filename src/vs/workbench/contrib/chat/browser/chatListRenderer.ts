@@ -951,8 +951,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							const isReadOrSearchTool = partToRender.kind === 'toolInvocation' && (
 								partToRender.toolId.includes('read') ||
 								partToRender.toolId.includes('search') ||
-								partToRender.toolId.includes('applyPatch') ||
 								partToRender.toolId.includes('find'));
+
+							const isMarkdownCodePill = partToRender.kind === 'markdownContent' &&
+								newPart?.domNode?.querySelector('.chat-codeblock-pill-widget') !== null;
 
 							if (partToRender.kind === 'thinking') {
 								templateData.thinkingContainer.classList.remove('hidden');
@@ -962,7 +964,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 									alreadyRenderedPart.domNode.remove();
 									templateData.thinkingContainer.appendChild(newPart.domNode);
 								}
-							} else if (isReadOrSearchTool) {
+							} else if (isReadOrSearchTool || isMarkdownCodePill) {
 								// Find existing ChatThinkingContentPart and add tool invocation to it
 								const existingThinkingPart = templateData.renderedParts?.find(part =>
 									part instanceof ChatThinkingContentPart &&
@@ -986,14 +988,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						const isReadOrSearchTool = partToRender.kind === 'toolInvocation' && (
 							partToRender.toolId.includes('read') ||
 							partToRender.toolId.includes('search') ||
-							partToRender.toolId.includes('applyPatch') ||
 							partToRender.toolId.includes('find')
 						);
+
+						const isMarkdownCodePill = partToRender.kind === 'markdownContent' &&
+							newPart?.domNode?.querySelector('.chat-codeblock-pill-widget') !== null;
 
 						if (partToRender.kind === 'thinking') {
 							templateData.thinkingContainer.classList.remove('hidden');
 							templateData.thinkingContainer.appendChild(newPart.domNode);
-						} else if (isReadOrSearchTool) {
+						} else if (isReadOrSearchTool || isMarkdownCodePill) {
 							// Find existing ChatThinkingContentPart and add tool invocation to it
 							const existingThinkingPart = templateData.renderedParts?.find(part =>
 								part instanceof ChatThinkingContentPart &&
@@ -1536,6 +1540,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.BLUR, () => {
 				this.hoverHidden(templateData.requestHover);
 			}));
+		}
+
+		if (isResponseVM(element) && element.isComplete && !element.isCanceled && !element.errorDetails?.responseIsFiltered && !element.errorDetails?.responseIsIncomplete) {
+
 		}
 
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
