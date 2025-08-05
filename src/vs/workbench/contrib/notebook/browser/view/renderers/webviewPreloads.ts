@@ -198,22 +198,26 @@ async function webviewPreloads(ctx: PreloadContext) {
 		lastFocusedOutput = getOutputContainer(e);
 		let activeElement = window.document.activeElement;
 
-		// Recursively check for shadow root descendants
-		while (activeElement?.shadowRoot) {
-			activeElement = activeElement.shadowRoot.activeElement;
-		}
+		// Recursively check for editable elements in shadow DOM
+		while (activeElement) {
+			if (isEditableElement(activeElement) || activeElement.tagName === 'SELECT') {
+				const id = lastFocusedOutput?.id;
+				if (id) {
+					postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
-		if (!activeElement) {
-			return;
-		}
+					activeElement.addEventListener('blur', () => {
+						postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
+					}, { once: true });
+				}
+				return;
+			}
 
-		const id = lastFocusedOutput?.id;
-		if (id && (isEditableElement(activeElement) || activeElement.tagName === 'SELECT')) {
-			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
-
-			activeElement.addEventListener('blur', () => {
-				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
-			}, { once: true });
+			// If not editable, check shadow root descendants
+			if (activeElement.shadowRoot) {
+				activeElement = activeElement.shadowRoot.activeElement;
+			} else {
+				break;
+			}
 		}
 	};
 
