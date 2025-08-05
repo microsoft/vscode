@@ -113,38 +113,48 @@ export function detectsCommonPromptPattern(cursorLine: string): IPromptDetection
 export async function waitForIdleWithPromptHeuristics(
 	onData: Event<unknown>,
 	instance: ITerminalInstance,
-	initialTimeoutMs: number,
-	extendedTimeoutMs: number = 2000
+	idlePollIntervalMs: number,
+	extendedTimeoutMs: number,
 ): Promise<IPromptDetectionResult> {
-	await waitForIdle(onData, initialTimeoutMs);
+	await waitForIdle(onData, idlePollIntervalMs);
 
-	try {
-		const xterm = await instance.xtermReadyPromise;
-		if (xterm) {
+	const xterm = await instance.xtermReadyPromise;
+	if (!xterm) {
+		return { detected: false, reason: `Xterm not available, using ${idlePollIntervalMs}ms timeout` };
+	}
+	const startTime = Date.now();
+
+	// Attempt to detect a prompt pattern after idle
+	while (Date.now() - startTime < extendedTimeoutMs) {
+		try {
 			let content = '';
 			const buffer = xterm.raw.buffer.active;
 			const line = buffer.getLine(buffer.baseY + buffer.cursorY);
 			if (line) {
-				content = line.translateToString(true) + '\n';
+				content = line.translateToString(true);
 			}
-
-			// If we detect a common prompt pattern, we're done
 			const promptResult = detectsCommonPromptPattern(content);
 			if (promptResult.detected) {
 				return promptResult;
 			}
-
-			// Otherwise, wait for the extended timeout period
-			await waitForIdle(onData, extendedTimeoutMs);
-			return { detected: false, reason: 'Extended timeout reached without prompt detection' };
+		} catch (error) {
+			// Continue polling even if there's an error reading terminal content
 		}
-	} catch (error) {
-		// If there's an error getting terminal content, fall back to extended timeout
-		await waitForIdle(onData, extendedTimeoutMs);
-		return { detected: false, reason: `Error reading terminal content: ${error}` };
+		await waitForIdle(onData, Math.min(idlePollIntervalMs, extendedTimeoutMs - (Date.now() - startTime)));
 	}
 
-	return { detected: false, reason: 'Xterm not available' };
+	// Extended timeout reached without detecting a prompt
+	try {
+		let content = '';
+		const buffer = xterm.raw.buffer.active;
+		const line = buffer.getLine(buffer.baseY + buffer.cursorY);
+		if (line) {
+			content = line.translateToString(true) + '\n';
+		}
+		return { detected: false, reason: `Extended timeout reached without prompt detection. Last line: "${content.trim()}"` };
+	} catch (error) {
+		return { detected: false, reason: `Extended timeout reached. Error reading terminal content: ${error}` };
+	}
 }
 
 /**
