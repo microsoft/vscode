@@ -56,12 +56,8 @@ export interface IPromptDetectionResult {
  * time to complete before assuming they're done.
  */
 export function detectsCommonPromptPattern(cursorLine: string): IPromptDetectionResult {
-	if (!cursorLine || cursorLine.trim().length === 0) {
+	if (cursorLine.trim().length === 0) {
 		return { detected: false, reason: 'Content is empty or contains only whitespace' };
-	}
-
-	if (!cursorLine) {
-		return { detected: false, reason: 'No non-empty lines found' };
 	}
 
 	// PowerShell prompt: PS C:\> or similar patterns
