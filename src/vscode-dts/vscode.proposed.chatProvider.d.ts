@@ -139,6 +139,6 @@ declare module 'vscode' {
 
 	export interface ChatResponseFragment2 {
 		index: number;
-		part: LanguageModelTextPart | LanguageModelToolCallPart;
+		part: LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart;
 	}
 }
