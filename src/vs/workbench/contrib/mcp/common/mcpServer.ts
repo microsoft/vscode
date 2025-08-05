@@ -450,9 +450,9 @@ export class McpServer extends Disposable implements IMcpServer {
 		return this._fullDefinitions;
 	}
 
-	public showOutput(): void {
+	public showOutput(preserveFocus?: boolean) {
 		this._loggerService.setVisibility(this._loggerId, true);
-		this._outputService.showChannel(this._loggerId);
+		return this._outputService.showChannel(this._loggerId, preserveFocus);
 	}
 
 	public resources(token?: CancellationToken): AsyncIterable<IMcpResource[]> {

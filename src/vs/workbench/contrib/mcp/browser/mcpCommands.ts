@@ -494,7 +494,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					} else if (state === DisplayedState.Error) {
 						const server = findLast(servers, isServer);
 						if (server) {
-							server.showOutput();
+							await server.showOutput(true);
 							commandService.executeCommand(McpCommandIds.ServerOptions, server.definition.id);
 						}
 					} else {
