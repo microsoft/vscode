@@ -12,6 +12,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import * as osPath from '../../../../base/common/path.js';
 import * as platform from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -350,40 +351,69 @@ export class LinkDetector implements ILinkDetector {
 			return [{ kind: 'text', value: text, captures: [], index: 0 }];
 		}
 
+		// Strip ANSI escape codes for regex matching while preserving original text for display
+		const cleanedText = removeAnsiEscapeCodes(text);
+		
+		// Build a position map from cleaned text positions back to original text positions
+		const positionMap: number[] = [];
+		let originalIndex = 0;
+		let cleanedIndex = 0;
+		
+		while (originalIndex < text.length) {
+			if (cleanedIndex < cleanedText.length && text[originalIndex] === cleanedText[cleanedIndex]) {
+				positionMap[cleanedIndex] = originalIndex;
+				cleanedIndex++;
+			}
+			originalIndex++;
+		}
+		// Map the end position
+		positionMap[cleanedIndex] = originalIndex;
+
 		const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX];
 		const kinds: LinkKind[] = ['web', 'path'];
 		const result: LinkPart[] = [];
 
-		const splitOne = (text: string, regexIndex: number, baseIndex: number) => {
+		const splitOne = (cleanedText: string, regexIndex: number, baseCleanedIndex: number) => {
 			if (regexIndex >= regexes.length) {
-				result.push({ value: text, kind: 'text', captures: [], index: baseIndex });
+				// Map cleaned position back to original for text parts
+				const originalStartIndex = positionMap[baseCleanedIndex] ?? 0;
+				const originalEndIndex = positionMap[baseCleanedIndex + cleanedText.length] ?? text.length;
+				const originalValue = text.substring(originalStartIndex, originalEndIndex);
+				result.push({ value: originalValue, kind: 'text', captures: [], index: originalStartIndex });
 				return;
 			}
 			const regex = regexes[regexIndex];
-			let currentIndex = 0;
+			let currentCleanedIndex = 0;
 			let match;
 			regex.lastIndex = 0;
-			while ((match = regex.exec(text)) !== null) {
-				const stringBeforeMatch = text.substring(currentIndex, match.index);
+			while ((match = regex.exec(cleanedText)) !== null) {
+				const stringBeforeMatch = cleanedText.substring(currentCleanedIndex, match.index);
 				if (stringBeforeMatch) {
-					splitOne(stringBeforeMatch, regexIndex + 1, baseIndex + currentIndex);
+					splitOne(stringBeforeMatch, regexIndex + 1, baseCleanedIndex + currentCleanedIndex);
 				}
-				const value = match[0];
+				
+				// Map cleaned match positions back to original text positions
+				const matchStartCleanedIndex = baseCleanedIndex + match.index;
+				const matchEndCleanedIndex = matchStartCleanedIndex + match[0].length;
+				const originalStartIndex = positionMap[matchStartCleanedIndex] ?? 0;
+				const originalEndIndex = positionMap[matchEndCleanedIndex] ?? text.length;
+				const originalValue = text.substring(originalStartIndex, originalEndIndex);
+				
 				result.push({
-					value: value,
+					value: originalValue,
 					kind: kinds[regexIndex],
-					captures: match.slice(1),
-					index: baseIndex + match.index
+					captures: match.slice(1), // Use captures from cleaned text since they represent the same logical parts
+					index: originalStartIndex
 				});
-				currentIndex = match.index + value.length;
+				currentCleanedIndex = match.index + match[0].length;
 			}
-			const stringAfterMatches = text.substring(currentIndex);
+			const stringAfterMatches = cleanedText.substring(currentCleanedIndex);
 			if (stringAfterMatches) {
-				splitOne(stringAfterMatches, regexIndex + 1, baseIndex + currentIndex);
+				splitOne(stringAfterMatches, regexIndex + 1, baseCleanedIndex + currentCleanedIndex);
 			}
 		};
 
-		splitOne(text, 0, 0);
+		splitOne(cleanedText, 0, 0);
 		return result;
 	}
 }
