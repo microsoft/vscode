@@ -5,7 +5,6 @@
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { localize2 } from '../../../../../nls.js';
 import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -15,7 +14,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
-import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import type { ITerminalContribution, ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction, registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
@@ -126,14 +124,7 @@ registerActiveInstanceAction({
 			order: 0,
 			when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 			isHiddenByDefault: true
-		},
-		...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-			id,
-			group: '1_shellIntegration',
-			order: 0,
-			when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-			isHiddenByDefault: true
-		})),
+		}
 	],
 	run: async (activeInstance, c) => {
 		const history = TerminalHistoryContribution.get(activeInstance);
@@ -173,14 +164,7 @@ registerTerminalAction({
 			order: 1,
 			when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 			isHiddenByDefault: true
-		},
-		...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-			id,
-			group: '1_shellIntegration',
-			order: 1,
-			when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-			isHiddenByDefault: true
-		})),
+		}
 	],
 	run: async (c, accessor) => {
 		let activeInstance = c.service.activeInstance;

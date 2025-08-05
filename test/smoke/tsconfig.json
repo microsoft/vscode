@@ -4,7 +4,7 @@
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es2024",
+		"target": "es2020",
 		"strict": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,

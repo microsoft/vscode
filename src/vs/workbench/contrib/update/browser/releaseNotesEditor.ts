@@ -264,7 +264,7 @@ export class ReleaseNotesManager {
 		const nonce = generateUuid();
 
 		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
-			sanitizerConfig: 'skipSanitization',
+			shouldSanitize: false,
 			markedExtensions: [{
 				renderer: {
 					html: this._simpleSettingRenderer.getHtmlRenderer(),

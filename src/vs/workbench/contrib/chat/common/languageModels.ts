@@ -111,8 +111,7 @@ export interface IChatResponsePromptTsxPart {
 
 export interface IChatResponseDataPart {
 	type: 'data';
-	mimeType: string;
-	data: VSBuffer;
+	value: IChatImageURLPart;
 	audience?: LanguageModelPartAudience[];
 }
 

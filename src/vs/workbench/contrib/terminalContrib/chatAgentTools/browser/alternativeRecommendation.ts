@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import type { ILanguageModelToolsService, IToolResult } from '../../../chat/common/languageModelToolsService.js';
 
 let previouslyRecommededInSession = false;
 
@@ -26,7 +26,7 @@ const terminalCommands: { commands: RegExp[]; tags: string[] }[] = [
 	}
 ];
 
-export function getRecommendedToolsOverRunInTerminal(commandLine: string, languageModelToolsService: ILanguageModelToolsService): string | undefined {
+export function getRecommendedToolsOverRunInTerminal(commandLine: string, languageModelToolsService: ILanguageModelToolsService): IToolResult | undefined {
 	const tools = languageModelToolsService.getTools();
 	if (!tools || previouslyRecommededInSession) {
 		return;
@@ -55,7 +55,12 @@ export function getRecommendedToolsOverRunInTerminal(commandLine: string, langua
 
 	if (recommendedTools.size) {
 		previouslyRecommededInSession = true;
-		return messages.join('  \n');
+		return {
+			content: [{
+				kind: 'text',
+				value: messages.join('  \n')
+			}],
+		};
 	}
 
 	return undefined;

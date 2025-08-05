@@ -258,7 +258,7 @@
           },
           "js/ts.implicitProjectConfig.target": {
             "type": "string",
-            "default": "ES2024",
+            "default": "ES2022",
             "markdownDescription": "%configuration.implicitProjectConfig.target%",
             "enum": [
               "ES3",

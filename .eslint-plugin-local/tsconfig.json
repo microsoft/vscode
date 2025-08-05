@@ -1,8 +1,8 @@
 {
 	"compilerOptions": {
-		"target": "es2024",
+		"target": "es2020",
 		"lib": [
-			"ES2024"
+			"ES2020"
 		],
 		"module": "commonjs",
 		"esModuleInterop": true,

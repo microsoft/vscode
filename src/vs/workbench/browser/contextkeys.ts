@@ -219,12 +219,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 
+
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-			const onFocusDisposables = disposables.add(new MutableDisposable<DisposableStore>());
-			disposables.add(addDisposableListener(window, EventType.FOCUS_IN, () => {
-				onFocusDisposables.value = new DisposableStore();
-				this.updateInputContextKeys(window.document, onFocusDisposables.value);
-			}, true));
+			const mutableDisposable = disposables.add(new MutableDisposable());
+			disposables.add(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(window.document, mutableDisposable), true));
 		}, { window: mainWindow, disposables: this._store }));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
@@ -311,7 +309,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.editorTabsVisibleContext.set(this.editorGroupService.partOptions.showTabs === 'multiple');
 	}
 
-	private updateInputContextKeys(ownerDocument: Document, disposables: DisposableStore): void {
+	private updateInputContextKeys(ownerDocument: Document, mutableDisposable: MutableDisposable<any>): void {
 
 		function activeElementIsInput(): boolean {
 			return !!ownerDocument.activeElement && isEditableElement(ownerDocument.activeElement);
@@ -320,8 +318,14 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		const isInputFocused = activeElementIsInput();
 		this.inputFocusedContext.set(isInputFocused);
 
+
+		const store = new DisposableStore();
+		mutableDisposable.value = store;
+
+
 		if (isInputFocused) {
-			const tracker = disposables.add(trackFocus(ownerDocument.activeElement as HTMLElement));
+
+			const tracker = store.add(trackFocus(ownerDocument.activeElement as HTMLElement));
 			Event.once(tracker.onDidBlur)(() => {
 
 				// Ensure we are only updating the context key if we are
@@ -337,7 +341,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 				}
 
 				tracker.dispose();
-			}, undefined, disposables);
+			}, undefined, store);
 		}
 	}
 

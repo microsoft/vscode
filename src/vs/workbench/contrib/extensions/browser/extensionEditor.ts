@@ -750,9 +750,7 @@ export class ExtensionEditor extends EditorPane {
 			return '';
 		}
 
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, {
-			sanitizerConfig: extension.type === ExtensionType.System ? 'skipSanitization' : {}
-		}, token);
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, { shouldSanitize: extension.type !== ExtensionType.System }, token);
 		if (token?.isCancellationRequested) {
 			return '';
 		}
