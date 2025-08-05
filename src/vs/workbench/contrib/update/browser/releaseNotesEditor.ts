@@ -246,7 +246,7 @@ export class ReleaseNotesManager {
 			// handled in receive message
 		} else {
 			this.addGAParameters(uri, 'ReleaseNotes')
-				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings'] }))
+				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings', 'summarize.release.notes'] }))
 				.then(undefined, onUnexpectedError);
 		}
 	}
@@ -272,6 +272,12 @@ export class ReleaseNotesManager {
 				}
 			}]
 		});
+
+		// Remove HTML comment markers around table of contents navigation
+		const processedContent = content
+			.replace(/<!--\s*TOC\s*/gi, '')
+			.replace(/\s*Navigation End\s*-->/gi, '');
+
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
@@ -366,10 +372,179 @@ export class ReleaseNotesManager {
 					}
 
 					header { display: flex; align-items: center; padding-top: 1em; }
+
+					/* Release notes enhancements from vscode-docs */
+					html {
+						font-size: 10px;
+						height: 100%;
+						overscroll-behavior: none;
+					}
+
+					body {
+						margin: 0 auto;
+						max-width: 980px;
+						height: auto;
+						overflow-y: auto;
+						overscroll-behavior: none;
+					}
+
+					/* Scroll to top button */
+					#scroll-to-top {
+						position: fixed;
+						width: 40px;
+						height: 40px;
+						right: 25px;
+						bottom: 25px;
+						background-color: var(--vscode-button-background, #444);
+						border-color: var(--vscode-button-border);
+						border-radius: 50%;
+						cursor: pointer;
+						box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+						outline: none;
+						display: flex;
+						justify-content: center;
+						align-items: center;
+					}
+
+					#scroll-to-top:hover {
+						background-color: var(--vscode-button-hoverBackground);
+						box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+					}
+
+					body.vscode-high-contrast #scroll-to-top {
+						border-width: 2px;
+						border-style: solid;
+						box-shadow: none;
+					}
+
+					#scroll-to-top span.icon::before {
+						content: "";
+						display: block;
+						background: var(--vscode-button-foreground);
+						/* Chevron up icon */
+						-webkit-mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
+						mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
+						width: 16px;
+						height: 16px;
+					}
+
+					/* Header styling */
+					h2 {
+						margin-top: 1.2em;
+						scroll-margin-top: 1.2em;
+					}
+
+					h2:not(:first-of-type) {
+						margin-top: 4em;
+						scroll-margin-top: 1em;
+					}
+
+					h3 {
+						margin-top: 4em;
+						scroll-margin-top: 1em;
+					}
+
+					h2 + h3 {
+						margin-top: 0;
+					}
+
+					/* Highlights table styling */
+					.highlights-table {
+						border-collapse: collapse;
+						border: none;
+					}
+
+					.highlights-table th {
+						vertical-align: top;
+						border: none;
+						padding-top: 2em;
+						font-weight: bold;
+					}
+
+					.highlights-table td {
+						vertical-align: top;
+						border: none;
+					}
+
+					.highlights-table tr:nth-child(2) td {
+						padding-bottom: 1em;
+					}
+
+					/* Main content layout */
+					.toc-nav-layout {
+						display: flex;
+						align-items: flex-start;
+					}
+
+					/* TOC Navigation */
+					#toc-nav {
+						position: sticky;
+						top: 20px;
+						width: 10vw;
+						min-width: 120px;
+						margin-right: 32px;
+						margin-top: 2em;
+					}
+
+					#toc-nav > div {
+						font-weight: bold;
+						font-size: 1em;
+						margin-bottom: 1em;
+						text-transform: uppercase;
+					}
+
+					#toc-nav ul {
+						list-style: none;
+						padding: 0;
+						margin: 0;
+					}
+
+					#toc-nav ul li {
+						margin-bottom: 0.5em;
+					}
+
+					#toc-nav a {
+						color: var(--vscode-editor-foreground, #ccc);
+						text-decoration: none !important;
+						transition: background-color 0.2s, color 0.2s;
+						padding: 4px 6px;
+						margin: -4px -6px;
+						border-radius: 4px;
+						display: block;
+						outline: none;
+					}
+
+					#toc-nav a:hover {
+						background-color: var(--vscode-button-secondaryHoverBackground, #1177bb);
+						color: var(--vscode-button-secondaryForeground, #ffffff);
+						cursor: pointer;
+						text-decoration: none !important;
+					}
+
+					/* Main content area */
+					.notes-main {
+						flex: 1;
+						min-width: 0;
+					}
+
+					/* Responsive breakpoint - Hide TOC on smaller screens */
+					@media (max-width: 576px) {
+						#toc-nav {
+							display: none;
+						}
+
+						.toc-nav-layout {
+							flex-direction: column;
+						}
+
+						.notes-main {
+							margin-left: 0;
+						}
+					}
 				</style>
 			</head>
 			<body>
-				${content}
+				${processedContent}
 				<script nonce="${nonce}">
 					const vscode = acquireVsCodeApi();
 					const container = document.createElement('p');
