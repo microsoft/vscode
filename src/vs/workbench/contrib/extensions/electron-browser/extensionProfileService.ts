@@ -11,7 +11,7 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { randomPort } from '../../../../base/common/ports.js';
 import * as nls from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
@@ -24,6 +24,9 @@ import { IExtensionHostProfile, IExtensionService, ProfileSession } from '../../
 import { ExtensionHostProfiler } from '../../../services/extensions/electron-browser/extensionHostProfiler.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
@@ -54,7 +57,9 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IProgressService private readonly _progressService: IProgressService
 	) {
 		super();
 		this._profile = null;
@@ -114,11 +119,35 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		}
 	}
 
-	public async startProfiling(): Promise<any> {
-		if (this._state !== ProfileSessionState.None) {
-			return null;
+	public async takeHeapSnapshot(): Promise<void> {
+		const picked = await this._fileDialogService.showSaveDialog({
+			title: nls.localize('saveheap.dialogTitle', "Save Heap Snapshot"),
+			availableFileSystems: [Schemas.file],
+			defaultUri: joinPath(await this._fileDialogService.defaultFilePath(), `HEAP-${new Date().toISOString().replace(/[\-:]/g, '')}.heapsnapshot`),
+			filters: [{
+				name: 'Heap Snapshots',
+				extensions: ['heapsnapshot', 'txt']
+			}]
+		});
+
+		if (!picked) {
+			return;
 		}
 
+		this._progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: nls.localize('saveheap.progressTitle', "Collecting Heap Snapshot"),
+		}, async progress => {
+			const inspectPorts = await this.getInspectPorts();
+			if (!inspectPorts) {
+				return;
+			}
+
+			await this._instantiationService.createInstance(ExtensionHostProfiler, inspectPorts.host, inspectPorts.port).takeHeapSnapshot(picked, progress);
+		});
+	}
+
+	private async getInspectPorts() {
 		const inspectPorts = await this._extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, true);
 
 		if (inspectPorts.length === 0) {
@@ -139,9 +168,23 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			console.warn(`There are multiple extension hosts available for profiling. Picking the first one...`);
 		}
 
+		return inspectPorts[0];
+	}
+
+	public async startProfiling(): Promise<any> {
+		if (this._state !== ProfileSessionState.None) {
+			return null;
+		}
+
+
 		this._setState(ProfileSessionState.Starting);
 
-		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPorts[0].host, inspectPorts[0].port).start().then((value) => {
+		const inspectPorts = await this.getInspectPorts();
+		if (!inspectPorts) {
+			return null;
+		}
+
+		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPorts.host, inspectPorts.port).start().then((value) => {
 			this._profileSession = value;
 			this._setState(ProfileSessionState.Running);
 		}, (err) => {

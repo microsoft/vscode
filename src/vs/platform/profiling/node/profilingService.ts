@@ -6,6 +6,7 @@
 import type { ProfilingSession } from 'v8-inspect-profiler';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IV8InspectProfilingService, IV8Profile } from '../common/profiling.js';
+import { IProgress, IProgressStep } from '../../progress/common/progress.js';
 
 export class InspectProfilingService implements IV8InspectProfilingService {
 
@@ -19,6 +20,23 @@ export class InspectProfilingService implements IV8InspectProfilingService {
 		const id = generateUuid();
 		this._sessions.set(id, session);
 		return id;
+	}
+
+	async takeHeapSnapshot(options: { host: string; port: number }, onData: (data: string) => void, progress?: IProgress<IProgressStep>): Promise<void> {
+		const prof = await import('v8-inspect-profiler');
+		let lastDone = 0;
+		await prof.takeHeapSnapshot({
+			host: options.host,
+			port: options.port,
+			checkForPaused: true,
+			onChunk: onData,
+			onProgress: (done, total) => {
+				if (progress) {
+					progress.report({ increment: done - lastDone, total });
+					lastDone = done;
+				}
+			}
+		});
 	}
 
 	async stopProfiling(sessionId: string): Promise<IV8Profile> {

@@ -5,6 +5,7 @@
 
 import { basename, isAbsolute, join } from '../../../base/common/path.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IProgress, IProgressStep } from '../../progress/common/progress.js';
 
 export interface IV8Profile {
 	nodes: IV8ProfileNode[];
@@ -38,6 +39,8 @@ export interface IV8InspectProfilingService {
 	_serviceBrand: undefined;
 
 	startProfiling(options: { host: string; port: number }): Promise<string>;
+
+	takeHeapSnapshot(options: { host: string; port: number }, onData: (data: string) => void, progress?: IProgress<IProgressStep>): Promise<void>;
 
 	stopProfiling(sessionId: string): Promise<IV8Profile>;
 }

@@ -10,6 +10,10 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IV8InspectProfilingService, IV8Profile, IV8ProfileNode } from '../../../../platform/profiling/common/profiling.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { newWriteableStream } from '../../../../base/common/stream.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 export class ExtensionHostProfiler {
 
@@ -18,6 +22,7 @@ export class ExtensionHostProfiler {
 		private readonly _port: number,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IV8InspectProfilingService private readonly _profilingService: IV8InspectProfilingService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 	}
 
@@ -33,6 +38,38 @@ export class ExtensionHostProfiler {
 				return this._distill(profile, extensions);
 			})
 		};
+	}
+
+	public async takeHeapSnapshot(saveTo: URI, progress: IProgress<IProgressStep>): Promise<void> {
+		const stream = newWriteableStream<VSBuffer>(data => VSBuffer.concat(data));
+
+		let pending: string = '';
+
+		await Promise.all([
+			this._fileService.createFile(saveTo, stream, { overwrite: true }),
+			this._profilingService.takeHeapSnapshot(
+				{ host: this._host, port: this._port },
+				chunk => {
+					pending = pending ? pending + chunk : chunk;
+
+					let index: number;
+					while ((index = pending.indexOf('\n')) !== -1) {
+						let line = pending.slice(0, index + 1);
+						if (line.length > 5 && line.startsWith('"')) {
+							const terminal = line.slice(line.lastIndexOf('"'));
+							const contentLen = line.length - terminal.length - 1;
+							line = `"len=${contentLen}`.padEnd(contentLen, '~').slice(0, contentLen) + terminal;
+						}
+						stream.write(VSBuffer.fromString(line));
+						pending = pending.slice(index + 1);
+					}
+				},
+				progress,
+			).finally(() => {
+				stream.end(VSBuffer.fromString(pending));
+			})
+		]);
+
 	}
 
 	private _distill(profile: IV8Profile, extensions: readonly IExtensionDescription[]): IExtensionHostProfile {

@@ -61,6 +61,7 @@ export interface IExtensionHostProfileService {
 
 	startProfiling(): void;
 	stopProfiling(): void;
+	takeHeapSnapshot(): Promise<void>;
 
 	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined;
 	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void;
@@ -140,6 +141,35 @@ export class StartExtensionHostProfileAction extends Action2 {
 			title: { value: StartExtensionHostProfileAction.LABEL, original: 'Start Extension Host Profile' },
 			precondition: CONTEXT_PROFILE_SESSION_STATE.isEqualTo('none'),
 			icon: Codicon.circleFilled,
+			menu: [{
+				id: MenuId.EditorTitle,
+				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.notEqualsTo('running')),
+				group: 'navigation',
+			}, {
+				id: MenuId.ExtensionEditorContextMenu,
+				when: CONTEXT_PROFILE_SESSION_STATE.notEqualsTo('running'),
+				group: 'profiling',
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<any> {
+		const extensionHostProfileService = accessor.get(IExtensionHostProfileService);
+		extensionHostProfileService.startProfiling();
+		return Promise.resolve();
+	}
+}
+
+export class TakeHeapSnapshotAction extends Action2 {
+	static readonly ID = 'workbench.extensions.action.takeHeapSnapshot';
+	static readonly LABEL = nls.localize('takeHeapSnapshot', "Take Heap Snapshot");
+
+	constructor() {
+		super({
+			id: TakeHeapSnapshotAction.ID,
+			title: { value: TakeHeapSnapshotAction.LABEL, original: 'Take Heap Snapshot' },
+			precondition: CONTEXT_PROFILE_SESSION_STATE.isEqualTo('none'),
+			icon: Codicon.database,
 			menu: [{
 				id: MenuId.EditorTitle,
 				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.notEqualsTo('running')),
