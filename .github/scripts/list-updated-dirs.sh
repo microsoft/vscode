@@ -30,7 +30,9 @@ while IFS= read -r file; do
         if [ -n "$top_dir" ] && [[ ! "$top_dir" =~ ^\. ]]; then
             # Add to array if not already present and doesn't start with '.'
             if [[ ! " ${changed_dirs[@]} " =~ " $top_dir " ]]; then
-                changed_dirs+=("$top_dir")
+                if [[ "$file" == extensions/* ]]; then
+                    changed_dirs+=("$top_dir")
+                fi
             fi
         fi
     fi
