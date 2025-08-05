@@ -114,6 +114,44 @@ export class FilterWidget extends Widget {
 		this.adjustInputBox();
 	}
 
+	private eventTargetShouldHandleInput(event: KeyboardEvent): boolean {
+		// Check if the event target is within an input element that should handle the event
+		for (let node = event.target as Node | null; node; node = node.parentNode) {
+			if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
+				// For Escape key, allow the text field to handle it if there's text to clear
+				if (event.code === 'Escape') {
+					return (node as HTMLInputElement | HTMLTextAreaElement).value.length > 0;
+				}
+				
+				// Allow text fields to handle most input-related events
+				const isInputEvent = event.code.startsWith('Key') || 
+					event.code.startsWith('Digit') ||
+					event.code === 'Backspace' ||
+					event.code === 'Delete' ||
+					event.code === 'ArrowLeft' ||
+					event.code === 'ArrowRight' ||
+					event.code === 'ArrowUp' ||
+					event.code === 'ArrowDown' ||
+					event.code === 'Home' ||
+					event.code === 'End' ||
+					event.code === 'PageUp' ||
+					event.code === 'PageDown' ||
+					event.code === 'Tab' ||
+					event.code === 'Enter' ||
+					(event.ctrlKey && (event.code === 'KeyA' || event.code === 'KeyX' || event.code === 'KeyC' || event.code === 'KeyV' || event.code === 'KeyZ'));
+				
+				return isInputEvent;
+			}
+			
+			// Stop checking if we reach the filter widget container
+			if (node instanceof Element && node.classList.contains('viewpane-filter')) {
+				break;
+			}
+		}
+		
+		return false;
+	}
+
 	hasFocus(): boolean {
 		return this.filterInputBox.hasFocus();
 	}
@@ -227,12 +265,20 @@ export class FilterWidget extends Widget {
 	}
 
 	// Action toolbar is swallowing some keys for action items which should not be for an input box
-	private handleKeyboardEvent(event: StandardKeyboardEvent) {
-		if (event.equals(KeyCode.Space)
-			|| event.equals(KeyCode.LeftArrow)
-			|| event.equals(KeyCode.RightArrow)
-			|| event.equals(KeyCode.Home)
-			|| event.equals(KeyCode.End)
+	private handleKeyboardEvent = (event: KeyboardEvent) => {
+		// Check if the input field should handle this event
+		if (this.eventTargetShouldHandleInput(event)) {
+			event.stopPropagation();
+			return;
+		}
+
+		// Original logic for specific keys that should always be handled by input
+		const standardEvent = new StandardKeyboardEvent(event);
+		if (standardEvent.equals(KeyCode.Space)
+			|| standardEvent.equals(KeyCode.LeftArrow)
+			|| standardEvent.equals(KeyCode.RightArrow)
+			|| standardEvent.equals(KeyCode.Home)
+			|| standardEvent.equals(KeyCode.End)
 		) {
 			event.stopPropagation();
 		}
@@ -240,10 +286,20 @@ export class FilterWidget extends Widget {
 
 	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
-		if (event.equals(KeyCode.Tab) && !this.toolbar.isEmpty()) {
+		
+		if (event.equals(KeyCode.Escape)) {
+			// If there's text in the input, clear it and prevent bubbling
+			if (filterInputBox.value.length > 0) {
+				filterInputBox.value = '';
+				this._onDidChangeFilterText.fire('');
+				handled = true;
+			}
+			// If no text, let the event bubble up to trigger the clear action
+		} else if (event.equals(KeyCode.Tab) && !this.toolbar.isEmpty()) {
 			this.toolbar.focus();
 			handled = true;
 		}
+		
 		if (handled) {
 			event.stopPropagation();
 			event.preventDefault();
