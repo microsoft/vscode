@@ -89,14 +89,14 @@ suite('Code Coverage Decorations', () => {
 			{ location: new Range(1, 0, 2, 0), type: DetailType.Statement, count: 1 },
 		];
 		const modelWithRanges = new CoverageDetailsModel(detailsWithRanges, textModel);
-		
+
 		// Should have ranges available for inline display
 		assert.strictEqual(modelWithRanges.ranges.length > 0, true, 'Model with coverage details should have ranges');
 
 		// Test that empty coverage details indicates no inline coverage
 		const emptyDetails: CoverageDetails[] = [];
 		const emptyModel = new CoverageDetailsModel(emptyDetails, textModel);
-		
+
 		// Should have no ranges available for inline display
 		assert.strictEqual(emptyModel.ranges.length === 0, true, 'Model with no coverage details should have no ranges');
 	});
