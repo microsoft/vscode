@@ -1000,6 +1000,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					// Consumed full markdown chunk- need to ensure that all following non-markdown parts are rendered
 					for (const nextPart of renderableResponse.slice(i + 1)) {
 						if (nextPart.kind !== 'markdownContent') {
+							if (nextPart.kind === 'thinking' && !nextPart.value) {
+								break;
+							}
 							i++;
 							partsToRender.push(nextPart);
 						} else {
@@ -1019,6 +1022,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 					break;
 				}
+			} else if (part.kind === 'thinking' && !part.value) {
+				continue;
 			} else {
 				partsToRender.push(part);
 			}
@@ -1145,7 +1150,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderChatErrorDetails(context, content, templateData);
 			} else if (content.kind === 'elicitation') {
 				return this.renderElicitation(context, content, templateData);
-			} else if (content.kind === 'thinking') {
+			} else if (content.kind === 'thinking' && content.value) {
 				return this.renderThinking(context, content, templateData);
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
