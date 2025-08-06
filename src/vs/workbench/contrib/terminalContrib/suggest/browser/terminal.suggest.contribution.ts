@@ -164,6 +164,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
 
 		if (!this._ctx.instance.shellType) {
+			this._lspAddons.clearAndDisposeAll();
 			return;
 		}
 
