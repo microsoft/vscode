@@ -189,10 +189,7 @@ class ChatLifecycleHandler extends Disposable {
 				break;
 		}
 
-		const result = await this.dialogService.confirm({
-			message,
-			detail
-		});
+		const result = await this.dialogService.confirm({ message, detail });
 
 		return !result.confirmed;
 	}
