@@ -8,7 +8,8 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData } from '../../../common/chatService.js';
+import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
+import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
@@ -27,7 +28,7 @@ export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubP
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		terminalData: IChatTerminalToolInvocationData,
+		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		context: IChatContentPartRenderContext,
 		renderer: MarkdownRenderer,
 		editorPool: EditorPool,
@@ -37,6 +38,8 @@ export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubP
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(toolInvocation);
+
+		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 
