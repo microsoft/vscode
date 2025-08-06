@@ -9,6 +9,7 @@ export const VSCODE_LSP_TERMINAL_PROMPT_TRACKER = 'vscode_lsp_terminal_prompt_tr
 export const PYLANCE_DEBUG_DISPLAY_NAME = `ms-python.python(.["')`;
 export const NEW_PYLANCE_DEBUG_DISPLAY_NAME = `ms-python.vscode-pylance(.["')`;
 export const PYTHON_LANGUAGE_ID = 'python';
+export const PWSH_LANGUAGE_ID = 'powershell';
 export const PWSH_DEBUG_DISPLAY_NAME = `ms-vscode.powershell(.-:\\$ )`;
 
 export function mapShellTypeToExtension(shellType: TerminalShellType): string {

@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
-import { PYTHON_LANGUAGE_ID, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
+import { PWSH_LANGUAGE_ID, PYTHON_LANGUAGE_ID, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
 
 export interface ILspTerminalModelContentProvider extends ITextModelContentProvider {
 	setContent(content: string): void;
@@ -147,7 +147,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			if (!languageId) {
 				switch (extension) {
 					case 'py': languageId = PYTHON_LANGUAGE_ID; break;
-					case 'ps1': languageId = 'powershell'; break;
+					case 'ps1': languageId = PWSH_LANGUAGE_ID; break;
 					// case 'js': languageId = 'javascript'; break;
 					// case 'ts': languageId = 'typescript'; break; etc...
 				}
