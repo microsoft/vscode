@@ -16,8 +16,9 @@ import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatToolInvocation, type IChatTerminalToolInvocationData } from '../../../common/chatService.js';
+import { IChatToolInvocation, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
@@ -26,16 +27,6 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-
-/**
- * @deprecated This is the old API shape, we should support this for a while before removing it so
- * we don't break existing chats
- */
-interface ILegacyChatTerminalToolInvocationData {
-	kind: 'terminal';
-	command: string;
-	language: string;
-}
 
 export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -62,18 +53,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			throw new Error('Confirmation messages are missing');
 		}
 
-		// Migrate forward the old tool data format
-		if ('command' in terminalData) {
-			terminalData = {
-				kind: 'terminal',
-				commandLine: {
-					original: terminalData.command,
-					toolEdited: undefined,
-					userEdited: undefined
-				},
-				language: terminalData.language
-			} satisfies IChatTerminalToolInvocationData;
-		}
+		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		const title = toolInvocation.confirmationMessages.title;
 		const message = toolInvocation.confirmationMessages.message;
