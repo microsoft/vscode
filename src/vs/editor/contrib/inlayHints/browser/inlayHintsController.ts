@@ -126,7 +126,7 @@ export class InlayHintsController implements IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		this._ruleFactory = new DynamicCssRules(this._editor);
+		this._ruleFactory = this._disposables.add(new DynamicCssRules(this._editor));
 		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
 		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));

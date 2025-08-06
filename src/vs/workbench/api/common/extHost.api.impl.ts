@@ -1843,6 +1843,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseProgressPart2: extHostTypes.ChatResponseProgressPart2,
+			ChatResponseThinkingProgressPart: extHostTypes.ChatResponseThinkingProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 			ChatResponseReferencePart2: extHostTypes.ChatResponseReferencePart,
 			ChatResponseCodeCitationPart: extHostTypes.ChatResponseCodeCitationPart,
@@ -1880,6 +1881,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelPartAudience: extHostTypes.LanguageModelPartAudience,
 			ToolResultAudience: extHostTypes.LanguageModelPartAudience, // back compat
 			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
+			LanguageModelThinkingPart: extHostTypes.LanguageModelThinkingPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
 			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
 			LanguageModelToolResult2: extHostTypes.LanguageModelToolResult2,

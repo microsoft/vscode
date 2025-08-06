@@ -4,40 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { timeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
-import { MarkdownString, type IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
-import { count } from '../../../../../base/common/strings.js';
-import type { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { localize } from '../../../../../nls.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../chat/common/languageModelToolsService.js';
-import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
-import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
-import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
-import { getOutput } from './bufferOutputPolling.js';
-import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
-import { BasicExecuteStrategy } from './executeStrategy/basicExecuteStrategy.js';
-import type { ITerminalExecuteStrategy } from './executeStrategy/executeStrategy.js';
-import { NoneExecuteStrategy } from './executeStrategy/noneExecuteStrategy.js';
-import { OutputMonitor, OutputMonitorAction } from './outputMonitor.js';
-import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
-import { isPowerShell } from './runInTerminalHelpers.js';
-import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
-import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
+import { count } from '../../../../../../base/common/strings.js';
+import type { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { localize } from '../../../../../../nls.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
+import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
+import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
+import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
+import { getOutput } from '../bufferOutputPolling.js';
+import { CommandLineAutoApprover } from '../commandLineAutoApprover.js';
+import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
+import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
+import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
+import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
+import { isPowerShell } from '../runInTerminalHelpers.js';
+import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
+import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { OutputMonitor, type OutputMonitorAction } from '../outputMonitor.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -117,6 +118,17 @@ export interface IRunInTerminalInputParams {
 const telemetryIgnoredSequences = [
 	'\x1b[I', // Focus in
 	'\x1b[O', // Focus out
+];
+
+const promptInjectionWarningCommandsLower = [
+	'curl',
+	'wget',
+];
+const promptInjectionWarningCommandsLowerPwshOnly = [
+	'invoke-restmethod',
+	'invoke-webrequest',
+	'irm',
+	'iwr',
 ];
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
@@ -229,11 +241,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.info(`- ${reason}`);
 			}
 
+			// Add a disclaimer warning about prompt injection for common commands that return
+			// content from the web
+			let disclaimer: IMarkdownString | undefined;
+			const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
+			if (!isAutoApproved && (
+				subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
+				(isPowerShell(shell, os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
+			)) {
+				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
+			}
+
 			confirmationMessages = isAutoApproved ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run command in background terminal")
 					: localize('runInTerminal.foreground', "Run command in terminal"),
 				message: new MarkdownString(args.explanation),
+				disclaimer,
 			};
 		}
 

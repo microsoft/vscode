@@ -276,9 +276,12 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
+          mkdir -Force .build/node-cpuprofile
           exec { npx deemon --detach --wait -- -- npx zx build/azure-pipelines/win32/codesign.js }
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          NODE_DEBUG: "net,child_process"
+          NODE_OPTIONS: "--report-filename=stdout --report-uncaught-exception --report-on-fatalerror --cpu-prof --cpu-prof-dir=.build/node-cpuprofile"
         displayName: ✍️ Codesign
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
@@ -303,7 +306,7 @@ steps:
         condition: succeededOrFailed()
         env:
           NODE_DEBUG: "net,child_process"
-          NODE_OPTIONS: "--report-filename=stdout,--report-uncaught-exception,--report-on-fatalerror"
+          NODE_OPTIONS: "--report-filename=stdout --report-uncaught-exception --report-on-fatalerror --cpu-prof --cpu-prof-dir=.build/node-cpuprofile"
         displayName: "✍️ Post-job: Codesign"
 
       - powershell: |
@@ -334,6 +337,13 @@ steps:
       - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
         condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
         displayName: Generate artifact prefix
+
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: .build/node-cpuprofile
+          artifactName: node-cpuprofile-$(VSCODE_ARCH)
+          sbomEnabled: false
+        displayName: Publish Codesign cpu profile
 
       - task: 1ES.PublishPipelineArtifact@1
         inputs:
