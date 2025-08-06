@@ -1109,7 +1109,12 @@ registerAction2(class ToggleExceptionBreakpointsAction extends Action2 {
 		}
 
 		// Multiple exception breakpoint types - show quickpick for selection
-		const quickPick = quickInputService.createQuickPick();
+		interface IExceptionBreakpointItem extends IQuickPickItem {
+			breakpoint: IExceptionBreakpoint;
+		}
+
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(quickInputService.createQuickPick<IExceptionBreakpointItem>());
 		quickPick.title = nls.localize('selectExceptionBreakpoints', "Select Exception Breakpoints to Toggle");
 		quickPick.placeholder = nls.localize('selectExceptionBreakpointsPlaceholder', "Choose which exception breakpoints to toggle");
 		quickPick.canSelectMany = true;
@@ -1123,12 +1128,12 @@ registerAction2(class ToggleExceptionBreakpointsAction extends Action2 {
 			detail: bp.enabled ? nls.localize('enabled', "Currently enabled") : nls.localize('disabled', "Currently disabled"),
 			picked: bp.enabled, // pre-select currently enabled breakpoints
 			breakpoint: bp
-		} as IQuickPickItem & { breakpoint: IExceptionBreakpoint }));
+		}));
 
-		quickPick.selectedItems = quickPick.items.filter(item => (item as any).picked);
+		quickPick.selectedItems = quickPick.items.filter(item => item.picked);
 
-		quickPick.onDidAccept(() => {
-			const selectedItems = quickPick.selectedItems as (IQuickPickItem & { breakpoint: IExceptionBreakpoint })[];
+		disposables.add(quickPick.onDidAccept(() => {
+			const selectedItems = quickPick.selectedItems;
 			const toEnable: IExceptionBreakpoint[] = [];
 			const toDisable: IExceptionBreakpoint[] = [];
 
@@ -1151,10 +1156,10 @@ registerAction2(class ToggleExceptionBreakpointsAction extends Action2 {
 				promises.push(debugService.enableOrDisableBreakpoints(false, bp));
 			}
 
-			Promise.all(promises).then(() => quickPick.dispose());
-		});
+			Promise.all(promises).then(() => disposables.dispose());
+		}));
 
-		quickPick.onDidHide(() => quickPick.dispose());
+		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 		quickPick.show();
 	}
 });
