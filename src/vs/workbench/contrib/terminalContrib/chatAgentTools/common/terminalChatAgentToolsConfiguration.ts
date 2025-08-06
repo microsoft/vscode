@@ -141,6 +141,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// provides additional safety when the commands get approved by broad rules or via LLM-based
 			// approval
 
+			// Overwriting allowed by default commands with special cases
+			'/find\\b.*-exec\\b/': false,
+
 			// Deleting files
 			rm: false,
 			rmdir: false,
