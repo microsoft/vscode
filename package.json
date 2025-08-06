@@ -67,7 +67,7 @@
     "extensions-ci": "node ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
-    "update-build-ts-version": "npm install typescript@next && tsc -p ./build/tsconfig.build.json"
+    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && tsc -p ./build/tsconfig.build.json"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -211,7 +211,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^5.9.0-dev.20250728",
+    "typescript": "^6.0.0-dev.20250806",
     "typescript-eslint": "^8.39.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",
