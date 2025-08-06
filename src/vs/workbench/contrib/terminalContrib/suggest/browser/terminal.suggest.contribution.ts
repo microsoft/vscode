@@ -85,6 +85,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				if (!completionsEnabled) {
 					this._addon.clear();
 					this._pwshAddon.clear();
+					this._lspAddons.clearAndDisposeAll();
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
 				if (!!xtermRaw && completionsEnabled) {
