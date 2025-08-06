@@ -1,7 +1,7 @@
 {
   "name": "hello-world",
-  "displayName": "Hello World",
-  "description": "A simple Hello World extension",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
@@ -11,6 +11,18 @@
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "hello",
+    "world",
+    "example",
+    "sample"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "activationEvents": [
     "onCommand:helloWorld.hello"
   ],
