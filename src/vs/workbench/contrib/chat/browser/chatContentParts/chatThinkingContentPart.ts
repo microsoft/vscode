@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode } from '../../../../../base/browser/dom.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
