@@ -378,11 +378,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
 
-			if (this.focusable && item instanceof BaseActionViewItem && this.viewItems.length === 0) {
-				// We need to allow for the first enabled item to be focused on using tab navigation #106441
-				item.setFocusable(true);
-			}
-
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
 				this.viewItems.push(item);
@@ -392,6 +387,35 @@ export class ActionBar extends Disposable implements IActionRunner {
 				index++;
 			}
 		});
+
+		// We need to allow for the first enabled item to be focused on using tab navigation #106441
+		if (this.focusable) {
+			let didFocus = false;
+			for (const item of this.viewItems) {
+				if (!(item instanceof BaseActionViewItem)) {
+					continue;
+				}
+
+				let focus: boolean;
+				if (didFocus) {
+					focus = false; // already focused an item
+				} else if (item.action.id === Separator.ID) {
+					focus = false; // never focus a separator
+				} else if (!item.isEnabled() && this.options.focusOnlyEnabledItems) {
+					focus = false; // never focus a disabled item
+				} else {
+					focus = true;
+				}
+
+				if (focus) {
+					item.setFocusable(true);
+					didFocus = true;
+				} else {
+					item.setFocusable(false);
+				}
+			}
+		}
+
 		if (typeof this.focusedItem === 'number') {
 			// After a clear actions might be re-added to simply toggle some actions. We should preserve focus #97128
 			this.focus(this.focusedItem);
