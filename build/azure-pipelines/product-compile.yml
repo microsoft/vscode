@@ -109,10 +109,6 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Compile & Hygiene (OSS)
 
-    - script: npm run compile-check-ts-native
-      displayName: Compile TS Native (OSS)
-      continueOnError: true
-
   - ${{ else }}:
     - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
       env:
