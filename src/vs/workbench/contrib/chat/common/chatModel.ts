@@ -133,7 +133,7 @@ export type IChatProgressResponseContent =
 	| IChatElicitationRequest
 	| IChatClearToPreviousToolInvocation;
 
-const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation', 'thinking']);
+const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
 	return !nonHistoryKinds.has(content.kind);
 }
@@ -141,21 +141,6 @@ function isChatProgressHistoryResponseContent(content: IChatProgressResponseCont
 export function toChatHistoryContent(content: ReadonlyArray<IChatProgressResponseContent>): IChatProgressHistoryResponseContent[] {
 	return content.filter(isChatProgressHistoryResponseContent);
 }
-
-/**
- * Extract thinking tokens from chat response content
- */
-export function getThinkingTokens(content: ReadonlyArray<IChatProgressResponseContent>): IChatThinkingPart[] {
-	return content.filter((part): part is IChatThinkingPart => part.kind === 'thinking');
-}
-
-/**
- * Get thinking tokens from a chat response model
- */
-export function getResponseThinkingTokens(response: IChatResponseModel): IChatThinkingPart[] {
-	return getThinkingTokens(response.entireResponse.value);
-}
-
 
 export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>;
 
@@ -537,17 +522,14 @@ export class Response extends AbstractResponse implements IDisposable {
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'thinking') {
 
-			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
-			// the MD be chopped up by text edit groups (and likely other non-renderable parts)
+			// TODO: @justschen merge thinking and markdown handling
 			const lastResponsePart = this._responseParts
 				.filter(p => p.kind !== 'textEditGroup')
 				.at(-1);
 
 			if (!lastResponsePart || lastResponsePart.kind !== 'thinking' || !canMergeMarkdownStrings(new MarkdownString(lastResponsePart.value), new MarkdownString(progress.value))) {
-				// The last part can't be merged with- not markdown, or markdown with different permissions
 				this._responseParts.push(progress);
 			} else {
-				// Don't modify the current object, since it's being diffed by the renderer
 				const idx = this._responseParts.indexOf(lastResponsePart);
 				this._responseParts[idx] = { ...lastResponsePart, value: appendMarkdownString(new MarkdownString(lastResponsePart.value), new MarkdownString(progress.value)).value };
 			}

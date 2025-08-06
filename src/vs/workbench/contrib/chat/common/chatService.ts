@@ -278,7 +278,6 @@ export interface IChatThinkingPart {
 	metadata?: string;
 }
 
-
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	commandLine: {

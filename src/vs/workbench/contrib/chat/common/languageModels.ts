@@ -130,8 +130,6 @@ export interface IChatResponseThinkingPart {
 	metadata?: string;
 }
 
-export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart;
-
 export interface IChatResponsePullRequestPart {
 	type: 'pullRequest';
 	uri: URI;
@@ -140,6 +138,8 @@ export interface IChatResponsePullRequestPart {
 	author: string;
 	linkTag: string;
 }
+
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart;
 
 export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 

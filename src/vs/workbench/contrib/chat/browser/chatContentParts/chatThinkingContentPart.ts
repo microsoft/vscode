@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, clearNode } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -51,17 +51,6 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	}
 
 	private renderContent(): void {
-		// Create header with thinking icon
-		const header = $('.chat-thinking-header');
-		const icon = $('.codicon.codicon-lightbulb', { title: 'Thinking' });
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulb));
-		header.appendChild(icon);
-
-		const label = $('.chat-thinking-label');
-		label.textContent = 'Thinking';
-		header.appendChild(label);
-
-		this.domNode.appendChild(header);
 		this.textContainer = $('.chat-thinking-text.markdown-content');
 		this.domNode.appendChild(this.textContainer);
 
@@ -81,8 +70,8 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 			return;
 		}
 
+		clearNode(this.textContainer);
 		this.markdownResult = this.renderer.render(new MarkdownString(cleanedContent));
-		this.textContainer.innerHTML = '';
 		this.textContainer.appendChild(this.markdownResult.element);
 	}
 

@@ -1345,10 +1345,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderThinking(context: IChatContentPartRenderContext, thinking: IChatThinkingPart, templateData: IChatListItemTemplate): IChatContentPart {
-
-
-
-		// Create a new thinking part for this specific response
 		const thinkingPart = templateData.instantiationService.createInstance(
 			ChatThinkingContentPart,
 			thinking,
