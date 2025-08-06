@@ -11,7 +11,7 @@ import { ConfigurationTarget } from '../../../../../../platform/configuration/co
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService } from '../../../../chat/common/languageModelToolsService.js';
-import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/runInTerminalTool.js';
+import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
