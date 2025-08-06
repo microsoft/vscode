@@ -419,9 +419,10 @@ export function appendStylizedStringToContainer(
 		return;
 	}
 
-	// Remove ANSI codes for link detection, but preserve original text for display
+	// Remove ANSI codes for link detection, but preserve original for display
 	const cleanedContent = removeAnsiEscapeCodes(stringContent);
 	
+	// Use cleaned content for link detection
 	const container = linkDetector.linkify(
 		cleanedContent,
 		true,
@@ -431,13 +432,14 @@ export function appendStylizedStringToContainer(
 		highlights?.map(h => ({ start: h.start - offset, end: h.end - offset, extraClasses: h.extraClasses })),
 	);
 
-	// If we had ANSI codes and links were detected, preserve original text in link elements
+	// If links were detected and we had ANSI codes, preserve the original text with ANSI codes
 	if (cleanedContent !== stringContent && container.children.length > 0) {
+		// Check if there's exactly one link that spans the entire cleaned content
 		const linkElements = container.querySelectorAll('a');
 		if (linkElements.length === 1) {
 			const link = linkElements[0];
 			if (link.textContent === cleanedContent) {
-				// Replace cleaned text with original text that includes ANSI codes
+				// Replace the cleaned text with the original text that includes ANSI codes
 				link.textContent = stringContent;
 			}
 		}
