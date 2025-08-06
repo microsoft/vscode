@@ -87,16 +87,91 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			]
 		},
 		default: {
+			// Safe and common readonly commands (automatically approved)
+			echo: true,
+			ls: true,
+			find: true,
+			pwd: true,
+			cat: true,
+			head: true,
+			tail: true,
+			grep: true,
+			wc: true,
+			sort: true,
+			uniq: true,
+			tr: true,
+			cut: true,
+			cmp: true,
+			tree: true,
+			column: true,
+			which: true,
+			date: true,
+			time: true,
+			env: true,
+			printenv: true,
+			uname: true,
+			hostname: true,
+			ps: true,
+			whoami: true,
+			basename: true,
+			dirname: true,
+			realpath: true,
+			readlink: true,
+			stat: true,
+			file: true,
+			du: true,
+			df: true,
+			// While these PowerShell verbs can have side effects, they are generally innocuous (eg.
+			// updating OS-level file access info) and and often have prompts if they're more
+			// involved (eg. Get-Credential)
+			'/Get-[a-z0-9]/i': true,
+			'/Select-[a-z0-9]/i': true,
+			'/Measure-[a-z0-9]/i': true,
+			'/Compare-[a-z0-9]/i': true,
+			'/Format-[a-z0-9]/i': true,
+			'/Sort-[a-z0-9]/i': true,
+			'Write-Host': true,
+			'Write-Output': true,
+			'Split-Path': true,
+			'Join-Path': true,
+
+			// There are countless dangerous commands available on the command line, the defaults here
+			// include common ones that the user is likely to want to explicitly approve first. This is
+			// not intended to be a catch all as the user needs to opt-in to auto-approve commands, it
+			// provides additional safety when the commands get approved by broad rules or via LLM-based
+			// approval
+
+			// Deleting files
 			rm: false,
 			rmdir: false,
 			del: false,
+			'Remove-Item': false,
+			ri: false,
+			rd: false,
+			erase: false,
+			// Killing processes, dangerous thing to do generally
 			kill: false,
+			'Stop-Process': false,
+			spps: false,
+			taskkill: false,
+			'taskkill.exe': false,
+			// Web requests, prompt injection concerns
 			curl: false,
 			wget: false,
-			eval: false,
+			'Invoke-RestMethod': false,
+			'Invoke-WebRequest': false,
+			'irm': false,
+			'iwr': false,
+			// File permissions and ownership, messing with these can cause hard to diagnose issues
 			chmod: false,
 			chown: false,
-			'/^Remove-Item\\b/i': false,
+			'Set-ItemProperty': false,
+			'sp': false,
+			'Set-Acl': false,
+			// Eval string, can lead to anything else running
+			eval: false,
+			'Invoke-Expression': false,
+			iex: false,
 		},
 	}
 };

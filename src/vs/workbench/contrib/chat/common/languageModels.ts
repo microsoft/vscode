@@ -111,7 +111,8 @@ export interface IChatResponsePromptTsxPart {
 
 export interface IChatResponseDataPart {
 	type: 'data';
-	value: IChatImageURLPart;
+	mimeType: string;
+	data: VSBuffer;
 	audience?: LanguageModelPartAudience[];
 }
 
@@ -408,6 +409,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (typeof vendors === 'string') {
 			vendors = [vendors];
 		}
+		// Activate extensions before requesting to resolve the models
+		const all = vendors.map(vendor => this._extensionService.activateByEvent(`onLanguageModelChat:${vendor}`));
+		await Promise.all(all);
 		this._clearModelCache(vendors);
 		for (const vendor of vendors) {
 			const provider = this._providers.get(vendor);
@@ -435,14 +439,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 	async selectLanguageModels(selector: ILanguageModelChatSelector, allowPromptingUser?: boolean): Promise<string[]> {
 
 		if (selector.vendor) {
-			// selective activation
-			await this._extensionService.activateByEvent(`onLanguageModelChat:${selector.vendor}}`);
 			await this.resolveLanguageModels([selector.vendor], !allowPromptingUser);
 		} else {
-			// activate all extensions that do language models
 			const allVendors = Array.from(this._vendors.keys());
-			const all = allVendors.map(vendor => this._extensionService.activateByEvent(`onLanguageModelChat:${vendor}`));
-			await Promise.all(all);
 			await this.resolveLanguageModels(allVendors, !allowPromptingUser);
 		}
 
@@ -474,7 +473,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		this._providers.set(vendor, provider);
 
-		// TODO @lramos15 - Smarter restore logic. Don't activate all providers, but only those which were known to need restoring
+		// TODO @lramos15 - Smarter restore logic. Don't resolve models for all providers, but only those which were known to need restoring
 		this.resolveLanguageModels(vendor, true).then(() => {
 			this._onLanguageModelChange.fire();
 		});

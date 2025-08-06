@@ -408,6 +408,89 @@ suite('CommandLineAutoApprover', () => {
 			ok(!isAutoApproved('[Get-Content'));
 			ok(!isAutoApproved('foo'));
 		});
+
+		test('should be case-insensitive for PowerShell commands', () => {
+			setAutoApprove({
+				"Get-ChildItem": true,
+				"Get-Content": true,
+				"Remove-Item": false
+			});
+
+			ok(isAutoApproved('Get-ChildItem'));
+			ok(isAutoApproved('get-childitem'));
+			ok(isAutoApproved('GET-CHILDITEM'));
+			ok(isAutoApproved('Get-childitem'));
+			ok(isAutoApproved('get-ChildItem'));
+
+			ok(isAutoApproved('Get-Content file.txt'));
+			ok(isAutoApproved('get-content file.txt'));
+			ok(isAutoApproved('GET-CONTENT file.txt'));
+			ok(isAutoApproved('Get-content file.txt'));
+
+			ok(!isAutoApproved('Remove-Item file.txt'));
+			ok(!isAutoApproved('remove-item file.txt'));
+			ok(!isAutoApproved('REMOVE-ITEM file.txt'));
+			ok(!isAutoApproved('Remove-item file.txt'));
+		});
+
+		test('should be case-insensitive for PowerShell aliases', () => {
+			setAutoApprove({
+				"ls": true,
+				"dir": true,
+				"rm": false,
+				"del": false
+			});
+
+			// Test case-insensitive matching for aliases
+			ok(isAutoApproved('ls'));
+			ok(isAutoApproved('LS'));
+			ok(isAutoApproved('Ls'));
+
+			ok(isAutoApproved('dir'));
+			ok(isAutoApproved('DIR'));
+			ok(isAutoApproved('Dir'));
+
+			ok(!isAutoApproved('rm file.txt'));
+			ok(!isAutoApproved('RM file.txt'));
+			ok(!isAutoApproved('Rm file.txt'));
+
+			ok(!isAutoApproved('del file.txt'));
+			ok(!isAutoApproved('DEL file.txt'));
+			ok(!isAutoApproved('Del file.txt'));
+		});
+
+		test('should be case-insensitive with regex patterns', () => {
+			setAutoApprove({
+				"/^Get-/": true,
+				"/Remove-Item|rm/": false
+			});
+
+			ok(isAutoApproved('Get-ChildItem'));
+			ok(isAutoApproved('get-childitem'));
+			ok(isAutoApproved('GET-PROCESS'));
+			ok(isAutoApproved('Get-Location'));
+
+			ok(!isAutoApproved('Remove-Item file.txt'));
+			ok(!isAutoApproved('remove-item file.txt'));
+			ok(!isAutoApproved('rm file.txt'));
+			ok(!isAutoApproved('RM file.txt'));
+		});
+
+		test('should handle case-insensitive PowerShell commands on different OS', () => {
+			setAutoApprove({
+				"Get-Process": true,
+				"Stop-Process": false
+			});
+
+			for (const currnetOS of [OperatingSystem.Windows, OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+				os = currnetOS;
+				ok(isAutoApproved('Get-Process'), `os=${os}`);
+				ok(isAutoApproved('get-process'), `os=${os}`);
+				ok(isAutoApproved('GET-PROCESS'), `os=${os}`);
+				ok(!isAutoApproved('Stop-Process'), `os=${os}`);
+				ok(!isAutoApproved('stop-process'), `os=${os}`);
+			}
+		});
 	});
 
 	suite('isCommandLineAutoApproved - matchCommandLine functionality', () => {

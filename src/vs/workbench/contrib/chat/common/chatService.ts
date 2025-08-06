@@ -262,7 +262,8 @@ export interface IChatElicitationRequest {
 	message: string | IMarkdownString;
 	acceptButtonLabel: string;
 	rejectButtonLabel: string;
-	originMessage?: string | IMarkdownString;
+	subtitle?: string | IMarkdownString;
+	source?: { type: 'mcp'; definitionId: string };
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
@@ -277,6 +278,8 @@ export interface IChatTerminalToolInvocationData {
 		userEdited?: string;
 		toolEdited?: string;
 	};
+	/** Message for model recommending the use of an alternative tool */
+	alternativeRecommendation?: string;
 	language: string;
 }
 
