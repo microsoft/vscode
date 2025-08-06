@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
-import { PWSH_LANGUAGE_ID, PYTHON_LANGUAGE_ID, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
+import { VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
 
 export interface ILspTerminalModelContentProvider extends ITextModelContentProvider {
 	setContent(content: string): void;
@@ -131,7 +131,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 	}
 
-	// TODO: Adapt to support non-python virtual document for non-python REPLs.
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 
@@ -139,20 +138,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			return existing;
 		}
 
-		const extension = resource.path.split('.').pop();
-		let languageId: string | undefined | null = undefined;
-		if (extension) {
-			languageId = this._languageService.getLanguageIdByLanguageName(extension);
-
-			if (!languageId) {
-				switch (extension) {
-					case 'py': languageId = PYTHON_LANGUAGE_ID; break;
-					case 'ps1': languageId = PWSH_LANGUAGE_ID; break;
-					// case 'js': languageId = 'javascript'; break;
-					// case 'ts': languageId = 'typescript'; break; etc...
-				}
-			}
-		}
+		const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 
 		const languageSelection = languageId ?
 			this._languageService.createById(languageId) :
