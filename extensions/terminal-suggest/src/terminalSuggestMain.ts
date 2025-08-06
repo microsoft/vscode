@@ -249,7 +249,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
 			const terminalShellType = getTerminalShellType(shellType);
 			if (!terminalShellType) {
-				console.debug('#terminalCompletions No shell type found for terminal, shell:', shellType);
+				console.debug(`#terminalCompletions Shell type ${shellType} not supported`);
 				return;
 			}
 
@@ -493,7 +493,7 @@ function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<strin
 	return env;
 }
 
-export function getTerminalShellType(shellType: string | undefined): TerminalShellType | undefined {
+function getTerminalShellType(shellType: string | undefined): TerminalShellType | undefined {
 	switch (shellType) {
 		case 'bash':
 			return TerminalShellType.Bash;
@@ -505,9 +505,6 @@ export function getTerminalShellType(shellType: string | undefined): TerminalShe
 			return TerminalShellType.PowerShell;
 		case 'fish':
 			return TerminalShellType.Fish;
-		case 'python':
-			// Python REPLs should not receive terminal-suggest completions
-			return undefined;
 		default:
 			return undefined;
 	}

@@ -6,7 +6,7 @@
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { basename } from 'path';
-import { asArray, getCompletionItemsFromSpecs, getCurrentCommandAndArgs, getTerminalShellType, TerminalShellType } from '../terminalSuggestMain';
+import { asArray, getCompletionItemsFromSpecs, getCurrentCommandAndArgs } from '../terminalSuggestMain';
 import { getTokenType } from '../tokens';
 import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
 import { codeSpecOptionsAndSubcommands, codeTestSuite, codeTunnelTestSuite } from './completions/code.test';
@@ -148,24 +148,3 @@ class MockFigExecuteExternals implements IFigExecuteExternals {
 		}
 	}
 }
-
-suite('Shell Type Filtering', () => {
-	test('getTerminalShellType should return appropriate shell types for supported shells', () => {
-		strictEqual(getTerminalShellType('bash'), TerminalShellType.Bash);
-		strictEqual(getTerminalShellType('zsh'), TerminalShellType.Zsh);
-		strictEqual(getTerminalShellType('fish'), TerminalShellType.Fish);
-		strictEqual(getTerminalShellType('pwsh'), TerminalShellType.PowerShell);
-		strictEqual(getTerminalShellType('gitbash'), TerminalShellType.GitBash);
-	});
-
-	test('getTerminalShellType should return undefined for Python REPLs', () => {
-		strictEqual(getTerminalShellType('python'), undefined, 'Python REPLs should not receive terminal-suggest completions');
-	});
-
-	test('getTerminalShellType should return undefined for unsupported shells', () => {
-		strictEqual(getTerminalShellType('unsupported'), undefined);
-		strictEqual(getTerminalShellType(undefined), undefined);
-		strictEqual(getTerminalShellType(''), undefined);
-	});
-});
-
