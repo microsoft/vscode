@@ -3,7 +3,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ShakeLevel = void 0;
 exports.toStringShakeLevel = toStringShakeLevel;
 exports.shake = shake;
 /*---------------------------------------------------------------------------------------------
@@ -18,7 +17,7 @@ var ShakeLevel;
     ShakeLevel[ShakeLevel["Files"] = 0] = "Files";
     ShakeLevel[ShakeLevel["InnerFile"] = 1] = "InnerFile";
     ShakeLevel[ShakeLevel["ClassMembers"] = 2] = "ClassMembers";
-})(ShakeLevel || (exports.ShakeLevel = ShakeLevel = {}));
+})(ShakeLevel || (ShakeLevel = {}));
 function toStringShakeLevel(shakeLevel) {
     switch (shakeLevel) {
         case ShakeLevel.Files:

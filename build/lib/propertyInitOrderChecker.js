@@ -33,7 +33,6 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EntryKind = void 0;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -247,5 +246,5 @@ var EntryKind;
     EntryKind[EntryKind["StringLiteral"] = 2] = "StringLiteral";
     EntryKind[EntryKind["SearchedLocalFoundProperty"] = 3] = "SearchedLocalFoundProperty";
     EntryKind[EntryKind["SearchedPropertyFoundLocal"] = 4] = "SearchedPropertyFoundLocal";
-})(EntryKind || (exports.EntryKind = EntryKind = {}));
+})(EntryKind || (EntryKind = {}));
 //# sourceMappingURL=propertyInitOrderChecker.js.map

@@ -272,7 +272,7 @@ type Definition =
 	| { readonly type: DefinitionKind.TripleSlashReference; readonly reference: ts.FileReference; readonly file: ts.SourceFile };
 
 /** @internal */
-export const enum EntryKind {
+enum EntryKind {
 	Span,
 	Node,
 	StringLiteral,
