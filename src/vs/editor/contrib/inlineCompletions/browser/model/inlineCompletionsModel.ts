@@ -146,6 +146,12 @@ export class InlineCompletionsModel extends Disposable {
 					: InlineCompletionEditorType.TextEditor;
 		}
 
+		this._register(recomputeInitiallyAndOnChange(this.state, (s) => {
+			if (s && s.inlineCompletion) {
+				this._inlineCompletionsService.reportNewCompletion(s.inlineCompletion.requestUuid);
+			}
+		}));
+
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
 		this._register(autorun(reader => {
