@@ -10,7 +10,7 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { ITerminalCompletion, mapLspKindToTerminalKind, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
 import { Position } from '../../../../../editor/common/core/position.js';
-import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { CompletionItemLabel, CompletionItemProvider, CompletionTriggerKind, CompletionItem, CompletionItemKind } from '../../../../../editor/common/languages.js';
 import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
@@ -56,6 +56,11 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
 			for (const item of (result?.suggestions || [])) {
+				// Filter out shell commands from Python completions
+				if (isShellCommand(item)) {
+					continue;
+				}
+
 				// TODO: Support more terminalCompletionItemKind for [different LSP providers](https://github.com/microsoft/vscode/issues/249479)
 				const convertedKind = item.kind ? mapLspKindToTerminalKind(item.kind) : TerminalCompletionItemKind.Method;
 				const completionItemTemp = createCompletionItemPython(cursorPosition, textBeforeCursor, convertedKind, 'lspCompletionItem', undefined);
@@ -156,4 +161,46 @@ export interface TerminalCompletionItem {
 	 * The completion's kind. Note that this will map to an icon.
 	 */
 	kind?: TerminalCompletionItemKind;
+}
+
+/**
+ * Determines if a completion item represents a shell command that should be filtered out
+ * from Python REPL completions.
+ */
+function isShellCommand(item: CompletionItem): boolean {
+	const label = typeof item.label === 'string' ? item.label : item.label.label;
+	
+	// Filter out common shell commands and package managers
+	const shellCommands = [
+		'npm', 'yarn', 'pnpm', 'pip', 'pip3', 'pipenv',
+		'git', 'curl', 'wget', 'ssh', 'scp', 'rsync',
+		'ls', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'cat', 'grep', 'find',
+		'sudo', 'chmod', 'chown', 'ps', 'kill', 'top', 'htop',
+		'docker', 'kubectl', 'helm', 'terraform', 'ansible',
+		'make', 'cmake', 'gcc', 'g++', 'clang', 'java', 'javac',
+		'node', 'deno', 'bun', 'go', 'rust', 'cargo',
+		'addgnurhome', 'kernelophys-support' // Specific commands from the issue
+	];
+	
+	// Check if the label matches a known shell command
+	if (shellCommands.includes(label)) {
+		return true;
+	}
+	
+	// Additional heuristics: items with Text kind and shell-like characteristics
+	if (item.kind === CompletionItemKind.Text) {
+		// Check for typical shell command patterns
+		if (label.includes('-') && label.length > 3) {
+			// Commands with dashes (like kernel-ophy-support)
+			return true;
+		}
+		
+		// Check if detail suggests it's a shell command
+		const detail = item.detail?.toLowerCase() || '';
+		if (detail.includes('command') || detail.includes('executable') || detail.includes('script')) {
+			return true;
+		}
+	}
+	
+	return false;
 }
