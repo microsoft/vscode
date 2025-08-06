@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
-import { ITaskService } from '../../../../tasks/common/taskService.js';
-import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { getOutput } from '../bufferOutputPolling.js';
-import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
+import type { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
+import { ITaskService } from '../../../../../tasks/common/taskService.js';
+import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { getOutput } from '../../bufferOutputPolling.js';
+import { getTaskDefinition, getTaskForTool } from '../../taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',

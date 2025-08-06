@@ -262,12 +262,20 @@ export interface IChatElicitationRequest {
 	message: string | IMarkdownString;
 	acceptButtonLabel: string;
 	rejectButtonLabel: string;
-	originMessage?: string | IMarkdownString;
+	subtitle?: string | IMarkdownString;
+	source?: { type: 'mcp'; definitionId: string };
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
 	reject(): Promise<void>;
 	onDidRequestHide: Event<void>;
+}
+
+export interface IChatThinkingPart {
+	kind: 'thinking';
+	value: string;
+	id?: string;
+	metadata?: string;
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -282,6 +290,16 @@ export interface IChatTerminalToolInvocationData {
 	language: string;
 }
 
+/**
+ * @deprecated This is the old API shape, we should support this for a while before removing it so
+ * we don't break existing chats
+ */
+export interface ILegacyChatTerminalToolInvocationData {
+	kind: 'terminal';
+	command: string;
+	language: string;
+}
+
 export interface IChatToolInputInvocationData {
 	kind: 'input';
 	rawInput: any;
@@ -289,7 +307,7 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -390,6 +408,7 @@ export type IChatProgress =
 	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
+	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest;
 

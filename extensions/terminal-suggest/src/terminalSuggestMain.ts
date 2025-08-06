@@ -32,7 +32,6 @@ export const enum TerminalShellType {
 	Fish = 'fish',
 	Zsh = 'zsh',
 	PowerShell = 'pwsh',
-	Python = 'python',
 	GitBash = 'gitbash',
 }
 
@@ -250,7 +249,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
 			const terminalShellType = getTerminalShellType(shellType);
 			if (!terminalShellType) {
-				console.debug('#terminalCompletions No shell type found for terminal');
+				console.debug(`#terminalCompletions Shell type ${shellType} not supported`);
 				return;
 			}
 
@@ -506,8 +505,6 @@ function getTerminalShellType(shellType: string | undefined): TerminalShellType 
 			return TerminalShellType.PowerShell;
 		case 'fish':
 			return TerminalShellType.Fish;
-		case 'python':
-			return TerminalShellType.Python;
 		default:
 			return undefined;
 	}
