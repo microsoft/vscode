@@ -785,12 +785,13 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
-	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): TextModelEditSource {
+	private _getMetadata(completion: InlineSuggestionItem, languageId: string, type: 'word' | 'line' | undefined = undefined): TextModelEditSource {
 		if (type) {
 			return EditSources.inlineCompletionPartialAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
 				providerId: completion.source.provider.providerId,
+				languageId,
 				type,
 			});
 		} else {
@@ -798,6 +799,7 @@ export class InlineCompletionsModel extends Disposable {
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
 				providerId: completion.source.provider.providerId,
+				languageId
 			});
 		}
 	}
@@ -830,7 +832,7 @@ export class InlineCompletionsModel extends Disposable {
 				const mainEdit = TextReplacement.delete(completion.editRange);
 				const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 				const edit = TextEdit.fromParallelReplacementsUnsorted([mainEdit, ...additionalEdits]);
-				editor.edit(edit, this._getMetadata(completion));
+				editor.edit(edit, this._getMetadata(completion, this.textModel.getLanguageId()));
 
 				editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 				SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
@@ -849,7 +851,7 @@ export class InlineCompletionsModel extends Disposable {
 				const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 				const edit = TextEdit.fromParallelReplacementsUnsorted([...edits, ...additionalEdits]);
 
-				editor.edit(edit, this._getMetadata(completion));
+				editor.edit(edit, this._getMetadata(completion, this.textModel.getLanguageId()));
 
 				if (completion.displayLocation === undefined) {
 					// do not move the cursor when the completion is displayed in a different location
