@@ -220,25 +220,32 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let isAutoApproved = false;
 			let isDenied = false;
 			let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
-			if (subCommandResults.some(e => e.result === 'denied')) {
+			let autoApproveDefault: boolean | undefined;
+
+			const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
+			if (deniedSubCommandResult) {
 				this._logService.info('autoApprove: Sub-command DENIED auto approval');
 				isDenied = true;
+				autoApproveDefault = deniedSubCommandResult.isDefaultRule;
 				autoApproveReason = 'subCommand';
 			} else if (commandLineResult.result === 'denied') {
 				this._logService.info('autoApprove: Command line DENIED auto approval');
 				isDenied = true;
+				autoApproveDefault = commandLineResult.isDefaultRule;
 				autoApproveReason = 'commandLine';
 			} else {
 				if (subCommandResults.every(e => e.result === 'approved')) {
 					this._logService.info('autoApprove: All sub-commands auto-approved');
 					autoApproveReason = 'subCommand';
 					isAutoApproved = true;
+					autoApproveDefault = subCommandResults.every(e => e.isDefaultRule);
 				} else {
 					this._logService.info('autoApprove: All sub-commands NOT auto-approved');
 					if (commandLineResult.result === 'approved') {
 						this._logService.info('autoApprove: Command line auto-approved');
 						autoApproveReason = 'commandLine';
 						isAutoApproved = true;
+						autoApproveDefault = commandLineResult.isDefaultRule;
 					} else {
 						this._logService.info('autoApprove: Command line NOT auto-approved');
 					}
@@ -254,7 +261,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._sendTelemetryPrepare({
 				terminalToolSessionId,
 				autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
-				autoApproveReason
+				autoApproveReason,
+				autoApproveDefault,
 			});
 
 			// Add a disclaimer warning about prompt injection for common commands that return
@@ -709,12 +717,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		terminalToolSessionId: string | undefined;
 		autoApproveResult: 'approved' | 'denied' | 'manual';
 		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
+		autoApproveDefault: boolean | undefined;
 	}) {
 		type TelemetryEvent = {
 			terminalToolSessionId: string | undefined;
 
 			autoApproveResult: string;
 			autoApproveReason: string | undefined;
+			autoApproveDefault: boolean | undefined;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -724,6 +734,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto-approved' };
 			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The reason it was auto approved or denied' };
+			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
 		};
 
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
@@ -731,6 +742,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			autoApproveResult: state.autoApproveResult,
 			autoApproveReason: state.autoApproveReason,
+			autoApproveDefault: state.autoApproveDefault,
 		});
 	}
 
