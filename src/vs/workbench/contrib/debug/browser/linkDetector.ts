@@ -12,7 +12,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import * as osPath from '../../../../base/common/path.js';
 import * as platform from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
-import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
+import { removeAnsiEscapeCodes, forAnsiStringParts } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -351,23 +351,26 @@ export class LinkDetector implements ILinkDetector {
 			return [{ kind: 'text', value: text, captures: [], index: 0 }];
 		}
 
-		// Strip ANSI escape codes for regex matching while preserving original text for display
-		const cleanedText = removeAnsiEscapeCodes(text);
-		
-		// Build a position map from cleaned text positions back to original text positions
+		// Build cleaned text and position mapping using forAnsiStringParts for reliable handling
+		let cleanedText = '';
 		const positionMap: number[] = [];
 		let originalIndex = 0;
-		let cleanedIndex = 0;
 		
-		while (originalIndex < text.length) {
-			if (cleanedIndex < cleanedText.length && text[originalIndex] === cleanedText[cleanedIndex]) {
-				positionMap[cleanedIndex] = originalIndex;
-				cleanedIndex++;
+		for (const part of forAnsiStringParts(text)) {
+			if (part.isCode) {
+				// Skip ANSI codes, just advance original index
+				originalIndex += part.str.length;
+			} else {
+				// Map each character position in cleaned text to original text
+				for (let i = 0; i < part.str.length; i++) {
+					positionMap[cleanedText.length + i] = originalIndex + i;
+				}
+				cleanedText += part.str;
+				originalIndex += part.str.length;
 			}
-			originalIndex++;
 		}
 		// Map the end position
-		positionMap[cleanedIndex] = originalIndex;
+		positionMap[cleanedText.length] = text.length;
 
 		const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX];
 		const kinds: LinkKind[] = ['web', 'path'];
