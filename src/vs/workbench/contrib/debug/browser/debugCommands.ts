@@ -1091,12 +1091,9 @@ registerAction2(class ToggleExceptionBreakpointsAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 
 		// Get the focused session or the first available session
-		const session = debugService.getViewModel().focusedSession || debugService.getModel().getSessions()[0];
-		if (!session) {
-			return;
-		}
-
-		const exceptionBreakpoints = debugService.getModel().getExceptionBreakpointsForSession(session.getId());
+		const debugModel = debugService.getModel();
+		const session = debugService.getViewModel().focusedSession || debugModel.getSessions()[0];
+		const exceptionBreakpoints = session ? debugModel.getExceptionBreakpointsForSession(session.getId()) : debugModel.getExceptionBreakpoints();
 		if (exceptionBreakpoints.length === 0) {
 			return;
 		}
@@ -1115,8 +1112,7 @@ registerAction2(class ToggleExceptionBreakpointsAction extends Action2 {
 
 		const disposables = new DisposableStore();
 		const quickPick = disposables.add(quickInputService.createQuickPick<IExceptionBreakpointItem>());
-		quickPick.title = nls.localize('selectExceptionBreakpoints', "Select Exception Breakpoints to Toggle");
-		quickPick.placeholder = nls.localize('selectExceptionBreakpointsPlaceholder', "Choose which exception breakpoints to toggle");
+		quickPick.placeholder = nls.localize('selectExceptionBreakpointsPlaceholder', "Pick enabled exception breakpoints");
 		quickPick.canSelectMany = true;
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
@@ -1125,8 +1121,7 @@ registerAction2(class ToggleExceptionBreakpointsAction extends Action2 {
 		quickPick.items = exceptionBreakpoints.map(bp => ({
 			label: bp.label,
 			description: bp.description,
-			detail: bp.enabled ? nls.localize('enabled', "Currently enabled") : nls.localize('disabled', "Currently disabled"),
-			picked: bp.enabled, // pre-select currently enabled breakpoints
+			picked: bp.enabled,
 			breakpoint: bp
 		}));
 
