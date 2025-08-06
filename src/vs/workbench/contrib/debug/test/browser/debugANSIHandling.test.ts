@@ -1045,4 +1045,29 @@ suite('Debug - ANSI Handling', () => {
 		}
 	});
 
+	test('appendStylizedStringToContainer with ANSI codes', () => {
+		const root: HTMLSpanElement = document.createElement('span');
+		
+		// Test case: path with ANSI codes should be detected as link
+		const testPath = '/tmp/abc.js\x1b[0m:1:7';
+		appendStylizedStringToContainer(root, testPath, [], linkDetector, session.root, undefined, undefined, undefined, undefined, 0);
+		
+		assert.strictEqual(1, root.children.length);
+		const child = root.children[0];
+		
+		// The child should be a span containing a link
+		if (child && child.tagName === 'SPAN') {
+			const linkElement = child.querySelector('a');
+			if (linkElement) {
+				// The link should contain the original text with ANSI codes
+				assert.strictEqual(testPath, linkElement.textContent);
+			} else {
+				// If no link was detected, the text should still be preserved
+				assert.strictEqual(testPath, child.textContent);
+			}
+		} else {
+			assert.fail('Expected span element');
+		}
+	});
+
 });

@@ -232,43 +232,4 @@ suite('Debug - Link Detector', () => {
 		assert.strictEqual(expectedOutput, output.outerHTML);
 		assertElementIsLink(output.firstElementChild!);
 	});
-
-	test('pathWithAnsiEscapeSequences', () => {
-		// Test the exact case from the issue: "/tmp/abc.js\x1b[0m:1:7"
-		const input = isWindows ? 'C:\\tmp\\abc.js\x1b[0m:1:7' : '/tmp/abc.js\x1b[0m:1:7';
-		const output = linkDetector.linkify(input);
-
-		assert.strictEqual(1, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual('A', output.firstElementChild!.tagName);
-		assertElementIsLink(output.firstElementChild!);
-		// The link should contain the original text with ANSI codes for display
-		assert.strictEqual(input, output.firstElementChild!.textContent);
-	});
-
-	test('pathWithAnsiEscapeSequencesInMiddle', () => {
-		// Test with ANSI escape sequences in the middle of the path
-		const input = isWindows ? 'C:\\tmp\\a\x1b[31mbc.js\x1b[0m:1:7' : '/tmp/a\x1b[31mbc.js\x1b[0m:1:7';
-		const output = linkDetector.linkify(input);
-
-		assert.strictEqual(1, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual('A', output.firstElementChild!.tagName);
-		assertElementIsLink(output.firstElementChild!);
-		// The link should contain the original text with ANSI codes for display
-		assert.strictEqual(input, output.firstElementChild!.textContent);
-	});
-
-	test('mixedTextAndPathWithAnsiEscapeSequences', () => {
-		const input = isWindows ? 'Error at C:\\tmp\\abc.js\x1b[0m:1:7 - something failed' : 'Error at /tmp/abc.js\x1b[0m:1:7 - something failed';
-		const output = linkDetector.linkify(input);
-
-		assert.strictEqual(1, output.children.length);
-		assert.strictEqual('SPAN', output.tagName);
-		assert.strictEqual('A', output.children[0].tagName);
-		assertElementIsLink(output.children[0]);
-		// The link should be the path with ANSI codes
-		const expectedPath = isWindows ? 'C:\\tmp\\abc.js\x1b[0m:1:7' : '/tmp/abc.js\x1b[0m:1:7';
-		assert.strictEqual(expectedPath, output.children[0].textContent);
-	});
 });

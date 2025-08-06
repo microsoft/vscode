@@ -6,6 +6,7 @@
 import { IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { isDefined } from '../../../../base/common/types.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { editorHoverBackground, listActiveSelectionBackground, listFocusBackground, listInactiveFocusBackground, listInactiveSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -418,14 +419,31 @@ export function appendStylizedStringToContainer(
 		return;
 	}
 
+	// Remove ANSI codes for link detection, but preserve original for display
+	const cleanedContent = removeAnsiEscapeCodes(stringContent);
+	
+	// Use cleaned content for link detection
 	const container = linkDetector.linkify(
-		stringContent,
+		cleanedContent,
 		true,
 		workspaceFolder,
 		undefined,
 		undefined,
 		highlights?.map(h => ({ start: h.start - offset, end: h.end - offset, extraClasses: h.extraClasses })),
 	);
+
+	// If links were detected and we had ANSI codes, preserve the original text with ANSI codes
+	if (cleanedContent !== stringContent && container.children.length > 0) {
+		// Check if there's exactly one link that spans the entire cleaned content
+		const linkElements = container.querySelectorAll('a');
+		if (linkElements.length === 1) {
+			const link = linkElements[0];
+			if (link.textContent === cleanedContent) {
+				// Replace the cleaned text with the original text that includes ANSI codes
+				link.textContent = stringContent;
+			}
+		}
+	}
 
 	container.className = cssClasses.join(' ');
 	if (customTextColor) {
