@@ -58,6 +58,8 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -152,6 +154,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IHostService hostService: IHostService,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
 
@@ -1598,8 +1601,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			fileDecorationBadges = false; // not enough space when sticky tabs are compact
 		} else {
 
-			name = options.showTabIndex ? localize("tabIndexDisplay", "{0}: {1}", (tabIndex + 1), tabLabel.name) : tabLabel.name;
+			name = options.showTabIndex ? localize("tabIndexDisplay", "{0}: {1}", tabIndex + 1, tabLabel.name) : tabLabel.name;
+			forceLabel = options.showTabIndex;
 			description = tabLabel.description || '';
+
+			if (!description && forceLabel && editor.resource && editor.resource.scheme === Schemas.untitled) {
+				const untitledModel = this.textFileService.untitled.get(editor.resource);
+				description = untitledModel && untitledModel.resource.path !== untitledModel.name ? untitledModel.resource.path : '';
+			}
 		}
 
 		if (tabLabel.ariaLabel) {
