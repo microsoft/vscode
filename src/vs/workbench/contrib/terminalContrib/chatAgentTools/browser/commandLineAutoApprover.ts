@@ -6,7 +6,9 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 
@@ -28,6 +30,7 @@ export class CommandLineAutoApprover extends Disposable {
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this.updateConfiguration();
@@ -63,7 +66,16 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; reason: string } {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; reason: string };
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem, cwd: URI): Promise<{ result: ICommandApprovalResult; reason: string }>;
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem, cwd?: URI): Promise<{ result: ICommandApprovalResult; reason: string }> | { result: ICommandApprovalResult; reason: string } {
+		if (cwd) {
+			return this._isCommandAutoApprovedAsync(command, shell, os, cwd);
+		}
+		return this._isCommandAutoApprovedSync(command, shell, os);
+	}
+
+	private _isCommandAutoApprovedSync(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; reason: string } {
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
@@ -74,6 +86,27 @@ export class CommandLineAutoApprover extends Disposable {
 		// Check the allow list to see if the command is allowed to run without explicit approval
 		for (const rule of this._allowListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
+				return { result: 'approved', reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}` };
+			}
+		}
+
+		// TODO: LLM-based auto-approval https://github.com/microsoft/vscode/issues/253267
+
+		// Fallback is always to require approval
+		return { result: 'noMatch', reason: `Command '${command}' has no matching auto approve entries` };
+	}
+
+	private async _isCommandAutoApprovedAsync(command: string, shell: string, os: OperatingSystem, cwd: URI): Promise<{ result: ICommandApprovalResult; reason: string }> {
+		// Check the deny list to see if this command requires explicit approval
+		for (const rule of this._denyListRules) {
+			if (await this._commandMatchesRuleAsync(rule, command, shell, os, cwd)) {
+				return { result: 'denied', reason: `Command '${command}' is denied by deny list rule: ${rule.sourceText}` };
+			}
+		}
+
+		// Check the allow list to see if the command is allowed to run without explicit approval
+		for (const rule of this._allowListRules) {
+			if (await this._commandMatchesRuleAsync(rule, command, shell, os, cwd)) {
 				return { result: 'approved', reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
@@ -172,6 +205,73 @@ export class CommandLineAutoApprover extends Disposable {
 				return true;
 			}
 		}
+		return false;
+	}
+
+	private async _commandMatchesRuleAsync(rule: IAutoApproveRule, command: string, shell: string, os: OperatingSystem, cwd: URI): Promise<boolean> {
+		const actualCommand = this._removeEnvAssignments(command, shell, os);
+		const isPwsh = isPowerShell(shell, os);
+		const isCmdShell = this._isCmdShell(shell, os);
+
+		// Get the command to test against the rule
+		let commandToTest = actualCommand;
+
+		// Special handling for cmd.exe: check if there's actually a local executable file
+		// that would be resolved before applying the security transformation
+		if (isCmdShell && actualCommand && cwd) {
+			const commandParts = actualCommand.trim().split(/\s+/);
+			const firstCommand = commandParts[0];
+			
+			// Check if the first command has no path separators (no \, /, or :)
+			if (firstCommand && !/[\\\/:]/.test(firstCommand)) {
+				// Check if there's a local executable file that cmd.exe would resolve to
+				const hasLocalExecutable = await this._checkForLocalExecutable(firstCommand, cwd);
+				
+				if (hasLocalExecutable) {
+					// There is a local executable, so we need to transform the command to .\command
+					// to ensure the user explicitly approved local file execution
+					const prefixedCommand = `.\\${firstCommand}`;
+					if (commandParts.length > 1) {
+						commandToTest = `${prefixedCommand} ${commandParts.slice(1).join(' ')}`;
+					} else {
+						commandToTest = prefixedCommand;
+					}
+				}
+				// If there's no local executable, use the command as-is (no transformation needed)
+			}
+		}
+
+		// PowerShell is case insensitive regardless of platform
+		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(commandToTest)) {
+			return true;
+		} else if (isPwsh && commandToTest.startsWith('(')) {
+			// Allow ignoring of the leading ( for PowerShell commands as it's a command pattern to
+			// operate on the output of a command. For example `(Get-Content README.md) ...`
+			if (rule.regexCaseInsensitive.test(commandToTest.slice(1))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private async _checkForLocalExecutable(command: string, cwd: URI): Promise<boolean> {
+		// Common executable extensions that cmd.exe would resolve to (in order of precedence)
+		const executableExtensions = ['.exe', '.com', '.bat', '.cmd'];
+		
+		for (const ext of executableExtensions) {
+			// Construct the file path properly by joining the cwd with the command filename
+			const fileUri = cwd.with({ path: `${cwd.path.replace(/\/$/, '')}/${command}${ext}` });
+			try {
+				if (await this._fileService.exists(fileUri)) {
+					return true;
+				}
+			} catch (error) {
+				// If there's an error checking file existence, continue to next extension
+				// This ensures we don't break on permission errors or network issues
+				continue;
+			}
+		}
+		
 		return false;
 	}
 

@@ -208,7 +208,29 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
-			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
+
+			// Get the current working directory for more accurate cmd.exe security checking
+			let cwd: URI | undefined;
+			if (instance) {
+				cwd = await instance.getCwdResource();
+			}
+			// If no terminal instance cwd, try workspace root as fallback
+			if (!cwd) {
+				const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
+				if (workspaceFolders.length === 1) {
+					cwd = workspaceFolders[0].uri;
+				}
+			}
+
+			// Use async auto-approval check when we have working directory context
+			let subCommandResults: { result: ICommandApprovalResult; reason: string }[];
+			if (cwd) {
+				subCommandResults = await Promise.all(allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os, cwd)));
+			} else {
+				// Fallback to sync version when no working directory available
+				subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
+			}
+			
 			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
 			const autoApproveReasons: string[] = [
 				...subCommandResults.map(e => e.reason),
