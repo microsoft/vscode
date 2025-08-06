@@ -1045,6 +1045,29 @@ suite('Debug - ANSI Handling', () => {
 		}
 	});
 
+	test('handleANSIOutput with ANSI codes in file paths', () => {
+		// Test case: path with ANSI codes should be detected as link
+		const testPath = '/tmp/abc.js\x1b[0m:1:7';
+		const result = handleANSIOutput(testPath, linkDetector, session.root, undefined);
+		
+		assert.strictEqual('SPAN', result.tagName);
+		
+		// Should contain a single link element
+		const linkElement = result.querySelector('a');
+		assert(linkElement, 'Expected to find a link element');
+		
+		// The link should contain the original text with ANSI codes for display
+		assert.strictEqual(testPath, linkElement.textContent);
+		
+		// Test another case with ANSI codes in the middle
+		const testPath2 = '/tmp/a\x1b[31mbc.js\x1b[0m:1:7';
+		const result2 = handleANSIOutput(testPath2, linkDetector, session.root, undefined);
+		
+		const linkElement2 = result2.querySelector('a');
+		assert(linkElement2, 'Expected to find a link element in second test');
+		assert.strictEqual(testPath2, linkElement2.textContent);
+	});
+
 	test('appendStylizedStringToContainer with ANSI codes', () => {
 		const root: HTMLSpanElement = document.createElement('span');
 		

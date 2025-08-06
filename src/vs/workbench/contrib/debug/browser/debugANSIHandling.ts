@@ -5,6 +5,7 @@
 
 import { IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
+import { forAnsiStringParts, removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { editorHoverBackground, listActiveSelectionBackground, listFocusBackground, listInactiveFocusBackground, listInactiveSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -19,6 +20,118 @@ import { ILinkDetector } from './linkDetector.js';
  * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
  */
 export function handleANSIOutput(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, highlights: IHighlight[] | undefined): HTMLSpanElement {
+
+	// Check if we have ANSI codes and potential links that need special handling
+	const cleanedText = removeAnsiEscapeCodes(text);
+	if (cleanedText !== text) {
+		// We have ANSI codes, check if the cleaned text has links
+		const linkContainer = linkDetector.linkify(cleanedText, false, workspaceFolder);
+		if (linkContainer.children.length > 0) {
+			// We have links in text with ANSI codes - handle specially
+			return handleANSIOutputWithLinks(text, cleanedText, linkDetector, workspaceFolder, highlights);
+		}
+	}
+
+	// No ANSI codes or no links, use original processing
+	return handleANSIOutputOriginal(text, linkDetector, workspaceFolder, highlights);
+}
+
+/**
+ * Handle ANSI output that contains both ANSI codes and links
+ */
+function handleANSIOutputWithLinks(originalText: string, cleanedText: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, highlights: IHighlight[] | undefined): HTMLSpanElement {
+	const root: HTMLSpanElement = document.createElement('span');
+
+	// Use forAnsiStringParts to properly parse the content
+	const parts: Array<{ isCode: boolean; str: string }> = [];
+	for (const part of forAnsiStringParts(originalText)) {
+		parts.push(part);
+	}
+
+	// Process the parts while collecting styling information
+	let currentStyles: string[] = [];
+	let customFgColor: RGBA | string | undefined;
+	let customBgColor: RGBA | string | undefined;
+	let customUnderlineColor: RGBA | string | undefined;
+	let colorsInverted: boolean = false;
+	
+	// First pass: extract styling information from ANSI codes
+	for (const part of parts) {
+		if (part.isCode) {
+			// Process ANSI styling sequence
+			const match = part.str.match(/^\x1b\[([0-9;]*)m$/);
+			if (match) {
+				const sequence = match[1];
+				if (sequence.match(/^(?:[34][0-8]|9[0-7]|10[0-7]|[0-9]|2[1-5,7-9]|[34]9|5[8,9]|1[0-9])(?:;[349][0-7]|10[0-7]|[013]|[245]|[34]9)?(?:;[012]?[0-9]?[0-9])*;?$/)) {
+					const styleCodes: number[] = sequence
+						.split(';')
+						.filter(elem => elem !== '')
+						.map(elem => parseInt(elem, 10));
+
+					// Apply basic styling (simplified version of the original logic)
+					for (const code of styleCodes) {
+						switch (code) {
+							case 0: // reset
+								currentStyles = [];
+								customFgColor = undefined;
+								customBgColor = undefined;
+								break;
+							case 1: // bold
+								currentStyles = currentStyles.filter(s => s !== 'code-bold');
+								currentStyles.push('code-bold');
+								break;
+							case 3: // italic
+								currentStyles = currentStyles.filter(s => s !== 'code-italic');
+								currentStyles.push('code-italic');
+								break;
+							case 4: // underline
+								currentStyles = currentStyles.filter(s => s !== 'code-underline');
+								currentStyles.push('code-underline');
+								break;
+							// Add more cases as needed
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Do link detection on the cleaned text
+	const linkContainer = linkDetector.linkify(cleanedText, false, workspaceFolder);
+	
+	// Check for the simple case: single link that spans the entire content
+	const linkElements = linkContainer.querySelectorAll('a');
+	if (linkElements.length === 1 && linkElements[0].textContent === cleanedText) {
+		// Single link case - create the link with original text containing ANSI codes
+		const linkElement = document.createElement('a');
+		linkElement.href = linkElements[0].href;
+		linkElement.tabIndex = 0;
+		linkElement.textContent = originalText; // Use original text with ANSI codes for display
+		linkElement.className = currentStyles.join(' ');
+		
+		// Apply collected styles
+		if (customFgColor) {
+			linkElement.style.color =
+				typeof customFgColor === 'string' ? `var(${customFgColor})` : Color.Format.CSS.formatRGB(new Color(customFgColor));
+		}
+		if (customBgColor) {
+			linkElement.style.backgroundColor =
+				typeof customBgColor === 'string' ? `var(${customBgColor})` : Color.Format.CSS.formatRGB(new Color(customBgColor));
+		}
+		if (customUnderlineColor) {
+			linkElement.style.textDecorationColor =
+				typeof customUnderlineColor === 'string' ? `var(${customUnderlineColor})` : Color.Format.CSS.formatRGB(new Color(customUnderlineColor));
+		}
+
+		root.appendChild(linkElement);
+		return root;
+	}
+
+	// Complex case with multiple links or partial links - fall back to original processing
+	return handleANSIOutputOriginal(originalText, linkDetector, workspaceFolder, highlights);
+}
+
+function handleANSIOutputOriginal(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, highlights: IHighlight[] | undefined): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
 	const textLength: number = text.length;
@@ -419,10 +532,9 @@ export function appendStylizedStringToContainer(
 		return;
 	}
 
-	// Remove ANSI codes for link detection, but preserve original for display
+	// Remove ANSI codes for link detection, but preserve original text for display
 	const cleanedContent = removeAnsiEscapeCodes(stringContent);
 	
-	// Use cleaned content for link detection
 	const container = linkDetector.linkify(
 		cleanedContent,
 		true,
@@ -432,14 +544,13 @@ export function appendStylizedStringToContainer(
 		highlights?.map(h => ({ start: h.start - offset, end: h.end - offset, extraClasses: h.extraClasses })),
 	);
 
-	// If links were detected and we had ANSI codes, preserve the original text with ANSI codes
+	// If we had ANSI codes and links were detected, preserve original text in link elements
 	if (cleanedContent !== stringContent && container.children.length > 0) {
-		// Check if there's exactly one link that spans the entire cleaned content
 		const linkElements = container.querySelectorAll('a');
 		if (linkElements.length === 1) {
 			const link = linkElements[0];
 			if (link.textContent === cleanedContent) {
-				// Replace the cleaned text with the original text that includes ANSI codes
+				// Replace cleaned text with original text that includes ANSI codes
 				link.textContent = stringContent;
 			}
 		}
