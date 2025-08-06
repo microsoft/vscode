@@ -138,7 +138,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const position = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 
 		const canShowLabels = position !== ActivityBarPosition.TOP; // otherwise labels would repeat vertically
-		const showLabels = canShowLabels && this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
+		const userShowLabelsSetting = this.configurationService.getValue('workbench.secondarySideBar.showLabels');
+		const showLabels = canShowLabels && userShowLabelsSetting === true;
 
 		return { position, canShowLabels, showLabels };
 	}
