@@ -288,7 +288,7 @@ export interface IMcpServer extends IDisposable {
 	 */
 	readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }>;
 
-	showOutput(): void;
+	showOutput(preserveFocus?: boolean): Promise<void>;
 	/**
 	 * Starts the server and returns its resulting state. One of:
 	 * - Running, if all good

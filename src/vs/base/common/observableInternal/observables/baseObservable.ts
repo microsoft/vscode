@@ -5,6 +5,7 @@
 
 import { IObservableWithChange, IObserver, IReader, IObservable } from '../base.js';
 import { DisposableStore } from '../commonFacade/deps.js';
+import { DebugLocation } from '../debugLocation.js';
 import { DebugOwner, getFunctionName } from '../debugName.js';
 import { getLogger, logObservable } from '../logging/logging.js';
 import type { keepObserved, recomputeInitiallyAndOnChange } from '../utils/utils.js';
@@ -124,9 +125,9 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
 	protected readonly _observers = new Set<IObserver>();
 
-	constructor() {
+	constructor(debugLocation: DebugLocation) {
 		super();
-		getLogger()?.handleObservableCreated(this);
+		getLogger()?.handleObservableCreated(this, debugLocation);
 	}
 
 	public addObserver(observer: IObserver): void {
@@ -157,7 +158,7 @@ export abstract class BaseObservable<T, TChange = void> extends ConvenientObserv
 		const hadLogger = !!getLogger();
 		logObservable(this);
 		if (!hadLogger) {
-			getLogger()?.handleObservableCreated(this);
+			getLogger()?.handleObservableCreated(this, DebugLocation.ofCaller());
 		}
 		return this;
 	}

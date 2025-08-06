@@ -2284,7 +2284,7 @@ export interface CodeLens {
 }
 
 export interface CodeLensList {
-	lenses: CodeLens[];
+	readonly lenses: readonly CodeLens[];
 	dispose?(): void;
 }
 
