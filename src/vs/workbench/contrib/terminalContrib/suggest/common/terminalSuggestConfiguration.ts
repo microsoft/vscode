@@ -201,10 +201,8 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
 
 	const corePwshProviderId = 'core:pwsh-shell-integration';
-	const lspProviderId = 'lsp';
 	const defaultValue: IStringDictionary<boolean> = {
 		[corePwshProviderId]: false,
-		[lspProviderId]: product.quality === 'stable' ? false : true
 	};
 	providersProperties[corePwshProviderId] ??= {
 		type: 'boolean',
@@ -214,20 +212,20 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 		default: false
 	};
 
-	// Add LSP provider configuration when not in stable
-	if (product.quality !== 'stable') {
-		providersProperties[lspProviderId] ??= {
-			type: 'boolean',
-			description: localize('suggest.provider.lsp.description', "Enable or disable the Language Server Protocol (LSP) based provider. This provides enhanced completion support through language servers."),
-			default: true
-		};
-	}
 
 	if (availableProviders) {
 		for (const providerId of availableProviders) {
 			if (providerId in defaultValue) {
 				continue;
+			} else if (providerId.startsWith('lsp')) {
+				providersProperties[providerId] ??= {
+					type: 'boolean',
+					description: localize(`suggest.provider.lsp.${providerId}.description`, "Enable or disable the Language Server Protocol (LSP) based provider. This provides enhanced completion support through language servers."),
+					default: product.quality !== 'stable'
+				};
+				continue;
 			}
+
 			providersProperties[providerId] = {
 				type: 'boolean',
 				description: localize('suggest.provider.description', "Whether to enable this provider."),

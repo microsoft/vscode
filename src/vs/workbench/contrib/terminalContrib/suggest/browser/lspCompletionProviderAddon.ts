@@ -15,9 +15,9 @@ import { LspTerminalModelContentProvider } from './lspTerminalModelContentProvid
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 export class LspCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
-	readonly id = 'lsp';
 	readonly isBuiltin = true;
 	readonly triggerCharacters?: string[];
+	id: string;
 	private _provider: CompletionItemProvider;
 	private _textVirtualModel: IReference<IResolvedTextEditorModel>;
 	private _lspTerminalModelContentProvider: LspTerminalModelContentProvider;
@@ -32,6 +32,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
 		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' '] : [' '];
+		this.id = `lsp:${this._provider._debugDisplayName}`;
 	}
 
 	activate(terminal: Terminal): void {
