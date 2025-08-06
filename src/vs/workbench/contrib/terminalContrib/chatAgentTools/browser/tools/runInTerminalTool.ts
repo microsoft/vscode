@@ -195,6 +195,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
+		const terminalToolSessionId = generateUuid();
+
 		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
 		if (toolEditedCommand === args.command) {
 			toolEditedCommand = undefined;
@@ -241,7 +243,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 
 			// Send telemetry about auto approval process
-			this._sendTelemetryPrepare(actualCommand, shell, os, subCommandResults, commandLineResult, subCommands, inlineSubCommands);
+			this._sendTelemetryPrepare({
+				terminalToolSessionId,
+				commandLine: actualCommand,
+				shell,
+				os,
+				subCommandResults,
+				commandLineResult,
+				subCommands,
+				inlineSubCommands
+			});
 
 			// Add a disclaimer warning about prompt injection for common commands that return
 			// content from the web
@@ -268,6 +279,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			presentation,
 			toolSpecificData: {
 				kind: 'terminal',
+				terminalToolSessionId,
 				commandLine: {
 					original: args.command,
 					toolEdited: toolEditedCommand
@@ -400,6 +412,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._sendTelemetryInvoke(toolTerminal.instance, {
+					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
 					didUserEditCommand,
 					didToolEditCommand,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
@@ -468,6 +481,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
 				this._sendTelemetryInvoke(toolTerminal.instance, {
+					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
 					didUserEditCommand,
 					didToolEditCommand,
 					isBackground: false,
@@ -688,7 +702,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _sendTelemetryPrepare(commandLine: string, shell: string, os: OperatingSystem, subCommandResults: Array<{ result: ICommandApprovalResult; reason: string }>, commandLineResult: { result: ICommandApprovalResult; reason: string }, subCommands: string[], inlineSubCommands: string[]) {
+	private _sendTelemetryPrepare(state: {
+		terminalToolSessionId: string | undefined;
+		commandLine: string;
+		shell: string;
+		os: OperatingSystem;
+		subCommandResults: Array<{ result: ICommandApprovalResult; reason: string }>;
+		commandLineResult: { result: ICommandApprovalResult; reason: string };
+		subCommands: string[];
+		inlineSubCommands: string[];
+	}) {
 		// Count approval types for sub-commands
 		let subCommandsApproved = 0;
 		let subCommandsDenied = 0;
@@ -696,7 +719,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let subCommandsRegexApproved = 0;
 		let subCommandsDefaultApproved = 0;
 
-		for (const result of subCommandResults) {
+		for (const result of state.subCommandResults) {
 			switch (result.result) {
 				case 'approved':
 					subCommandsApproved++;
@@ -718,17 +741,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Determine command line approval type
 		let commandLineRegexApproved = false;
 		let commandLineDefaultApproved = false;
-		if (commandLineResult.result === 'approved') {
-			commandLineRegexApproved = commandLineResult.reason.includes('allow list rule: /');
+		if (state.commandLineResult.result === 'approved') {
+			commandLineRegexApproved = state.commandLineResult.reason.includes('allow list rule: /');
 			commandLineDefaultApproved = !commandLineRegexApproved;
 		}
 
 		// Calculate command and argument metrics
-		const firstCommand = subCommands[0]?.trim().split(/\s+/)[0] || '';
-		const argCount = commandLine.trim().split(/\s+/).length - 1;
+		const firstCommand = state.subCommands[0]?.trim().split(/\s+/)[0] || '';
+		const argCount = state.commandLine.trim().split(/\s+/).length - 1;
 
 		type TelemetryEvent = {
-			terminalSessionId: string;
+			terminalToolSessionId: string | undefined;
 
 			// Overall approval status
 			overallApproved: 0 | 1;
@@ -760,7 +783,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			owner: 'tyriar';
 			comment: 'Understanding the auto approval behavior of the runInTerminal tool';
 
-			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
+			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
 			overallApproved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the overall command was auto-approved' };
 			overallDenied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the overall command was denied by deny list' };
@@ -788,45 +811,46 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let overallApproved = false;
 		let overallDenied = false;
 
-		if (subCommandResults.some(e => e.result === 'denied')) {
+		if (state.subCommandResults.some(e => e.result === 'denied')) {
 			overallDenied = true;
-		} else if (commandLineResult.result === 'denied') {
+		} else if (state.commandLineResult.result === 'denied') {
 			overallDenied = true;
 		} else {
-			if (subCommandResults.every(e => e.result === 'approved')) {
+			if (state.subCommandResults.every(e => e.result === 'approved')) {
 				overallApproved = true;
-			} else if (commandLineResult.result === 'approved') {
+			} else if (state.commandLineResult.result === 'approved') {
 				overallApproved = true;
 			}
 		}
 
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
-			terminalSessionId: 'prepare-phase', // No terminal session available yet during prepare
+			terminalToolSessionId: state.terminalToolSessionId,
 
 			overallApproved: overallApproved ? 1 : 0,
 			overallDenied: overallDenied ? 1 : 0,
 
-			subCommandCount: subCommands.length,
+			subCommandCount: state.subCommands.length,
 			subCommandsApproved,
 			subCommandsDenied,
 			subCommandsNoMatch,
 			subCommandsRegexApproved,
 			subCommandsDefaultApproved,
 
-			commandLineApproved: commandLineResult.result === 'approved' ? 1 : 0,
-			commandLineDenied: commandLineResult.result === 'denied' ? 1 : 0,
+			commandLineApproved: state.commandLineResult.result === 'approved' ? 1 : 0,
+			commandLineDenied: state.commandLineResult.result === 'denied' ? 1 : 0,
 			commandLineRegexApproved: commandLineRegexApproved ? 1 : 0,
 			commandLineDefaultApproved: commandLineDefaultApproved ? 1 : 0,
 
-			inlineSubCommandCount: inlineSubCommands.length,
+			inlineSubCommandCount: state.inlineSubCommands.length,
 
-			commandLength: commandLine.length,
+			commandLength: state.commandLine.length,
 			argCount,
 			firstCommand,
 		});
 	}
 
 	private _sendTelemetryInvoke(instance: ITerminalInstance, state: {
+		terminalToolSessionId: string | undefined;
 		didUserEditCommand: boolean;
 		didToolEditCommand: boolean;
 		error: string | undefined;
@@ -844,6 +868,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
+			terminalToolSessionId: string | undefined;
 
 			result: string;
 			strategy: 0 | 1 | 2;
@@ -865,6 +890,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			comment: 'Understanding the usage of the runInTerminal tool';
 
 			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
+			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
 			result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool ran successfully, or the type of error' };
 			strategy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'What strategy was used to execute the command (0=none, 1=basic, 2=rich)' };
@@ -883,6 +909,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
+			terminalToolSessionId: state.terminalToolSessionId,
+
 			result: state.error ?? 'success',
 			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
 			userEditedCommand: state.didUserEditCommand ? 1 : 0,
