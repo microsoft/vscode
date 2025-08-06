@@ -170,16 +170,37 @@ export interface TerminalCompletionItem {
 function isShellCommand(item: CompletionItem): boolean {
 	const label = typeof item.label === 'string' ? item.label : item.label.label;
 	
-	// Filter out common shell commands and package managers
+	// Filter out common shell commands and package managers that should not appear in Python REPL
 	const shellCommands = [
-		'npm', 'yarn', 'pnpm', 'pip', 'pip3', 'pipenv',
-		'git', 'curl', 'wget', 'ssh', 'scp', 'rsync',
-		'ls', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'cat', 'grep', 'find',
-		'sudo', 'chmod', 'chown', 'ps', 'kill', 'top', 'htop',
-		'docker', 'kubectl', 'helm', 'terraform', 'ansible',
-		'make', 'cmake', 'gcc', 'g++', 'clang', 'java', 'javac',
-		'node', 'deno', 'bun', 'go', 'rust', 'cargo',
-		'addgnurhome', 'kernelophys-support' // Specific commands from the issue
+		// Package managers and build tools
+		'npm', 'yarn', 'pnpm', 'pip', 'pip3', 'pipenv', 'poetry', 'conda',
+		'maven', 'gradle', 'make', 'cmake', 'ninja',
+		
+		// Version control
+		'git', 'svn', 'hg', 'bzr',
+		
+		// Network tools
+		'curl', 'wget', 'ssh', 'scp', 'rsync', 'ftp', 'sftp',
+		
+		// File operations (common commands)
+		'ls', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'cat', 'grep', 'find', 'sed', 'awk',
+		'chmod', 'chown', 'ln', 'du', 'df', 'tar', 'zip', 'unzip',
+		
+		// System tools
+		'sudo', 'ps', 'kill', 'killall', 'top', 'htop', 'which', 'whereis',
+		'systemctl', 'service', 'crontab',
+		
+		// Container and cloud tools
+		'docker', 'podman', 'kubectl', 'helm', 'terraform', 'ansible',
+		'aws', 'gcloud', 'azure',
+		
+		// Programming language tools (excluding Python)
+		'node', 'deno', 'bun', 'go', 'rust', 'cargo', 'ruby', 'gem',
+		'java', 'javac', 'scala', 'kotlin', 'swift',
+		'gcc', 'g++', 'clang', 'clang++',
+		
+		// Specific commands from the issue
+		'addgnurhome', 'kernelophys-support', 'linux-update-symlinks', 'x86_64-linux-gnu-gp-display-html'
 	];
 	
 	// Check if the label matches a known shell command
@@ -187,19 +208,36 @@ function isShellCommand(item: CompletionItem): boolean {
 		return true;
 	}
 	
-	// Additional heuristics: items with Text kind and shell-like characteristics
-	if (item.kind === CompletionItemKind.Text) {
-		// Check for typical shell command patterns
-		if (label.includes('-') && label.length > 3) {
-			// Commands with dashes (like kernel-ophy-support)
+	// Additional heuristics for shell-like completions
+	if (item.kind === CompletionItemKind.Text || item.kind === CompletionItemKind.Variable) {
+		const detail = item.detail?.toLowerCase() || '';
+		
+		// Filter out items that are explicitly shell commands
+		if (detail.includes('command') || detail.includes('executable') || 
+			detail.includes('script') || detail.includes('binary')) {
 			return true;
 		}
 		
-		// Check if detail suggests it's a shell command
-		const detail = item.detail?.toLowerCase() || '';
-		if (detail.includes('command') || detail.includes('executable') || detail.includes('script')) {
+		// Filter out items with hyphenated names that look like shell commands (but be conservative)
+		// Only filter if they're long and look like system tools, but allow Python modules
+		if (label.includes('-') && label.length > 8 && 
+			(detail.includes('tool') || detail.includes('system') || detail === '')) {
 			return true;
 		}
+		
+		// Filter out items that look like file paths
+		if (label.startsWith('/') || label.includes('./') || label.includes('../')) {
+			return true;
+		}
+	}
+	
+	// Don't filter Python-related completions, even if they have other kinds
+	if (item.kind === CompletionItemKind.Module || 
+		item.kind === CompletionItemKind.Class ||
+		item.kind === CompletionItemKind.Method ||
+		item.kind === CompletionItemKind.Function ||
+		item.kind === CompletionItemKind.Keyword) {
+		return false;
 	}
 	
 	return false;

@@ -98,9 +98,24 @@ suite('LspCompletionProviderAddon', () => {
 				detail: 'Shell command'
 			},
 			{
+				label: 'kernelophys-support',
+				kind: CompletionItemKind.Text,
+				detail: 'System tool'
+			},
+			{
 				label: 'len',
 				kind: CompletionItemKind.Method,
 				detail: 'Built-in function'
+			},
+			{
+				label: 'git',
+				kind: CompletionItemKind.Variable,
+				detail: 'Version control command'
+			},
+			{
+				label: 'my_python_var',
+				kind: CompletionItemKind.Variable,
+				detail: 'Python variable'
 			}
 		];
 
@@ -124,10 +139,13 @@ suite('LspCompletionProviderAddon', () => {
 		const labels = result.map(item => item.label);
 		assert(labels.includes('print'), 'Should include print function');
 		assert(labels.includes('len'), 'Should include len function');
+		assert(labels.includes('my_python_var'), 'Should include Python variables');
 		
 		// Should NOT contain shell commands
 		assert(!labels.includes('npm'), 'Should not include npm command');
 		assert(!labels.includes('addgnurhome'), 'Should not include shell commands');
+		assert(!labels.includes('kernelophys-support'), 'Should not include system tools');
+		assert(!labels.includes('git'), 'Should not include git command');
 	});
 
 	test('should allow Python completions when they have appropriate kinds', async () => {
@@ -147,6 +165,11 @@ suite('LspCompletionProviderAddon', () => {
 				label: 'MyClass',
 				kind: CompletionItemKind.Class,
 				detail: 'User-defined class'
+			},
+			{
+				label: '__init__',
+				kind: CompletionItemKind.Method,
+				detail: 'Constructor method'
 			}
 		];
 
@@ -165,11 +188,61 @@ suite('LspCompletionProviderAddon', () => {
 		// Assert: Should include all Python-appropriate completions
 		assert(result);
 		assert(Array.isArray(result));
-		assert.strictEqual(result.length, 3, 'Should include all Python completions');
+		assert.strictEqual(result.length, 4, 'Should include all Python completions');
 		
 		const labels = result.map(item => item.label);
 		assert(labels.includes('print'), 'Should include method');
 		assert(labels.includes('my_variable'), 'Should include variable');
 		assert(labels.includes('MyClass'), 'Should include class');
+		assert(labels.includes('__init__'), 'Should include dunder methods');
+	});
+
+	test('should not filter Python keywords or built-ins that might look like commands', async () => {
+		// Arrange: Mock Python keywords and built-ins that could be confused with shell commands
+		const mockCompletionItems: CompletionItem[] = [
+			{
+				label: 'int',
+				kind: CompletionItemKind.Keyword,
+				detail: 'Built-in type'
+			},
+			{
+				label: 'str',
+				kind: CompletionItemKind.Keyword,
+				detail: 'Built-in type'
+			},
+			{
+				label: 'import',
+				kind: CompletionItemKind.Keyword,
+				detail: 'Python keyword'
+			},
+			{
+				label: 'pip-tools',  // This has a dash but should be allowed as it could be a Python module
+				kind: CompletionItemKind.Module,
+				detail: 'Python module'
+			}
+		];
+
+		(mockProvider.provideCompletionItems as sinon.SinonStub).resolves({
+			suggestions: mockCompletionItems
+		});
+
+		// Act: Get completions
+		const result = await lspCompletionProviderAddon.provideCompletions(
+			'i',
+			1,
+			false,
+			CancellationToken.None
+		);
+
+		// Assert: Should include all legitimate Python completions
+		assert(result);
+		assert(Array.isArray(result));
+		assert.strictEqual(result.length, 4, 'Should include all Python-related completions');
+		
+		const labels = result.map(item => item.label);
+		assert(labels.includes('int'), 'Should include Python types');
+		assert(labels.includes('str'), 'Should include Python types');
+		assert(labels.includes('import'), 'Should include Python keywords');
+		assert(labels.includes('pip-tools'), 'Should include Python modules even with dashes');
 	});
 });
