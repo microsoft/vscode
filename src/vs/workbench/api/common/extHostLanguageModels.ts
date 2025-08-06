@@ -38,7 +38,7 @@ type LanguageModelProviderData = {
 	readonly provider: vscode.LanguageModelChatProvider2;
 };
 
-type LMResponsePart = vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart;
+type LMResponsePart = vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart;
 
 class LanguageModelResponseStream {
 
@@ -102,6 +102,9 @@ class LanguageModelResponse {
 			let out: LMResponsePart;
 			if (fragment.part.type === 'text') {
 				out = new extHostTypes.LanguageModelTextPart(fragment.part.value, fragment.part.audience);
+			} else if (fragment.part.type === 'thinking') {
+				out = new extHostTypes.LanguageModelThinkingPart(fragment.part.value, fragment.part.id, fragment.part.metadata);
+
 			} else if (fragment.part.type === 'data') {
 				out = new extHostTypes.LanguageModelDataPart(fragment.part.data.buffer, fragment.part.mimeType, fragment.part.audience);
 			} else {
@@ -301,6 +304,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				part = { type: 'text', value: fragment.part.value, audience: fragment.part.audience };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelDataPart) {
 				part = { type: 'data', mimeType: fragment.part.mimeType, data: VSBuffer.wrap(fragment.part.data), audience: fragment.part.audience };
+			} else if (fragment.part instanceof extHostTypes.LanguageModelThinkingPart) {
+				part = { type: 'thinking', value: fragment.part.value, id: fragment.part.id, metadata: fragment.part.metadata };
 			}
 
 			if (!part) {

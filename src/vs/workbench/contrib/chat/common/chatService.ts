@@ -271,6 +271,13 @@ export interface IChatElicitationRequest {
 	onDidRequestHide: Event<void>;
 }
 
+export interface IChatThinkingPart {
+	kind: 'thinking';
+	value: string;
+	id?: string;
+	metadata?: string;
+}
+
 export interface IChatTerminalToolInvocationData {
 	kind: 'terminal';
 	commandLine: {
@@ -391,6 +398,7 @@ export type IChatProgress =
 	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
+	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest;
 
