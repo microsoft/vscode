@@ -413,8 +413,8 @@ export class CodeBlockPart extends Disposable {
 			this.layout(width);
 		}
 
-		await this.updateEditor(data);
-		if (this.isDisposed) {
+		const didUpdate = await this.updateEditor(data);
+		if (!didUpdate || this.isDisposed || this.currentCodeBlockData !== data) {
 			return;
 		}
 
@@ -448,6 +448,7 @@ export class CodeBlockPart extends Disposable {
 
 	reset() {
 		this.clearWidgets();
+		this.currentCodeBlockData = undefined;
 	}
 
 	private clearWidgets() {
@@ -455,8 +456,12 @@ export class CodeBlockPart extends Disposable {
 		GlyphHoverController.get(this.editor)?.hideGlyphHover();
 	}
 
-	private async updateEditor(data: ICodeBlockData): Promise<void> {
+	private async updateEditor(data: ICodeBlockData): Promise<boolean> {
 		const textModel = await data.textModel;
+		if (this.isDisposed || this.currentCodeBlockData !== data || textModel.isDisposed()) {
+			return false;
+		}
+
 		this.editor.setModel(textModel);
 		if (data.range) {
 			this.editor.setSelection(data.range);
@@ -464,6 +469,8 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		this.updateContexts(data);
+
+		return true;
 	}
 
 	private getVulnerabilitiesLabel(): string {
