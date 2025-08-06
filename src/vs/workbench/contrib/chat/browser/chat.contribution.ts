@@ -541,7 +541,7 @@ configurationRegistry.registerConfiguration({
 			default: 'default',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		'chat.todoListTool.enabled': {
@@ -549,7 +549,9 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat. This tool allows you to use todo lists in chat."),
 			tags: ['experimental'],
-			included: false,
+			experiment: {
+				mode: 'startup'
+			}
 		},
 		'chat.tools.useTreePicker': {
 			type: 'boolean',

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { thenIfNotDisposed } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,14 +18,25 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, type IChatTerminalToolInvocationData } from '../../../common/chatService.js';
+import type { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { EditorPool } from '../chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+
+/**
+ * @deprecated This is the old API shape, we should support this for a while before removing it so
+ * we don't break existing chats
+ */
+interface ILegacyChatTerminalToolInvocationData {
+	kind: 'terminal';
+	command: string;
+	language: string;
+}
 
 export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -33,11 +44,12 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
-		terminalData: IChatTerminalToolInvocationData,
+		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: MarkdownRenderer,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
+		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -52,8 +64,20 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			throw new Error('Confirmation messages are missing');
 		}
 
-		const title = toolInvocation.confirmationMessages.title;
-		const message = toolInvocation.confirmationMessages.message;
+		// Migrate forward the old tool data format
+		if ('command' in terminalData) {
+			terminalData = {
+				kind: 'terminal',
+				commandLine: {
+					original: terminalData.command,
+					toolEdited: undefined,
+					userEdited: undefined
+				},
+				language: terminalData.language
+			} satisfies IChatTerminalToolInvocationData;
+		}
+
+		const { title, message, disclaimer } = toolInvocation.confirmationMessages;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -129,12 +153,13 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		dom.append(element, renderedMessage.element);
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget,
-			title,
-			undefined,
-			element,
-			buttons,
 			this.context.container,
+			{ title, message: element, buttons },
 		));
+
+		if (disclaimer) {
+			this._appendMarkdownPart(element, disclaimer, codeBlockRenderOptions);
+		}
 
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
 		this._register(confirmWidget.onDidClick(button => {
@@ -154,5 +179,23 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			scheme: Schemas.vscodeChatCodeBlock,
 			path: generateUuid(),
 		});
+	}
+
+	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
+		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, {
+			kind: 'markdownContent',
+			content: typeof message === 'string' ? new MarkdownString().appendText(message) : message
+		},
+			this.context,
+			this.editorPool,
+			false,
+			this.codeBlockStartIndex,
+			this.renderer,
+			this.currentWidthDelegate(),
+			this.codeBlockModelCollection,
+			{ codeBlockRenderOptions }
+		));
+		dom.append(container, part.domNode);
+		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 	}
 }

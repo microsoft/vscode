@@ -6,7 +6,6 @@
 import { Action } from '../../../../base/common/actions.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -14,7 +13,6 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../plat
 import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IMcpElicitationService, IMcpServer, IMcpToolCallContext } from '../common/mcpTypes.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
@@ -39,11 +37,7 @@ export class McpElicitationService implements IMcpElicitationService {
 					const part = new ChatElicitationRequestPart(
 						localize('mcp.elicit.title', 'Request for Input'),
 						elicitation.message,
-						new MarkdownString(markdownCommandLink({
-							id: McpCommandIds.ShowConfiguration,
-							title: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
-							arguments: [server.collection.id, server.definition.id],
-						}), { isTrusted: true }),
+						localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
 						localize('mcp.elicit.accept', 'Respond'),
 						localize('mcp.elicit.reject', 'Cancel'),
 						async () => {
@@ -57,7 +51,8 @@ export class McpElicitationService implements IMcpElicitationService {
 							resolve({ action: 'decline' });
 							part.state = 'rejected';
 							return Promise.resolve();
-						}
+						},
+						{ type: 'mcp', definitionId: server.definition.id },
 					);
 					chatModel.acceptResponseProgress(request, part);
 				}

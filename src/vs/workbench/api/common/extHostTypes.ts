@@ -4648,6 +4648,17 @@ export class ChatResponseProgressPart2 {
 	}
 }
 
+export class ChatResponseThinkingProgressPart {
+	value: string;
+	id?: string;
+	metadata?: string;
+	constructor(value: string, id?: string, metadata?: string) {
+		this.value = value;
+		this.id = id;
+		this.metadata = metadata;
+	}
+}
+
 export class ChatResponseWarningPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
@@ -5095,6 +5106,28 @@ export enum ChatImageMimeType {
 	WEBP = 'image/webp',
 	BMP = 'image/bmp',
 }
+
+export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPart {
+	value: string;
+	id?: string;
+	metadata?: string;
+
+	constructor(value: string, id?: string, metadata?: string) {
+		this.value = value;
+		this.id = id;
+		this.metadata = metadata;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelThinkingPart,
+			value: this.value,
+			id: this.id,
+			metadata: this.metadata,
+		};
+	}
+}
+
 
 
 export class LanguageModelPromptTsxPart {
