@@ -20,6 +20,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
@@ -598,9 +599,29 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			);
 
 			const agents = remoteCodingAgent.getAvailableAgents();
-			const agent = agents[0]; // TODO: We just pick the first one for now
-			if (!agent) {
+			if (agents.length === 0) {
+				chatModel.completeResponse(addedRequest);
 				return;
+			}
+
+			let agent = agents[0];
+			if (agents.length > 1) {
+				const quickInputService = accessor.get(IQuickInputService);
+				const pick = await quickInputService.pick(
+					agents.map(a => ({
+						label: a.displayName,
+						description: a.description,
+						agent: a,
+					})),
+					{
+						title: localize('selectCodingAgent', "Select Coding Agent"),
+					}
+				);
+				if (!pick) {
+					chatModel.completeResponse(addedRequest);
+					return;
+				}
+				agent = pick.agent;
 			}
 
 			let summary: string | undefined;

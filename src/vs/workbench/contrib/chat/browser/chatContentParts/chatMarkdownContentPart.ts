@@ -77,6 +77,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	private readonly mathLayoutParticipants = new Set<() => void>();
 
+	private _isDisposed = false;
+
 	constructor(
 		private readonly markdown: IChatMarkdownContent,
 		context: IChatContentPartRenderContext,
@@ -110,6 +112,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
 		const doRenderMarkdown = () => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			// TODO: Move katex support into chatMarkdownRenderer
 			const markedExtensions = enableMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
@@ -278,6 +284,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		} else {
 			doRenderMarkdown();
 		}
+	}
+
+	override dispose(): void {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {

@@ -1168,7 +1168,7 @@ type InstallChatClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider used for the chat installation.' };
 };
 type InstallChatEvent = {
-	installResult: 'installed' | 'alreadyInstalled' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted' | 'failedNoSession' | 'failedMaybeLater';
+	installResult: 'installed' | 'alreadyInstalled' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted' | 'failedNoSession' | 'failedMaybeLater' | 'failedEnterpriseSetup';
 	installDuration: number;
 	signUpErrorCode: number | undefined;
 	provider: string | undefined;
@@ -1308,7 +1308,6 @@ class ChatSetupController extends Disposable {
 		const provider = options.useSocialProvider ?? options.useEnterpriseProvider ? defaultChat.provider.enterprise.id : defaultChat.provider.default.id;
 
 		try {
-
 			if (
 				entitlement !== ChatEntitlement.Free &&		// User is not signed up to Copilot Free
 				!isProUser(entitlement) &&					// User is not signed up for a Copilot subscription
@@ -1416,6 +1415,7 @@ class ChatSetupController extends Disposable {
 		if (options.useEnterpriseProvider) {
 			const success = await this.handleEnterpriseInstance();
 			if (!success) {
+				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedEnterpriseSetup', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 				return success; // not properly configured, abort
 			}
 		}
