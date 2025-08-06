@@ -121,6 +121,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			file: true,
 			du: true,
 			df: true,
+			jq: true,
 			// While these PowerShell verbs can have side effects, they are generally innocuous (eg.
 			// updating OS-level file access info) and and often have prompts if they're more
 			// involved (eg. Get-Credential)
