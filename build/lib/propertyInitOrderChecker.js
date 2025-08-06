@@ -52,6 +52,14 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 //
 // #############################################################################################
 //
+var EntryKind;
+(function (EntryKind) {
+    EntryKind[EntryKind["Span"] = 0] = "Span";
+    EntryKind[EntryKind["Node"] = 1] = "Node";
+    EntryKind[EntryKind["StringLiteral"] = 2] = "StringLiteral";
+    EntryKind[EntryKind["SearchedLocalFoundProperty"] = 3] = "SearchedLocalFoundProperty";
+    EntryKind[EntryKind["SearchedPropertyFoundLocal"] = 4] = "SearchedPropertyFoundLocal";
+})(EntryKind || (EntryKind = {}));
 const cancellationToken = {
     isCancellationRequested: () => false,
     throwIfCancellationRequested: () => { },
@@ -238,13 +246,4 @@ var DefinitionKind;
     DefinitionKind[DefinitionKind["String"] = 4] = "String";
     DefinitionKind[DefinitionKind["TripleSlashReference"] = 5] = "TripleSlashReference";
 })(DefinitionKind || (DefinitionKind = {}));
-/** @internal */
-var EntryKind;
-(function (EntryKind) {
-    EntryKind[EntryKind["Span"] = 0] = "Span";
-    EntryKind[EntryKind["Node"] = 1] = "Node";
-    EntryKind[EntryKind["StringLiteral"] = 2] = "StringLiteral";
-    EntryKind[EntryKind["SearchedLocalFoundProperty"] = 3] = "SearchedLocalFoundProperty";
-    EntryKind[EntryKind["SearchedPropertyFoundLocal"] = 4] = "SearchedPropertyFoundLocal";
-})(EntryKind || (EntryKind = {}));
 //# sourceMappingURL=propertyInitOrderChecker.js.map
