@@ -209,6 +209,10 @@ export interface IMcpService {
 
 	/** Set if there are extensions that register MCP servers that have never been activated. */
 	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
+
+	/** Auto-starts pending servers based on user settings. */
+	autostart(token?: CancellationToken): Promise<void>;
+
 	/** Activatese extensions and runs their MCP servers. */
 	activateCollections(): Promise<void>;
 }
@@ -284,7 +288,7 @@ export interface IMcpServer extends IDisposable {
 	 */
 	readDefinitions(): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }>;
 
-	showOutput(): void;
+	showOutput(preserveFocus?: boolean): Promise<void>;
 	/**
 	 * Starts the server and returns its resulting state. One of:
 	 * - Running, if all good

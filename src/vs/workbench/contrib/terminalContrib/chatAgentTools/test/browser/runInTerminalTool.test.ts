@@ -11,7 +11,6 @@ import { ConfigurationTarget } from '../../../../../../platform/configuration/co
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService } from '../../../../chat/common/languageModelToolsService.js';
-import { CommandLineAutoApprover } from '../../browser/commandLineAutoApprover.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/runInTerminalTool.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -20,11 +19,14 @@ import type { TestInstantiationService } from '../../../../../../platform/instan
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { IChatService } from '../../../../chat/common/chatService.js';
+import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
-	get commandLineAutoApprover(): CommandLineAutoApprover { return this._commandLineAutoApprover; }
+	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
+	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 
 	async rewriteCommandIfNeeded(args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
 		return this._rewriteCommandIfNeeded(args, instance, shell);
@@ -41,11 +43,16 @@ suite('RunInTerminalTool', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let workspaceService: TestContextService;
+	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
+	let chatServiceDisposeEmitter: Emitter<{ sessionId: string; reason: 'cleared' }>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
+		chatServiceDisposeEmitter = new Emitter<{ sessionId: string; reason: 'cleared' }>();
+
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
 		}, store);
@@ -55,7 +62,10 @@ suite('RunInTerminalTool', () => {
 			},
 		});
 		instantiationService.stub(ITerminalService, {
-			onDidDisposeInstance: new Emitter<ITerminalInstance>().event
+			onDidDisposeInstance: terminalServiceDisposeEmitter.event
+		});
+		instantiationService.stub(IChatService, {
+			onDidDisposeSession: chatServiceDisposeEmitter.event
 		});
 		workspaceService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService)) as TestContextService;
 
@@ -609,6 +619,73 @@ suite('RunInTerminalTool', () => {
 					strictEqual(result, 'echo hello');
 				});
 			});
+		});
+	});
+
+	suite('chat session disposal cleanup', () => {
+		test('should dispose associated terminals when chat session is disposed', () => {
+			const sessionId = 'test-session-123';
+			const mockTerminal: ITerminalInstance = {
+				dispose: () => { /* Mock dispose */ },
+				processId: 12345
+			} as any;
+			let terminalDisposed = false;
+			mockTerminal.dispose = () => { terminalDisposed = true; };
+
+			runInTerminalTool.sessionTerminalAssociations.set(sessionId, {
+				instance: mockTerminal,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should exist before disposal');
+
+			chatServiceDisposeEmitter.fire({ sessionId, reason: 'cleared' });
+
+			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
+		});
+
+		test('should not affect other sessions when one session is disposed', () => {
+			const sessionId1 = 'test-session-1';
+			const sessionId2 = 'test-session-2';
+			const mockTerminal1: ITerminalInstance = {
+				dispose: () => { /* Mock dispose */ },
+				processId: 12345
+			} as any;
+			const mockTerminal2: ITerminalInstance = {
+				dispose: () => { /* Mock dispose */ },
+				processId: 67890
+			} as any;
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			runInTerminalTool.sessionTerminalAssociations.set(sessionId1, {
+				instance: mockTerminal1,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+			runInTerminalTool.sessionTerminalAssociations.set(sessionId2, {
+				instance: mockTerminal2,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
+
+			chatServiceDisposeEmitter.fire({ sessionId: sessionId1, reason: 'cleared' });
+
+			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
+			strictEqual(terminal2Disposed, false, 'Terminal 2 should NOT have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should be removed');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should remain');
+		});
+
+		test('should handle disposal of non-existent session gracefully', () => {
+			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
+			chatServiceDisposeEmitter.fire({ sessionId: 'non-existent-session', reason: 'cleared' });
+			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
 		});
 	});
 });

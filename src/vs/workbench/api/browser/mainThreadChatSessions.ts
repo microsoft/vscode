@@ -9,6 +9,8 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { ChatViewId } from '../../contrib/chat/browser/chat.js';
 import { ChatViewPane } from '../../contrib/chat/browser/chatViewPane.js';
@@ -42,6 +44,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILogService private readonly _logService: ILogService,
 		@IViewsService private readonly _viewsService: IViewsService,
@@ -51,10 +54,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 	}
 
-	$registerChatSessionItemProvider(handle: number, chatSessionType: string, label: string): void {
+	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
 		// Register the provider handle - this tracks that a provider exists
 		const provider: IChatSessionItemProvider = {
-			label,
 			chatSessionType,
 			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
 		};
@@ -89,12 +91,29 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			const progressEmitter = new Emitter<IChatProgress[]>;
 			const completionEmitter = new Emitter<void>();
 			let progressEvent: Event<IChatProgress[]> | undefined = undefined;
+			let interruptActiveResponseCallback: (() => Promise<boolean>) | undefined = undefined;
 			if (sessionContent.hasActiveResponseCallback) {
 				const requestId = 'ongoing';
 				// set progress
 				progressEvent = progressEmitter.event;
 				// store the event emitter using a key that combines handle and session id
 				const progressKey = `${providerHandle}_${id}_${requestId}`;
+				interruptActiveResponseCallback = async () => {
+					return this._dialogService.confirm({
+						message: localize('interruptActiveResponse', 'Are you sure you want to interrupt the active session?')
+					}).then(confirmed => {
+						if (confirmed.confirmed) {
+							this._proxy.$interruptChatSessionActiveResponse(providerHandle, id, requestId);
+							return true;
+						} else {
+							progressEmitter.fire([{
+								kind: 'progressMessage',
+								content: { value: '' }
+							}]);
+							return false;
+						}
+					});
+				};
 				this._activeProgressEmitters.set(progressKey, progressEmitter);
 				this._completionEmitters.set(progressKey, completionEmitter);
 			}
@@ -114,8 +133,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				};
 			}
 
+			const onWillDisposeEventEmitter = new Emitter<void>();
+
 			return {
 				id: sessionContent.id,
+				onWillDispose: onWillDisposeEventEmitter.event,
 				history: sessionContent.history.map(turn => {
 					if (turn.type === 'request') {
 						return { type: 'request', prompt: turn.prompt };
@@ -128,7 +150,10 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				}),
 				progressEvent: progressEvent,
 				requestHandler: requestHandler,
+				interruptActiveResponseCallback: interruptActiveResponseCallback,
 				dispose: () => {
+					onWillDisposeEventEmitter.fire();
+					onWillDisposeEventEmitter.dispose();
 					progressEmitter.dispose();
 					completionEmitter.dispose();
 					this._proxy.$disposeChatSessionContent(providerHandle, sessionContent.id);

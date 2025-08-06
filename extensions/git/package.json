@@ -1345,7 +1345,7 @@
         },
         {
           "command": "git.deleteWorktreeFromPalette",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.deleteRemoteTag",

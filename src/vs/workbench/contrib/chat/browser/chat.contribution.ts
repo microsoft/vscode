@@ -265,10 +265,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
 		},
 		'chat.emptyChatState.enabled': {
 			type: 'boolean',
@@ -283,7 +279,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
-			tags: ['experimental'],
+			tags: ['preview'],
 		},
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
@@ -303,7 +299,7 @@ configurationRegistry.registerConfiguration({
 		[mcpAutoStartConfig]: {
 			type: 'string',
 			description: nls.localize('chat.mcp.autostart', "Controls whether MCP servers should be automatically started when the chat messages are submitted."),
-			default: McpAutoStartValue.NewAndOutdated,
+			default: McpAutoStartValue.Never,
 			enum: [
 				McpAutoStartValue.Never,
 				McpAutoStartValue.OnlyNew,
@@ -313,7 +309,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.mcp.autostart.never', "Never automatically start MCP servers."),
 				nls.localize('chat.mcp.autostart.onlyNew', "Only automatically start new MCP servers that have never been run."),
 				nls.localize('chat.mcp.autostart.newAndOutdated', "Automatically start new and outdated MCP servers that are not yet running.")
-			]
+			],
+			tags: ['experimental'],
 		},
 		[mcpServerSamplingSection]: {
 			type: 'object',
@@ -385,12 +382,13 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
+				tags: [PolicyTag.Account, PolicyTag.Agent]
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
-			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
-			default: false,
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
+			default: true,
 			tags: ['preview'],
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
@@ -543,7 +541,7 @@ configurationRegistry.registerConfiguration({
 			default: 'default',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		'chat.todoListTool.enabled': {
@@ -551,12 +549,14 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat. This tool allows you to use todo lists in chat."),
 			tags: ['experimental'],
-			included: false,
+			experiment: {
+				mode: 'startup'
+			}
 		},
 		'chat.tools.useTreePicker': {
 			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.tools.useTreePicker', "Use the new tree-based tools picker interface instead of the flat list. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions. MCP servers are displayed as expandable parent nodes with their tools as children."),
+			default: true,
+			description: nls.localize('chat.tools.useTreePicker', "Use the new Quick Tree-based tools picker instead of the Quick Pick-based one. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions."),
 			tags: ['experimental'],
 		}
 	}

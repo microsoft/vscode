@@ -45,10 +45,10 @@ export class AnnotatedDocuments extends Disposable {
 			return map;
 		});
 
-		const states = mapObservableArrayCached(this, this._workspace.documents, (doc, _store) => {
+		const states = mapObservableArrayCached(this, this._workspace.documents, (doc, store) => {
 			const docIsVisible = derived(reader => visibleUris.read(reader).has(doc.uri.toString()));
 			const wasEverVisible = derivedObservableWithCache<boolean>(this, (reader, lastVal) => lastVal || docIsVisible.read(reader));
-			return wasEverVisible.map(v => v ? this._instantiationService.createInstance(AnnotatedDocument, doc, docIsVisible) : undefined);
+			return wasEverVisible.map(v => v ? store.add(this._instantiationService.createInstance(AnnotatedDocument, doc, docIsVisible)) : undefined);
 		});
 
 		this.documents = states.map((vals, reader) => vals.map(v => v.read(reader)).filter(isDefined));

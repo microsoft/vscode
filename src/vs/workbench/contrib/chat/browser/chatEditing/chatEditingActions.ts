@@ -283,9 +283,9 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ChatEditingShowChangesAction.ID,
-			title: ChatEditingShowChangesAction.LABEL,
+			title: { value: ChatEditingShowChangesAction.LABEL, original: ChatEditingShowChangesAction.LABEL },
 			tooltip: ChatEditingShowChangesAction.LABEL,
-			f1: false,
+			f1: true,
 			icon: Codicon.diffMultiple,
 			precondition: hasUndecidedChatEditingResourceContextKey,
 			menu: [
@@ -397,7 +397,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false)),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ChatContextKeys.lockedToCodingAgent.negate()),
 				}
 			]
 		});
@@ -429,7 +429,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.restoreCheckpoint',
-			title: localize2('chat.restoreCheckpoint.label', "Restore checkpoint"),
+			title: localize2('chat.restoreCheckpoint.label', "Restore Checkpoint"),
 			tooltip: localize2('chat.restoreCheckpoint.tooltip', "Restores workspace and chat to this point"),
 			f1: false,
 			category: CHAT_CATEGORY,
@@ -446,7 +446,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ChatContextKeys.isRequest
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate())
 				}
 			]
 		});
@@ -487,7 +487,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true)),
+					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true), ChatContextKeys.lockedToCodingAgent.negate()),
 				}
 			]
 		});
@@ -724,7 +724,7 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ViewPreviousEditsAction.Id,
-			title: localize2('chatEditing.viewPreviousEdits', 'View Previous Edits'),
+			title: { value: ViewPreviousEditsAction.Label, original: ViewPreviousEditsAction.Label },
 			tooltip: ViewPreviousEditsAction.Label,
 			f1: true,
 			icon: Codicon.diffMultiple,

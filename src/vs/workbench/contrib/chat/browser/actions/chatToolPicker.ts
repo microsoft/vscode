@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -24,6 +24,11 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import Severity from '../../../../../base/common/severity.js';
+import { markdownCommandLink } from '../../../../../base/common/htmlContent.js';
 
 /**
  * Chat Tools Picker - Dual Implementation
@@ -207,6 +212,7 @@ async function showToolsPickerTree(
 	const editorService = accessor.get(IEditorService);
 	const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
+	const toolLimit = accessor.get(IContextKeyService).getContextKeyValue<number>(ChatContextKeys.chatToolGroupingThreshold.key);
 
 	const mcpServerByTool = new Map<string, IMcpServer>();
 	for (const server of mcpService.servers.get()) {
@@ -364,7 +370,8 @@ async function showToolsPickerTree(
 					description: toolSetOrTool.description,
 					checked: picked,
 					collapsed: true,
-					children: Array.from(toolSetOrTool.getTools()).map(tool => createToolTreeItemFromData(tool, picked)),
+					// TODO: Bring this back when tools in toolsets can be enabled/disabled.
+					// children: Array.from(toolSetOrTool.getTools()).map(tool => createToolTreeItemFromData(tool, picked)),
 					...iconProps
 				};
 				bucketItem.children = [...(bucketItem.children || []), toolSetTreeItem];
@@ -423,6 +430,7 @@ async function showToolsPickerTree(
 	const collectResults = () => {
 		result.clear();
 
+		let count = 0;
 		const traverse = (items: readonly AnyTreeItem[]) => {
 			for (const item of items) {
 				if (isBucketTreeItem(item)) {
@@ -442,12 +450,23 @@ async function showToolsPickerTree(
 					}
 				} else if (isToolTreeItem(item)) {
 					const checked = typeof item.checked === 'boolean' ? item.checked : false;
+					if (checked) { count++; }
 					result.set(item.tool, checked);
 				}
 			}
 		};
 
 		traverse(treeItems);
+
+		if (toolLimit) {
+			if (count > toolLimit) {
+				treePicker.severity = Severity.Warning;
+				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, markdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
+			} else {
+				treePicker.severity = Severity.Ignore;
+				treePicker.validationMessage = undefined;
+			}
+		}
 
 		// Special MCP handling: MCP toolset is enabled only if all tools are enabled
 		for (const item of toolsService.toolSets.get()) {
@@ -457,6 +476,16 @@ async function showToolsPickerTree(
 			}
 		}
 	};
+	collectResults();
+
+	// Temporary command to close the picker and open settings, for use in the validation message
+	store.add(CommandsRegistry.registerCommand({
+		id: '_chat.toolPicker.closeAndOpenVirtualThreshold',
+		handler: () => {
+			treePicker.hide();
+			commandService.executeCommand('workbench.action.openSettings', 'github.copilot.chat.virtualTools.threshold');
+		}
+	}));
 
 	// Handle checkbox state changes
 	store.add(treePicker.onDidChangeCheckedLeafItems(() => {
@@ -505,7 +534,7 @@ async function showToolsPickerTree(
 	};
 	treePicker.title = localize('configureTools', "Configure Tools");
 	treePicker.buttons = [addMcpServerButton, installExtension, configureToolSets];
-	treePicker.onDidTriggerButton(button => {
+	store.add(treePicker.onDidTriggerButton(button => {
 		if (button === addMcpServerButton) {
 			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else if (button === installExtension) {
@@ -514,11 +543,11 @@ async function showToolsPickerTree(
 			commandService.executeCommand(ConfigureToolSets.ID);
 		}
 		treePicker.hide();
-	});
+	}));
 
 	treePicker.show();
 
-	await Promise.race([Event.toPromise(Event.any(treePicker.onDidAccept, treePicker.onDidHide))]);
+	await Promise.race([Event.toPromise(Event.any(treePicker.onDidAccept, treePicker.onDidHide), store)]);
 
 	store.dispose();
 
@@ -603,6 +632,7 @@ async function showToolsPickerLegacy(
 		picked: false,
 	};
 
+	const toolLimit = accessor.get(IContextKeyService).getContextKeyValue<number>(ChatContextKeys.chatToolGroupingThreshold.key);
 	const addMcpPick: CallbackPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(McpCommandIds.AddConfiguration) };
 	const configureToolSetsPick: CallbackPick = { type: 'item', label: localize('configToolSet', "Configure Tool Sets..."), iconClass: ThemeIcon.asClassName(Codicon.gear), pickable: false, run: () => commandService.executeCommand(ConfigureToolSets.ID) };
 	const addExpPick: CallbackPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionsWorkbenchService.openSearch('@tag:language-model-tools') };
@@ -812,6 +842,7 @@ async function showToolsPickerLegacy(
 			const items = picks.filter((p): p is AnyPick => p.type === 'item' && Boolean(p.picked));
 			lastSelectedItems = new Set(items);
 			picker.selectedItems = items;
+			let count = 0;
 
 			result.clear();
 			for (const item of picks) {
@@ -820,8 +851,10 @@ async function showToolsPickerLegacy(
 				}
 				if (isToolSetPick(item)) {
 					result.set(item.toolset, item.picked);
+					count += Iterable.length(item.toolset.getTools());
 				} else if (isToolPick(item)) {
 					result.set(item.tool, item.picked);
+					count++;
 				} else if (isBucketPick(item)) {
 					if (item.toolset) {
 						result.set(item.toolset, item.picked);
@@ -829,10 +862,22 @@ async function showToolsPickerLegacy(
 					for (const child of item.children) {
 						if (isToolSetPick(child)) {
 							result.set(child.toolset, item.picked);
+							count += Iterable.length(child.toolset.getTools());
 						} else if (isToolPick(child)) {
 							result.set(child.tool, item.picked);
+							count++;
 						}
 					}
+				}
+			}
+
+			if (toolLimit) {
+				if (count > toolLimit) {
+					picker.severity = Severity.Warning;
+					picker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, toolLimit);
+				} else {
+					picker.severity = Severity.Ignore;
+					picker.validationMessage = undefined;
 				}
 			}
 

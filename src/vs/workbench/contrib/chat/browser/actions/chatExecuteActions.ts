@@ -20,6 +20,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
@@ -155,7 +156,7 @@ export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
 
 	constructor() {
-		const precondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
+		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 
 		super({
 			id: ChatSubmitAction.ID,
@@ -168,7 +169,6 @@ export class ChatSubmitAction extends SubmitAction {
 				icon: Codicon.sendToRemoteAgent,
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
-			precondition,
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
@@ -179,14 +179,14 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 					order: 1,
-					when: precondition
+					when: ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate()),
 				},
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
 						whenNotInProgressOrPaused,
-						precondition,
+						menuCondition,
 					),
 					group: 'navigation',
 				}]
@@ -359,6 +359,7 @@ class OpenModelPickerAction extends Action2 {
 				when:
 					ContextKeyExpr.and(
 						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.languageModelsAreUserSelectable,
 						ContextKeyExpr.or(
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
@@ -437,7 +438,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
 	constructor() {
-		const precondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
+		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 
 		super({
 			id: ChatEditingSessionSubmitAction.ID,
@@ -445,17 +446,11 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition,
-			keybinding: {
-				when: ChatContextKeys.inChatInput,
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			},
 			menu: [
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgressOrPaused, precondition),
+					when: ContextKeyExpr.and(whenNotInProgressOrPaused, menuCondition),
 					order: 1
 				},
 				{
@@ -466,7 +461,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
 							ChatContextKeys.requestInProgress.negate(),
 						),
-						precondition),
+						menuCondition),
 					group: 'navigation',
 				}]
 		});
@@ -604,9 +599,29 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			);
 
 			const agents = remoteCodingAgent.getAvailableAgents();
-			const agent = agents[0]; // TODO: We just pick the first one for now
-			if (!agent) {
+			if (agents.length === 0) {
+				chatModel.completeResponse(addedRequest);
 				return;
+			}
+
+			let agent = agents[0];
+			if (agents.length > 1) {
+				const quickInputService = accessor.get(IQuickInputService);
+				const pick = await quickInputService.pick(
+					agents.map(a => ({
+						label: a.displayName,
+						description: a.description,
+						agent: a,
+					})),
+					{
+						title: localize('selectCodingAgent', "Select Coding Agent"),
+					}
+				);
+				if (!pick) {
+					chatModel.completeResponse(addedRequest);
+					return;
+				}
+				agent = pick.agent;
 			}
 
 			let summary: string | undefined;
@@ -667,6 +682,12 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 			if (result && typeof result === 'object') { /* _version === 2 */
 				chatModel.acceptResponseProgress(addedRequest, { kind: 'pullRequest', ...result });
+				chatModel.acceptResponseProgress(addedRequest, {
+					kind: 'markdownContent', content: new MarkdownString(
+						localize('remoteAgentResponse2', "Your work will be continued in this pull request."), // TODO(jospicer): Generalize this
+						CreateRemoteAgentJobAction.markdownStringTrustedOptions
+					)
+				});
 			} else if (typeof result === 'string') {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'markdownContent',

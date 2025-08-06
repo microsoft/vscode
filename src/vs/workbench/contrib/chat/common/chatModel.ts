@@ -26,7 +26,7 @@ import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommo
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatClearToPreviousToolInvocation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext, ChatResponseClearToPreviousToolInvocationReason } from './chatService.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
@@ -118,6 +118,7 @@ export type IChatProgressHistoryResponseContent =
 	| IChatNotebookEditGroup
 	| IChatConfirmation
 	| IChatExtensionsContent
+	| IChatThinkingPart
 	| IChatPullRequestContent;
 
 /**
@@ -129,7 +130,8 @@ export type IChatProgressResponseContent =
 	| IChatToolInvocationSerialized
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
-	| IChatElicitationRequest;
+	| IChatElicitationRequest
+	| IChatClearToPreviousToolInvocation;
 
 const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
@@ -350,6 +352,10 @@ class AbstractResponse implements IResponse {
 		for (const part of parts) {
 			let segment: { text: string; isBlock?: boolean } | undefined;
 			switch (part.kind) {
+				case 'clearToPreviousToolInvocation':
+					currentBlockSegments = [];
+					blocks.length = 0;
+					continue;
 				case 'treeData':
 				case 'progressMessage':
 				case 'codeblockUri':
@@ -360,6 +366,7 @@ class AbstractResponse implements IResponse {
 				case 'undoStop':
 				case 'prepareToolInvocation':
 				case 'elicitation':
+				case 'thinking':
 				case 'multiDiffData':
 					// Ignore
 					continue;
@@ -465,8 +472,38 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._updateRepr(true);
 	}
 
+	clearToPreviousToolInvocation(message?: string): void {
+		// look through the response parts and find the last tool invocation, then slice the response parts to that point
+		let lastToolInvocationIndex = -1;
+		for (let i = this._responseParts.length - 1; i >= 0; i--) {
+			const part = this._responseParts[i];
+			if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+				lastToolInvocationIndex = i;
+				break;
+			}
+		}
+		if (lastToolInvocationIndex !== -1) {
+			this._responseParts = this._responseParts.slice(0, lastToolInvocationIndex + 1);
+		} else {
+			this._responseParts = [];
+		}
+		if (message) {
+			this._responseParts.push({ kind: 'warning', content: new MarkdownString(message) });
+		}
+		this._updateRepr(true);
+	}
+
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask, quiet?: boolean): void {
-		if (progress.kind === 'markdownContent') {
+		if (progress.kind === 'clearToPreviousToolInvocation') {
+			if (progress.reason === ChatResponseClearToPreviousToolInvocationReason.CopyrightContentRetry) {
+				this.clearToPreviousToolInvocation(localize('copyrightContentRetry', "Response cleared due to possible match to public code, retrying with modified prompt."));
+			} else if (progress.reason === ChatResponseClearToPreviousToolInvocationReason.FilteredContentRetry) {
+				this.clearToPreviousToolInvocation(localize('filteredContentRetry', "Response cleared due to content safety filters, retrying with modified prompt."));
+			} else {
+				this.clearToPreviousToolInvocation();
+			}
+			return;
+		} else if (progress.kind === 'markdownContent') {
 
 			// last response which is NOT a text edit group because we do want to support heterogenous streaming but not have
 			// the MD be chopped up by text edit groups (and likely other non-renderable parts)
@@ -481,6 +518,20 @@ export class Response extends AbstractResponse implements IDisposable {
 				// Don't modify the current object, since it's being diffed by the renderer
 				const idx = this._responseParts.indexOf(lastResponsePart);
 				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
+			}
+			this._updateRepr(quiet);
+		} else if (progress.kind === 'thinking') {
+
+			// TODO: @justschen merge thinking and markdown handling
+			const lastResponsePart = this._responseParts
+				.filter(p => p.kind !== 'textEditGroup')
+				.at(-1);
+
+			if (!lastResponsePart || lastResponsePart.kind !== 'thinking' || !canMergeMarkdownStrings(new MarkdownString(lastResponsePart.value), new MarkdownString(progress.value))) {
+				this._responseParts.push(progress);
+			} else {
+				const idx = this._responseParts.indexOf(lastResponsePart);
+				this._responseParts[idx] = { ...lastResponsePart, value: appendMarkdownString(new MarkdownString(lastResponsePart.value), new MarkdownString(progress.value)).value };
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
@@ -936,6 +987,7 @@ export interface IChatModel extends IDisposable {
 	acceptResponseProgress(request: IChatRequestModel, progress: IChatProgress, quiet?: boolean): void;
 	setResponse(request: IChatRequestModel, result: IChatAgentResult): void;
 	completeResponse(request: IChatRequestModel): void;
+	setCustomTitle(title: string): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 }
@@ -1105,6 +1157,7 @@ export type IChatChangeEvent =
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
 	| IChatSetCheckpointEvent
+	| IChatSetCustomTitleEvent
 	;
 
 export interface IChatAddRequestEvent {
@@ -1172,6 +1225,11 @@ export interface IChatSetAgentEvent {
 	kind: 'setAgent';
 	agent: IChatAgentData;
 	command?: IChatAgentCommand;
+}
+
+export interface IChatSetCustomTitleEvent {
+	kind: 'setCustomTitle';
+	title: string;
 }
 
 export interface IChatInitEvent {
@@ -1556,8 +1614,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	setCustomTitle(title: string): void {
+	public setCustomTitle(title: string): void {
 		this._customTitle = title;
+		this._onDidChange.fire({ kind: 'setCustomTitle', title });
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
@@ -1693,6 +1752,13 @@ export class ChatModel extends Disposable implements IChatModel {
 								return item.treeData;
 							} else if (item.kind === 'markdownContent') {
 								return item.content;
+							} else if (item.kind === 'thinking') {
+								return {
+									kind: 'thinking',
+									value: item.value,
+									id: item.id,
+									metadata: item.metadata
+								};
 							} else {
 								return item as any; // TODO
 							}

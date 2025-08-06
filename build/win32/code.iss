@@ -95,7 +95,10 @@ Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\appx,\appx\*,\reso
 Source: "tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "{#ProductJsonPath}"; DestDir: "{code:GetDestDir}\resources\app"; Flags: ignoreversion
 #ifdef AppxPackageName
-Source: "appx\*"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater
+#if "user" == InstallTarget
+Source: "appx\{#AppxPackage}"; DestDir: "{app}\appx"; BeforeInstall: RemoveAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater
+Source: "appx\{#AppxPackageDll}"; DestDir: "{app}\appx"; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater
+#endif
 #endif
 
 [Icons]
@@ -1477,11 +1480,12 @@ begin
   Log(S);
 end;
 
-function AppxPackageInstalled(var ResultCode: Integer): Boolean;
+function AppxPackageInstalled(const name: String; var ResultCode: Integer): Boolean;
 begin
   AppxPackageFullname := '';
   try
-    ExecAndLogOutput('powershell.exe', '-Command ' + AddQuotes('Get-AppxPackage -Name ''{#AppxPackageName}'' | Select-Object -ExpandProperty PackageFullName'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, @ExecAndGetFirstLineLog);
+    Log('Get-AppxPackage for package with name: ' + name);
+    ExecAndLogOutput('powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Get-AppxPackage -Name ''' + name + ''' | Select-Object -ExpandProperty PackageFullName'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, @ExecAndGetFirstLineLog);
   except
     Log(GetExceptionMessage);
   end;
@@ -1495,8 +1499,10 @@ procedure AddAppxPackage();
 var
   AddAppxPackageResultCode: Integer;
 begin
-  if not AppxPackageInstalled(AddAppxPackageResultCode) then begin
-    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
+  if not AppxPackageInstalled(ExpandConstant('{#AppxPackageName}'), AddAppxPackageResultCode) then begin
+    Log('Installing appx ' + AppxPackageFullname + ' ...');
+    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
+    Log('Add-AppxPackage complete.');
   end;
 end;
 
@@ -1504,8 +1510,18 @@ procedure RemoveAppxPackage();
 var
   RemoveAppxPackageResultCode: Integer;
 begin
-  if AppxPackageInstalled(RemoveAppxPackageResultCode) then begin
-    ShellExec('', 'powershell.exe', '-Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+  // Remove the old context menu package
+  // Following condition can be removed after two versions.
+  if QualityIsInsiders() and AppxPackageInstalled('Microsoft.VSCodeInsiders', RemoveAppxPackageResultCode) then begin
+    Log('Deleting old appx ' + AppxPackageFullname + ' installation...');
+    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_{#Arch}.appx'));
+    DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_command.dll'));
+  end;
+  if AppxPackageInstalled(ExpandConstant('{#AppxPackageName}'), RemoveAppxPackageResultCode) then begin
+    Log('Removing current ' + AppxPackageFullname + ' appx installation...');
+    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    Log('Remove-AppxPackage for current appx installation complete.');
   end;
 end;
 #endif
@@ -1611,7 +1627,9 @@ begin
     exit;
   end;
 #ifdef AppxPackageName
-  RemoveAppxPackage();
+  #if "user" == InstallTarget
+    RemoveAppxPackage();
+  #endif
 #endif
   if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', Path)
   then begin
