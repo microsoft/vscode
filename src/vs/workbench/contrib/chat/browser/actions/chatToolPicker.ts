@@ -370,7 +370,8 @@ async function showToolsPickerTree(
 					description: toolSetOrTool.description,
 					checked: picked,
 					collapsed: true,
-					children: Array.from(toolSetOrTool.getTools()).map(tool => createToolTreeItemFromData(tool, picked)),
+					// TODO: Bring this back when tools in toolsets can be enabled/disabled.
+					// children: Array.from(toolSetOrTool.getTools()).map(tool => createToolTreeItemFromData(tool, picked)),
 					...iconProps
 				};
 				bucketItem.children = [...(bucketItem.children || []), toolSetTreeItem];
