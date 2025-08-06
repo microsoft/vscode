@@ -23,20 +23,6 @@ export const LspSupportedProvider: string[] = [
 	PWSH_DEBUG_DISPLAY_NAME
 ];
 
-export function isLspSupportedShellType(shellType: TerminalShellType): boolean {
-	if (!shellType) {
-		return false;
-	}
-	return LspSupportedShellTypes.includes(shellType);
-}
-
-export function isLspSupportedProvider(provider: string): boolean {
-	if (!provider) {
-		return false;
-	}
-	return LspSupportedProvider.includes(provider);
-}
-
 export function mapShellTypeToExtension(shellType: TerminalShellType): string {
 	switch (shellType) {
 		case GeneralShellType.Python:

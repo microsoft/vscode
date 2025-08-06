@@ -38,7 +38,7 @@ import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } fro
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { env } from '../../../../../base/common/process.js';
-import { isLspSupportedProvider, isLspSupportedShellType, mapShellTypeToExtension } from './lspTerminalUtil.js';
+import { mapShellTypeToExtension } from './lspTerminalUtil.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
@@ -54,13 +54,14 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
-	private readonly _lspAddon: MutableDisposable<LspCompletionProviderAddon> = new MutableDisposable(); // TODO: Support multiple lspAddons in the future.
+	private readonly _lspAddons: MutableDisposable<DisposableStore> = new MutableDisposable();
+	private _lspAddonInstances: LspCompletionProviderAddon[] = [];
 	private readonly _lspModelProvider: MutableDisposable<LspTerminalModelContentProvider> = new MutableDisposable();
 	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
 	get pwshAddon(): PwshCompletionProviderAddon | undefined { return this._pwshAddon.value; }
-	get lspAddon(): LspCompletionProviderAddon | undefined { return this._lspAddon.value; }
+	get lspAddons(): LspCompletionProviderAddon[] { return Array.from(this._lspAddonInstances.values()); }
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -75,7 +76,10 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(toDisposable(() => {
 			this._addon?.dispose();
 			this._pwshAddon?.dispose();
-			this._lspAddon?.dispose();
+			this._lspAddons.dispose();
+			for (const lspAddon of this._lspAddonInstances) {
+				lspAddon.dispose();
+			}
 			this._lspModelProvider?.value?.dispose();
 			this._lspModelProvider?.dispose();
 		}));
@@ -86,7 +90,8 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				if (!completionsEnabled) {
 					this._addon.clear();
 					this._pwshAddon.clear();
-					this._lspAddon.clear();
+					this._lspAddons.clear();
+					this._lspAddonInstances = [];
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
 				if (!!xtermRaw && completionsEnabled) {
@@ -175,8 +180,9 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 
-		if (!isLspSupportedShellType(this._ctx.instance.shellType)) {
-			this._lspAddon.clear();
+		if (!this._ctx.instance.shellType) {
+			this._lspAddons.clear();
+			this._lspAddonInstances = [];
 			return;
 		}
 
@@ -190,12 +196,16 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(textVirtualModel);
 
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
-		const provider = virtualProviders.find(p => p._debugDisplayName && isLspSupportedProvider(p._debugDisplayName));
+		const filteredProviders = virtualProviders.filter(p => p._debugDisplayName !== 'wordbasedCompletions');
 
-		if (provider) {
-			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
+		this._lspAddons.value = new DisposableStore();
+		this._lspAddonInstances = [];
+		// Iterate through all available providers
+		for (const provider of filteredProviders) {
+			const lspCompletionProviderAddon = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
+			this._lspAddons.value.add(lspCompletionProviderAddon);
+			this._lspAddonInstances.push(lspCompletionProviderAddon);
 			xterm.loadAddon(lspCompletionProviderAddon);
-			this.add(lspCompletionProviderAddon);
 			this.add(this._terminalCompletionService.registerTerminalCompletionProvider(
 				'lsp',
 				lspCompletionProviderAddon.id,
