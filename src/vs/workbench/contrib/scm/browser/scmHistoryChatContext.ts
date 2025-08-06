@@ -10,12 +10,13 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -26,6 +27,25 @@ import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatVariableEntr
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { ISCMHistoryItem } from '../common/history.js';
 import { ISCMProvider, ISCMService, ISCMViewService } from '../common/scm.js';
+
+export interface SCMHistoryItemTransferData {
+	readonly name: string;
+	readonly resource: UriComponents;
+	readonly historyItem: ISCMHistoryItem;
+}
+
+export function extractSCMHistoryItemDropData(e: DragEvent): SCMHistoryItemTransferData[] | undefined {
+	if (!e.dataTransfer?.types.includes(CodeDataTransfers.SCM_HISTORY_ITEM)) {
+		return undefined;
+	}
+
+	const data = e.dataTransfer?.getData(CodeDataTransfers.SCM_HISTORY_ITEM);
+	if (!data) {
+		return undefined;
+	}
+
+	return JSON.parse(data) as SCMHistoryItemTransferData[];
+}
 
 export class SCMHistoryItemContextContribution extends Disposable implements IWorkbenchContribution {
 
@@ -165,11 +185,13 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.addHistoryItemToChat',
-			title: localize('chat.action.scmHistoryItemContext', 'Add History Item to Chat'),
+			title: localize('chat.action.scmHistoryItemContext', 'Add to Chat'),
 			f1: false,
 			menu: {
-				id: MenuId.SCMHistoryItemChatContext,
-				when: ChatContextKeys.Setup.installed
+				id: MenuId.SCMHistoryItemContext,
+				group: 'z_chat',
+				order: 1,
+				when: ChatContextKeys.enabled
 			}
 		});
 	}
@@ -189,11 +211,13 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.summarizeHistoryItem',
-			title: localize('chat.action.scmHistoryItemSummarize', 'Summarize History Item'),
+			title: localize('chat.action.scmHistoryItemSummarize', 'Explain Changes'),
 			f1: false,
 			menu: {
-				id: MenuId.SCMHistoryItemChatContext,
-				when: ChatContextKeys.Setup.installed
+				id: MenuId.SCMHistoryItemContext,
+				group: 'z_chat',
+				order: 2,
+				when: ChatContextKeys.enabled
 			}
 		});
 	}

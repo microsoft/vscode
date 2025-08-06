@@ -20,6 +20,7 @@ export class ViewLineOptions {
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: string;
+	public readonly verticalScrollbarSize: number;
 	public readonly useGpu: boolean;
 
 	constructor(config: IEditorConfiguration, themeType: ColorScheme) {
@@ -40,6 +41,7 @@ export class ViewLineOptions {
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		this.fontLigatures = options.get(EditorOption.fontLigatures);
+		this.verticalScrollbarSize = options.get(EditorOption.scrollbar).verticalScrollbarSize;
 		this.useGpu = options.get(EditorOption.experimentalGpuAcceleration) === 'on';
 	}
 
@@ -57,6 +59,7 @@ export class ViewLineOptions {
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.fontLigatures === other.fontLigatures
+			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.useGpu === other.useGpu
 		);
 	}

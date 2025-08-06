@@ -186,14 +186,35 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string | undefined,
+		clientSecret: string | undefined,
 		initialTokens: IAuthorizationToken[] | undefined
 	): Promise<string> {
 		if (!clientId) {
-			try {
-				const registration = await fetchDynamicRegistration(serverMetadata, this._initData.environment.appName, resourceMetadata?.scopes_supported);
-				clientId = registration.client_id;
-			} catch (err) {
-				throw new Error(`Dynamic registration failed: ${err.message}`);
+			const authorizationServer = URI.revive(authorizationServerComponents);
+			if (serverMetadata.registration_endpoint) {
+				try {
+					const registration = await fetchDynamicRegistration(serverMetadata, this._initData.environment.appName, resourceMetadata?.scopes_supported);
+					clientId = registration.client_id;
+					clientSecret = registration.client_secret;
+				} catch (err) {
+					this._logService.warn(`Dynamic registration failed for ${authorizationServer.toString()}: ${err.message}. Prompting user for client ID and client secret...`);
+				}
+			}
+			// Still no client id so dynamic client registration was either not supported or failed
+			if (!clientId) {
+				this._logService.info(`Prompting user for client registration details for ${authorizationServer.toString()}`);
+				const clientDetails = await this._proxy.$promptForClientRegistration(authorizationServer.toString());
+				if (!clientDetails) {
+					throw new Error('User did not provide client details');
+				}
+				clientId = clientDetails.clientId;
+				clientSecret = clientDetails.clientSecret;
+				this._logService.info(`User provided client registration for ${authorizationServer.toString()}`);
+				if (clientSecret) {
+					this._logService.trace(`User provided client secret for ${authorizationServer.toString()}`);
+				} else {
+					this._logService.trace(`User did not provide client secret for ${authorizationServer.toString()}`);
+				}
 			}
 		}
 		const provider = new this._dynamicAuthProviderCtor(
@@ -207,6 +228,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			serverMetadata,
 			resourceMetadata,
 			clientId,
+			clientSecret,
 			this._onDidDynamicAuthProviderTokensChange,
 			initialTokens || []
 		);
@@ -223,13 +245,14 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 						provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(provider.id, e)),
 						provider.onDidChangeClientId(() => this._proxy.$sendDidChangeDynamicProviderInfo({
 							providerId: provider.id,
-							clientId: provider.clientId
+							clientId: provider.clientId,
+							clientSecret: provider.clientSecret
 						}))
 					),
 					options: { supportsMultipleAccounts: false }
 				}
 			);
-			await this._proxy.$registerDynamicAuthenticationProvider(provider.id, provider.label, provider.authorizationServer, provider.clientId);
+			await this._proxy.$registerDynamicAuthenticationProvider(provider.id, provider.label, provider.authorizationServer, provider.clientId, provider.clientSecret);
 		});
 
 		return provider.id;
@@ -286,6 +309,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		protected readonly _serverMetadata: IAuthorizationServerMetadata,
 		protected readonly _resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		protected _clientId: string,
+		protected _clientSecret: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: IAuthorizationToken[] }>,
 		initialTokens: IAuthorizationToken[],
 	) {
@@ -314,14 +338,21 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		));
 		this._disposable.add(this._tokenStore.onDidChangeSessions(e => this._onDidChangeSessions.fire(e)));
 		// Will be extended later to support other flows
-		this._createFlows = [{
-			label: nls.localize('url handler', "URL Handler"),
-			handler: (scopes, progress, token) => this._createWithUrlHandler(scopes, progress, token)
-		}];
+		this._createFlows = [];
+		if (_serverMetadata.authorization_endpoint) {
+			this._createFlows.push({
+				label: nls.localize('url handler', "URL Handler"),
+				handler: (scopes, progress, token) => this._createWithUrlHandler(scopes, progress, token)
+			});
+		}
 	}
 
 	get clientId(): string {
 		return this._clientId;
+	}
+
+	get clientSecret(): string | undefined {
+		return this._clientSecret;
 	}
 
 	async getSessions(scopes: readonly string[] | undefined, _options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
@@ -452,6 +483,13 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	}
 
 	private async _createWithUrlHandler(scopes: string[], progress: vscode.Progress<IProgressStep>, token: vscode.CancellationToken): Promise<IAuthorizationTokenResponse> {
+		if (!this._serverMetadata.authorization_endpoint) {
+			throw new Error('Authorization Endpoint required');
+		}
+		if (!this._serverMetadata.token_endpoint) {
+			throw new Error('Token endpoint not available in server metadata');
+		}
+
 		// Generate PKCE code verifier (random string) and code challenge (SHA-256 hash of verifier)
 		const codeVerifier = this.generateRandomString(64);
 		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
@@ -467,7 +505,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		}
 
 		// Prepare the authorization request URL
-		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
+		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint);
 		authorizationUrl.searchParams.append('client_id', this._clientId);
 		authorizationUrl.searchParams.append('response_type', 'code');
 		authorizationUrl.searchParams.append('state', state.toString());
@@ -565,14 +603,28 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		tokenRequest.append('redirect_uri', redirectUri);
 		tokenRequest.append('code_verifier', codeVerifier);
 
-		const response = await fetch(this._serverMetadata.token_endpoint, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				'Accept': 'application/json'
-			},
-			body: tokenRequest.toString()
-		});
+		// Add client secret if available
+		if (this._clientSecret) {
+			tokenRequest.append('client_secret', this._clientSecret);
+		}
+
+		this._logger.info('Exchanging authorization code for token...');
+		this._logger.trace(`Url: ${this._serverMetadata.token_endpoint}`);
+		this._logger.trace(`Token request body: ${tokenRequest.toString()}`);
+		let response: Response;
+		try {
+			response = await fetch(this._serverMetadata.token_endpoint, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Accept': 'application/json'
+				},
+				body: tokenRequest.toString()
+			});
+		} catch (err) {
+			this._logger.error(`Failed to exchange authorization code for token: ${err}`);
+			throw new Error(`Failed to exchange authorization code for token: ${err}`);
+		}
 
 		if (!response.ok) {
 			const text = await response.text();
@@ -581,6 +633,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 		const result = await response.json();
 		if (isAuthorizationTokenResponse(result)) {
+			this._logger.info(`Successfully exchanged authorization code for token.`);
 			return result;
 		} else if (isAuthorizationErrorResponse(result) && result.error === AuthorizationErrorType.InvalidClient) {
 			this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);
@@ -599,6 +652,11 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		tokenRequest.append('client_id', this._clientId);
 		tokenRequest.append('grant_type', 'refresh_token');
 		tokenRequest.append('refresh_token', refreshToken);
+
+		// Add client secret if available
+		if (this._clientSecret) {
+			tokenRequest.append('client_secret', this._clientSecret);
+		}
 
 		const response = await fetch(this._serverMetadata.token_endpoint, {
 			method: 'POST',
@@ -627,10 +685,31 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		try {
 			const registration = await fetchDynamicRegistration(this._serverMetadata, this._initData.environment.appName, this._resourceMetadata?.scopes_supported);
 			this._clientId = registration.client_id;
+			this._clientSecret = registration.client_secret;
 			this._onDidChangeClientId.fire();
 		} catch (err) {
-			this._logger.error(`Failed to fetch new client ID: ${err}`);
-			throw new Error(`Failed to fetch new client ID: ${err}`);
+			// When DCR fails, try to prompt the user for a client ID and client secret
+			this._logger.info(`Dynamic registration failed for ${this.authorizationServer.toString()}: ${err}. Prompting user for client ID and client secret.`);
+
+			try {
+				const clientDetails = await this._proxy.$promptForClientRegistration(this.authorizationServer.toString());
+				if (!clientDetails) {
+					throw new Error('User did not provide client details');
+				}
+				this._clientId = clientDetails.clientId;
+				this._clientSecret = clientDetails.clientSecret;
+				this._logger.info(`User provided client ID for ${this.authorizationServer.toString()}`);
+				if (clientDetails.clientSecret) {
+					this._logger.info(`User provided client secret for ${this.authorizationServer.toString()}`);
+				} else {
+					this._logger.info(`User did not provide client secret for ${this.authorizationServer.toString()} (optional)`);
+				}
+
+				this._onDidChangeClientId.fire();
+			} catch (promptErr) {
+				this._logger.error(`Failed to fetch new client ID and user did not provide one: ${err}`);
+				throw new Error(`Failed to fetch new client ID and user did not provide one: ${err}`);
+			}
 		}
 	}
 }

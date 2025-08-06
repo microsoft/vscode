@@ -10,7 +10,7 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
-import { IAsyncDataSource, ITreeContextMenuEvent, ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, observableSignal, ISettableObservable } from '../../../../base/common/observable.js';
@@ -72,6 +72,10 @@ import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/async
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IDragAndDropData } from '../../../../base/browser/dnd.js';
+import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
+import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
+import { SCMHistoryItemTransferData } from './scmHistoryChatContext.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -88,7 +92,10 @@ class SCMRepositoryActionViewItem extends ActionViewItem {
 			this.label.classList.add('scm-graph-repository-picker');
 
 			const icon = $('.icon');
-			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.repo));
+			const iconClassNameArray = ThemeIcon.isThemeIcon(this._repository.provider.iconPath)
+				? ThemeIcon.asClassNameArray(this._repository.provider.iconPath)
+				: ThemeIcon.asClassNameArray(Codicon.repo);
+			icon.classList.add(...iconClassNameArray);
 
 			const name = $('.name');
 			name.textContent = this._repository.provider.name;
@@ -578,6 +585,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 	}
 
 	disposeTemplate(templateData: HistoryItemTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
 }
@@ -747,6 +755,7 @@ class HistoryItemLoadMoreRenderer implements ICompressibleTreeRenderer<SCMHistor
 	}
 
 	disposeTemplate(templateData: LoadMoreTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
 }
@@ -942,6 +951,84 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 			isSCMHistoryItemViewModelTreeElement(inputOrElement) ||
 			(isSCMHistoryItemChangeNode(inputOrElement) && inputOrElement.childrenCount > 0);
 	}
+}
+
+class SCMHistoryTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
+	getDragURI(element: TreeElement): string | null {
+		const uri = this._getTreeElementUri(element);
+		return uri ? uri.toString() : null;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		if (!originalEvent.dataTransfer) {
+			return;
+		}
+
+		const historyItems = this._getDragAndDropData(data as ElementsDragAndDropData<TreeElement, TreeElement[]>);
+		if (historyItems.length === 0) {
+			return;
+		}
+
+		originalEvent.dataTransfer.setData(CodeDataTransfers.SCM_HISTORY_ITEM, JSON.stringify(historyItems));
+	}
+
+	getDragLabel(elements: TreeElement[], originalEvent: DragEvent): string | undefined {
+		if (elements.length === 1) {
+			const element = elements[0];
+			return this._getTreeElementLabel(element);
+		}
+
+		return String(elements.length);
+	}
+
+	onDragOver(data: IDragAndDropData, targetElement: TreeElement | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean {
+		return false;
+	}
+
+	drop(data: IDragAndDropData, targetElement: TreeElement | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void { }
+
+	private _getDragAndDropData(data: ElementsDragAndDropData<TreeElement, TreeElement[]>): SCMHistoryItemTransferData[] {
+		const historyItems: SCMHistoryItemTransferData[] = [];
+		for (const element of [...data.context ?? [], ...data.elements]) {
+			if (!isSCMHistoryItemViewModelTreeElement(element)) {
+				continue;
+			}
+
+			const provider = element.repository.provider;
+			const historyItem = element.historyItemViewModel.historyItem;
+			const attachmentName = `$(${Codicon.repo.id})\u00A0${provider.name}\u00A0$(${Codicon.gitCommit.id})\u00A0${historyItem.displayId ?? historyItem.id}`;
+
+			historyItems.push({
+				name: attachmentName,
+				resource: ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem),
+				historyItem: historyItem
+			});
+		}
+
+		return historyItems;
+	}
+
+	private _getTreeElementLabel(element: TreeElement): string | undefined {
+		if (isSCMHistoryItemViewModelTreeElement(element)) {
+			const historyItem = element.historyItemViewModel.historyItem;
+			return getHistoryItemEditorTitle(historyItem);
+		}
+
+		return undefined;
+	}
+
+	private _getTreeElementUri(element: TreeElement): URI | undefined {
+		if (isSCMHistoryItemViewModelTreeElement(element)) {
+			const provider = element.repository.provider;
+			const historyItem = element.historyItemViewModel.historyItem;
+
+			return ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItem);
+		}
+
+		return undefined;
+	}
+
+	dispose(): void { }
 }
 
 type HistoryItemRefsFilter = 'all' | 'auto' | string[];
@@ -1292,7 +1379,9 @@ class RepositoryPicker {
 		picks.push(...this._scmViewService.repositories.map(r => ({
 			label: r.provider.name,
 			description: r.provider.rootUri?.fsPath,
-			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			iconClass: ThemeIcon.isThemeIcon(r.provider.iconPath)
+				? ThemeIcon.asClassName(r.provider.iconPath)
+				: ThemeIcon.asClassName(Codicon.repo),
 			repository: r
 		})));
 
@@ -1616,7 +1705,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}));
 
 				// Update context
-				this._scmProviderCtx.set(repository.provider.contextValue);
+				this._scmProviderCtx.set(repository.provider.providerId);
 				this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
 
 				// We skip refreshing the graph on the first execution of the autorun
@@ -1791,6 +1880,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				identityProvider: this._treeIdentityProvider,
 				collapseByDefault: (e: unknown) => !isSCMHistoryItemChangeNode(e),
 				compressionEnabled: compressionEnabled.get(),
+				dnd: new SCMHistoryTreeDragAndDrop(),
 				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false

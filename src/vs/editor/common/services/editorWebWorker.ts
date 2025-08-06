@@ -38,7 +38,7 @@ export interface IMirrorModel extends IMirrorTextModel {
 	getValue(): string;
 }
 
-export interface IWorkerContext<H = undefined> {
+export interface IWorkerContext<H = {}> {
 	/**
 	 * A proxy to the main thread host object.
 	 */

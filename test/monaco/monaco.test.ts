@@ -5,6 +5,7 @@
 
 import * as playwright from '@playwright/test';
 import { assert } from 'chai';
+import { injectAxe } from 'axe-playwright';
 
 const PORT = 8563;
 const TIMEOUT = 20 * 1000;
@@ -134,5 +135,128 @@ describe('API Integration Tests', function (): void {
 			'# 	def eat(self, N):',
 			'\t\t\'\'\'Make the monkey eat N bananas!\'\'\''
 		]);
+	});
+	describe('Accessibility', function (): void {
+		beforeEach(async () => {
+			await page.goto(APP);
+			await injectAxe(page);
+			await page.evaluate(`
+			(function () {
+				instance.focus();
+				instance.trigger('keyboard', 'cursorHome');
+				instance.trigger('keyboard', 'type', {
+					text: 'a'
+				});
+			})()
+			`);
+		});
+
+		it('Editor should not have critical accessibility violations', async () => {
+			let violationCount = 0;
+			const checkedElements = new Set<string>();
+
+			// Run axe and get all results (passes and violations)
+			const axeResults = await page.evaluate(() => {
+				return window.axe.run(document, {
+					runOnly: {
+						type: 'tag',
+						values: [
+							'wcag2a',
+							'wcag2aa',
+							'wcag21a',
+							'wcag21aa',
+							'best-practice'
+						]
+					}
+				});
+			});
+
+			axeResults.violations.forEach((v: any) => {
+				const isCritical = v.impact === 'critical';
+				const emoji = isCritical ? '❌' : undefined;
+				v.nodes.forEach((node: any) => {
+					const selector = node.target?.join(' ');
+					if (selector && emoji) {
+						checkedElements.add(selector);
+						console.log(`${emoji} FAIL: ${selector} - ${v.id} - ${v.description}`);
+					}
+				});
+				violationCount += isCritical ? 1 : 0;
+			});
+
+			axeResults.passes.forEach((pass: any) => {
+				pass.nodes.forEach((node: any) => {
+					const selector = node.target?.join(' ');
+					if (selector && !checkedElements.has(selector)) {
+						checkedElements.add(selector);
+					}
+				});
+			});
+
+			playwright.expect(violationCount).toBe(0);
+		});
+
+		it('Editor should not have color contrast accessibility violations', async () => {
+			let violationCount = 0;
+			const checkedElements = new Set<string>();
+
+			const axeResults = await page.evaluate(() => {
+				return window.axe.run(document, {
+					runOnly: {
+						type: 'rule',
+						values: ['color-contrast']
+					}
+				});
+			});
+
+			axeResults.violations.forEach((v: any) => {
+				const isCritical = v.impact === 'critical';
+				const emoji = isCritical ? '❌' : undefined;
+				v.nodes.forEach((node: any) => {
+					const selector = node.target?.join(' ');
+					if (selector && emoji) {
+						checkedElements.add(selector);
+						console.log(`${emoji} FAIL: ${selector} - ${v.id} - ${v.description}`);
+					}
+				});
+				violationCount += 1;
+			});
+
+			axeResults.passes.forEach((pass: any) => {
+				pass.nodes.forEach((node: any) => {
+					const selector = node.target?.join(' ');
+					if (selector && !checkedElements.has(selector)) {
+						checkedElements.add(selector);
+					}
+				});
+			});
+
+			playwright.expect(violationCount).toBe(0);
+		});
+		it('Monaco editor container should have an ARIA role', async () => {
+			const role = await page.evaluate(() => {
+				const container = document.querySelector('.monaco-editor');
+				return container?.getAttribute('role');
+			});
+			assert.isDefined(role, 'Monaco editor container should have a role attribute');
+		});
+
+		it('Monaco editor should have an ARIA label', async () => {
+			const ariaLabel = await page.evaluate(() => {
+				const container = document.querySelector('.monaco-editor');
+				return container?.getAttribute('aria-label');
+			});
+			assert.isDefined(ariaLabel, 'Monaco editor container should have an aria-label attribute');
+		});
+
+		it('All toolbar buttons should have accessible names', async () => {
+			const buttonsWithoutLabel = await page.evaluate(() => {
+				return Array.from(document.querySelectorAll('button')).filter(btn => {
+					const label = btn.getAttribute('aria-label') || btn.textContent?.trim();
+					return !label;
+				}).map(btn => btn.outerHTML);
+			});
+			assert.deepEqual(buttonsWithoutLabel, [], 'All toolbar buttons should have accessible names');
+		});
 	});
 });
