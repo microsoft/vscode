@@ -11,18 +11,6 @@ export const NEW_PYLANCE_DEBUG_DISPLAY_NAME = `ms-python.vscode-pylance(.["')`;
 export const PYTHON_LANGUAGE_ID = 'python';
 export const PWSH_DEBUG_DISPLAY_NAME = `ms-vscode.powershell(.-:\\$ )`;
 
-
-export const LspSupportedShellTypes: TerminalShellType[] = [
-	GeneralShellType.Python,
-	GeneralShellType.PowerShell
-];
-
-export const LspSupportedProvider: string[] = [
-	PYLANCE_DEBUG_DISPLAY_NAME,
-	NEW_PYLANCE_DEBUG_DISPLAY_NAME,
-	PWSH_DEBUG_DISPLAY_NAME
-];
-
 export function mapShellTypeToExtension(shellType: TerminalShellType): string {
 	switch (shellType) {
 		case GeneralShellType.Python:
