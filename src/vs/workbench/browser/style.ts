@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/style';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { isWeb, isIOS } from 'vs/base/common/platform';
-import { createMetaElement } from 'vs/base/browser/dom';
-import { isSafari, isStandalone } from 'vs/base/browser/browser';
-import { selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { mainWindow } from 'vs/base/browser/window';
+import './media/style.css';
+import { registerThemingParticipant } from '../../platform/theme/common/themeService.js';
+import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from '../common/theme.js';
+import { isWeb, isIOS } from '../../base/common/platform.js';
+import { createMetaElement } from '../../base/browser/dom.js';
+import { isSafari, isStandalone } from '../../base/browser/browser.js';
+import { selectionBackground } from '../../platform/theme/common/colorRegistry.js';
+import { mainWindow } from '../../base/browser/window.js';
 
 registerThemingParticipant((theme, collector) => {
 

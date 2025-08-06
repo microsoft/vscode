@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, derived } from 'vs/base/common/observable';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { allowsTrueInlineDiffRendering } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones';
-import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
-import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { MovedBlocksLinesFeature } from 'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature';
-import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
-import { applyObservableDecorations } from 'vs/editor/browser/widget/diffEditor/utils';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, derived } from '../../../../../base/common/observable.js';
+import { DiffEditorEditors } from './diffEditorEditors.js';
+import { allowsTrueInlineDiffRendering } from './diffEditorViewZones/diffEditorViewZones.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
+import { DiffEditorViewModel } from '../diffEditorViewModel.js';
+import { DiffEditorWidget } from '../diffEditorWidget.js';
+import { MovedBlocksLinesFeature } from '../features/movedBlocksLinesFeature.js';
+import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from '../registrations.contribution.js';
+import { applyObservableDecorations } from '../utils.js';
+import { IModelDeltaDecoration } from '../../../../common/model.js';
 
 export class DiffEditorDecorations extends Disposable {
 	constructor(

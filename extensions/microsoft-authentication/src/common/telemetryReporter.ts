@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import TelemetryReporter from '@vscode/extension-telemetry';
+import TelemetryReporter, { TelemetryEventProperties } from '@vscode/extension-telemetry';
+import { IExperimentationTelemetry } from 'vscode-tas-client';
 
 export const enum MicrosoftAccountType {
 	AAD = 'aad',
@@ -11,10 +12,34 @@ export const enum MicrosoftAccountType {
 	Unknown = 'unknown'
 }
 
-export class MicrosoftAuthenticationTelemetryReporter {
+export class MicrosoftAuthenticationTelemetryReporter implements IExperimentationTelemetry {
+	private sharedProperties: Record<string, string> = {};
 	protected _telemetryReporter: TelemetryReporter;
 	constructor(aiKey: string) {
 		this._telemetryReporter = new TelemetryReporter(aiKey);
+	}
+
+	get telemetryReporter(): TelemetryReporter {
+		return this._telemetryReporter;
+	}
+
+	setSharedProperty(name: string, value: string): void {
+		this.sharedProperties[name] = value;
+	}
+
+	postEvent(eventName: string, props: Map<string, string>): void {
+		const eventProperties: TelemetryEventProperties = { ...this.sharedProperties, ...Object.fromEntries(props) };
+		this._telemetryReporter.sendTelemetryEvent(
+			eventName,
+			eventProperties
+		);
+	}
+
+	sendActivatedWithClassicImplementationEvent(): void {
+		/* __GDPR__
+			"activatingClassic" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the classic login flow." }
+		*/
+		this._telemetryReporter.sendTelemetryEvent('activatingClassic');
 	}
 
 	sendLoginEvent(scopes: readonly string[]): void {
@@ -48,6 +73,24 @@ export class MicrosoftAuthenticationTelemetryReporter {
 		*/
 		this._telemetryReporter.sendTelemetryEvent('logoutFailed');
 	}
+
+	sendTelemetryErrorEvent(error: unknown): void {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorStack = error instanceof Error ? error.stack : undefined;
+		const errorName = error instanceof Error ? error.name : undefined;
+
+		/* __GDPR__
+			"msalError" : {
+				"owner": "TylerLeonhardt",
+				"comment": "Used to determine how often users run into issues with the login flow.",
+				"errorMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error message from the exception." },
+				"errorStack": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The stack trace from the exception." },
+				"errorName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the error." }
+			}
+		*/
+		this._telemetryReporter.sendTelemetryErrorEvent('msalError', { errorMessage, errorStack, errorName });
+	}
+
 	/**
 	 * Sends an event for an account type available at startup.
 	 * @param scopes The scopes for the session
@@ -56,7 +99,7 @@ export class MicrosoftAuthenticationTelemetryReporter {
 	 */
 	sendAccountEvent(scopes: string[], accountType: MicrosoftAccountType): void {
 		/* __GDPR__
-			"login" : {
+			"account" : {
 				"owner": "TylerLeonhardt",
 				"comment": "Used to determine the usage of the Microsoft Auth Provider.",
 				"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." },

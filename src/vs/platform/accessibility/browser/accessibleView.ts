@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { Event } from 'vs/base/common/event';
-import { IAction } from 'vs/base/common/actions';
-import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IKeyboardEvent } from '../../keybinding/common/keybinding.js';
+import { IPickerQuickAccessItem } from '../../quickinput/browser/pickerQuickAccess.js';
+import { Event } from '../../../base/common/event.js';
+import { IAction } from '../../../base/common/actions.js';
+import { IQuickPickItem } from '../../quickinput/common/quickInput.js';
+import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
 
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
@@ -18,19 +18,26 @@ export const enum AccessibleViewProviderId {
 	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
-	Chat = 'panelChat',
+	MergeEditor = 'mergeEditor',
+	PanelChat = 'panelChat',
 	InlineChat = 'inlineChat',
+	AgentChat = 'agentChat',
+	QuickChat = 'quickChat',
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',
 	Notebook = 'notebook',
+	ReplEditor = 'replEditor',
 	Editor = 'editor',
 	Hover = 'hover',
 	Notification = 'notification',
 	EmptyEditorHint = 'emptyEditorHint',
 	Comments = 'comments',
+	CommentThread = 'commentThread',
 	Repl = 'repl',
 	ReplHelp = 'replHelp',
 	RunAndDebug = 'runAndDebug',
+	Walkthrough = 'walkthrough',
+	SourceControl = 'scm'
 }
 
 export const enum AccessibleViewType {
@@ -162,6 +169,10 @@ export class AccessibleContentProvider extends Disposable implements IAccessible
 	) {
 		super();
 	}
+}
+
+export function isIAccessibleViewContentProvider(obj: any): obj is IAccessibleViewContentProvider {
+	return obj && obj.id && obj.options && obj.provideContent && obj.onClose && obj.verbositySettingKey;
 }
 
 export class ExtensionContentProvider extends Disposable implements IBasicContentProvider {

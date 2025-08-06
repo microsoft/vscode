@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { registerAction2, Action2, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { basename, basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorResourceAccessor, SaveSourceRegistry, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ActiveEditorContext, ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ResourceSet } from 'vs/base/common/map';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { localize, localize2 } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from '../../../services/workingCopy/common/workingCopyHistory.js';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { LocalHistoryFileSystemProvider } from './localHistoryFileSystemProvider.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { registerAction2, Action2, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { basename, basenameOrAuthority, dirname } from '../../../../base/common/resources.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { EditorResourceAccessor, SaveSourceRegistry, SideBySideEditor } from '../../../common/editor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ActiveEditorContext, ResourceContextKey } from '../../../common/contextkeys.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from './localHistory.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { ResourceSet } from '../../../../base/common/map.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 
 const LOCAL_HISTORY_CATEGORY = localize2('localHistory.category', 'Local History');
 const CTX_LOCAL_HISTORY_ENABLED = ContextKeyExpr.has('config.workbench.localHistory.enabled');
@@ -378,7 +378,7 @@ registerAction2(class extends Action2 {
 		await Event.toPromise(resourcePicker.onDidAccept);
 		resourcePickerDisposables.dispose();
 
-		const resource = firstOrDefault(resourcePicker.selectedItems)?.resource;
+		const resource = resourcePicker.selectedItems.at(0)?.resource;
 		if (!resource) {
 			return;
 		}
@@ -413,7 +413,7 @@ registerAction2(class extends Action2 {
 				entryPickerDisposables.dispose();
 			}
 
-			const selectedItem = firstOrDefault(entryPicker.selectedItems);
+			const selectedItem = entryPicker.selectedItems.at(0);
 			if (!selectedItem) {
 				return;
 			}

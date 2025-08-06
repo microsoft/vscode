@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EXTENSION_IDENTIFIER_PATTERN } from '../../common/extensionManagement.js';
+import { ExtensionKey } from '../../common/extensionManagementUtil.js';
+import { TargetPlatform } from '../../../extensions/common/extensions.js';
 
 suite('Extension Identifier Pattern', () => {
 

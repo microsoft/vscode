@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { constants as FSConstants, promises as FSPromises } from 'fs';
-import { join } from 'vs/base/common/path';
-import { env } from 'vs/base/common/process';
+import { join } from '../common/path.js';
+import { env } from '../common/process.js';
 
 const XDG_SESSION_TYPE = 'XDG_SESSION_TYPE';
 const WAYLAND_DISPLAY = 'WAYLAND_DISPLAY';

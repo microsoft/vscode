@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'vs/base/common/path';
-import * as glob from 'vs/base/common/glob';
-import { normalizeNFD } from 'vs/base/common/normalization';
-import * as extpath from 'vs/base/common/extpath';
-import { isMacintosh as isMac } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { IFileQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
-import { anchorGlob } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
+import * as path from '../../../../base/common/path.js';
+import * as glob from '../../../../base/common/glob.js';
+import { normalizeNFD } from '../../../../base/common/normalization.js';
+import * as extpath from '../../../../base/common/extpath.js';
+import { isMacintosh as isMac } from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { IFileQuery, IFolderQuery } from '../common/search.js';
+import { anchorGlob } from './ripgrepSearchUtils.js';
 import { rgPath } from '@vscode/ripgrep';
 
 // If @vscode/ripgrep is in an .asar file, then the binary is unpacked.

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange } from 'vs/editor/common/core/range';
-import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { AbstractFloatingClickMenu, FloatingClickWidget } from 'vs/platform/actions/browser/floatingMenu';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IAction } from '../../base/common/actions.js';
+import { Emitter } from '../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
+import { isEqual } from '../../base/common/resources.js';
+import { URI } from '../../base/common/uri.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, isCodeEditor, isCompositeEditor } from '../../editor/browser/editorBrowser.js';
+import { EmbeddedCodeEditorWidget } from '../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { EditorOption } from '../../editor/common/config/editorOptions.js';
+import { IRange } from '../../editor/common/core/range.js';
+import { CursorChangeReason, ICursorPositionChangedEvent } from '../../editor/common/cursorEvents.js';
+import { IEditorContribution } from '../../editor/common/editorCommon.js';
+import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from '../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../editor/common/model/textModel.js';
+import { AbstractFloatingClickMenu, FloatingClickWidget } from '../../platform/actions/browser/floatingMenu.js';
+import { IMenuService, MenuId } from '../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;

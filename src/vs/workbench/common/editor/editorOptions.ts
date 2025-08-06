@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { ICodeEditorViewState, IDiffEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
-import { isTextEditorViewState } from 'vs/workbench/common/editor';
+import { IRange } from '../../../editor/common/core/range.js';
+import { ICodeEditorViewState, IDiffEditorViewState, IEditor, ScrollType } from '../../../editor/common/editorCommon.js';
+import { ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
+import { isTextEditorViewState } from '../editor.js';
 
 export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEditor, scrollType: ScrollType): boolean {
 	let applied = false;

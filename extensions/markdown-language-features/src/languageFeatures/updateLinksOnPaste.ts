@@ -9,9 +9,9 @@ import { Mime } from '../util/mimes';
 
 class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider {
 
-	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'updateLinks');
+	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Text.append('updateLinks', 'markdown');
 
-	public static readonly metadataMime = 'vnd.vscode.markdown.updateLinksMetadata';
+	public static readonly metadataMime = 'application/vnd.vscode.markdown.updatelinks.metadata';
 
 	constructor(
 		private readonly _client: MdLanguageClient,
@@ -67,7 +67,7 @@ class UpdatePastedLinksEditProvider implements vscode.DocumentPasteEditProvider 
 		pasteEdit.additionalEdit = workspaceEdit;
 
 		if (!context.only || !UpdatePastedLinksEditProvider.kind.contains(context.only)) {
-			pasteEdit.yieldTo = [vscode.DocumentDropOrPasteEditKind.Empty.append('text')];
+			pasteEdit.yieldTo = [vscode.DocumentDropOrPasteEditKind.Text];
 		}
 
 		return [pasteEdit];

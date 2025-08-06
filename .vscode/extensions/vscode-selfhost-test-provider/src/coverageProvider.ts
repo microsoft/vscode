@@ -142,7 +142,7 @@ class ScriptCoverageTracker {
 	}
 }
 
-export class V8CoverageFile extends vscode.FileCoverage2 {
+export class V8CoverageFile extends vscode.FileCoverage {
 	public details: vscode.StatementCoverage[] = [];
 
 	constructor(

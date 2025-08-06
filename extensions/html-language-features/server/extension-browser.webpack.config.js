@@ -15,6 +15,12 @@ const serverConfig = withBrowserDefaults({
 	entry: {
 		extension: './src/browser/htmlServerWorkerMain.ts',
 	},
+	resolve: {
+		extensionAlias: {
+			// this is needed to resolve dynamic imports that now require the .js extension
+			'.js': ['.js', '.ts'],
+		},
+	},
 	output: {
 		filename: 'htmlServerMain.js',
 		path: path.join(__dirname, 'dist', 'browser'),

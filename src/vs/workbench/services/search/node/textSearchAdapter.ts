@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as pfs from 'vs/base/node/pfs';
-import { IFileMatch, IProgressMessage, ITextQuery, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import * as pfs from '../../../../base/node/pfs.js';
+import { IFileMatch, IProgressMessage, ITextQuery, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess, resultIsMatch } from '../common/search.js';
+import { RipgrepTextSearchEngine } from './ripgrepTextSearchEngine.js';
+import { NativeTextSearchManager } from './textSearchManager.js';
 
 export class TextSearchEngineAdapter {
 

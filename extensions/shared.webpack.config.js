@@ -12,7 +12,6 @@ const path = require('path');
 const fs = require('fs');
 const merge = require('merge-options');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
-const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
 const { DefinePlugin, optimize } = require('webpack');
 
 const tsLoaderOptions = {
@@ -33,20 +32,17 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 		resolve: {
 			conditionNames: ['import', 'require', 'node-addons', 'node'],
 			mainFields: ['module', 'main'],
-			extensions: ['.ts', '.js'] // support ts-files and js-files
+			extensions: ['.ts', '.js'], // support ts-files and js-files
+			extensionAlias: {
+				// this is needed to resolve dynamic imports that now require the .js extension
+				'.js': ['.js', '.ts'],
+			}
 		},
 		module: {
 			rules: [{
 				test: /\.ts$/,
 				exclude: /node_modules/,
 				use: [{
-					// vscode-nls-dev loader:
-					// * rewrite nls-calls
-					loader: 'vscode-nls-dev/lib/webpack-loader',
-					options: {
-						base: path.join(extConfig.context, 'src')
-					}
-				}, {
 					// configure TypeScript loader:
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
@@ -60,9 +56,10 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 			}]
 		},
 		externals: {
+			'electron': 'commonjs electron', // ignored to avoid bundling from node_modules
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
-			'@azure/functions-core': 'commonjs azure/functions-core', // optioinal dependency of appinsights that we don't use
+			'@azure/functions-core': 'commonjs azure/functions-core', // optional dependency of appinsights that we don't use
 			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
 			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
 			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module
@@ -97,8 +94,7 @@ function nodePlugins(context) {
 			patterns: [
 				{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
 			]
-		}),
-		new NLSBundlePlugin(id)
+		})
 	];
 }
 /**
@@ -117,8 +113,13 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 			extensions: ['.ts', '.js'], // support ts-files and js-files
 			fallback: {
 				'path': require.resolve('path-browserify'),
+				'os': require.resolve('os-browserify'),
 				'util': require.resolve('util')
-			}
+			},
+			extensionAlias: {
+				// this is needed to resolve dynamic imports that now require the .js extension
+				'.js': ['.js', '.ts'],
+			},
 		},
 		module: {
 			rules: [{
@@ -131,7 +132,7 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 						loader: 'ts-loader',
 						options: {
 							...tsLoaderOptions,
-							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
+							//							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
 						}
 					},
 					{
@@ -149,7 +150,7 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
-			'@azure/functions-core': 'commonjs azure/functions-core', // optioinal dependency of appinsights that we don't use
+			'@azure/functions-core': 'commonjs azure/functions-core', // optional dependency of appinsights that we don't use
 			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
 			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
 			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module
@@ -195,9 +196,7 @@ function browserPlugins(context) {
 			'process.platform': JSON.stringify('web'),
 			'process.env': JSON.stringify({}),
 			'process.env.BROWSER_ENV': JSON.stringify('true')
-		}),
-		// TODO: bring this back once vscode-nls-dev supports browser
-		// new NLSBundlePlugin(id)
+		})
 	];
 }
 
@@ -206,4 +205,3 @@ module.exports.node = withNodeDefaults;
 module.exports.browser = withBrowserDefaults;
 module.exports.nodePlugins = nodePlugins;
 module.exports.browserPlugins = browserPlugins;
-

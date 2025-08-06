@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Token, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { StandaloneConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
-import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
-import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
-import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Token, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { LanguageService } from '../../../common/services/languageService.js';
+import { StandaloneConfigurationService } from '../../browser/standaloneServices.js';
+import { compile } from '../../common/monarch/monarchCompile.js';
+import { MonarchTokenizer } from '../../common/monarch/monarchLexer.js';
+import { IMonarchLanguage } from '../../common/monarch/monarchTypes.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
 
 suite('Monarch', () => {
 
@@ -111,6 +111,93 @@ suite('Monarch', () => {
 		]);
 		disposables.dispose();
 	});
+
+	test('Test nextEmbedded: "@pop" in cases statement', () => {
+		const disposables = new DisposableStore();
+		const languageService = disposables.add(new LanguageService());
+		const configurationService = new StandaloneConfigurationService(new NullLogService());
+		disposables.add(languageService.registerLanguage({ id: 'sql' }));
+		disposables.add(TokenizationRegistry.register('sql', disposables.add(createMonarchTokenizer(languageService, 'sql', {
+			tokenizer: {
+				root: [
+					[/./, 'token']
+				]
+			}
+		}, configurationService))));
+		const SQL_QUERY_START = '(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|WITH)';
+		const tokenizer = disposables.add(createMonarchTokenizer(languageService, 'test1', {
+			tokenizer: {
+				root: [
+					[`(\"\"\")${SQL_QUERY_START}`, [{ 'token': 'string.quote', }, { token: '@rematch', next: '@endStringWithSQL', nextEmbedded: 'sql', },]],
+					[/(""")$/, [{ token: 'string.quote', next: '@maybeStringIsSQL', },]],
+				],
+				maybeStringIsSQL: [
+					[/(.*)/, {
+						cases: {
+							[`${SQL_QUERY_START}\\b.*`]: { token: '@rematch', next: '@endStringWithSQL', nextEmbedded: 'sql', },
+							'@default': { token: '@rematch', switchTo: '@endDblDocString', },
+						}
+					}],
+				],
+				endDblDocString: [
+					['[^\']+', 'string'],
+					['\\\\\'', 'string'],
+					['\'\'\'', 'string', '@popall'],
+					['\'', 'string']
+				],
+				endStringWithSQL: [[/"""/, {
+					cases: {
+						'"""': {
+							cases: {
+								'': { token: 'string.quote', next: '@popall', nextEmbedded: '@pop', }
+							}
+						},
+						'@default': ''
+					}
+				}]],
+			}
+		}, configurationService));
+
+		const lines = [
+			`mysql_query("""SELECT * FROM table_name WHERE ds = '<DATEID>'""")`,
+			`mysql_query("""`,
+			`SELECT *`,
+			`FROM table_name`,
+			`WHERE ds = '<DATEID>'`,
+			`""")`,
+		];
+
+		const actualTokens = getTokens(tokenizer, lines);
+
+		assert.deepStrictEqual(actualTokens, [
+			[
+				new Token(0, 'source.test1', 'test1'),
+				new Token(12, 'string.quote.test1', 'test1'),
+				new Token(15, 'token.sql', 'sql'),
+				new Token(61, 'string.quote.test1', 'test1'),
+				new Token(64, 'source.test1', 'test1')
+			],
+			[
+				new Token(0, 'source.test1', 'test1'),
+				new Token(12, 'string.quote.test1', 'test1')
+			],
+			[
+				new Token(0, 'token.sql', 'sql')
+			],
+			[
+				new Token(0, 'token.sql', 'sql')
+			],
+			[
+				new Token(0, 'token.sql', 'sql')
+			],
+			[
+				new Token(0, 'string.quote.test1', 'test1'),
+				new Token(3, 'source.test1', 'test1')
+			]
+		]);
+		disposables.dispose();
+	});
+
 
 	test('microsoft/monaco-editor#1235: Empty Line Handling', () => {
 		const disposables = new DisposableStore();
@@ -391,6 +478,39 @@ suite('Monarch', () => {
 			[new Token(0, 'source.test', 'test')],
 			[],
 			[new Token(0, 'source.test', 'test')],
+		]);
+
+		disposables.dispose();
+	});
+
+	test('microsoft/monaco-editor#4775: Raw-strings in c++ can break monarch', () => {
+		const disposables = new DisposableStore();
+		const configurationService = new StandaloneConfigurationService(new NullLogService());
+		const languageService = disposables.add(new LanguageService());
+
+		const tokenizer = disposables.add(createMonarchTokenizer(languageService, 'test', {
+			ignoreCase: false,
+			encoding: /u|u8|U|L/,
+			tokenizer: {
+				root: [
+					// C++ 11 Raw String
+					[/@encoding?R\"(?:([^ ()\\\t]*))\(/, { token: 'string.raw.begin', next: '@raw.$1' }],
+				],
+
+				raw: [
+					[/.*\)$S2\"/, 'string.raw', '@pop'],
+					[/.*/, 'string.raw']
+				],
+			},
+		}, configurationService));
+
+		const lines = [
+			`R"[())"`,
+		];
+
+		const actualTokens = getTokens(tokenizer, lines);
+		assert.deepStrictEqual(actualTokens, [
+			[new Token(0, 'string.raw.begin.test', 'test'), new Token(4, 'string.raw.test', 'test')],
 		]);
 
 		disposables.dispose();

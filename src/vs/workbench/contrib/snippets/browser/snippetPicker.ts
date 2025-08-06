@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Event } from 'vs/base/common/event';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import * as nls from '../../../../nls.js';
+import { ISnippetsService } from './snippets.js';
+import { Snippet, SnippetSource } from './snippetsFile.js';
+import { IQuickPickItem, IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Event } from '../../../../base/common/event.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippets: string | Snippet[]): Promise<Snippet | undefined> {
 

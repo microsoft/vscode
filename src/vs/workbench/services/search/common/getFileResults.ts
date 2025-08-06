@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult } from 'vs/workbench/services/search/common/search';
-import { Range } from 'vs/editor/common/core/range';
+import { ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult } from './search.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 export const getFileResults = (
 	bytes: Uint8Array,
@@ -30,16 +30,16 @@ export const getFileResults = (
 
 	const results: ITextSearchResult[] = [];
 
-	const patternIndecies: { matchStartIndex: number; matchedText: string }[] = [];
+	const patternIndices: { matchStartIndex: number; matchedText: string }[] = [];
 
 	let patternMatch: RegExpExecArray | null = null;
 	let remainingResultQuota = options.remainingResultQuota;
 	while (remainingResultQuota >= 0 && (patternMatch = pattern.exec(text))) {
-		patternIndecies.push({ matchStartIndex: patternMatch.index, matchedText: patternMatch[0] });
+		patternIndices.push({ matchStartIndex: patternMatch.index, matchedText: patternMatch[0] });
 		remainingResultQuota--;
 	}
 
-	if (patternIndecies.length) {
+	if (patternIndices.length) {
 		const contextLinesNeeded = new Set<number>();
 		const resultLines = new Set<number>();
 
@@ -56,7 +56,7 @@ export const getFileResults = (
 		if (prevLineEnd < text.length) { lineRanges.push({ start: prevLineEnd, end: text.length }); }
 
 		let startLine = 0;
-		for (const { matchStartIndex, matchedText } of patternIndecies) {
+		for (const { matchStartIndex, matchedText } of patternIndices) {
 			if (remainingResultQuota < 0) {
 				break;
 			}

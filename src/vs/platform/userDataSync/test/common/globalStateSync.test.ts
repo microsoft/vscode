@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
-import { IGlobalState, ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { GlobalStateSynchroniser } from '../../common/globalStateSync.js';
+import { IGlobalState, ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus } from '../../common/userDataSync.js';
+import { IUserDataProfileStorageService } from '../../../userDataProfile/common/userDataProfileStorageService.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 
 suite('GlobalStateSync', () => {
@@ -42,13 +42,11 @@ suite('GlobalStateSync', () => {
 
 	test('when global state does not exist', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
-		let manifest = await testClient.getResourceManifest();
+		let manifest = await testClient.getLatestRef(SyncResource.GlobalState);
 		server.reset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
-		]);
+		assert.deepStrictEqual(server.requests, []);
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
@@ -56,23 +54,23 @@ suite('GlobalStateSync', () => {
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
 		assert.strictEqual(lastSyncUserData!.syncData, null);
 
-		manifest = await testClient.getResourceManifest();
+		manifest = await testClient.getLatestRef(SyncResource.GlobalState);
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
 
-		manifest = await testClient.getResourceManifest();
+		manifest = await testClient.getLatestRef(SyncResource.GlobalState);
 		server.reset();
 		await testObject.sync(manifest);
 		assert.deepStrictEqual(server.requests, []);
 	}));
 
 	test('when global state is created after first sync', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 		updateUserStorage('a', 'value1', testClient);
 
 		let lastSyncUserData = await testObject.getLastSyncUserData();
-		const manifest = await testClient.getResourceManifest();
+		const manifest = await testClient.getLatestRef(SyncResource.GlobalState);
 		server.reset();
 		await testObject.sync(manifest);
 
@@ -92,7 +90,7 @@ suite('GlobalStateSync', () => {
 		updateMachineStorage('b', 'value1', testClient);
 		await updateLocale(testClient);
 
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
@@ -107,7 +105,7 @@ suite('GlobalStateSync', () => {
 		await updateLocale(client2);
 		await client2.sync();
 
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
@@ -120,7 +118,7 @@ suite('GlobalStateSync', () => {
 		await client2.sync();
 
 		updateUserStorage('b', 'value2', testClient);
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
@@ -138,7 +136,7 @@ suite('GlobalStateSync', () => {
 		await client2.sync();
 
 		updateUserStorage('a', 'value2', client2);
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
@@ -153,10 +151,10 @@ suite('GlobalStateSync', () => {
 
 	test('sync adding a storage value', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		updateUserStorage('a', 'value1', testClient);
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 
 		updateUserStorage('b', 'value2', testClient);
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
@@ -171,10 +169,10 @@ suite('GlobalStateSync', () => {
 
 	test('sync updating a storage value', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		updateUserStorage('a', 'value1', testClient);
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 
 		updateUserStorage('a', 'value2', testClient);
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 
@@ -189,10 +187,10 @@ suite('GlobalStateSync', () => {
 	test('sync removing a storage value', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		updateUserStorage('a', 'value1', testClient);
 		updateUserStorage('b', 'value2', testClient);
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 
 		removeStorage('b', testClient);
-		await testObject.sync(await testClient.getResourceManifest());
+		await testObject.sync(await testClient.getLatestRef(SyncResource.GlobalState));
 		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
 

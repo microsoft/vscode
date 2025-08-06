@@ -6,15 +6,17 @@
 .action-widget {
 	font-size: 13px;
 	border-radius: 0;
-	min-width: 160px;
+	min-width: 100px;
 	max-width: 80vw;
 	z-index: 40;
 	display: block;
 	width: 100%;
 	border: 1px solid var(--vscode-editorWidget-border) !important;
-	border-radius: 2px;
+	border-radius: 5px;
 	background-color: var(--vscode-editorActionList-background);
 	color: var(--vscode-editorActionList-foreground);
+	padding: 4px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
 .context-view-block {
@@ -54,11 +56,12 @@
 
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
-	padding: 0 10px;
+	padding: 0 0 0 8px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
 	width: 100%;
+	border-radius: 4px;
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
@@ -71,6 +74,33 @@
 .action-widget .monaco-list-row.group-header {
 	color: var(--vscode-descriptionForeground) !important;
 	font-weight: 600;
+	font-size: 12px;
+}
+
+.action-widget .monaco-list-row.group-header:not(:first-of-type) {
+	margin-top: 2px;
+}
+
+.action-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator {
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	padding: 0;
+	margin: 4px 0 0 0;
+	cursor: default;
+	user-select: none;
+	border-radius: 0;
+}
+
+.action-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator.focused {
+	outline: 0 solid;
+	background-color: transparent;
+	border-radius: 0;
+}
+
+.action-widget .monaco-list-row.separator:first-of-type {
+	border-top: none;
+	margin-top: 0;
 }
 
 .action-widget .monaco-list .group-header,
@@ -88,7 +118,7 @@
 
 .action-widget .monaco-list-row.action {
 	display: flex;
-	gap: 6px;
+	gap: 8px;
 	align-items: center;
 }
 
@@ -124,8 +154,9 @@
 /* Action bar */
 
 .action-widget .action-widget-action-bar {
-	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
+	background-color: var(--vscode-editorActionList-background);
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+	margin-top: 2px;
 }
 
 .action-widget .action-widget-action-bar::before {
@@ -135,7 +166,7 @@
 }
 
 .action-widget .action-widget-action-bar .actions-container {
-	padding: 0 8px;
+	padding: 3px 8px 0;
 }
 
 .action-widget-action-bar .action-label {
@@ -158,4 +189,10 @@
 .monaco-action-bar .actions-container.highlight-toggled .action-label.checked {
 	/* The important gives this rule precedence over the hover rule. */
 	background: var(--vscode-actionBar-toggledBackground) !important;
+}
+
+.action-widget .monaco-list .monaco-list-row .description {
+	opacity: 0.7;
+	margin-left: 0.5em;
+	font-size: 0.9em;
 }

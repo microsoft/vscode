@@ -4,58 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { Position as EditorPosition, Position } from 'vs/editor/common/core/position';
-import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { MainThreadLanguageFeatures } from 'vs/workbench/api/browser/mainThreadLanguageFeatures';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as languages from 'vs/editor/common/languages';
-import { getCodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
-import { getHoversPromise } from 'vs/editor/contrib/hover/browser/getHover';
-import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { getWorkspaceSymbols } from 'vs/workbench/contrib/search/common/search';
-import { rename } from 'vs/editor/contrib/rename/browser/rename';
-import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
-import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/browser/suggest';
-import { getDocumentFormattingEditsUntilResult, getDocumentRangeFormattingEditsUntilResult, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/browser/format';
-import { getLinks } from 'vs/editor/contrib/links/browser/getLinks';
-import { MainContext, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { setUnexpectedErrorHandler, errorHandler } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as types from '../../common/extHostTypes.js';
+import { createTextModel } from '../../../../editor/test/common/testTextModel.js';
+import { Position as EditorPosition, Position } from '../../../../editor/common/core/position.js';
+import { Range as EditorRange } from '../../../../editor/common/core/range.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { IMarkerService } from '../../../../platform/markers/common/markers.js';
+import { MarkerService } from '../../../../platform/markers/common/markerService.js';
+import { ExtHostLanguageFeatures } from '../../common/extHostLanguageFeatures.js';
+import { MainThreadLanguageFeatures } from '../../browser/mainThreadLanguageFeatures.js';
+import { ExtHostCommands } from '../../common/extHostCommands.js';
+import { MainThreadCommands } from '../../browser/mainThreadCommands.js';
+import { ExtHostDocuments } from '../../common/extHostDocuments.js';
+import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { getCodeLensModel } from '../../../../editor/contrib/codelens/browser/codelens.js';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from '../../../../editor/contrib/gotoSymbol/browser/goToSymbol.js';
+import { getHoversPromise } from '../../../../editor/contrib/hover/browser/getHover.js';
+import { getOccurrencesAtPosition } from '../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
+import { getCodeActions } from '../../../../editor/contrib/codeAction/browser/codeAction.js';
+import { getWorkspaceSymbols } from '../../../contrib/search/common/search.js';
+import { rename } from '../../../../editor/contrib/rename/browser/rename.js';
+import { provideSignatureHelp } from '../../../../editor/contrib/parameterHints/browser/provideSignatureHelp.js';
+import { provideSuggestionItems, CompletionOptions } from '../../../../editor/contrib/suggest/browser/suggest.js';
+import { getDocumentFormattingEditsUntilResult, getDocumentRangeFormattingEditsUntilResult, getOnTypeFormattingEdits } from '../../../../editor/contrib/format/browser/format.js';
+import { getLinks } from '../../../../editor/contrib/links/browser/getLinks.js';
+import { MainContext, ExtHostContext } from '../../common/extHost.protocol.js';
+import { ExtHostDiagnostics } from '../../common/extHostDiagnostics.js';
 import type * as vscode from 'vscode';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
-import { getColors } from 'vs/editor/contrib/colorPicker/browser/color';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { nullExtensionDescription as defaultExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
-import { mock } from 'vs/base/test/common/mock';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ITextModel, EndOfLineSequence } from '../../../../editor/common/model.js';
+import { getColors } from '../../../../editor/contrib/colorPicker/browser/color.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { nullExtensionDescription as defaultExtension } from '../../../services/extensions/common/extensions.js';
+import { provideSelectionRanges } from '../../../../editor/contrib/smartSelect/browser/smartSelect.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
+import { Progress } from '../../../../platform/progress/common/progress.js';
+import { IExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
+import { URITransformerService } from '../../common/extHostUriTransformerService.js';
+import { OutlineModel } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../editor/common/services/languageFeaturesService.js';
+import { CodeActionTriggerSource } from '../../../../editor/contrib/codeAction/common/types.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -111,6 +112,7 @@ suite('ExtHostLanguageFeatures', function () {
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
+				encoding: 'utf8'
 			}]
 		});
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
@@ -232,62 +234,65 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- code lens
 
 	test('CodeLens, evil provider', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
+				provideCodeLenses(): any {
+					throw new Error('evil');
+				}
+			}));
+			disposables.add(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
+				provideCodeLenses() {
+					return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
+				}
+			}));
 
-		disposables.add(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
-			provideCodeLenses(): any {
-				throw new Error('evil');
-			}
-		}));
-		disposables.add(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
-			provideCodeLenses() {
-				return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
-			}
-		}));
-
-		await rpcProtocol.sync();
-		const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
-		assert.strictEqual(value.lenses.length, 1);
-		value.dispose();
+			await rpcProtocol.sync();
+			const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
+			assert.strictEqual(value.lenses.length, 1);
+			value.dispose();
+		});
 	});
 
 	test('CodeLens, do not resolve a resolved lens', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
+				provideCodeLenses(): any {
+					return [new types.CodeLens(
+						new types.Range(0, 0, 0, 0),
+						{ command: 'id', title: 'Title' })];
+				}
+				resolveCodeLens(): any {
+					assert.ok(false, 'do not resolve');
+				}
+			}));
 
-		disposables.add(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
-			provideCodeLenses(): any {
-				return [new types.CodeLens(
-					new types.Range(0, 0, 0, 0),
-					{ command: 'id', title: 'Title' })];
-			}
-			resolveCodeLens(): any {
-				assert.ok(false, 'do not resolve');
-			}
-		}));
-
-		await rpcProtocol.sync();
-		const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
-		assert.strictEqual(value.lenses.length, 1);
-		const [data] = value.lenses;
-		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
-		assert.strictEqual(symbol!.command!.id, 'id');
-		assert.strictEqual(symbol!.command!.title, 'Title');
-		value.dispose();
+			await rpcProtocol.sync();
+			const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
+			assert.strictEqual(value.lenses.length, 1);
+			const [data] = value.lenses;
+			const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
+			assert.strictEqual(symbol!.command!.id, 'id');
+			assert.strictEqual(symbol!.command!.title, 'Title');
+			value.dispose();
+		});
 	});
 
 	test('CodeLens, missing command', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
+				provideCodeLenses() {
+					return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
+				}
+			}));
 
-		disposables.add(extHost.registerCodeLensProvider(defaultExtension, defaultSelector, new class implements vscode.CodeLensProvider {
-			provideCodeLenses() {
-				return [new types.CodeLens(new types.Range(0, 0, 0, 0))];
-			}
-		}));
-
-		await rpcProtocol.sync();
-		const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
-		assert.strictEqual(value.lenses.length, 1);
-		const [data] = value.lenses;
-		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
-		assert.strictEqual(symbol, undefined);
-		value.dispose();
+			await rpcProtocol.sync();
+			const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
+			assert.strictEqual(value.lenses.length, 1);
+			const [data] = value.lenses;
+			const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
+			assert.strictEqual(symbol, undefined);
+			value.dispose();
+		});
 	});
 
 	// --- definition
@@ -635,92 +640,96 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- quick fix
 
 	test('Quick Fix, command data conversion', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, {
+				provideCodeActions(): vscode.Command[] {
+					return [
+						{ command: 'test1', title: 'Testing1' },
+						{ command: 'test2', title: 'Testing2' }
+					];
+				}
+			}));
 
-		disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, {
-			provideCodeActions(): vscode.Command[] {
-				return [
-					{ command: 'test1', title: 'Testing1' },
-					{ command: 'test2', title: 'Testing2' }
-				];
-			}
-		}));
-
-		await rpcProtocol.sync();
-		const value = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.QuickFix }, Progress.None, CancellationToken.None);
-		const { validActions: actions } = value;
-		assert.strictEqual(actions.length, 2);
-		const [first, second] = actions;
-		assert.strictEqual(first.action.title, 'Testing1');
-		assert.strictEqual(first.action.command!.id, 'test1');
-		assert.strictEqual(second.action.title, 'Testing2');
-		assert.strictEqual(second.action.command!.id, 'test2');
-		value.dispose();
+			await rpcProtocol.sync();
+			const value = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.QuickFix }, Progress.None, CancellationToken.None);
+			const { validActions: actions } = value;
+			assert.strictEqual(actions.length, 2);
+			const [first, second] = actions;
+			assert.strictEqual(first.action.title, 'Testing1');
+			assert.strictEqual(first.action.command!.id, 'test1');
+			assert.strictEqual(second.action.title, 'Testing2');
+			assert.strictEqual(second.action.command!.id, 'test2');
+			value.dispose();
+		});
 	});
 
 	test('Quick Fix, code action data conversion', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, {
+				provideCodeActions(): vscode.CodeAction[] {
+					return [
+						{
+							title: 'Testing1',
+							command: { title: 'Testing1Command', command: 'test1' },
+							kind: types.CodeActionKind.Empty.append('test.scope')
+						}
+					];
+				}
+			}));
 
-		disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, {
-			provideCodeActions(): vscode.CodeAction[] {
-				return [
-					{
-						title: 'Testing1',
-						command: { title: 'Testing1Command', command: 'test1' },
-						kind: types.CodeActionKind.Empty.append('test.scope')
-					}
-				];
-			}
-		}));
-
-		await rpcProtocol.sync();
-		const value = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default }, Progress.None, CancellationToken.None);
-		const { validActions: actions } = value;
-		assert.strictEqual(actions.length, 1);
-		const [first] = actions;
-		assert.strictEqual(first.action.title, 'Testing1');
-		assert.strictEqual(first.action.command!.title, 'Testing1Command');
-		assert.strictEqual(first.action.command!.id, 'test1');
-		assert.strictEqual(first.action.kind, 'test.scope');
-		value.dispose();
+			await rpcProtocol.sync();
+			const value = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default }, Progress.None, CancellationToken.None);
+			const { validActions: actions } = value;
+			assert.strictEqual(actions.length, 1);
+			const [first] = actions;
+			assert.strictEqual(first.action.title, 'Testing1');
+			assert.strictEqual(first.action.command!.title, 'Testing1Command');
+			assert.strictEqual(first.action.command!.id, 'test1');
+			assert.strictEqual(first.action.kind, 'test.scope');
+			value.dispose();
+		});
 	});
 
 
 	test('Cannot read property \'id\' of undefined, #29469', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, new class implements vscode.CodeActionProvider {
+				provideCodeActions(): any {
+					return [
+						undefined,
+						null,
+						{ command: 'test', title: 'Testing' }
+					];
+				}
+			}));
 
-		disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, new class implements vscode.CodeActionProvider {
-			provideCodeActions(): any {
-				return [
-					undefined,
-					null,
-					{ command: 'test', title: 'Testing' }
-				];
-			}
-		}));
-
-		await rpcProtocol.sync();
-		const value = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default }, Progress.None, CancellationToken.None);
-		const { validActions: actions } = value;
-		assert.strictEqual(actions.length, 1);
-		value.dispose();
+			await rpcProtocol.sync();
+			const value = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default }, Progress.None, CancellationToken.None);
+			const { validActions: actions } = value;
+			assert.strictEqual(actions.length, 1);
+			value.dispose();
+		});
 	});
 
 	test('Quick Fix, evil provider', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, new class implements vscode.CodeActionProvider {
+				provideCodeActions(): any {
+					throw new Error('evil');
+				}
+			}));
+			disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, new class implements vscode.CodeActionProvider {
+				provideCodeActions(): any {
+					return [{ command: 'test', title: 'Testing' }];
+				}
+			}));
 
-		disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, new class implements vscode.CodeActionProvider {
-			provideCodeActions(): any {
-				throw new Error('evil');
-			}
-		}));
-		disposables.add(extHost.registerCodeActionProvider(defaultExtension, defaultSelector, new class implements vscode.CodeActionProvider {
-			provideCodeActions(): any {
-				return [{ command: 'test', title: 'Testing' }];
-			}
-		}));
-
-		await rpcProtocol.sync();
-		const value = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.QuickFix }, Progress.None, CancellationToken.None);
-		const { validActions: actions } = value;
-		assert.strictEqual(actions.length, 1);
-		value.dispose();
+			await rpcProtocol.sync();
+			const value = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.QuickFix }, Progress.None, CancellationToken.None);
+			const { validActions: actions } = value;
+			assert.strictEqual(actions.length, 1);
+			value.dispose();
+		});
 	});
 
 	// --- navigate types
@@ -964,103 +973,107 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- suggestions
 
 	test('Suggest, order 1/3', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, '*', new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					return [new types.CompletionItem('testing1')];
+				}
+			}, []));
 
-		disposables.add(extHost.registerCompletionItemProvider(defaultExtension, '*', new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('testing1')];
-			}
-		}, []));
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					return [new types.CompletionItem('testing2')];
+				}
+			}, []));
 
-		disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('testing2')];
-			}
-		}, []));
-
-		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
-		assert.strictEqual(value.items.length, 1);
-		assert.strictEqual(value.items[0].completion.insertText, 'testing2');
-		value.disposable.dispose();
+			await rpcProtocol.sync();
+			const value = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
+			assert.strictEqual(value.items.length, 1);
+			assert.strictEqual(value.items[0].completion.insertText, 'testing2');
+			value.disposable.dispose();
+		});
 	});
 
 	test('Suggest, order 2/3', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, '*', new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					return [new types.CompletionItem('weak-selector')]; // weaker selector but result
+				}
+			}, []));
 
-		disposables.add(extHost.registerCompletionItemProvider(defaultExtension, '*', new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('weak-selector')]; // weaker selector but result
-			}
-		}, []));
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					return []; // stronger selector but not a good result;
+				}
+			}, []));
 
-		disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return []; // stronger selector but not a good result;
-			}
-		}, []));
-
-		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
-		assert.strictEqual(value.items.length, 1);
-		assert.strictEqual(value.items[0].completion.insertText, 'weak-selector');
-		value.disposable.dispose();
+			await rpcProtocol.sync();
+			const value = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
+			assert.strictEqual(value.items.length, 1);
+			assert.strictEqual(value.items[0].completion.insertText, 'weak-selector');
+			value.disposable.dispose();
+		});
 	});
 
 	test('Suggest, order 3/3', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					return [new types.CompletionItem('strong-1')];
+				}
+			}, []));
 
-		disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('strong-1')];
-			}
-		}, []));
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					return [new types.CompletionItem('strong-2')];
+				}
+			}, []));
 
-		disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('strong-2')];
-			}
-		}, []));
-
-		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
-		assert.strictEqual(value.items.length, 2);
-		assert.strictEqual(value.items[0].completion.insertText, 'strong-1'); // sort by label
-		assert.strictEqual(value.items[1].completion.insertText, 'strong-2');
-		value.disposable.dispose();
+			await rpcProtocol.sync();
+			const value = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
+			assert.strictEqual(value.items.length, 2);
+			assert.strictEqual(value.items[0].completion.insertText, 'strong-1'); // sort by label
+			assert.strictEqual(value.items[1].completion.insertText, 'strong-2');
+			value.disposable.dispose();
+		});
 	});
 
 	test('Suggest, evil provider', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					throw new Error('evil');
+				}
+			}, []));
 
-		disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				throw new Error('evil');
-			}
-		}, []));
-
-		disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('testing')];
-			}
-		}, []));
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					return [new types.CompletionItem('testing')];
+				}
+			}, []));
 
 
-		await rpcProtocol.sync();
-		const value = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
-		assert.strictEqual(value.items[0].container.incomplete, false);
-		value.disposable.dispose();
-
+			await rpcProtocol.sync();
+			const value = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
+			assert.strictEqual(value.items[0].container.incomplete, false);
+			value.disposable.dispose();
+		});
 	});
 
 	test('Suggest, CompletionList', async () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
+				provideCompletionItems(): any {
+					return new types.CompletionList([<any>new types.CompletionItem('hello')], true);
+				}
+			}, []));
 
-		disposables.add(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
-			provideCompletionItems(): any {
-				return new types.CompletionList([<any>new types.CompletionItem('hello')], true);
-			}
-		}, []));
-
-		await rpcProtocol.sync();
-		await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet))).then(model => {
-			assert.strictEqual(model.items[0].container.incomplete, true);
-			model.disposable.dispose();
+			await rpcProtocol.sync();
+			await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet))).then(model => {
+				assert.strictEqual(model.items[0].container.incomplete, true);
+				model.disposable.dispose();
+			});
 		});
 	});
 

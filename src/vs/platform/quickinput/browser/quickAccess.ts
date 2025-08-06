@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../common/quickAccess.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from '../common/quickInput.js';
+import { Registry } from '../../registry/common/platform.js';
 
 export class QuickAccessController extends Disposable implements IQuickAccessController {
 
@@ -30,6 +30,15 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+		this._register(toDisposable(() => {
+			for (const provider of this.mapProviderToDescriptor.values()) {
+				if (isDisposable(provider)) {
+					provider.dispose();
+				}
+			}
+
+			this.visibleQuickAccess?.picker.dispose();
+		}));
 	}
 
 	pick(value = '', options?: IQuickAccessOptions): Promise<IQuickPickItem[] | undefined> {

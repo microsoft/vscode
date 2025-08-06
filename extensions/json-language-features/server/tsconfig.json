@@ -5,9 +5,10 @@
 		"sourceMap": true,
 		"sourceRoot": "../src",
 		"lib": [
-			"ES2020",
+			"ES2024",
 			"WebWorker"
-		]
+		],
+		"module": "Node16",
 	},
 	"include": [
 		"src/**/*"

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
-import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { DeferredPromise } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { isSafari, isWebkitWebView } from '../../../base/browser/browser.js';
+import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
+import { hash } from '../../../base/common/hash.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IClipboardService } from '../common/clipboardService.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { ILogService } from '../../log/common/log.js';
 
 /**
  * Custom mime type used for storing a list of uris in the clipboard.
@@ -28,7 +28,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@ILogService private readonly logService: ILogService
+		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 
@@ -43,6 +43,34 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
 			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResourcesState()));
 		}, { window: mainWindow, disposables: this._store }));
+	}
+
+	triggerPaste(): Promise<void> | undefined {
+		this.logService.trace('BrowserClipboardService#triggerPaste');
+		return undefined;
+	}
+
+	async readImage(): Promise<Uint8Array> {
+		try {
+			const clipboardItems = await navigator.clipboard.read();
+			const clipboardItem = clipboardItems[0];
+
+			const supportedImageTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/tiff', 'image/bmp'];
+			const mimeType = supportedImageTypes.find(type => clipboardItem.types.includes(type));
+
+			if (mimeType) {
+				const blob = await clipboardItem.getType(mimeType);
+				const buffer = await blob.arrayBuffer();
+				return new Uint8Array(buffer);
+			} else {
+				console.error('No supported image type found in the clipboard');
+			}
+		} catch (error) {
+			console.error('Error reading image from clipboard:', error);
+		}
+
+		// Return an empty Uint8Array if no image is found or an error occurs
+		return new Uint8Array(0);
 	}
 
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
@@ -82,6 +110,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			});
 		};
 
+
 		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
 			disposables.add(addDisposableListener(container, 'click', handler));
 			disposables.add(addDisposableListener(container, 'keydown', handler));
@@ -91,14 +120,14 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
 	async writeText(text: string, type?: string): Promise<void> {
-
+		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' text.length:', text.length);
 		// Clear resources given we are writing text
 		this.clearResourcesState();
 
 		// With type: only in-memory is supported
 		if (type) {
 			this.mapTextToType.set(type, text);
-
+			this.logService.trace('BrowserClipboardService#writeText');
 			return;
 		}
 
@@ -113,6 +142,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
+			this.logService.trace('before navigator.clipboard.writeText');
 			return await getActiveWindow().navigator.clipboard.writeText(text);
 		} catch (error) {
 			console.error(error);
@@ -123,6 +153,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	private fallbackWriteText(text: string): void {
+		this.logService.trace('BrowserClipboardService#fallbackWriteText');
 		const activeDocument = getActiveDocument();
 		const activeElement = activeDocument.activeElement;
 
@@ -145,17 +176,21 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	async readText(type?: string): Promise<string> {
-
+		this.logService.trace('BrowserClipboardService#readText called with type:', type);
 		// With type: only in-memory is supported
 		if (type) {
-			return this.mapTextToType.get(type) || '';
+			const readText = this.mapTextToType.get(type) || '';
+			this.logService.trace('BrowserClipboardService#readText text.length:', readText.length);
+			return readText;
 		}
 
 		// Guard access to navigator.clipboard with try/catch
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
-			return await getActiveWindow().navigator.clipboard.readText();
+			const readText = await getActiveWindow().navigator.clipboard.readText();
+			this.logService.trace('BrowserClipboardService#readText text.length:', readText.length);
+			return readText;
 		} catch (error) {
 			console.error(error);
 		}

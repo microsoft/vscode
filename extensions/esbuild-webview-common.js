@@ -31,7 +31,7 @@ async function build(options, didBuild) {
 		sourcemap: false,
 		format: 'esm',
 		platform: 'browser',
-		target: ['es2020'],
+		target: ['es2024'],
 		...options,
 	});
 
@@ -75,6 +75,9 @@ module.exports.run = async function (config, args, didBuild) {
 	const resolvedOptions = {
 		entryPoints: config.entryPoints,
 		outdir,
+		logOverride: {
+			'import-is-undefined': 'error',
+		},
 		...(config.additionalOptions || {}),
 	};
 
