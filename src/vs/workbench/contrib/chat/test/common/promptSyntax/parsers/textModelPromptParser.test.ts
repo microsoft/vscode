@@ -1309,14 +1309,14 @@ suite('TextModelPromptParser', () => {
 					});
 
 					test('custom mode with tools', async () => {
-						const customModeId = 'myCustomMode';
+						const customModeName = 'myCustomMode';
 
 						const test = createTest(
 							URI.file('/absolute/folder/and/a/filename.txt'),
 							[
 					/* 01 */"---",
 					/* 02 */"tools: [ 'tool_name3', \"tool_name4\" ]  \t\t  ",
-					/* 03 */`mode: ${customModeId}`,
+					/* 03 */`mode: ${customModeName}`,
 					/* 04 */"---",
 					/* 05 */"The cactus on my desk has a thriving Instagram account.",
 							],
@@ -1344,7 +1344,7 @@ suite('TextModelPromptParser', () => {
 
 						assert.strictEqual(
 							mode,
-							customModeId,
+							customModeName,
 							'Mode metadata must have the custom mode value.',
 						);
 

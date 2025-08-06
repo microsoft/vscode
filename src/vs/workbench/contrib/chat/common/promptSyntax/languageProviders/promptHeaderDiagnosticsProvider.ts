@@ -19,7 +19,7 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../langua
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { localize } from '../../../../../../nls.js';
 import { ChatModeKind } from '../../constants.js';
-import { IChatModeService } from '../../chatModes.js';
+import { IChatMode, IChatModeService } from '../../chatModes.js';
 import { PromptModeMetadata } from '../parsers/promptHeader/metadata/mode.js';
 
 /**
@@ -79,9 +79,9 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		}
 
 		if (header instanceof PromptHeader) {
-			this.validateMode(header.metadataUtility.mode, markers);
-			this.validateTools(header.metadataUtility.tools, header.metadata.mode, markers);
-			this.validateModel(header.metadataUtility.model, header.metadata.mode, markers);
+			const mode = this.validateMode(header.metadataUtility.mode, markers);
+			this.validateTools(header.metadataUtility.tools, mode?.kind, markers);
+			this.validateModel(header.metadataUtility.model, mode?.kind, markers);
 		} else if (header instanceof ModeHeader) {
 			this.validateTools(header.metadataUtility.tools, ChatModeKind.Agent, markers);
 			this.validateModel(header.metadataUtility.model, ChatModeKind.Agent, markers);
@@ -162,7 +162,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		}
 	}
 
-	validateMode(modeNode: PromptModeMetadata | undefined, markers: IMarkerData[]) {
+	validateMode(modeNode: PromptModeMetadata | undefined, markers: IMarkerData[]): IChatMode | undefined {
 		if (!modeNode || modeNode.value === undefined) {
 			return;
 		}
@@ -170,25 +170,31 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		const modeValue = modeNode.value;
 		const modes = this.chatModeService.getModes();
 
-		// Check if mode exists in builtin modes (by id or kind)
-		const isBuiltinMode = modes.builtin.some(mode => mode.id === modeValue || mode.kind === modeValue);
+		// Check if mode exists in builtin modes
+		const builtinMode = modes.builtin.find(mode => mode.kind === modeValue);
+		if (builtinMode) {
+			return builtinMode;
+		}
 
 		// Check if mode exists in custom modes (by id)
-		const isCustomMode = modes.custom.some(mode => mode.id === modeValue);
-
-		if (!isBuiltinMode && !isCustomMode) {
-			// Use mode IDs for display (for custom modes)
-			const availableModes = [
-				...modes.builtin.map(mode => mode.id),
-				...modes.custom.map(mode => mode.id)
-			];
-
-			markers.push({
-				message: localize('promptHeaderDiagnosticsProvider.modeNotFound', "Unknown mode '{0}'. Available modes: {1}", modeValue, availableModes.join(', ')),
-				severity: MarkerSeverity.Warning,
-				...modeNode.range,
-			});
+		const customMode = modes.custom.find(mode => mode.name === modeValue);
+		if (customMode) {
+			return customMode;
 		}
+
+		// Use mode IDs for display (for custom modes)
+		const availableModes = [
+			...modes.builtin.map(mode => mode.id),
+			...modes.custom.map(mode => mode.name)
+		];
+
+		markers.push({
+			message: localize('promptHeaderDiagnosticsProvider.modeNotFound', "Unknown mode '{0}'. Available modes: {1}", modeValue, availableModes.join(', ')),
+			severity: MarkerSeverity.Warning,
+			...modeNode.range,
+		});
+		return undefined;
+
 	}
 
 	/**

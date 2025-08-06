@@ -221,9 +221,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			suggestions.push(...modes.builtin.map(mode => mode.kind));
 
 			// Add custom mode IDs
-			if (modes.custom && modes.custom.length > 0) {
-				suggestions.push(...modes.custom.map(mode => mode.id));
-			}
+			suggestions.push(...modes.custom.map(mode => mode.name));
 
 			return suggestions;
 		}

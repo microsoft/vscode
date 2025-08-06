@@ -2111,7 +2111,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// switch to appropriate chat mode if needed
 		if (mode && mode !== this.input.currentModeKind) {
 			// Find the mode object to get its kind
-			const modeObject = this.chatModeService.findModeById(mode);
+			const modeObject = this.chatModeService.findModeByName(mode);
 			const modeKind = modeObject?.kind ?? ChatModeKind.Agent; // Default to Agent for custom modes
 
 			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, this.input.currentModeKind, modeKind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);

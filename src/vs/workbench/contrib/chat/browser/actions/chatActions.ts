@@ -121,7 +121,7 @@ export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 abstract class OpenChatGlobalAction extends Action2 {
-	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: ChatModeKind) {
+	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: IChatMode) {
 		super({
 			...overrides,
 			icon: Codicon.copilot,
@@ -159,8 +159,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			return;
 		}
 
-		const switchToModeInput = opts?.mode ?? this.mode;
-		const switchToMode = switchToModeInput && (chatModeService.findModeById(switchToModeInput) ?? chatModeService.findModeByName(switchToModeInput));
+		const switchToMode = (opts?.mode ? chatModeService.findModeByName(opts?.mode) : undefined) ?? this.mode;
 		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
 		}
@@ -276,7 +275,7 @@ abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 			id: getOpenChatActionIdForMode(mode),
 			title: localize2('openChatMode', "Open Chat ({0})", mode.name),
 			keybinding
-		}, mode.kind);
+		}, mode);
 	}
 }
 
