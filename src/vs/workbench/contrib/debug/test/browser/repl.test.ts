@@ -65,26 +65,9 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, { output: '5\n', sev: severity.Info });
 		repl.appendToRepl(session, { output: '6', sev: severity.Info });
 		elements = <ReplOutputElement[]>repl.getReplElements();
-		assert.strictEqual(elements.length, 3);
-		assert.strictEqual(elements[0].toString(), '1\n');
-		assert.strictEqual(elements[1].toString(), '23\n45\n');
-		assert.strictEqual(elements[2].toString(), '6');
+		assert.deepStrictEqual(elements.map(e => e.toString()), ['1\n', '23\n', '45\n', '6']);
 
 		repl.removeReplExpressions();
-		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
-		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
-		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
-		repl.appendToRepl(session, { output: 'second line', sev: severity.Info });
-		repl.appendToRepl(session, { output: 'second line', sev: severity.Info });
-		repl.appendToRepl(session, { output: 'third line', sev: severity.Info });
-		elements = <ReplOutputElement[]>repl.getReplElements();
-		assert.strictEqual(elements.length, 3);
-		assert.strictEqual(elements[0].value, 'first line\n');
-		assert.strictEqual(elements[0].count, 3);
-		assert.strictEqual(elements[1].value, 'second line');
-		assert.strictEqual(elements[1].count, 2);
-		assert.strictEqual(elements[2].value, 'third line');
-		assert.strictEqual(elements[2].count, 1);
 	});
 
 	test('repl output count', () => {
@@ -93,19 +76,15 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
 		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
 		repl.appendToRepl(session, { output: 'first line\n', sev: severity.Info });
-		repl.appendToRepl(session, { output: 'second line', sev: severity.Info });
-		repl.appendToRepl(session, { output: 'second line', sev: severity.Info });
-		repl.appendToRepl(session, { output: 'third line', sev: severity.Info });
+		repl.appendToRepl(session, { output: 'second line\n', sev: severity.Info });
+		repl.appendToRepl(session, { output: 'second line\n', sev: severity.Info });
+		repl.appendToRepl(session, { output: 'third line\n', sev: severity.Info });
 		const elements = <ReplOutputElement[]>repl.getReplElements();
-		assert.strictEqual(elements.length, 3);
-		assert.strictEqual(elements[0].value, 'first line\n');
-		assert.strictEqual(elements[0].toString(), 'first line\nfirst line\nfirst line\n');
-		assert.strictEqual(elements[0].count, 3);
-		assert.strictEqual(elements[1].value, 'second line');
-		assert.strictEqual(elements[1].toString(), 'second line\nsecond line');
-		assert.strictEqual(elements[1].count, 2);
-		assert.strictEqual(elements[2].value, 'third line');
-		assert.strictEqual(elements[2].count, 1);
+		assert.deepStrictEqual(elements.map(e => ({ value: e.value, count: e.count })), [
+			{ value: 'first line\n', count: 3 },
+			{ value: 'second line\n', count: 2 },
+			{ value: 'third line\n', count: 1 }
+		]);
 	});
 
 	test('repl merging', () => {

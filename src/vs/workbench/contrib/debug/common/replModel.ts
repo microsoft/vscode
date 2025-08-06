@@ -319,15 +319,15 @@ export class ReplModel {
 				this.replElements[this.replElements.length - 1] = new ReplOutputElement(
 					session, getUniqueId(), combinedOutput, sev, source);
 				this._onDidChangeElements.fire(undefined);
-				
-				// If the combined output now forms a complete line and collapsing is enabled, 
+
+				// If the combined output now forms a complete line and collapsing is enabled,
 				// check if it can be collapsed with previous elements
-				if (config.console.collapseIdenticalLines && (combinedOutput.endsWith('\n') || combinedOutput.endsWith('\r\n'))) {
+				if (config.console.collapseIdenticalLines && combinedOutput.endsWith('\n')) {
 					this.tryCollapseCompleteLine(sev, source);
 				}
-				
+
 				// If the combined output contains multiple lines, apply line-level collapsing
-				if (config.console.collapseIdenticalLines && (combinedOutput.includes('\n') || combinedOutput.includes('\r\n'))) {
+				if (config.console.collapseIdenticalLines && combinedOutput.includes('\n')) {
 					const lines = this.splitIntoLines(combinedOutput);
 					if (lines.length > 1) {
 						this.applyLineLevelCollapsing(session, sev, source);
@@ -338,7 +338,7 @@ export class ReplModel {
 		}
 
 		// If collapsing is enabled and the output contains line breaks, parse and collapse at line level
-		if (config.console.collapseIdenticalLines && (output.includes('\n') || output.includes('\r\n'))) {
+		if (config.console.collapseIdenticalLines && output.includes('\n')) {
 			this.processMultiLineOutput(session, output, sev, source);
 		} else {
 			// For simple output without line breaks, use the original logic
@@ -360,20 +360,20 @@ export class ReplModel {
 		if (this.replElements.length < 2) {
 			return;
 		}
-		
+
 		const lastElement = this.replElements[this.replElements.length - 1];
 		const secondToLastElement = this.replElements[this.replElements.length - 2];
-		
-		if (lastElement instanceof ReplOutputElement && 
+
+		if (lastElement instanceof ReplOutputElement &&
 			secondToLastElement instanceof ReplOutputElement &&
-			lastElement.severity === sev && 
+			lastElement.severity === sev &&
 			secondToLastElement.severity === sev &&
 			areSourcesEqual(lastElement.sourceData, source) &&
 			areSourcesEqual(secondToLastElement.sourceData, source) &&
 			lastElement.value === secondToLastElement.value &&
-			lastElement.count === 1 && 
-			(lastElement.value.endsWith('\n') || lastElement.value.endsWith('\r\n'))) {
-			
+			lastElement.count === 1 &&
+			lastElement.value.endsWith('\n')) {
+
 			// Collapse the last element into the second-to-last
 			secondToLastElement.count += lastElement.count;
 			this.replElements.pop();
@@ -384,15 +384,15 @@ export class ReplModel {
 	private processMultiLineOutput(session: IDebugSession, output: string, sev: severity, source?: IReplElementSource): void {
 		// Split output into lines, preserving line endings
 		const lines = this.splitIntoLines(output);
-		
+
 		for (const line of lines) {
-			if (line.length === 0) continue;
-			
+			if (line.length === 0) { continue; }
+
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-			
+
 			// Check if this line can be collapsed with the previous one
-			if (previousElement instanceof ReplOutputElement && 
-				previousElement.severity === sev && 
+			if (previousElement instanceof ReplOutputElement &&
+				previousElement.severity === sev &&
 				areSourcesEqual(previousElement.sourceData, source) &&
 				previousElement.value === line) {
 				previousElement.count++;
@@ -405,28 +405,20 @@ export class ReplModel {
 	}
 
 	private splitIntoLines(text: string): string[] {
-		// Split text into lines while preserving line endings
+		// Split text into lines while preserving line endings, using indexOf for efficiency
 		const lines: string[] = [];
 		let start = 0;
-		
-		for (let i = 0; i < text.length; i++) {
-			if (text[i] === '\n') {
-				// Include the \n in the line
-				lines.push(text.substring(start, i + 1));
-				start = i + 1;
-			} else if (text[i] === '\r' && i + 1 < text.length && text[i + 1] === '\n') {
-				// Include the \r\n in the line
-				lines.push(text.substring(start, i + 2));
-				start = i + 2;
-				i++; // Skip the \n since we processed \r\n together
+
+		while (start < text.length) {
+			const nextLF = text.indexOf('\n', start);
+			if (nextLF === -1) {
+				lines.push(text.substring(start));
+				break;
 			}
+			lines.push(text.substring(start, nextLF + 1));
+			start = nextLF + 1;
 		}
-		
-		// Add any remaining text as a line (text without line ending)
-		if (start < text.length) {
-			lines.push(text.substring(start));
-		}
-		
+
 		return lines;
 	}
 
@@ -444,16 +436,16 @@ export class ReplModel {
 
 		// Remove the last element and reprocess it as multiple lines
 		this.replElements.pop();
-		
+
 		// Process each line and try to collapse with existing elements
 		for (const line of lines) {
-			if (line.length === 0) continue;
-			
+			if (line.length === 0) { continue; }
+
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-			
+
 			// Check if this line can be collapsed with the previous one
-			if (previousElement instanceof ReplOutputElement && 
-				previousElement.severity === sev && 
+			if (previousElement instanceof ReplOutputElement &&
+				previousElement.severity === sev &&
 				areSourcesEqual(previousElement.sourceData, source) &&
 				previousElement.value === line) {
 				previousElement.count++;
@@ -462,7 +454,7 @@ export class ReplModel {
 				this.addReplElement(element);
 			}
 		}
-		
+
 		this._onDidChangeElements.fire(undefined);
 	}
 
