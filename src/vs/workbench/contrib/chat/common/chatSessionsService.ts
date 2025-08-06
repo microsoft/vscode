@@ -14,12 +14,13 @@ import { IChatAgentRequest } from './chatAgents.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 
 export interface IChatSessionsExtensionPoint {
-	id: string;
-	name: string;
-	displayName: string;
-	description: string;
-	extensionDescription: IRelaxedExtensionDescription;
-	when?: string;
+	readonly id: string;
+	readonly type: string;
+	readonly name: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly extensionDescription: IRelaxedExtensionDescription;
+	readonly when?: string;
 }
 export interface IChatSessionItem {
 
@@ -33,12 +34,14 @@ export interface IChatSessionItem {
 
 export interface ChatSession extends IDisposable {
 	readonly id: string;
+	readonly onWillDispose: Event<void>;
 
 	history: Array<
 		| { type: 'request'; prompt: string }
 		| { type: 'response'; parts: IChatProgress[] }>;
 
 	readonly progressEvent?: Event<IChatProgress[]>;
+	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 
 	requestHandler?: (
 		request: IChatAgentRequest,
@@ -51,7 +54,6 @@ export interface ChatSession extends IDisposable {
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
-	readonly label: string;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 }
 

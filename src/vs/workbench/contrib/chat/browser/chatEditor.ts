@@ -31,6 +31,7 @@ import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
+	preferredTitle?: string;
 }
 
 export class ChatEditor extends EditorPane {
@@ -121,31 +122,39 @@ export class ChatEditor extends EditorPane {
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		super.setInput(input, options, context, token);
 
-		const editorModel = await input.resolve();
-		if (!editorModel) {
-			throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
-		}
-
 		if (!this.widget) {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
-		const viewState = options?.viewState ?? input.options.viewState;
-		this.updateModel(editorModel.model, viewState);
-		const isAlreadyLocked = !!(viewState as IChatViewState | undefined)?.inputState?.lockedToCodingAgent;
-
-		// Only apply specific locking for dedicated coding agent sessions if not already locked
-		if (!isAlreadyLocked && input.resource.scheme === Schemas.vscodeChatSession) {
+		let isContributedChatSession = false;
+		if (input.resource.scheme === Schemas.vscodeChatSession) {
 			const identifier = ChatSessionUri.parse(input.resource);
 			if (identifier) {
+				await this.chatSessionsService.canResolveContentProvider(input.resource.authority);
 				const contributions = this.chatSessionsService.getChatSessionContributions();
-				const contribution = contributions.find(c => c.id === identifier.chatSessionType);
+				const contribution = contributions.find(c => c.type === identifier.chatSessionType);
 				if (contribution) {
-					this.widget.lockToCodingAgent(contribution.name);
+					this.widget.lockToCodingAgent(contribution.name, contribution.displayName);
+					isContributedChatSession = true;
+				} else {
+					this.widget.unlockFromCodingAgent();
 				}
+			} else {
+				this.widget.unlockFromCodingAgent();
 			}
 		} else {
 			this.widget.unlockFromCodingAgent();
+		}
+
+		const editorModel = await input.resolve();
+		if (!editorModel) {
+			throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
+		}
+		const viewState = options?.viewState ?? input.options.viewState;
+		this.updateModel(editorModel.model, viewState);
+
+		if (isContributedChatSession && options?.preferredTitle) {
+			editorModel.model.setCustomTitle(options?.preferredTitle);
 		}
 	}
 

@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare let MonacoEnvironment: monaco.Environment | undefined;
-
-interface Window {
-	MonacoEnvironment?: monaco.Environment | undefined;
-}
+// eslint-disable-next-line no-var
+declare var MonacoEnvironment: monaco.Environment | undefined;
 
 declare namespace monaco {
 
@@ -8388,7 +8385,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface CodeLensList {
-		lenses: CodeLens[];
+		readonly lenses: readonly CodeLens[];
 		dispose?(): void;
 	}
 

@@ -53,8 +53,10 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService.js';
 import { ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
@@ -83,8 +85,12 @@ export class ListMcpServerCommand extends Action2 {
 			f1: true,
 			menu: [{
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(McpContextKeys.hasUnknownTools, McpContextKeys.hasServersWithErrors),
-					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)
+					ContextKeyExpr.or(
+						ContextKeyExpr.and(ContextKeyExpr.equals(`config.${mcpAutoStartConfig}`, McpAutoStartValue.Never), McpContextKeys.hasUnknownTools),
+						McpContextKeys.hasServersWithErrors,
+					),
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+					ChatContextKeys.lockedToCodingAgent.negate()
 				),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
@@ -156,6 +162,42 @@ interface ActionItem extends IQuickPickItem {
 interface AuthActionItem extends IQuickPickItem {
 	action: 'disconnect' | 'signout';
 	accountQuery: IAccountQuery;
+}
+
+export class McpConfirmationServerOptionsCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.ServerOptionsInConfirmation,
+			title: localize2('mcp.options', 'Server Options'),
+			category,
+			icon: Codicon.settingsGear,
+			f1: false,
+			menu: [{
+				id: MenuId.ChatConfirmationMenu,
+				when: ContextKeyExpr.or(
+					ContextKeyExpr.equals('chatConfirmationPartType', 'chatToolConfirmation'),
+					ContextKeyExpr.equals('chatConfirmationPartType', 'mcpElicitation'),
+				),
+				group: 'navigation'
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, arg: IChatToolInvocation | IChatElicitationRequest): Promise<void> {
+		const toolsService = accessor.get(ILanguageModelToolsService);
+		if (arg.kind === 'toolInvocation') {
+			const tool = toolsService.getTool(arg.toolId);
+			if (tool?.source.type === 'mcp') {
+				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, tool.source.definitionId);
+			}
+		} else if (arg.kind === 'elicitation') {
+			if (arg.source) {
+				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, arg.source.definitionId);
+			}
+		} else {
+			assertNever(arg);
+		}
+	}
 }
 
 export class McpServerOptionsCommand extends Action2 {
@@ -490,7 +532,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					} else if (state === DisplayedState.Error) {
 						const server = findLast(servers, isServer);
 						if (server) {
-							server.showOutput();
+							await server.showOutput(true);
 							commandService.executeCommand(McpCommandIds.ServerOptions, server.definition.id);
 						}
 					} else {
@@ -510,7 +552,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					});
 
 					const single = servers.length === 1;
-					const names = servers.map(s => isServer(s) ? link(s) : '`' + s.label + '`').map(l => single ? l : `- ${l}\n`).join(', ');
+					const names = servers.map(s => isServer(s) ? link(s) : '`' + s.label + '`').map(l => single ? l : `- ${l}`).join('\n');
 					let markdown: MarkdownString;
 					if (state === DisplayedState.NewTools) {
 						markdown = new MarkdownString(single

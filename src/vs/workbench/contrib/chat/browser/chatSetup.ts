@@ -994,7 +994,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		class ChatSetupHideAction extends Action2 {
 
 			static readonly ID = 'workbench.action.chat.hideSetup';
-			static readonly TITLE = localize2('hideChatSetup', "Hide Chat");
+			static readonly TITLE = localize2('hideChatSetup', "Hide AI Features");
 
 			constructor() {
 				super({
@@ -1018,9 +1018,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const dialogService = accessor.get(IDialogService);
 
 				const { confirmed } = await dialogService.confirm({
-					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Chat?"),
-					detail: localize('hideChatSetupDetail', "You can restore Chat by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
-					primaryButton: localize('hideChatSetupButton', "Hide Chat")
+					message: localize('hideChatSetupConfirm', "Are you sure you want to hide AI features?"),
+					detail: localize('hideChatSetupDetail', "You can restore AI features by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
+					primaryButton: localize('hideChatSetupButton', "Hide AI Features")
 				});
 
 				if (!confirmed) {
@@ -1168,7 +1168,7 @@ type InstallChatClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider used for the chat installation.' };
 };
 type InstallChatEvent = {
-	installResult: 'installed' | 'alreadyInstalled' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted' | 'failedNoSession' | 'failedMaybeLater';
+	installResult: 'installed' | 'alreadyInstalled' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn' | 'failedSignUp' | 'failedNotTrusted' | 'failedNoSession' | 'failedMaybeLater' | 'failedEnterpriseSetup';
 	installDuration: number;
 	signUpErrorCode: number | undefined;
 	provider: string | undefined;
@@ -1308,7 +1308,6 @@ class ChatSetupController extends Disposable {
 		const provider = options.useSocialProvider ?? options.useEnterpriseProvider ? defaultChat.provider.enterprise.id : defaultChat.provider.default.id;
 
 		try {
-
 			if (
 				entitlement !== ChatEntitlement.Free &&		// User is not signed up to Copilot Free
 				!isProUser(entitlement) &&					// User is not signed up for a Copilot subscription
@@ -1416,6 +1415,7 @@ class ChatSetupController extends Disposable {
 		if (options.useEnterpriseProvider) {
 			const success = await this.handleEnterpriseInstance();
 			if (!success) {
+				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedEnterpriseSetup', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 				return success; // not properly configured, abort
 			}
 		}

@@ -57,7 +57,7 @@ import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from '../../c
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
-import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction, ChatResponseClearToPreviousToolInvocationReason } from '../../contrib/chat/common/chatService.js';
 import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -1262,7 +1262,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 	$onLMProviderChange(vendor: string): void;
 	$unregisterProvider(vendor: string): void;
 	$tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void>;
-	$reportResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void>;
+	$reportResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponseFragment | IChatResponseFragment[]>): Promise<void>;
 	$reportResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]>;
 	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
@@ -1275,7 +1275,7 @@ export interface ExtHostLanguageModelsShape {
 	$prepareLanguageModelProvider(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
-	$acceptResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void>;
+	$acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponseFragment | IChatResponseFragment[]>): Promise<void>;
 	$acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$provideTokenLength(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
 	$isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean>;
@@ -1438,7 +1438,8 @@ export type IDocumentContextDto = {
 export type IChatProgressDto =
 	| Dto<Exclude<IChatProgress, IChatTask | IChatNotebookEdit>>
 	| IChatTaskDto
-	| IChatNotebookEditDto;
+	| IChatNotebookEditDto
+	| IChatResponseClearToPreviousToolInvocationDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -2193,6 +2194,11 @@ export interface IChatNotebookEditDto {
 	done?: boolean;
 }
 
+export interface IChatResponseClearToPreviousToolInvocationDto {
+	kind: 'clearToPreviousToolInvocation';
+	reason: ChatResponseClearToPreviousToolInvocationReason;
+}
+
 export type ICellEditOperationDto =
 	notebookCommon.ICellMetadataEdit
 	| notebookCommon.IDocumentMetadataEdit
@@ -2840,7 +2846,7 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 
 	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
 	$notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer>;
-	$saveNotebook(handle: number, uri: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata>;
+	$saveNotebook(handle: number, uri: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata | files.FileOperationError>;
 
 	$searchInNotebooks(handle: number, textQuery: search.ITextQuery, viewTypeFileTargets: NotebookPriorityInfo[], otherViewTypeFileTargets: NotebookPriorityInfo[], token: CancellationToken): Promise<{ results: IRawClosedNotebookFileMatch[]; limitHit: boolean }>;
 }
@@ -3129,7 +3135,7 @@ export interface ChatSessionDto {
 
 
 export interface MainThreadChatSessionsShape extends IDisposable {
-	$registerChatSessionItemProvider(handle: number, chatSessionType: string, label: string): void;
+	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionItemProvider(handle: number): void;
 	$onDidChangeChatSessionItems(chatSessionType: string): void;
 
@@ -3147,6 +3153,7 @@ export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
 
 	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
+	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;
 	$disposeChatSessionContent(providerHandle: number, sessionId: string): Promise<void>;
 	$invokeChatSessionRequestHandler(providerHandle: number, id: string, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;
 }

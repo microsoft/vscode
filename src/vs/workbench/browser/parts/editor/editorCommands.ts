@@ -6,7 +6,7 @@
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { extname } from '../../../../base/common/resources.js';
+import { extname, isEqual } from '../../../../base/common/resources.js';
 import { isNumber, isObject, isString, isUndefined } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -41,6 +41,8 @@ import { IUntitledTextEditorService } from '../../../services/untitled/common/un
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, DIFF_OPEN_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
 import { prepareMoveCopyEditors } from './editor.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -551,10 +553,32 @@ function registerOpenEditorAPICommands(): void {
 
 	CommandsRegistry.registerCommand('_workbench.openMultiDiffEditor', async (accessor: ServicesAccessor, options: OpenMultiFileDiffEditorOptions) => {
 		const editorService = accessor.get(IEditorService);
+
+		const resources = options.resources?.map(r => ({ original: { resource: URI.revive(r.originalUri) }, modified: { resource: URI.revive(r.modifiedUri) } }));
+
+		const revealUri = options.reveal?.modifiedUri ? URI.revive(options.reveal.modifiedUri) : undefined;
+		const revealResource = revealUri && resources ? resources.find(r => isEqual(r.modified.resource, revealUri)) : undefined;
+		if (options.reveal && !revealResource) {
+			console.error('Reveal resource not found');
+		}
+
+		const multiDiffEditorOptions: IMultiDiffEditorOptions = {
+			viewState: revealResource ? {
+				revealData: {
+					resource: {
+						original: revealResource.original.resource,
+						modified: revealResource.modified.resource,
+					},
+					range: options.reveal?.range,
+				}
+			} : undefined
+		};
+
 		await editorService.openEditor({
 			multiDiffSource: options.multiDiffSourceUri ? URI.revive(options.multiDiffSourceUri) : undefined,
-			resources: options.resources?.map(r => ({ original: { resource: URI.revive(r.originalUri) }, modified: { resource: URI.revive(r.modifiedUri) } })),
+			resources,
 			label: options.title,
+			options: multiDiffEditorOptions,
 		});
 	});
 }
@@ -563,6 +587,10 @@ interface OpenMultiFileDiffEditorOptions {
 	title: string;
 	multiDiffSourceUri?: UriComponents;
 	resources?: { originalUri: UriComponents; modifiedUri: UriComponents }[];
+	reveal?: {
+		modifiedUri: UriComponents;
+		range?: IRange;
+	};
 }
 
 function registerOpenEditorAtIndexCommands(): void {

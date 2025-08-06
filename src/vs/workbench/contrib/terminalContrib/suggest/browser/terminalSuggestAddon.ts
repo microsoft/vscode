@@ -249,6 +249,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
+		this._logService.trace('SuggestAddon#_handleCompletionProviders');
+
 		// Nothing to handle if the terminal is not attached
 		if (!terminal?.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -273,6 +275,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		if (!doNotRequestExtensionCompletions) {
+			this._logService.trace('SuggestAddon#_handleCompletionProviders onTerminalCompletionsRequested');
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
 		this._currentPromptInputState = {
@@ -295,7 +298,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const quickSuggestionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).quickSuggestions;
 		const allowFallbackCompletions = explicitlyInvoked || quickSuggestionsConfig.unknown === 'on';
+		this._logService.trace('SuggestAddon#_handleCompletionProviders provideCompletions');
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._currentPromptInputState.prefix, this._currentPromptInputState.cursorIndex, allowFallbackCompletions, this.shellType, this._capabilities, token, false, doNotRequestExtensionCompletions, explicitlyInvoked);
+		this._logService.trace('SuggestAddon#_handleCompletionProviders provideCompletions done');
 
 		if (token.isCancellationRequested) {
 			return;
@@ -351,10 +356,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			items.push(this._inlineCompletionItem);
 		}
 
+		this._logService.trace('TerminalCompletionService#_collectCompletions create model');
 		const model = new TerminalCompletionModel(
 			items,
 			lineContext
 		);
+		this._logService.trace('TerminalCompletionService#_collectCompletions create model done');
+
 		if (token.isCancellationRequested) {
 			this._completionRequestTimestamp = undefined;
 			return;
@@ -388,6 +396,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	async requestCompletions(explicitlyInvoked?: boolean): Promise<void> {
+		this._logService.trace('SuggestAddon#requestCompletions');
 		if (!this._promptInputModel) {
 			this._shouldSyncWhenReady = true;
 			return;
@@ -437,6 +446,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (!this._wasLastInputIncludedEscape() || this._terminalSuggestWidgetVisibleContextKey.get()) {
 				this.requestCompletions();
 				return true;
+			}
+		}
+		return false;
+	}
+
+	private _checkProviderTriggerCharacters(char: string): boolean {
+		for (const provider of this._terminalCompletionService.providers) {
+			if (!provider.triggerCharacters) {
+				continue;
+			}
+			for (const triggerChar of provider.triggerCharacters) {
+				if (char === triggerChar) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -528,7 +551,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						if (
 							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
 							// with git branches in particular
-							this._isFilteringDirectories && char.match(/[\\\/]$/)
+							this._isFilteringDirectories && char.match(/[\\\/]$/) ||
+							// Check if the character is a trigger character from providers
+							this._checkProviderTriggerCharacters(char)
 						) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();
 						}
@@ -707,11 +732,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _showCompletions(model: TerminalCompletionModel, explicitlyInvoked?: boolean): void {
+		this._logService.trace('SuggestAddon#_showCompletions');
 		if (!this._terminal?.element) {
 			return;
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
+
+		this._logService.trace('SuggestAddon#_showCompletions setCompletionModel');
 		suggestWidget.setCompletionModel(model);
+
 		this._register(suggestWidget.onDidFocus(() => this._terminal?.focus()));
 		if (!this._promptInputModel || !explicitlyInvoked && model.items.length === 0) {
 			return;
@@ -731,6 +760,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 			this._completionRequestTimestamp = undefined;
 		}
+		this._logService.trace('SuggestAddon#_showCompletions suggestWidget.showSuggestions');
 		suggestWidget.showSuggestions(0, false, !explicitlyInvoked, cursorPosition);
 	}
 

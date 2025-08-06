@@ -811,10 +811,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Clipboard
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
-		return clipboard.readText(type);
+		this.logService.trace(`readClipboardText in window ${windowId} with type:`, type);
+		const clipboardText = clipboard.readText(type);
+		this.logService.trace(`clipboardText.length :`, clipboardText.length);
+		return clipboardText;
 	}
 
 	async triggerPaste(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		this.logService.trace(`Triggering paste in window ${windowId} with options:`, options);
 		const window = this.windowById(options?.targetWindowId, windowId);
 		return window?.win?.webContents.paste() ?? Promise.resolve();
 	}
@@ -1003,13 +1007,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (!parentWindow) {
 			return;
 		}
-		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true, hideBecauseShadowWindow: false });
-		options.backgroundColor = undefined;
 
-		const devToolsWindow = new BrowserWindow(options);
-		devToolsWindow.setMenuBarVisibility(false);
-		devToolsWindow.loadURL(url);
-		devToolsWindow.once('ready-to-show', () => devToolsWindow.show());
+		this.openChildWindow(parentWindow.win, url);
+	}
+
+	private openChildWindow(parentWindow: BrowserWindow | null, url: string): BrowserWindow {
+		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
+		options.parent = parentWindow ?? undefined;
+
+		const window = new BrowserWindow(options);
+		window.setMenuBarVisibility(false);
+		window.loadURL(url);
+
+		window.once('ready-to-show', () => window.show());
+
+		return window;
 	}
 
 	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
@@ -1019,22 +1031,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		if (typeof this.gpuInfoWindowId !== 'number') {
-			const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
-			options.backgroundColor = undefined;
-
-			const gpuInfoWindow = new BrowserWindow(options);
-			gpuInfoWindow.setMenuBarVisibility(false);
-			gpuInfoWindow.loadURL('chrome://gpu');
-
-			gpuInfoWindow.once('ready-to-show', () => gpuInfoWindow.show());
+			const gpuInfoWindow = this.openChildWindow(parentWindow.win, 'chrome://gpu');
 			gpuInfoWindow.once('close', () => this.gpuInfoWindowId = undefined);
-
-			parentWindow.win?.on('close', () => {
-				if (this.gpuInfoWindowId) {
-					BrowserWindow.fromId(this.gpuInfoWindowId)?.close();
-					this.gpuInfoWindowId = undefined;
-				}
-			});
 
 			this.gpuInfoWindowId = gpuInfoWindow.id;
 		}

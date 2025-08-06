@@ -6,7 +6,7 @@
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -15,13 +15,13 @@ import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IImageResizeService } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
-import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpTool, McpResourceURI } from './mcpTypes.js';
 
@@ -126,7 +126,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 						existing.store.clear();
 						// We need to re-register both the data and implementation, as the
 						// implementation is discarded when the data is removed (#245921)
-						registerTool(tool, toolData, store);
+						registerTool(tool, toolData, existing.store);
 					}
 					toDelete.delete(tool.id);
 				} else {
@@ -163,6 +163,7 @@ class McpToolImplementation implements IToolImpl {
 		private readonly _server: IMcpServer,
 		@IProductService private readonly _productService: IProductService,
 		@IFileService private readonly _fileService: IFileService,
+		@IImageResizeService private readonly _imageResizeService: IImageResizeService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext): Promise<IPreparedToolInvocation> {
@@ -178,7 +179,6 @@ class McpToolImplementation implements IToolImpl {
 		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
 		// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 		const title = tool.definition.annotations?.title || tool.definition.title || ('`' + tool.definition.name + '`');
-		const subtitle = localize('msg.subtitle', "{0} (MCP Server)", server.definition.label);
 
 		return {
 			confirmationMessages: needsConfirmation ? {
@@ -189,11 +189,7 @@ class McpToolImplementation implements IToolImpl {
 			} : undefined,
 			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
 			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran {0} ", title)),
-			originMessage: new MarkdownString(markdownCommandLink({
-				id: McpCommandIds.ShowConfiguration,
-				title: subtitle,
-				arguments: [server.collection.id, server.definition.id],
-			}), { isTrusted: true }),
+			originMessage: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
 			toolSpecificData: {
 				kind: 'input',
 				rawInput: context.parameters
@@ -222,14 +218,18 @@ class McpToolImplementation implements IToolImpl {
 				}
 			}
 
-			// Rewrite image rsources to images so they are inlined nicely
-			const addAsInlineData = (mimeType: string, value: string, uri?: URI) => {
+			// Rewrite image resources to images so they are inlined nicely
+			const addAsInlineData = async (mimeType: string, value: string, uri?: URI): Promise<VSBuffer | void> => {
 				details.output.push({ type: 'embed', mimeType, value, uri });
 				if (isForModel) {
-					result.content.push({
-						kind: 'data',
-						value: { mimeType, data: decodeBase64(value) }
-					});
+					let finalData: VSBuffer;
+					try {
+						const resized = await this._imageResizeService.resizeImage(decodeBase64(value).buffer, mimeType);
+						finalData = VSBuffer.wrap(resized);
+					} catch {
+						finalData = decodeBase64(value);
+					}
+					result.content.push({ kind: 'data', value: { mimeType, data: finalData } });
 				}
 			};
 
@@ -246,7 +246,7 @@ class McpToolImplementation implements IToolImpl {
 				}
 			} else if (item.type === 'image' || item.type === 'audio') {
 				// default to some image type if not given to hint
-				addAsInlineData(item.mimeType || 'image/png', item.data);
+				await addAsInlineData(item.mimeType || 'image/png', item.data);
 			} else if (item.type === 'resource_link') {
 				const uri = McpResourceURI.fromServer(this._server.definition, item.uri);
 				details.output.push({
@@ -274,7 +274,7 @@ class McpToolImplementation implements IToolImpl {
 			} else if (item.type === 'resource') {
 				const uri = McpResourceURI.fromServer(this._server.definition, item.resource.uri);
 				if (item.resource.mimeType && getAttachableImageExtension(item.resource.mimeType) && 'blob' in item.resource) {
-					addAsInlineData(item.resource.mimeType, item.resource.blob, uri);
+					await addAsInlineData(item.resource.mimeType, item.resource.blob, uri);
 				} else {
 					details.output.push({
 						type: 'embed',
@@ -305,4 +305,5 @@ class McpToolImplementation implements IToolImpl {
 		result.toolResultDetails = details;
 		return result;
 	}
+
 }
