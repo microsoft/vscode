@@ -198,11 +198,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							public get uri() {
 								// here we must do a getter because the ref.object is rendered
 								// async and the uri might be undefined when it's read immediately
-								return ref.object.uri;
+								return ref.object?.uri;
 							}
 							readonly uriPromise = textModel.then(model => model.uri);
 							public focus() {
-								ref.object.focus();
+								ref.object?.focus();
 							}
 						}();
 						this.codeblocks.push(info);
