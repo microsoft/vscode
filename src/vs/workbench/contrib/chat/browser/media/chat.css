@@ -2374,12 +2374,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-shadow: 0 2px 4px var(--vscode-scrollbar-shadow);
 }
 
-.chat-todo-list-widget .todo-list-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-}
-
 .chat-todo-list-widget .todo-list-expand {
 	display: flex;
 	align-items: center;
@@ -2438,14 +2432,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 14px;
 	color: var(--vscode-foreground);
 }
-
-.chat-todo-list-widget .todo-clear-button-container .monaco-button:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-}
-
-.chat-todo-list-widget .todo-clear-button-container .monaco-button .codicon {
-	font-size: 14px;
 	color: var(--vscode-foreground);
 }
 

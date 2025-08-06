@@ -40,13 +40,13 @@ export class ChatTodoListWidget extends Disposable {
 		const container = dom.$('.chat-todo-list-widget');
 		container.style.display = 'none';
 
-		// Create header container to hold expand/collapse and clear button
-		const headerContainer = dom.$('.todo-list-header');
-
 		this.expandoElement = dom.$('.todo-list-expand');
 		this.expandoElement.setAttribute('role', 'button');
 		this.expandoElement.setAttribute('aria-expanded', 'true');
 		this.expandoElement.setAttribute('tabindex', '0');
+
+		// Create title section to group icon and title
+		const titleSection = dom.$('.todo-list-title-section');
 
 		const expandIcon = dom.$('.expand-icon.codicon');
 		expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
@@ -54,21 +54,20 @@ export class ChatTodoListWidget extends Disposable {
 		const titleElement = dom.$('.todo-list-title');
 		titleElement.textContent = localize('chat.todoList.title', 'Todos');
 
-		this.expandoElement.appendChild(expandIcon);
-		this.expandoElement.appendChild(titleElement);
-
-		// Add clear button
+		// Add clear button container to the expand element
 		this.clearButtonContainer = dom.$('.todo-clear-button-container');
 		this.createClearButton();
 
-		// Assemble header
-		headerContainer.appendChild(this.expandoElement);
-		headerContainer.appendChild(this.clearButtonContainer);
+		titleSection.appendChild(expandIcon);
+		titleSection.appendChild(titleElement);
+
+		this.expandoElement.appendChild(titleSection);
+		this.expandoElement.appendChild(this.clearButtonContainer);
 
 		this.todoListContainer = dom.$('.todo-list-container');
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
-		container.appendChild(headerContainer);
+		container.appendChild(this.expandoElement);
 		container.appendChild(this.todoListContainer);
 
 		this._register(dom.addDisposableListener(this.expandoElement, 'click', () => {
@@ -91,8 +90,8 @@ export class ChatTodoListWidget extends Disposable {
 			title: localize('chat.todoList.clearButton', 'Clear all todos'),
 			ariaLabel: localize('chat.todoList.clearButton.ariaLabel', 'Clear all todos')
 		});
-		this.clearButton.element.tabIndex = -1;
-		this.clearButton.icon = Codicon.trash;
+		this.clearButton.element.tabIndex = 0;
+		this.clearButton.icon = Codicon.clearAll;
 		this._register(this.clearButton);
 
 		this._register(this.clearButton.onDidClick(() => {
@@ -108,7 +107,6 @@ export class ChatTodoListWidget extends Disposable {
 	private updateTodoDisplay(): void {
 		if (!this._currentSessionId) {
 			this.domNode.style.display = 'none';
-			this.clearButtonContainer.style.display = 'none';
 			this._onDidChangeHeight.fire();
 			return;
 		}
@@ -119,10 +117,8 @@ export class ChatTodoListWidget extends Disposable {
 		if (todoList.length > 0) {
 			this.renderTodoList(todoList);
 			this.domNode.style.display = 'block';
-			this.clearButtonContainer.style.display = 'flex';
 		} else {
 			this.domNode.style.display = 'none';
-			this.clearButtonContainer.style.display = 'none';
 		}
 
 		this._onDidChangeHeight.fire();
