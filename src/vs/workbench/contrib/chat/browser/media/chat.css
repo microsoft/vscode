@@ -1075,7 +1075,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
 	display: flex;
 	gap: 4px;
-	overflow: hidden;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
