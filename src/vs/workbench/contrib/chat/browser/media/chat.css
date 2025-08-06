@@ -2365,9 +2365,8 @@ display: none;
 	top: 0;
 	z-index: 100;
 	background-color: var(--vscode-sideBar-background);
-	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	padding: 8px 16px;
-	margin-bottom: 8px;
+	box-shadow: 0 2px 4px var(--vscode-scrollbar-shadow);
 }
 
 .chat-todo-list-widget .todo-list-expand {

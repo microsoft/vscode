@@ -8,16 +8,18 @@ import { IChangeTracker } from '../changeTracker.js';
 import { DisposableStore, IDisposable, toDisposable } from '../commonFacade/deps.js';
 import { DebugNameData, IDebugNameData } from '../debugName.js';
 import { AutorunObserver } from './autorunImpl.js';
+import { DebugLocation } from '../debugLocation.js';
 
 /**
  * Runs immediately and whenever a transaction ends and an observed observable changed.
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  */
-export function autorun(fn: (reader: IReaderWithStore) => void): IDisposable {
+export function autorun(fn: (reader: IReaderWithStore) => void, debugLocation = DebugLocation.ofCaller()): IDisposable {
 	return new AutorunObserver(
 		new DebugNameData(undefined, undefined, fn),
 		fn,
-		undefined
+		undefined,
+		debugLocation
 	);
 }
 
@@ -25,11 +27,12 @@ export function autorun(fn: (reader: IReaderWithStore) => void): IDisposable {
  * Runs immediately and whenever a transaction ends and an observed observable changed.
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  */
-export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReaderWithStore) => void): IDisposable {
+export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReaderWithStore) => void, debugLocation = DebugLocation.ofCaller()): IDisposable {
 	return new AutorunObserver(
 		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? fn),
 		fn,
-		undefined
+		undefined,
+		debugLocation
 	);
 }
 
@@ -48,12 +51,14 @@ export function autorunHandleChanges<TChangeSummary>(
 	options: IDebugNameData & {
 		changeTracker: IChangeTracker<TChangeSummary>;
 	},
-	fn: (reader: IReader, changeSummary: TChangeSummary) => void
+	fn: (reader: IReader, changeSummary: TChangeSummary) => void,
+	debugLocation = DebugLocation.ofCaller()
 ): IDisposable {
 	return new AutorunObserver(
 		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? fn),
 		fn,
-		options.changeTracker
+		options.changeTracker,
+		debugLocation
 	);
 }
 

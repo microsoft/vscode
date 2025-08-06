@@ -2318,13 +2318,15 @@ export namespace LanguageModelChatMessage {
 			if (c.type === 'text') {
 				return new LanguageModelTextPart(c.value, c.audience);
 			} else if (c.type === 'tool_result') {
-				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[] = c.value.map(part => {
+				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[] = coalesce(c.value.map(part => {
 					if (part.type === 'text') {
 						return new types.LanguageModelTextPart(part.value, part.audience);
-					} else {
+					} else if (part.type === 'prompt_tsx') {
 						return new types.LanguageModelPromptTsxPart(part.value);
+					} else {
+						return undefined; // Strip unknown parts
 					}
-				});
+				}));
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
 			} else if (c.type === 'image_url') {
 				// Non-stable types
@@ -2418,7 +2420,7 @@ export namespace LanguageModelChatMessage2 {
 					if (part.type === 'text') {
 						return new types.LanguageModelTextPart(part.value, part.audience);
 					} else if (part.type === 'data') {
-						return new types.LanguageModelDataPart(part.value.data.buffer, part.value.mimeType);
+						return new types.LanguageModelDataPart(part.data.buffer, part.mimeType);
 					} else {
 						return new types.LanguageModelPromptTsxPart(part.value);
 					}
@@ -2467,10 +2469,8 @@ export namespace LanguageModelChatMessage2 {
 						} else if (part instanceof types.LanguageModelDataPart) {
 							return {
 								type: 'data',
-								value: {
-									mimeType: part.mimeType as chatProvider.ChatImageMimeType,
-									data: VSBuffer.wrap(part.data)
-								},
+								mimeType: part.mimeType,
+								data: VSBuffer.wrap(part.data),
 								audience: part.audience
 							} satisfies IChatResponseDataPart;
 						} else {

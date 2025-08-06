@@ -1,4 +1,6 @@
-<div class="rendered-markdown"><ol>
-<li><a data-href="https://example.com" href="" title="" draggable="false"><em>hello</em></a> test <strong>text</strong></li>
+<div class="rendered-markdown">
+
+<ol>
+<li><a draggable="false" title="" href="" data-href="https://example.com"><em>hello</em></a> test <strong>text</strong></li>
 </ol>
 </div>

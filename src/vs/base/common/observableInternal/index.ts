@@ -34,6 +34,7 @@ export { observableValue } from './observables/observableValue.js';
 
 export { ObservableSet } from './set.js';
 export { ObservableMap } from './map.js';
+export { DebugLocation } from './debugLocation.js';
 
 import { addLogger, setLogObservableFn } from './logging/logging.js';
 import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
