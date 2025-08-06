@@ -12,10 +12,13 @@ import { isPowerShell } from './runInTerminalHelpers.js';
 
 interface IAutoApproveRule {
 	regex: RegExp;
+	regexCaseInsensitive: RegExp;
 	sourceText: string;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
+
+const neverMatchRegex = /(?!.*)/;
 
 export class CommandLineAutoApprover extends Disposable {
 	private _denyListRules: IAutoApproveRule[] = [];
@@ -63,14 +66,14 @@ export class CommandLineAutoApprover extends Disposable {
 	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; reason: string } {
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
-			if (this._commandMatchesRegex(rule.regex, command, shell, os)) {
+			if (this._commandMatchesRule(rule, command, shell, os)) {
 				return { result: 'denied', reason: `Command '${command}' is denied by deny list rule: ${rule.sourceText}` };
 			}
 		}
 
 		// Check the allow list to see if the command is allowed to run without explicit approval
 		for (const rule of this._allowListRules) {
-			if (this._commandMatchesRegex(rule.regex, command, shell, os)) {
+			if (this._commandMatchesRule(rule, command, shell, os)) {
 				return { result: 'approved', reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}` };
 			}
 		}
@@ -98,13 +101,40 @@ export class CommandLineAutoApprover extends Disposable {
 		return { result: 'noMatch', reason: `Command line '${commandLine}' has no matching auto approve entries` };
 	}
 
-	private _commandMatchesRegex(regex: RegExp, command: string, shell: string, os: OperatingSystem): boolean {
-		if (regex.test(command)) {
+	private _removeEnvAssignments(command: string, shell: string, os: OperatingSystem): string {
+		const trimmedCommand = command.trimStart();
+
+		// PowerShell environment variable syntax is `$env:VAR='value';` and treated as a different
+		// command
+		if (isPowerShell(shell, os)) {
+			return trimmedCommand;
+		}
+
+		// For bash/sh/bourne shell and unknown shells (fallback to bourne shell syntax)
+		// Handle environment variable assignments like: VAR=value VAR2=value command
+		// This regex matches one or more environment variable assignments at the start
+		const envVarPattern = /^(\s*[A-Za-z_][A-Za-z0-9_]*=(?:[^\s'"]|'[^']*'|"[^"]*")*\s+)+/;
+		const match = trimmedCommand.match(envVarPattern);
+
+		if (match) {
+			const actualCommand = trimmedCommand.slice(match[0].length).trimStart();
+			return actualCommand || trimmedCommand; // Fallback to original if nothing left
+		}
+
+		return trimmedCommand;
+	}
+
+	private _commandMatchesRule(rule: IAutoApproveRule, command: string, shell: string, os: OperatingSystem): boolean {
+		const actualCommand = this._removeEnvAssignments(command, shell, os);
+		const isPwsh = isPowerShell(shell, os);
+
+		// PowerShell is case insensitive regardless of platform
+		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(actualCommand)) {
 			return true;
-		} else if (isPowerShell(shell, os) && command.startsWith('(')) {
+		} else if (isPwsh && actualCommand.startsWith('(')) {
 			// Allow ignoring of the leading ( for PowerShell commands as it's a command pattern to
 			// operate on the output of a command. For example `(Get-Content README.md) ...`
-			if (regex.test(command.slice(1))) {
+			if (rule.regexCaseInsensitive.test(actualCommand.slice(1))) {
 				return true;
 			}
 		}
@@ -133,29 +163,29 @@ export class CommandLineAutoApprover extends Disposable {
 
 		Object.entries(config).forEach(([key, value]) => {
 			if (typeof value === 'boolean') {
-				const regex = this._convertAutoApproveEntryToRegex(key);
+				const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
 				// IMPORTANT: Only true and false are used, null entries need to be ignored
 				if (value === true) {
-					allowListRules.push({ regex, sourceText: key });
+					allowListRules.push({ regex, regexCaseInsensitive, sourceText: key });
 				} else if (value === false) {
-					denyListRules.push({ regex, sourceText: key });
+					denyListRules.push({ regex, regexCaseInsensitive, sourceText: key });
 				}
 			} else if (typeof value === 'object' && value !== null) {
 				// Handle object format like { approve: true/false, matchCommandLine: true/false }
 				const objectValue = value as { approve?: boolean; matchCommandLine?: boolean };
 				if (typeof objectValue.approve === 'boolean') {
-					const regex = this._convertAutoApproveEntryToRegex(key);
+					const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
 					if (objectValue.approve === true) {
 						if (objectValue.matchCommandLine === true) {
-							allowListCommandLineRules.push({ regex, sourceText: key });
+							allowListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key });
 						} else {
-							allowListRules.push({ regex, sourceText: key });
+							allowListRules.push({ regex, regexCaseInsensitive, sourceText: key });
 						}
 					} else if (objectValue.approve === false) {
 						if (objectValue.matchCommandLine === true) {
-							denyListCommandLineRules.push({ regex, sourceText: key });
+							denyListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key });
 						} else {
-							denyListRules.push({ regex, sourceText: key });
+							denyListRules.push({ regex, regexCaseInsensitive, sourceText: key });
 						}
 					}
 				}
@@ -170,32 +200,48 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	private _convertAutoApproveEntryToRegex(value: string): RegExp {
+	private _convertAutoApproveEntryToRegex(value: string): { regex: RegExp; regexCaseInsensitive: RegExp } {
+		const regex = this._doConvertAutoApproveEntryToRegex(value);
+		if (regex.flags.includes('i')) {
+			return { regex, regexCaseInsensitive: regex };
+		}
+		return { regex, regexCaseInsensitive: new RegExp(regex.source, regex.flags + 'i') };
+	}
+
+	private _doConvertAutoApproveEntryToRegex(value: string): RegExp {
 		// If it's wrapped in `/`, it's in regex format and should be converted directly
 		// Support all standard JavaScript regex flags: d, g, i, m, s, u, v, y
 		const regexMatch = value.match(/^\/(?<pattern>.+)\/(?<flags>[dgimsuvy]*)$/);
 		const regexPattern = regexMatch?.groups?.pattern;
 		if (regexPattern) {
 			let flags = regexMatch.groups?.flags;
-			// Remove global flag as it can cause confusion
+			// Remove global flag as it changes how the regex state works which we need to handle
+			// internally
 			if (flags) {
 				flags = flags.replaceAll('g', '');
 			}
 
+			// Allow .* as users expect this would match everything
+			if (regexPattern === '.*') {
+				return new RegExp(regexPattern);
+
+			}
+
 			try {
 				const regex = new RegExp(regexPattern, flags || undefined);
-
-				// Check if the regex would lead to an endless loop
 				if (regExpLeadsToEndlessLoop(regex)) {
-					// Return a regex that will never match anything to prevent endless loops
-					return /(?!.*)/;
+					return neverMatchRegex;
 				}
 
 				return regex;
 			} catch (error) {
-				// If the regex is invalid, return a regex that will never match anything
-				return /(?!.*)/;
+				return neverMatchRegex;
 			}
+		}
+
+		// The empty string should be ignored, rather than approve everything
+		if (value === '') {
+			return neverMatchRegex;
 		}
 
 		// Escape regex special characters

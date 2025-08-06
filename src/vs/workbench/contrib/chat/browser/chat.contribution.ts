@@ -265,10 +265,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
 		},
 		'chat.emptyChatState.enabled': {
 			type: 'boolean',
@@ -391,8 +387,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
-			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
-			default: false,
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
+			default: true,
 			tags: ['preview'],
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
@@ -545,7 +541,7 @@ configurationRegistry.registerConfiguration({
 			default: 'default',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		'chat.todoListTool.enabled': {
@@ -553,7 +549,9 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat. This tool allows you to use todo lists in chat."),
 			tags: ['experimental'],
-			included: false,
+			experiment: {
+				mode: 'startup'
+			}
 		},
 		'chat.tools.useTreePicker': {
 			type: 'boolean',

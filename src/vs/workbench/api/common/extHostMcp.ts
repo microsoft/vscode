@@ -16,7 +16,7 @@ import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionStat
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, getResourceServerBaseUrlFromDiscoveryUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -314,7 +314,7 @@ class McpHTTPHandle extends Disposable {
 		}
 	}
 
-	private async _populateAuthMetadata(originalResponse: Response): Promise<void> {
+	private async _populateAuthMetadata(url: string, originalResponse: Response): Promise<void> {
 		// If there is a resource_metadata challenge, use that to get the oauth server. This is done in 2 steps.
 		// First, extract the resource_metada challenge from the WWW-Authenticate header (if available)
 		let resourceMetadataChallenge: string | undefined;
@@ -331,6 +331,10 @@ class McpHTTPHandle extends Disposable {
 		let resource: IAuthorizationProtectedResourceMetadata | undefined;
 		if (resourceMetadataChallenge) {
 			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
+			// Use URL constructor for normalization - it handles hostname case and trailing slashes
+			if (new URL(resourceMetadata.resource).toString() !== new URL(url).toString()) {
+				throw new Error(`Protected Resource Metadata resource "${resourceMetadata.resource}" does not match MCP server resolved resource "${url}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
+			}
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
@@ -395,11 +399,6 @@ class McpHTTPHandle extends Disposable {
 		}
 		const body = await resourceMetadataResponse.json();
 		if (isAuthorizationProtectedResourceMetadata(body)) {
-			const resolvedResource = getResourceServerBaseUrlFromDiscoveryUrl(resourceMetadata);
-			// Use URL constructor for normalization - it handles hostname case and trailing slashes
-			if (new URL(body.resource).toString() !== new URL(resolvedResource).toString()) {
-				throw new Error(`Protected Resource Metadata resource "${body.resource}" does not match MCP server resolved resource "${resolvedResource}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
-			}
 			return body;
 		} else {
 			throw new Error(`Invalid resource metadata: ${JSON.stringify(body)}`);
@@ -701,7 +700,7 @@ class McpHTTPHandle extends Disposable {
 		let res = await doFetch();
 		if (res.status === 401) {
 			if (!this._authMetadata) {
-				await this._populateAuthMetadata(res);
+				await this._populateAuthMetadata(url, res);
 				await this._addAuthHeader(headers);
 				if (headers['Authorization']) {
 					// Update the headers in the init object

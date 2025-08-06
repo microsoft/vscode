@@ -16,6 +16,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ArcTracker } from './arcTracker.js';
 import { IDocumentWithAnnotatedEdits, EditSourceData, createDocWithJustReason } from '../helpers/documentWithAnnotatedEdits.js';
 import type { ScmRepoBridge } from './editSourceTrackingImpl.js';
+import { ITextModelEditSourceMetadata } from '../../../../../editor/common/textModelEditSource.js';
 
 export class InlineEditArcTelemetrySender extends Disposable {
 	constructor(
@@ -46,6 +47,7 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					extensionId: string;
 					extensionVersion: string;
 					opportunityId: string;
+					languageId: string;
 					didBranchChange: number;
 					timeDelayMs: number;
 					arc: number;
@@ -61,6 +63,7 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id (copilot or copilot-chat); which provided this inline completion.' };
 					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 					opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES.' };
+					languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
@@ -74,6 +77,7 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					extensionId: data.$extensionId ?? '',
 					extensionVersion: data.$extensionVersion ?? '',
 					opportunityId: data.$$requestUuid ?? 'unknown',
+					languageId: data.$$languageId,
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
 					arc: res.arc,
@@ -103,7 +107,7 @@ export class ChatArcTelemetrySender extends Disposable {
 		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
 			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
 
-			const supportedSource = new Set(['Chat.applyEdits']);
+			const supportedSource = new Set(['Chat.applyEdits' as ITextModelEditSourceMetadata['source']]);
 
 			if (!edit.replacements.some(r => supportedSource.has(r.data.editSource.metadata.source))) {
 				return;
@@ -124,6 +128,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					editSessionId: string | undefined;
 					requestId: string | undefined;
 					modelId: string | undefined;
+					languageId: string | undefined;
 
 					didBranchChange: number;
 					timeDelayMs: number;
@@ -144,6 +149,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					editSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session id.' };
 					requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request id.' };
 					modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
+					languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
@@ -159,6 +165,7 @@ export class ChatArcTelemetrySender extends Disposable {
 						$$requestUuid: false,
 						$$sessionId: false,
 						$$requestId: false,
+						$$languageId: false,
 						$modelId: false,
 					}),
 					extensionId: data.props.$extensionId,
@@ -167,6 +174,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					editSessionId: data.props.$$sessionId,
 					requestId: data.props.$$requestId,
 					modelId: data.props.$modelId,
+					languageId: data.props.$$languageId,
 
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
