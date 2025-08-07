@@ -33,7 +33,7 @@ import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationS
 import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from './productIconThemeData.js';
 import { registerProductIconThemeSchemas } from '../common/productIconThemeSchema.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { isFirefox, isWeb } from '../../../../base/common/platform.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 import { IHostColorSchemeService } from '../common/hostColorSchemeService.js';
 import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
@@ -42,7 +42,6 @@ import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyl
 import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 
 // implementation
 
@@ -794,21 +793,13 @@ class ThemeFileWatcher {
 }
 
 function _applyRules(styleSheetContent: string, rulesClassName: string) {
-	let themeStyle = mainWindow.document.head.getElementsByClassName(rulesClassName).item(0);
-	if (!themeStyle) {
-		themeStyle = createStyleSheet();
-		themeStyle.className = rulesClassName;
-	}
-
-	if (themeStyle.textContent !== styleSheetContent) {
-		themeStyle.textContent = styleSheetContent;
-
-		if (isFirefox) {
-			// Firefox doesn't support observing style tag contents
-			// As a workaround, also update the data-version attribute
-			// when it changes so it can be observed
-			themeStyle.setAttribute('data-version', generateUuid());
-		}
+	const themeStyles = mainWindow.document.head.getElementsByClassName(rulesClassName);
+	if (themeStyles.length === 0) {
+		const elStyle = createStyleSheet();
+		elStyle.className = rulesClassName;
+		elStyle.textContent = styleSheetContent;
+	} else {
+		(<HTMLStyleElement>themeStyles[0]).textContent = styleSheetContent;
 	}
 }
 
