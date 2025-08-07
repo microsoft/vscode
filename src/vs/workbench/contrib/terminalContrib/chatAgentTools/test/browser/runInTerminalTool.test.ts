@@ -285,9 +285,9 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result, 'Run command in terminal');
-			ok(result!.confirmationMessages!.customActions, 'Expected custom actions to be defined');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
-			const customActions = result!.confirmationMessages!.customActions!;
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
 			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
 
 			// First action should be exact command match
@@ -312,9 +312,9 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.customActions, 'Expected custom actions to be defined');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
-			const customActions = result!.confirmationMessages!.customActions!;
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
 
 			// For single word commands, exact and prefix should be the same, so we should only get 2 actions
 			strictEqual(customActions.length, 2, 'Expected 2 custom actions for single word command');

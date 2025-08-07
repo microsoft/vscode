@@ -209,7 +209,7 @@ export interface IToolConfirmationMessages {
 	message: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
-	customActions?: IToolConfirmationAction[];
+	terminalCustomActions?: IToolConfirmationAction[];
 }
 
 export interface IToolConfirmationAction {

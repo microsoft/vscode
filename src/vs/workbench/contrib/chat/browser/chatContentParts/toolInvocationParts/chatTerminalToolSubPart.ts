@@ -78,7 +78,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
-		const { title, message, disclaimer, customActions } = toolInvocation.confirmationMessages;
+		const { title, message, disclaimer, terminalCustomActions } = toolInvocation.confirmationMessages;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -91,7 +91,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 				label: continueLabel,
 				data: true,
 				tooltip: continueTooltip,
-				moreActions: customActions,
+				moreActions: terminalCustomActions,
 			},
 			{
 				label: cancelLabel,

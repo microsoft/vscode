@@ -263,7 +263,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					: localize('runInTerminal.foreground', "Run command in terminal"),
 				message: new MarkdownString(args.explanation),
 				disclaimer,
-				customActions,
+				terminalCustomActions: customActions,
 			};
 		}
 
