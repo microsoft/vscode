@@ -545,12 +545,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
-		'chat.tools.useTreePicker': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.tools.useTreePicker', "Use the new Quick Tree-based tools picker instead of the Quick Pick-based one. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions."),
-			tags: ['experimental'],
-		},
 		[ChatConfiguration.ShowThinking]: {
 			type: 'boolean',
 			default: false,
