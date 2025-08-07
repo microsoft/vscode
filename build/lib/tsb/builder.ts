@@ -221,10 +221,11 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 
 										[tsSMC, inputSMC].forEach((consumer) => {
 											(<SourceMapConsumer & { sources: string[] }>consumer).sources.forEach((sourceFile: any) => {
-												(<any>smg)._sources.add(sourceFile);
+												const normalized = sourceFile.replace(/^file:\/\/\//, '').replace(/^file:\//, '');
+												(<any>smg)._sources.add(normalized);
 												const sourceContent = consumer.sourceContentFor(sourceFile);
 												if (sourceContent !== null) {
-													smg.setSourceContent(sourceFile, sourceContent);
+													smg.setSourceContent(normalized, sourceContent);
 												}
 											});
 										});
