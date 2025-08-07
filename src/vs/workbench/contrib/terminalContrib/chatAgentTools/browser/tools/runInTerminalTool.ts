@@ -29,7 +29,7 @@ import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerm
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
 import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
-import { CommandLineAutoApprover } from '../commandLineAutoApprover.js';
+import { CommandLineAutoApprover, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
@@ -252,7 +252,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
 			}
 
-			const customActions = this._generateAutoApproveActions(args.command);
+			let customActions: IToolConfirmationAction[] | undefined;
+			if (!isAutoApproved) {
+				customActions = this._generateAutoApproveActions(args.command, subCommands, { subCommandResults, commandLineResult });
+			}
 
 			confirmationMessages = isAutoApproved ? undefined : {
 				title: args.isBackground
@@ -763,51 +766,56 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		});
 	}
 
-	private _generateAutoApproveActions(command: string): IToolConfirmationAction[] {
+	private _generateAutoApproveActions(command: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): IToolConfirmationAction[] {
 		const actions: IToolConfirmationAction[] = [];
 
-		// Extract the base command (first word/executable)
-		const baseCommand = command.trim().split(/\s+/)[0];
-
-		// Add action for exact command match
-		actions.push({
-			label: localize('autoApprove.exactCommand', 'Always allow `{0}`', command),
-			tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
-			data: {
-				type: 'newRule',
-				rule: {
-					key: command,
-					value: {
-						approve: true,
-						matchCommandLine: true
-					}
-				}
-			} satisfies TerminalNewAutoApproveButtonData
-		});
-
-		// Add action for base command prefix match (only if different from exact and has arguments)
-		if (baseCommand && baseCommand !== command && command.trim().includes(' ')) {
+		// We shouldn't offer configuring rules for commands that are explicitly denied since it
+		// wouldn't get auto approved with a new rule
+		const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
+		if (canCreateAutoApproval) {
+			// Allow exact command line
 			actions.push({
-				label: localize('autoApprove.baseCommand', 'Always allow `{0}` commands', baseCommand),
-				tooltip: localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', baseCommand),
+				label: localize('autoApprove.exactCommand', 'Always allow `{0}`', command),
+				tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
 				data: {
 					type: 'newRule',
 					rule: {
-						key: baseCommand,
-						value: true
+						key: command,
+						value: {
+							approve: true,
+							matchCommandLine: true
+						}
 					}
 				} satisfies TerminalNewAutoApproveButtonData
 			});
-		}
 
-		// Add separator and configure option
-		actions.push({
-			label: localize('autoApprove.configure', 'Configure auto approve...'),
-			tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
-			data: {
-				type: 'configure'
-			} satisfies TerminalNewAutoApproveButtonData
-		});
+			// Allow all sub-commands
+			const subCommandsFirstWordOnly = subCommands.map(command => command.split(' ')[0]);
+			const commandSeparated = subCommandsFirstWordOnly.map(e => `\`${e}\``).join(', ');
+			// TODO: Only add rules that are needed?
+			actions.push({
+				label: localize('autoApprove.baseCommand', 'Always allow {0} commands with any arguments', commandSeparated),
+				tooltip: localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated),
+				data: {
+					type: 'newRule',
+					rule: subCommandsFirstWordOnly.map(key => ({
+						key,
+						value: true
+					}))
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+
+			// TODO: Add separator
+
+			// Configure option
+			actions.push({
+				label: localize('autoApprove.configure', 'Configure auto approve...'),
+				tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
+				data: {
+					type: 'configure'
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+		}
 
 		return actions;
 	}

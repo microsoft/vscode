@@ -16,6 +16,11 @@ interface IAutoApproveRule {
 	sourceText: string;
 }
 
+export interface ICommandApprovalResultWithReason {
+	result: ICommandApprovalResult;
+	reason: string;
+}
+
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 
 const neverMatchRegex = /(?!.*)/;

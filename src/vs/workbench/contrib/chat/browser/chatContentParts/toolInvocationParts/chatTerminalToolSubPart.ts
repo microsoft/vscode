@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { asArray } from '../../../../../../base/common/arrays.js';
 import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { thenIfNotDisposed } from '../../../../../../base/common/lifecycle.js';
@@ -44,7 +45,7 @@ export interface ITerminalNewAutoApproveRule {
 
 export type TerminalNewAutoApproveButtonData = (
 	{ type: 'configure' } |
-	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule }
+	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] }
 );
 
 export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
@@ -169,13 +170,17 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			if (typeof data !== 'boolean') {
 				switch (data.type) {
 					case 'newRule': {
+						const newRules = asArray(data.rule);
 						const inspect = this.configurationService.inspect(TerminalContribSettingId.AutoApprove);
 						const oldValue = (inspect.user?.value as Record<string, unknown> | undefined) ?? {};
 						let newValue: Record<string, unknown>;
 						if (isObject(oldValue)) {
+							// IMPORTANT: Old value intentionally overwrites the new value here,
+							// this is because we want to preserve as much as possible and only an
+							// approval rule should be there if this button action was offered
 							newValue = {
-								...oldValue,
-								[data.rule.key]: data.rule.value
+								...newRules,
+								...oldValue
 							};
 						} else {
 							this.preferencesService.openSettings({
@@ -185,7 +190,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 									key: TerminalContribSettingId.AutoApprove
 								},
 							});
-							throw new ErrorNoTelemetry(`Cannot add new rule \`${data.rule.key}\`: \`${JSON.stringify(data.rule.value)}\`, existing setting is unexpected format`);
+							throw new ErrorNoTelemetry(`Cannot add new rule, existing setting is unexpected format`);
 						}
 						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue);
 						break;
