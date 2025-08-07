@@ -756,9 +756,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		shellIntegrationQuality: ShellIntegrationQuality;
 		outputLineCount: number;
 		timingConnectMs: number;
+		timingExecuteMs: number;
 		pollDurationMs?: number;
 		terminalExecutionIdleBeforeTimeout?: boolean;
-		timingExecuteMs: number;
 		exitCode: number | undefined;
 		inputUserChars: number;
 		inputUserSigint: boolean;
@@ -777,6 +777,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			nonZeroExitCode: -1 | 0 | 1;
 			timingConnectMs: number;
 			pollDurationMs: number;
+			timingExecuteMs: number;
 			terminalExecutionIdleBeforeTimeout: boolean;
 
 			inputUserChars: number;
@@ -798,6 +799,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			outputLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many lines of output were produced, this is -1 when isBackground is true or if there\'s an error' };
 			nonZeroExitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command exited with a non-zero code (-1=error/unknown, 0=zero exit code, 1=non-zero)' };
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
+			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to execute the command' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
 			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
 
@@ -817,6 +819,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			outputLineCount: state.outputLineCount,
 			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
 			timingConnectMs: state.timingConnectMs,
+			timingExecuteMs: state.timingExecuteMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
 			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
 
