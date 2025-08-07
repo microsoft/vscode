@@ -634,10 +634,10 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
 	extensionPoint: 'terminal',
 	defaultExtensionKind: ['workspace'],
-	activationEventsGenerator: (contribs: ITerminalContributions[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly ITerminalContributions[]) {
 		for (const contrib of contribs) {
 			for (const profileContrib of (contrib.profiles ?? [])) {
-				result.push(`onTerminalProfile:${profileContrib.id}`);
+				yield `onTerminalProfile:${profileContrib.id}`;
 			}
 		}
 	},
