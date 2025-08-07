@@ -79,8 +79,6 @@ export interface IStreamingEdits {
 	complete(): void;
 }
 
-export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
-
 export interface IModifiedEntryTelemetryInfo {
 	readonly agentId: string | undefined;
 	readonly command: string | undefined;
