@@ -758,11 +758,14 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	const submenuActions: IAction[] = [];
 	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 
+	if (location === TerminalLocation.Editor) {
+		location = { viewColumn: ACTIVE_GROUP };
+	}
+
 	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.New, terminalStrings.new, undefined, true, () => terminalService.createAndFocusTerminal())));
 	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.NewInNewWindow, terminalStrings.newInNewWindow.value, undefined, true, () => terminalService.createAndFocusTerminal({
 		location: {
-			viewColumn: AUX_WINDOW_GROUP,
-			auxiliary: { compact: true },
+			viewColumn: AUX_WINDOW_GROUP
 		}
 	}))));
 	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.Split, terminalStrings.split.value, undefined, true, () => terminalService.createAndFocusTerminal({
