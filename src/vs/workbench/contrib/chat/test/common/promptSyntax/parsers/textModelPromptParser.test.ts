@@ -1577,7 +1577,7 @@ suite('TextModelPromptParser', () => {
 						// Array mode value should trigger validation error
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
-								new Range(3, 7, 3, 23),
+								new Range(3, 7, 3, 24),
 								"The 'mode' metadata must be a 'string', got 'array'.",
 							),
 						]);

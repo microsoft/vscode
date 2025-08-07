@@ -121,7 +121,7 @@ suite('ChatModeService', () => {
 		assert.strictEqual(modes.custom.length, 1);
 
 		const testMode = modes.custom[0];
-		assert.strictEqual(testMode.id, customMode.uri.toString());
+		assert.strictEqual(testMode.id, customMode.name);
 		assert.strictEqual(testMode.name, customMode.name);
 		assert.strictEqual(testMode.description.get(), customMode.description);
 		assert.strictEqual(testMode.kind, ChatModeKind.Agent);
@@ -166,9 +166,9 @@ suite('ChatModeService', () => {
 		// Wait for the service to refresh
 		await timeout(0);
 
-		const foundMode = chatModeService.findModeById(customMode.uri.toString());
+		const foundMode = chatModeService.findModeById(customMode.name);
 		assert.ok(foundMode);
-		assert.strictEqual(foundMode.id, customMode.uri.toString());
+		assert.strictEqual(foundMode.id, customMode.name);
 		assert.strictEqual(foundMode.name, customMode.name);
 	});
 
@@ -245,6 +245,6 @@ suite('ChatModeService', () => {
 
 		modes = chatModeService.getModes();
 		assert.strictEqual(modes.custom.length, 1);
-		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
+		assert.strictEqual(modes.custom[0].id, mode1.name);
 	});
 });
