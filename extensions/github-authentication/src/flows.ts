@@ -571,14 +571,14 @@ export function getFlows(query: IFlowQuery) {
  */
 export const enum GitHubSocialSignInProvider {
 	Google = 'google',
-	// Apple = 'apple',
+	Apple = 'apple',
 }
 
 const GitHubSocialSignInProviderLabels = {
 	[GitHubSocialSignInProvider.Google]: l10n.t('Google'),
-	// [GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
+	[GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
 };
 
 export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
-	return provider === GitHubSocialSignInProvider.Google; // || provider === GitHubSocialSignInProvider.Apple;
+	return provider === GitHubSocialSignInProvider.Google || provider === GitHubSocialSignInProvider.Apple;
 }

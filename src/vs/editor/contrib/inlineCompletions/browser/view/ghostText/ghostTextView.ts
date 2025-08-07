@@ -25,7 +25,6 @@ import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAff
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
-import { InlineDecorationType } from '../../../../../common/viewModel.js';
 import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
 import { RangeSingleLine } from '../../../../../common/core/ranges/rangeSingleLine.js';
 import { ColumnRange } from '../../../../../common/core/ranges/columnRange.js';
@@ -34,12 +33,17 @@ import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextArray.js';
+import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterface.js';
+import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
+import { sum } from '../../../../../../base/common/arrays.js';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
 	readonly ghostText: IObservable<GhostText | GhostTextReplacement | undefined>;
 	readonly warning: IObservable<{ icon: IconPath | undefined } | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
+
+	readonly handleInlineCompletionShown: IObservable<(viewData: InlineCompletionViewData) => void>;
 }
 
 const USE_SQUIGGLES_FOR_WARNING = true;
@@ -121,6 +125,21 @@ export class GhostTextView extends Disposable {
 					decorations: l.decorations,
 				};
 			});
+
+			const cursorColumn = this._editor.getSelection()?.getStartPosition().column!;
+			const disjointInlineTexts = inlineTextsWithTokens.filter(inline => inline.text !== '');
+			const hasInsertionOnCurrentLine = disjointInlineTexts.length !== 0;
+			const renderData: InlineCompletionViewData = {
+				cursorColumnDistance: (hasInsertionOnCurrentLine ? disjointInlineTexts[0].column : 1) - cursorColumn,
+				cursorLineDistance: hasInsertionOnCurrentLine ? 0 : (additionalLines.findIndex(line => line.content !== '') + 1),
+				lineCountOriginal: hasInsertionOnCurrentLine ? 1 : 0,
+				lineCountModified: additionalLines.length + (hasInsertionOnCurrentLine ? 1 : 0),
+				characterCountOriginal: 0,
+				characterCountModified: sum(disjointInlineTexts.map(inline => inline.text.length)) + sum(tokenizedAdditionalLines.map(line => line.content.getTextLength())),
+				disjointReplacements: disjointInlineTexts.length + (additionalLines.length > 0 ? 1 : 0),
+				sameShapeReplacements: disjointInlineTexts.length > 1 && tokenizedAdditionalLines.length === 0 ? disjointInlineTexts.every(inline => inline.text === disjointInlineTexts[0].text) : undefined,
+			};
+			this._model.handleInlineCompletionShown.read(reader)?.(renderData);
 
 			return {
 				replacedRange,
@@ -598,7 +617,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 			renderWhitespace,
 			renderControlCharacters,
 			fontLigatures !== EditorFontLigatures.OFF,
-			null
+			null,
+			null,
+			0
 		), sb);
 
 		sb.appendString('</div>');

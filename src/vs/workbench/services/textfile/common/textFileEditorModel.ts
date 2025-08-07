@@ -35,7 +35,7 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource, EditSources } from '../../../../editor/common/textModelEditSource.js';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -536,9 +536,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Update Existing Model
 		if (this.textEditorModel) {
-			this.textEditorModel.editWithReason(new TextModelEditReason({ source: 'reloadFromDisk' }), () => {
-				this.doUpdateTextModel(content.value);
-			});
+			this.doUpdateTextModel(content.value, EditSources.reloadFromDisk());
 		}
 
 		// Create New Model
@@ -570,13 +568,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoDetectLanguage();
 	}
 
-	private doUpdateTextModel(value: ITextBufferFactory): void {
+	private doUpdateTextModel(value: ITextBufferFactory, reason: TextModelEditSource): void {
 		this.trace('doUpdateTextModel()');
 
 		// Update model value in a block that ignores content change events for dirty tracking
 		this.ignoreDirtyOnModelContentChange = true;
 		try {
-			this.updateTextEditorModel(value, this.preferredLanguageId);
+			this.updateTextEditorModel(value, this.preferredLanguageId, reason);
 		} finally {
 			this.ignoreDirtyOnModelContentChange = false;
 		}
@@ -1153,8 +1151,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return; // return early if the encoding is already the same
 			}
 
-			if (this.isDirty() && !this.inConflictMode) {
-				await this.save();
+			if (this.isDirty()) {
+				throw new Error('Cannot re-open a dirty text document with different encoding. Save it first.');
 			}
 
 			this.updatePreferredEncoding(encoding);

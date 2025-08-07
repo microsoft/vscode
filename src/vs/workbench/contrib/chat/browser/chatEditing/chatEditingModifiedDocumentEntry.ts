@@ -99,7 +99,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this._stateObs.set(action, undefined);
-			this._notifyAction(action === ModifiedFileEntryState.Accepted ? 'accepted' : 'rejected');
+			this._notifySessionAction(action === ModifiedFileEntryState.Accepted ? 'accepted' : 'rejected');
+		}));
+
+		this._register(this._textModelChangeService.onDidAcceptOrRejectLines(action => {
+			this._notifyAction({ kind: 'chatEditingHunkAction', uri: this.modifiedURI, outcome: action.state, lineCount: action.lineCount, hasRemainingEdits: action.hasRemainingEdits });
 		}));
 
 		// Create a reference to this model to avoid it being disposed from under our nose
@@ -181,7 +185,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 
-		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits);
+		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 
 		transaction((tx) => {
 			this._waitsForLastEdits.set(!isLastEdits, tx);

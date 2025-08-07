@@ -8,6 +8,32 @@ import * as vscodeGrammarUpdater from 'vscode-grammar-updater';
 
 function patchGrammar(grammar) {
 	grammar.scopeName = 'text.html.cshtml';
+
+	let patchCount = 0;
+
+	let visit = function (rule, parent) {
+		if (rule.include?.startsWith('text.html.basic')) {
+			patchCount++;
+			rule.include = 'text.html.derivative';
+		}
+		for (let property in rule) {
+			let value = rule[property	];
+			if (typeof value === 'object') {
+				visit(value, { node: rule, property: property, parent: parent });
+			}
+		}
+	};
+
+	let roots = [grammar.repository, grammar.patterns];
+	for (let root of roots) {
+		for (let key in root) {
+			visit(root[key], { node: root, property: key, parent: undefined });
+		}
+	}
+	if (patchCount !== 4) {
+		console.warn(`Expected to patch 4 occurrences of text.html.basic: Was ${patchCount}`);
+	}
+
 	return grammar;
 }
 

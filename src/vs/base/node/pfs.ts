@@ -104,6 +104,24 @@ export interface IDirent {
 async function readdir(path: string): Promise<string[]>;
 async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
 async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
+	try {
+		return await doReaddir(path, options);
+	} catch (error) {
+		// TODO@bpasero workaround for #252361 that should be removed
+		// once the upstream issue in node.js is resolved. Adds a trailing
+		// dot to a root drive letter path (G:\ => G:\.) as a workaround.
+		if (error.code === 'ENOENT' && isWindows && isRootOrDriveLetter(path)) {
+			try {
+				return await doReaddir(`${path}.`, options);
+			} catch (e) {
+				// ignore
+			}
+		}
+		throw error;
+	}
+}
+
+async function doReaddir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
 	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : fs.promises.readdir(path)));
 }
 

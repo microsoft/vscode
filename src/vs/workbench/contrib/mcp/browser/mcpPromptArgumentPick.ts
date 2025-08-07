@@ -168,10 +168,13 @@ export class McpPromptArgumentPick extends Disposable {
 				}));
 				store.add(quickPick.onDidAccept(() => {
 					const item = quickPick.selectedItems[0];
-					if (!quickPick.value && arg.required && (item.action === 'text' || item.action === 'command')) {
+					if (!quickPick.value && arg.required && (!item || item.action === 'text' || item.action === 'command')) {
 						quickPick.validationMessage = localize('mcp.arg.required', "This argument is required");
+					} else if (!item) {
+						// For optional arguments when no item is selected, return empty text action
+						resolve({ id: 'insert-text', label: '', action: 'text' });
 					} else {
-						resolve(quickPick.selectedItems[0]);
+						resolve(item);
 					}
 				}));
 				store.add(quickPick.onDidTriggerButton(() => {

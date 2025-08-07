@@ -39,7 +39,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
@@ -85,6 +84,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		this.label = contextResourceLabels.create(this.element, { supportIcons: true, hoverDelegate, hoverTargetOverride: this.element });
 		this._register(this.label);
 		this.element.tabIndex = 0;
+		this.element.role = 'button';
 
 		// Add middle-click support for removal
 		this._register(dom.addDisposableListener(this.element, dom.EventType.AUXCLICK, (e: MouseEvent) => {
@@ -256,7 +256,6 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IOpenerService openerService: IOpenerService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
@@ -278,24 +277,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				await this.openResource(resource, false, undefined);
 			}
 		};
-		type AttachImageEvent = {
-			currentModel: string;
-			supportsVision: boolean;
-		};
-		type AttachImageEventClassification = {
-			currentModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model at the point of attaching the image.' };
-			supportsVision: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the current model supports vision or not.' };
-			owner: 'justschen';
-			comment: 'Event used to gain insights when images are attached, and if the model supported vision or not.';
-		};
 
-		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'unknown';
-		const supportsVision = this.modelSupportsVision();
-
-		this.telemetryService.publicLog2<AttachImageEvent, AttachImageEventClassification>('copilot.attachImage', {
-			currentModel: currentLanguageModelName,
-			supportsVision: supportsVision
-		});
+		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
 		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));

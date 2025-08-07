@@ -18,7 +18,7 @@ import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameS
 import { ChatPauseState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
 
@@ -28,6 +28,10 @@ export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 
 export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
+}
+
+export function isChatTreeItem(item: unknown): item is IChatRequestViewModel | IChatResponseViewModel {
+	return isRequestVM(item) || isResponseVM(item);
 }
 
 export function assertIsResponseVM(item: unknown): asserts item is IChatResponseViewModel {
@@ -171,10 +175,15 @@ export interface IChatErrorDetailsPart {
 	isLast: boolean;
 }
 
+export interface IChatChangesSummaryPart {
+	readonly kind: 'changesSummary';
+	readonly fileChanges: ReadonlyArray<IChatChangesSummary>;
+}
+
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress | IChatErrorDetailsPart;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatWorkingProgress | IChatErrorDetailsPart | IChatChangesSummaryPart;
 
 export interface IChatLiveUpdateData {
 	totalTime: number;

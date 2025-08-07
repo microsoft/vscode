@@ -63,7 +63,7 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat
 import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatMode } from '../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 import { IPromptPath, IPromptsService } from '../../../chat/common/promptSyntax/service/promptsService.js';
@@ -77,6 +77,9 @@ import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionSer
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
 import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
+import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 
 suite('InlineChatController', function () {
 
@@ -89,7 +92,7 @@ suite('InlineChatController', function () {
 		name: 'testEditorAgent',
 		isDefault: true,
 		locations: [ChatAgentLocation.Editor],
-		modes: [ChatMode.Ask],
+		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],
@@ -157,7 +160,9 @@ suite('InlineChatController', function () {
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
+			[IChatTransferService, new SyncDescriptor(ChatTransferService)],
 			[IChatService, new SyncDescriptor(ChatService)],
+			[IMcpService, new TestMcpService()],
 			[IChatAgentNameService, new class extends mock<IChatAgentNameService>() {
 				override getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
 					return false;
@@ -184,6 +189,7 @@ suite('InlineChatController', function () {
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
 				override acceptRequest(): number { return -1; }
+				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {

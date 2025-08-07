@@ -31,20 +31,20 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 	}
 
 	public override get languageId(): string {
-		return this.model.getLanguageId();
+		return this.options.languageId ?? this.model.getLanguageId();
 	}
 
 	constructor(
 		private readonly model: ITextModel,
-		options: Partial<IPromptContentsProviderOptions>,
+		options: IPromptContentsProviderOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(options);
 
 		this._register(this.model.onWillDispose(this.dispose.bind(this)));
-		this._register(
-			this.model.onDidChangeContent(this.onChangeEmitter.fire.bind(this.onChangeEmitter)),
-		);
+		if (options.updateOnChange) {
+			this._register(this.model.onDidChangeContent(this.onChangeEmitter.fire.bind(this.onChangeEmitter)));
+		}
 	}
 
 	/**
@@ -67,7 +67,7 @@ export class TextModelContentsProvider extends PromptContentsProviderBase<IModel
 
 	public override createNew(
 		promptContentsSource: TextModel | { uri: URI },
-		options: Partial<IPromptContentsProviderOptions> = {},
+		options: IPromptContentsProviderOptions,
 	): IPromptContentsProvider {
 		if (promptContentsSource instanceof TextModel) {
 			return this.instantiationService.createInstance(

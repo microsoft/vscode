@@ -13,9 +13,10 @@ import Severity from '../../../base/common/severity.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
@@ -91,10 +92,12 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			const serverDefinitions = observableValue<readonly McpServerDefinition[]>('mcpServers', servers);
 			const handle = this._mcpRegistry.registerCollection({
 				...collection,
+				source: new ExtensionIdentifier(collection.extensionId),
 				resolveServerLanch: collection.canResolveLaunch ? (async def => {
 					const r = await this._proxy.$resolveMcpLaunch(collection.id, def.label);
 					return r ? McpServerLaunch.fromSerialized(r) : undefined;
 				}) : undefined,
+				trustBehavior: collection.isTrustedByDefault ? McpServerTrust.Kind.Trusted : McpServerTrust.Kind.TrustedOnNonce,
 				remoteAuthority: this._extHostContext.remoteAuthority,
 				serverDefinitions,
 			});
@@ -165,13 +168,11 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (sessions.length) {
 			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
 			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, server.id)) {
-				this._mcpRegistry.setAuthenticationUsage(server.id, providerId);
 				this.authenticationMCPServerUsageService.addAccountUsage(providerId, matchingAccountPreferenceSession.account.label, scopesSupported, server.id, server.label);
 				return matchingAccountPreferenceSession.accessToken;
 			}
 			// If we only have one account for a single auth provider, lets just check if it's allowed and return it if it is.
 			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, sessions[0].account.label, server.id)) {
-				this._mcpRegistry.setAuthenticationUsage(server.id, providerId);
 				this.authenticationMCPServerUsageService.addAccountUsage(providerId, sessions[0].account.label, scopesSupported, server.id, server.label);
 				return sessions[0].accessToken;
 			}
@@ -205,7 +206,6 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			);
 		}
 
-		this._mcpRegistry.setAuthenticationUsage(server.id, providerId);
 		this.authenticationMCPServerAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: server.id, name: server.label, allowed: true }]);
 		this.authenticationMcpServersService.updateAccountPreference(server.id, providerId, session.account);
 		this.authenticationMCPServerUsageService.addAccountUsage(providerId, session.account.label, scopesSupported, server.id, server.label);

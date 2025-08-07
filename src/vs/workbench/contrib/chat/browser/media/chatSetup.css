@@ -3,30 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Glowing Animation */
-
-@property --chat-setup-dialog-glow-angle {
-	syntax: '<angle>';
-	initial-value: 0deg;
-	inherits: false;
-}
-
-@keyframes chat-setup-dialog-glow-angle-animation {
-	0% {
-		--chat-setup-dialog-glow-angle: 0deg;
-	}
-
-	100% {
-		--chat-setup-dialog-glow-angle: 360deg;
-	}
-}
-
-.chat-setup-dialog.chat-setup-glow {
-	border: 2px solid !important;
-	border-image: linear-gradient(var(--chat-setup-dialog-glow-angle), var(--vscode-button-background) 0, var(--vscode-editorGutter-addedBackground)) 1 !important;
-	animation: 3s chat-setup-dialog-glow-angle-animation linear infinite;
-}
-
 .chat-setup-dialog {
 
 	/* Continue Buttons */
@@ -47,7 +23,7 @@
 		background-image: url('./github.svg');
 	}
 
-	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate::before {
+	.dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.google::before {
 		background-image: url('./google.svg');
 	}
 
@@ -75,12 +51,12 @@
 	}
 }
 
-.monaco-workbench.hc-black .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate.monochrome::before,
-.monaco-workbench.vs-dark .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate.monochrome::before {
-	background-image: url('./google-mono-dark.svg');
+.monaco-workbench.hc-black .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
+.monaco-workbench.vs-dark .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-dark.svg');
 }
 
-.monaco-workbench.hc-light .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate.monochrome::before,
-.monaco-workbench.vs .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.alternate.monochrome::before {
-	background-image: url('./google-mono-light.svg');
+.monaco-workbench.hc-light .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
+.monaco-workbench.vs .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-light.svg');
 }

@@ -313,6 +313,11 @@ class CodeMain {
 				throw error;
 			}
 
+			// Since we are the second instance, we do not want to show the dock
+			if (isMacintosh) {
+				app.dock?.hide();
+			}
+
 			// there's a running instance, let's connect to it
 			let client: NodeIPCClient<string>;
 			try {
@@ -412,6 +417,11 @@ class CodeMain {
 			throw new ExpectedError('Terminating...');
 		}
 
+		// dock might be hidden at this case due to a retry
+		if (isMacintosh) {
+			app.dock?.show();
+		}
+
 		// Set the VSCODE_PID variable here when we are sure we are the first
 		// instance to startup. Otherwise we would wrongly overwrite the PID
 		process.env['VSCODE_PID'] = String(process.pid);
@@ -491,19 +501,33 @@ class CodeMain {
 		// Parse arguments
 		const args = this.validatePaths(parseMainProcessArgv(process.argv));
 
-		// If we are started with --wait create a random temporary file
-		// and pass it over to the starting instance. We can use this file
-		// to wait for it to be deleted to monitor that the edited file
-		// is closed and then exit the waiting process.
-		//
-		// Note: we are not doing this if the wait marker has been already
-		// added as argument. This can happen if VS Code was started from CLI.
-
 		if (args.wait && !args.waitMarkerFilePath) {
+			// If we are started with --wait create a random temporary file
+			// and pass it over to the starting instance. We can use this file
+			// to wait for it to be deleted to monitor that the edited file
+			// is closed and then exit the waiting process.
+			//
+			// Note: we are not doing this if the wait marker has been already
+			// added as argument. This can happen if VS Code was started from CLI.
 			const waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);
 			if (waitMarkerFilePath) {
 				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
 				args.waitMarkerFilePath = waitMarkerFilePath;
+			}
+		}
+
+		if (args.chat) {
+			if (args.chat['new-window']) {
+				// Apply `--new-window` flag to the main arguments
+				args['new-window'] = true;
+			} else if (args.chat['reuse-window']) {
+				// Apply `--reuse-window` flag to the main arguments
+				args['reuse-window'] = true;
+			} else {
+				// Unless we are started with specific instructions about
+				// new windows or reusing existing ones, always take the
+				// current working directory as workspace to open.
+				args._ = [cwd()];
 			}
 		}
 

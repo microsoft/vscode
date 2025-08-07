@@ -384,7 +384,7 @@ export class CodeLensContribution implements IEditorContribution {
 			return;
 		}
 
-		const toResolve: CodeLensItem[][] = [];
+		const toResolve: Array<ReadonlyArray<CodeLensItem>> = [];
 		const lenses: CodeLensWidget[] = [];
 		this._lenses.forEach((lens) => {
 			const request = lens.computeIfNecessary(model);

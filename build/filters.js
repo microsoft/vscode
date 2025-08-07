@@ -24,8 +24,10 @@ module.exports.all = [
 	'test/**/*',
 	'!cli/**/*',
 	'!out*/**',
+	'!extensions/**/out*/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
+	'!**/*.js.map',
 ];
 
 module.exports.unicodeFilter = [

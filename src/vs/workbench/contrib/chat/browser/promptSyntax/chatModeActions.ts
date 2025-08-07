@@ -49,7 +49,6 @@ class PickerConfigModeAction extends ConfigModeActionImpl {
 			f1: false,
 			menu: {
 				id: MenuId.ChatModePicker,
-				when: ChatContextKeys.Modes.hasCustomChatModes
 			}
 		});
 	}

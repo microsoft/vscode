@@ -13,7 +13,7 @@ import { RemoteLoggerChannelClient } from '../../log/common/logIpc.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
 import { RequestStore } from '../common/requestStore.js';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostLatencyMeasurement, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../common/terminal.js';
+import { HeartbeatConstants, IHeartbeatService, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostLatencyMeasurement, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../common/terminal.js';
 import { registerTerminalPlatformConfiguration } from '../common/terminalPlatformConfiguration.js';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../common/terminalProcess.js';
 import { IPtyHostConnection, IPtyHostStarter } from './ptyHost.js';
@@ -239,7 +239,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	async reduceConnectionGraceTime(): Promise<void> {
 		return this._optionalProxy?.reduceConnectionGraceTime();
 	}
-	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	start(id: number): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		return this._proxy.start(id);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {

@@ -102,15 +102,13 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				isSecondary: true,
 				tooltip: cancelTooltip
 			}];
+
 		let confirmWidget: ChatConfirmationWidget | ChatCustomConfirmationWidget;
 		if (typeof message === 'string') {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatConfirmationWidget,
-				title,
-				toolInvocation.originMessage,
-				message,
-				buttons,
 				this.context.container,
+				{ title, subtitle: toolInvocation.originMessage, buttons, message, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } }
 			));
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
@@ -251,11 +249,15 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			const messageSeeMoreObserver = this._register(new ElementSizeObserver(elements.message, undefined));
 			const updateSeeMoreDisplayed = () => {
 				const show = messageSeeMoreObserver.getHeight() > SHOW_MORE_MESSAGE_HEIGHT_TRIGGER;
-				elements.messageContainer.classList.toggle('can-see-more', show);
+				if (elements.messageContainer.classList.contains('can-see-more') !== show) {
+					elements.messageContainer.classList.toggle('can-see-more', show);
+					this._onDidChangeHeight.fire();
+				}
 			};
 
 			this._register(dom.addDisposableListener(elements.showMore, 'click', () => {
 				elements.messageContainer.classList.toggle('can-see-more', false);
+				this._onDidChangeHeight.fire();
 				messageSeeMoreObserver.dispose();
 			}));
 
@@ -271,11 +273,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
-				title,
-				toolInvocation.originMessage,
-				elements.root,
-				buttons,
 				this.context.container,
+				{ title, subtitle: toolInvocation.originMessage, buttons, message: elements.root, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } },
 			));
 		}
 

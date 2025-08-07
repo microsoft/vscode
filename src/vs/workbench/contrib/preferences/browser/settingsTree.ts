@@ -7,7 +7,7 @@ import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -1179,7 +1179,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		const onClickOrKeydown = (e: UIEvent) => {
 			if (isLanguageTagSetting) {
-				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey}`);
+				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey.replaceAll(' ', '')}`);
 			} else {
 				this._onDidOpenSettings.fire(dataElement.setting.key);
 			}
@@ -2539,7 +2539,7 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 				ariaLabelSections.push(`${indicatorsLabelAriaLabel}.`);
 			}
 
-			const descriptionWithoutSettingLinks = renderMarkdownAsPlaintext({ value: fixSettingLinks(element.description, false) });
+			const descriptionWithoutSettingLinks = renderAsPlaintext({ value: fixSettingLinks(element.description, false) });
 			if (descriptionWithoutSettingLinks.length) {
 				ariaLabelSections.push(descriptionWithoutSettingLinks);
 			}

@@ -364,7 +364,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 				toggleMenuTitle: localize('moreActions', "More Actions..."),
 				hoverDelegate: this.toolbarHoverDelegate,
-				hiddenItemStrategy: HiddenItemStrategy.NoHide
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				highlightToggledItems: true,
+				telemetrySource: this.nameForTelemetry,
+				toolbarOptions: { forceLeadingSeparatorInPrimaryActions: true /* separate from view toolbar */ }
 			}
 		));
 
@@ -450,11 +453,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	protected override createHeaderArea(): HTMLElement {
 		const headerArea = super.createHeaderArea();
+
 		return this.createHeaderFooterCompositeBarArea(headerArea);
 	}
 
 	protected override createFooterArea(): HTMLElement {
 		const footerArea = super.createFooterArea();
+
 		return this.createHeaderFooterCompositeBarArea(footerArea);
 	}
 
