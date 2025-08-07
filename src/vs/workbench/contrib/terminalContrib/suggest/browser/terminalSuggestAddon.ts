@@ -451,6 +451,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		return false;
 	}
 
+	private _checkProviderTriggerCharacters(char: string): boolean {
+		for (const provider of this._terminalCompletionService.providers) {
+			if (!provider.triggerCharacters) {
+				continue;
+			}
+			for (const triggerChar of provider.triggerCharacters) {
+				if (char === triggerChar) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private _wasLastInputRightArrowKey(): boolean {
 		return !!this._lastUserData?.match(/^\x1b[\[O]?C$/);
 	}
@@ -537,7 +551,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						if (
 							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
 							// with git branches in particular
-							this._isFilteringDirectories && char.match(/[\\\/]$/)
+							this._isFilteringDirectories && char.match(/[\\\/]$/) ||
+							// Check if the character is a trigger character from providers
+							this._checkProviderTriggerCharacters(char)
 						) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();
 						}

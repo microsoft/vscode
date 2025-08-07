@@ -45,7 +45,7 @@ export class ChatTodoListWidget extends Disposable {
 		expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
 
 		const titleElement = dom.$('.todo-list-title');
-		titleElement.textContent = localize('chat.todoList.title', 'Tasks');
+		titleElement.textContent = localize('chat.todoList.title', 'Todos');
 
 		this.expandoElement.appendChild(expandIcon);
 		this.expandoElement.appendChild(titleElement);
@@ -100,8 +100,12 @@ export class ChatTodoListWidget extends Disposable {
 
 		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
 		if (titleElement) {
-			titleElement.textContent = `${localize('chat.todoList.title', 'Tasks')}`;
+			titleElement.textContent = this.getProgressText(todoList);
 		}
+
+		let lastActiveIndex = -1;
+		let firstCompletedIndex = -1;
+		let firstPendingAfterCompletedIndex = -1;
 
 		todoList.forEach((todo, index) => {
 			const todoElement = dom.$('.todo-item');
@@ -118,7 +122,7 @@ export class ChatTodoListWidget extends Disposable {
 			const todoContent = dom.$('.todo-content');
 
 			const titleElement = dom.$('.todo-title');
-			titleElement.textContent = `${index + 1}. ${todo.title}`;
+			titleElement.textContent = todo.title;
 
 			todoContent.appendChild(titleElement);
 
@@ -126,7 +130,21 @@ export class ChatTodoListWidget extends Disposable {
 			todoElement.appendChild(todoContent);
 
 			this.todoListContainer.appendChild(todoElement);
+
+			// Track indices for smart scrolling
+			if (todo.status === 'completed' && firstCompletedIndex === -1) {
+				firstCompletedIndex = index;
+			}
+			if (todo.status === 'in-progress' || todo.status === 'completed') {
+				lastActiveIndex = index;
+			}
+			if (firstCompletedIndex !== -1 && todo.status === 'not-started' && firstPendingAfterCompletedIndex === -1) {
+				firstPendingAfterCompletedIndex = index;
+			}
 		});
+
+		// Auto-scroll to show the most relevant item
+		this.scrollToRelevantItem(lastActiveIndex, firstCompletedIndex, firstPendingAfterCompletedIndex, todoList.length);
 	}
 
 	private toggleExpanded(): void {
@@ -142,6 +160,51 @@ export class ChatTodoListWidget extends Disposable {
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
 		this._onDidChangeHeight.fire();
+	}
+
+	private scrollToRelevantItem(lastActiveIndex: number, firstCompletedIndex: number, firstPendingAfterCompletedIndex: number, totalItems: number): void {
+		if (totalItems <= 6) {
+			return;
+		}
+
+		setTimeout(() => {
+			const items = this.todoListContainer.querySelectorAll('.todo-item');
+
+			if (lastActiveIndex === -1 && firstCompletedIndex === -1) {
+				this.todoListContainer.scrollTo({
+					top: 0,
+					behavior: 'instant'
+				});
+				return;
+			}
+
+			let targetIndex = lastActiveIndex;
+
+			// Only show next pending if no in-progress items exist
+			if (firstCompletedIndex !== -1 && firstPendingAfterCompletedIndex !== -1 && lastActiveIndex < firstCompletedIndex) {
+				targetIndex = firstPendingAfterCompletedIndex;
+			}
+
+			if (targetIndex >= 0 && targetIndex < items.length) {
+				const targetElement = items[targetIndex] as HTMLElement;
+				targetElement.scrollIntoView({
+					behavior: 'smooth',
+					block: 'center',
+					inline: 'nearest'
+				});
+			}
+		}, 50);
+	}
+
+	private getProgressText(todoList: IChatTodo[]): string {
+		if (todoList.length === 0) {
+			return localize('chat.todoList.title', 'Todos');
+		}
+
+		const completedCount = todoList.filter(todo => todo.status === 'completed').length;
+		const totalCount = todoList.length;
+
+		return localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
 	}
 
 	private getStatusIconClass(status: string): string {

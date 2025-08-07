@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from '../../../../../../base/common/collections.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ConfiguringTask, Task } from '../../../../tasks/common/tasks.js';
-import { ITaskService } from '../../../../tasks/common/taskService.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfiguringTask, Task } from '../../../tasks/common/tasks.js';
+import { ITaskService } from '../../../tasks/common/taskService.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
