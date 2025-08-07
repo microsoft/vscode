@@ -29,7 +29,7 @@ import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex } from './scmHistory.js';
-import { getHistoryItemEditorTitle, getHistoryItemHoverContent, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
+import { getHistoryItemEditorTitle, getHistoryItemHoverContent, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository, formatHistoryItem } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ViewMode } from '../common/scm.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
@@ -400,6 +400,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
 
 	private readonly _badgesConfig: IObservable<'all' | 'filter'>;
+	private readonly _historyItemFormatConfig: IObservable<string>;
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate,
@@ -415,6 +416,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		this._badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
+		this._historyItemFormatConfig = observableConfigValue<string>('scm.graph.historyItemFormat', '${subject}', this._configurationService);
 	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
@@ -452,7 +454,13 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		const historyItemRef = provider.historyProvider.get()?.historyItemRef?.get();
 		const extraClasses = historyItemRef?.revision === historyItem.id ? ['history-item-current'] : [];
 		const [matches, descriptionMatches] = this._processMatches(historyItemViewModel, node.filterData);
-		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
+
+		// Use custom formatting for the label - watch for configuration changes
+		templateData.elementDisposables.add(autorun(reader => {
+			const format = this._historyItemFormatConfig.read(reader);
+			const formattedLabel = formatHistoryItem(historyItem, format);
+			templateData.label.setLabel(formattedLabel, historyItem.author, { matches, descriptionMatches, extraClasses });
+		}));
 
 		this._renderBadges(historyItem, templateData);
 
