@@ -251,13 +251,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
 			}
 
+			const customActions = this._generateAutoApproveActions(args.command);
+
 			confirmationMessages = isAutoApproved ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run command in background terminal")
 					: localize('runInTerminal.foreground', "Run command in terminal"),
 				message: new MarkdownString(args.explanation),
 				disclaimer,
-				customActions: this._generateAutoApproveActions(args.command),
+				customActions,
 			};
 		}
 
