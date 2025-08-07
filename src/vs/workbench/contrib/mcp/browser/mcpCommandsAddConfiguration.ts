@@ -332,10 +332,10 @@ export class McpAddConfigurationCommand {
 					});
 				}
 
-				items.push(...[
+				items.push(
 					{ id: LoadAction.Retry, label: localize('mcp.error.retry', 'Try a different package') },
 					{ id: LoadAction.Cancel, label: localize('cancel', 'Cancel') },
-				]);
+				);
 
 				loadingQuickPick.items = items;
 			} else {
