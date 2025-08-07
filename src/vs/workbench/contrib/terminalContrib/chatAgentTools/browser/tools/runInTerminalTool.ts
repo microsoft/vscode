@@ -195,6 +195,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
+		const terminalToolSessionId = generateUuid();
+
 		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
 		if (toolEditedCommand === args.command) {
 			toolEditedCommand = undefined;
@@ -216,19 +218,34 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			];
 
 			let isAutoApproved = false;
-			if (subCommandResults.some(e => e.result === 'denied')) {
+			let isDenied = false;
+			let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
+			let autoApproveDefault: boolean | undefined;
+
+			const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
+			if (deniedSubCommandResult) {
 				this._logService.info('autoApprove: Sub-command DENIED auto approval');
+				isDenied = true;
+				autoApproveDefault = deniedSubCommandResult.isDefaultRule;
+				autoApproveReason = 'subCommand';
 			} else if (commandLineResult.result === 'denied') {
 				this._logService.info('autoApprove: Command line DENIED auto approval');
+				isDenied = true;
+				autoApproveDefault = commandLineResult.isDefaultRule;
+				autoApproveReason = 'commandLine';
 			} else {
 				if (subCommandResults.every(e => e.result === 'approved')) {
 					this._logService.info('autoApprove: All sub-commands auto-approved');
+					autoApproveReason = 'subCommand';
 					isAutoApproved = true;
+					autoApproveDefault = subCommandResults.every(e => e.isDefaultRule);
 				} else {
 					this._logService.info('autoApprove: All sub-commands NOT auto-approved');
 					if (commandLineResult.result === 'approved') {
 						this._logService.info('autoApprove: Command line auto-approved');
+						autoApproveReason = 'commandLine';
 						isAutoApproved = true;
+						autoApproveDefault = commandLineResult.isDefaultRule;
 					} else {
 						this._logService.info('autoApprove: Command line NOT auto-approved');
 					}
@@ -239,6 +256,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			for (const reason of autoApproveReasons) {
 				this._logService.info(`- ${reason}`);
 			}
+
+			// Send telemetry about auto approval process
+			this._sendTelemetryPrepare({
+				terminalToolSessionId,
+				autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
+				autoApproveReason,
+				autoApproveDefault,
+			});
 
 			// Add a disclaimer warning about prompt injection for common commands that return
 			// content from the web
@@ -265,6 +290,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			presentation,
 			toolSpecificData: {
 				kind: 'terminal',
+				terminalToolSessionId,
 				commandLine: {
 					original: args.command,
 					toolEdited: toolEditedCommand
@@ -396,7 +422,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetry(toolTerminal.instance, {
+				this._sendTelemetryInvoke(toolTerminal.instance, {
+					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
 					didUserEditCommand,
 					didToolEditCommand,
 					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
@@ -464,7 +491,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} finally {
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetry(toolTerminal.instance, {
+				this._sendTelemetryInvoke(toolTerminal.instance, {
+					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
 					didUserEditCommand,
 					didToolEditCommand,
 					isBackground: false,
@@ -685,7 +713,41 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _sendTelemetry(instance: ITerminalInstance, state: {
+	private _sendTelemetryPrepare(state: {
+		terminalToolSessionId: string | undefined;
+		autoApproveResult: 'approved' | 'denied' | 'manual';
+		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
+		autoApproveDefault: boolean | undefined;
+	}) {
+		type TelemetryEvent = {
+			terminalToolSessionId: string | undefined;
+
+			autoApproveResult: string;
+			autoApproveReason: string | undefined;
+			autoApproveDefault: boolean | undefined;
+		};
+		type TelemetryClassification = {
+			owner: 'tyriar';
+			comment: 'Understanding the auto approve behavior of the runInTerminal tool';
+
+			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
+
+			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto-approved' };
+			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The reason it was auto approved or denied' };
+			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
+		};
+
+		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
+			terminalToolSessionId: state.terminalToolSessionId,
+
+			autoApproveResult: state.autoApproveResult,
+			autoApproveReason: state.autoApproveReason,
+			autoApproveDefault: state.autoApproveDefault,
+		});
+	}
+
+	private _sendTelemetryInvoke(instance: ITerminalInstance, state: {
+		terminalToolSessionId: string | undefined;
 		didUserEditCommand: boolean;
 		didToolEditCommand: boolean;
 		error: string | undefined;
@@ -703,6 +765,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
+			terminalToolSessionId: string | undefined;
 
 			result: string;
 			strategy: 0 | 1 | 2;
@@ -724,6 +787,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			comment: 'Understanding the usage of the runInTerminal tool';
 
 			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
+			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
 			result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool ran successfully, or the type of error' };
 			strategy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'What strategy was used to execute the command (0=none, 1=basic, 2=rich)' };
@@ -742,6 +806,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
+			terminalToolSessionId: state.terminalToolSessionId,
+
 			result: state.error ?? 'success',
 			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
 			userEditedCommand: state.didUserEditCommand ? 1 : 0,
