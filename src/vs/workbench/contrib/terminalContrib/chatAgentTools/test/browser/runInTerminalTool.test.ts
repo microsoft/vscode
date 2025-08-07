@@ -274,9 +274,8 @@ suite('RunInTerminalTool', () => {
 	suite('prepareToolInvocation - custom actions for dropdown', () => {
 
 		test('should generate custom actions for non-auto-approved commands', async () => {
-			// Set up a scenario where the command is not auto-approved
 			setAutoApprove({
-				ls: true, // Only ls is approved, not npm
+				ls: true,
 			});
 
 			const result = await executeToolTest({
@@ -290,18 +289,15 @@ suite('RunInTerminalTool', () => {
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
 			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
 
-			// First action should be exact command match
-			strictEqual(customActions[0].label, 'Always allow `npm run build`');
-			strictEqual(customActions[0].data.type, 'exact');
-			strictEqual(customActions[0].data.command, 'npm run build');
+			strictEqual(customActions[0].label, 'Always Allow Command: npm');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 
-			// Second action should be base command prefix match
-			strictEqual(customActions[1].label, 'Always allow `npm` commands');
-			strictEqual(customActions[1].data.type, 'prefix');
-			strictEqual(customActions[1].data.command, 'npm');
+			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm run build');
+			strictEqual(customActions[1].data.type, 'newRule');
+			ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
 
-			// Third action should be configure option
-			strictEqual(customActions[2].label, 'Configure auto approve...');
+			strictEqual(customActions[2].label, 'Configure Auto Approve...');
 			strictEqual(customActions[2].data.type, 'configure');
 		});
 
@@ -316,16 +312,13 @@ suite('RunInTerminalTool', () => {
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
 
-			// For single word commands, exact and prefix should be the same, so we should only get 2 actions
 			strictEqual(customActions.length, 2, 'Expected 2 custom actions for single word command');
 
-			// First action should be exact command match
-			strictEqual(customActions[0].label, 'Always allow `git`');
-			strictEqual(customActions[0].data.type, 'exact');
-			strictEqual(customActions[0].data.command, 'git');
+			strictEqual(customActions[0].label, 'Always Allow Command: git');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 
-			// Second action should be configure option (no separate prefix action since it's the same)
-			strictEqual(customActions[1].label, 'Configure auto approve...');
+			strictEqual(customActions[1].label, 'Configure Auto Approve...');
 			strictEqual(customActions[1].data.type, 'configure');
 		});
 

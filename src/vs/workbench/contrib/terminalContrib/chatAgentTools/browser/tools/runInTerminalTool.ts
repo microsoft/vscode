@@ -778,7 +778,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let subCommandLabel: string;
 			let subCommandTooltip: string;
 			if (subCommandsFirstWordOnly.length === 1) {
-				subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always allow command: {0}', subCommandsFirstWordOnly[0]);
+				subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always Allow Command: {0}', subCommandsFirstWordOnly[0]);
 				subCommandTooltip = localize('autoApprove.baseCommandSingleTooltip', 'Always allow command starting with `{0}` to run without confirmation', subCommandsFirstWordOnly[0]);
 			} else {
 				const commandSeparated = subCommandsFirstWordOnly.join(', ');
@@ -802,7 +802,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (subCommandsFirstWordOnly[0] !== commandLine) {
 				actions.push({
 					// Add an extra & since it's treated as a mnemonic
-					label: localize('autoApprove.exactCommand', 'Always allow full command line: {0}', commandLine.replaceAll('&&', '&&&')),
+					label: localize('autoApprove.exactCommand', 'Always Allow Full Command Line: {0}', commandLine.replaceAll('&&', '&&&')),
 					tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
 					data: {
 						type: 'newRule',
@@ -820,7 +820,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Always show configure option
 		actions.push({
-			label: localize('autoApprove.configure', 'Configure auto approve...'),
+			label: localize('autoApprove.configure', 'Configure Auto Approve...'),
 			tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
 			data: {
 				type: 'configure'
