@@ -32,7 +32,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 		this._textVirtualModel = textVirtualModel;
 		this._lspTerminalModelContentProvider = lspTerminalModelContentProvider;
 		this.triggerCharacters = provider.triggerCharacters ? [...provider.triggerCharacters, ' ', '('] : [' ', '('];
-    this.id = `lsp:${this._provider._debugDisplayName}`;
+		this.id = `lsp:${this._provider._debugDisplayName}`;
 	}
 
 	activate(terminal: Terminal): void {
