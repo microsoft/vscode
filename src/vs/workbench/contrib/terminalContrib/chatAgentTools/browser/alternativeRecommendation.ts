@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { getToolRecommendationForCommand } from './commandRoutingRegistry.js';
 
 let previouslyRecommededInSession = false;
 
@@ -28,7 +29,18 @@ const terminalCommands: { commands: RegExp[]; tags: string[] }[] = [
 
 export function getRecommendedToolsOverRunInTerminal(commandLine: string, languageModelToolsService: ILanguageModelToolsService): string | undefined {
 	const tools = languageModelToolsService.getTools();
-	if (!tools || previouslyRecommededInSession) {
+	if (!tools) {
+		return;
+	}
+
+	// First, try the new generic command routing system
+	const routingRecommendation = getToolRecommendationForCommand(commandLine, languageModelToolsService);
+	if (routingRecommendation) {
+		return routingRecommendation;
+	}
+
+	// Fall back to the existing tag-based system for python/jupyter commands
+	if (previouslyRecommededInSession) {
 		return;
 	}
 
