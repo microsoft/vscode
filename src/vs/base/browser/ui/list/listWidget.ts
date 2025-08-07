@@ -672,10 +672,10 @@ const DefaultMultipleSelectionController = {
 export class MouseController<T> implements IDisposable {
 
 	private multipleSelectionController: IMultipleSelectionController<T> | undefined;
-	private mouseSupport: boolean;
+	private readonly mouseSupport: boolean;
 	private readonly disposables = new DisposableStore();
 
-	private _onPointer = new Emitter<IListMouseEvent<T>>();
+	private readonly _onPointer = this.disposables.add(new Emitter<IListMouseEvent<T>>());
 	readonly onPointer: Event<IListMouseEvent<T>> = this._onPointer.event;
 
 	constructor(protected list: List<T>) {

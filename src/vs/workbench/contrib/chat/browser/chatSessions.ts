@@ -34,7 +34,7 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { ResourceLabels, IResourceLabel } from '../../../browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { append, $, getActiveWindow } from '../../../../base/browser/dom.js';
+import { append, $, getActiveWindow, clearNode } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
@@ -673,6 +673,7 @@ class SessionsViewPane extends ViewPane {
 	private treeContainer?: HTMLElement;
 	private dataSource?: SessionsDataSource;
 	private labels?: ResourceLabels;
+	private messageElement?: HTMLElement;
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
@@ -690,6 +691,7 @@ class SessionsViewPane extends ViewPane {
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -713,6 +715,84 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
+	private getProviderDisplayName(): string {
+		const contributions = this.chatSessionsService.getChatSessionContributions();
+		const contribution = contributions.find(c => c.type === this.provider.chatSessionType);
+		if (contribution) {
+			return contribution.displayName;
+		}
+		return '';
+	}
+
+	private showEmptyMessage(): void {
+		if (!this.messageElement) {
+			return;
+		}
+
+		// Only show message for non-local providers
+		if (this.provider.chatSessionType === 'local') {
+			this.hideMessage();
+			return;
+		}
+
+		const providerName = this.getProviderDisplayName();
+		if (!providerName) {
+			return;
+		}
+
+		const messageText = nls.localize('chatSessions.noResults', "No sessions found from {0}", providerName);
+
+		// Clear the message element using DOM utility
+		clearNode(this.messageElement);
+
+		const messageContainer = append(this.messageElement, $('.no-sessions-message'));
+
+		append(messageContainer, $('.codicon.codicon-info'));
+		const textElement = append(messageContainer, $('span'));
+		textElement.textContent = messageText;
+
+		// Show the message element
+		this.messageElement.style.display = 'block';
+
+		// Hide the tree
+		if (this.treeContainer) {
+			this.treeContainer.style.display = 'none';
+		}
+	}
+
+	private hideMessage(): void {
+		if (this.messageElement) {
+			this.messageElement.style.display = 'none';
+		}
+
+		// Show the tree
+		if (this.treeContainer) {
+			this.treeContainer.style.display = 'block';
+		}
+	}
+
+	/**
+	 * Updates the empty state message based on current tree data.
+	 * Uses the tree's existing data to avoid redundant provider calls.
+	 */
+	private updateEmptyStateMessage(): void {
+		try {
+			// Check if the tree has the provider node and get its children count
+			if (this.tree?.hasNode(this.provider)) {
+				const providerNode = this.tree.getNode(this.provider);
+				const childCount = providerNode.children?.length || 0;
+
+				if (childCount === 0) {
+					this.showEmptyMessage();
+				} else {
+					this.hideMessage();
+				}
+			}
+		} catch (error) {
+			this.logService.error('Error checking tree data for empty state:', error);
+		}
+	}
+
 	/**
 	 * Refreshes the tree data with progress indication.
 	 * Shows a progress indicator while the tree updates its children from the provider.
@@ -732,6 +812,9 @@ class SessionsViewPane extends ViewPane {
 					await this.tree!.updateChildren(this.provider);
 				}
 			);
+
+			// Check for empty state after refresh using tree data
+			this.updateEmptyStateMessage();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error refreshing chat sessions tree:', error);
@@ -757,6 +840,9 @@ class SessionsViewPane extends ViewPane {
 					await this.tree!.setInput(this.provider);
 				}
 			);
+
+			// Check for empty state after loading using tree data
+			this.updateEmptyStateMessage();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error loading chat sessions data:', error);
@@ -765,6 +851,10 @@ class SessionsViewPane extends ViewPane {
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
+
+		// Create message element for empty state
+		this.messageElement = append(container, $('.chat-sessions-message'));
+		this.messageElement.style.display = 'none';
 
 		this.treeContainer = append(container, $('.chat-sessions-tree.show-file-icons'));
 		this.treeContainer.classList.add('file-icon-themable-tree');
@@ -807,6 +897,7 @@ class SessionsViewPane extends ViewPane {
 		// Handle double-click and keyboard selection to open editors
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element as IChatSessionItem & { provider: IChatSessionItemProvider };
+
 			if (element && this.isLocalChatSessionItem(element)) {
 				if (element.sessionType === 'editor' && element.editor && element.group) {
 					// Open the chat editor
@@ -818,9 +909,14 @@ class SessionsViewPane extends ViewPane {
 				const ckey = this.contextKeyService.createKey('chatSessionType', element.provider.chatSessionType);
 				ckey.reset();
 
+				const options: IChatEditorOptions = {
+					pinned: true,
+					preferredTitle: element.label
+				};
+
 				await this.editorService.openEditor({
 					resource: ChatSessionUri.forSession(element.provider.chatSessionType, element.id),
-					options: { pinned: true } satisfies IChatEditorOptions
+					options,
 				});
 			}
 		}));

@@ -141,7 +141,8 @@ class ChatLifecycleHandler extends Disposable {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -156,6 +157,10 @@ class ChatLifecycleHandler extends Disposable {
 			return false;
 		}
 
+		if (ChatContextKeys.skipChatRequestInProgressMessage.getValue(this.contextKeyService) === true) {
+			return false;
+		}
+
 		return this.doShouldVetoShutdown(reason);
 	}
 
@@ -164,25 +169,27 @@ class ChatLifecycleHandler extends Disposable {
 		showChatView(this.viewsService);
 
 		let message: string;
+		let detail: string;
 		switch (reason) {
 			case ShutdownReason.CLOSE:
 				message = localize('closeTheWindow.message', "A chat request is in progress. Are you sure you want to close the window?");
+				detail = localize('closeTheWindow.detail', "The chat request will stop if you close the window.");
 				break;
 			case ShutdownReason.LOAD:
 				message = localize('changeWorkspace.message', "A chat request is in progress. Are you sure you want to change the workspace?");
+				detail = localize('changeWorkspace.detail', "The chat request will stop if you change the workspace.");
 				break;
 			case ShutdownReason.RELOAD:
 				message = localize('reloadTheWindow.message', "A chat request is in progress. Are you sure you want to reload the window?");
+				detail = localize('reloadTheWindow.detail', "The chat request will stop if you reload the window.");
 				break;
 			default:
 				message = isMacintosh ? localize('quit.message', "A chat request is in progress. Are you sure you want to quit?") : localize('exit.message', "A chat request is in progress. Are you sure you want to exit?");
+				detail = isMacintosh ? localize('quit.detail', "The chat request will stop if you quit.") : localize('exit.detail', "The chat request will stop if you exit.");
 				break;
 		}
 
-		const result = await this.dialogService.confirm({
-			message,
-			detail: localize('quit.detail', "The chat request will be cancelled if you continue.")
-		});
+		const result = await this.dialogService.confirm({ message, detail });
 
 		return !result.confirmed;
 	}

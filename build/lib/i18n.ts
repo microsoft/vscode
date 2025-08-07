@@ -389,7 +389,7 @@ export function processNlsFiles(opts: { out: string; fileHeader: string; languag
 		const fileName = path.basename(file.path);
 		if (fileName === 'nls.keys.json') {
 			try {
-				const contents = file.contents.toString('utf8');
+				const contents = file.contents!.toString('utf8');
 				const json = JSON.parse(contents);
 				if (NLSKeysFormat.is(json)) {
 					processCoreBundleFormat(file.base, opts.fileHeader, opts.languages, json, this);
@@ -653,7 +653,7 @@ export function createXlfFilesForIsl(): ThroughStream {
 			keys: string[] = [],
 			messages: string[] = [];
 
-		const model = new TextModel(file.contents.toString());
+		const model = new TextModel(file.contents!.toString());
 		let inMessageSection = false;
 		model.lines.forEach(line => {
 			if (line.length === 0) {
@@ -752,7 +752,7 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
 			project = extensionsProject;
 		}
-		const contents = xlf.contents.toString();
+		const contents = xlf.contents!.toString();
 		log(`Found ${project}: ${resource}`);
 		const parsePromise = getL10nFilesFromXlf(contents);
 		parsePromises.push(parsePromise);
@@ -808,7 +808,7 @@ export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup):
 
 	return through(function (this: ThroughStream, xlf: File) {
 		const stream = this;
-		const parsePromise = XLF.parse(xlf.contents.toString());
+		const parsePromise = XLF.parse(xlf.contents!.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
 			resolvedFiles => {

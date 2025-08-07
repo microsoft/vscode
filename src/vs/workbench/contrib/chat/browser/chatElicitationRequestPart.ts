@@ -19,11 +19,12 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 	constructor(
 		public readonly title: string | IMarkdownString,
 		public readonly message: string | IMarkdownString,
-		public readonly originMessage: string | IMarkdownString,
+		public readonly subtitle: string | IMarkdownString,
 		public readonly acceptButtonLabel: string,
 		public readonly rejectButtonLabel: string,
 		public readonly accept: () => Promise<void>,
 		public readonly reject: () => Promise<void>,
+		public readonly source?: { type: 'mcp'; definitionId: string },
 	) {
 		super();
 	}
