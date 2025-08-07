@@ -63,7 +63,6 @@ import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
-import { timeout } from '../../../../base/common/async.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -366,12 +365,6 @@ export function registerTerminalActions() {
 				},
 			});
 			await instance.focusWhenReady();
-			// HACK: Since it's a new window it should be unlocked, despite the configuration, this
-			// is using a timeout as it's auto locked after several events firing in code internal
-			// to the editor.
-			await timeout(100);
-			const g = c.editorService.getInputFromResource(instance.resource).group;
-			g?.lock(false);
 		}
 	});
 
