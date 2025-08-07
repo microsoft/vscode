@@ -990,6 +990,8 @@ export type LifetimeSummary = {
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilProviderRequest: number;
+	timeUntilProviderResponse: number;
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;
