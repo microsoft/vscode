@@ -766,36 +766,28 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		});
 	}
 
-	private _generateAutoApproveActions(command: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): IToolConfirmationAction[] {
+	private _generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): IToolConfirmationAction[] {
 		const actions: IToolConfirmationAction[] = [];
 
 		// We shouldn't offer configuring rules for commands that are explicitly denied since it
 		// wouldn't get auto approved with a new rule
 		const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
 		if (canCreateAutoApproval) {
-			// Allow exact command line
-			actions.push({
-				label: localize('autoApprove.exactCommand', 'Always allow `{0}`', command),
-				tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
-				data: {
-					type: 'newRule',
-					rule: {
-						key: command,
-						value: {
-							approve: true,
-							matchCommandLine: true
-						}
-					}
-				} satisfies TerminalNewAutoApproveButtonData
-			});
-
 			// Allow all sub-commands
 			const subCommandsFirstWordOnly = subCommands.map(command => command.split(' ')[0]);
-			const commandSeparated = subCommandsFirstWordOnly.map(e => `\`${e}\``).join(', ');
-			// TODO: Only add rules that are needed?
+			let subCommandLabel: string;
+			let subCommandTooltip: string;
+			if (subCommandsFirstWordOnly.length === 1) {
+				subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always allow command: {0}', subCommandsFirstWordOnly[0]);
+				subCommandTooltip = localize('autoApprove.baseCommandSingleTooltip', 'Always allow command starting with `{0}` to run without confirmation', subCommandsFirstWordOnly[0]);
+			} else {
+				const commandSeparated = subCommandsFirstWordOnly.join(', ');
+				subCommandLabel = localize('autoApprove.baseCommand', 'Always allow commands: {0}', commandSeparated);
+				subCommandTooltip = localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated);
+			}
 			actions.push({
-				label: localize('autoApprove.baseCommand', 'Always allow {0} commands with any arguments', commandSeparated),
-				tooltip: localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated),
+				label: subCommandLabel,
+				tooltip: subCommandTooltip,
 				data: {
 					type: 'newRule',
 					rule: subCommandsFirstWordOnly.map(key => ({
@@ -805,17 +797,35 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				} satisfies TerminalNewAutoApproveButtonData
 			});
 
-			// TODO: Add separator
-
-			// Configure option
-			actions.push({
-				label: localize('autoApprove.configure', 'Configure auto approve...'),
-				tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
-				data: {
-					type: 'configure'
-				} satisfies TerminalNewAutoApproveButtonData
-			});
+			// Allow exact command line, don't do this if it's just the first sub-command's first
+			// word
+			if (subCommandsFirstWordOnly[0] !== commandLine) {
+				actions.push({
+					// Add an extra & since it's treated as a mnemonic
+					label: localize('autoApprove.exactCommand', 'Always allow full command line: {0}', commandLine.replaceAll('&&', '&&&')),
+					tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
+					data: {
+						type: 'newRule',
+						rule: {
+							key: commandLine,
+							value: {
+								approve: true,
+								matchCommandLine: true
+							}
+						}
+					} satisfies TerminalNewAutoApproveButtonData
+				});
+			}
 		}
+
+		// Always show configure option
+		actions.push({
+			label: localize('autoApprove.configure', 'Configure auto approve...'),
+			tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
+			data: {
+				type: 'configure'
+			} satisfies TerminalNewAutoApproveButtonData
+		});
 
 		return actions;
 	}

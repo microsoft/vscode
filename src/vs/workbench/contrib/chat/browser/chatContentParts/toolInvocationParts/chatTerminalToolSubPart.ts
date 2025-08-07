@@ -175,13 +175,10 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 						const oldValue = (inspect.user?.value as Record<string, unknown> | undefined) ?? {};
 						let newValue: Record<string, unknown>;
 						if (isObject(oldValue)) {
-							// IMPORTANT: Old value intentionally overwrites the new value here,
-							// this is because we want to preserve as much as possible and only an
-							// approval rule should be there if this button action was offered
-							newValue = {
-								...newRules,
-								...oldValue
-							};
+							newValue = { ...oldValue };
+							for (const newRule of newRules) {
+								newValue[newRule.key] = newRule.value;
+							}
 						} else {
 							this.preferencesService.openSettings({
 								jsonEditor: true,
