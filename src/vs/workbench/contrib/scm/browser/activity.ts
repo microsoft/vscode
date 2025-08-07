@@ -164,8 +164,10 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 				repoAgnosticActionName = '';
 			}
 
+			const readableName = repoAgnosticActionName || command.title || 'Unnamed Command';
+
 			const statusbarEntry: IStatusbarEntry = {
-				name: localize('status.scm', "Source Control") + (repoAgnosticActionName ? ` ${repoAgnosticActionName}` : ''),
+				name: `Source Control: ${readableName}`,
 				text: command.title,
 				ariaLabel: tooltip,
 				tooltip,
