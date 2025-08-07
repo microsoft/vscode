@@ -703,11 +703,11 @@ suite('CommandLineAutoApprover', () => {
 
 	suite('isDefaultRule logic', () => {
 		function getIsDefaultRule(command: string): boolean | undefined {
-			return commandLineAutoApprover.isCommandAutoApproved(command, shell, os).isDefaultRule;
+			return commandLineAutoApprover.isCommandAutoApproved(command, shell, os).rule?.isDefaultRule;
 		}
 
 		function getCommandLineIsDefaultRule(commandLine: string): boolean | undefined {
-			return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).isDefaultRule;
+			return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).rule?.isDefaultRule;
 		}
 
 		function setAutoApproveWithDefaults(userConfig: { [key: string]: boolean }, defaultConfig: { [key: string]: boolean }) {
@@ -820,7 +820,7 @@ suite('CommandLineAutoApprover', () => {
 			strictEqual(catResult.result, 'approved', 'cat should be approved from default config');
 
 			// cat should be marked as default rule since it comes from default config only
-			strictEqual(catResult.isDefaultRule, true, 'cat is only in default config, not in user config - should be marked as default');
+			strictEqual(catResult.rule?.isDefaultRule, true, 'cat is only in default config, not in user config - should be marked as default');
 		});
 
 		test('should handle default rules with different values', () => {

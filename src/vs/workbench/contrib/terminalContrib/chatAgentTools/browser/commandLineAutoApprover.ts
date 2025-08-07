@@ -67,13 +67,13 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; isDefaultRule: boolean | undefined; reason: string } {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
 				return {
 					result: 'denied',
-					isDefaultRule: rule.isDefaultRule,
+					rule,
 					reason: `Command '${command}' is denied by deny list rule: ${rule.sourceText}`
 				};
 			}
@@ -84,7 +84,7 @@ export class CommandLineAutoApprover extends Disposable {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
 				return {
 					result: 'approved',
-					isDefaultRule: rule.isDefaultRule,
+					rule,
 					reason: `Command '${command}' is approved by allow list rule: ${rule.sourceText}`
 				};
 			}
@@ -95,18 +95,17 @@ export class CommandLineAutoApprover extends Disposable {
 		// Fallback is always to require approval
 		return {
 			result: 'noMatch',
-			isDefaultRule: undefined,
 			reason: `Command '${command}' has no matching auto approve entries`
 		};
 	}
 
-	isCommandLineAutoApproved(commandLine: string): { result: ICommandApprovalResult; isDefaultRule: boolean | undefined; reason: string } {
+	isCommandLineAutoApproved(commandLine: string): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
 		// Check the deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
 				return {
 					result: 'denied',
-					isDefaultRule: rule.isDefaultRule,
+					rule,
 					reason: `Command line '${commandLine}' is denied by deny list rule: ${rule.sourceText}`
 				};
 			}
@@ -117,14 +116,13 @@ export class CommandLineAutoApprover extends Disposable {
 			if (rule.regex.test(commandLine)) {
 				return {
 					result: 'approved',
-					isDefaultRule: rule.isDefaultRule,
+					rule,
 					reason: `Command line '${commandLine}' is approved by allow list rule: ${rule.sourceText}`
 				};
 			}
 		}
 		return {
 			result: 'noMatch',
-			isDefaultRule: undefined,
 			reason: `Command line '${commandLine}' has no matching auto approve entries`
 		};
 	}
