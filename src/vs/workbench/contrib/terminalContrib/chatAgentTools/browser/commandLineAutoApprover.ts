@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
 import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
 import { isObject } from '../../../../../base/common/types.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
 import { IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
@@ -193,7 +194,7 @@ export class CommandLineAutoApprover extends Disposable {
 			const isDefaultRule = !!(
 				isObject(defaultValue) &&
 				key in defaultValue &&
-				(defaultValue as Record<string, unknown>)[key] === value
+				structuralEquals((defaultValue as Record<string, unknown>)[key], value)
 			);
 			if (typeof value === 'boolean') {
 				const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
