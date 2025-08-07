@@ -59,18 +59,32 @@ export class LineEditTracker extends Disposable {
 			const startLine = change.range.startLineNumber;
 			const endLine = change.range.endLineNumber;
 
-			// Handle line deletions first
-			if (change.range.startLineNumber < change.range.endLineNumber) {
+			// Handle deletions
+			const isPartialLineDeletion = startLine === endLine && change.text === '';
+			const isCompleteLineDeletion = startLine < endLine;
+
+			if (isPartialLineDeletion) {
+				// Partial deletion within a line - mark as edited by the deletion source
+				this._setLineEditSource(startLine, lineEditSource);
+				affectedLines.set(startLine, lineEditSource);
+			} else if (isCompleteLineDeletion) {
+				// Complete line deletion - mark deleted lines as Undetermined and shift remaining lines
 				this._handleLineDeletion(startLine, endLine);
+				// Add the deleted lines to affected lines as Undetermined
+				for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+					affectedLines.set(lineNum, LineEditSource.Undetermined);
+				}
 			}
 
 			// Determine how many lines were inserted
 			const insertedLines = this._countNewLines(change.text);
 
-			// Mark affected lines with the edit source
-			for (let lineNum = startLine; lineNum <= startLine + insertedLines; lineNum++) {
-				this._setLineEditSource(lineNum, lineEditSource);
-				affectedLines.set(lineNum, lineEditSource);
+			// Mark lines with insertions/replacements with the edit source
+			if (change.text !== '') {
+				for (let lineNum = startLine; lineNum <= startLine + insertedLines; lineNum++) {
+					this._setLineEditSource(lineNum, lineEditSource);
+					affectedLines.set(lineNum, lineEditSource);
+				}
 			}
 
 			// Handle line insertions - shift line numbers for subsequent lines

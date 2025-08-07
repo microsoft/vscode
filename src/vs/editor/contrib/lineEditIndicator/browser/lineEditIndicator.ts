@@ -28,7 +28,7 @@ export class LineEditIndicatorContribution extends Disposable implements IEditor
 	}
 
 	private readonly _editor: ICodeEditor;
-	private _enabled: boolean = true; // Default enabled as per requirements
+	private _enabled: boolean = false; // Default disabled
 	private _decorationsCollection: string[] = [];
 
 	constructor(editor: ICodeEditor) {
