@@ -655,6 +655,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					shownDuration: lifetimeSummary.shownDuration,
 					shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
 					timeUntilShown: lifetimeSummary.timeUntilShown,
+					timeUntilProviderRequest: lifetimeSummary.timeUntilProviderRequest,
+					timeUntilProviderResponse: lifetimeSummary.timeUntilProviderResponse,
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
 					preceeded: lifetimeSummary.preceeded,
@@ -1311,6 +1313,8 @@ type InlineCompletionEndOfLifeEvent = {
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilProviderRequest: number;
+	timeUntilProviderResponse: number;
 	reason: 'accepted' | 'rejected' | 'ignored';
 	partiallyAccepted: number;
 	preceeded: boolean;
@@ -1342,6 +1346,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
 	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
+	timeUntilProviderRequest: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be requested from the provider' };
+	timeUntilProviderResponse: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
 	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
 	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
