@@ -37,7 +37,7 @@ import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
 import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { mapShellTypeToExtension } from './lspTerminalUtil.js';
+import { getTerminalLspSupportedLanguageObj } from './lspTerminalUtil.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
@@ -162,13 +162,13 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	// TODO: Eventually support multiple LSP providers for [non-Python REPLs](https://github.com/microsoft/vscode/issues/249479)
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
-
-		if (!this._ctx.instance.shellType) {
+		let lspTerminalObj = undefined;
+		if (!this._ctx.instance.shellType || !(lspTerminalObj = getTerminalLspSupportedLanguageObj(this._ctx.instance.shellType))) {
 			this._lspAddons.clearAndDisposeAll();
 			return;
 		}
 
-		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, mapShellTypeToExtension(this._ctx.instance.shellType));
+		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, lspTerminalObj.extension);
 
 		// Load and register the LSP completion providers (one per language server)
 		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri, this._ctx.instance.shellType);
