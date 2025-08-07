@@ -289,6 +289,7 @@ export interface IChatTerminalToolInvocationData {
 	alternativeRecommendation?: string;
 	language: string;
 	terminalToolSessionId?: string;
+	autoApproveInfo?: IMarkdownString;
 }
 
 /**

@@ -202,6 +202,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolEditedCommand = undefined;
 		}
 
+		let autoApproveInfo: IMarkdownString | undefined;
 		let confirmationMessages: IToolConfirmationMessages | undefined;
 		if (alternativeRecommendation) {
 			confirmationMessages = undefined;
@@ -226,28 +227,65 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (deniedSubCommandResult) {
 				this._logService.info('autoApprove: Sub-command DENIED auto approval');
 				isDenied = true;
-				autoApproveDefault = deniedSubCommandResult.isDefaultRule;
+				autoApproveDefault = deniedSubCommandResult.rule?.isDefaultRule;
 				autoApproveReason = 'subCommand';
 			} else if (commandLineResult.result === 'denied') {
 				this._logService.info('autoApprove: Command line DENIED auto approval');
 				isDenied = true;
-				autoApproveDefault = commandLineResult.isDefaultRule;
+				autoApproveDefault = commandLineResult.rule?.isDefaultRule;
 				autoApproveReason = 'commandLine';
 			} else {
 				if (subCommandResults.every(e => e.result === 'approved')) {
 					this._logService.info('autoApprove: All sub-commands auto-approved');
 					autoApproveReason = 'subCommand';
 					isAutoApproved = true;
-					autoApproveDefault = subCommandResults.every(e => e.isDefaultRule);
+					autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
 				} else {
 					this._logService.info('autoApprove: All sub-commands NOT auto-approved');
 					if (commandLineResult.result === 'approved') {
 						this._logService.info('autoApprove: Command line auto-approved');
 						autoApproveReason = 'commandLine';
 						isAutoApproved = true;
-						autoApproveDefault = commandLineResult.isDefaultRule;
+						autoApproveDefault = commandLineResult.rule?.isDefaultRule;
 					} else {
 						this._logService.info('autoApprove: Command line NOT auto-approved');
+					}
+				}
+			}
+
+			if (isAutoApproved) {
+				switch (autoApproveReason) {
+					case 'commandLine': {
+						if (commandLineResult.rule) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', `\`${commandLineResult.rule.sourceText}\``)}_`);
+						}
+						break;
+					}
+					case 'subCommand': {
+						if (subCommandResults.length === 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', subCommandResults.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						} else if (subCommandResults.length > 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', subCommandResults.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						}
+						break;
+					}
+				}
+			} else if (isDenied) {
+				switch (autoApproveReason) {
+					case 'commandLine': {
+						if (commandLineResult.rule) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', `\`${commandLineResult.rule.sourceText}\``)}_`);
+						}
+						break;
+					}
+					case 'subCommand': {
+						const deniedRules = subCommandResults.filter(e => e.result === 'denied');
+						if (deniedRules.length === 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', deniedRules.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						} else if (deniedRules.length > 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', deniedRules.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						}
+						break;
 					}
 				}
 			}
@@ -297,6 +335,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				},
 				language,
 				alternativeRecommendation,
+				autoApproveInfo,
 			}
 		};
 	}
@@ -317,7 +356,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
-		let toolResultMessage: string | IMarkdownString | undefined;
+		let toolResultMessage: string | undefined;
 
 		const chatSessionId = invocation.context?.sessionId ?? 'no-chat-session';
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
@@ -451,7 +490,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance);
-						toolResultMessage = new MarkdownString('Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection');
+						toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 						break;
 					}
 					case ShellIntegrationQuality.Basic: {
@@ -516,8 +555,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			resultText.push(terminalResult);
 
+			if (toolSpecificData.autoApproveInfo) {
+				if (toolResultMessage) {
+					toolResultMessage = `${toolSpecificData.autoApproveInfo.value}\n\n${toolResultMessage}`;
+				} else {
+					toolResultMessage = toolSpecificData.autoApproveInfo.value;
+				}
+			}
+
 			return {
-				toolResultMessage,
+				toolResultMessage: new MarkdownString(toolResultMessage),
 				content: [{
 					kind: 'text',
 					value: resultText.join(''),
