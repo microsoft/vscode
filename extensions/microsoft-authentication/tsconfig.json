@@ -2,7 +2,6 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"baseUrl": ".",
-		"experimentalDecorators": true,
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"noFallthroughCasesInSwitch": true,

@@ -121,6 +121,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			file: true,
 			du: true,
 			df: true,
+			jq: true,
 			// While these PowerShell verbs can have side effects, they are generally innocuous (eg.
 			// updating OS-level file access info) and and often have prompts if they're more
 			// involved (eg. Get-Credential)
@@ -140,6 +141,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// not intended to be a catch all as the user needs to opt-in to auto-approve commands, it
 			// provides additional safety when the commands get approved by broad rules or via LLM-based
 			// approval
+
+			// Overwriting allowed by default commands with special cases
+			'/find\\b.*-exec\\b/': false,
 
 			// Deleting files
 			rm: false,

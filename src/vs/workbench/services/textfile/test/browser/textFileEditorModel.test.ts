@@ -8,7 +8,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
 import { EncodingMode, TextFileEditorModelState, snapshotToString, isTextFileEditorModel, ITextFileEditorModelSaveEvent } from '../../common/textfiles.js';
 import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel, getLastResolvedFileStat } from '../../../../test/browser/workbenchTestServices.js';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { TextFileEditorModelManager } from '../../common/textFileEditorModelManager.js';
 import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from '../../../../../platform/files/common/files.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -318,7 +318,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isResolved()); // model got resolved due to decoding
 	});
 
-	test('setEncoding - decode dirty file saves first', async function () {
+	test('setEncoding - decode dirty file throws', async function () {
 		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
 		accessor.workingCopyService.testUnregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
 
@@ -327,9 +327,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.updateTextEditorModel(createTextBufferFactory('bar'));
 		assert.strictEqual(model.isDirty(), true);
 
-		await model.setEncoding('utf16', EncodingMode.Decode);
-
-		assert.strictEqual(model.isDirty(), false);
+		assertThrowsAsync(() => model.setEncoding('utf16', EncodingMode.Decode));
 	});
 
 	test('encoding updates with language based configuration', async function () {

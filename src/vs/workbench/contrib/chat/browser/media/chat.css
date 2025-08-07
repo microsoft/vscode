@@ -1075,7 +1075,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
 	display: flex;
 	gap: 4px;
-	overflow: hidden;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
@@ -2517,3 +2516,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-overflow: ellipsis;
 	min-width: 0;
 }
+
+
+.interactive-session .interactive-response .chat-thinking-box {
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+	padding: 0px 8px;
+	margin: 4px 0;
+	background-color: var(--vscode-editor-background);
+
+	.chat-thinking-text {
+		font-size: inherit;
+		line-height: inherit;
+		display: flex;
+		align-items: flex-start;
+	}
+}
+
+

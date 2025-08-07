@@ -41,7 +41,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -2699,6 +2699,20 @@ export namespace ChatResponseProgressPart {
 	}
 }
 
+export namespace ChatResponseThinkingProgressPart {
+	export function from(part: vscode.ChatResponseThinkingProgressPart): Dto<IChatThinkingPart> {
+		return {
+			kind: 'thinking',
+			value: part.value,
+			id: part.id,
+			metadata: part.metadata
+		};
+	}
+	export function to(part: Dto<IChatThinkingPart>): vscode.ChatResponseThinkingProgressPart {
+		return new types.ChatResponseThinkingProgressPart(part.value);
+	}
+}
+
 export namespace ChatResponseWarningPart {
 	export function from(part: vscode.ChatResponseWarningPart): Dto<IChatWarningMessage> {
 		return {
@@ -2999,6 +3013,8 @@ export namespace ChatResponsePart {
 			return ChatResponseReferencePart.from(part);
 		} else if (part instanceof types.ChatResponseProgressPart) {
 			return ChatResponseProgressPart.from(part);
+		} else if (part instanceof types.ChatResponseThinkingProgressPart) {
+			return ChatResponseThinkingProgressPart.from(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.from(part);
 		} else if (part instanceof types.ChatResponseMultiDiffPart) {
@@ -3260,7 +3276,9 @@ export namespace ChatAgentResult {
 			if (value.$mid === MarshalledId.LanguageModelToolResult) {
 				return new types.LanguageModelToolResult(cloneAndChange(value.content, reviveMetadata));
 			} else if (value.$mid === MarshalledId.LanguageModelTextPart) {
-				return new types.LanguageModelTextPart(value.value, value.audience);
+				return new types.LanguageModelTextPart(value.value);
+			} else if (value.$mid === MarshalledId.LanguageModelThinkingPart) {
+				return new types.LanguageModelThinkingPart(value.value, value.id, value.metadata);
 			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {
 				return new types.LanguageModelPromptTsxPart(value.value);
 			}

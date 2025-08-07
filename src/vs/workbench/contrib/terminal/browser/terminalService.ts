@@ -42,7 +42,7 @@ import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalP
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ILifecycleService, ShutdownReason, StartupKind, WillShutdownEvent } from '../../../services/lifecycle/common/lifecycle.js';
@@ -56,8 +56,9 @@ import { mark } from '../../../../base/common/performance.js';
 import { DetachedTerminal } from './detachedTerminal.js';
 import { ITerminalCapabilityImplMap, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { createInstanceCapabilityEventMultiplexer } from './terminalEvents.js';
-import { mainWindow } from '../../../../base/browser/window.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../../base/browser/window.js';
 import { GroupIdentifier } from '../../../common/editor.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 
 export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -1170,6 +1171,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _getEditorOptions(location?: ITerminalLocationOptions): TerminalEditorLocation | undefined {
 		if (location && typeof location === 'object' && 'viewColumn' in location) {
+			// Terminal-specific workaround to resolve the active group in auxiliary windows to
+			// override the locked editor behavior.
+			if (location.viewColumn === ACTIVE_GROUP && isAuxiliaryWindow(getActiveWindow())) {
+				location.viewColumn = this._editorGroupsService.activeGroup.id;
+				return location;
+			}
 			location.viewColumn = columnToEditorGroup(this._editorGroupsService, this._configurationService, location.viewColumn);
 			return location;
 		}

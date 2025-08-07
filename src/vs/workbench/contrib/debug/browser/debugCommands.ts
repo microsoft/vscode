@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { List } from '../../../../base/browser/ui/list/listWidget.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, isFrameDeemphasized, IDataBreakpointInfoResponse, DataBreakpointSetType } from '../common/debug.js';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_REPL, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, isFrameDeemphasized, IDataBreakpointInfoResponse, DataBreakpointSetType, IExceptionBreakpoint } from '../common/debug.js';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint, Thread } from '../common/debugModel.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -84,6 +84,7 @@ export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
 export const BREAK_WHEN_VALUE_IS_ACCESSED_ID = 'debug.breakWhenValueIsAccessed';
 export const BREAK_WHEN_VALUE_IS_READ_ID = 'debug.breakWhenValueIsRead';
+export const TOGGLE_EXCEPTION_BREAKPOINTS_ID = 'debug.toggleExceptionBreakpoints';
 
 export const DEBUG_COMMAND_CATEGORY: ILocalizedString = nls.localize2('debug', 'Debug');
 export const RESTART_LABEL = nls.localize2('restartDebug', "Restart");
@@ -1071,6 +1072,90 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		return undefined;
+	}
+});
+
+registerAction2(class ToggleExceptionBreakpointsAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_EXCEPTION_BREAKPOINTS_ID,
+			title: nls.localize2('toggleExceptionBreakpoints', "Toggle Exception Breakpoints"),
+			category: DEBUG_COMMAND_CATEGORY,
+			f1: true,
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		// Get the focused session or the first available session
+		const debugModel = debugService.getModel();
+		const session = debugService.getViewModel().focusedSession || debugModel.getSessions()[0];
+		const exceptionBreakpoints = session ? debugModel.getExceptionBreakpointsForSession(session.getId()) : debugModel.getExceptionBreakpoints();
+		if (exceptionBreakpoints.length === 0) {
+			return;
+		}
+
+		// If only one exception breakpoint type, toggle it directly
+		if (exceptionBreakpoints.length === 1) {
+			const breakpoint = exceptionBreakpoints[0];
+			await debugService.enableOrDisableBreakpoints(!breakpoint.enabled, breakpoint);
+			return;
+		}
+
+		// Multiple exception breakpoint types - show quickpick for selection
+		interface IExceptionBreakpointItem extends IQuickPickItem {
+			breakpoint: IExceptionBreakpoint;
+		}
+
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(quickInputService.createQuickPick<IExceptionBreakpointItem>());
+		quickPick.placeholder = nls.localize('selectExceptionBreakpointsPlaceholder', "Pick enabled exception breakpoints");
+		quickPick.canSelectMany = true;
+		quickPick.matchOnDescription = true;
+		quickPick.matchOnDetail = true;
+
+		// Create quickpick items from exception breakpoints
+		quickPick.items = exceptionBreakpoints.map(bp => ({
+			label: bp.label,
+			description: bp.description,
+			picked: bp.enabled,
+			breakpoint: bp
+		}));
+
+		quickPick.selectedItems = quickPick.items.filter(item => item.picked);
+
+		disposables.add(quickPick.onDidAccept(() => {
+			const selectedItems = quickPick.selectedItems;
+			const toEnable: IExceptionBreakpoint[] = [];
+			const toDisable: IExceptionBreakpoint[] = [];
+
+			// Determine which breakpoints need to be toggled
+			for (const bp of exceptionBreakpoints) {
+				const isSelected = selectedItems.some(item => item.breakpoint === bp);
+				if (isSelected && !bp.enabled) {
+					toEnable.push(bp);
+				} else if (!isSelected && bp.enabled) {
+					toDisable.push(bp);
+				}
+			}
+
+			// Toggle the breakpoints
+			const promises: Promise<void>[] = [];
+			for (const bp of toEnable) {
+				promises.push(debugService.enableOrDisableBreakpoints(true, bp));
+			}
+			for (const bp of toDisable) {
+				promises.push(debugService.enableOrDisableBreakpoints(false, bp));
+			}
+
+			Promise.all(promises).then(() => disposables.dispose());
+		}));
+
+		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+		quickPick.show();
 	}
 });
 
