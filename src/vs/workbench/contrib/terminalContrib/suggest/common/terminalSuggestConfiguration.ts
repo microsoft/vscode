@@ -213,6 +213,11 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 		deprecationMessage: localize('suggest.provider.pwsh.deprecation', "This is deprecated as it has performance problems, the upcoming LSP provider will supersede this."),
 		default: false
 	};
+	providersProperties[lspProviderId] ??= {
+		type: 'boolean',
+		description: localize('suggest.provider.lsp.description', "Enable or disable the LSP-based provider. This enables language server protocol-specific argument completion."),
+		default: product.quality !== 'stable',
+	};
 
 	if (availableProviders) {
 		for (const providerId of availableProviders) {
