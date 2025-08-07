@@ -271,6 +271,114 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
+	suite('prepareToolInvocation - custom actions for dropdown', () => {
+
+		test('should generate custom actions for non-auto-approved commands', async () => {
+			setAutoApprove({
+				ls: true,
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
+
+			strictEqual(customActions[0].label, 'Always Allow Command: npm');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+
+			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm run build');
+			strictEqual(customActions[1].data.type, 'newRule');
+			ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
+
+			strictEqual(customActions[2].label, 'Configure Auto Approve...');
+			strictEqual(customActions[2].data.type, 'configure');
+		});
+
+		test('should generate custom actions for single word commands', async () => {
+			const result = await executeToolTest({
+				command: 'git',
+				explanation: 'Run git command'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+
+			strictEqual(customActions.length, 2, 'Expected 2 custom actions for single word command');
+
+			strictEqual(customActions[0].label, 'Always Allow Command: git');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+
+			strictEqual(customActions[1].label, 'Configure Auto Approve...');
+			strictEqual(customActions[1].data.type, 'configure');
+		});
+
+		test('should not generate custom actions for auto-approved commands', async () => {
+			setAutoApprove({
+				npm: true
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertAutoApproved(result);
+		});
+
+		test('should only generate configure action for explicitly denied commands', async () => {
+			setAutoApprove({
+				npm: { approve: false }
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 1, 'Expected only 1 custom action for explicitly denied commands');
+
+			strictEqual(customActions[0].label, 'Configure Auto Approve...');
+			strictEqual(customActions[0].data.type, 'configure');
+		});
+
+		test('should handle && in command line labels with proper mnemonic escaping', async () => {
+			const result = await executeToolTest({
+				command: 'npm install && npm run build',
+				explanation: 'Install dependencies and build'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
+
+			strictEqual(customActions[0].label, 'Always allow commands: npm, npm');
+			strictEqual(customActions[0].data.type, 'newRule');
+
+			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm install &&& npm run build');
+			strictEqual(customActions[1].data.type, 'newRule');
+
+			strictEqual(customActions[2].label, 'Configure Auto Approve...');
+			strictEqual(customActions[2].data.type, 'configure');
+		});
+
+	});
+
 	suite('command re-writing', () => {
 		function createRewriteParams(command: string, chatSessionId?: string): IRunInTerminalInputParams {
 			return {
