@@ -33,9 +33,9 @@ class WrappedStyleElement {
 		this._currentCssStyle = cssStyle;
 
 		if (!this._styleSheet) {
-			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = cssStyle);
+			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.textContent = cssStyle);
 		} else {
-			this._styleSheet.innerText = cssStyle;
+			this._styleSheet.textContent = cssStyle;
 		}
 	}
 

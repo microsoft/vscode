@@ -85,7 +85,7 @@ class OutlineItem extends BreadcrumbsItem {
 		const templateId = outline.config.delegate.getTemplateId(element);
 		const renderer = outline.config.renderers.find(renderer => renderer.templateId === templateId);
 		if (!renderer) {
-			container.innerText = '<<NO RENDERER>>';
+			container.textContent = '<<NO RENDERER>>';
 			return;
 		}
 
@@ -388,7 +388,7 @@ export class BreadcrumbsControl {
 				this._widget.setEnabled(false);
 				this._widget.setItems([new class extends BreadcrumbsItem {
 					render(container: HTMLElement): void {
-						container.innerText = localize('empty', "no elements");
+						container.textContent = localize('empty', "no elements");
 					}
 					equals(other: BreadcrumbsItem): boolean {
 						return other === this;
