@@ -113,7 +113,7 @@ export class MarkedKatexSupport {
 
 	private static _katex?: typeof import('katex').default;
 	private static _katexPromise = new Lazy(async () => {
-		this._katex = await importAMDNodeModule('katex', 'dist/katex.min.js');
+		this._katex = await importAMDNodeModule<typeof import('katex').default>('katex', 'dist/katex.min.js');
 		return this._katex;
 	});
 

@@ -819,3 +819,29 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 		throw new Error('Failed to parse JWT token');
 	}
 }
+
+/**
+ * Checks if two scope lists are equivalent, regardless of order.
+ * This is useful for comparing OAuth scopes where the order should not matter.
+ *
+ * @param scopes1 First list of scopes to compare
+ * @param scopes2 Second list of scopes to compare
+ * @returns true if the scope lists contain the same scopes (order-independent), false otherwise
+ *
+ * @example
+ * ```typescript
+ * scopesMatch(['read', 'write'], ['write', 'read']) // Returns: true
+ * scopesMatch(['read'], ['write']) // Returns: false
+ * ```
+ */
+export function scopesMatch(scopes1: readonly string[], scopes2: readonly string[]): boolean {
+	if (scopes1.length !== scopes2.length) {
+		return false;
+	}
+
+	// Sort both arrays for comparison to handle different orderings
+	const sortedScopes1 = [...scopes1].sort();
+	const sortedScopes2 = [...scopes2].sort();
+
+	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
+}

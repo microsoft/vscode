@@ -5,6 +5,7 @@
 
 import { DisposableStore, toDisposable, IDisposable } from '../common/lifecycle.js';
 import { autorun, IObservable } from '../common/observable.js';
+import { isFirefox } from './browser.js';
 import { getWindows, sharedMutationObserver } from './dom.js';
 import { mainWindow } from './window.js';
 
@@ -97,7 +98,15 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesh
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
 	}
 
-	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true })(() => {
+	let observeInit: MutationObserverInit = { childList: true };
+	if (isFirefox) {
+		// Firefox doesn't support observing style tag contents
+		// As a workaround, also observe the data-version attribute
+		// that is updated when the content is updated
+		observeInit = { ...observeInit, attributes: true, attributeFilter: ['data-version'] };
+	}
+
+	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, observeInit)(() => {
 		clone.textContent = globalStylesheet.textContent;
 	}));
 

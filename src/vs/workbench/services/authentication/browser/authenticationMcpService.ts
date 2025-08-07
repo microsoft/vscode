@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { scopesMatch } from '../../../../base/common/oauth.js';
 import * as nls from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -150,7 +151,11 @@ export class AuthenticationMcpService extends Disposable implements IAuthenticat
 		}
 
 		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
-			if (addedSessions.some(session => session.scopes.slice().join(SCOPESLIST_SEPARATOR) === requestedScopes)) {
+			// Parse the requested scopes from the stored key
+			const requestedScopesArray = requestedScopes.split(SCOPESLIST_SEPARATOR);
+
+			// Check if any added session has matching scopes (order-independent)
+			if (addedSessions.some(session => scopesMatch(session.scopes, requestedScopesArray))) {
 				const sessionRequest = existingRequestsForProvider[requestedScopes];
 				sessionRequest?.disposables.forEach(item => item.dispose());
 
