@@ -55,7 +55,7 @@ export const ManageTodoListToolData: IToolData = {
 						},
 						title: {
 							type: 'string',
-							description: 'Concise action-oriented todo label (3-5 words). Displayed in UI.'
+							description: 'Concise action-oriented todo label (3-7 words). Displayed in UI.'
 						},
 						description: {
 							type: 'string',
