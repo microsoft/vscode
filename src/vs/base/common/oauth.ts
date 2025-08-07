@@ -821,33 +821,27 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 }
 
 /**
- * Extracts the resource server base URL from an OAuth protected resource metadata discovery endpoint URL.
+ * Checks if two scope lists are equivalent, regardless of order.
+ * This is useful for comparing OAuth scopes where the order should not matter.
  *
- * @param discoveryUrl The full URL to the OAuth protected resource metadata discovery endpoint
- * @returns The base URL of the resource server
+ * @param scopes1 First list of scopes to compare
+ * @param scopes2 Second list of scopes to compare
+ * @returns true if the scope lists contain the same scopes (order-independent), false otherwise
  *
  * @example
  * ```typescript
- * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource')
- * // Returns: 'https://mcp.example.com/'
- *
- * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource/mcp')
- * // Returns: 'https://mcp.example.com/mcp'
+ * scopesMatch(['read', 'write'], ['write', 'read']) // Returns: true
+ * scopesMatch(['read'], ['write']) // Returns: false
  * ```
  */
-export function getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl: string): string {
-	const url = new URL(discoveryUrl);
-
-	// Remove the well-known discovery path only if it appears at the beginning
-	if (!url.pathname.startsWith(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH)) {
-		throw new Error(`Invalid discovery URL: expected path to start with ${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`);
+export function scopesMatch(scopes1: readonly string[], scopes2: readonly string[]): boolean {
+	if (scopes1.length !== scopes2.length) {
+		return false;
 	}
 
-	const pathWithoutDiscovery = url.pathname.substring(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH.length);
+	// Sort both arrays for comparison to handle different orderings
+	const sortedScopes1 = [...scopes1].sort();
+	const sortedScopes2 = [...scopes2].sort();
 
-	// Construct the base URL
-	const baseUrl = new URL(url.origin);
-	baseUrl.pathname = pathWithoutDiscovery || '/';
-
-	return baseUrl.toString();
+	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
 }

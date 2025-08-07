@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { localize } from '../../../../../../nls.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IChatService } from '../../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
-import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
-import { getOutput } from '../outputHelpers.js';
-import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { timeout } from '../../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { localize } from '../../../../../../../nls.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { IChatService } from '../../../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
+import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
+import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../../bufferOutputPolling.js';
+import { getOutput } from '../../outputHelpers.js';
+import { getTaskDefinition, getTaskForTool } from '../../taskHelpers.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -79,7 +79,7 @@ export class RunTaskTool implements IToolImpl {
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
 				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-				() => promptForMorePolling(taskLabel, invocation.context!, this._chatService),
+				() => promptForMorePolling(taskLabel, token, invocation.context!, this._chatService),
 				outputAndIdle,
 				token,
 				this._languageModelsService,
@@ -88,12 +88,12 @@ export class RunTaskTool implements IToolImpl {
 		}
 		let output = '';
 		if (result?.exitCode) {
-			output = `Task failed with exit code.`;
+			output = `Task \`${taskLabel}\` failed with exit code ${result.exitCode}.`;
 		} else {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task finished`;
+				output += `Task \`${taskLabel}\` finished`;
 			} else {
-				output += `Task started and will continue to run in the background.`;
+				output += `Task \`${taskLabel}\` started and will continue to run in the background.`;
 			}
 		}
 		this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {

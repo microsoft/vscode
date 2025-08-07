@@ -4,39 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { timeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
-import { MarkdownString, type IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
-import { count } from '../../../../../base/common/strings.js';
-import type { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { localize } from '../../../../../nls.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages, type IToolConfirmationAction } from '../../../chat/common/languageModelToolsService.js';
-import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import type { XtermTerminal } from '../../../terminal/browser/xterm/xtermTerminal.js';
-import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
-import { getRecommendedToolsOverRunInTerminal } from './alternativeRecommendation.js';
-import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from './bufferOutputPolling.js';
-import { CommandLineAutoApprover } from './commandLineAutoApprover.js';
-import { BasicExecuteStrategy } from './executeStrategy/basicExecuteStrategy.js';
-import type { ITerminalExecuteStrategy } from './executeStrategy/executeStrategy.js';
-import { NoneExecuteStrategy } from './executeStrategy/noneExecuteStrategy.js';
-import { RichExecuteStrategy } from './executeStrategy/richExecuteStrategy.js';
-import { isPowerShell } from './runInTerminalHelpers.js';
-import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from './subCommands.js';
-import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from './toolTerminalCreator.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
+import { count } from '../../../../../../base/common/strings.js';
+import type { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { localize } from '../../../../../../nls.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationAction, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
+import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
+import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
+import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
+import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
+import { CommandLineAutoApprover } from '../commandLineAutoApprover.js';
+import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
+import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
+import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
+import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
+import { isPowerShell } from '../runInTerminalHelpers.js';
+import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
+import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -118,6 +119,17 @@ const telemetryIgnoredSequences = [
 	'\x1b[O', // Focus out
 ];
 
+const promptInjectionWarningCommandsLower = [
+	'curl',
+	'wget',
+];
+const promptInjectionWarningCommandsLowerPwshOnly = [
+	'invoke-restmethod',
+	'invoke-webrequest',
+	'irm',
+	'iwr',
+];
+
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
@@ -125,10 +137,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
-
-	// HACK: Per-tool call state, saved globally
-	// TODO: These should not be part of the state as different sessions could get confused https://github.com/microsoft/vscode/issues/255889
-	private _alternativeRecommendation?: IToolResult;
 
 	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
 	public static getBackgroundOutput(id: string): string {
@@ -176,8 +184,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
-		this._alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
-		const presentation = this._alternativeRecommendation ? 'hidden' : undefined;
+		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
+		const presentation = alternativeRecommendation ? 'hidden' : undefined;
 
 		const os = await this._osBackend;
 		const shell = await this._terminalProfileResolverService.getDefaultShell({
@@ -186,15 +194,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		});
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
+		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
+		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
+		if (toolEditedCommand === args.command) {
+			toolEditedCommand = undefined;
+		}
+
 		let confirmationMessages: IToolConfirmationMessages | undefined;
-		if (this._alternativeRecommendation) {
+		if (alternativeRecommendation) {
 			confirmationMessages = undefined;
 		} else {
-			const subCommands = splitCommandLineIntoSubCommands(args.command, shell, os);
+			const actualCommand = toolEditedCommand ?? args.command;
+			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
 			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
-			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(args.command);
+			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
 			const autoApproveReasons: string[] = [
 				...subCommandResults.map(e => e.reason),
 				commandLineResult.reason,
@@ -225,19 +240,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.info(`- ${reason}`);
 			}
 
+			// Add a disclaimer warning about prompt injection for common commands that return
+			// content from the web
+			let disclaimer: IMarkdownString | undefined;
+			const subCommandsLowerFirstWordOnly = subCommands.map(command => command.split(' ')[0].toLowerCase());
+			if (!isAutoApproved && (
+				subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLower.includes(command)) ||
+				(isPowerShell(shell, os) && subCommandsLowerFirstWordOnly.some(command => promptInjectionWarningCommandsLowerPwshOnly.includes(command)))
+			)) {
+				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
+			}
+
 			confirmationMessages = isAutoApproved ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run command in background terminal")
 					: localize('runInTerminal.foreground', "Run command in terminal"),
 				message: new MarkdownString(args.explanation),
+				disclaimer,
 				customActions: this._generateAutoApproveActions(args.command),
 			};
-		}
-
-		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
-		let toolEditedCommand: string | undefined = await this._rewriteCommandIfNeeded(args, instance, shell);
-		if (toolEditedCommand === args.command) {
-			toolEditedCommand = undefined;
 		}
 
 		return {
@@ -250,23 +271,27 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					toolEdited: toolEditedCommand
 				},
 				language,
+				alternativeRecommendation,
 			}
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		if (this._alternativeRecommendation) {
-			return this._alternativeRecommendation;
-		}
-
-		const args = invocation.parameters as IRunInTerminalInputParams;
-
-		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
-
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		if (toolSpecificData.alternativeRecommendation) {
+			return {
+				content: [{
+					kind: 'text',
+					value: toolSpecificData.alternativeRecommendation
+				}]
+			};
+		}
+
+		const args = invocation.parameters as IRunInTerminalInputParams;
+		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
 
 		const chatSessionId = invocation.context?.sessionId ?? 'no-chat-session';
@@ -332,7 +357,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 					outputAndIdle = await racePollingOrPrompt(
 						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
-						() => promptForMorePolling(command, invocation.context!, this._chatService),
+						() => promptForMorePolling(command, token, invocation.context!, this._chatService),
 						outputAndIdle,
 						token,
 						this._languageModelsService,
@@ -737,17 +762,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private _generateAutoApproveActions(command: string): IToolConfirmationAction[] {
 		const actions: IToolConfirmationAction[] = [];
-		
+
 		// Extract the base command (first word/executable)
 		const baseCommand = command.trim().split(/\s+/)[0];
-		
+
 		// Add action for exact command match
 		actions.push({
 			label: localize('autoApprove.exactCommand', 'Always allow `{0}`', command),
 			tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
 			data: { type: 'exact', command }
 		});
-		
+
 		// Add action for base command prefix match (only if different from exact and has arguments)
 		if (baseCommand && baseCommand !== command && command.trim().includes(' ')) {
 			actions.push({
@@ -756,14 +781,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				data: { type: 'prefix', command: baseCommand }
 			});
 		}
-		
+
 		// Add separator and configure option
 		actions.push({
 			label: localize('autoApprove.configure', 'Configure auto approve...'),
 			tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
 			data: { type: 'configure' }
 		});
-		
+
 		return actions;
 	}
 }

@@ -28,6 +28,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 
 const $ = dom.$;
 
@@ -87,12 +88,15 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.start.setAttribute('role', 'button');
 		this._setAriaLabel(title);
 
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
-			this.start.blur();
-			if (this.debugService.state !== State.Initializing) {
-				this.actionRunner.run(this.action, this.context);
-			}
-		}));
+		this._register(Gesture.addTarget(this.start));
+		for (const event of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this.toDispose.push(dom.addDisposableListener(this.start, event, () => {
+				this.start.blur();
+				if (this.debugService.state !== State.Initializing) {
+					this.actionRunner.run(this.action, this.context);
+				}
+			}));
+		}
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (this.action.enabled && e.button === 0) {

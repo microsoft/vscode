@@ -881,6 +881,7 @@ export class QuickInputController extends Disposable {
 			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
 			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.list.style(this.styles.list);
+			this.ui.tree.tree.style(this.styles.list);
 
 			const content: string[] = [];
 			if (this.styles.pickerGroup.pickerGroupBorder) {

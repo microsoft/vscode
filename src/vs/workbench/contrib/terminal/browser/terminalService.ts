@@ -1036,6 +1036,13 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return instance;
 	}
 
+	async createAndFocusTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
+		const instance = await this.createTerminal(options);
+		this.setActiveInstance(instance);
+		await instance.focusWhenReady();
+		return instance;
+	}
+
 	private async _getContributedProfile(shellLaunchConfig: IShellLaunchConfig, options?: ICreateTerminalOptions): Promise<IExtensionTerminalProfile | undefined> {
 		if (options?.config && 'extensionIdentifier' in options.config) {
 			return options.config;

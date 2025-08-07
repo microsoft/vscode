@@ -27,7 +27,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { mcpStdioServerSchema } from '../common/mcpConfiguration.js';
+import { allDiscoverySources, DiscoverySource, mcpDiscoverySection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
 
@@ -85,7 +85,9 @@ const enum AddConfigurationCopilotCommand {
 	StartFlow = 'github.copilot.chat.mcp.setup.flow',
 }
 
-type ValidatePackageResult = { state: 'ok'; publisher: string } | { state: 'error'; error: string };
+type ValidatePackageResult =
+	{ state: 'ok'; publisher: string; name?: string; version?: string }
+	| { state: 'error'; error: string };
 
 type AddServerData = {
 	packageType: string;
@@ -128,7 +130,8 @@ export class McpAddConfigurationCommand {
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
-		const items: QuickPickInput<{ kind: AddConfigurationType | 'browse' } & IQuickPickItem>[] = [
+		type TItem = { kind: AddConfigurationType | 'browse' | 'discovery' } & IQuickPickItem;
+		const items: QuickPickInput<TItem>[] = [
 			{ kind: AddConfigurationType.Stdio, label: localize('mcp.serverType.command', "Command (stdio)"), description: localize('mcp.serverType.command.description', "Run a local command that implements the MCP protocol") },
 			{ kind: AddConfigurationType.HTTP, label: localize('mcp.serverType.http', "HTTP (HTTP or Server-Sent Events)"), description: localize('mcp.serverType.http.description', "Connect to a remote HTTP server that implements the MCP protocol") }
 		];
@@ -163,20 +166,32 @@ export class McpAddConfigurationCommand {
 			);
 		}
 
-		items.push(
-			{ type: 'separator' },
-			{
-				kind: 'browse',
-				label: localize('mcp.servers.browse', "Browse MCP Servers..."),
-			}
-		);
+		items.push({ type: 'separator' });
 
-		const result = await this._quickInputService.pick<{ kind: AddConfigurationType | 'browse' } & IQuickPickItem>(items, {
+		const discovery = this._configurationService.getValue<{ [K in DiscoverySource]: boolean }>(mcpDiscoverySection);
+		if (discovery && typeof discovery === 'object' && allDiscoverySources.some(d => !discovery[d])) {
+			items.push({
+				kind: 'discovery',
+				label: localize('mcp.servers.discovery', "Add from another application..."),
+			});
+		}
+
+		items.push({
+			kind: 'browse',
+			label: localize('mcp.servers.browse', "Browse MCP Servers..."),
+		});
+
+		const result = await this._quickInputService.pick<TItem>(items, {
 			placeHolder: localize('mcp.serverType.placeholder', "Choose the type of MCP server to add"),
 		});
 
 		if (result?.kind === 'browse') {
 			this._commandService.executeCommand(McpCommandIds.Browse);
+			return undefined;
+		}
+
+		if (result?.kind === 'discovery') {
+			this._commandService.executeCommand('workbench.action.openSettings', mcpDiscoverySection);
 			return undefined;
 		}
 
@@ -319,7 +334,11 @@ export class McpAddConfigurationCommand {
 				loadingQuickPick.title = result?.error || 'Unknown error loading package';
 				loadingQuickPick.items = [{ id: LoadAction.Retry, label: localize('mcp.error.retry', 'Try a different package') }, { id: LoadAction.Cancel, label: localize('cancel', 'Cancel') }];
 			} else {
-				loadingQuickPick.title = localize('mcp.confirmPublish', 'Install {0} from {1}?', packageName, result.publisher);
+				loadingQuickPick.title = localize(
+					'mcp.confirmPublish', 'Install {0}{1} from {2}?',
+					result.name ?? packageName,
+					result.version ? `@${result.version}` : '',
+					result.publisher);
 				loadingQuickPick.items = [
 					{ id: LoadAction.Allow, label: localize('allow', "Allow") },
 					{ id: LoadAction.Cancel, label: localize('cancel', 'Cancel') }

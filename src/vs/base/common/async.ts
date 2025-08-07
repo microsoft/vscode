@@ -2168,24 +2168,12 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	}
 }
 
-export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
-	constructor(
-		private readonly _source: CancellationTokenSource,
-		executor: AsyncIterableExecutor<T>
-	) {
-		super(executor);
-	}
 
-	cancel(): void {
-		this._source.cancel();
-	}
-}
-
-export function createCancelableAsyncIterable<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableObject<T> {
+export function createCancelableAsyncIterableProducer<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableProducer<T> {
 	const source = new CancellationTokenSource();
 	const innerIterable = callback(source.token);
 
-	return new CancelableAsyncIterableObject<T>(source, async (emitter) => {
+	return new CancelableAsyncIterableProducer<T>(source, async (emitter) => {
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
 			source.dispose();
@@ -2401,6 +2389,72 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 		});
 	}
 
+	public static fromArray<T>(items: T[]): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer<T>((writer) => {
+			writer.emitMany(items);
+		});
+	}
+
+	public static fromPromise<T>(promise: Promise<T[]>): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer<T>(async (emitter) => {
+			emitter.emitMany(await promise);
+		});
+	}
+
+	public static fromPromisesResolveOrder<T>(promises: Promise<T>[]): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer<T>(async (emitter) => {
+			await Promise.all(promises.map(async (p) => emitter.emitOne(await p)));
+		});
+	}
+
+	public static merge<T>(iterables: AsyncIterable<T>[]): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer(async (emitter) => {
+			await Promise.all(iterables.map(async (iterable) => {
+				for await (const item of iterable) {
+					emitter.emitOne(item);
+				}
+			}));
+		});
+	}
+
+	public static EMPTY = AsyncIterableProducer.fromArray<any>([]);
+
+	public static map<T, R>(iterable: AsyncIterable<T>, mapFn: (item: T) => R): AsyncIterableProducer<R> {
+		return new AsyncIterableProducer<R>(async (emitter) => {
+			for await (const item of iterable) {
+				emitter.emitOne(mapFn(item));
+			}
+		});
+	}
+
+	public map<R>(mapFn: (item: T) => R): AsyncIterableProducer<R> {
+		return AsyncIterableProducer.map(this, mapFn);
+	}
+
+	public static coalesce<T>(iterable: AsyncIterable<T | undefined | null>): AsyncIterableProducer<T> {
+		return <AsyncIterableProducer<T>>AsyncIterableProducer.filter(iterable, item => !!item);
+	}
+
+	public coalesce(): AsyncIterableProducer<NonNullable<T>> {
+		return AsyncIterableProducer.coalesce(this) as AsyncIterableProducer<NonNullable<T>>;
+	}
+
+	public static filter<T>(iterable: AsyncIterable<T>, filterFn: (item: T) => boolean): AsyncIterableProducer<T> {
+		return new AsyncIterableProducer<T>(async (emitter) => {
+			for await (const item of iterable) {
+				if (filterFn(item)) {
+					emitter.emitOne(item);
+				}
+			}
+		});
+	}
+
+	public filter<T2 extends T>(filterFn: (item: T) => item is T2): AsyncIterableProducer<T2>;
+	public filter(filterFn: (item: T) => boolean): AsyncIterableProducer<T>;
+	public filter(filterFn: (item: T) => boolean): AsyncIterableProducer<T> {
+		return AsyncIterableProducer.filter(this, filterFn);
+	}
+
 	private _finishOk(): void {
 		this._producerConsumer.produceFinal({ ok: true, value: { done: true, value: undefined } });
 	}
@@ -2423,6 +2477,19 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 
 	[Symbol.asyncIterator](): AsyncIterator<T, void, void> {
 		return this._iterator;
+	}
+}
+
+export class CancelableAsyncIterableProducer<T> extends AsyncIterableProducer<T> {
+	constructor(
+		private readonly _source: CancellationTokenSource,
+		executor: AsyncIterableExecutor<T>
+	) {
+		super(executor);
+	}
+
+	cancel(): void {
+		this._source.cancel();
 	}
 }
 
