@@ -765,7 +765,8 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.New, terminalStrings.new, undefined, true, () => terminalService.createAndFocusTerminal())));
 	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.NewInNewWindow, terminalStrings.newInNewWindow.value, undefined, true, () => terminalService.createAndFocusTerminal({
 		location: {
-			viewColumn: AUX_WINDOW_GROUP
+			viewColumn: AUX_WINDOW_GROUP,
+			auxiliary: { compact: true },
 		}
 	}))));
 	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.Split, terminalStrings.split.value, undefined, true, () => terminalService.createAndFocusTerminal({
