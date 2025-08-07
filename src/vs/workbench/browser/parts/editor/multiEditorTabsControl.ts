@@ -58,8 +58,6 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
-import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { Schemas } from '../../../../base/common/network.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -154,7 +152,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IHostService hostService: IHostService,
-		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
 
@@ -1589,6 +1586,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Sticky compact tabs will only show an icon if icons are enabled
 		// or their first character of the name otherwise
 		let name: string | undefined;
+		let namePrefix: string | undefined;
 		let forceLabel = false;
 		let fileDecorationBadges = Boolean(options.decorations?.badges);
 		const fileDecorationColors = Boolean(options.decorations?.colors);
@@ -1600,15 +1598,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			forceLabel = true;
 			fileDecorationBadges = false; // not enough space when sticky tabs are compact
 		} else {
-
-			name = options.showTabIndex ? localize("tabIndexDisplay", "{0}: {1}", tabIndex + 1, tabLabel.name) : tabLabel.name;
-			forceLabel = options.showTabIndex;
+			name = tabLabel.name;
+			namePrefix = options.showTabIndex ? `${this.toEditorIndex(tabIndex) + 1}: ` : undefined;
 			description = tabLabel.description || '';
-
-			if (!description && forceLabel && editor.resource && editor.resource.scheme === Schemas.untitled) {
-				const untitledModel = this.textFileService.untitled.get(editor.resource);
-				description = untitledModel && untitledModel.resource.path !== untitledModel.name ? untitledModel.resource.path : '';
-			}
 		}
 
 		if (tabLabel.ariaLabel) {
@@ -1632,6 +1624,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				},
 				icon: editor.getIcon(),
 				hideIcon: options.showIcons === false,
+				namePrefix,
 			}
 		);
 
