@@ -150,6 +150,7 @@ export namespace Schemas {
 	 * Used for snapshots of chat edits
 	 */
 	export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
+	export const chatEditingModel = 'chat-editing-text-model';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {

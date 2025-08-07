@@ -13,7 +13,7 @@ import { IChatEditingService } from '../../common/chatEditingService.js';
 type ChatEditingTextModelContentQueryData = { kind: 'doc'; documentId: string; chatSessionId: string };
 
 export class ChatEditingTextModelContentProvider implements ITextModelContentProvider {
-	public static readonly scheme = 'chat-editing-text-model';
+	public static readonly scheme = Schemas.chatEditingModel;
 
 	public static getFileURI(chatSessionId: string, documentId: string, path: string): URI {
 		return URI.from({
