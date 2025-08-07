@@ -87,12 +87,14 @@ export function provideInlineCompletions(
 			}
 
 			let result: InlineCompletions | null | undefined;
+			const providerStartTime = Date.now();
 			try {
 				result = await provider.provideInlineCompletions(model, position, contextWithUuid, cancellationTokenSource.token);
 			} catch (e) {
 				onUnexpectedExternalError(e);
 				return undefined;
 			}
+			const providerEndTime = Date.now();
 
 			if (!result) {
 				return undefined;
@@ -109,7 +111,7 @@ export function provideInlineCompletions(
 			}
 
 			for (const item of result.items) {
-				data.push(toInlineSuggestData(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, requestInfo));
+				data.push(toInlineSuggestData(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, requestInfo, { startTime: providerStartTime, endTime: providerEndTime }));
 			}
 
 			return list;
@@ -162,7 +164,8 @@ function toInlineSuggestData(
 	textModel: ITextModel,
 	languageConfigurationService: ILanguageConfigurationService | undefined,
 	context: InlineCompletionContext,
-	requestInfo: InlineSuggestRequestInfo
+	requestInfo: InlineSuggestRequestInfo,
+	providerRequestInfo: InlineSuggestProviderRequestInfo,
 ): InlineSuggestData {
 	let insertText: string;
 	let snippetInfo: SnippetInfo | undefined;
@@ -236,7 +239,8 @@ function toInlineSuggestData(
 		source,
 		context,
 		inlineCompletion.isInlineEdit ?? false,
-		requestInfo
+		requestInfo,
+		providerRequestInfo,
 	);
 }
 
@@ -247,6 +251,11 @@ export type InlineSuggestRequestInfo = {
 	reason: string;
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
+};
+
+export type InlineSuggestProviderRequestInfo = {
+	startTime: number;
+	endTime: number;
 };
 
 export type InlineSuggestViewData = {
@@ -283,6 +292,7 @@ export class InlineSuggestData {
 		public readonly isInlineEdit: boolean,
 
 		private readonly _requestInfo: InlineSuggestRequestInfo,
+		private readonly _providerRequestInfo: InlineSuggestProviderRequestInfo,
 	) {
 		this._viewData = { editorType: _requestInfo.editorType };
 	}
@@ -350,6 +360,8 @@ export class InlineSuggestData {
 				shownDurationUncollapsed: this._showUncollapsedDuration,
 				preceeded: this._isPreceeded,
 				timeUntilShown: this._timeUntilShown,
+				timeUntilProviderRequest: this._providerRequestInfo.startTime - this._requestInfo.startTime,
+				timeUntilProviderResponse: this._providerRequestInfo.endTime - this._requestInfo.startTime,
 				editorType: this._viewData.editorType,
 				languageId: this._requestInfo.languageId,
 				requestReason: this._requestInfo.reason,
