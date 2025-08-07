@@ -160,7 +160,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 	}
 
-	// TODO: Eventually support multiple LSP providers for [non-Python REPLs](https://github.com/microsoft/vscode/issues/249479)
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
 		let lspTerminalObj = undefined;
 		if (!this._ctx.instance.shellType || !(lspTerminalObj = getTerminalLspSupportedLanguageObj(this._ctx.instance.shellType))) {
@@ -179,7 +178,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
 		const filteredProviders = virtualProviders.filter(p => p._debugDisplayName !== 'wordbasedCompletions');
-
 
 		// Iterate through all available providers
 		for (const provider of filteredProviders) {
