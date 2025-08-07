@@ -38,6 +38,7 @@ import { isPowerShell } from '../runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolSubPart.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -772,7 +773,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		actions.push({
 			label: localize('autoApprove.exactCommand', 'Always allow `{0}`', command),
 			tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
-			data: { type: 'exact', command }
+			data: {
+				type: 'newRule',
+				rule: {
+					key: command,
+					value: {
+						approve: true,
+						matchCommandLine: true
+					}
+				}
+			} satisfies TerminalNewAutoApproveButtonData
 		});
 
 		// Add action for base command prefix match (only if different from exact and has arguments)
@@ -780,7 +790,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			actions.push({
 				label: localize('autoApprove.baseCommand', 'Always allow `{0}` commands', baseCommand),
 				tooltip: localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', baseCommand),
-				data: { type: 'prefix', command: baseCommand }
+				data: {
+					type: 'newRule',
+					rule: {
+						key: baseCommand,
+						value: true
+					}
+				} satisfies TerminalNewAutoApproveButtonData
 			});
 		}
 
@@ -788,7 +804,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		actions.push({
 			label: localize('autoApprove.configure', 'Configure auto approve...'),
 			tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
-			data: { type: 'configure' }
+			data: {
+				type: 'configure'
+			} satisfies TerminalNewAutoApproveButtonData
 		});
 
 		return actions;

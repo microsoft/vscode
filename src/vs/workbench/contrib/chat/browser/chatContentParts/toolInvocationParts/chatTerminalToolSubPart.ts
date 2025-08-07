@@ -4,18 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { thenIfNotDisposed } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
+import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
@@ -28,6 +33,19 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+
+export interface ITerminalNewAutoApproveRule {
+	key: string;
+	value: boolean | {
+		approve: boolean;
+		matchCommandLine?: boolean;
+	};
+}
+
+export type TerminalNewAutoApproveButtonData = (
+	{ type: 'configure' } |
+	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule }
+);
 
 export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -46,8 +64,10 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(toolInvocation);
 
@@ -143,9 +163,48 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		}
 
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
-		this._register(confirmWidget.onDidClick(button => {
-			toolInvocation.confirmed.complete(button.data);
-			this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
+		this._register(confirmWidget.onDidClick(async button => {
+			let doComplete = true;
+			const data = button.data as TerminalNewAutoApproveButtonData | boolean;
+			if (typeof data !== 'boolean') {
+				switch (data.type) {
+					case 'newRule': {
+						const inspect = this.configurationService.inspect(TerminalContribSettingId.AutoApprove);
+						const oldValue = (inspect.user?.value as Record<string, unknown> | undefined) ?? {};
+						let newValue: Record<string, unknown>;
+						if (isObject(oldValue)) {
+							newValue = {
+								...oldValue,
+								[data.rule.key]: data.rule.value
+							};
+						} else {
+							this.preferencesService.openSettings({
+								jsonEditor: true,
+								target: ConfigurationTarget.USER,
+								revealSetting: {
+									key: TerminalContribSettingId.AutoApprove
+								},
+							});
+							throw new ErrorNoTelemetry(`Cannot add new rule \`${data.rule.key}\`: \`${JSON.stringify(data.rule.value)}\`, existing setting is unexpected format`);
+						}
+						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue);
+						break;
+					}
+					case 'configure': {
+						this.preferencesService.openSettings({
+							jsonEditor: false,
+							target: ConfigurationTarget.USER,
+							query: `@id:${TerminalContribSettingId.AutoApprove}`,
+						});
+						doComplete = false;
+						break;
+					}
+				}
+			}
+			if (doComplete) {
+				toolInvocation.confirmed.complete(button.data);
+				this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
+			}
 		}));
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		toolInvocation.confirmed.p.then(() => {
