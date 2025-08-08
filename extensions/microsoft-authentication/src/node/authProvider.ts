@@ -129,10 +129,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		// Send telemetry for existing accounts
 		for (const cachedPca of this._publicClientManager.getAll()) {
 			for (const account of cachedPca.accounts) {
-				if (!account.idTokenClaims?.tid) {
-					continue;
-				}
-				const tid = account.idTokenClaims.tid;
+				const tid = account.tenantId;
 				const type = tid === MSA_TID || tid === MSA_PASSTHRU_TID ? MicrosoftAccountType.MSA : MicrosoftAccountType.AAD;
 				this._telemetryReporter.sendAccountEvent([], type);
 			}
