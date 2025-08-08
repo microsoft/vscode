@@ -22,7 +22,6 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationAction, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
@@ -38,7 +37,7 @@ import { isPowerShell } from '../runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { OutputMonitor, type OutputMonitorAction } from '../outputMonitor.js';
+import { OutputMonitor } from '../outputMonitor.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolSubPart.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
@@ -160,7 +159,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService
 	) {
 		super();
 
@@ -422,7 +420,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputMonitor = new OutputMonitor(execution, this._languageModelsService);
+				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution);
 				store.add(outputMonitor);
 
 				outputAndIdle = await outputMonitor.startMonitoring(this._chatService, command, invocation.context!, token);
@@ -475,7 +473,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					pollDurationMs: outputAndIdle?.pollDurationMs,
 					inputUserChars,
 					inputUserSigint,
-					outputMonitorActions: outputMonitor?.actions,
 				});
 			}
 		} else {
@@ -808,7 +805,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		exitCode: number | undefined;
 		inputUserChars: number;
 		inputUserSigint: boolean;
-		outputMonitorActions?: OutputMonitorAction[];
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
