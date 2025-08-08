@@ -5,6 +5,7 @@
 
 import { addDisposableListener, getActiveElement, getShadowRoot } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export interface ITypeData {
 	text: string;
@@ -18,11 +19,13 @@ export class FocusTracker extends Disposable {
 	private _isPaused: boolean = false;
 
 	constructor(
+		@ILogService _logService: ILogService,
 		private readonly _domNode: HTMLElement,
 		private readonly _onFocusChange: (newFocusValue: boolean) => void,
 	) {
 		super();
 		this._register(addDisposableListener(this._domNode, 'focus', () => {
+			_logService.trace('NativeEditContext.focus');
 			if (this._isPaused) {
 				return;
 			}
@@ -32,6 +35,7 @@ export class FocusTracker extends Disposable {
 			this.refreshFocusState();
 		}));
 		this._register(addDisposableListener(this._domNode, 'blur', () => {
+			_logService.trace('NativeEditContext.blur');
 			if (this._isPaused) {
 				return;
 			}
