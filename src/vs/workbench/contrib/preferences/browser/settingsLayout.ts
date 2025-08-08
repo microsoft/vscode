@@ -17,18 +17,17 @@ export interface ITOCEntry<T> {
 }
 
 const defaultCommonlyUsedSettings: string[] = [
-	'files.autoSave',
 	'editor.fontSize',
+	'editor.formatOnSave',
+	'files.autoSave',
+	'editor.defaultFormatter',
 	'editor.fontFamily',
-	'editor.tabSize',
-	'editor.renderWhitespace',
-	'editor.cursorStyle',
-	'editor.multiCursorModifier',
-	'editor.insertSpaces',
 	'editor.wordWrap',
 	'files.exclude',
-	'files.associations',
-	'workbench.editor.enablePreview'
+	'workbench.colorTheme',
+	'editor.tabSize',
+	'editor.mouseWheelZoom',
+	'editor.formatOnPaste'
 ];
 
 export function getCommonlyUsedData(toggleData: ExtensionToggleData | undefined): ITOCEntry<string> {
@@ -302,25 +301,3 @@ export const tocData: ITOCEntry<string> = {
 		}
 	]
 };
-
-export const knownAcronyms = new Set<string>();
-[
-	'css',
-	'html',
-	'scss',
-	'less',
-	'json',
-	'js',
-	'ts',
-	'ie',
-	'id',
-	'php',
-	'scm',
-].forEach(str => knownAcronyms.add(str));
-
-export const knownTermMappings = new Map<string, string>();
-knownTermMappings.set('power shell', 'PowerShell');
-knownTermMappings.set('powershell', 'PowerShell');
-knownTermMappings.set('javascript', 'JavaScript');
-knownTermMappings.set('typescript', 'TypeScript');
-knownTermMappings.set('github', 'GitHub');

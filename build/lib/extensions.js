@@ -1,8 +1,4 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -51,6 +47,10 @@ exports.scanBuiltinExtensions = scanBuiltinExtensions;
 exports.translatePackageJSON = translatePackageJSON;
 exports.webpackExtensions = webpackExtensions;
 exports.buildExtensionMedia = buildExtensionMedia;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const event_stream_1 = __importDefault(require("event-stream"));
 const fs_1 = __importDefault(require("fs"));
 const child_process_1 = __importDefault(require("child_process"));
@@ -61,7 +61,6 @@ const crypto_1 = __importDefault(require("crypto"));
 const vinyl_1 = __importDefault(require("vinyl"));
 const stats_1 = require("./stats");
 const util2 = __importStar(require("./util"));
-const vzip = require('gulp-vinyl-zip');
 const gulp_filter_1 = __importDefault(require("gulp-filter"));
 const gulp_rename_1 = __importDefault(require("gulp-rename"));
 const fancy_log_1 = __importDefault(require("fancy-log"));
@@ -72,6 +71,7 @@ const dependencies_1 = require("./dependencies");
 const builtInExtensions_1 = require("./builtInExtensions");
 const getVersion_1 = require("./getVersion");
 const fetch_1 = require("./fetch");
+const vzip = require('gulp-vinyl-zip');
 const root = path_1.default.dirname(path_1.default.dirname(__dirname));
 const commit = (0, getVersion_1.getVersion)(root);
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
@@ -104,7 +104,10 @@ function updateExtensionPackageJSON(input, update) {
         .pipe(packageJsonFilter.restore);
 }
 function fromLocal(extensionPath, forWeb, disableMangle) {
-    const webpackConfigFileName = forWeb ? 'extension-browser.webpack.config.js' : 'extension.webpack.config.js';
+    const esm = JSON.parse(fs_1.default.readFileSync(path_1.default.join(extensionPath, 'package.json'), 'utf8')).type === 'module';
+    const webpackConfigFileName = forWeb
+        ? `extension-browser.webpack.config.${!esm ? 'js' : 'cjs'}`
+        : `extension.webpack.config.${!esm ? 'js' : 'cjs'}`;
     const isWebPacked = fs_1.default.existsSync(path_1.default.join(extensionPath, webpackConfigFileName));
     let input = isWebPacked
         ? fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle)
@@ -130,7 +133,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
     const packagedDependencies = [];
     const packageJsonConfig = require(path_1.default.join(extensionPath, 'package.json'));
     if (packageJsonConfig.dependencies) {
-        const webpackRootConfig = require(path_1.default.join(extensionPath, webpackConfigFileName));
+        const webpackRootConfig = require(path_1.default.join(extensionPath, webpackConfigFileName)).default;
         for (const key in webpackRootConfig.externals) {
             if (key in packageJsonConfig.dependencies) {
                 packagedDependencies.push(key);
@@ -168,7 +171,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
                     result.emit('error', compilation.warnings.join('\n'));
                 }
             };
-            const exportedConfig = require(webpackConfigPath);
+            const exportedConfig = require(webpackConfigPath).default;
             return (Array.isArray(exportedConfig) ? exportedConfig : [exportedConfig]).map(config => {
                 const webpackConfig = {
                     ...config,
@@ -508,18 +511,18 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
 const extensionsPath = path_1.default.join(root, 'extensions');
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
-    'markdown-language-features/esbuild-notebook.js',
-    'markdown-language-features/esbuild-preview.js',
-    'markdown-math/esbuild.js',
-    'notebook-renderers/esbuild.js',
-    'ipynb/esbuild.js',
-    'simple-browser/esbuild-preview.js',
+    'markdown-language-features/esbuild-notebook.mjs',
+    'markdown-language-features/esbuild-preview.mjs',
+    'markdown-math/esbuild.mjs',
+    'notebook-renderers/esbuild.mjs',
+    'ipynb/esbuild.mjs',
+    'simple-browser/esbuild-preview.mjs',
 ];
 async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpack = require('webpack');
     const webpackConfigs = [];
     for (const { configPath, outputRoot } of webpackConfigLocations) {
-        const configOrFnOrArray = require(configPath);
+        const configOrFnOrArray = require(configPath).default;
         function addConfig(configOrFnOrArray) {
             for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
                 const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;

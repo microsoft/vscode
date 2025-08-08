@@ -11,6 +11,7 @@ import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { IAccountAccess } from '../common/accountAccess';
+import { MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	// Core properties
@@ -20,11 +21,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	private readonly _disposable: Disposable;
 
 	// Cache properties
-	private readonly _secretStorageCachePlugin = new SecretStorageCachePlugin(
-		this._secretStorage,
-		// Include the prefix as a differentiator to other secrets
-		`pca:${this._clientId}`
-	);
+	private readonly _secretStorageCachePlugin: SecretStorageCachePlugin;
 
 	// Broker properties
 	private readonly _isBrokerAvailable: boolean;
@@ -44,8 +41,15 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		private readonly _secretStorage: SecretStorage,
 		private readonly _accountAccess: IAccountAccess,
 		private readonly _logger: LogOutputChannel,
+		telemetryReporter: MicrosoftAuthenticationTelemetryReporter
 	) {
-		const loggerOptions = new MsalLoggerOptions(_logger);
+		this._secretStorageCachePlugin = new SecretStorageCachePlugin(
+			this._secretStorage,
+			// Include the prefix as a differentiator to other secrets
+			`pca:${this._clientId}`
+		);
+
+		const loggerOptions = new MsalLoggerOptions(_logger, telemetryReporter);
 		const nativeBrokerPlugin = new NativeBrokerPlugin();
 		this._isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
 		this._pca = new PublicClientApplication({
@@ -75,9 +79,10 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		clientId: string,
 		secretStorage: SecretStorage,
 		accountAccess: IAccountAccess,
-		logger: LogOutputChannel
+		logger: LogOutputChannel,
+		telemetryReporter: MicrosoftAuthenticationTelemetryReporter
 	): Promise<CachedPublicClientApplication> {
-		const app = new CachedPublicClientApplication(clientId, secretStorage, accountAccess, logger);
+		const app = new CachedPublicClientApplication(clientId, secretStorage, accountAccess, logger, telemetryReporter);
 		await app.initialize();
 		return app;
 	}

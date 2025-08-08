@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { TokenQuality, TokenStore } from '../../../common/model/tokenStore.js';
+import { TokenQuality, TokenStore } from '../../../common/model/tokens/treeSitter/tokenStore.js';
 
 suite('TokenStore', () => {
 	let textModel: TextModel;

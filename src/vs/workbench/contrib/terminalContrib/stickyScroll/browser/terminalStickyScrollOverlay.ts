@@ -337,8 +337,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					// following command.
 					let endMarkerOffset = 0;
 					if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
-						if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
-							const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
+						const lastLine = Math.min(command.endMarker.line, buffer.baseY + buffer.cursorY);
+						if (buffer.viewportY + stickyScrollLineCount > lastLine) {
+							const diff = buffer.viewportY + stickyScrollLineCount - lastLine;
 							endMarkerOffset = diff * rowHeight;
 						}
 					}

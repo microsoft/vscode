@@ -45,6 +45,7 @@ import { RemoteNameContext } from '../../../common/contextkeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -161,6 +162,12 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 registerWorkbenchContribution2(
 	SCMWorkingSetController.ID,
 	SCMWorkingSetController,
+	WorkbenchPhase.AfterRestored
+);
+
+registerWorkbenchContribution2(
+	SCMHistoryItemContextContribution.ID,
+	SCMHistoryItemContextContribution,
 	WorkbenchPhase.AfterRestored
 );
 
@@ -550,7 +557,7 @@ CommandsRegistry.registerCommand('scm.setActiveProvider', async (accessor) => {
 });
 
 MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
-	group: '100_end',
+	group: '99_terminal',
 	command: {
 		id: 'scm.openInTerminal',
 		title: localize('open in external terminal', "Open in External Terminal")
@@ -564,7 +571,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
-	group: '100_end',
+	group: '99_terminal',
 	command: {
 		id: 'scm.openInIntegratedTerminal',
 		title: localize('open in integrated terminal', "Open in Integrated Terminal")
@@ -624,6 +631,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			scmView.focusNextResourceGroup();
 		}
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorLineNumberContext, {
+	title: localize('quickDiffDecoration', "Diff Decorations"),
+	submenu: MenuId.SCMQuickDiffDecorations,
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.equals('config.scm.diffDecorations', 'all'),
+		ContextKeyExpr.equals('config.scm.diffDecorations', 'gutter')),
+	group: '9_quickDiffDecorations'
 });
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);

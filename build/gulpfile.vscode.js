@@ -57,11 +57,11 @@ const vscodeResourceIncludes = [
 	'out-build/nls.keys.json',
 
 	// Workbench
-	'out-build/vs/code/electron-sandbox/workbench/workbench.html',
+	'out-build/vs/code/electron-browser/workbench/workbench.html',
 
 	// Electron Preload
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
+	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
+	'out-build/vs/base/parts/sandbox/electron-browser/preload-aux.js',
 
 	// Node Scripts
 	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
@@ -96,14 +96,11 @@ const vscodeResourceIncludes = [
 	// Extension Host Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 
-	// Process Explorer
-	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.html',
-
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
 
 	// Tree Sitter injection queries
-	'out-build/vs/editor/common/languages/injections/*.scm',
+	'out-build/vs/editor/common/languages/injections/*.scm'
 ];
 
 const vscodeResources = [
@@ -141,20 +138,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					...bootstrapEntryPoints
 				],
 				resources: vscodeResources,
-				fileContentMapper: filePath => {
-					if (
-						filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
-						filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')) {
-						return async (content) => {
-							const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
-							return `${bootstrapWindowContent}\n${content}`; // prepend bootstrap-window.js content to entry points that are Electron windows
-						};
-					}
-					return undefined;
-				},
-				skipTSBoilerplateRemoval: entryPoint =>
-					entryPoint === 'vs/code/electron-sandbox/workbench/workbench' ||
-					entryPoint === 'vs/code/electron-sandbox/processExplorer/processExplorer',
+				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench'
 			}
 		}
 	)
@@ -229,19 +213,19 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
 
-	return () => {
+	const task = () => {
 		const electron = require('@vscode/gulp-electron');
 		const json = require('gulp-json-editor');
 
 		const out = sourceFolderName;
 
 		const checksums = computeChecksums(out, [
-			'vs/base/parts/sandbox/electron-sandbox/preload.js',
+			'vs/base/parts/sandbox/electron-browser/preload.js',
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			'vs/code/electron-sandbox/workbench/workbench.html',
-			'vs/code/electron-sandbox/workbench/workbench.js'
+			'vs/code/electron-browser/workbench/workbench.html',
+			'vs/code/electron-browser/workbench/workbench.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
@@ -260,7 +244,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
 
 		const sources = es.merge(src, extensions)
-			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
+			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		let version = packageJson.version;
 		const quality = product.quality;
@@ -305,7 +289,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
+			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
@@ -420,8 +404,21 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
 
-			if (quality === 'insider') {
+			if (quality !== 'exploration') {
 				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
+				const rawVersion = version.replace(/-\w+$/, '').split('.');
+				const appxVersion = `${rawVersion[0]}.0.${rawVersion[1]}.${rawVersion[2]}`;
+				result = es.merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: '.' })
+					.pipe(replace('@@AppxPackageName@@', product.win32AppUserModelId))
+					.pipe(replace('@@AppxPackageVersion@@', appxVersion))
+					.pipe(replace('@@AppxPackageDisplayName@@', product.nameLong))
+					.pipe(replace('@@AppxPackageDescription@@', product.win32NameVersion))
+					.pipe(replace('@@ApplicationIdShort@@', product.win32RegValueName))
+					.pipe(replace('@@ApplicationExe@@', product.nameShort + '.exe'))
+					.pipe(replace('@@FileExplorerContextMenuID@@', quality === 'stable' ? 'OpenWithCode' : 'OpenWithCodeInsiders'))
+					.pipe(replace('@@FileExplorerContextMenuCLSID@@', product.win32ContextMenu[arch].clsid))
+					.pipe(replace('@@FileExplorerContextMenuDLL@@', `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`))
+					.pipe(rename(f => f.dirname = `appx/manifest`)));
 			}
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
@@ -438,6 +435,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		return result.pipe(vfs.dest(destination));
 	};
+	task.taskName = `package-${platform}-${arch}`;
+	return task;
 }
 
 function patchWin32DependenciesTask(destinationFolderName) {

@@ -31,12 +31,11 @@ export async function getFigSuggestions(
 	specs: Fig.Spec[],
 	terminalContext: { commandLine: string; cursorPosition: number },
 	availableCommands: ICompletionResource[],
-	prefix: string,
+	currentCommandAndArgString: string,
 	tokenType: TokenType,
 	shellIntegrationCwd: vscode.Uri | undefined,
 	env: Record<string, string>,
 	name: string,
-	precedingText: string,
 	executeExternals: IFigExecuteExternals,
 	token?: vscode.CancellationToken,
 ): Promise<IFigSpecSuggestionsResult> {
@@ -46,6 +45,19 @@ export async function getFigSuggestions(
 		hasCurrentArg: false,
 		items: [],
 	};
+	const currentCommand = currentCommandAndArgString.split(' ')[0];
+
+	// Assemble a map to allow O(1) access to the available command from a spec
+	// label. The label does not include an extension on Windows.
+	const specLabelToAvailableCommandMap = new Map<string, ICompletionResource>();
+	for (const command of availableCommands) {
+		let label = typeof command.label === 'string' ? command.label : command.label.label;
+		if (osIsWindows()) {
+			label = removeAnyFileExtension(label);
+		}
+		specLabelToAvailableCommandMap.set(label, command);
+	}
+
 	for (const spec of specs) {
 		const specLabels = getFigSuggestionLabel(spec);
 
@@ -53,9 +65,7 @@ export async function getFigSuggestions(
 			continue;
 		}
 		for (const specLabel of specLabels) {
-			const availableCommand = (osIsWindows()
-				? availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
-				: availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label) === (specLabel)));
+			const availableCommand = specLabelToAvailableCommandMap.get(specLabel);
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -66,7 +76,7 @@ export async function getFigSuggestions(
 					const description = getFixSuggestionDescription(spec);
 					result.items.push(createCompletionItem(
 						terminalContext.cursorPosition,
-						prefix,
+						currentCommandAndArgString,
 						{
 							label: { label: specLabel, description },
 							kind: vscode.TerminalCompletionItemKind.Method
@@ -83,8 +93,8 @@ export async function getFigSuggestions(
 				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
-					? commandAndAliases.some(e => precedingText.startsWith(`${removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))} `))
-					: commandAndAliases.some(e => precedingText.startsWith(`${typeof e.label === 'string' ? e.label : e.label.label} `)))
+					? commandAndAliases.some(e => currentCommand === (removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))))
+					: commandAndAliases.some(e => currentCommand === (typeof e.label === 'string' ? e.label : e.label.label)))
 			) {
 				continue;
 			}
@@ -93,7 +103,7 @@ export async function getFigSuggestions(
 			if (!actualSpec) {
 				continue;
 			}
-			const completionItemResult = await getFigSpecSuggestions(actualSpec, terminalContext, prefix, shellIntegrationCwd, env, name, executeExternals, token);
+			const completionItemResult = await getFigSpecSuggestions(actualSpec, terminalContext, currentCommandAndArgString, shellIntegrationCwd, env, name, executeExternals, token);
 			result.hasCurrentArg ||= !!completionItemResult?.hasCurrentArg;
 			if (completionItemResult) {
 				result.filesRequested ||= completionItemResult.filesRequested;

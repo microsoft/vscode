@@ -153,7 +153,7 @@ export const expandAndGetTestById = async (collection: IMainThreadTestCollection
 /**
  * Waits for the test to no longer be in the "busy" state.
  */
-const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
+export const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
 	if (!test.item.busy) {
 		return;
 	}
@@ -172,7 +172,7 @@ const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCol
  * Iterator that expands to and iterates through tests in the file. Iterates
  * in strictly descending order.
  */
-export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true): AsyncIterable<IncrementalTestCollectionItem> {
+export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true, descendInFile = true): AsyncIterable<IncrementalTestCollectionItem> {
 	const queue = new LinkedList<Iterable<string>>();
 
 	const existing = [...testService.collection.getNodeByUrl(uri)];
@@ -194,6 +194,10 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 
 			if (ident.extUri.isEqual(uri, test.item.uri)) {
 				yield test;
+
+				if (!descendInFile) {
+					continue;
+				}
 			}
 
 			if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
@@ -314,6 +318,8 @@ export interface AmbiguousRunTestsRequest {
 	exclude?: InternalTestItem[];
 	/** Whether this was triggered from an auto run. */
 	continuous?: boolean;
+	/** Whether this was trigged by a user action in UI. Default=true */
+	preserveFocus?: boolean;
 }
 
 export interface ITestFollowup {

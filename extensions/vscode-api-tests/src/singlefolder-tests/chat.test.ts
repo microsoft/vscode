@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { ChatContext, ChatRequest, ChatResult, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
+import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult, Disposable, Event, EventEmitter, chat, commands, lm } from 'vscode';
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -15,22 +15,25 @@ suite('chat', () => {
 		disposables = [];
 
 		// Register a dummy default model which is required for a participant request to go through
-		disposables.push(lm.registerChatModelProvider('test-lm', {
-			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+		disposables.push(lm.registerChatModelProvider('test-lm-vendor', {
+			async prepareLanguageModelChat(_options, _token) {
+				return [{
+					id: 'test-lm',
+					name: 'test-lm',
+					family: 'test',
+					version: '1.0.0',
+					maxInputTokens: 100,
+					maxOutputTokens: 100,
+					isDefault: true,
+					isUserSelectable: true
+				}];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
 				return undefined;
 			},
-			async provideTokenCount(_text, _token) {
+			async provideTokenCount(_model, _text, _token) {
 				return 1;
 			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-			isDefault: true,
-			isUserSelectable: true
 		}));
 	});
 
@@ -71,6 +74,7 @@ suite('chat', () => {
 					assert.strictEqual(request.context.history.length, 2);
 					assert.strictEqual(request.context.history[0].participant, 'api-test.participant');
 					assert.strictEqual(request.context.history[0].command, 'hello');
+					assert.ok(request.context.history[0] instanceof ChatRequestTurn && request.context.history[0] instanceof ChatRequestTurn2);
 					deferred.complete();
 				}
 			} catch (e) {

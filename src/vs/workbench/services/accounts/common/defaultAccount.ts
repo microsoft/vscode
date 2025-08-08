@@ -13,12 +13,14 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Barrier } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
+
+export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
 const enum DefaultAccountStatus {
 	Uninitialized = 'uninitialized',
@@ -36,6 +38,7 @@ export interface IDefaultAccount {
 	readonly can_signup_for_limited?: boolean;
 	readonly chat_enabled?: boolean;
 	readonly chat_preview_features_enabled?: boolean;
+	readonly mcp?: boolean;
 	readonly analytics_tracking_id?: string;
 	readonly limited_user_quotas?: {
 		readonly chat: number;
@@ -46,6 +49,7 @@ export interface IDefaultAccount {
 		readonly completions: number;
 	};
 	readonly limited_user_reset_date?: string;
+	readonly chat_agent_enabled?: boolean;
 }
 
 interface IChatEntitlementsResponse {
@@ -189,7 +193,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		}
 	}
 
-	private extractFromToken(token: string, key: string): string | undefined {
+	private extractFromToken(token: string): Map<string, string> {
 		const result = new Map<string, string>();
 		const firstPart = token?.split(':')[0];
 		const fields = firstPart?.split(';');
@@ -197,11 +201,12 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			const [key, value] = field.split('=');
 			result.set(key, value);
 		}
-		return result.get(key);
+		this.logService.trace(`DefaultAccount#extractFromToken: ${JSON.stringify(Object.fromEntries(result))}`);
+		return result;
 	}
 
 	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[], tokenEntitlementUrl: string, chatEntitlementUrl: string): Promise<IDefaultAccount | null> {
-		const id = this.configurationService.getValue(enterpriseAuthProviderConfig) ? enterpriseAuthProviderId : authProviderId;
+		const id = this.configurationService.getValue(enterpriseAuthProviderConfig) === enterpriseAuthProviderId ? enterpriseAuthProviderId : authProviderId;
 		const sessions = await this.authenticationService.getSessions(id, undefined, undefined, true);
 		const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
 
@@ -243,9 +248,13 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 
 			const chatData = await asJson<ITokenEntitlementsResponse>(chatContext);
 			if (chatData) {
+				const tokenMap = this.extractFromToken(chatData.token);
 				return {
 					// Editor preview features are disabled if the flag is present and set to 0
-					chat_preview_features_enabled: this.extractFromToken(chatData.token, 'editor_preview_features') !== '0',
+					chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
+					chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
+					// MCP is disabled if the flag is present and set to 0
+					mcp: tokenMap.get('mcp') !== '0',
 				};
 			}
 			this.logService.error('Failed to fetch token entitlements', 'No data returned');
@@ -287,17 +296,12 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.accounts.actions.signin',
+					id: DEFAULT_ACCOUNT_SIGN_IN_COMMAND,
 					title: localize('sign in', "Sign in to {0}", authProviderLabel),
-					menu: {
-						id: MenuId.AccountsContext,
-						when: CONTEXT_DEFAULT_ACCOUNT_STATE.isEqualTo(DefaultAccountStatus.Unavailable),
-						group: '0_signin',
-					}
 				});
 			}
 			run(): Promise<any> {
-				const id = that.configurationService.getValue(enterpriseAuthProviderConfig) ? enterpriseAuthProviderId : authProviderId;
+				const id = that.configurationService.getValue(enterpriseAuthProviderConfig) === enterpriseAuthProviderId ? enterpriseAuthProviderId : authProviderId;
 				return that.authenticationService.createSession(id, scopes);
 			}
 		}));

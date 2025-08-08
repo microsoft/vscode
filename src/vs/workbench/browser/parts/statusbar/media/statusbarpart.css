@@ -17,7 +17,19 @@
 	transition: background-color 0.15s ease-out;
 }
 
-.monaco-workbench .part.statusbar.status-border-top::after {
+.monaco-workbench.mac:not(.fullscreen) .part.statusbar:focus {
+	/* Rounded corners to make focus outline appear properly (unless fullscreen) */
+	border-bottom-right-radius: 5px;
+	border-bottom-left-radius: 5px;
+}
+.monaco-workbench.mac:not(.fullscreen).macos-bigsur-or-newer .part.statusbar:focus {
+	/* macOS Big Sur increased rounded corners size */
+	border-bottom-right-radius: 10px;
+	border-bottom-left-radius: 10px;
+}
+
+.monaco-workbench .part.statusbar:not(:focus).status-border-top::after {
+	/* Top border only visible unless focused to make room for focus outline */
 	content: '';
 	position: absolute;
 	top: 0;

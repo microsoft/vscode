@@ -232,14 +232,19 @@ export class CodeActionModel extends Disposable {
 				const actions = createCancelablePromise(async token => {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+						this.codeActionsDisposable.value = codeActionSet;
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
 							codeActionSet.dispose();
 							return emptyCodeActionSet;
 						}
 
-						// Search for quickfixes in the curret code action set.
-						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) : false);
+						// Search for non-AI quickfixes in the current code action set - if AI code actions are the only thing found, continue searching for diagnostics in line.
+						const foundQuickfix = codeActionSet.validActions?.some(action => {
+							return action.action.kind &&
+								CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) &&
+								!action.action.isAI;
+						});
 						const allMarkers = this._markerService.read({ resource: model.uri });
 						if (foundQuickfix) {
 							for (const action of codeActionSet.validActions) {
@@ -326,6 +331,7 @@ export class CodeActionModel extends Disposable {
 					// Case for manual triggers - specifically Source Actions and Refactors
 					if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 						const codeActions = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+						this.codeActionsDisposable.value = codeActions;
 						return codeActions;
 					}
 
@@ -365,7 +371,7 @@ export class CodeActionModel extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger) {
 		this._codeActionOracle.value?.trigger(trigger);
-		this.codeActionsDisposable.clear();
+		this.codeActionsDisposable.dispose();
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {

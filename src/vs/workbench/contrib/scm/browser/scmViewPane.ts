@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/v
 import { append, $, Dimension, trackFocus, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
 import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext } from '../common/scm.js';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ViewMode } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -21,7 +21,7 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2, IMenu } from '../../../../platform/actions/common/actions.js';
-import { IAction, ActionRunner, Action, Separator, IActionRunner, toAction } from '../../../../base/common/actions.js';
+import { IAction, ActionRunner, Action, Separator, IActionRunner, toAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IThemeService, IFileIconTheme } from '../../../../platform/theme/common/themeService.js';
 import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu } from './util.js';
@@ -93,7 +93,7 @@ import { EditorOption, EditorOptions, IEditorOptions } from '../../../../editor/
 import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
-import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { clamp, rot } from '../../../../base/common/numbers.js';
@@ -108,6 +108,9 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import product from '../../../../platform/product/common/product.js';
+import { CHAT_SETUP_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
 
@@ -200,7 +203,7 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 		return { actionButton, disposable: Disposable.None, templateDisposable: actionButton };
 	}
 
-	renderElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, templateData: ActionButtonTemplate, height: number | undefined): void {
+	renderElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, templateData: ActionButtonTemplate): void {
 		templateData.disposable.dispose();
 
 		const disposables = new DisposableStore();
@@ -389,6 +392,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	}
 
 	disposeTemplate(templateData: InputTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.templateDisposable.dispose();
 	}
 
@@ -472,7 +476,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		template.actionBar.context = group;
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceGroup>, FuzzyScore>, index: number, templateData: ResourceGroupTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceGroup>, FuzzyScore>): void {
 		throw new Error('Should never happen since node is incompressible');
 	}
 
@@ -620,7 +624,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.elementDisposables.clear();
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
 		const compressed = node.element as ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>;
 		const folder = compressed.elements[compressed.elements.length - 1];
 
@@ -646,7 +650,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.element.setAttribute('data-tooltip', '');
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
 		template.elementDisposables.clear();
 	}
 
@@ -959,11 +963,6 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 	}
 }
 
-const enum ViewMode {
-	List = 'list',
-	Tree = 'tree'
-}
-
 const enum ViewSortKey {
 	Path = 'path',
 	Name = 'name',
@@ -985,6 +984,7 @@ export const ContextKeys = {
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
 	SCMHistoryItemCount: new RawContextKey<number>('scmHistoryItemCount', 0),
+	SCMHistoryViewMode: new RawContextKey<ViewMode>('scmHistoryViewMode', ViewMode.List),
 	SCMCurrentHistoryItemRefHasRemote: new RawContextKey<boolean>('scmCurrentHistoryItemRefHasRemote', false),
 	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
@@ -1324,12 +1324,52 @@ registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
 const enum SCMInputWidgetCommandId {
-	CancelAction = 'scm.input.cancelAction'
+	CancelAction = 'scm.input.cancelAction',
+	SetupAction = 'scm.input.triggerSetup'
 }
 
 const enum SCMInputWidgetStorageKey {
 	LastActionId = 'scm.input.lastActionId'
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SCMInputWidgetCommandId.SetupAction,
+			title: localize('scmInputGenerateCommitMessage', "Generate commit message"),
+			icon: Codicon.sparkle,
+			f1: false,
+			menu: {
+				id: MenuId.SCMInputBox,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabled.negate(),
+					ChatContextKeys.Setup.installed.negate(),
+					ContextKeyExpr.equals('scmProvider', 'git')
+				)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const telemetryService = accessor.get(ITelemetryService);
+
+		telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'scmInput' });
+
+		const result = await commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+		if (!result) {
+			return;
+		}
+
+		const command = product.defaultChatAgent?.generateCommitMessageCommand;
+		if (!command) {
+			return;
+		}
+
+		await commandService.executeCommand(command, ...args);
+	}
+});
 
 class SCMInputWidgetActionRunner extends ActionRunner {
 
@@ -1374,7 +1414,10 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 			// Save last action
 			if (this._runningActions.size === 0) {
-				this.storageService.store(SCMInputWidgetStorageKey.LastActionId, action.id, StorageScope.PROFILE, StorageTarget.USER);
+				const actionId = action.id === SCMInputWidgetCommandId.SetupAction
+					? product.defaultChatAgent?.generateCommitMessageCommand ?? action.id
+					: action.id;
+				this.storageService.store(SCMInputWidgetStorageKey.LastActionId, actionId, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 	}
@@ -1407,7 +1450,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, { resetMenu: MenuId.SCMInputBox, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
+		super(container, options, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		this._dropdownAction = new Action(
 			'scmInputMoreActions',
@@ -1425,7 +1468,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		this._disposables.value = new DisposableStore();
 
 		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmProvider', input.repository.provider.contextValue],
+			['scmProvider', input.repository.provider.providerId],
 			['scmProviderRootUri', input.repository.provider.rootUri?.toString()],
 			['scmProviderHasRootUri', !!input.repository.provider.rootUri]
 		]);
@@ -1446,7 +1489,9 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 			let primaryAction: IAction | undefined = undefined;
 
-			if (actions.length === 1) {
+			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size !== 0) {
+				primaryAction = this._cancelAction;
+			} else if (actions.length === 1) {
 				primaryAction = actions[0];
 			} else if (actions.length > 1) {
 				const lastActionId = this.storageService.get(SCMInputWidgetStorageKey.LastActionId, StorageScope.PROFILE, '');
@@ -1504,6 +1549,7 @@ class SCMInputWidgetEditorOptions {
 					e.affectsConfiguration('editor.fontFamily') ||
 					e.affectsConfiguration('editor.rulers') ||
 					e.affectsConfiguration('editor.wordWrap') ||
+					e.affectsConfiguration('editor.wordSegmenterLocales') ||
 					e.affectsConfiguration('scm.inputFontFamily') ||
 					e.affectsConfiguration('scm.inputFontSize');
 			},
@@ -1538,13 +1584,14 @@ class SCMInputWidgetEditorOptions {
 		const fontFamily = this._getEditorFontFamily();
 		const fontSize = this._getEditorFontSize();
 		const lineHeight = this._getEditorLineHeight(fontSize);
+		const wordSegmenterLocales = this.configurationService.getValue<string | string[]>('editor.wordSegmenterLocales');
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 		const cursorStyle = this.configurationService.getValue<IEditorOptions['cursorStyle']>('editor.cursorStyle');
 		const cursorWidth = this.configurationService.getValue<IEditorOptions['cursorWidth']>('editor.cursorWidth') ?? 1;
 		const emptySelectionClipboard = this.configurationService.getValue<boolean>('editor.emptySelectionClipboard') === true;
 
-		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, cursorStyle, cursorWidth, fontFamily, fontSize, lineHeight, emptySelectionClipboard };
+		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, cursorStyle, cursorWidth, fontFamily, fontSize, lineHeight, emptySelectionClipboard, wordSegmenterLocales };
 	}
 
 	private _getEditorFontFamily(): string {
@@ -1612,7 +1659,7 @@ class SCMInputWidget {
 	private validation: IInputValidation | undefined;
 	private validationContextView: IOpenContextView | undefined;
 	private validationHasFocus: boolean = false;
-	private _validationTimer: any;
+	private _validationTimer: Timeout | undefined;
 
 	// This is due to "Setup height change listener on next tick" above
 	// https://github.com/microsoft/vscode/issues/108067
@@ -1782,7 +1829,7 @@ class SCMInputWidget {
 	private setValidation(validation: IInputValidation | undefined, options?: { focus?: boolean; timeout?: boolean }) {
 		if (this._validationTimer) {
 			clearTimeout(this._validationTimer);
-			this._validationTimer = 0;
+			this._validationTimer = undefined;
 		}
 
 		this.validation = validation;
@@ -1902,6 +1949,7 @@ class SCMInputWidget {
 
 				return createActionViewItem(instantiationService, action, options);
 			},
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			menuOptions: {
 				shouldForwardArgs: true
 			}
@@ -2572,13 +2620,17 @@ export class SCMViewPane extends ViewPane {
 		const element = e.element;
 		let context: any = element;
 		let actions: IAction[] = [];
+
+		const disposables = new DisposableStore();
 		let actionRunner: IActionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		disposables.add(actionRunner);
 
 		if (isSCMRepository(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
-			const menu = menus.repositoryContextMenu;
+			const menu = menus.getRepositoryContextMenu(element);
 			context = element.provider;
 			actionRunner = new RepositoryActionRunner(() => this.getSelectedRepositories());
+			disposables.add(actionRunner);
 			actions = collectContextMenuActions(menu);
 		} else if (isSCMInput(element) || isSCMActionButton(element)) {
 			// noop
@@ -2602,14 +2654,14 @@ export class SCMViewPane extends ViewPane {
 			}
 		}
 
-		actionRunner.onWillRun(() => this.tree.domFocus());
+		disposables.add(actionRunner.onWillRun(() => this.tree.domFocus()));
 
 		this.contextMenuService.showContextMenu({
 			actionRunner,
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => context,
-			onHide: () => actionRunner.dispose()
+			onHide: () => disposables.dispose()
 		});
 	}
 
@@ -2718,7 +2770,7 @@ export class SCMViewPane extends ViewPane {
 
 		if (!alwaysShowRepositories && this.items.size === 1) {
 			const provider = Iterable.first(this.items.keys())!.provider;
-			this.scmProviderContextKey.set(provider.contextValue);
+			this.scmProviderContextKey.set(provider.providerId);
 			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
 			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
 		} else {

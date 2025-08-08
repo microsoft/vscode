@@ -1,8 +1,4 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -37,7 +33,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EntryKind = void 0;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const ts = __importStar(require("typescript"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
@@ -53,81 +52,14 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 //
 // #############################################################################################
 //
-const ignored = new Set([
-    'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer.ts',
-    'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree.ts',
-    'vs/editor/common/model/textModelTokens.ts',
-    'vs/editor/common/model/tokenizationTextModelPart.ts',
-    'vs/editor/common/core/textEdit.ts',
-    'vs/editor/browser/view/viewLayer.ts',
-    'vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts',
-    'vs/editor/browser/widget/diffEditor/utils.ts',
-    'vs/editor/browser/observableCodeEditor.ts',
-    'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.ts',
-    'vs/editor/browser/widget/diffEditor/diffEditorOptions.ts',
-    'vs/editor/browser/widget/diffEditor/components/diffEditorEditors.ts',
-    'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature.ts',
-    'vs/editor/browser/widget/diffEditor/components/diffEditorSash.ts',
-    'vs/editor/browser/widget/diffEditor/utils/editorGutter.ts',
-    'vs/editor/browser/widget/diffEditor/features/gutterFeature.ts',
-    'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature.ts',
-    'vs/editor/browser/widget/diffEditor/diffEditorWidget.ts',
-    'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.ts',
-    'vs/editor/contrib/inlineCompletions/browser/model/suggestWidgetAdapter.ts',
-    'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel.ts',
-    'vs/editor/contrib/inlineCompletions/browser/hintsWidget/inlineCompletionsHintsWidget.ts',
-    'vs/editor/contrib/inlayHints/browser/inlayHintsController.ts',
-    'vs/editor/contrib/inlineCompletions/browser/model/changeRecorder.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/ghostText/ghostTextView.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditWithChanges.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsWordReplacementView.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsLineReplacementView.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsSideBySideView.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/originalEditorInlineDiffView.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsView.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineCompletionsView.ts',
-    'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.ts',
-    'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsAccessibleView.ts',
-    'vs/editor/contrib/placeholderText/browser/placeholderTextContribution.ts',
-    'vs/editor/contrib/unicodeHighlighter/browser/unicodeHighlighter.ts',
-    'vs/workbench/contrib/files/browser/views/openEditorsView.ts',
-    'vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart.ts',
-    'vs/workbench/contrib/chat/browser/contrib/chatImplicitContext.ts',
-    'vs/workbench/contrib/chat/browser/chatInputPart.ts',
-    'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange.ts',
-    'vs/workbench/contrib/mergeEditor/browser/model/diffComputer.ts',
-    'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel.ts',
-    'vs/workbench/contrib/mergeEditor/browser/view/editorGutter.ts',
-    'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView.ts',
-    'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView.ts',
-    'vs/workbench/contrib/mergeEditor/browser/view/viewModel.ts',
-    'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel.ts',
-    'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput.ts',
-    'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.ts',
-    'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.ts',
-    'vs/platform/terminal/common/capabilities/commandDetectionCapability.ts',
-    'vs/workbench/services/authentication/browser/authenticationExtensionsService.ts',
-    'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController.ts',
-    'vs/workbench/services/textMate/browser/textMateTokenizationFeatureImpl.ts',
-    'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl.ts',
-    'vs/workbench/contrib/notebook/browser/contrib/multicursor/notebookMulticursor.ts',
-    'vs/editor/browser/widget/multiDiffEditor/diffEditorItemTemplate.ts',
-    'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.ts',
-    'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditor.ts',
-    'vs/workbench/contrib/search/common/cacheState.ts',
-    'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver.ts',
-    'vs/workbench/contrib/mergeEditor/browser/view/viewZones.ts',
-    'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor.ts',
-    'vs/workbench/contrib/editSessions/browser/editSessionsStorageService.ts',
-    'vs/workbench/contrib/accessibilitySignals/browser/editorTextPropertySignalsContribution.ts',
-    'vs/workbench/contrib/inlineCompletions/browser/inlineCompletionLanguageStatusBarContribution.ts',
-    'vs/workbench/contrib/welcomeDialog/browser/welcomeWidget.ts',
-    'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsWordInsertView.ts',
-    'vs/platform/terminal/node/ptyService.ts',
-    'vs/workbench/api/common/extHostLanguageFeatures.ts',
-    'vs/workbench/api/common/extHostSearch.ts',
-]);
+var EntryKind;
+(function (EntryKind) {
+    EntryKind[EntryKind["Span"] = 0] = "Span";
+    EntryKind[EntryKind["Node"] = 1] = "Node";
+    EntryKind[EntryKind["StringLiteral"] = 2] = "StringLiteral";
+    EntryKind[EntryKind["SearchedLocalFoundProperty"] = 3] = "SearchedLocalFoundProperty";
+    EntryKind[EntryKind["SearchedPropertyFoundLocal"] = 4] = "SearchedPropertyFoundLocal";
+})(EntryKind || (EntryKind = {}));
 const cancellationToken = {
     isCancellationRequested: () => false,
     throwIfCancellationRequested: () => { },
@@ -145,10 +77,6 @@ const program = createProgram(TS_CONFIG_PATH);
 program.getTypeChecker();
 for (const file of program.getSourceFiles()) {
     if (!file || file.isDeclarationFile) {
-        continue;
-    }
-    const relativePath = path.relative(path.dirname(TS_CONFIG_PATH), file.fileName).replace(/\\/g, '/');
-    if (ignored.has(relativePath)) {
         continue;
     }
     visit(file);
@@ -292,7 +220,7 @@ function* findAllReferencesInClass(node) {
     }
     for (const ref of findAllReferences(node)) {
         for (const entry of ref.references) {
-            if (entry.kind !== 1 /* EntryKind.Node */ || entry.node === node) {
+            if (entry.kind !== EntryKind.Node || entry.node === node) {
                 continue;
             }
             if (findClass(entry.node) === classDecl) {
@@ -318,13 +246,4 @@ var DefinitionKind;
     DefinitionKind[DefinitionKind["String"] = 4] = "String";
     DefinitionKind[DefinitionKind["TripleSlashReference"] = 5] = "TripleSlashReference";
 })(DefinitionKind || (DefinitionKind = {}));
-/** @internal */
-var EntryKind;
-(function (EntryKind) {
-    EntryKind[EntryKind["Span"] = 0] = "Span";
-    EntryKind[EntryKind["Node"] = 1] = "Node";
-    EntryKind[EntryKind["StringLiteral"] = 2] = "StringLiteral";
-    EntryKind[EntryKind["SearchedLocalFoundProperty"] = 3] = "SearchedLocalFoundProperty";
-    EntryKind[EntryKind["SearchedPropertyFoundLocal"] = 4] = "SearchedPropertyFoundLocal";
-})(EntryKind || (exports.EntryKind = EntryKind = {}));
 //# sourceMappingURL=propertyInitOrderChecker.js.map

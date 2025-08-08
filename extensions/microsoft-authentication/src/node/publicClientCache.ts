@@ -8,6 +8,7 @@ import { SecretStorage, LogOutputChannel, Disposable, EventEmitter, Memento, Eve
 import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
 import { CachedPublicClientApplication } from './cachedPublicClientApplication';
 import { IAccountAccess, ScopedAccountAccess } from '../common/accountAccess';
+import { MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 
 export interface IPublicClientApplicationInfo {
 	clientId: string;
@@ -29,6 +30,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		private readonly _accountAccess: IAccountAccess,
 		private readonly _secretStorage: SecretStorage,
 		private readonly _logger: LogOutputChannel,
+		private readonly _telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
 		disposables: Disposable[]
 	) {
 		this._disposable = Disposable.from(
@@ -41,13 +43,14 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	static async create(
 		secretStorage: SecretStorage,
 		logger: LogOutputChannel,
+		telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
 		cloudName: string
 	): Promise<CachedPublicClientApplicationManager> {
 		const pcasSecretStorage = await PublicClientApplicationsSecretStorage.create(secretStorage, cloudName);
 		// TODO: Remove the migrations in a version
 		const migrations = await pcasSecretStorage.getOldValue();
 		const accountAccess = await ScopedAccountAccess.create(secretStorage, cloudName, logger, migrations);
-		const manager = new CachedPublicClientApplicationManager(pcasSecretStorage, accountAccess, secretStorage, logger, [pcasSecretStorage, accountAccess]);
+		const manager = new CachedPublicClientApplicationManager(pcasSecretStorage, accountAccess, secretStorage, logger, telemetryReporter, [pcasSecretStorage, accountAccess]);
 		await manager.initialize();
 		return manager;
 	}
@@ -138,7 +141,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	}
 
 	private async _doCreatePublicClientApplication(clientId: string): Promise<ICachedPublicClientApplication> {
-		const pca = await CachedPublicClientApplication.create(clientId, this._secretStorage, this._accountAccess, this._logger);
+		const pca = await CachedPublicClientApplication.create(clientId, this._secretStorage, this._accountAccess, this._logger, this._telemetryReporter);
 		this._pcas.set(clientId, pca);
 		const disposable = Disposable.from(
 			pca,
@@ -228,10 +231,16 @@ class PublicClientApplicationsSecretStorage implements IPublicClientApplicationS
 	private readonly _onDidChangeEmitter = new EventEmitter<void>;
 	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
 
-	private readonly _oldKey = `publicClientApplications-${this._cloudName}`;
-	private readonly _key = `publicClients-${this._cloudName}`;
+	private readonly _oldKey: string;
+	private readonly _key: string;
 
-	private constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
+	private constructor(
+		private readonly _secretStorage: SecretStorage,
+		private readonly _cloudName: string
+	) {
+		this._oldKey = `publicClientApplications-${this._cloudName}`;
+		this._key = `publicClients-${this._cloudName}`;
+
 		this._disposable = Disposable.from(
 			this._onDidChangeEmitter,
 			this._secretStorage.onDidChange(e => {

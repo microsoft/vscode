@@ -118,7 +118,7 @@ export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownStri
 	}
 }
 
-export function isMarkdownString(thing: any): thing is IMarkdownString {
+export function isMarkdownString(thing: unknown): thing is IMarkdownString {
 	if (thing instanceof MarkdownString) {
 		return true;
 	} else if (thing && typeof thing === 'object') {

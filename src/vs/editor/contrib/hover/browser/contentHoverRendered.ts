@@ -22,7 +22,7 @@ import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IOffsetRange } from '../../../common/core/offsetRange.js';
+import { IOffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
 export class RenderedContentHover extends Disposable {
 

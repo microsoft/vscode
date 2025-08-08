@@ -228,7 +228,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private _resetPlaceholder() {
 		const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Terminal);
-		this.inlineChatWidget.placeholder = defaultAgent?.description ?? localize('askAI', 'Ask AI');
+		this.inlineChatWidget.placeholder = defaultAgent?.description ?? localize('askAboutCommands', 'Ask about commands');
 	}
 
 	async reveal(viewState?: IChatViewState): Promise<void> {
@@ -331,12 +331,7 @@ export class TerminalChatWidget extends Disposable {
 				const model = this._model.value;
 				if (model) {
 					this._inlineChatWidget.setChatModel(model, this._loadViewState());
-					model.waitForInitialization().then(() => {
-						if (token.isCancellationRequested) {
-							return;
-						}
-						this._resetPlaceholder();
-					});
+					this._resetPlaceholder();
 				}
 				if (!this._model.value) {
 					throw new Error('Failed to start chat session');

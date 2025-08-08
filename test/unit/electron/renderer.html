@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -41,7 +42,7 @@
 		const basePath = require('path').join(__dirname, `../../../${outdir}/`);
 		const baseUrl = require('url').pathToFileURL(basePath);
 
-		// Tests run in a renderer that IS node-enabled. Wo we will encounter imports for node-modules which isn't
+		// Tests run in a renderer that IS node-enabled. So we will encounter imports for node-modules which isn't
 		// supported by blink/chromium. To work around this, we generate an import map that maps all node modules
 		// to a blob that exports all properties of the module as named exports and the module itself as default.
 
@@ -86,7 +87,7 @@
 
 		for (const name of new Set([].concat(builtin, dependencies, optionalDependencies, dependenciesRemote))) {
 			const url = asRequireBlobUri(name);
-			if(!url) {
+			if (!url) {
 				continue;
 			}
 

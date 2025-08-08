@@ -7,6 +7,7 @@ import { $, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -23,13 +24,14 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
-import { IViewDescriptorService } from '../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
-import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
@@ -47,8 +49,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private readonly modelDisposables = this._register(new DisposableStore());
 	private memento: Memento;
 	private readonly viewState: IViewPaneState;
-	private defaultParticipantRegistrationFailed = false;
-	private didUnregisterProvider = false;
 
 	private _restoringSession: Promise<void> | undefined;
 
@@ -87,7 +87,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					this.viewState.inputValue = lastEditsState.inputValue;
 					this.viewState.inputState = {
 						...lastEditsState.inputState,
-						chatMode: lastEditsState.inputState?.chatMode ?? ChatMode.Edit
+						chatMode: lastEditsState.inputState?.chatMode ?? ChatModeKind.Edit
 					};
 					this.viewState.hasMigratedCurrentSession = true;
 				}
@@ -100,6 +100,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					const info = this.getTransferredOrPersistedSessionInfo();
 					this._restoringSession =
 						(info.sessionId ? this.chatService.getOrRestoreSession(info.sessionId) : Promise.resolve(undefined)).then(async model => {
+							if (!this._widget) {
+								// renderBody has not been called yet
+								return;
+							}
+
 							// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
 							// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
 							// so it should fire onDidChangeViewWelcomeState.
@@ -107,22 +112,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 							try {
 								this._widget.setVisible(false);
 								await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
-								this.defaultParticipantRegistrationFailed = false;
-								this.didUnregisterProvider = false;
-								this._onDidChangeViewWelcomeState.fire();
 							} finally {
 								this.widget.setVisible(wasVisible);
 							}
 						});
 					this._restoringSession.finally(() => this._restoringSession = undefined);
 				}
-			} else if (this._widget?.viewModel?.initState === ChatModelInitState.Initialized) {
-				// Model is initialized, and the default agent disappeared, so show welcome view
-				this.didUnregisterProvider = true;
 			}
 
 			this._onDidChangeViewWelcomeState.fire();
 		}));
+
+		// Location context key
+		ChatContextKeys.panelLocation.bindTo(contextKeyService).set(viewDescriptorService.getViewLocationById(options.id) ?? ViewContainerLocation.AuxiliaryBar);
 	}
 
 	override getActionsContext(): IChatViewTitleActionContext | undefined {
@@ -156,12 +158,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	override shouldShowWelcome(): boolean {
 		const noPersistedSessions = !this.chatService.hasSessions();
 		const hasCoreAgent = this.chatAgentService.getAgents().some(agent => agent.isCore && agent.locations.includes(this.chatOptions.location));
-		const shouldShow = !hasCoreAgent && (this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed);
-		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} didUnregister=${this.didUnregisterProvider} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed}`);
+		const hasDefaultAgent = this.chatAgentService.getDefaultAgent(this.chatOptions.location) !== undefined; // only false when Hide Copilot has run and unregistered the setup agents
+		const shouldShow = !hasCoreAgent && (!hasDefaultAgent || !this._widget?.viewModel && noPersistedSessions);
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: hasCoreAgent=${hasCoreAgent} hasDefaultAgent=${hasDefaultAgent} || noViewModel=${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions}`);
 		return !!shouldShow;
 	}
 
-	private getTransferredOrPersistedSessionInfo(): { sessionId?: string; inputValue?: string; mode?: ChatMode } {
+	private getTransferredOrPersistedSessionInfo(): { sessionId?: string; inputValue?: string; mode?: ChatModeKind } {
 		if (this.chatService.transferredSessionData?.location === this.chatOptions.location) {
 			const sessionId = this.chatService.transferredSessionData.sessionId;
 			return {
@@ -190,7 +193,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.chatOptions.location,
 				{ viewId: this.id },
 				{
-					autoScroll: mode => mode !== ChatMode.Ask,
+					autoScroll: mode => mode !== ChatModeKind.Ask,
 					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
 					supportsFileReferences: true,
 					rendererOptions: {
@@ -198,7 +201,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 							return true;
 						},
 						referencesExpandedWhenEmptyResponse: false,
-						progressMessageAtBottomOfResponse: mode => mode !== ChatMode.Ask,
+						progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 					},
 					editorOverflowWidgetsDomNode: editorOverflowNode,
 					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
@@ -220,14 +223,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._widget.render(parent);
 
 			const info = this.getTransferredOrPersistedSessionInfo();
-			const disposeListener = this._register(this.chatService.onDidDisposeSession((e) => {
-				// Render the welcome view if provider registration fails, eg when signed out. This activates for any session, but the problem is the same regardless
-				if (e.reason === 'initializationFailed') {
-					this.defaultParticipantRegistrationFailed = true;
-					disposeListener?.dispose();
-					this._onDidChangeViewWelcomeState.fire();
-				}
-			}));
 			const model = info.sessionId ? await this.chatService.getOrRestoreSession(info.sessionId) : undefined;
 
 			await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
@@ -254,12 +249,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionId: string, viewState?: IChatViewState): Promise<void> {
+	async loadSession(sessionId: string | URI, viewState?: IChatViewState): Promise<void> {
 		if (this.widget.viewModel) {
 			await this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
 
-		const newModel = await this.chatService.getOrRestoreSession(sessionId);
+		const newModel = await (URI.isUri(sessionId) ? this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Panel, CancellationToken.None) : this.chatService.getOrRestoreSession(sessionId));
 		await this.updateModel(newModel, viewState);
 	}
 

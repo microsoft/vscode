@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from '../../../base/browser/browser.js';
+import { addDisposableListener } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { VSBuffer, decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -109,9 +110,9 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 		// Do the decryption and parse the result as JSON
 		const key = await this.getKey(clientKey.buffer);
 		const decrypted = await mainWindow.crypto.subtle.decrypt(
-			{ name: AESConstants.ALGORITHM as const, iv: iv.buffer },
+			{ name: AESConstants.ALGORITHM as const, iv: iv.buffer as Uint8Array<ArrayBuffer> },
 			key,
-			cipherText.buffer
+			cipherText.buffer as Uint8Array<ArrayBuffer>
 		);
 
 		return new TextDecoder().decode(new Uint8Array(decrypted));
@@ -275,6 +276,11 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 		this.save();
 	}
 
+	async keys(): Promise<string[]> {
+		const secrets = await this.secretsPromise;
+		return Object.keys(secrets) || [];
+	}
+
 	private async save(): Promise<void> {
 		try {
 			const encrypted = await this.crypto.seal(JSON.stringify(await this.secretsPromise));
@@ -302,7 +308,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 	private pendingCallbacks = new Set<number>();
 	private lastTimeChecked = Date.now();
-	private checkCallbacksTimeout: unknown | undefined = undefined;
+	private checkCallbacksTimeout: Timeout | undefined = undefined;
 	private onDidChangeLocalStorageDisposable: IDisposable | undefined;
 
 	constructor(private readonly _callbackRoute: string) {
@@ -340,9 +346,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 			return;
 		}
 
-		const fn = () => this.onDidChangeLocalStorage();
-		mainWindow.addEventListener('storage', fn);
-		this.onDidChangeLocalStorageDisposable = { dispose: () => mainWindow.removeEventListener('storage', fn) };
+		this.onDidChangeLocalStorageDisposable = addDisposableListener(mainWindow, 'storage', () => this.onDidChangeLocalStorage());
 	}
 
 	private stopListening(): void {

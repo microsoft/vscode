@@ -7,19 +7,19 @@ import { PromptToken } from './tokens/promptToken.js';
 import { PromptAtMention } from './tokens/promptAtMention.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { PromptSlashCommand } from './tokens/promptSlashCommand.js';
-import { assertNever } from '../../../../../../base/common/assert.js';
 import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { PartialPromptAtMention } from './parsers/promptAtMentionParser.js';
 import { PromptTemplateVariable } from './tokens/promptTemplateVariable.js';
+import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { PartialPromptSlashCommand } from './parsers/promptSlashCommandParser.js';
-import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
+import { BaseDecoder } from './base/baseDecoder.js';
 import { PromptVariable, PromptVariableWithData } from './tokens/promptVariable.js';
-import { At } from '../../../../../../editor/common/codecs/simpleCodec/tokens/at.js';
-import { Hash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/hash.js';
-import { Slash } from '../../../../../../editor/common/codecs/simpleCodec/tokens/slash.js';
-import { DollarSign } from '../../../../../../editor/common/codecs/simpleCodec/tokens/dollarSign.js';
+import { At } from './base/simpleCodec/tokens/at.js';
+import { Hash } from './base/simpleCodec/tokens/hash.js';
+import { Slash } from './base/simpleCodec/tokens/slash.js';
+import { DollarSign } from './base/simpleCodec/tokens/dollarSign.js';
 import { PartialPromptVariableName, PartialPromptVariableWithData } from './parsers/promptVariableParser.js';
-import { MarkdownDecoder, TMarkdownToken } from '../../../../../../editor/common/codecs/markdownCodec/markdownDecoder.js';
+import { MarkdownDecoder, TMarkdownToken } from './base/markdownCodec/markdownDecoder.js';
 import { PartialPromptTemplateVariable, PartialPromptTemplateVariableStart, TPromptTemplateVariableParser } from './parsers/promptTemplateVariableParser.js';
 
 /**
@@ -143,26 +143,33 @@ export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TMarkdownTo
 			// otherwise try to convert unfinished parser object to a token
 
 			if (this.current instanceof PartialPromptVariableName) {
-				return this._onData.fire(this.current.asPromptVariable());
+				this._onData.fire(this.current.asPromptVariable());
+				return;
 			}
 
 			if (this.current instanceof PartialPromptVariableWithData) {
-				return this._onData.fire(this.current.asPromptVariableWithData());
+				this._onData.fire(this.current.asPromptVariableWithData());
+				return;
 			}
 
 			if (this.current instanceof PartialPromptAtMention) {
-				return this._onData.fire(this.current.asPromptAtMention());
+				this._onData.fire(this.current.asPromptAtMention());
+				return;
 			}
 
 			if (this.current instanceof PartialPromptSlashCommand) {
-				return this._onData.fire(this.current.asPromptSlashCommand());
+				this._onData.fire(this.current.asPromptSlashCommand());
+				return;
 			}
 
-			if (this.current instanceof PartialPromptTemplateVariableStart) {
-				throw new Error('Incomplete template variable token.');
-			}
+			assert(
+				(this.current instanceof PartialPromptTemplateVariableStart) === false,
+				'Incomplete template variable token.',
+			);
+
 			if (this.current instanceof PartialPromptTemplateVariable) {
-				return this._onData.fire(this.current.asPromptTemplateVariable());
+				this._onData.fire(this.current.asPromptTemplateVariable());
+				return;
 			}
 
 			assertNever(

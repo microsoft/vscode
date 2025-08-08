@@ -1,13 +1,15 @@
 name: 'Telemetry'
-on:
-  pull_request:
+on: pull_request
+permissions: {}
 jobs:
-  check-metdata:
+  check-metadata:
     name: 'Check metadata'
     runs-on: 'ubuntu-latest'
 
     steps:
       - uses: 'actions/checkout@v4'
+        with:
+          persist-credentials: false
 
       - uses: 'actions/setup-node@v4'
         with:

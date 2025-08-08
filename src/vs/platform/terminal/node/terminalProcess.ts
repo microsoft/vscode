@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType } from '../common/terminal.js';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { ChildProcessMonitor } from './childProcessMonitor.js';
 import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
@@ -105,15 +105,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
-	private _closeTimeout: any;
+	private _closeTimeout: Timeout | undefined;
 	private _ptyProcess: IPty | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _childProcessMonitor: ChildProcessMonitor | undefined;
-	private _titleInterval: NodeJS.Timeout | null = null;
+	private _titleInterval: Timeout | undefined;
 	private _writeQueue: IWriteObject[] = [];
-	private _writeTimeout: NodeJS.Timeout | undefined;
+	private _writeTimeout: Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: IPtyForkOptions | IWindowsPtyForkOptions;
@@ -197,12 +197,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._register(toDisposable(() => {
 			if (this._titleInterval) {
 				clearInterval(this._titleInterval);
-				this._titleInterval = null;
+				this._titleInterval = undefined;
 			}
 		}));
 	}
 
-	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
 		const firstError = results.find(r => r !== undefined);
 		if (firstError) {
@@ -469,6 +469,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._startWrite();
 	}
 
+	sendSignal(signal: string): void {
+		if (this._store.isDisposed || !this._ptyProcess) {
+			return;
+		}
+		this._ptyProcess.kill(signal);
+	}
+
 	async processBinary(data: string): Promise<void> {
 		this.input(data, true);
 	}
@@ -654,7 +661,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 class DelayedResizer extends Disposable {
 	rows: number | undefined;
 	cols: number | undefined;
-	private _timeout: NodeJS.Timeout;
+	private _timeout: Timeout;
 
 	private readonly _onTrigger = this._register(new Emitter<{ rows?: number; cols?: number }>());
 	get onTrigger(): Event<{ rows?: number; cols?: number }> { return this._onTrigger.event; }

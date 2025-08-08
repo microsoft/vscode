@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccountInfo, AuthenticationResult, ClientAuthError, ClientAuthErrorCodes, ServerError } from '@azure/msal-node';
-import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, window } from 'vscode';
+import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriEventHandler } from '../UriEventHandler';
@@ -86,7 +86,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		uriHandler: UriEventHandler,
 		env: Environment = Environment.AzureCloud
 	): Promise<MsalAuthProvider> {
-		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, env.name);
+		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, telemetryReporter, env.name);
 		context.subscriptions.push(publicClientManager);
 		const authProvider = new MsalAuthProvider(context, telemetryReporter, logger, uriHandler, publicClientManager, env);
 		await authProvider.initialize();
@@ -129,10 +129,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		// Send telemetry for existing accounts
 		for (const cachedPca of this._publicClientManager.getAll()) {
 			for (const account of cachedPca.accounts) {
-				if (!account.idTokenClaims?.tid) {
-					continue;
-				}
-				const tid = account.idTokenClaims.tid;
+				const tid = account.tenantId;
 				const type = tid === MSA_TID || tid === MSA_PASSTHRU_TID ? MicrosoftAccountType.MSA : MicrosoftAccountType.AAD;
 				this._telemetryReporter.sendAccountEvent([], type);
 			}
@@ -154,9 +151,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	//#region AuthenticationProvider methods
 
-	async getSessions(scopes: string[] | undefined, options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession[]> {
+	async getSessions(scopes: string[] | undefined, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession[]> {
 		const askingForAll = scopes === undefined;
-		const scopeData = new ScopeData(scopes);
+		const scopeData = new ScopeData(scopes, options?.authorizationServer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
@@ -186,7 +183,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	}
 
 	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		const scopeData = new ScopeData(scopes);
+		const scopeData = new ScopeData(scopes, options.authorizationServer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
@@ -210,8 +207,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			}
 		};
 
+		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
 		const flows = getMsalFlows({
-			extensionHost: typeof navigator === 'undefined'
+			extensionHost: isNodeEnvironment
 				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
 		});
@@ -354,6 +352,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				} catch (e) {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
 					// MSAL will log this already, so we don't need to log it again
+					this._telemetryReporter.sendTelemetryErrorEvent(e);
 					continue;
 				}
 			}

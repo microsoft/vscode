@@ -10,9 +10,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, DomPosition, LineRange, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
-import { InlineDecorationType } from '../../../common/viewModel.js';
+import { CharacterMapping, DomPosition, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 
 function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
 	return new TestLineTokens(viewLineTokens);
@@ -73,7 +74,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.strictEqual(_actual.html, '<span><span class="mtk0">' + expected + '</span></span>');
@@ -127,7 +130,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.strictEqual(_actual.html, '<span>' + expected + '</span>');
@@ -183,7 +188,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'boundary',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), {
@@ -243,7 +250,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'boundary',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), {
@@ -315,7 +324,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), {
@@ -380,7 +391,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), {
@@ -437,7 +450,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), ({
@@ -482,12 +497,13 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
 			html: [
-				'<span dir="ltr">',
 				'<span class="mtk6">var</span>',
 				'<span style="unicode-bidi:isolate" class="mtk1">\u00a0קודמות\u00a0=\u00a0</span>',
 				'<span style="unicode-bidi:isolate" class="mtk20">"מיותר\u00a0קודמות\u00a0צ\'ט\u00a0של,\u00a0אם\u00a0לשון\u00a0העברית\u00a0שינויים\u00a0ויש,\u00a0אם"</span>',
@@ -500,7 +516,6 @@ suite('viewLineRenderer.renderLine', () => {
 				[3, 0, 66], [3, 1, 67]
 			]
 		}));
-		assert.strictEqual(_actual.containsRTL, true);
 	});
 
 	test('issue #137036: Issue in RTL languages in recent versions', () => {
@@ -537,12 +552,13 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
 			html: [
-				'<span dir="ltr">',
 				'<span class="mtk2">&lt;</span>',
 				'<span class="mtk3">option</span>',
 				'<span class="mtk4">\u00a0</span>',
@@ -569,7 +585,6 @@ suite('viewLineRenderer.renderLine', () => {
 				[10, 0, 39], [10, 1, 40]
 			]
 		}));
-		assert.strictEqual(_actual.containsRTL, true);
 	});
 
 	test('issue #99589: Rendering whitespace influences bidi layout', () => {
@@ -600,12 +615,13 @@ suite('viewLineRenderer.renderLine', () => {
 			'all',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
 			html: [
-				'<span dir="ltr">',
 				'<span class="mtkw">\u00b7\u200c\u00b7\u200c\u00b7\u200c\u00b7\u200c</span>',
 				'<span class="mtk2">[</span>',
 				'<span style="unicode-bidi:isolate" class="mtk3">"🖨️\u00a0چاپ\u00a0فاکتور"</span>',
@@ -622,7 +638,6 @@ suite('viewLineRenderer.renderLine', () => {
 				[5, 0, 34], [5, 1, 35]
 			]
 		}));
-		assert.strictEqual(_actual.containsRTL, true);
 	});
 
 	test('issue #6885: Splits large tokens', () => {
@@ -652,7 +667,9 @@ suite('viewLineRenderer.renderLine', () => {
 				'none',
 				false,
 				false,
-				null
+				null,
+				null,
+				14
 			));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
@@ -756,7 +773,9 @@ suite('viewLineRenderer.renderLine', () => {
 				'none',
 				false,
 				true,
-				null
+				null,
+				null,
+				14
 			));
 			assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>', message);
 		}
@@ -797,7 +816,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual).html, [
@@ -827,15 +848,16 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(actual.html, [
-			'<span dir="ltr">',
+			'<span>',
 			'<span style="unicode-bidi:isolate" class="mtk1">את\u00a0גרמנית\u00a0בהתייחסות\u00a0שמו,\u00a0שנתי\u00a0המשפט\u00a0אל\u00a0חפש,\u00a0אם\u00a0כתב\u00a0אחרים\u00a0ולחבר.\u00a0של\u00a0התוכן\u00a0אודות\u00a0בויקיפדיה\u00a0כלל,\u00a0של\u00a0עזרה\u00a0כימיה\u00a0היא.\u00a0על\u00a0עמוד\u00a0יוצרים\u00a0מיתולוגיה\u00a0סדר,\u00a0אם\u00a0שכל\u00a0שתפו\u00a0לעברית\u00a0שינויים,\u00a0אם\u00a0שאלות\u00a0אנגלית\u00a0עזה.\u00a0שמות\u00a0בקלות\u00a0מה\u00a0סדר.</span>',
 			'</span>'
 		].join(''));
-		assert.strictEqual(actual.containsRTL, true);
 	});
 
 	test('issue #95685: Uses unicode replacement character for Paragraph Separator', () => {
@@ -860,7 +882,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), ({
 			html: [
@@ -908,7 +932,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(_actual), ({
@@ -971,7 +997,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null) {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: OffsetRange[] | null) {
 		const actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			true,
@@ -991,7 +1017,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			renderWhitespace,
 			false,
 			false,
-			selections
+			selections,
+			null,
+			14
 		));
 		return inflateRenderLineOutput(actual);
 	}
@@ -1017,7 +1045,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), ({
@@ -1061,7 +1091,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), ({
@@ -1460,7 +1492,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 14)]
+				[new OffsetRange(0, 14)]
 			),
 			{
 				html: [
@@ -1495,7 +1527,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 5)]
+				[new OffsetRange(0, 5)]
 			),
 			{
 				html: [
@@ -1526,7 +1558,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 5), new LineRange(9, 14)]
+				[new OffsetRange(0, 5), new OffsetRange(9, 14)]
 			),
 			{
 				html: [
@@ -1559,7 +1591,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(9, 14), new LineRange(0, 5)]
+				[new OffsetRange(9, 14), new OffsetRange(0, 5)]
 			),
 			{
 				html: [
@@ -1590,7 +1622,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				],
 				0,
 				'selection',
-				[new LineRange(0, 1), new LineRange(1, 2), new LineRange(2, 3)]
+				[new OffsetRange(0, 1), new OffsetRange(1, 2), new OffsetRange(2, 3)]
 			),
 			{
 				html: [
@@ -1752,7 +1784,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		// 01234567890
@@ -1804,7 +1838,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			true,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1842,7 +1878,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			true,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1882,7 +1920,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			true,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1916,7 +1956,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1955,7 +1997,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -1995,7 +2039,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2035,7 +2081,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2075,7 +2123,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			true,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2115,7 +2165,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2150,7 +2202,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2196,7 +2250,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2237,7 +2293,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2286,7 +2344,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2336,7 +2396,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'boundary',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2379,7 +2441,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			true,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2447,7 +2511,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			true,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2522,7 +2588,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'selection',
 			false,
 			false,
-			[new LineRange(0, 47)]
+			[new OffsetRange(0, 47)],
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2623,7 +2691,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			true,
 			true,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2656,7 +2726,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			true,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2704,7 +2776,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'all',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		assert.deepStrictEqual(inflateRenderLineOutput(actual), {
@@ -2743,7 +2817,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'none',
 			false,
 			false,
-			null
+			null,
+			null,
+			14
 		));
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {

@@ -3,51 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ProcessPromise, usePwsh } from 'zx';
-
-const arch = process.env['VSCODE_ARCH'];
-const esrpCliDLLPath = process.env['EsrpCliDllPath'];
-const codeSigningFolderPath = process.env['CodeSigningFolderPath'];
-
-function printBanner(title: string) {
-	title = `${title} (${new Date().toISOString()})`;
-
-	console.log('\n\n');
-	console.log('#'.repeat(75));
-	console.log(`# ${title.padEnd(71)} #`);
-	console.log('#'.repeat(75));
-	console.log('\n\n');
-}
-
-function sign(type: 'sign-windows' | 'sign-windows-appx', glob: string): ProcessPromise {
-	return $`node build/azure-pipelines/common/sign ${esrpCliDLLPath} ${type} ${codeSigningFolderPath} '${glob}'`;
-}
+import { $, usePwsh } from 'zx';
+import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign';
+import { e } from '../common/publish';
 
 async function main() {
 	usePwsh();
+
+	const arch = e('VSCODE_ARCH');
+	const esrpCliDLLPath = e('EsrpCliDllPath');
+	const codeSigningFolderPath = e('CodeSigningFolderPath');
 
 	// Start the code sign processes in parallel
 	// 1. Codesign executables and shared libraries
 	// 2. Codesign Powershell scripts
 	// 3. Codesign context menu appx package (insiders only)
-	const codesignTask1 = sign('sign-windows', '*.dll,*.exe,*.node');
-	const codesignTask2 = sign('sign-windows-appx', '*.ps1');
+	const codesignTask1 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows', codeSigningFolderPath, '*.dll,*.exe,*.node');
+	const codesignTask2 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.ps1');
 	const codesignTask3 = process.env['VSCODE_QUALITY'] === 'insider'
-		? sign('sign-windows-appx', '*.appx')
+		? spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.appx')
 		: undefined;
 
 	// Codesign executables and shared libraries
 	printBanner('Codesign executables and shared libraries');
-	await codesignTask1.pipe(process.stdout);
+	await streamProcessOutputAndCheckResult('Codesign executables and shared libraries', codesignTask1);
 
 	// Codesign Powershell scripts
 	printBanner('Codesign Powershell scripts');
-	await codesignTask2.pipe(process.stdout);
+	await streamProcessOutputAndCheckResult('Codesign Powershell scripts', codesignTask2);
 
 	if (codesignTask3) {
 		// Codesign context menu appx package
 		printBanner('Codesign context menu appx package');
-		await codesignTask3.pipe(process.stdout);
+		await streamProcessOutputAndCheckResult('Codesign context menu appx package', codesignTask3);
 	}
 
 	// Create build artifact directory
@@ -83,8 +71,14 @@ async function main() {
 	// Sign setup
 	if (process.env['BUILT_CLIENT']) {
 		printBanner('Sign setup packages (system, user)');
-		await $`npm exec -- npm-run-all -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`.pipe(process.stdout);
+		const task = $`npm exec -- npm-run-all -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`;
+		await streamProcessOutputAndCheckResult('Sign setup packages (system, user)', task);
 	}
 }
 
-main();
+main().then(() => {
+	process.exit(0);
+}, err => {
+	console.error(`ERROR: ${err}`);
+	process.exit(1);
+});

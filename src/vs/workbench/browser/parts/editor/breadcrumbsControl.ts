@@ -86,7 +86,7 @@ class OutlineItem extends BreadcrumbsItem {
 		const templateId = outline.config.delegate.getTemplateId(element);
 		const renderer = outline.config.renderers.find(renderer => renderer.templateId === templateId);
 		if (!renderer) {
-			container.innerText = '<<NO RENDERER>>';
+			container.textContent = '<<NO RENDERER>>';
 			return;
 		}
 
@@ -307,6 +307,7 @@ export class BreadcrumbsControl {
 	dispose(): void {
 		this._disposables.dispose();
 		this._breadcrumbsDisposables.dispose();
+		this._model.dispose();
 		this._ckBreadcrumbsPossible.reset();
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
@@ -404,7 +405,7 @@ export class BreadcrumbsControl {
 				this._widget.setEnabled(false);
 				this._widget.setItems([new class extends BreadcrumbsItem {
 					render(container: HTMLElement): void {
-						container.innerText = localize('empty', "no elements");
+						container.textContent = localize('empty', "no elements");
 					}
 					equals(other: BreadcrumbsItem): boolean {
 						return other === this;
@@ -597,7 +598,7 @@ export class BreadcrumbsControl {
 		}
 	}
 
-	private _getEditorGroup(data: object): SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined {
+	private _getEditorGroup(data: unknown): SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined {
 		if (data === BreadcrumbsControl.Payload_RevealAside) {
 			return SIDE_GROUP;
 		} else if (data === BreadcrumbsControl.Payload_Reveal) {
@@ -680,15 +681,12 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.toggle',
-			title: {
-				...localize2('cmd.toggle', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize({ key: 'miBreadcrumbs', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs"),
-			},
+			title: localize2('cmd.toggle', "Toggle Breadcrumbs"),
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
 				title: localize('cmd.toggle2', "Toggle Breadcrumbs"),
-				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs")
+				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "&&Breadcrumbs")
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },

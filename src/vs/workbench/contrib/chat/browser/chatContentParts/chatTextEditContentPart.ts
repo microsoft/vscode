@@ -147,11 +147,12 @@ export class DiffEditorPool extends Disposable {
 		options: ChatEditorOptions,
 		delegate: IChatRendererDelegate,
 		overflowWidgetsDomNode: HTMLElement | undefined,
+		private readonly isSimpleWidget: boolean = false,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CodeCompareBlockPart, options, MenuId.ChatCompareBlock, delegate, overflowWidgetsDomNode);
+			return instantiationService.createInstance(CodeCompareBlockPart, options, MenuId.ChatCompareBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
 		}));
 	}
 

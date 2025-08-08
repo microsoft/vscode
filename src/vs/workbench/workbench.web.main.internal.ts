@@ -43,6 +43,7 @@ import './services/extensionManagement/browser/extensionsProfileScannerService.j
 import './services/extensions/browser/extensionsScannerService.js';
 import './services/extensionManagement/browser/webExtensionsScannerService.js';
 import './services/extensionManagement/common/extensionManagementServerService.js';
+import './services/mcp/browser/mcpWorkbenchManagementService.js';
 import './services/extensionManagement/browser/extensionGalleryManifestService.js';
 import './services/telemetry/browser/telemetryService.js';
 import './services/url/browser/urlService.js';
@@ -57,6 +58,7 @@ import './services/localization/browser/localeService.js';
 import './services/path/browser/pathService.js';
 import './services/themes/browser/browserHostColorSchemeService.js';
 import './services/encryption/browser/encryptionService.js';
+import './services/imageResize/browser/imageResizeService.js';
 import './services/secrets/browser/secretStorageService.js';
 import './services/workingCopy/browser/workingCopyBackupService.js';
 import './services/tunnel/browser/tunnelService.js';
@@ -67,6 +69,7 @@ import './services/userDataProfile/browser/userDataProfileStorageService.js';
 import './services/configurationResolver/browser/configurationResolverService.js';
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import './services/browserElements/browser/webBrowserElementsService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -164,6 +167,9 @@ import './contrib/splash/browser/splash.contribution.js';
 
 // Remote Start Entry for the Web
 import './contrib/remote/browser/remoteStartEntry.contribution.js';
+
+// Process Explorer
+import './contrib/processExplorer/browser/processExplorer.web.contribution.js';
 
 //#endregion
 

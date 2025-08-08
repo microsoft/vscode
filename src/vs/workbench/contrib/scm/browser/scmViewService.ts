@@ -28,7 +28,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
-	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
+	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
 }
 
 function getRepositoryName(workspaceContextService: IWorkspaceContextService, repository: ISCMRepository): string {
@@ -71,7 +71,9 @@ export class RepositoryPicker {
 		picks.push(...this._scmViewService.repositories.map(r => ({
 			label: r.provider.name,
 			description: r.provider.rootUri?.fsPath,
-			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			iconClass: ThemeIcon.isThemeIcon(r.provider.iconPath)
+				? ThemeIcon.asClassName(r.provider.iconPath)
+				: ThemeIcon.asClassName(Codicon.repo),
 			repository: r
 		})));
 

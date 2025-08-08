@@ -109,9 +109,9 @@ export class InlayHintsController implements IEditorContribution {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
-	private readonly _debounceInfo: IFeatureDebounceInformation;
 	private readonly _decorationsMetadata = new Map<string, InlayHintDecorationRenderInfo>();
-	private readonly _ruleFactory = new DynamicCssRules(this._editor);
+	private readonly _debounceInfo: IFeatureDebounceInformation;
+	private readonly _ruleFactory: DynamicCssRules;
 
 	private _cursorInfo?: { position: Position; notEarlierThan: number };
 	private _activeRenderMode = RenderMode.Normal;
@@ -126,6 +126,7 @@ export class InlayHintsController implements IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
+		this._ruleFactory = this._disposables.add(new DynamicCssRules(this._editor));
 		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
 		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));

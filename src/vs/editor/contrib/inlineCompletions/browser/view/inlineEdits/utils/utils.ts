@@ -15,14 +15,14 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
-import { Rect } from '../../../../../../browser/rect.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
+import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/offsetRange.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { SingleTextEdit, TextEdit } from '../../../../../../common/core/textEdit.js';
+import { TextReplacement, TextEdit } from '../../../../../../common/core/edits/textEdit.js';
 import { RangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../../common/model.js';
 import { indentOfLine } from '../../../../../../common/model/textModel.js';
@@ -104,6 +104,26 @@ export function getContentRenderWidth(content: string, editor: ICodeEditor, text
 	return numNoneTabs * w + numTabs * tabSize;
 }
 
+export function getEditorValidOverlayRect(editor: ObservableCodeEditor): IObservable<Rect> {
+	const contentLeft = editor.layoutInfoContentLeft;
+
+	const width = derived(r => {
+		const hasMinimapOnTheRight = editor.layoutInfoMinimap.read(r).minimapLeft !== 0;
+		const editorWidth = editor.layoutInfoWidth.read(r) - contentLeft.read(r);
+
+		if (hasMinimapOnTheRight) {
+			const minimapAndScrollbarWidth = editor.layoutInfoMinimap.read(r).minimapWidth + editor.layoutInfoVerticalScrollbarWidth.read(r);
+			return editorWidth - minimapAndScrollbarWidth;
+		}
+
+		return editorWidth;
+	});
+
+	const height = derived(r => editor.layoutInfoHeight.read(r) + editor.contentHeight.read(r));
+
+	return derived(r => Rect.fromLeftTopWidthHeight(contentLeft.read(r), 0, width.read(r), height.read(r)));
+}
+
 export class StatusBarViewItem extends MenuEntryActionViewItem {
 	protected readonly _updateLabelListener = this._register(this._contextKeyService.onDidChangeContext(() => {
 		this.updateLabel();
@@ -165,10 +185,10 @@ function offsetRangeToRange(columnOffsetRange: OffsetRange, startPos: Position):
 
 export function createReindentEdit(text: string, range: LineRange): TextEdit {
 	const newLines = splitLines(text);
-	const edits: SingleTextEdit[] = [];
+	const edits: TextReplacement[] = [];
 	const minIndent = findFirstMin(range.mapToLineArray(l => getIndentationLength(newLines[l - 1])), numberComparator)!;
 	range.forEach(lineNumber => {
-		edits.push(new SingleTextEdit(offsetRangeToRange(new OffsetRange(0, minIndent), new Position(lineNumber, 1)), ''));
+		edits.push(new TextReplacement(offsetRangeToRange(new OffsetRange(0, minIndent), new Position(lineNumber, 1)), ''));
 	});
 	return new TextEdit(edits);
 }

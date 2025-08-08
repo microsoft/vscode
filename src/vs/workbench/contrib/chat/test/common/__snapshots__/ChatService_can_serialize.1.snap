@@ -107,7 +107,10 @@
       },
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     },
     {
       requestId: undefined,
@@ -160,7 +163,10 @@
       usedContext: undefined,
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }
