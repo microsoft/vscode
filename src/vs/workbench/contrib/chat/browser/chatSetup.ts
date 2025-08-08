@@ -1306,27 +1306,29 @@ class ChatSetupController extends Disposable {
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
 		const provider = options.useSocialProvider ?? options.useEnterpriseProvider ? defaultChat.provider.enterprise.id : defaultChat.provider.default.id;
-
+		let sessions = session ? [session] : undefined;
 		try {
 			if (
 				entitlement !== ChatEntitlement.Free &&		// User is not signed up to Copilot Free
 				!isProUser(entitlement) &&					// User is not signed up for a Copilot subscription
 				entitlement !== ChatEntitlement.Unavailable	// User is eligible for Copilot Free
 			) {
-				if (!session) {
+				if (!sessions) {
 					try {
-						session = (await this.authenticationService.getSessions(providerId)).at(0);
+						// Consider all sessions for the provider to be suitable for signing up
+						const existingSessions = await this.authenticationService.getSessions(providerId);
+						sessions = existingSessions.length > 0 ? [...existingSessions] : undefined;
 					} catch (error) {
 						// ignore - errors can throw if a provider is not registered
 					}
 
-					if (!session) {
+					if (!sessions || sessions.length === 0) {
 						this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNoSession', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 						return false; // unexpected
 					}
 				}
 
-				signUpResult = await this.requests.signUpFree(session);
+				signUpResult = await this.requests.signUpFree(sessions);
 
 				if (typeof signUpResult !== 'boolean' /* error */) {
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', installDuration: watch.elapsed(), signUpErrorCode: signUpResult.errorCode, provider });
