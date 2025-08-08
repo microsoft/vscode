@@ -257,15 +257,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				switch (autoApproveReason) {
 					case 'commandLine': {
 						if (commandLineResult.rule) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', `\`${commandLineResult.rule.sourceText}\``)}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', `[\`${commandLineResult.rule.sourceText}\`](settings_${commandLineResult.rule.sourceTarget})`)}_`);
 						}
 						break;
 					}
 					case 'subCommand': {
 						if (subCommandResults.length === 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', subCommandResults.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
 						} else if (subCommandResults.length > 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', subCommandResults.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
 						}
 						break;
 					}
@@ -274,16 +274,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				switch (autoApproveReason) {
 					case 'commandLine': {
 						if (commandLineResult.rule) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', `\`${commandLineResult.rule.sourceText}\``)}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', `[\`${commandLineResult.rule.sourceText}\`](settings_${commandLineResult.rule.sourceTarget})`)}_`);
 						}
 						break;
 					}
 					case 'subCommand': {
 						const deniedRules = subCommandResults.filter(e => e.result === 'denied');
 						if (deniedRules.length === 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', deniedRules.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', deniedRules.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
 						} else if (deniedRules.length > 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', deniedRules.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', deniedRules.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
 						}
 						break;
 					}
