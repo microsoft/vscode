@@ -887,7 +887,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				subCommandTooltip = localize('autoApprove.baseCommandSingleTooltip', 'Always allow command starting with `{0}` to run without confirmation', subCommandsFirstWordOnly[0]);
 			} else {
 				const commandSeparated = subCommandsFirstWordOnly.join(', ');
-				subCommandLabel = localize('autoApprove.baseCommand', 'Always allow commands: {0}', commandSeparated);
+				subCommandLabel = localize('autoApprove.baseCommand', 'Always Allow Commands: {0}', commandSeparated);
 				subCommandTooltip = localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated);
 			}
 			actions.push({
