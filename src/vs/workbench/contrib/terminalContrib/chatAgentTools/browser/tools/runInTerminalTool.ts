@@ -262,10 +262,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						break;
 					}
 					case 'subCommand': {
-						if (subCommandResults.length === 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
-						} else if (subCommandResults.length > 1) {
-							const uniqueRules = Array.from(new Set(subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`)));
+						const uniqueRules = Array.from(new Set(subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`)));
+						if (uniqueRules.length === 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', uniqueRules[0])}_`);
+						} else if (uniqueRules.length > 1) {
 							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', uniqueRules.join(', '))}_`);
 						}
 						break;
@@ -281,10 +281,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 					case 'subCommand': {
 						const deniedRules = subCommandResults.filter(e => e.result === 'denied');
-						if (deniedRules.length === 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', deniedRules.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
-						} else if (deniedRules.length > 1) {
-							const uniqueRules = Array.from(new Set(subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`)));
+						const uniqueRules = Array.from(new Set(deniedRules.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`)));
+						if (uniqueRules.length === 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', uniqueRules[0])}_`);
+						} else if (uniqueRules.length > 1) {
 							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', uniqueRules.join(', '))}_`);
 						}
 						break;
