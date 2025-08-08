@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-const path = require('path');
+import path from 'node:path';
+import { run } from '../esbuild-webview-common.js';
 
-const srcDir = path.join(__dirname, 'notebook');
-const outDir = path.join(__dirname, 'notebook-out');
+const srcDir = path.join(import.meta.dirname, 'notebook-src');
+const outDir = path.join(import.meta.dirname, 'notebook-out');
 
-require('../esbuild-webview-common').run({
+run({
 	entryPoints: [
-		path.join(srcDir, 'index.ts'),
+		path.join(srcDir, 'cellAttachmentRenderer.ts'),
 	],
 	srcDir,
 	outdir: outDir,

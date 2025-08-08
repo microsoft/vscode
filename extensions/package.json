@@ -1,6 +1,7 @@
 {
   "name": "vscode-extensions",
   "version": "0.0.1",
+  "type": "module",
   "license": "MIT",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
