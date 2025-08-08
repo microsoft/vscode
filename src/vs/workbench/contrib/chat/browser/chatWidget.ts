@@ -1337,6 +1337,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 			menus: {
 				executeToolbar: MenuId.ChatExecute,
+				telemetrySource: 'chatWidget',
 				...this.viewOptions.menus
 			},
 			editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
