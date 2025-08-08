@@ -29,7 +29,6 @@ export interface IQuickTreeTemplateData {
 	checkbox: TriStateCheckbox;
 	icon: HTMLElement;
 	label: IconLabel;
-	detail: IconLabel;
 	actionBar: ActionBar;
 	toDisposeElement: DisposableStore;
 	toDisposeTemplate: DisposableStore;
@@ -67,13 +66,6 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			supportIcons: true,
 			hoverDelegate: this._hoverDelegate
 		}));
-		const row2 = dom.append(rows, $('.quick-input-tree-row'));
-		const detailContainer = dom.append(row2, $('.quick-input-tree-detail'));
-		const detail = store.add(new IconLabel(detailContainer, {
-			supportHighlights: true,
-			supportIcons: true,
-			hoverDelegate: this._hoverDelegate
-		}));
 		const actionBar = store.add(new ActionBar(entry, this._hoverDelegate ? { hoverDelegate: this._hoverDelegate } : undefined));
 		actionBar.domNode.classList.add('quick-input-tree-entry-action-bar');
 		return {
@@ -82,12 +74,11 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			checkbox,
 			icon,
 			label,
-			detail,
 			actionBar,
 			toDisposeElement: new DisposableStore(),
 		};
 	}
-	renderElement(node: ITreeNode<T, IQuickTreeFilterData>, index: number, templateData: IQuickTreeTemplateData, details?: ITreeElementRenderDetails): void {
+	renderElement(node: ITreeNode<T, IQuickTreeFilterData>, index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
 		const store = templateData.toDisposeElement;
 		const quickTreeItem = node.element;
 
@@ -110,7 +101,7 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			templateData.icon.className = quickTreeItem.iconClass ? `quick-input-tree-icon ${quickTreeItem.iconClass}` : '';
 		}
 
-		const { labelHighlights: matches, descriptionHighlights: descriptionMatches, detailHighlights } = node.filterData || {};
+		const { labelHighlights: matches, descriptionHighlights: descriptionMatches } = node.filterData || {};
 
 		// Label and Description
 		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;
@@ -137,29 +128,6 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 				descriptionTitle
 			}
 		);
-
-		// Detail
-		if (!quickTreeItem.detail) {
-			templateData.detail.element.style.display = 'none';
-		} else {
-			// If we have a tooltip, we want that to be shown and not any other hover
-			const title = {
-				markdown: {
-					value: escape(quickTreeItem.detail),
-					supportThemeIcons: true
-				},
-				markdownNotSupportedFallback: quickTreeItem.detail
-			};
-			templateData.detail.setLabel(
-				quickTreeItem.detail,
-				undefined,
-				{
-					matches: detailHighlights,
-					title,
-					labelEscapeNewLines: true
-				}
-			);
-		}
 
 		// Action Bar
 		const buttons = quickTreeItem.buttons;

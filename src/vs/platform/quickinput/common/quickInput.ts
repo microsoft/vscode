@@ -16,9 +16,12 @@ import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
-export interface IQuickPickItemHighlights {
+export interface IQuickItemHighlights {
 	label?: IMatch[];
 	description?: IMatch[];
+}
+
+export interface IQuickPickItemHighlights extends IQuickItemHighlights {
 	detail?: IMatch[];
 }
 
@@ -33,10 +36,6 @@ export interface IQuickItem {
 	ariaLabel?: string;
 	description?: string;
 	/**
-	 * The detail text of the quick pick item. Shown as the second line.
-	 */
-	detail?: string;
-	/**
 	 * Whether the item is displayed in italics.
 	 */
 	italic?: boolean;
@@ -47,7 +46,7 @@ export interface IQuickItem {
 	iconClasses?: readonly string[];
 	iconPath?: { dark: URI; light?: URI };
 	iconClass?: string;
-	highlights?: IQuickPickItemHighlights;
+	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
 	/**
 	 * Used when we're in multi-select mode. Renders a disabled checkbox.
@@ -64,9 +63,14 @@ export interface IQuickPickItem extends IQuickItem {
 	 */
 	type?: 'item';
 	/**
+	 * The detail text of the quick pick item. Shown as the second line.
+	 */
+	detail?: string;
+	/**
 	 * The tooltip for the quick pick item.
 	 */
 	tooltip?: string | IMarkdownString;
+	highlights?: IQuickPickItemHighlights;
 	/**
 	 * Allows to show a keybinding next to the item to indicate
 	 * how the item can be triggered outside of the picker using
@@ -1036,11 +1040,6 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	matchOnDescription: boolean;
 
 	/**
-	 * Whether to match on the detail of the items.
-	 */
-	matchOnDetail: boolean;
-
-	/**
 	 * Whether to match on the label of the items.
 	 */
 	matchOnLabel: boolean;
@@ -1153,11 +1152,6 @@ export interface IQuickTreeItem extends IQuickItem {
 	 * If undefined, the item is unchecked by default.
 	 */
 	checked?: boolean | 'partial';
-
-	/**
-	 * TODO: Bring this back
-	 */
-	detail?: undefined;
 
 	/**
 	 * The collapsible state of the tree item. Defaults to 'Expanded' if children are present.
