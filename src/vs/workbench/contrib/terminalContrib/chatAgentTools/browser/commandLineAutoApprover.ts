@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
-import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
@@ -281,27 +281,22 @@ export class CommandLineAutoApprover extends Disposable {
 			return neverMatchRegex;
 		}
 
-		// Check if this looks like a path (contains path separators)
+		let sanitizedValue: string;
+
+		// Match both path separators it if looks like a path
 		if (value.includes('/') || value.includes('\\')) {
-			// Handle path-like strings with flexible separator and optional ./ prefix matching
-			
-			// Replace path separators with placeholders first, before escaping
-			let pathPattern = value.replace(/[/\\]/g, '§PATH_SEP§');
-			
-			// Now escape all regex special characters 
-			pathPattern = pathPattern.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
-			
-			// Replace placeholders with character class that matches both / and \
-			pathPattern = pathPattern.replace(/§PATH_SEP§/g, '[/\\\\]');
-			
-			// Create pattern that optionally matches ./ or .\ at the start
-			const finalPattern = `^(?:\\.[/\\\\])?${pathPattern}\\b`;
-			
-			return new RegExp(finalPattern);
+			// Replace path separators with placeholders first, apply standard sanitization, then
+			// apply special path handling
+			let pattern = value.replace(/[/\\]/g, '%%PATH_SEP%%');
+			pattern = escapeRegExpCharacters(pattern);
+			pattern = pattern.replace(/%%PATH_SEP%%*/g, '[/\\\\]');
+			sanitizedValue = `^(?:\\.[/\\\\])?${pattern}`;
 		}
 
 		// Escape regex special characters for non-path strings
-		const sanitizedValue = value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+		else {
+			sanitizedValue = escapeRegExpCharacters(value);
+		}
 
 		// Regular strings should match the start of the command line and be a word boundary
 		return new RegExp(`^${sanitizedValue}\\b`);
