@@ -511,12 +511,12 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
 const extensionsPath = path_1.default.join(root, 'extensions');
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
-    'markdown-language-features/esbuild-notebook.js',
-    'markdown-language-features/esbuild-preview.js',
-    'markdown-math/esbuild.js',
-    'notebook-renderers/esbuild.js',
-    'ipynb/esbuild.js',
-    'simple-browser/esbuild-preview.js',
+    'markdown-language-features/esbuild-notebook.mjs',
+    'markdown-language-features/esbuild-preview.mjs',
+    'markdown-math/esbuild.mjs',
+    'notebook-renderers/esbuild.mjs',
+    'ipynb/esbuild.mjs',
+    'simple-browser/esbuild-preview.mjs',
 ];
 async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpack = require('webpack');

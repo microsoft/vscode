@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 //@ts-check
 
-const path = require('path');
-const fse = require('fs-extra');
+import path from 'path';
+import fse from 'fs-extra';
+import { run } from '../esbuild-webview-common.mjs';
 
 const args = process.argv.slice(2);
 
-const srcDir = path.join(__dirname, 'notebook');
-const outDir = path.join(__dirname, 'notebook-out');
+const srcDir = path.join(import.meta.dirname, 'notebook');
+const outDir = path.join(import.meta.dirname, 'notebook-out');
 
 function postBuild(outDir) {
 	fse.copySync(
-		path.join(__dirname, 'node_modules', 'katex', 'dist', 'katex.min.css'),
+		path.join(import.meta.dirname, 'node_modules', 'katex', 'dist', 'katex.min.css'),
 		path.join(outDir, 'katex.min.css'));
 
-	const fontsDir = path.join(__dirname, 'node_modules', 'katex', 'dist', 'fonts');
+	const fontsDir = path.join(import.meta.dirname, 'node_modules', 'katex', 'dist', 'fonts');
 	const fontsOutDir = path.join(outDir, 'fonts/');
 
 	fse.mkdirSync(fontsOutDir, { recursive: true });
@@ -29,7 +30,7 @@ function postBuild(outDir) {
 	}
 }
 
-require('../esbuild-webview-common').run({
+run({
 	entryPoints: [
 		path.join(srcDir, 'katex.ts'),
 	],
