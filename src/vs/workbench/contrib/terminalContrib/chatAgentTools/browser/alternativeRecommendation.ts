@@ -5,9 +5,21 @@
 
 import type { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
 
+export interface ICommandReRoutingResult {
+	shouldReRoute: boolean;
+	alternativeRecommendation?: string;
+	targetFiles?: string[];
+	commandType?: 'file-read' | 'directory-create' | 'file-write' | 'file-list';
+}
+
+export interface IFileOperationHeuristics {
+	extractFilePaths(commandLine: string): string[];
+	detectCommandType(commandLine: string): 'file-read' | 'directory-create' | 'file-write' | 'file-list' | 'unknown';
+}
+
 let previouslyRecommededInSession = false;
 
-const terminalCommands: { commands: RegExp[]; tags: string[] }[] = [
+const terminalCommands: { commands: RegExp[]; tags: string[]; description?: string }[] = [
 	{
 		commands: [
 			new RegExp(/^python3? -m pip install(\b)/),
@@ -23,6 +35,22 @@ const terminalCommands: { commands: RegExp[]; tags: string[] }[] = [
 			new RegExp(/^jupyter(\b)/), // jupyter lab, jupyer notebook, jupyter nbconvert, etc.
 		],
 		tags: ['python environment', 'jupyter environment'],
+	},
+	{
+		commands: [
+			new RegExp(/^cat\s+[^|>&<]+$/), // cat <file> - simple file reading without pipes/redirects
+			new RegExp(/^type\s+[^|>&<]+$/), // Windows equivalent of cat
+		],
+		tags: ['file read', 'file operations'],
+		description: 'Reading file contents can be handled more efficiently by native file tools'
+	},
+	{
+		commands: [
+			new RegExp(/^mkdir\s+/), // mkdir command
+			new RegExp(/^md\s+/), // Windows mkdir equivalent
+		],
+		tags: ['directory creation', 'file operations'],
+		description: 'Directory creation can be handled by native file management tools'
 	}
 ];
 
@@ -59,4 +87,102 @@ export function getRecommendedToolsOverRunInTerminal(commandLine: string, langua
 	}
 
 	return undefined;
+}
+
+/**
+ * Implements heuristics for detecting file operations and extracting file paths from commands
+ */
+export class FileOperationHeuristics implements IFileOperationHeuristics {
+	
+	extractFilePaths(commandLine: string): string[] {
+		const paths: string[] = [];
+		
+		// Handle cat/type commands: cat file1 file2
+		const catMatch = commandLine.match(/^(?:cat|type)\s+(.+)$/);
+		if (catMatch) {
+			// Split by spaces but handle quoted paths
+			const pathsStr = catMatch[1];
+			const pathMatches = pathsStr.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+			paths.push(...pathMatches.map(p => p.replace(/^"(.*)"$/, '$1')));
+		}
+		
+		// Handle mkdir commands: mkdir dir1 dir2 or mkdir -p dir1/subdir
+		const mkdirMatch = commandLine.match(/^(?:mkdir|md)\s+(?:-[p]\s+)?(.+)$/);
+		if (mkdirMatch) {
+			const pathsStr = mkdirMatch[1];
+			const pathMatches = pathsStr.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+			paths.push(...pathMatches.map(p => p.replace(/^"(.*)"$/, '$1')));
+		}
+		
+		// Handle ls commands: ls file/dir
+		const lsMatch = commandLine.match(/^(?:ls|dir)\s+(.+)$/);
+		if (lsMatch) {
+			const pathsStr = lsMatch[1];
+			const pathMatches = pathsStr.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+			paths.push(...pathMatches.map(p => p.replace(/^"(.*)"$/, '$1')));
+		}
+		
+		return paths;
+	}
+	
+	detectCommandType(commandLine: string): 'file-read' | 'directory-create' | 'file-write' | 'file-list' | 'unknown' {
+		const trimmed = commandLine.trim();
+		
+		if (/^(?:cat|type)\s+/.test(trimmed)) {
+			return 'file-read';
+		}
+		
+		if (/^(?:mkdir|md)\s+/.test(trimmed)) {
+			return 'directory-create';
+		}
+		
+		if (/^(?:ls|dir)\s+/.test(trimmed)) {
+			return 'file-list';
+		}
+		
+		if (/^(?:echo|printf)\s+.*>\s*/.test(trimmed)) {
+			return 'file-write';
+		}
+		
+		return 'unknown';
+	}
+}
+
+/**
+ * Enhanced function to check for command re-routing with file operation detection
+ */
+export function getCommandReRoutingRecommendation(commandLine: string, languageModelToolsService: ILanguageModelToolsService): ICommandReRoutingResult {
+	const heuristics = new FileOperationHeuristics();
+	const commandType = heuristics.detectCommandType(commandLine);
+	const targetFiles = heuristics.extractFilePaths(commandLine);
+	
+	// Check if this is a file operation that could be re-routed
+	if (commandType !== 'unknown') {
+		const tools = languageModelToolsService.getTools();
+		if (tools) {
+			const fileOperationTags = ['file read', 'file operations', 'directory creation'];
+			const availableTools = Array.from(tools).filter(t => 
+				fileOperationTags.some(tag => t.tags?.includes(tag))
+			);
+			
+			if (availableTools.length > 0) {
+				const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(commandLine, languageModelToolsService);
+				return {
+					shouldReRoute: true,
+					alternativeRecommendation,
+					targetFiles,
+					commandType
+				};
+			}
+		}
+	}
+	
+	// Fall back to existing behavior for non-file operations
+	const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(commandLine, languageModelToolsService);
+	return {
+		shouldReRoute: !!alternativeRecommendation,
+		alternativeRecommendation,
+		targetFiles,
+		commandType: commandType === 'unknown' ? undefined : commandType
+	};
 }

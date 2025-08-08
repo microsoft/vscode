@@ -26,7 +26,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
-import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
+import { getRecommendedToolsOverRunInTerminal, getCommandReRoutingRecommendation } from '../alternativeRecommendation.js';
 import { getOutput } from '../bufferOutputPolling.js';
 import { CommandLineAutoApprover, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
@@ -184,8 +184,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
-		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
+		// Use enhanced command re-routing that detects file operations
+		const reRoutingResult = getCommandReRoutingRecommendation(args.command, this._languageModelToolsService);
+		const alternativeRecommendation = reRoutingResult.alternativeRecommendation;
 		const presentation = alternativeRecommendation ? 'hidden' : undefined;
+
+		// Log file operation detection for telemetry and debugging
+		if (reRoutingResult.shouldReRoute && reRoutingResult.commandType) {
+			this._logService.info(`RunInTerminalTool: Detected ${reRoutingResult.commandType} operation on files: ${reRoutingResult.targetFiles?.join(', ') || 'unknown'}`);
+		}
 
 		const os = await this._osBackend;
 		const shell = await this._terminalProfileResolverService.getDefaultShell({
