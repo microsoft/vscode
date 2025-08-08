@@ -54,29 +54,29 @@ export interface ChatSession extends IDisposable {
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
+	readonly onDidChangeChatSessionItems: Event<void>;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 }
 
 export interface IChatSessionContentProvider {
-	readonly chatSessionType: string;
-	provideChatSessionContent(id: string, token: CancellationToken): Promise<ChatSession>;
+	provideChatSessionContent(sessionId: string, token: CancellationToken): Promise<ChatSession>;
 }
 
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
+
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
 	readonly onDidChangeSessionItems: Event<string>;
 	readonly onDidChangeAvailability: Event<void>;
-	registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
-	getChatSessionContributions(): IChatSessionsExtensionPoint[];
-	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
-	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
-	getChatSessionItemProviders(): IChatSessionItemProvider[];
+
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
-	registerChatSessionContentProvider(provider: IChatSessionContentProvider): IDisposable;
-	hasChatSessionItemProviders: boolean;
+	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
+	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
+	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
-	notifySessionItemsChange(chatSessionType: string): void;
+
+	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
+	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
 	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
 }
 
