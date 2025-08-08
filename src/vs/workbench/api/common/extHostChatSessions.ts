@@ -46,14 +46,22 @@ class ExtHostChatSession {
 }
 
 export class ExtHostChatSessions extends Disposable implements ExtHostChatSessionsShape {
+	private static _sessionHandlePool = 0;
 
 	private readonly _proxy: Proxied<MainThreadChatSessionsShape>;
-	private readonly _chatSessionItemProviders = new Map<number, { provider: vscode.ChatSessionItemProvider; extension: IExtensionDescription; disposable: DisposableStore }>();
-	private readonly _chatSessionContentProviders = new Map<number, { provider: vscode.ChatSessionContentProvider; extension: IExtensionDescription; disposable: DisposableStore }>();
+	private readonly _chatSessionItemProviders = new Map<number, {
+		readonly provider: vscode.ChatSessionItemProvider;
+		readonly extension: IExtensionDescription;
+		readonly disposable: DisposableStore;
+	}>();
+	private readonly _chatSessionContentProviders = new Map<number, {
+		readonly provider: vscode.ChatSessionContentProvider;
+		readonly extension: IExtensionDescription;
+		readonly disposable: DisposableStore;
+	}>();
 	private _nextChatSessionItemProviderHandle = 0;
 	private _nextChatSessionContentProviderHandle = 0;
-	private _sessionMap: Map<string, vscode.ChatSessionItem> = new Map();
-	private static _sessionHandlePool = 0;
+	private readonly _sessionMap: Map<string, vscode.ChatSessionItem> = new Map();
 
 	constructor(
 		private readonly commands: ExtHostCommands,
@@ -90,7 +98,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType);
 		if (provider.onDidChangeChatSessionItems) {
 			disposables.add(provider.onDidChangeChatSessionItems(() => {
-				this._proxy.$onDidChangeChatSessionItems(chatSessionType);
+				this._proxy.$onDidChangeChatSessionItems(handle);
 			}));
 		}
 		return {
