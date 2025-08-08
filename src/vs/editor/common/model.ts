@@ -362,6 +362,7 @@ export enum InjectedTextCursorStops {
 	Both,
 	Right,
 	Left,
+	LeftIfNonBlockCursor,
 	None
 }
 
@@ -1457,6 +1458,11 @@ export const enum PositionAffinity {
 	 * If the given position is on injected text, prefers the position right of it.
 	*/
 	RightOfInjectedText = 4,
+
+	/**
+	 * If the given position is on injected text while the cursor is block cursor, prefers the position right of it.
+	*/
+	RightOfInjectedTextBlockCursor = 5,
 }
 
 /**
