@@ -2379,6 +2379,58 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 	cursor: pointer;
 	padding: 2px 0;
+	justify-content: space-between;
+	width: 100%;
+}
+
+.chat-todo-list-widget .todo-list-expand .todo-list-title-section {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1;
+}
+
+.chat-todo-list-widget .todo-clear-button-container {
+	display: flex;
+	align-items: center;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+
+.chat-todo-list-widget .todo-list-expand:hover .todo-clear-button-container,
+.chat-todo-list-widget .todo-list-expand:focus-within .todo-clear-button-container,
+.chat-todo-list-widget .todo-clear-button-container:focus-within {
+	opacity: 1;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button {
+	padding: 2px;
+	margin-right: 2px;
+	min-width: unset;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	border: none;
+	border-radius: 3px;
+	height: 14px;
+	width: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button .codicon {
+	font-size: 10px;
+	color: var(--vscode-foreground);
 }
 
 .chat-todo-list-widget .todo-list-expand:hover {
@@ -2404,9 +2456,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-todo-list-widget .todo-list-container {
-	padding-left: 16px;
+	padding-left: 10px;
 	margin-top: 2px;
-	max-height: calc(6.5 * 24px); /* 6.5 items to show half-line affordance */
+	max-height: calc(6.5 * 21px); /* 6.5 items to show half-line affordance */
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	scrollbar-width: thin;
@@ -2447,13 +2499,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 2px 0;
 	scroll-snap-align: start;
-	min-height: 24px; /* Consistent item height for better scroll snap */
-}
-
-.chat-todo-list-widget .todo-item[title]:hover {
-	background-color: var(--vscode-list-hoverBackground);
+	min-height: 21px
 }
 
 .chat-todo-list-widget .todo-status-icon {
@@ -2464,6 +2511,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-todo-list-widget .todo-content {
 	color: var(--vscode-foreground);
 	flex-grow: 1;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	min-width: 0;
 }
 
 

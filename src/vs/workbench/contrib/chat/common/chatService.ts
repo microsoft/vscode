@@ -288,6 +288,8 @@ export interface IChatTerminalToolInvocationData {
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;
 	language: string;
+	terminalToolSessionId?: string;
+	autoApproveInfo?: IMarkdownString;
 }
 
 /**

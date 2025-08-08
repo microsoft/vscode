@@ -701,6 +701,302 @@ suite('CommandLineAutoApprover', () => {
 		});
 	});
 
+	suite('isDefaultRule logic', () => {
+		function getIsDefaultRule(command: string): boolean | undefined {
+			return commandLineAutoApprover.isCommandAutoApproved(command, shell, os).rule?.isDefaultRule;
+		}
+
+		function getCommandLineIsDefaultRule(commandLine: string): boolean | undefined {
+			return commandLineAutoApprover.isCommandLineAutoApproved(commandLine).rule?.isDefaultRule;
+		}
+
+		function setAutoApproveWithDefaults(userConfig: { [key: string]: boolean }, defaultConfig: { [key: string]: boolean }) {
+			// Set up mock configuration with default values
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AutoApprove, userConfig);
+
+			// Mock the inspect method to return default values
+			const originalInspect = configurationService.inspect;
+			const originalGetValue = configurationService.getValue;
+
+			configurationService.inspect = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return {
+						default: { value: defaultConfig },
+						user: { value: userConfig },
+						workspace: undefined,
+						workspaceFolder: undefined,
+						application: undefined,
+						policy: undefined,
+						memory: undefined,
+						value: { ...defaultConfig, ...userConfig }
+					};
+				}
+				return originalInspect.call(configurationService, key);
+			};
+
+			configurationService.getValue = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return { ...defaultConfig, ...userConfig };
+				}
+				return originalGetValue.call(configurationService, key);
+			};
+
+			// Trigger configuration update
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set([TerminalChatAgentToolsSettingId.AutoApprove]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
+		}
+
+		function setAutoApproveWithDefaultsCommandLine(
+			userConfig: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean },
+			defaultConfig: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }
+		) {
+			// Set up mock configuration with default values for command line rules
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AutoApprove, userConfig);
+
+			// Mock the inspect method to return default values
+			const originalInspect = configurationService.inspect;
+			const originalGetValue = configurationService.getValue;
+
+			configurationService.inspect = <T>(key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return {
+						default: { value: defaultConfig },
+						user: { value: userConfig },
+						workspace: undefined,
+						workspaceFolder: undefined,
+						application: undefined,
+						policy: undefined,
+						memory: undefined,
+						value: { ...defaultConfig, ...userConfig }
+					};
+				}
+				return originalInspect.call(configurationService, key);
+			};
+
+			configurationService.getValue = (key: string): any => {
+				if (key === TerminalChatAgentToolsSettingId.AutoApprove) {
+					return { ...defaultConfig, ...userConfig };
+				}
+				return originalGetValue.call(configurationService, key);
+			};
+
+			// Trigger configuration update
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set([TerminalChatAgentToolsSettingId.AutoApprove]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
+		}
+
+		test('should correctly identify default rules vs user-defined rules', () => {
+			setAutoApproveWithDefaults(
+				{ "echo": true, "ls": true, "pwd": false },
+				{ "echo": true, "cat": true }
+			);
+
+			strictEqual(getIsDefaultRule('echo hello'), true, 'echo is in both default and user config with same value - should be marked as default');
+			strictEqual(getIsDefaultRule('ls -la'), false, 'ls is only in user config - should be marked as user-defined');
+			strictEqual(getIsDefaultRule('pwd'), false, 'pwd is only in user config - should be marked as user-defined');
+			strictEqual(getIsDefaultRule('cat file.txt'), true, 'cat is in both default and user config with same value - should be marked as default');
+		});
+
+		test('should mark as default when command is only in default config but not in user config', () => {
+			setAutoApproveWithDefaults(
+				{ "echo": true, "ls": true },  // User config (cat is NOT here)
+				{ "echo": true, "cat": true }  // Default config (cat IS here)
+			);
+
+			// Test that merged config includes all commands
+			strictEqual(commandLineAutoApprover.isCommandAutoApproved('echo', shell, os).result, 'approved', 'echo should be approved');
+			strictEqual(commandLineAutoApprover.isCommandAutoApproved('ls', shell, os).result, 'approved', 'ls should be approved');
+
+			// cat should be approved because it's in the merged config
+			const catResult = commandLineAutoApprover.isCommandAutoApproved('cat', shell, os);
+			strictEqual(catResult.result, 'approved', 'cat should be approved from default config');
+
+			// cat should be marked as default rule since it comes from default config only
+			strictEqual(catResult.rule?.isDefaultRule, true, 'cat is only in default config, not in user config - should be marked as default');
+		});
+
+		test('should handle default rules with different values', () => {
+			setAutoApproveWithDefaults(
+				{ "echo": true, "rm": true },
+				{ "echo": false, "rm": true }
+			);
+
+			strictEqual(getIsDefaultRule('echo hello'), false, 'echo has different values in default vs user - should be marked as user-defined');
+			strictEqual(getIsDefaultRule('rm file.txt'), true, 'rm has same value in both - should be marked as default');
+		});
+
+		test('should handle regex patterns as default rules', () => {
+			setAutoApproveWithDefaults(
+				{ "/^git/": true, "/^npm/": false },
+				{ "/^git/": true, "/^docker/": true }
+			);
+
+			strictEqual(getIsDefaultRule('git status'), true, 'git pattern matches default - should be marked as default');
+			strictEqual(getIsDefaultRule('npm install'), false, 'npm pattern is user-only - should be marked as user-defined');
+		});
+
+		test('should handle mixed string and regex patterns', () => {
+			setAutoApproveWithDefaults(
+				{ "echo": true, "/^ls/": false },
+				{ "echo": true, "cat": true }
+			);
+
+			strictEqual(getIsDefaultRule('echo hello'), true, 'String pattern matching default');
+			strictEqual(getIsDefaultRule('ls -la'), false, 'Regex pattern user-defined');
+		});
+
+		test('should handle command line rules with isDefaultRule', () => {
+			setAutoApproveWithDefaultsCommandLine(
+				{
+					"echo": { approve: true, matchCommandLine: true },
+					"ls": { approve: false, matchCommandLine: true }
+				},
+				{
+					"echo": { approve: true, matchCommandLine: true },
+					"cat": { approve: true, matchCommandLine: true }
+				}
+			);
+
+			strictEqual(getCommandLineIsDefaultRule('echo hello world'), true, 'echo matches default config exactly using structural equality - should be marked as default');
+			strictEqual(getCommandLineIsDefaultRule('ls -la'), false, 'ls is user-defined only - should be marked as user-defined');
+		});
+
+		test('should handle command line rules with different matchCommandLine values', () => {
+			setAutoApproveWithDefaultsCommandLine(
+				{
+					"echo": { approve: true, matchCommandLine: true },
+					"ls": { approve: true, matchCommandLine: false }
+				},
+				{
+					"echo": { approve: true, matchCommandLine: false },
+					"ls": { approve: true, matchCommandLine: false }
+				}
+			);
+
+			strictEqual(getCommandLineIsDefaultRule('echo hello'), false, 'echo has different matchCommandLine value - should be user-defined');
+			strictEqual(getCommandLineIsDefaultRule('ls -la'), undefined, 'ls matches exactly - should be default (but won\'t match command line check since matchCommandLine is false)');
+		});
+
+		test('should handle boolean vs object format consistency', () => {
+			setAutoApproveWithDefaultsCommandLine(
+				{
+					"echo": true,
+					"ls": { approve: true, matchCommandLine: true }
+				},
+				{
+					"echo": true,
+					"ls": { approve: true, matchCommandLine: true }
+				}
+			);
+
+			strictEqual(getIsDefaultRule('echo hello'), true, 'Boolean format matching - should be default');
+			strictEqual(getCommandLineIsDefaultRule('ls -la'), true, 'Object format matching using structural equality - should be default');
+		});
+
+		test('should return undefined for noMatch cases', () => {
+			setAutoApproveWithDefaults(
+				{ "echo": true },
+				{ "cat": true }
+			);
+
+			strictEqual(getIsDefaultRule('unknown-command'), undefined, 'Command that matches neither user nor default config');
+			strictEqual(getCommandLineIsDefaultRule('unknown-command'), undefined, 'Command that matches neither user nor default config');
+		});
+
+		test('should handle empty configurations', () => {
+			setAutoApproveWithDefaults(
+				{},
+				{}
+			);
+
+			strictEqual(getIsDefaultRule('echo hello'), undefined);
+			strictEqual(getCommandLineIsDefaultRule('echo hello'), undefined);
+		});
+
+		test('should handle only default config with no user overrides', () => {
+			setAutoApproveWithDefaults(
+				{},
+				{ "echo": true, "ls": false }
+			);
+
+			strictEqual(getIsDefaultRule('echo hello'), true, 'Commands in default config should be marked as default rules even with empty user config');
+			strictEqual(getIsDefaultRule('ls -la'), true, 'Commands in default config should be marked as default rules even with empty user config');
+		});
+
+		test('should handle complex nested object rules', () => {
+			setAutoApproveWithDefaultsCommandLine(
+				{
+					"npm": { approve: true, matchCommandLine: true },
+					"git": { approve: false, matchCommandLine: false }
+				},
+				{
+					"npm": { approve: true, matchCommandLine: true },
+					"docker": { approve: true, matchCommandLine: true }
+				}
+			);
+
+			strictEqual(getCommandLineIsDefaultRule('npm install'), true, 'npm matches default exactly using structural equality - should be default');
+			strictEqual(getCommandLineIsDefaultRule('git status'), undefined, 'git is user-defined - should be user-defined (but won\'t match command line since matchCommandLine is false)');
+		});
+
+		test('should handle PowerShell case-insensitive matching with defaults', () => {
+			shell = 'pwsh';
+			os = OperatingSystem.Windows;
+
+			setAutoApproveWithDefaults(
+				{ "Get-Process": true },
+				{ "Get-Process": true }
+			);
+
+			strictEqual(getIsDefaultRule('Get-Process'), true, 'Case-insensitive PowerShell command matching default');
+			strictEqual(getIsDefaultRule('get-process'), true, 'Case-insensitive PowerShell command matching default');
+			strictEqual(getIsDefaultRule('GET-PROCESS'), true, 'Case-insensitive PowerShell command matching default');
+		});
+
+		test('should use structural equality for object comparison', () => {
+			// Test that objects with same content but different instances are treated as equal
+			const userConfig = { "test": { approve: true, matchCommandLine: true } };
+			const defaultConfig = { "test": { approve: true, matchCommandLine: true } };
+
+			setAutoApproveWithDefaultsCommandLine(userConfig, defaultConfig);
+
+			strictEqual(getCommandLineIsDefaultRule('test command'), true, 'Even though userConfig and defaultConfig are different object instances, they have the same structure and values, so should be considered default');
+		});
+
+		test('should detect structural differences in objects', () => {
+			const userConfig = { "test": { approve: true, matchCommandLine: true } };
+			const defaultConfig = { "test": { approve: true, matchCommandLine: false } };
+
+			setAutoApproveWithDefaultsCommandLine(userConfig, defaultConfig);
+
+			strictEqual(getCommandLineIsDefaultRule('test command'), false, 'Objects have different matchCommandLine values, so should be user-defined');
+		});
+
+		test('should handle mixed types correctly', () => {
+			const userConfig = {
+				"cmd1": true,
+				"cmd2": { approve: false, matchCommandLine: true }
+			};
+			const defaultConfig = {
+				"cmd1": true,
+				"cmd2": { approve: false, matchCommandLine: true }
+			};
+
+			setAutoApproveWithDefaultsCommandLine(userConfig, defaultConfig);
+
+			strictEqual(getIsDefaultRule('cmd1 arg'), true, 'Boolean type should match default');
+			strictEqual(getCommandLineIsDefaultRule('cmd2 arg'), true, 'Object type should match default using structural equality (even though it\'s a deny rule)');
+		});
+	});
+
 	suite('environment variable handling', () => {
 		test('should handle environment variable assignments before commands in bash/sh', () => {
 			shell = 'bash';
