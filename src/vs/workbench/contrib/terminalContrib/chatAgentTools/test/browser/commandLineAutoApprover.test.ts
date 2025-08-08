@@ -387,17 +387,17 @@ suite('CommandLineAutoApprover', () => {
 			// Should approve the exact match
 			ok(isAutoApproved('bin/foo'));
 			ok(isAutoApproved('bin/foo --arg'));
-			
+
 			// Should approve with Windows backslashes
 			ok(isAutoApproved('bin\\foo'));
 			ok(isAutoApproved('bin\\foo --arg'));
-			
+
 			// Should approve with current directory prefixes
 			ok(isAutoApproved('./bin/foo'));
 			ok(isAutoApproved('.\\bin/foo'));
 			ok(isAutoApproved('./bin\\foo'));
 			ok(isAutoApproved('.\\bin\\foo'));
-			
+
 			// Should not approve partial matches
 			ok(!isAutoApproved('bin/foobar'));
 			ok(!isAutoApproved('notbin/foo'));
@@ -411,11 +411,11 @@ suite('CommandLineAutoApprover', () => {
 			// Should approve the exact match
 			ok(isAutoApproved('bin\\script.bat'));
 			ok(isAutoApproved('bin\\script.bat --help'));
-			
+
 			// Should approve with forward slashes
 			ok(isAutoApproved('bin/script.bat'));
 			ok(isAutoApproved('bin/script.bat --help'));
-			
+
 			// Should approve with current directory prefixes
 			ok(isAutoApproved('./bin\\script.bat'));
 			ok(isAutoApproved('.\\bin\\script.bat'));
@@ -445,9 +445,9 @@ suite('CommandLineAutoApprover', () => {
 
 			// These should work as normal command matching, not path matching
 			ok(isAutoApproved('echo'));
-			ok(isAutoApproved('ls'));  
+			ok(isAutoApproved('ls'));
 			ok(isAutoApproved('git'));
-			
+
 			// Should not be treated as paths, so these prefixes shouldn't work
 			ok(!isAutoApproved('./echo'));
 			ok(!isAutoApproved('.\\ls'));
@@ -487,10 +487,10 @@ suite('CommandLineAutoApprover', () => {
 			ok(isAutoApproved('bin/my-script.sh'));
 			ok(isAutoApproved('bin\\my-script.sh'));
 			ok(isAutoApproved('./bin/my-script.sh'));
-			
+
 			ok(isAutoApproved('scripts/build_all.py'));
 			ok(isAutoApproved('scripts\\build_all.py'));
-			
+
 			ok(isAutoApproved('tools/run (debug).exe'));
 			ok(isAutoApproved('tools\\run (debug).exe'));
 		});
