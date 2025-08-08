@@ -188,9 +188,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}, 0);
 	};
 
-	const isEditableElement = (element: Element) => {
-		return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea'
-			|| ('editContext' in element && !!element.editContext);
+	const hasActiveEditableElement = (
+		parent: Node | DocumentFragment,
+		root: ShadowRoot | Document = document
+	): boolean => {
+		const element = root.activeElement;
+		return !!(element && parent.contains(element)
+			&& (element.matches(':read-write') || element.tagName.toLowerCase() === 'select'
+				|| (element.shadowRoot && hasActiveEditableElement(element.shadowRoot, element.shadowRoot)))
+		);
 	};
 
 	// check if an input element is focused within the output element
@@ -202,7 +208,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		const id = lastFocusedOutput?.id;
-		if (id && (isEditableElement(activeElement) || activeElement.tagName === 'SELECT')) {
+		if (id && (hasActiveEditableElement(activeElement, window.document))) {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
@@ -309,7 +315,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement && isEditableElement(activeElement)) {
+		if (activeElement && hasActiveEditableElement(activeElement, window.document)) {
 			(activeElement as HTMLInputElement).select();
 		}
 	};
@@ -335,7 +341,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement && isEditableElement(activeElement)) {
+		if (activeElement && hasActiveEditableElement(activeElement, window.document)) {
 			// Leave for default behavior.
 			return;
 		}
@@ -363,7 +369,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement && isEditableElement(activeElement)) {
+		if (activeElement && hasActiveEditableElement(activeElement, window.document)) {
 			// The input element will handle this.
 			return;
 		}
@@ -667,6 +673,44 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return false;
 	}
 
+	const handleKeyPress = (event: KeyboardEvent) => {
+		// Check if the event target is within an input element that should handle the event
+		for (let node = event.target as Node | null; node; node = node.parentNode) {
+			if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
+				// For Escape key, allow the text field to handle it if there's text to clear
+				if (event.code === 'Escape') {
+					return (node as HTMLInputElement | HTMLTextAreaElement).value.length > 0;
+				}
+
+				// Allow text fields to handle most input-related events
+				const isInputEvent = event.code.startsWith('Key') ||
+					event.code.startsWith('Digit') ||
+					event.code === 'Backspace' ||
+					event.code === 'Delete' ||
+					event.code === 'ArrowLeft' ||
+					event.code === 'ArrowRight' ||
+					event.code === 'ArrowUp' ||
+					event.code === 'ArrowDown' ||
+					event.code === 'Home' ||
+					event.code === 'End' ||
+					event.code === 'PageUp' ||
+					event.code === 'PageDown' ||
+					event.code === 'Tab' ||
+					event.code === 'Enter' ||
+					(event.ctrlKey && (event.code === 'KeyA' || event.code === 'KeyX' || event.code === 'KeyC' || event.code === 'KeyV' || event.code === 'KeyZ'));
+
+				return isInputEvent;
+			}
+
+			// Stop checking if we reach the filter widget container
+			if (node instanceof Element && node.classList.contains('viewpane-filter')) {
+				break;
+			}
+		}
+
+		return false;
+	};
+
 	const handleWheel = (event: WheelEvent & { wheelDeltaX?: number; wheelDeltaY?: number; wheelDelta?: number }) => {
 		if (event.defaultPrevented || eventTargetShouldHandleScroll(event)) {
 			return;
@@ -702,7 +746,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusableElement.tabIndex = -1;
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
 			} else {
-				const inputFocused = isEditableElement(focusableElement);
+				const inputFocused = hasActiveEditableElement(focusableElement, focusableElement.ownerDocument);
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
@@ -1117,6 +1161,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	});
 
 	window.addEventListener('wheel', handleWheel);
+	window.addEventListener('keypress', handleKeyPress);
 
 	interface IFindMatch {
 		type: 'preview' | 'output';
