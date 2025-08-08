@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 import path from 'path';
-import { run } from '../esbuild-webview-common.js';
+import { run } from '../esbuild-webview-common.mjs';
 
 const srcDir = path.join(import.meta.dirname, 'notebook');
 const outDir = path.join(import.meta.dirname, 'notebook-out');

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 import path from 'path';
-import { run } from '../esbuild-webview-common.js';
+import { run } from '../esbuild-webview-common.mjs';
 
 const srcDir = path.join(import.meta.dirname, 'src');
 const outDir = path.join(import.meta.dirname, 'renderer-out');

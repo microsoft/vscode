@@ -6,7 +6,7 @@
 
 import path from 'path';
 import fse from 'fs-extra';
-import { run } from '../esbuild-webview-common.js';
+import { run } from '../esbuild-webview-common.mjs';
 
 const args = process.argv.slice(2);
 
