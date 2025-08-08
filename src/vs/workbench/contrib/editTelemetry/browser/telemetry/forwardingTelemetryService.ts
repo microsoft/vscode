@@ -5,7 +5,7 @@
 
 import { ClassifiedEvent, OmitMetadata, IGDPRProperty, StrictPropertyCheck } from '../../../../../platform/telemetry/common/gdprTypings.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IDataChannelService } from '../../../../services/dataChannel/common/dataChannel.js';
+import { IDataChannelService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 
 export class InterceptingTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
