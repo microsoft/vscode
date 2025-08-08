@@ -673,44 +673,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return false;
 	}
 
-	const handleKeyPress = (event: KeyboardEvent) => {
-		// Check if the event target is within an input element that should handle the event
-		for (let node = event.target as Node | null; node; node = node.parentNode) {
-			if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
-				// For Escape key, allow the text field to handle it if there's text to clear
-				if (event.code === 'Escape') {
-					return (node as HTMLInputElement | HTMLTextAreaElement).value.length > 0;
-				}
-
-				// Allow text fields to handle most input-related events
-				const isInputEvent = event.code.startsWith('Key') ||
-					event.code.startsWith('Digit') ||
-					event.code === 'Backspace' ||
-					event.code === 'Delete' ||
-					event.code === 'ArrowLeft' ||
-					event.code === 'ArrowRight' ||
-					event.code === 'ArrowUp' ||
-					event.code === 'ArrowDown' ||
-					event.code === 'Home' ||
-					event.code === 'End' ||
-					event.code === 'PageUp' ||
-					event.code === 'PageDown' ||
-					event.code === 'Tab' ||
-					event.code === 'Enter' ||
-					(event.ctrlKey && (event.code === 'KeyA' || event.code === 'KeyX' || event.code === 'KeyC' || event.code === 'KeyV' || event.code === 'KeyZ'));
-
-				return isInputEvent;
-			}
-
-			// Stop checking if we reach the filter widget container
-			if (node instanceof Element && node.classList.contains('viewpane-filter')) {
-				break;
-			}
-		}
-
-		return false;
-	};
-
 	const handleWheel = (event: WheelEvent & { wheelDeltaX?: number; wheelDeltaY?: number; wheelDelta?: number }) => {
 		if (event.defaultPrevented || eventTargetShouldHandleScroll(event)) {
 			return;
@@ -1161,7 +1123,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	});
 
 	window.addEventListener('wheel', handleWheel);
-	window.addEventListener('keypress', handleKeyPress);
 
 	interface IFindMatch {
 		type: 'preview' | 'output';
