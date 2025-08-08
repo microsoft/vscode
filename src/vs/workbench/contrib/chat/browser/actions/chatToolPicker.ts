@@ -245,7 +245,6 @@ export async function showToolsPicker(
 					collapsed: true,
 					children: [],
 					buttons,
-					alwaysShow: true,
 					iconClass: ThemeIcon.asClassName(Codicon.mcp)
 				};
 				bucketMap.set(key, bucketItem);
@@ -310,7 +309,6 @@ export async function showToolsPicker(
 					children: [],
 					buttons,
 					collapsed,
-					alwaysShow: true,
 					...iconProps
 				};
 				bucketMap.set(key, bucketItem);

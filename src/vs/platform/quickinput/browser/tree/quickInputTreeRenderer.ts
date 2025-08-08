@@ -95,6 +95,9 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 		templateData.checkbox.domNode.style.display = '';
 		templateData.checkbox.checked = quickTreeItem.checked ?? false;
 		store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => templateData.checkbox.checked = e.checked));
+		if (quickTreeItem.disabled) {
+			templateData.checkbox.disable();
+		}
 
 		// Icon
 		if (quickTreeItem.iconPath) {
@@ -139,17 +142,14 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 		if (!quickTreeItem.detail) {
 			templateData.detail.element.style.display = 'none';
 		} else {
-			let title: IManagedHoverTooltipMarkdownString | undefined;
 			// If we have a tooltip, we want that to be shown and not any other hover
-			if (!quickTreeItem.tooltip) {
-				title = {
-					markdown: {
-						value: escape(quickTreeItem.detail),
-						supportThemeIcons: true
-					},
-					markdownNotSupportedFallback: quickTreeItem.detail
-				};
-			}
+			const title = {
+				markdown: {
+					value: escape(quickTreeItem.detail),
+					supportThemeIcons: true
+				},
+				markdownNotSupportedFallback: quickTreeItem.detail
+			};
 			templateData.detail.setLabel(
 				quickTreeItem.detail,
 				undefined,

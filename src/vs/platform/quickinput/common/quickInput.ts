@@ -24,13 +24,48 @@ export interface IQuickPickItemHighlights {
 
 export type QuickPickItem = IQuickPickSeparator | IQuickPickItem;
 
-export interface IQuickPickItem {
-	type?: 'item';
+/**
+ * Base properties for a quick pick and quick tree item.
+ */
+export interface IQuickItem {
 	id?: string;
 	label: string;
 	ariaLabel?: string;
 	description?: string;
+	/**
+	 * The detail text of the quick pick item. Shown as the second line.
+	 */
 	detail?: string;
+	/**
+	 * Whether the item is displayed in italics.
+	 */
+	italic?: boolean;
+	/**
+	 * Whether the item is displayed with a strikethrough.
+	 */
+	strikethrough?: boolean;
+	iconClasses?: readonly string[];
+	iconPath?: { dark: URI; light?: URI };
+	iconClass?: string;
+	highlights?: IQuickPickItemHighlights;
+	buttons?: readonly IQuickInputButton[];
+	/**
+	 * Used when we're in multi-select mode. Renders a disabled checkbox.
+	 */
+	disabled?: boolean;
+}
+
+/**
+ * Represents a quick pick item used in the quick pick UI.
+ */
+export interface IQuickPickItem extends IQuickItem {
+	/**
+	 * The type of the quick pick item. Used to distinguish between 'item' and 'separator'
+	 */
+	type?: 'item';
+	/**
+	 * The tooltip for the quick pick item.
+	 */
 	tooltip?: string | IMarkdownString;
 	/**
 	 * Allows to show a keybinding next to the item to indicate
@@ -38,24 +73,24 @@ export interface IQuickPickItem {
 	 * keyboard shortcut.
 	 */
 	keybinding?: ResolvedKeybinding;
-	iconClasses?: readonly string[];
-	iconPath?: { dark: URI; light?: URI };
-	iconClass?: string;
-	italic?: boolean;
-	strikethrough?: boolean;
-	highlights?: IQuickPickItemHighlights;
-	buttons?: readonly IQuickInputButton[];
+	/**
+	 * Whether the item is picked by default when the Quick Pick is shown.
+	 */
 	picked?: boolean;
 	/**
-	 * Used when we're in multi-select mode. Renders a disabled checkbox.
+	 * Whether the item is always shown in the Quick Pick regardless of filtering.
 	 */
-	disabled?: boolean;
 	alwaysShow?: boolean;
-	/** Defauls to true with `IQuickPick.canSelectMany`, can be false to disable picks for a single item */
+	/**
+	 * Defaults to true with `IQuickPick.canSelectMany`, can be false to disable picks for a single item
+	 */
 	pickable?: boolean;
 }
 
 export interface IQuickPickSeparator {
+	/**
+	 * The type of the quick pick item. Used to distinguish between 'item' and 'separator'
+	 */
 	type: 'separator';
 	id?: string;
 	label?: string;
@@ -1110,7 +1145,7 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 /**
  * Represents a tree item in the quick tree.
  */
-export interface IQuickTreeItem extends IQuickPickItem {
+export interface IQuickTreeItem extends IQuickItem {
 	/**
 	 * The checked state of the item. Can be true, false, or 'partial' for tri-state.
 	 * When canSelectMany is false, this is ignored and the item is treated as a single selection.
@@ -1120,10 +1155,9 @@ export interface IQuickTreeItem extends IQuickPickItem {
 	checked?: boolean | 'partial';
 
 	/**
-	 * TODO:@TylerLeonhardt Bring this back.
+	 * TODO: Bring this back
 	 */
 	detail?: undefined;
-	picked?: undefined;
 
 	/**
 	 * The collapsible state of the tree item. Defaults to 'Expanded' if children are present.

@@ -251,6 +251,9 @@ export class QuickInputTreeController extends Disposable {
 			if (!item) {
 				return;
 			}
+			if (item.disabled) {
+				return;
+			}
 
 			const newState = item.checked !== true;
 			if ((item.checked ?? false) === newState) {
