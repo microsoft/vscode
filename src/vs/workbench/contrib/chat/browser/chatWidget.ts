@@ -1487,10 +1487,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.style.setProperty('--vscode-chat-list-background', this.themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
 	}
 
-	togglePaused() {
-		this.viewModel?.model.toggleLastRequestPaused();
-		this.onDidChangeItems();
-	}
 
 	setModel(model: IChatModel, viewState: IChatViewState): void {
 		if (!this.container) {

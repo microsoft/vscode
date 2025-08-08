@@ -973,7 +973,6 @@ export interface IChatModel extends IDisposable {
 	readonly inputPlaceholder?: string;
 	readonly editingSessionObs?: ObservablePromise<IChatEditingSession> | undefined;
 	readonly editingSession?: IChatEditingSession | undefined;
-	toggleLastRequestPaused(paused?: boolean): void;
 	/**
 	 * Sets requests as 'disabled', removing them from the UI. If a request ID
 	 * is given without undo stops, it's removed entirely. If an undo stop
@@ -1502,14 +1501,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		};
 	}
 
-	toggleLastRequestPaused(isPaused?: boolean) {
-		if (this.requestPausibility !== ChatPauseState.NotPausable && this.lastRequest?.response?.agent) {
-			const pausedValue = isPaused ?? !this.lastRequest.response.isPaused.get();
-			this.lastRequest.response.setPaused(pausedValue);
-			this.chatAgentService.setRequestPaused(this.lastRequest.response.agent.id, this.lastRequest.id, pausedValue);
-			this._onDidChange.fire({ kind: 'changedRequest', request: this.lastRequest });
-		}
-	}
+
 
 	getRequests(): ChatRequestModel[] {
 		return this._requests;
