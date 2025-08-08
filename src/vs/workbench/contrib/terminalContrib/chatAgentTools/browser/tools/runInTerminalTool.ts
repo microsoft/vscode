@@ -23,13 +23,13 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationAction, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
 import { getOutput } from '../bufferOutputPolling.js';
-import { CommandLineAutoApprover } from '../commandLineAutoApprover.js';
+import { CommandLineAutoApprover, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
@@ -39,6 +39,7 @@ import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../su
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { OutputMonitor, type OutputMonitorAction } from '../outputMonitor.js';
+import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolSubPart.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -203,6 +204,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolEditedCommand = undefined;
 		}
 
+		let autoApproveInfo: IMarkdownString | undefined;
 		let confirmationMessages: IToolConfirmationMessages | undefined;
 		if (alternativeRecommendation) {
 			confirmationMessages = undefined;
@@ -227,28 +229,65 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (deniedSubCommandResult) {
 				this._logService.info('autoApprove: Sub-command DENIED auto approval');
 				isDenied = true;
-				autoApproveDefault = deniedSubCommandResult.isDefaultRule;
+				autoApproveDefault = deniedSubCommandResult.rule?.isDefaultRule;
 				autoApproveReason = 'subCommand';
 			} else if (commandLineResult.result === 'denied') {
 				this._logService.info('autoApprove: Command line DENIED auto approval');
 				isDenied = true;
-				autoApproveDefault = commandLineResult.isDefaultRule;
+				autoApproveDefault = commandLineResult.rule?.isDefaultRule;
 				autoApproveReason = 'commandLine';
 			} else {
 				if (subCommandResults.every(e => e.result === 'approved')) {
 					this._logService.info('autoApprove: All sub-commands auto-approved');
 					autoApproveReason = 'subCommand';
 					isAutoApproved = true;
-					autoApproveDefault = subCommandResults.every(e => e.isDefaultRule);
+					autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
 				} else {
 					this._logService.info('autoApprove: All sub-commands NOT auto-approved');
 					if (commandLineResult.result === 'approved') {
 						this._logService.info('autoApprove: Command line auto-approved');
 						autoApproveReason = 'commandLine';
 						isAutoApproved = true;
-						autoApproveDefault = commandLineResult.isDefaultRule;
+						autoApproveDefault = commandLineResult.rule?.isDefaultRule;
 					} else {
 						this._logService.info('autoApprove: Command line NOT auto-approved');
+					}
+				}
+			}
+
+			if (isAutoApproved) {
+				switch (autoApproveReason) {
+					case 'commandLine': {
+						if (commandLineResult.rule) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', `\`${commandLineResult.rule.sourceText}\``)}_`);
+						}
+						break;
+					}
+					case 'subCommand': {
+						if (subCommandResults.length === 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', subCommandResults.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						} else if (subCommandResults.length > 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', subCommandResults.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						}
+						break;
+					}
+				}
+			} else if (isDenied) {
+				switch (autoApproveReason) {
+					case 'commandLine': {
+						if (commandLineResult.rule) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', `\`${commandLineResult.rule.sourceText}\``)}_`);
+						}
+						break;
+					}
+					case 'subCommand': {
+						const deniedRules = subCommandResults.filter(e => e.result === 'denied');
+						if (deniedRules.length === 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', deniedRules.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						} else if (deniedRules.length > 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', deniedRules.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						}
+						break;
 					}
 				}
 			}
@@ -277,12 +316,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + localize('runInTerminal.promptInjectionDisclaimer', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true });
 			}
 
+			let customActions: IToolConfirmationAction[] | undefined;
+			if (!isAutoApproved) {
+				customActions = this._generateAutoApproveActions(args.command, subCommands, { subCommandResults, commandLineResult });
+			}
+
 			confirmationMessages = isAutoApproved ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run command in background terminal")
 					: localize('runInTerminal.foreground', "Run command in terminal"),
 				message: new MarkdownString(args.explanation),
 				disclaimer,
+				terminalCustomActions: customActions,
 			};
 		}
 
@@ -298,6 +343,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				},
 				language,
 				alternativeRecommendation,
+				autoApproveInfo,
 			}
 		};
 	}
@@ -318,7 +364,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
-		let toolResultMessage: string | IMarkdownString | undefined;
+		let toolResultMessage: string | undefined;
 
 		const chatSessionId = invocation.context?.sessionId ?? 'no-chat-session';
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
@@ -443,7 +489,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
 						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance);
-						toolResultMessage = new MarkdownString('Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection');
+						toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 						break;
 					}
 					case ShellIntegrationQuality.Basic: {
@@ -508,8 +554,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			resultText.push(terminalResult);
 
+			if (toolSpecificData.autoApproveInfo) {
+				if (toolResultMessage) {
+					toolResultMessage = `${toolSpecificData.autoApproveInfo.value}\n\n${toolResultMessage}`;
+				} else {
+					toolResultMessage = toolSpecificData.autoApproveInfo.value;
+				}
+			}
+
 			return {
-				toolResultMessage,
+				toolResultMessage: new MarkdownString(toolResultMessage),
 				content: [{
 					kind: 'text',
 					value: resultText.join(''),
@@ -819,6 +873,70 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			inputUserChars: state.inputUserChars,
 			inputUserSigint: state.inputUserSigint,
 		});
+	}
+
+	private _generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): IToolConfirmationAction[] {
+		const actions: IToolConfirmationAction[] = [];
+
+		// We shouldn't offer configuring rules for commands that are explicitly denied since it
+		// wouldn't get auto approved with a new rule
+		const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
+		if (canCreateAutoApproval) {
+			// Allow all sub-commands
+			const subCommandsFirstWordOnly = subCommands.map(command => command.split(' ')[0]);
+			let subCommandLabel: string;
+			let subCommandTooltip: string;
+			if (subCommandsFirstWordOnly.length === 1) {
+				subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always Allow Command: {0}', subCommandsFirstWordOnly[0]);
+				subCommandTooltip = localize('autoApprove.baseCommandSingleTooltip', 'Always allow command starting with `{0}` to run without confirmation', subCommandsFirstWordOnly[0]);
+			} else {
+				const commandSeparated = subCommandsFirstWordOnly.join(', ');
+				subCommandLabel = localize('autoApprove.baseCommand', 'Always allow commands: {0}', commandSeparated);
+				subCommandTooltip = localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated);
+			}
+			actions.push({
+				label: subCommandLabel,
+				tooltip: subCommandTooltip,
+				data: {
+					type: 'newRule',
+					rule: subCommandsFirstWordOnly.map(key => ({
+						key,
+						value: true
+					}))
+				} satisfies TerminalNewAutoApproveButtonData
+			});
+
+			// Allow exact command line, don't do this if it's just the first sub-command's first
+			// word
+			if (subCommandsFirstWordOnly[0] !== commandLine) {
+				actions.push({
+					// Add an extra & since it's treated as a mnemonic
+					label: localize('autoApprove.exactCommand', 'Always Allow Full Command Line: {0}', commandLine.replaceAll('&&', '&&&')),
+					tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
+					data: {
+						type: 'newRule',
+						rule: {
+							key: commandLine,
+							value: {
+								approve: true,
+								matchCommandLine: true
+							}
+						}
+					} satisfies TerminalNewAutoApproveButtonData
+				});
+			}
+		}
+
+		// Always show configure option
+		actions.push({
+			label: localize('autoApprove.configure', 'Configure Auto Approve...'),
+			tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
+			data: {
+				type: 'configure'
+			} satisfies TerminalNewAutoApproveButtonData
+		});
+
+		return actions;
 	}
 }
 

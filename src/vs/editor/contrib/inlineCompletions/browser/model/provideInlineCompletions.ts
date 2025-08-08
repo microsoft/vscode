@@ -258,6 +258,12 @@ export type InlineSuggestProviderRequestInfo = {
 	endTime: number;
 };
 
+export type PartialAcceptance = {
+	characters: number;
+	count: number;
+	ratio: number;
+};
+
 export type InlineSuggestViewData = {
 	editorType: InlineCompletionEditorType;
 	renderData?: InlineCompletionViewData;
@@ -278,6 +284,7 @@ export class InlineSuggestData {
 	private _lastSetEndOfLifeReason: InlineCompletionEndOfLifeReason | undefined = undefined;
 	private _isPreceeded = false;
 	private _partiallyAcceptedCount = 0;
+	private _partiallyAcceptedSinceOriginal: PartialAcceptance = { characters: 0, ratio: 0, count: 0 };
 
 	constructor(
 		public readonly range: Range,
@@ -298,6 +305,8 @@ export class InlineSuggestData {
 	}
 
 	public get showInlineEditMenu() { return this.sourceInlineCompletion.showInlineEditMenu ?? false; }
+
+	public get partialAccepts(): PartialAcceptance { return this._partiallyAcceptedSinceOriginal; }
 
 	public getSingleTextEdit() {
 		return new TextReplacement(this.range, this.insertText);
@@ -321,8 +330,12 @@ export class InlineSuggestData {
 		}
 	}
 
-	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo) {
+	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo, partialAcceptance: PartialAcceptance) {
 		this._partiallyAcceptedCount++;
+		this._partiallyAcceptedSinceOriginal.characters += partialAcceptance.characters;
+		this._partiallyAcceptedSinceOriginal.ratio = Math.min(this._partiallyAcceptedSinceOriginal.ratio + (1 - this._partiallyAcceptedSinceOriginal.ratio) * partialAcceptance.ratio, 1);
+		this._partiallyAcceptedSinceOriginal.count += partialAcceptance.count;
+
 		this.source.provider.handlePartialAccept?.(
 			this.source.inlineSuggestions,
 			this.sourceInlineCompletion,
@@ -355,6 +368,9 @@ export class InlineSuggestData {
 			const summary: LifetimeSummary = {
 				requestUuid: this.context.requestUuid,
 				partiallyAccepted: this._partiallyAcceptedCount,
+				partiallyAcceptedCountSinceOriginal: this._partiallyAcceptedSinceOriginal.count,
+				partiallyAcceptedRatioSinceOriginal: this._partiallyAcceptedSinceOriginal.ratio,
+				partiallyAcceptedCharactersSinceOriginal: this._partiallyAcceptedSinceOriginal.characters,
 				shown: this._didShow,
 				shownDuration: this._shownDuration,
 				shownDurationUncollapsed: this._showUncollapsedDuration,
@@ -383,8 +399,13 @@ export class InlineSuggestData {
 		}
 	}
 
-	public setIsPreceeded(): void {
+	public setIsPreceeded(partialAccepts: PartialAcceptance): void {
 		this._isPreceeded = true;
+
+		if (this._partiallyAcceptedSinceOriginal.characters !== 0 || this._partiallyAcceptedSinceOriginal.ratio !== 0 || this._partiallyAcceptedSinceOriginal.count !== 0) {
+			console.warn('Expected partiallyAcceptedCountSinceOriginal to be { characters: 0, rate: 0, partialAcceptances: 0 } before setIsPreceeded.');
+		}
+		this._partiallyAcceptedSinceOriginal = partialAccepts;
 	}
 
 	/**

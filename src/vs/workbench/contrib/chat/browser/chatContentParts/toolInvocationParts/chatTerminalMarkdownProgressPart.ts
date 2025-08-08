@@ -45,7 +45,7 @@ export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubP
 
 		let content = `\`\`\`${terminalData.language}\n${command}\n\`\`\``;
 		if (toolInvocation.pastTenseMessage) {
-			content += `\n\n$(info) ${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
+			content += `\n\n${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
 		}
 		const markdownContent = new MarkdownString(content, { supportThemeIcons: true });
 		const chatMarkdownContent: IChatMarkdownContent = {
