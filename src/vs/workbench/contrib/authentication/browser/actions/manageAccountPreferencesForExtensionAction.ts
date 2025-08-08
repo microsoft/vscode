@@ -55,18 +55,20 @@ class ManageAccountPreferenceForExtensionActionImpl {
 	) { }
 
 	async run(extensionId?: string, providerId?: string) {
-		const extensions = this._extensionService.extensions
-			.filter(ext => this._authenticationQueryService.extension(ext.identifier.value).getAllAccountPreferences().size > 0)
-			.sort((a, b) => (a.displayName ?? a.name).localeCompare((b.displayName ?? b.name)));
+		if (!extensionId) {
+			const extensions = this._extensionService.extensions
+				.filter(ext => this._authenticationQueryService.extension(ext.identifier.value).getAllAccountPreferences().size > 0)
+				.sort((a, b) => (a.displayName ?? a.name).localeCompare((b.displayName ?? b.name)));
 
-		const result = await this._quickInputService.pick(extensions.map(ext => ({
-			label: ext.displayName ?? ext.name,
-			id: ext.identifier.value
-		})), {
-			placeHolder: localize('selectExtension', "Select an extension to manage account preferences for"),
-			title: localize('pickAProviderTitle', "Manage Extension Account Preferences")
-		});
-		extensionId = result?.id;
+			const result = await this._quickInputService.pick(extensions.map(ext => ({
+				label: ext.displayName ?? ext.name,
+				id: ext.identifier.value
+			})), {
+				placeHolder: localize('selectExtension', "Select an extension to manage account preferences for"),
+				title: localize('pickAProviderTitle', "Manage Extension Account Preferences")
+			});
+			extensionId = result?.id;
+		}
 		if (!extensionId) {
 			return;
 		}
