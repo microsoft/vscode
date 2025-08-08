@@ -36,7 +36,6 @@ import '../common/chatColors.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
-import { chatVariableLeader } from '../common/chatParserTypes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatService } from '../common/chatServiceImpl.js';
@@ -722,7 +721,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 			// Report agent list
 			const agentText = (await Promise.all(agents
-				.filter(a => a.id !== defaultAgent?.id && !a.isCore)
+				.filter(a => !a.isDefault && !a.isCore)
 				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
 					const description = a.description ? `- ${a.description}` : '';
@@ -736,24 +735,6 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 					return (agentLine + '\n' + commandText).trim();
 				}))).join('\n');
 			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [ChatSubmitAction.ID] } }), kind: 'markdownContent' });
-
-			// Report variables
-			if (defaultAgent?.metadata.helpTextVariablesPrefix) {
-				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
-				if (isMarkdownString(defaultAgent.metadata.helpTextVariablesPrefix)) {
-					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'markdownContent' });
-				} else {
-					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextVariablesPrefix), kind: 'markdownContent' });
-				}
-
-				const variables = [
-					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
-				];
-				const variableText = variables
-					.map(v => `* \`${chatVariableLeader}${v.name}\` - ${v.description}`)
-					.join('\n');
-				progress.report({ content: new MarkdownString('\n' + variableText), kind: 'markdownContent' });
-			}
 
 			// Report help text ending
 			if (defaultAgent?.metadata.helpTextPostfix) {

@@ -823,7 +823,6 @@ class ExtHostChatAgent {
 	private _followupProvider: vscode.ChatFollowupProvider | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
-	private _helpTextVariablesPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatResultFeedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatUserActionEvent>();
@@ -918,7 +917,6 @@ class ExtHostChatAgent {
 					themeIcon: this._iconPath instanceof extHostTypes.ThemeIcon ? this._iconPath : undefined,
 					hasFollowups: this._followupProvider !== undefined,
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
-					helpTextVariablesPrefix: (!this._helpTextVariablesPrefix || typeof this._helpTextVariablesPrefix === 'string') ? this._helpTextVariablesPrefix : typeConvert.MarkdownString.from(this._helpTextVariablesPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
 					requester: this._requester,
@@ -961,15 +959,6 @@ class ExtHostChatAgent {
 			set helpTextPrefix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._helpTextPrefix = v;
-				updateMetadataSoon();
-			},
-			get helpTextVariablesPrefix() {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				return that._helpTextVariablesPrefix;
-			},
-			set helpTextVariablesPrefix(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				that._helpTextVariablesPrefix = v;
 				updateMetadataSoon();
 			},
 			get helpTextPostfix() {
