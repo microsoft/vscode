@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../base/common/codicons.js';
-import { Color } from '../../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../../base/common/color.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
@@ -74,6 +74,11 @@ export interface IColorTheme {
 	 * Defines whether semantic highlighting should be enabled for the theme.
 	 */
 	readonly semanticHighlighting: boolean;
+
+	/**
+	 * Preferred RGB color space to use for syntax highlighting when this theme is active.
+	 */
+	readonly highlightingColorSpace: RGBColorSpace;
 }
 
 export interface IFileIconTheme {

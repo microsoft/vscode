@@ -5,7 +5,7 @@
 
 import { basename } from '../../../../base/common/path.js';
 import * as Json from '../../../../base/common/json.js';
-import { Color } from '../../../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../../../base/common/color.js';
 import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD } from './workbenchThemeService.js';
 import { convertSettings } from './themeCompatibility.js';
 import * as nls from '../../../../nls.js';
@@ -63,6 +63,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	location?: URI; // only set for extension from the registry, not for themes restored from the storage
 	watch?: boolean;
 	extensionData?: ExtensionData;
+	highlightingColorSpace: RGBColorSpace = null;
 
 	private themeSemanticHighlighting: boolean | undefined;
 	private customSemanticHighlighting: boolean | undefined;
@@ -542,9 +543,10 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 		const result = {
 			colors: {},
-			textMateRules: [],
-			semanticTokenRules: [],
-			semanticHighlighting: false
+			textMateRules: [] as ITextMateThemingRule[],
+			semanticTokenRules: [] as SemanticTokenRule[],
+			semanticHighlighting: false,
+			highlightingColorSpace: null as RGBColorSpace
 		};
 		return _loadColorTheme(extensionResourceLoaderService, this.location, result).then(_ => {
 			this.isLoaded = true;
@@ -552,6 +554,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			this.colorMap = result.colors;
 			this.themeTokenColors = result.textMateRules;
 			this.themeSemanticHighlighting = result.semanticHighlighting;
+			this.highlightingColorSpace = result.highlightingColorSpace;
 		});
 	}
 
@@ -708,7 +711,7 @@ function toCSSSelector(extensionId: string, path: string) {
 	return str;
 }
 
-async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap; semanticTokenRules: SemanticTokenRule[]; semanticHighlighting: boolean }): Promise<any> {
+async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap; semanticTokenRules: SemanticTokenRule[]; semanticHighlighting: boolean; highlightingColorSpace: RGBColorSpace }): Promise<any> {
 	if (resources.extname(themeLocation) === '.json') {
 		const content = await extensionResourceLoaderService.readExtensionResource(themeLocation);
 		const errors: Json.ParseError[] = [];
@@ -750,6 +753,10 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 			} else {
 				return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 			}
+		}
+		const highlightingColorSpace = contentValue.highlightingColorSpace;
+		if (typeof highlightingColorSpace === 'string') {
+			result.highlightingColorSpace = highlightingColorSpace as RGBColorSpace;
 		}
 		const semanticTokenColors = contentValue.semanticTokenColors;
 		if (semanticTokenColors && typeof semanticTokenColors === 'object') {

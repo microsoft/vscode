@@ -38,6 +38,8 @@ export class TestColorTheme implements IColorTheme {
 	get tokenColorMap(): string[] {
 		return [];
 	}
+
+	public readonly highlightingColorSpace = null;
 }
 
 class TestFileIconTheme implements IFileIconTheme {
