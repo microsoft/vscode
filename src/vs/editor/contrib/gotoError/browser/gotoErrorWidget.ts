@@ -243,14 +243,15 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
+		showOverlay: boolean,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
-		super(editor, { showArrow: true, showFrame: true, isAccessible: true, frameWidth: 1 }, instantiationService);
+		super(editor, { showArrow: true, showFrame: true, isAccessible: true, frameWidth: 1, showOverlay }, instantiationService);
 		this._severity = MarkerSeverity.Warning;
 		this._backgroundColor = Color.white;
 
