@@ -575,7 +575,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 	const webpackConfigs: webpack.Configuration[] = [];
 
 	for (const { configPath, outputRoot } of webpackConfigLocations) {
-		const configOrFnOrArray = require(configPath);
+		const configOrFnOrArray = require(configPath).default;
 		function addConfig(configOrFnOrArray: webpack.Configuration | ((env: unknown, args: unknown) => webpack.Configuration) | webpack.Configuration[]) {
 			for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
 				const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;
@@ -587,6 +587,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 		}
 		addConfig(configOrFnOrArray);
 	}
+
 	function reporter(fullStats: any) {
 		if (Array.isArray(fullStats.children)) {
 			for (const stats of fullStats.children) {

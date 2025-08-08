@@ -522,7 +522,7 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpack = require('webpack');
     const webpackConfigs = [];
     for (const { configPath, outputRoot } of webpackConfigLocations) {
-        const configOrFnOrArray = require(configPath);
+        const configOrFnOrArray = require(configPath).default;
         function addConfig(configOrFnOrArray) {
             for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
                 const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;
