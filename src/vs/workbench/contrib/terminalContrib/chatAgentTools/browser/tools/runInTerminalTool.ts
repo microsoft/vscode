@@ -26,7 +26,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
-import { getRecommendedToolsOverRunInTerminal, getCommandReRoutingRecommendation } from '../alternativeRecommendation.js';
+import { getRecommendedToolsOverRunInTerminal, getCommandReRoutingRecommendation, analyzeCommandExecutionForFileChanges } from '../alternativeRecommendation.js';
 import { getOutput } from '../bufferOutputPolling.js';
 import { CommandLineAutoApprover, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
@@ -526,6 +526,28 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					resultArr.push(executeResult.additionalInformation);
 				}
 				terminalResult = resultArr.join('\n\n');
+
+				// Analyze command execution for file changes and provide recommendations
+				if (executeResult.output !== undefined && !error) {
+					const analysisResult = analyzeCommandExecutionForFileChanges(
+						args.command,
+						executeResult.output,
+						await toolTerminal.instance.getCwdResource()?.then(uri => uri?.fsPath)
+					);
+					
+					if (analysisResult.detectedFileChanges.length > 0) {
+						this._logService.info(
+							`RunInTerminalTool: Post-execution analysis detected ${analysisResult.detectedFileChanges.length} file changes ` +
+							`(confidence: ${analysisResult.confidence}): ${analysisResult.detectedFileChanges.join(', ')}`
+						);
+						
+						if (analysisResult.suggestedAlternatives.length > 0 && analysisResult.confidence !== 'low') {
+							this._logService.info(
+								`RunInTerminalTool: Alternative tool suggestions: ${analysisResult.suggestedAlternatives.join('; ')}`
+							);
+						}
+					}
+				}
 
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);

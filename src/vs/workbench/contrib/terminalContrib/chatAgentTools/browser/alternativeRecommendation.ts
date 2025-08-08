@@ -186,3 +186,92 @@ export function getCommandReRoutingRecommendation(commandLine: string, languageM
 		commandType: commandType === 'unknown' ? undefined : commandType
 	};
 }
+
+/**
+ * Post-execution analysis: Track file changes and suggest better tools for future similar operations
+ * This implements the "run the terminal command and track any files changed" approach
+ */
+export function analyzeCommandExecutionForFileChanges(
+	commandLine: string, 
+	outputText: string,
+	workingDirectory?: string
+): {
+	detectedFileChanges: string[];
+	suggestedAlternatives: string[];
+	confidence: 'high' | 'medium' | 'low';
+} {
+	const heuristics = new FileOperationHeuristics();
+	const detectedFileChanges: string[] = [];
+	const suggestedAlternatives: string[] = [];
+	
+	// Extract file paths mentioned in the original command
+	const originalTargetFiles = heuristics.extractFilePaths(commandLine);
+	
+	// Use regex heuristics to detect file changes from command output
+	// Common patterns for successful file operations:
+	
+	// Directory creation patterns
+	const dirCreatedPatterns = [
+		/(?:mkdir|created directory|Directory created).*?([^\s\n]+)/gi,
+		/created?\s+(?:directory|folder|dir)\s+['"']?([^'"\s\n]+)['"']?/gi
+	];
+	
+	// File read patterns (files that were successfully read)
+	const fileReadPatterns = [
+		// Look for file paths that appear in the command and aren't error messages
+		...originalTargetFiles.map(file => new RegExp(`(?<!cannot|failed|error|not found).*${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i'))
+	];
+	
+	// File write patterns
+	const fileWritePatterns = [
+		/(?:wrote|written|saved|created).*?([^\s\n]+)/gi,
+		/([^\s\n]+)\s+(?:bytes?|lines?)\s+written/gi
+	];
+	
+	// Check directory creation
+	for (const pattern of dirCreatedPatterns) {
+		let match;
+		while ((match = pattern.exec(outputText)) !== null) {
+			const filePath = match[1].trim();
+			if (filePath && !detectedFileChanges.includes(filePath)) {
+				detectedFileChanges.push(filePath);
+				suggestedAlternatives.push('Use file explorer or directory creation tools for better integration');
+			}
+		}
+	}
+	
+	// Check file operations
+	for (const pattern of fileWritePatterns) {
+		let match;
+		while ((match = pattern.exec(outputText)) !== null) {
+			const filePath = match[1].trim();
+			if (filePath && !detectedFileChanges.includes(filePath)) {
+				detectedFileChanges.push(filePath);
+				suggestedAlternatives.push('Use file editing tools for better integration with VS Code');
+			}
+		}
+	}
+	
+	// For file read operations, if command succeeded without errors, assume target files were read
+	const commandType = heuristics.detectCommandType(commandLine);
+	if (commandType === 'file-read' && !outputText.includes('No such file') && !outputText.includes('cannot read')) {
+		detectedFileChanges.push(...originalTargetFiles);
+		suggestedAlternatives.push('Use file viewing tools or open files directly in VS Code for better experience');
+	}
+	
+	// Determine confidence based on detection quality
+	let confidence: 'high' | 'medium' | 'low' = 'low';
+	if (detectedFileChanges.length > 0) {
+		if (detectedFileChanges.some(file => originalTargetFiles.includes(file))) {
+			confidence = 'high'; // Files match what we expected from the command
+		} else if (detectedFileChanges.length > 0) {
+			confidence = 'medium'; // We detected some file changes
+		}
+	}
+	
+	return {
+		detectedFileChanges,
+		suggestedAlternatives: Array.from(new Set(suggestedAlternatives)),
+		confidence
+	};
+}

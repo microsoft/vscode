@@ -6,7 +6,7 @@
 import { strictEqual, deepStrictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../chat/common/languageModelToolsService.js';
-import { FileOperationHeuristics, getCommandReRoutingRecommendation, getRecommendedToolsOverRunInTerminal } from '../../browser/alternativeRecommendation.js';
+import { FileOperationHeuristics, getCommandReRoutingRecommendation, getRecommendedToolsOverRunInTerminal, analyzeCommandExecutionForFileChanges } from '../../browser/alternativeRecommendation.js';
 
 suite('AlternativeRecommendation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -189,6 +189,70 @@ suite('AlternativeRecommendation', () => {
 			const result = getRecommendedToolsOverRunInTerminal('cat file.txt', emptyToolsService);
 			
 			strictEqual(result, undefined);
+		});
+	});
+
+	suite('analyzeCommandExecutionForFileChanges', () => {
+		test('should detect directory creation from output', () => {
+			const commandLine = 'mkdir test-directory';
+			const outputText = 'created directory test-directory';
+			
+			const result = analyzeCommandExecutionForFileChanges(commandLine, outputText);
+			
+			deepStrictEqual(result.detectedFileChanges, ['test-directory']);
+			strictEqual(result.confidence, 'high');
+			strictEqual(result.suggestedAlternatives.length > 0, true);
+		});
+
+		test('should detect file read operation success', () => {
+			const commandLine = 'cat README.md';
+			const outputText = '# My Project\nThis is a test file...';
+			
+			const result = analyzeCommandExecutionForFileChanges(commandLine, outputText);
+			
+			deepStrictEqual(result.detectedFileChanges, ['README.md']);
+			strictEqual(result.confidence, 'high');
+			strictEqual(result.suggestedAlternatives.some(s => s.includes('file viewing')), true);
+		});
+
+		test('should detect file read failure', () => {
+			const commandLine = 'cat nonexistent.txt';
+			const outputText = 'cat: nonexistent.txt: No such file or directory';
+			
+			const result = analyzeCommandExecutionForFileChanges(commandLine, outputText);
+			
+			strictEqual(result.detectedFileChanges.length, 0);
+			strictEqual(result.confidence, 'low');
+		});
+
+		test('should detect file write operations', () => {
+			const commandLine = 'echo "Hello World" > output.txt';
+			const outputText = 'wrote 12 bytes to output.txt';
+			
+			const result = analyzeCommandExecutionForFileChanges(commandLine, outputText);
+			
+			strictEqual(result.detectedFileChanges.includes('output.txt'), true);
+			strictEqual(result.confidence, 'medium');
+		});
+
+		test('should handle multiple file operations', () => {
+			const commandLine = 'cat file1.txt file2.txt';
+			const outputText = 'Content of file1\nContent of file2';
+			
+			const result = analyzeCommandExecutionForFileChanges(commandLine, outputText);
+			
+			deepStrictEqual(result.detectedFileChanges, ['file1.txt', 'file2.txt']);
+			strictEqual(result.confidence, 'high');
+		});
+
+		test('should return low confidence for unrecognized output', () => {
+			const commandLine = 'unknown-command';
+			const outputText = 'Some random output';
+			
+			const result = analyzeCommandExecutionForFileChanges(commandLine, outputText);
+			
+			strictEqual(result.detectedFileChanges.length, 0);
+			strictEqual(result.confidence, 'low');
 		});
 	});
 });
