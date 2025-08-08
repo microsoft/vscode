@@ -530,6 +530,10 @@ export class ChatEntitlementRequests extends Disposable {
 			}
 		}
 
+		// We intentionally want to return an array of matching sessions and
+		// not just the first, because it is possible that a matching session
+		// has an expired token. As such, we want to try them all until we
+		// succeeded with the request.
 		return matchingSessions.size > 0 ? Array.from(matchingSessions) : undefined;
 	}
 
