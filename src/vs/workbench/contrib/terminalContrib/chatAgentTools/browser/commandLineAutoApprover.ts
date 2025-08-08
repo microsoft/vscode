@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
-import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
@@ -281,8 +281,22 @@ export class CommandLineAutoApprover extends Disposable {
 			return neverMatchRegex;
 		}
 
-		// Escape regex special characters
-		const sanitizedValue = value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+		let sanitizedValue: string;
+
+		// Match both path separators it if looks like a path
+		if (value.includes('/') || value.includes('\\')) {
+			// Replace path separators with placeholders first, apply standard sanitization, then
+			// apply special path handling
+			let pattern = value.replace(/[/\\]/g, '%%PATH_SEP%%');
+			pattern = escapeRegExpCharacters(pattern);
+			pattern = pattern.replace(/%%PATH_SEP%%*/g, '[/\\\\]');
+			sanitizedValue = `^(?:\\.[/\\\\])?${pattern}`;
+		}
+
+		// Escape regex special characters for non-path strings
+		else {
+			sanitizedValue = escapeRegExpCharacters(value);
+		}
 
 		// Regular strings should match the start of the command line and be a word boundary
 		return new RegExp(`^${sanitizedValue}\\b`);
