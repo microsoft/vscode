@@ -13,6 +13,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IAgentResourceResolver } from '../agentResourceResolver.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -138,6 +139,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IChatService private readonly _chatService: IChatService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IAgentResourceResolver private readonly _agentResolver: IAgentResourceResolver,
 	) {
 		super();
 		this._timeline = _instantiationService.createInstance(ChatEditingTimeline);
@@ -496,6 +498,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+		// Try to resolve remote targets to virtual writable URIs (no-op if not applicable)
+		try {
+			resource = await this._agentResolver.resolve(resource as any);
+		} catch {
+			// ignore; proceed with the original resource
+		}
 		const entry = await this._getOrCreateModifiedFileEntry(resource, this._getTelemetryInfoForModel(responseModel));
 		await entry.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
 	}
