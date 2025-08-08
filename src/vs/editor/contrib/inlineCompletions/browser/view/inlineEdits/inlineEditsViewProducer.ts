@@ -57,11 +57,17 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		if (!edit) { return undefined; }
 
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
-			if (this._editorObs.isFocused.read(reader)) {
-				if (model.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
-				if (model.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
+			// Ensure we always return a valid InlineEditTabAction, even during initialization  
+			try {
+				if (this._editorObs.isFocused.read(reader)) {
+					if (model.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
+					if (model.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
+				}
+				return InlineEditTabAction.Inactive;
+			} catch {
+				// Fallback during initialization edge cases
+				return InlineEditTabAction.Inactive;
 			}
-			return InlineEditTabAction.Inactive;
 		});
 
 		return new InlineEditModel(model, edit, tabAction);

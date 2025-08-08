@@ -84,12 +84,18 @@ export class GhostTextIndicator {
 	) {
 		const editorObs = observableCodeEditor(editor);
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
-			if (editorObs.isFocused.read(reader)) {
-				if (inlineCompletion.showInlineEditMenu) {
-					return InlineEditTabAction.Accept;
+			// Ensure we always return a valid InlineEditTabAction, even during initialization
+			try {
+				if (editorObs.isFocused.read(reader)) {
+					if (inlineCompletion.showInlineEditMenu) {
+						return InlineEditTabAction.Accept;
+					}
 				}
+				return InlineEditTabAction.Inactive;
+			} catch {
+				// Fallback during initialization edge cases
+				return InlineEditTabAction.Inactive;
 			}
-			return InlineEditTabAction.Inactive;
 		});
 
 		this.model = new InlineEditModel(
