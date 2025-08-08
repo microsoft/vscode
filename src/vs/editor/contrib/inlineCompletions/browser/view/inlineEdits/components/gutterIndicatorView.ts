@@ -57,7 +57,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		this._tabAction = derived(this, reader => {
 			const model = this._model.read(reader);
 			if (!model) { return InlineEditTabAction.Inactive; }
-			return model.tabAction.read(reader);
+			return model.tabAction.read(reader) ?? InlineEditTabAction.Inactive;
 		});
 
 		this._hoverVisible = observableValue(this, false);
@@ -83,11 +83,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 					background: getEditorBlendedColor(inlineEditIndicatorsuccessfulBackground, themeService).read(reader).toString(),
 					foreground: getEditorBlendedColor(inlineEditIndicatorsuccessfulForeground, themeService).read(reader).toString(),
 					border: getEditorBlendedColor(inlineEditIndicatorsuccessfulBorder, themeService).read(reader).toString()
-				};
-				default: return {
-					background: getEditorBlendedColor(inlineEditIndicatorSecondaryBackground, themeService).read(reader).toString(),
-					foreground: getEditorBlendedColor(inlineEditIndicatorSecondaryForeground, themeService).read(reader).toString(),
-					border: getEditorBlendedColor(inlineEditIndicatorSecondaryBorder, themeService).read(reader).toString(),
 				};
 			}
 		});
