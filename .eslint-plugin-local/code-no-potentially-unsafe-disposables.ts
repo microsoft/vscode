@@ -16,7 +16,7 @@ export = new class implements eslint.Rule.RuleModule {
 		function checkVariableDeclaration(inNode: any) {
 			context.report({
 				node: inNode,
-				message: `Use const for 'DisposableStore' to avoid leaks by accidental reassignment.`
+				message: `Use const/using for 'DisposableStore' to avoid leaks by accidental reassignment.`
 			});
 		}
 
@@ -28,7 +28,7 @@ export = new class implements eslint.Rule.RuleModule {
 		}
 
 		return {
-			'VariableDeclaration[kind!="const"] NewExpression[callee.name="DisposableStore"]': checkVariableDeclaration,
+			'VariableDeclaration[kind!="const"][kind!="using"] NewExpression[callee.name="DisposableStore"]': checkVariableDeclaration,
 
 			'PropertyDefinition[readonly!=true][typeAnnotation.typeAnnotation.typeName.name=/DisposableStore|MutableDisposable/]': checkProperty,
 			'PropertyDefinition[readonly!=true] NewExpression[callee.name=/DisposableStore|MutableDisposable/]': checkProperty,
