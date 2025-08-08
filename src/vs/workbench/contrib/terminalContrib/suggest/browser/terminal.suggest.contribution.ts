@@ -74,7 +74,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(toDisposable(() => {
 			this._addon?.dispose();
 			this._pwshAddon?.dispose();
-			this._lspAddons.dispose();
 			this._lspModelProvider?.value?.dispose();
 			this._lspModelProvider?.dispose();
 		}));
