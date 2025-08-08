@@ -829,6 +829,49 @@ class SendToNewChatAction extends Action2 {
 	}
 }
 
+export class ChatWorktreeAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.worktree';
+
+	constructor() {
+		super({
+			id: ChatWorktreeAction.ID,
+			title: localize2('chat.worktree.label', "Delegate to Worktree"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			icon: Codicon.listTree,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.chat.worktree.enabled', true),
+				ChatContextKeys.inputHasText
+			),
+			menu: [
+				{
+					id: MenuId.ChatExecute,
+					group: 'navigation',
+					order: 3.1,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ContextKeyExpr.equals('config.chat.worktree.enabled', true),
+						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)
+					)
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const context: IChatExecuteActionContext | undefined = args[0];
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+
+		if (!widget) {
+			return;
+		}
+
+		// TODO: Add worktree functionality here
+		console.log('Worktree button clicked!');
+	}
+}
+
 export const CancelChatActionId = 'workbench.action.chat.cancel';
 export class CancelAction extends Action2 {
 	static readonly ID = CancelChatActionId;
@@ -930,5 +973,6 @@ export function registerChatExecuteActions() {
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
 	registerAction2(ChangeChatModelAction);
+	registerAction2(ChatWorktreeAction);
 	registerAction2(CancelEdit);
 }

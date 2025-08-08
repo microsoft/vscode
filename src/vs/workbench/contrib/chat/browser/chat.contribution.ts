@@ -215,6 +215,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
 		},
+		'chat.worktree.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.worktree.enabled', "Controls whether the worktree button is shown in the chat input."),
+			default: false
+		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
 			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether the Copilot window should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
