@@ -859,16 +859,8 @@ export class ChatWorktreeAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const context: IChatExecuteActionContext | undefined = args[0];
-		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-
-		if (!widget) {
-			return;
-		}
-
-		// TODO: Add worktree functionality here
-		console.log('Worktree button clicked!');
+		const commandService = accessor.get(ICommandService);
+		await commandService.executeCommand('git.createWorktree', undefined, true);
 	}
 }
 

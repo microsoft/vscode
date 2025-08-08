@@ -3408,7 +3408,7 @@ export class CommandCenter {
 	}
 
 	@command('git.createWorktree')
-	async createWorktree(repository: any): Promise<void> {
+	async createWorktree(repository: any, chatWorktreeEnabled?: boolean): Promise<void> {
 		repository = this.model.getRepository(repository);
 
 		if (!repository) {
@@ -3437,37 +3437,38 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._createWorktree(repository);
+		await this._createWorktree(repository, chatWorktreeEnabled);
 	}
 
-	private async _createWorktree(repository: Repository): Promise<void> {
+	private async _createWorktree(repository: Repository, chatWorktreeEnabled?: boolean): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
 		const createBranch = new CreateBranchItem();
-		const getBranchPicks = async () => {
-			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-			const itemsProcessor = new RefItemsProcessor(repository, [
-				new RefProcessor(RefType.Head),
-				new RefProcessor(RefType.RemoteHead),
-				new RefProcessor(RefType.Tag)
-			]);
-			const branchItems = itemsProcessor.processRefs(refs);
-			return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
-		};
 
-		const placeHolder = l10n.t('Select a branch to create the new worktree from');
-		const choice = await this.pickRef(getBranchPicks(), placeHolder);
+		let choice: any;
 
-		if (!choice) {
-			return;
+		if (!chatWorktreeEnabled) {
+			const getBranchPicks = async () => {
+				const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+				const itemsProcessor = new RefItemsProcessor(repository, [
+					new RefProcessor(RefType.Head),
+					new RefProcessor(RefType.RemoteHead),
+					new RefProcessor(RefType.Tag)
+				]);
+				const branchItems = itemsProcessor.processRefs(refs);
+				return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
+			};
+
+			const placeHolder = l10n.t('Select a branch to create the new worktree from');
+			choice = await this.pickRef(getBranchPicks(), placeHolder);
 		}
 
 		let branch: string | undefined = undefined;
 		let commitish: string;
 
-		if (choice === createBranch) {
+		if (choice === createBranch || chatWorktreeEnabled) {
 			branch = await this.promptForBranchName(repository);
 
 			if (!branch) {
