@@ -232,7 +232,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		// Try select an existing profile to fallback to, based on the default system shell, only do
 		// this when it is NOT a local terminal in a remote window where the front and back end OS
 		// differs (eg. Windows -> WSL, Mac -> Linux)
-		if (options.os === OS) {
+		if (options.os === OS && options.remoteAuthority) {
 			let existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
 			if (existingProfile) {
 				if (options.allowAutomationShell) {
