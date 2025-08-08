@@ -156,7 +156,8 @@ export class CodeBlockModelCollection extends Disposable {
 		}
 
 		const textModel = await entry.model;
-		if (textModel.isDisposed()) {
+		if (!textModel || textModel.isDisposed()) {
+			// Somehow we get an undefined textModel sometimes - #237782
 			return entry;
 		}
 

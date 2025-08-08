@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { localize } from '../../../../../../nls.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IChatService } from '../../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
-import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
-import { getOutput } from '../outputHelpers.js';
-import { IConfiguredTask } from './taskHelpers.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { timeout } from '../../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { localize } from '../../../../../../../nls.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { IChatService } from '../../../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
+import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
+import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../../bufferOutputPolling.js';
+import { getOutput } from '../../outputHelpers.js';
+import { IConfiguredTask } from '../../taskHelpers.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };

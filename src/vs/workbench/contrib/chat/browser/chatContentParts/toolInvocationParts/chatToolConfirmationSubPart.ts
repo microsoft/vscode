@@ -83,6 +83,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			AllowWorkspace,
 			AllowGlobally,
 			AllowSession,
+			CustomAction,
 		}
 
 		const buttons: IChatConfirmationButton[] = [
@@ -102,15 +103,13 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				isSecondary: true,
 				tooltip: cancelTooltip
 			}];
+
 		let confirmWidget: ChatConfirmationWidget | ChatCustomConfirmationWidget;
 		if (typeof message === 'string') {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatConfirmationWidget,
-				title,
-				toolInvocation.originMessage,
-				message,
-				buttons,
 				this.context.container,
+				{ title, subtitle: toolInvocation.originMessage, buttons, message, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } }
 			));
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
@@ -275,11 +274,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
-				title,
-				toolInvocation.originMessage,
-				elements.root,
-				buttons,
 				this.context.container,
+				{ title, subtitle: toolInvocation.originMessage, buttons, message: elements.root, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } },
 			));
 		}
 

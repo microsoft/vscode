@@ -1353,7 +1353,10 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 
 		this.autoRefetchExperimentalSettingsScheduler = new RunOnceScheduler(() => {
 			this.processExperimentalSettings(this.autoRefetchExperimentalSettings, true);
-			this.autoRefetchExperimentalSettingsScheduler.schedule();
+			if (ASSIGNMENT_REFETCH_INTERVAL !== 0) {
+				// TODO@sandy081 wait for the promise returned by processExperimentalSettings to avoid unbounded queuing
+				this.autoRefetchExperimentalSettingsScheduler.schedule();
+			}
 		}, ASSIGNMENT_REFETCH_INTERVAL);
 
 		this.updateDefaults();
