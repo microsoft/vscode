@@ -163,7 +163,7 @@ export class BreadcrumbsWidget {
 		if (style.breadcrumbsHoverForeground) {
 			content += `.monaco-breadcrumbs:not(.disabled	) .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;
 		}
-		styleElement.innerText = content;
+		styleElement.textContent = content;
 	}
 
 	setEnabled(value: boolean) {
@@ -332,7 +332,7 @@ export class BreadcrumbsWidget {
 		try {
 			item.render(container);
 		} catch (err) {
-			container.innerText = '<<RENDER ERROR>>';
+			container.textContent = '<<RENDER ERROR>>';
 			console.error(err);
 		}
 		container.tabIndex = -1;
