@@ -357,10 +357,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.Edits2Enabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.edits2Enabled', "Enable the new Edits mode that is based on tool-calling. When this is enabled, models that don't support tool-calling are unavailable for Edits mode."),
-			default: true,
-			experiment: {
-				mode: 'startup'
-			}
+			default: false,
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
 			type: 'boolean',
@@ -376,9 +373,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, agent mode can be activated via the dropdown in the view.", 'Copilot Chat'),
 			default: true,
-			experiment: {
-				mode: 'startup'
-			},
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
