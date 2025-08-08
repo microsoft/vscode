@@ -708,25 +708,35 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	const diagnostics: Map<Uri, number> = new Map();
 
 	for (const resource of resources) {
-		const unresolvedDiagnostics = languages.getDiagnostics(resource)
+		const allDiagnostics = languages.getDiagnostics(resource);
+		const unresolvedDiagnostics = allDiagnostics
 			.filter(d => {
-				// No source or ignored source
-				if (!d.source || (Object.keys(sourceSeverity).includes(d.source) && sourceSeverity[d.source] === 'none')) {
+				// Skip diagnostics without source
+				if (!d.source) {
 					return false;
 				}
 
-				// Source severity
-				if (Object.keys(sourceSeverity).includes(d.source) &&
-					d.severity <= toDiagnosticSeverity(sourceSeverity[d.source])) {
-					return true;
+				// Check if this source is explicitly configured (use hasOwnProperty to avoid prototype pollution)
+				if (sourceSeverity.hasOwnProperty(d.source)) {
+					// If explicitly set to 'none', ignore this source
+					if (sourceSeverity[d.source] === 'none') {
+						return false;
+					}
+					// Check if diagnostic severity meets the configured threshold
+					return d.severity <= toDiagnosticSeverity(sourceSeverity[d.source]);
 				}
 
-				// Wildcard severity
-				if (Object.keys(sourceSeverity).includes('*') &&
-					d.severity <= toDiagnosticSeverity(sourceSeverity['*'])) {
-					return true;
+				// Fall back to wildcard configuration if no explicit source config exists
+				if (sourceSeverity.hasOwnProperty('*')) {
+					// If wildcard is set to 'none', ignore
+					if (sourceSeverity['*'] === 'none') {
+						return false;
+					}
+					// Check if diagnostic severity meets the wildcard threshold
+					return d.severity <= toDiagnosticSeverity(sourceSeverity['*']);
 				}
 
+				// If no configuration exists for this source and no wildcard, ignore
 				return false;
 			});
 
