@@ -133,7 +133,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
     const packagedDependencies = [];
     const packageJsonConfig = require(path_1.default.join(extensionPath, 'package.json'));
     if (packageJsonConfig.dependencies) {
-        const webpackRootConfig = require(path_1.default.join(extensionPath, webpackConfigFileName));
+        const webpackRootConfig = require(path_1.default.join(extensionPath, webpackConfigFileName)).default;
         for (const key in webpackRootConfig.externals) {
             if (key in packageJsonConfig.dependencies) {
                 packagedDependencies.push(key);
@@ -171,7 +171,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
                     result.emit('error', compilation.warnings.join('\n'));
                 }
             };
-            const exportedConfig = require(webpackConfigPath);
+            const exportedConfig = require(webpackConfigPath).default;
             return (Array.isArray(exportedConfig) ? exportedConfig : [exportedConfig]).map(config => {
                 const webpackConfig = {
                     ...config,
@@ -522,7 +522,7 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpack = require('webpack');
     const webpackConfigs = [];
     for (const { configPath, outputRoot } of webpackConfigLocations) {
-        const configOrFnOrArray = require(configPath);
+        const configOrFnOrArray = require(configPath).default;
         function addConfig(configOrFnOrArray) {
             for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
                 const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;
