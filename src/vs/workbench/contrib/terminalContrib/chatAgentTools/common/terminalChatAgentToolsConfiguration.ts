@@ -145,7 +145,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// approval
 
 			// Overwriting allowed by default commands with special cases
-			'/find\\b.*-exec\\b/': false,
+			'/find\\b.*-exec(dir)?\\b/': false,
 
 			// Deleting files
 			rm: false,
