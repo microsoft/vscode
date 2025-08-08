@@ -22,43 +22,30 @@ export const enum OutputMonitorAction {
 }
 
 export interface IOutputMonitor extends Disposable {
-	// for constructing telemetry event
 	readonly actions: OutputMonitorAction[];
-
-	// for constructing tool result
 	readonly isIdle: boolean;
 
-	// enable async listening to when the command is considered finished
 	readonly onDidFinishCommand: Event<void>;
-
-	// if we need this outside the class
 	readonly onDidIdle: Event<void>;
-
-	// timeout for showing elicitation
 	readonly onDidTimeout: Event<void>;
 
-	// Start monitoring output with automatic extended polling if needed
 	startMonitoring(
 		chatService: IChatService,
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
 	): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>;
-
-	// Legacy method for testing
-	startMonitoringLegacy(extendedPolling: boolean, token: CancellationToken): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>;
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
-	private readonly _onDidFinishCommand = new Emitter<void>();
-	private readonly _onDidIdle = new Emitter<void>();
-	private readonly _onDidTimeout = new Emitter<void>();
-
 	private readonly _actions: OutputMonitorAction[] = [];
 	private _isIdle = false;
 
+	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
+	private readonly _onDidIdle = this._register(new Emitter<void>());
 	readonly onDidIdle = this._onDidIdle.event;
+	private readonly _onDidTimeout = this._register(new Emitter<void>());
 	readonly onDidTimeout = this._onDidTimeout.event;
 
 	get actions(): OutputMonitorAction[] {
@@ -82,13 +69,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		invocationContext: any,
 		token: CancellationToken
 	): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
-		// First, try initial polling
-		let result = await this._startMonitoringInternal(false, token);
+		let result = await this._startMonitoring(false, token);
 
-		// If the initial polling didn't complete before timeout, try extended polling with user prompt
 		if (!result.terminalExecutionIdleBeforeTimeout) {
 			result = await racePollingOrPrompt(
-				() => this._startMonitoringInternal(true, token),
+				() => this._startMonitoring(true, token),
 				() => promptForMorePolling(command, token, invocationContext, chatService),
 				result,
 				token,
@@ -100,12 +85,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return result;
 	}
 
-	// Legacy method for testing
-	startMonitoringLegacy(extendedPolling: boolean, token: CancellationToken): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
-		return this._startMonitoringInternal(extendedPolling, token);
-	}
-
-	private async _startMonitoringInternal(extendedPolling: boolean, token: CancellationToken): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+	protected async _startMonitoring(extendedPolling: boolean, token: CancellationToken): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
 		this._addAction(OutputMonitorAction.PollingStarted);
 		if (extendedPolling) {
 			this._addAction(OutputMonitorAction.ExtendedPollingStarted);
@@ -188,12 +168,5 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private _addAction(action: OutputMonitorAction): void {
 		this._actions.push(action);
-	}
-
-	override dispose(): void {
-		this._onDidFinishCommand.dispose();
-		this._onDidIdle.dispose();
-		this._onDidTimeout.dispose();
-		super.dispose();
 	}
 }

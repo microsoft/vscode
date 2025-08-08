@@ -5,10 +5,16 @@
 
 import { strictEqual, deepStrictEqual } from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource, type CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { OutputMonitor, OutputMonitorAction } from '../../browser/outputMonitor.js';
+
+class TestOutputMonitor extends OutputMonitor {
+	async internalStartMonitoring(extendedPolling: boolean, token: CancellationToken): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+		return super._startMonitoring(extendedPolling, token);
+	}
+}
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,7 +57,7 @@ suite('OutputMonitor', () => {
 
 	test('should implement IOutputMonitor interface', () => {
 		const execution = createMockExecution(['']);
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 		store.add(monitor);
 
 		// Verify core interface properties exist
@@ -61,17 +67,16 @@ suite('OutputMonitor', () => {
 		strictEqual(monitor.onDidIdle !== undefined, true);
 		strictEqual(monitor.onDidTimeout !== undefined, true);
 		strictEqual(monitor.startMonitoring !== undefined, true);
-		strictEqual(monitor.startMonitoringLegacy !== undefined, true);
 		strictEqual(monitor.dispose !== undefined, true);
 	});
 
 	test('should track actions correctly', async () => {
 		const execution = createMockExecution(['output1', 'output1', 'output1']); // No new output to trigger idle
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 		store.add(monitor);
 
 		const tokenSource = new CancellationTokenSource();
-		const result = monitor.startMonitoringLegacy(false, tokenSource.token);
+		const result = monitor.internalStartMonitoring(false, tokenSource.token);
 
 		// Give it some time to start and detect idle
 		await timeout(100);
@@ -86,7 +91,7 @@ suite('OutputMonitor', () => {
 
 	test('should detect idle state when no new output', async () => {
 		const execution = createMockExecution(['initial output', 'initial output', 'initial output']); // Same output to trigger idle
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 		store.add(monitor);
 
 		let idleEventFired = false;
@@ -104,7 +109,7 @@ suite('OutputMonitor', () => {
 
 		const tokenSource = new CancellationTokenSource();
 
-		const result = await monitor.startMonitoringLegacy(false, tokenSource.token);
+		const result = await monitor.internalStartMonitoring(false, tokenSource.token);
 
 		strictEqual(result.terminalExecutionIdleBeforeTimeout, true);
 		strictEqual(typeof result.output, 'string');
@@ -128,7 +133,7 @@ suite('OutputMonitor', () => {
 			isActive: undefined
 		};
 
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 		store.add(monitor);
 
 		const tokenSource = new CancellationTokenSource();
@@ -136,7 +141,7 @@ suite('OutputMonitor', () => {
 		// Cancel after a short time to simulate timeout
 		setTimeout(() => tokenSource.cancel(), 100);
 
-		await monitor.startMonitoringLegacy(false, tokenSource.token);
+		await monitor.internalStartMonitoring(false, tokenSource.token);
 
 		const actions = monitor.actions;
 		strictEqual(actions.includes(OutputMonitorAction.PollingStarted), true);
@@ -145,7 +150,7 @@ suite('OutputMonitor', () => {
 
 	test('should handle cancellation correctly', async () => {
 		const execution = createMockExecution(['output']);
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 		store.add(monitor);
 
 		const tokenSource = new CancellationTokenSource();
@@ -154,7 +159,7 @@ suite('OutputMonitor', () => {
 		tokenSource.cancel();
 
 		try {
-			await monitor.startMonitoringLegacy(false, tokenSource.token);
+			await monitor.internalStartMonitoring(false, tokenSource.token);
 			strictEqual(true, false, 'Should have thrown cancellation error');
 		} catch (error) {
 			// Expected cancellation
@@ -167,12 +172,12 @@ suite('OutputMonitor', () => {
 
 	test('should track output received actions', async () => {
 		const execution = createMockExecution(['output1', 'output2', 'output2', 'output2']); // Output changes once then stays same
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 		store.add(monitor);
 
 		const tokenSource = new CancellationTokenSource();
 
-		const result = await monitor.startMonitoringLegacy(false, tokenSource.token);
+		const result = await monitor.internalStartMonitoring(false, tokenSource.token);
 
 		strictEqual(result.terminalExecutionIdleBeforeTimeout, true);
 
@@ -184,12 +189,12 @@ suite('OutputMonitor', () => {
 
 	test('should handle extended polling correctly', async () => {
 		const execution = createMockExecution(['output', 'output', 'output']); // Same output to trigger idle quickly
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 		store.add(monitor);
 
 		const tokenSource = new CancellationTokenSource();
 
-		const result = await monitor.startMonitoringLegacy(true, tokenSource.token); // Extended polling = true
+		const result = await monitor.internalStartMonitoring(true, tokenSource.token); // Extended polling = true
 
 		strictEqual(result.terminalExecutionIdleBeforeTimeout, true);
 		strictEqual(typeof result.modelOutputEvalResponse, 'string');
@@ -206,7 +211,7 @@ suite('OutputMonitor', () => {
 			['output', 'output', 'output', 'output'], // Same output to trigger no new data
 			[true, false] // Active once, then inactive (should trigger idle quickly)
 		);
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 		store.add(monitor);
 
 		const tokenSource = new CancellationTokenSource();
@@ -214,7 +219,7 @@ suite('OutputMonitor', () => {
 		// Set a timeout to cancel if it takes too long
 		setTimeout(() => tokenSource.cancel(), 2000);
 
-		await monitor.startMonitoringLegacy(false, tokenSource.token);
+		await monitor.internalStartMonitoring(false, tokenSource.token);
 
 		// Check that it didn't timeout (either completed successfully or was cancelled)
 		const actions = monitor.actions;
@@ -227,7 +232,7 @@ suite('OutputMonitor', () => {
 
 	test('should return immutable copy of actions', () => {
 		const execution = createMockExecution(['']);
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 		store.add(monitor);
 
 		const actions1 = monitor.actions;
@@ -247,7 +252,7 @@ suite('OutputMonitor', () => {
 
 	test('should dispose correctly', () => {
 		const execution = createMockExecution(['']);
-		const monitor = new OutputMonitor(execution, mockLanguageModelsService);
+		const monitor = new TestOutputMonitor(execution, mockLanguageModelsService);
 
 		let eventFired = false;
 		const disposable = monitor.onDidFinishCommand(() => {
