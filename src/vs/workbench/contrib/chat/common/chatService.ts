@@ -102,6 +102,12 @@ export enum ChatResponseReferencePartStatusKind {
 	Omitted = 3
 }
 
+export enum ChatResponseClearToPreviousToolInvocationReason {
+	NoReason = 0,
+	FilteredContentRetry = 1,
+	CopyrightContentRetry = 2,
+}
+
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference | string;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
@@ -229,6 +235,11 @@ export interface IChatTextEdit {
 	done?: boolean;
 }
 
+export interface IChatClearToPreviousToolInvocation {
+	kind: 'clearToPreviousToolInvocation';
+	reason: ChatResponseClearToPreviousToolInvocationReason;
+}
+
 export interface IChatNotebookEdit {
 	uri: URI;
 	edits: ICellEditOperation[];
@@ -251,12 +262,20 @@ export interface IChatElicitationRequest {
 	message: string | IMarkdownString;
 	acceptButtonLabel: string;
 	rejectButtonLabel: string;
-	originMessage?: string | IMarkdownString;
+	subtitle?: string | IMarkdownString;
+	source?: { type: 'mcp'; definitionId: string };
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
 	reject(): Promise<void>;
 	onDidRequestHide: Event<void>;
+}
+
+export interface IChatThinkingPart {
+	kind: 'thinking';
+	value: string;
+	id?: string;
+	metadata?: string;
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -266,6 +285,20 @@ export interface IChatTerminalToolInvocationData {
 		userEdited?: string;
 		toolEdited?: string;
 	};
+	/** Message for model recommending the use of an alternative tool */
+	alternativeRecommendation?: string;
+	language: string;
+	terminalToolSessionId?: string;
+	autoApproveInfo?: IMarkdownString;
+}
+
+/**
+ * @deprecated This is the old API shape, we should support this for a while before removing it so
+ * we don't break existing chats
+ */
+export interface ILegacyChatTerminalToolInvocationData {
+	kind: 'terminal';
+	command: string;
 	language: string;
 }
 
@@ -276,7 +309,7 @@ export interface IChatToolInputInvocationData {
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
 	confirmed: DeferredPromise<boolean>;
@@ -370,12 +403,14 @@ export type IChatProgress =
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
+	| IChatClearToPreviousToolInvocation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
 	| IChatExtensionsContent
 	| IChatPullRequestContent
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
+	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest;
 

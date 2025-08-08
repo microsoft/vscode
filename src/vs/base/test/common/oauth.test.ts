@@ -17,6 +17,7 @@ import {
 	isAuthorizationTokenResponse,
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
+	scopesMatch,
 	IAuthorizationJWTClaims,
 	IAuthorizationServerMetadata,
 	DEFAULT_AUTH_FLOW_PORT
@@ -173,6 +174,53 @@ suite('OAuth', () => {
 			assert.strictEqual(isAuthorizationErrorResponse({}), false);
 			assert.strictEqual(isAuthorizationErrorResponse({ error_description: 'missing-error' }), false);
 			assert.strictEqual(isAuthorizationErrorResponse('not an object'), false);
+		});
+	});
+
+	suite('Scope Matching', () => {
+		test('scopesMatch should return true for identical scopes', () => {
+			const scopes1 = ['test', 'scopes'];
+			const scopes2 = ['test', 'scopes'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
+		});
+
+		test('scopesMatch should return true for scopes in different order', () => {
+			const scopes1 = ['6f1cc985-85e8-487e-b0dd-aa633302a731/.default', 'VSCODE_TENANT:organizations'];
+			const scopes2 = ['VSCODE_TENANT:organizations', '6f1cc985-85e8-487e-b0dd-aa633302a731/.default'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
+		});
+
+		test('scopesMatch should return false for different scopes', () => {
+			const scopes1 = ['test', 'scopes'];
+			const scopes2 = ['different', 'scopes'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), false);
+		});
+
+		test('scopesMatch should return false for different length arrays', () => {
+			const scopes1 = ['test'];
+			const scopes2 = ['test', 'scopes'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), false);
+		});
+
+		test('scopesMatch should handle complex Microsoft scopes', () => {
+			const scopes1 = ['6f1cc985-85e8-487e-b0dd-aa633302a731/.default', 'VSCODE_TENANT:organizations'];
+			const scopes2 = ['VSCODE_TENANT:organizations', '6f1cc985-85e8-487e-b0dd-aa633302a731/.default'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
+		});
+
+		test('scopesMatch should handle empty arrays', () => {
+			assert.strictEqual(scopesMatch([], []), true);
+		});
+
+		test('scopesMatch should handle single scope arrays', () => {
+			assert.strictEqual(scopesMatch(['single'], ['single']), true);
+			assert.strictEqual(scopesMatch(['single'], ['different']), false);
+		});
+
+		test('scopesMatch should handle duplicate scopes within arrays', () => {
+			const scopes1 = ['scope1', 'scope2', 'scope1'];
+			const scopes2 = ['scope2', 'scope1', 'scope1'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
 		});
 	});
 

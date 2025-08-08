@@ -103,11 +103,11 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._lmProviderChange.fire({ vendor });
 	}
 
-	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment | IChatResponseFragment[]): Promise<void> {
+	async $reportResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponseFragment | IChatResponseFragment[]>): Promise<void> {
 		const data = this._pendingProgress.get(requestId);
 		this._logService.trace('[LM] report response PART', Boolean(data), requestId, chunk);
 		if (data) {
-			data.stream.emitOne(chunk);
+			data.stream.emitOne(chunk.value);
 		}
 	}
 
@@ -154,7 +154,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			try {
 				for await (const part of response.stream) {
 					this._logService.trace('[CHAT] request PART', extension.value, requestId, part);
-					await this._proxy.$acceptResponsePart(requestId, part);
+					await this._proxy.$acceptResponsePart(requestId, new SerializableObjectWithBuffers(part));
 				}
 				this._logService.trace('[CHAT] request DONE', extension.value, requestId);
 			} catch (err) {

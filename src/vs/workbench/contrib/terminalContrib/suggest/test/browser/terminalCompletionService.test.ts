@@ -18,9 +18,9 @@ import { ShellEnvDetectionCapability } from '../../../../../../platform/terminal
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
 import { count } from '../../../../../../base/common/strings.js';
-import { WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TerminalSuggestSettingId } from '../../common/terminalSuggestConfiguration.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
@@ -107,7 +107,7 @@ suite('TerminalCompletionService', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
 			async stat(resource) {

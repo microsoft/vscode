@@ -32,7 +32,6 @@ export const enum TerminalShellType {
 	Fish = 'fish',
 	Zsh = 'zsh',
 	PowerShell = 'pwsh',
-	Python = 'python',
 	GitBash = 'gitbash',
 }
 
@@ -76,7 +75,6 @@ const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithS
 	[TerminalShellType.PowerShell, getPwshGlobals],
 ]);
 
-
 async function getShellGlobals(
 	shellType: TerminalShellType,
 	existingCommands?: Set<string>,
@@ -106,8 +104,11 @@ async function getShellGlobals(
 				shouldRefresh = true;
 			}
 			if (!shouldRefresh && cached.commands) {
-				// Trigger background refresh
-				void fetchAndCacheShellGlobals(shellType, existingCommands, machineId, remoteAuthority, true);
+				// NOTE: This used to trigger a background refresh in order to ensure all commands
+				// are up to date, but this ends up launching way too many processes. Especially on
+				// Windows where this caused significant performance issues as processes can block
+				// the extension host for several seconds
+				// (https://github.com/microsoft/vscode/issues/259343).
 				return cached.commands;
 			}
 		}
@@ -248,24 +249,19 @@ export async function activate(context: vscode.ExtensionContext) {
 			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
 			const terminalShellType = getTerminalShellType(shellType);
 			if (!terminalShellType) {
-				console.debug('#terminalCompletions No shell type found for terminal');
+				console.debug(`#terminalCompletions Shell type ${shellType} not supported`);
 				return;
 			}
 
-			const [commandsInPath, shellGlobals] = await Promise.all([
-				pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType),
-				(async () => {
-					const executables = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
-					return getShellGlobals(terminalShellType, executables?.labels, machineId, remoteAuthority);
-				})()
-			]);
-			const shellGlobalsArr = shellGlobals ?? [];
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
+			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels, machineId, remoteAuthority) ?? [];
+
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
 				return;
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
-			const commands = [...shellGlobalsArr, ...commandsInPath.completionResources];
+			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const currentCommandString = getCurrentCommandAndArgs(terminalContext.commandLine, terminalContext.cursorPosition, terminalShellType);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
@@ -295,6 +291,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
+
 			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
 				return new vscode.TerminalCompletionList(result.items, {
 					filesRequested: result.filesRequested,
@@ -308,6 +305,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}, '/', '\\'));
 	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
+
+	context.subscriptions.push(vscode.commands.registerCommand('terminal.integrated.suggest.clearCachedGlobals', () => {
+		cachedGlobals.clear();
+	}));
 }
 
 /**
@@ -504,8 +505,6 @@ function getTerminalShellType(shellType: string | undefined): TerminalShellType 
 			return TerminalShellType.PowerShell;
 		case 'fish':
 			return TerminalShellType.Fish;
-		case 'python':
-			return TerminalShellType.Python;
 		default:
 			return undefined;
 	}

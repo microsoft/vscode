@@ -113,4 +113,65 @@ suite('DomSanitize', () => {
 
 		assert.ok(str.includes('src="data:image/png;base64,'));
 	});
+
+	suite('replaceWithPlaintext', () => {
+
+		test('replaces unsupported tags with plaintext representation', () => {
+			const html = '<div>safe<script>alert(1)</script>content</div>';
+			const result = sanitizeHtml(html, {
+				replaceWithPlaintext: true
+			});
+			const str = result.toString();
+			assert.strictEqual(str, `<div>safe&lt;script&gt;alert(1)&lt;/script&gt;content</div>`);
+		});
+
+		test('handles self-closing tags correctly', () => {
+			const html = '<div><input type="text"><custom-input /></div>';
+			const result = sanitizeHtml(html, {
+				replaceWithPlaintext: true
+			});
+			assert.strictEqual(result.toString(), '<div>&lt;input type="text"&gt;&lt;custom-input&gt;&lt;/custom-input&gt;</div>');
+		});
+
+		test('handles tags with attributes', () => {
+			const html = '<div><unknown-tag class="test" id="myid">content</unknown-tag></div>';
+			const result = sanitizeHtml(html, {
+				replaceWithPlaintext: true
+			});
+			assert.strictEqual(result.toString(), '<div>&lt;unknown-tag class="test" id="myid"&gt;content&lt;/unknown-tag&gt;</div>');
+		});
+
+		test('handles nested unsupported tags', () => {
+			const html = '<div><outer><inner>nested</inner></outer></div>';
+			const result = sanitizeHtml(html, {
+				replaceWithPlaintext: true
+			});
+			assert.strictEqual(result.toString(), '<div>&lt;outer&gt;&lt;inner&gt;nested&lt;/inner&gt;&lt;/outer&gt;</div>');
+		});
+
+		test('handles comments correctly', () => {
+			const html = '<div><!-- this is a comment -->content</div>';
+			const result = sanitizeHtml(html, {
+				replaceWithPlaintext: true
+			});
+			assert.strictEqual(result.toString(), '<div>&lt;!-- this is a comment --&gt;content</div>');
+		});
+
+		test('handles empty tags', () => {
+			const html = '<div><empty></empty></div>';
+			const result = sanitizeHtml(html, {
+				replaceWithPlaintext: true
+			});
+			assert.strictEqual(result.toString(), '<div>&lt;empty&gt;&lt;/empty&gt;</div>');
+		});
+
+		test('works with custom allowed tags configuration', () => {
+			const html = '<div><custom>allowed</custom><forbidden>not allowed</forbidden></div>';
+			const result = sanitizeHtml(html, {
+				replaceWithPlaintext: true,
+				allowedTags: { augment: ['custom'] }
+			});
+			assert.strictEqual(result.toString(), '<div><custom>allowed</custom>&lt;forbidden&gt;not allowed&lt;/forbidden&gt;</div>');
+		});
+	});
 });

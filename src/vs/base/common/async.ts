@@ -161,32 +161,6 @@ export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?:
 	]);
 }
 
-export function raceFilter<T>(promises: Promise<T>[], filter: (result: T) => boolean): Promise<T | undefined> {
-	return new Promise((resolve, reject) => {
-		if (promises.length === 0) {
-			resolve(undefined);
-			return;
-		}
-
-		let resolved = false;
-		let unresolvedCount = promises.length;
-		for (const promise of promises) {
-			promise.then(result => {
-				unresolvedCount--;
-				if (!resolved) {
-					if (filter(result)) {
-						resolved = true;
-						resolve(result);
-					} else if (unresolvedCount === 0) {
-						// Last one has to resolve the promise
-						resolve(undefined);
-					}
-				}
-			}).catch(reject);
-		}
-	});
-}
-
 export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const item = callback();
@@ -2168,24 +2142,12 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	}
 }
 
-export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
-	constructor(
-		private readonly _source: CancellationTokenSource,
-		executor: AsyncIterableExecutor<T>
-	) {
-		super(executor);
-	}
 
-	cancel(): void {
-		this._source.cancel();
-	}
-}
-
-export function createCancelableAsyncIterable<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableObject<T> {
+export function createCancelableAsyncIterableProducer<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableProducer<T> {
 	const source = new CancellationTokenSource();
 	const innerIterable = callback(source.token);
 
-	return new CancelableAsyncIterableObject<T>(source, async (emitter) => {
+	return new CancelableAsyncIterableProducer<T>(source, async (emitter) => {
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
 			source.dispose();
@@ -2489,6 +2451,19 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 
 	[Symbol.asyncIterator](): AsyncIterator<T, void, void> {
 		return this._iterator;
+	}
+}
+
+export class CancelableAsyncIterableProducer<T> extends AsyncIterableProducer<T> {
+	constructor(
+		private readonly _source: CancellationTokenSource,
+		executor: AsyncIterableExecutor<T>
+	) {
+		super(executor);
+	}
+
+	cancel(): void {
+		this._source.cancel();
 	}
 }
 

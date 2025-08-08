@@ -107,6 +107,7 @@ function prepareDebPackage(arch) {
 
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ARCHITECTURE@@', debArch))
 			.pipe(rename('DEBIAN/postinst'));
 
 		const templates = gulp.src('resources/linux/debian/templates.template', { base: '.' })

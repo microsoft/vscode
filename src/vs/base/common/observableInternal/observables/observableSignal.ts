@@ -7,6 +7,7 @@ import { IObservableWithChange, ITransaction } from '../base.js';
 import { transaction } from '../transaction.js';
 import { DebugNameData } from '../debugName.js';
 import { BaseObservable } from './baseObservable.js';
+import { DebugLocation } from '../debugLocation.js';
 
 /**
  * Creates a signal that can be triggered to invalidate observers.
@@ -15,11 +16,11 @@ import { BaseObservable } from './baseObservable.js';
  */
 export function observableSignal<TDelta = void>(debugName: string): IObservableSignal<TDelta>;
 export function observableSignal<TDelta = void>(owner: object): IObservableSignal<TDelta>;
-export function observableSignal<TDelta = void>(debugNameOrOwner: string | object): IObservableSignal<TDelta> {
+export function observableSignal<TDelta = void>(debugNameOrOwner: string | object, debugLocation = DebugLocation.ofCaller()): IObservableSignal<TDelta> {
 	if (typeof debugNameOrOwner === 'string') {
-		return new ObservableSignal<TDelta>(debugNameOrOwner);
+		return new ObservableSignal<TDelta>(debugNameOrOwner, undefined, debugLocation);
 	} else {
-		return new ObservableSignal<TDelta>(undefined, debugNameOrOwner);
+		return new ObservableSignal<TDelta>(undefined, debugNameOrOwner, debugLocation);
 	}
 }
 
@@ -38,9 +39,10 @@ class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements
 
 	constructor(
 		private readonly _debugName: string | undefined,
-		private readonly _owner?: object
+		private readonly _owner: object | undefined,
+		debugLocation: DebugLocation
 	) {
-		super();
+		super(debugLocation);
 	}
 
 	public trigger(tx: ITransaction | undefined, change: TChange): void {
