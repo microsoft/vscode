@@ -337,16 +337,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._buffer = textBuffer;
 		this._bufferDisposable = disposable;
 
-		// Track initial content as undetermined source
-		const lineCount = this._buffer.getLineCount();
-		for (let i = 1; i <= lineCount; i++) {
-			this._lineEditTracker.handleContentChanges([{
-				range: new Range(i, 1, i, 1),
-				rangeOffset: this._buffer.getOffsetAt(i, 1),
-				rangeLength: 0,
-				text: this._buffer.getLineContent(i)
-			}], [EditSources.setValue()]);
-		}
+		// Clear line edit tracker for initial content setup
+		this._lineEditTracker.clear();
 
 		const bufferLineCount = this._buffer.getLineCount();
 		const bufferTextLength = this._buffer.getValueLengthInRange(new Range(1, 1, bufferLineCount, this._buffer.getLineLength(bufferLineCount) + 1), model.EndOfLinePreference.TextDefined);

@@ -54,8 +54,8 @@ export class MainThreadLineEditTracker extends Disposable implements MainThreadL
 
 	private _getLineEditTracker(model: ITextModel): LineEditTracker | undefined {
 		// Access the LineEditTracker from the text model
-		// This assumes the LineEditTracker is available on the model
-		return (model as any).lineEditTracker;
+		// The LineEditTracker is a private field, so we need to access it through the public interface
+		return (model as any)._lineEditTracker;
 	}
 
 	private _notifyExtHostOfChanges(model: ITextModel, changes: Map<number, LineEditSource>): void {
