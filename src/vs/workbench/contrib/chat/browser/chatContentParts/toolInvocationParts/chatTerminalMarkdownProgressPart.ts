@@ -85,9 +85,8 @@ export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubP
 								case ConfigurationTarget.USER:
 								case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
 								case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
-								case ConfigurationTarget.WORKSPACE: preferencesService.openWorkspaceSettings(options); break;
-								// TODO: Pass over instance cwd
-								// case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openFolderSettings(options); break;
+								case ConfigurationTarget.WORKSPACE:
+								case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
 								default: {
 									// Fallback if something goes wrong
 									preferencesService.openSettings({
