@@ -18,14 +18,16 @@ import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandle
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 import { ExtHostMcpService } from '../common/extHostMcp.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
+import { IExtHostVariableResolverProvider } from '../common/extHostVariableResolverService.js';
 
 export class NodeExtHostMpcService extends ExtHostMcpService {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initDataService: IExtHostInitDataService,
 		@ILogService logService: ILogService,
+		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
 	) {
-		super(extHostRpc, logService, initDataService);
+		super(extHostRpc, logService, initDataService, variableResolver);
 	}
 
 	private nodeServers = this._register(new DisposableMap<number, McpStdioStateHandler>());

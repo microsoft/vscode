@@ -425,7 +425,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		this._onDidChangeInputs.fire();
 	}
 
-	private async _replaceVariablesInLaunch(definition: McpServerDefinition, launch: McpServerLaunch) {
+	private async _replaceVariablesInLaunch(delegate: IMcpHostDelegate, definition: McpServerDefinition, launch: McpServerLaunch) {
 		if (!definition.variableReplacement) {
 			return launch;
 		}
@@ -447,8 +447,11 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 		await this._updateStorageWithExpressionInputs(inputStorage, expr);
 
-		// resolve other non-interactive variables, returning the final object
-		return await this._configurationResolverService.resolveAsync(folder, expr);
+		// Resolve remaining non-interactive variables in the extension host environment via delegate
+		const partiallyResolved = expr.toObject();
+		const resolved = await delegate.resolveVariables(partiallyResolved, folder?.uri);
+
+		return resolved;
 	}
 
 	public async resolveConnection(opts: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
@@ -484,7 +487,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		try {
-			launch = await this._replaceVariablesInLaunch(definition, launch);
+			launch = await this._replaceVariablesInLaunch(delegate, definition, launch);
 
 			if (definition.devMode && debug) {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));

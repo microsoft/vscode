@@ -3013,6 +3013,10 @@ export interface ExtHostMcpShape {
 	$stopMcp(id: number): void;
 	$sendMessage(id: number, message: string): void;
 	$waitForInitialCollectionProviders(): Promise<void>;
+	/**
+		 * Resolves non-interactive variables for a launch on the extension host side.
+		 */
+	$substituteMcpLaunch(folder: UriComponents | undefined, launch: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
 }
 
 export interface MainThreadMcpShape {
@@ -3022,6 +3026,10 @@ export interface MainThreadMcpShape {
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]): void;
 	$deleteMcpCollection(collectionId: string): void;
 	$getTokenFromServerMetadata(id: number, authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined>;
+	/**
+		 * Requests variable resolution for an MCP launch via the extension host.
+		 */
+	$substituteMcpLaunch(folder: UriComponents | undefined, launch: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {

@@ -18,10 +18,11 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../common/mcpTypes.js';
+import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
@@ -36,6 +37,10 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 
 	canStart(): boolean {
 		return this._canStartValue;
+	}
+
+	resolveVariables(launch: McpServerLaunch, folderUri: URI | undefined): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
 	}
 
 	start(): IMcpMessageTransport {

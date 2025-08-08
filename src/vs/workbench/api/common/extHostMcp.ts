@@ -17,11 +17,12 @@ import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.prot
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
 import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
 
 export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostMpcService');
 
@@ -41,7 +42,8 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@ILogService private readonly _logService: ILogService,
-		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService
+		@IExtHostInitDataService private readonly _extHostInitData: IExtHostInitDataService,
+		@IExtHostVariableResolverProvider private readonly _variableResolver: IExtHostVariableResolverProvider,
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
@@ -49,6 +51,15 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	$startMcp(id: number, launch: McpServerLaunch.Serialized): void {
 		this._startMcp(id, McpServerLaunch.fromSerialized(launch));
+	}
+
+	async $substituteMcpLaunch(folderUri: UriComponents | undefined, launch: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized> {
+		// Resolve non-interactive variables in the extension host environment
+		const folders = vscode.workspace.workspaceFolders;
+		const ws = folderUri && folders ? folders.find(f => f.uri.toString() === URI.revive(folderUri).toString()) : undefined;
+		const resolver = await this._variableResolver.getResolver();
+		const resolved = await resolver.resolveAsync(ws, McpServerLaunch.fromSerialized(launch));
+		return McpServerLaunch.toSerialized(resolved);
 	}
 
 	protected _startMcp(id: number, launch: McpServerLaunch): void {

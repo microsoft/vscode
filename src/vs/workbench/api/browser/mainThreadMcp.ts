@@ -80,6 +80,11 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 				return launch;
 			},
+			async resolveVariables(launch, folderUri) {
+				const serialized = McpServerLaunch.toSerialized(launch);
+				const result = await proxy.$substituteMcpLaunch(folderUri ? folderUri : undefined, serialized);
+				return McpServerLaunch.fromSerialized(result);
+			}
 		}));
 	}
 
@@ -139,6 +144,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 
 	$onDidReceiveMessage(id: number, message: string): void {
 		this._servers.get(id)?.pushMessage(message);
+	}
+
+	$substituteMcpLaunch(folder: UriComponents | undefined, launch: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized> {
+		return this._proxy.$substituteMcpLaunch(folder, launch);
 	}
 
 	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined> {

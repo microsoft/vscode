@@ -185,6 +185,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 			setTimeout(() => t.setConnectionState({ state: McpConnectionState.Kind.Running }));
 			return t;
 		},
+		resolveVariables: async (launch) => launch,
 		waitForInitialProviderPromises: () => Promise.resolve(),
 	}]);
 	lazyCollectionState = observableValue(this, { state: LazyCollectionState.AllKnown, collections: [] });

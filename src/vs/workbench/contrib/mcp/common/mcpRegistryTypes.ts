@@ -6,6 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger, LogLevel } from '../../../../platform/log/common/log.js';
@@ -32,6 +33,7 @@ export interface IMcpHostDelegate {
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
 	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch): IMcpMessageTransport;
+	resolveVariables(launch: McpServerLaunch, folderUri: URI | undefined): Promise<McpServerLaunch>;
 }
 
 export interface IMcpResolveConnectionOptions {
