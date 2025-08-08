@@ -101,7 +101,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._parent = overflowGuardContainer.domNode;
 
 		this._focusTracker = this._register(new FocusTracker(logService, this.domNode.domNode, (newFocusValue: boolean) => {
-			logService.trace('handleFocusChange : ', newFocusValue);
+			logService.trace('NativeEditContext#handleFocusChange : ', newFocusValue);
 			this._screenReaderSupport.handleFocusChange(newFocusValue);
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
@@ -313,7 +313,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public onWillCopy(): void {
 		this.logService.trace('NativeEditContext#onWillCopy');
-		this.logService.trace('isFocused : ', this.domNode.domNode === getActiveElement());
+		this.logService.trace('NativeEditContext#isFocused : ', this.domNode.domNode === getActiveElement());
 	}
 
 	public writeScreenReaderContent(): void {
