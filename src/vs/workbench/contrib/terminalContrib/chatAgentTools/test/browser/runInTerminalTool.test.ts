@@ -367,7 +367,7 @@ suite('RunInTerminalTool', () => {
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
 			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
 
-			strictEqual(customActions[0].label, 'Always allow commands: npm, npm');
+			strictEqual(customActions[0].label, 'Always Allow Command: npm');
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm install &&& npm run build');

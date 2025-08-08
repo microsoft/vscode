@@ -5,10 +5,10 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
-import { regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
+import { escapeRegExpCharacters, regExpLeadsToEndlessLoop } from '../../../../../base/common/strings.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
-import { IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 
@@ -16,6 +16,7 @@ interface IAutoApproveRule {
 	regex: RegExp;
 	regexCaseInsensitive: RegExp;
 	sourceText: string;
+	sourceTarget: ConfigurationTarget;
 	isDefaultRule: boolean;
 }
 
@@ -199,13 +200,29 @@ export class CommandLineAutoApprover extends Disposable {
 				key in defaultValue &&
 				structuralEquals((defaultValue as Record<string, unknown>)[key], value)
 			);
+			function checkTarget(inspectValue: Readonly<unknown> | undefined): boolean {
+				return (
+					isObject(inspectValue) &&
+					key in inspectValue &&
+					structuralEquals((inspectValue as Record<string, unknown>)[key], value)
+				);
+			}
+			const sourceTarget = (
+				checkTarget(configInspectValue.workspaceFolder) ? ConfigurationTarget.WORKSPACE_FOLDER
+					: checkTarget(configInspectValue.workspaceValue) ? ConfigurationTarget.WORKSPACE
+						: checkTarget(configInspectValue.userRemoteValue) ? ConfigurationTarget.USER_REMOTE
+							: checkTarget(configInspectValue.userLocalValue) ? ConfigurationTarget.USER_LOCAL
+								: checkTarget(configInspectValue.userValue) ? ConfigurationTarget.USER
+									: checkTarget(configInspectValue.applicationValue) ? ConfigurationTarget.APPLICATION
+										: ConfigurationTarget.DEFAULT
+			);
 			if (typeof value === 'boolean') {
 				const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
 				// IMPORTANT: Only true and false are used, null entries need to be ignored
 				if (value === true) {
-					allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+					allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 				} else if (value === false) {
-					denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+					denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 				}
 			} else if (typeof value === 'object' && value !== null) {
 				// Handle object format like { approve: true/false, matchCommandLine: true/false }
@@ -214,15 +231,15 @@ export class CommandLineAutoApprover extends Disposable {
 					const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
 					if (objectValue.approve === true) {
 						if (objectValue.matchCommandLine === true) {
-							allowListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+							allowListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 						} else {
-							allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+							allowListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 						}
 					} else if (objectValue.approve === false) {
 						if (objectValue.matchCommandLine === true) {
-							denyListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+							denyListCommandLineRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 						} else {
-							denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, isDefaultRule });
+							denyListRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
 						}
 					}
 				}
@@ -281,8 +298,22 @@ export class CommandLineAutoApprover extends Disposable {
 			return neverMatchRegex;
 		}
 
-		// Escape regex special characters
-		const sanitizedValue = value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+		let sanitizedValue: string;
+
+		// Match both path separators it if looks like a path
+		if (value.includes('/') || value.includes('\\')) {
+			// Replace path separators with placeholders first, apply standard sanitization, then
+			// apply special path handling
+			let pattern = value.replace(/[/\\]/g, '%%PATH_SEP%%');
+			pattern = escapeRegExpCharacters(pattern);
+			pattern = pattern.replace(/%%PATH_SEP%%*/g, '[/\\\\]');
+			sanitizedValue = `^(?:\\.[/\\\\])?${pattern}`;
+		}
+
+		// Escape regex special characters for non-path strings
+		else {
+			sanitizedValue = escapeRegExpCharacters(value);
+		}
 
 		// Regular strings should match the start of the command line and be a word boundary
 		return new RegExp(`^${sanitizedValue}\\b`);

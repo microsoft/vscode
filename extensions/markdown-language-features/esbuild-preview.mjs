@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-const path = require('path');
+import path from 'path';
+import { run } from '../esbuild-webview-common.mjs';
 
-const srcDir = path.join(__dirname, 'src');
-const outDir = path.join(__dirname, 'renderer-out');
+const srcDir = path.join(import.meta.dirname, 'preview-src');
+const outDir = path.join(import.meta.dirname, 'media');
 
-require('../esbuild-webview-common').run({
+run({
 	entryPoints: [
 		path.join(srcDir, 'index.ts'),
+		path.join(srcDir, 'pre'),
 	],
 	srcDir,
 	outdir: outDir,

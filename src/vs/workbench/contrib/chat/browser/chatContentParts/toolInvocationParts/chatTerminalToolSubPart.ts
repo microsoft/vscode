@@ -190,11 +190,15 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 							throw new ErrorNoTelemetry(`Cannot add new rule, existing setting is unexpected format`);
 						}
 						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue);
+						if (newRules.length === 1) {
+							terminalData.autoApproveInfo = new MarkdownString(localize('newRule', 'Auto approve rule {0} added', `[\`${newRules[0].key}\`](settings_a)`));
+						} else if (newRules.length > 1) {
+							terminalData.autoApproveInfo = new MarkdownString(localize('newRule.plural', 'Auto approve rules {0} added', newRules.map(r => `[\`${r.key}\`](settings_a)`).join(', ')));
+						}
 						break;
 					}
 					case 'configure': {
 						this.preferencesService.openSettings({
-							jsonEditor: false,
 							target: ConfigurationTarget.USER,
 							query: `@id:${TerminalContribSettingId.AutoApprove}`,
 						});
@@ -233,6 +237,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			false,
 			this.codeBlockStartIndex,
 			this.renderer,
+			undefined,
 			this.currentWidthDelegate(),
 			this.codeBlockModelCollection,
 			{ codeBlockRenderOptions }

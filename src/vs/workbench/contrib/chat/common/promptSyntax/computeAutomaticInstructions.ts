@@ -220,11 +220,9 @@ export class ComputeAutomaticInstructions {
 			if (metadata?.promptType !== PromptsType.instructions) {
 				continue;
 			}
-			const applyTo = metadata?.applyTo;
+			const applyTo = metadata?.applyTo ?? '**/*';
 			const description = metadata?.description ?? '';
-			if (applyTo && applyTo !== '**' && applyTo !== '**/*' && applyTo !== '*') {
-				entries.push(`| ${metadata.applyTo} | '${getFilePath(uri)}' | ${description} |`);
-			}
+			entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
 		}
 		if (entries.length === 0) {
 			return entries;
@@ -237,7 +235,7 @@ export class ComputeAutomaticInstructions {
 			'Please make sure to follow the rules specified in these files when working with the codebase.',
 			`If the file is not already available as attachment, use the \`${toolName}\` tool to acquire it.`,
 			'Make sure to acquire the instructions before making any changes to the code.',
-			'| Pattern | File Path | Description |',
+			'| File | Applies To | Description |',
 			'| ------- | --------- | ----------- |',
 		].concat(entries);
 	}

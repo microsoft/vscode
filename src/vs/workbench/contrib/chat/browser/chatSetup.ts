@@ -88,6 +88,8 @@ const defaultChat = {
 	walkthroughCommand: product.defaultChatAgent?.walkthroughCommand ?? '',
 	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
+	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
+	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
 
 //#region Contribution
@@ -770,10 +772,10 @@ class ChatSetup {
 
 	private getDialogTitle(options?: { forceSignInDialog?: boolean }): string {
 		if (this.context.state.entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog) {
-			return localize('signIn', "Sign in to use Copilot");
+			return localize('signIn', "Sign in to use {0} Copilot", defaultChat.provider.default.name);
 		}
 
-		return localize('startUsing', "Start using Copilot");
+		return localize('startUsing', "Start using {0} Copilot", defaultChat.provider.default.name);
 	}
 
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {
@@ -781,9 +783,8 @@ class ChatSetup {
 
 		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
-		// SKU Settings
-		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot Free, Pro and Pro+ may show [public code]({1}) suggestions and we may use your data for product improvement. You can change these [settings]({2}) at any time.", defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
-		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element));
+		const footer = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these [settings]({5}) anytime.", defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl, defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+		element.appendChild($('p', undefined, disposables.add(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element));
 
 		return element;
 	}
@@ -1306,27 +1307,29 @@ class ChatSetupController extends Disposable {
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
 		const provider = options.useSocialProvider ?? options.useEnterpriseProvider ? defaultChat.provider.enterprise.id : defaultChat.provider.default.id;
-
+		let sessions = session ? [session] : undefined;
 		try {
 			if (
 				entitlement !== ChatEntitlement.Free &&		// User is not signed up to Copilot Free
 				!isProUser(entitlement) &&					// User is not signed up for a Copilot subscription
 				entitlement !== ChatEntitlement.Unavailable	// User is eligible for Copilot Free
 			) {
-				if (!session) {
+				if (!sessions) {
 					try {
-						session = (await this.authenticationService.getSessions(providerId)).at(0);
+						// Consider all sessions for the provider to be suitable for signing up
+						const existingSessions = await this.authenticationService.getSessions(providerId);
+						sessions = existingSessions.length > 0 ? [...existingSessions] : undefined;
 					} catch (error) {
 						// ignore - errors can throw if a provider is not registered
 					}
 
-					if (!session) {
+					if (!sessions || sessions.length === 0) {
 						this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNoSession', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 						return false; // unexpected
 					}
 				}
 
-				signUpResult = await this.requests.signUpFree(session);
+				signUpResult = await this.requests.signUpFree(sessions);
 
 				if (typeof signUpResult !== 'boolean' /* error */) {
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', installDuration: watch.elapsed(), signUpErrorCode: signUpResult.errorCode, provider });
