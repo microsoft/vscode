@@ -265,7 +265,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						if (subCommandResults.length === 1) {
 							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
 						} else if (subCommandResults.length > 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
+							const uniqueRules = Array.from(new Set(subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`)));
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', uniqueRules.join(', '))}_`);
 						}
 						break;
 					}
@@ -283,7 +284,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						if (deniedRules.length === 1) {
 							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', deniedRules.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
 						} else if (deniedRules.length > 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', deniedRules.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
+							const uniqueRules = Array.from(new Set(subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`)));
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', uniqueRules.join(', '))}_`);
 						}
 						break;
 					}
@@ -879,7 +881,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
 		if (canCreateAutoApproval) {
 			// Allow all sub-commands
-			const subCommandsFirstWordOnly = subCommands.map(command => command.split(' ')[0]);
+			const subCommandsFirstWordOnly = Array.from(new Set(subCommands.map(command => command.split(' ')[0])));
 			let subCommandLabel: string;
 			let subCommandTooltip: string;
 			if (subCommandsFirstWordOnly.length === 1) {
