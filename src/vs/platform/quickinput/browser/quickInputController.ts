@@ -546,7 +546,7 @@ export class QuickInputController extends Disposable {
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
-			if (options.sortByLabel) {
+			if (options.sortByLabel !== undefined) {
 				input.sortByLabel = options.sortByLabel;
 			}
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
