@@ -87,18 +87,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		const { title, message, disclaimer, terminalCustomActions } = toolInvocation.confirmationMessages;
-		const continueLabel = localize('continue', "Continue");
-		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
+		const runLabel = localize('run', "Run");
+		const runKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+		const runTooltip = runKeybinding ? `${runLabel} (${runKeybinding})` : runLabel;
 		const cancelLabel = localize('cancel', "Cancel");
 		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
 		const buttons: IChatConfirmationButton[] = [
 			{
-				label: continueLabel,
+				label: runLabel,
 				data: true,
-				tooltip: continueTooltip,
+				tooltip: runTooltip,
 				moreActions: terminalCustomActions,
 			},
 			{
