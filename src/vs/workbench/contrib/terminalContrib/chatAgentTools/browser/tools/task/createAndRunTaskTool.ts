@@ -152,7 +152,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		return activeTasks?.includes(task) ?? false;
 	}
 
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const args = context.parameters as ICreateAndRunTaskToolInput;
 		const task = args.task;
 
@@ -262,5 +262,3 @@ export const CreateAndRunTaskToolData: IToolData = {
 		]
 	},
 };
-
-

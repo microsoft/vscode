@@ -136,7 +136,7 @@ export class EditTool implements IToolImpl {
 		};
 	}
 
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
 		return {
 			presentation: 'hidden'
 		};

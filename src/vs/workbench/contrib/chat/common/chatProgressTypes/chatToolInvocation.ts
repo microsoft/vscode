@@ -11,6 +11,9 @@ import { localize } from '../../../../../nls.js';
 import { IChatExtensionsContent, IChatToolInputInvocationData, IChatTodoListContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData } from '../chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult } from '../languageModelToolsService.js';
 
+/**
+ * The ChatModel content part representing a tool invocation.
+ */
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
 
@@ -46,6 +49,9 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
 
+	/**
+	 * Tool-specific data that is relevant for display
+	 */
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 
 	public readonly progress = observableValue<{ message?: string | IMarkdownString; progress: number }>(this, { progress: 0 });

@@ -124,7 +124,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
 				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
-				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
 			}, token);
 
 			const dto: Dto<IToolResult> = result instanceof SerializableObjectWithBuffers ? result.value : result;
@@ -182,7 +181,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		};
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate')) {
 			options.chatRequestId = dto.chatRequestId;
-			options.chatInteractionId = dto.chatInteractionId;
 			options.chatSessionId = dto.context?.sessionId;
 		}
 
@@ -245,7 +243,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			input: context.parameters,
 			chatRequestId: context.chatRequestId,
 			chatSessionId: context.chatSessionId,
-			chatInteractionId: context.chatInteractionId
 		};
 		if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);

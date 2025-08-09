@@ -109,7 +109,7 @@ export class RunTaskTool implements IToolImpl {
 		return Promise.resolve(activeTasks?.includes(task));
 	}
 
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const args = context.parameters as IRunTaskToolInput;
 		const taskDefinition = getTaskDefinition(args.id);
 
@@ -168,5 +168,3 @@ export const RunTaskToolData: IToolData = {
 		]
 	}
 };
-
-

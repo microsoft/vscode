@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolInvocation, IToolProgressStep, IToolResult, ToolProgress, toolResultHasBuffers } from '../../contrib/chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolImpl, IToolInvocationInput, IToolProgressStep, IToolResult, ToolProgress, toolResultHasBuffers } from '../../contrib/chat/common/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelToolsShape, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
@@ -49,7 +49,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return this.getToolDtos();
 	}
 
-	async $invokeTool(dto: IToolInvocation, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+	async $invokeTool(dto: IToolInvocationInput, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
 		const result = await this._languageModelToolsService.invokeTool(
 			dto,
 			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
@@ -88,8 +88,8 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 						this._runningToolCalls.delete(dto.callId);
 					}
 				},
-				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
-			});
+				prepareToolInvocation: async (context, token) => await this._proxy.$prepareToolInvocation(id, context, token) ?? {},
+			} satisfies IToolImpl<void>);
 		this._tools.set(id, disposable);
 	}
 

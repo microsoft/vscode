@@ -13,6 +13,7 @@ import { IFileContent, IReadFileOptions } from '../../../../../platform/files/co
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { FetchWebPageTool } from '../../electron-browser/tools/fetchPageTool.js';
 import { TestFileService } from '../../../../test/browser/workbenchTestServices.js';
+import { IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
@@ -65,6 +66,15 @@ class ExtendedTestFileService extends TestFileService {
 	}
 }
 
+function invokeTool(tool: FetchWebPageTool, input: Omit<IToolInvocation, 'preparedData' | 'context'>): Promise<IToolResult> {
+	const toolInvocation: IToolInvocation = {
+		...input,
+		preparedData: undefined,
+		context: undefined
+	};
+	return tool.invoke(toolInvocation, () => Promise.resolve(0), { report: () => { } }, CancellationToken.None);
+}
+
 suite('FetchWebPageTool', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -94,12 +104,9 @@ suite('FetchWebPageTool', () => {
 			'invalid-url'
 		];
 
-		const result = await tool.invoke(
-			{ callId: 'test-call-1', toolId: 'fetch-page', parameters: { urls: testUrls }, context: undefined },
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
-		);
+		const result = await invokeTool(
+			tool,
+			{ callId: 'test-call-1', toolId: 'fetch-page', parameters: { urls: testUrls } });
 
 		// Should have 7 results (one for each input URL)
 		assert.strictEqual(result.content.length, 7, 'Should have result for each input URL');
@@ -132,31 +139,25 @@ suite('FetchWebPageTool', () => {
 		);
 
 		// Test empty array
-		const emptyResult = await tool.invoke(
-			{ callId: 'test-call-2', toolId: 'fetch-page', parameters: { urls: [] }, context: undefined },
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
+		const emptyResult = await invokeTool(
+			tool,
+			{ callId: 'test-call-2', toolId: 'fetch-page', parameters: { urls: [] } }
 		);
 		assert.strictEqual(emptyResult.content.length, 1, 'Empty array should return single message');
 		assert.strictEqual(emptyResult.content[0].value, 'No valid URLs provided.', 'Should indicate no valid URLs');
 
 		// Test undefined
-		const undefinedResult = await tool.invoke(
-			{ callId: 'test-call-3', toolId: 'fetch-page', parameters: {}, context: undefined },
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
+		const undefinedResult = await invokeTool(
+			tool,
+			{ callId: 'test-call-3', toolId: 'fetch-page', parameters: {} }
 		);
 		assert.strictEqual(undefinedResult.content.length, 1, 'Undefined URLs should return single message');
 		assert.strictEqual(undefinedResult.content[0].value, 'No valid URLs provided.', 'Should indicate no valid URLs');
 
 		// Test array with invalid URLs
-		const invalidResult = await tool.invoke(
-			{ callId: 'test-call-4', toolId: 'fetch-page', parameters: { urls: ['', ' ', 'invalid-scheme-that-fileservice-cannot-handle://test'] }, context: undefined },
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
+		const invalidResult = await invokeTool(
+			tool,
+			{ callId: 'test-call-4', toolId: 'fetch-page', parameters: { urls: ['', ' ', 'invalid-scheme-that-fileservice-cannot-handle://test'] } }
 		);
 		assert.strictEqual(invalidResult.content.length, 3, 'Should have result for each invalid URL');
 		assert.strictEqual(invalidResult.content[0].value, 'Invalid URL', 'Empty string should be invalid');
@@ -205,16 +206,13 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap)
 		);
 
-		const result = await tool.invoke(
+		const result = await invokeTool(
+			tool,
 			{
 				callId: 'test-call-binary',
 				toolId: 'fetch-page',
-				parameters: { urls: ['file:///path/to/binary.dat', 'file:///path/to/text.txt'] },
-				context: undefined
-			},
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
+				parameters: { urls: ['file:///path/to/binary.dat', 'file:///path/to/text.txt'] }
+			}
 		);
 
 		// Should have 2 results
@@ -251,16 +249,13 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap)
 		);
 
-		const result = await tool.invoke(
+		const result = await invokeTool(
+			tool,
 			{
 				callId: 'test-png-support',
 				toolId: 'fetch-page',
-				parameters: { urls: ['file:///path/to/image.png'] },
-				context: undefined
-			},
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
+				parameters: { urls: ['file:///path/to/image.png'] }
+			}
 		);
 
 		// Should have 1 result
@@ -290,16 +285,13 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap)
 		);
 
-		const result = await tool.invoke(
+		const result = await invokeTool(
+			tool,
 			{
 				callId: 'test-distinguish',
 				toolId: 'fetch-page',
-				parameters: { urls: ['file:///data.json', 'file:///binary.dat'] },
-				context: undefined
-			},
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
+				parameters: { urls: ['file:///data.json', 'file:///binary.dat'] }
+			}
 		);
 
 		// JSON should be returned as text
@@ -335,16 +327,13 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap)
 		);
 
-		const result = await tool.invoke(
+		const result = await invokeTool(
+			tool,
 			{
 				callId: 'test-images',
 				toolId: 'fetch-page',
-				parameters: { urls: ['file:///image.png', 'file:///photo.jpg', 'file:///animation.gif', 'file:///modern.webp', 'file:///bitmap.bmp'] },
-				context: undefined
-			},
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
+				parameters: { urls: ['file:///image.png', 'file:///photo.jpg', 'file:///animation.gif', 'file:///modern.webp', 'file:///bitmap.bmp'] }
+			}
 		);
 
 		// All images should be returned as data parts
@@ -399,16 +388,13 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap)
 		);
 
-		const result = await tool.invoke(
+		const result = await invokeTool(
+			tool,
 			{
 				callId: 'test-mixed',
 				toolId: 'fetch-page',
-				parameters: { urls: ['file:///text.txt', 'file:///image.png'] },
-				context: undefined
-			},
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
+				parameters: { urls: ['file:///text.txt', 'file:///image.png'] }
+			}
 		);
 
 		// Text should be returned as text part
@@ -437,16 +423,13 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap)
 		);
 
-		const result = await tool.invoke(
+		const result = await invokeTool(
+			tool,
 			{
 				callId: 'test-case',
 				toolId: 'fetch-page',
-				parameters: { urls: ['file:///image.PNG', 'file:///photo.JPEG'] },
-				context: undefined
-			},
-			() => Promise.resolve(0),
-			{ report: () => { } },
-			CancellationToken.None
+				parameters: { urls: ['file:///image.PNG', 'file:///photo.JPEG'] }
+			}
 		);
 
 		// Both should be returned as data parts despite uppercase extensions
@@ -488,11 +471,9 @@ suite('FetchWebPageTool', () => {
 				'mcp-resource://server/file.txt' // index 5 - should be in toolResultDetails
 			];
 
-			const result = await tool.invoke(
-				{ callId: 'test-details', toolId: 'fetch-page', parameters: { urls: testUrls }, context: undefined },
-				() => Promise.resolve(0),
-				{ report: () => { } },
-				CancellationToken.None
+			const result = await invokeTool(
+				tool,
+				{ callId: 'test-details', toolId: 'fetch-page', parameters: { urls: testUrls } }
 			);
 
 			// Verify toolResultDetails contains exactly the successful URIs
@@ -542,11 +523,9 @@ suite('FetchWebPageTool', () => {
 			];
 
 			try {
-				await tool.invoke(
-					{ callId: 'test-web-failure', toolId: 'fetch-page', parameters: { urls: testUrls }, context: undefined },
-					() => Promise.resolve(0),
-					{ report: () => { } },
-					CancellationToken.None
+				await invokeTool(
+					tool,
+					{ callId: 'test-web-failure', toolId: 'fetch-page', parameters: { urls: testUrls } }
 				);
 
 				// If the web extractor throws, it should be handled gracefully
@@ -575,11 +554,9 @@ suite('FetchWebPageTool', () => {
 				'file:///missing.txt'    // Should fail (not in file map)
 			];
 
-			const result = await tool.invoke(
-				{ callId: 'test-file-failure', toolId: 'fetch-page', parameters: { urls: testUrls }, context: undefined },
-				() => Promise.resolve(0),
-				{ report: () => { } },
-				CancellationToken.None
+			const result = await invokeTool(
+				tool,
+				{ callId: 'test-file-failure', toolId: 'fetch-page', parameters: { urls: testUrls } }
 			);
 
 			// Verify only successful file URI is in toolResultDetails
@@ -619,11 +596,9 @@ suite('FetchWebPageTool', () => {
 				'mcp-resource://good/file.txt' // MCP success
 			];
 
-			const result = await tool.invoke(
-				{ callId: 'test-mixed', toolId: 'fetch-page', parameters: { urls: testUrls }, context: undefined },
-				() => Promise.resolve(0),
-				{ report: () => { } },
-				CancellationToken.None
+			const result = await invokeTool(
+				tool,
+				{ callId: 'test-mixed', toolId: 'fetch-page', parameters: { urls: testUrls } }
 			);
 
 			// Should have 3 successful URIs: web-success, file-success, mcp-success
@@ -664,11 +639,9 @@ suite('FetchWebPageTool', () => {
 			];
 
 			try {
-				const result = await tool.invoke(
-					{ callId: 'test-all-fail', toolId: 'fetch-page', parameters: { urls: testUrls }, context: undefined },
-					() => Promise.resolve(0),
-					{ report: () => { } },
-					CancellationToken.None
+				const result = await invokeTool(
+					tool,
+					{ callId: 'test-all-fail', toolId: 'fetch-page', parameters: { urls: testUrls } }
 				);
 
 				// If web extractor doesn't throw, check the results
@@ -688,11 +661,9 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>())
 			);
 
-			const result = await tool.invoke(
-				{ callId: 'test-empty', toolId: 'fetch-page', parameters: { urls: [] }, context: undefined },
-				() => Promise.resolve(0),
-				{ report: () => { } },
-				CancellationToken.None
+			const result = await invokeTool(
+				tool,
+				{ callId: 'test-empty', toolId: 'fetch-page', parameters: { urls: [] } }
 			);
 
 			assert.strictEqual(result.content.length, 1, 'Should have one content item for empty URLs');
@@ -712,11 +683,9 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(fileContentMap)
 			);
 
-			const result = await tool.invoke(
-				{ callId: 'test-images', toolId: 'fetch-page', parameters: { urls: ['file:///image.png', 'file:///document.txt'] }, context: undefined },
-				() => Promise.resolve(0),
-				{ report: () => { } },
-				CancellationToken.None
+			const result = await invokeTool(
+				tool,
+				{ callId: 'test-images', toolId: 'fetch-page', parameters: { urls: ['file:///image.png', 'file:///document.txt'] } }
 			);
 
 			// Both files should be successful and in toolResultDetails

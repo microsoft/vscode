@@ -115,10 +115,11 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			}
 		};
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
+		const uri = this._getUniqueCodeBlockUri();
 		const model = this.modelService.createModel(
 			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
 			this.languageService.createById(langId),
-			this._getUniqueCodeBlockUri(),
+			uri,
 			true
 		);
 		const editor = this._register(this.editorPool.get());

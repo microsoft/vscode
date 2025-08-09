@@ -36,7 +36,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	}
 
-	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
+	registerToolImplementation<T>(name: string, tool: IToolImpl<T>): IDisposable {
 		return Disposable.None;
 	}
 

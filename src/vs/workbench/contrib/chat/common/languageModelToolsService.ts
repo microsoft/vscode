@@ -106,16 +106,31 @@ export namespace ToolDataSource {
 	}
 }
 
-export interface IToolInvocation {
+export interface IToolInvocationInput {
 	callId: string;
 	toolId: string;
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
+
+	// Plumbing telemetry data through from the extension
 	chatRequestId?: string;
-	chatInteractionId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 	modelId?: string;
+}
+
+// TODO refactor to have an InvocationInput prop
+export interface IToolInvocation<T = void> {
+	callId: string;
+	toolId: string;
+	parameters: Object;
+	tokenBudget?: number;
+	context: IToolInvocationContext | undefined;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
+	preparedData: T;
+
+	// Plumbing telemetry data through from the extension
+	modelId?: string;
+	chatRequestId?: string;
 }
 
 export interface IToolInvocationContext {
@@ -130,7 +145,6 @@ export interface IToolInvocationPreparationContext {
 	parameters: any;
 	chatRequestId?: string;
 	chatSessionId?: string;
-	chatInteractionId?: string;
 }
 
 export type ToolInputOutputBase = {
@@ -227,9 +241,12 @@ export interface IPreparedToolInvocation {
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 }
 
-export interface IToolImpl {
-	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
-	prepareToolInvocation?(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+// Note: preparedData only exists when T is not void
+export type IPreparedToolInvocationWithData<T> = IPreparedToolInvocation & ([T] extends [void] ? {} : { preparedData: T });
+
+export interface IToolImpl<TToolData = void> {
+	invoke(invocation: IToolInvocation<TToolData>, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
+	prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocationWithData<TToolData>>;
 }
 
 export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
@@ -293,12 +310,12 @@ export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	onDidChangeTools: Event<void>;
 	registerToolData(toolData: IToolData): IDisposable;
-	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
+	registerToolImplementation<T>(id: string, tool: IToolImpl<T>): IDisposable;
 	flushToolChanges(): void;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
-	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invokeTool(invocation: IToolInvocationInput, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;

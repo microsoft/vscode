@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Barrier } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -13,10 +15,8 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { IToolData, IToolImpl, IToolInvocation, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { IToolData, IToolImpl, IToolInvocationInput, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Barrier } from '../../../../../base/common/async.js';
 
 suite('LanguageModelToolsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,6 +60,7 @@ suite('LanguageModelToolsService', () => {
 		store.add(service.registerToolData(toolData));
 
 		const toolImpl: IToolImpl = {
+			prepareToolInvocation: async () => ({}),
 			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
 		};
 
@@ -151,6 +152,7 @@ suite('LanguageModelToolsService', () => {
 		store.add(service.registerToolData(toolData));
 
 		const toolImpl: IToolImpl = {
+			prepareToolInvocation: async () => ({}),
 			invoke: async (invocation) => {
 				assert.strictEqual(invocation.callId, '1');
 				assert.strictEqual(invocation.toolId, 'testTool');
@@ -161,7 +163,7 @@ suite('LanguageModelToolsService', () => {
 
 		store.add(service.registerToolImplementation('testTool', toolImpl));
 
-		const dto: IToolInvocation = {
+		const dto: IToolInvocationInput = {
 			callId: '1',
 			toolId: 'testTool',
 			tokenBudget: 100,
@@ -187,6 +189,7 @@ suite('LanguageModelToolsService', () => {
 
 		const toolBarrier = new Barrier();
 		const toolImpl: IToolImpl = {
+			prepareToolInvocation: async () => ({}),
 			invoke: async (invocation, countTokens, progress, cancelToken) => {
 				assert.strictEqual(invocation.callId, '1');
 				assert.strictEqual(invocation.toolId, 'testTool');
@@ -204,7 +207,7 @@ suite('LanguageModelToolsService', () => {
 
 		const sessionId = 'sessionId';
 		const requestId = 'requestId';
-		const dto: IToolInvocation = {
+		const dto: IToolInvocationInput = {
 			callId: '1',
 			toolId: 'testTool',
 			tokenBudget: 100,

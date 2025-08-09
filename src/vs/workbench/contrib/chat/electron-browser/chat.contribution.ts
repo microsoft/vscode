@@ -45,9 +45,9 @@ class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchCon
 	) {
 		super();
 
-		const editTool = instantiationService.createInstance(FetchWebPageTool);
+		const fetchTool = instantiationService.createInstance(FetchWebPageTool);
 		this._register(toolsService.registerToolData(FetchWebPageToolData));
-		this._register(toolsService.registerToolImplementation(FetchWebPageToolData.id, editTool));
+		this._register(toolsService.registerToolImplementation(FetchWebPageToolData.id, fetchTool));
 	}
 }
 

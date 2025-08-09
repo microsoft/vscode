@@ -131,7 +131,7 @@ export class FetchWebPageTool implements IToolImpl {
 		};
 	}
 
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const { webUris, fileUris, invalidUris } = this._parseUris(context.parameters.urls);
 
 		// Check which file URIs can actually be read

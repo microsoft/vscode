@@ -52,7 +52,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 	) {
 		super();
 	}
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const args = context.parameters as IGetTaskOutputInputParams;
 
 		const taskDefinition = getTaskDefinition(args.id);

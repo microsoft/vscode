@@ -307,6 +307,9 @@ export interface IChatToolInputInvocationData {
 	rawInput: any;
 }
 
+/**
+ * The ChatModel content part representing a tool invocation.
+ */
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
 	toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;

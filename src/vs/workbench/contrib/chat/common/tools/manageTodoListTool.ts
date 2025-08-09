@@ -154,7 +154,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation> {
 
 		if (!context.chatSessionId) {
 			throw new Error('chatSessionId undefined');

@@ -44,7 +44,7 @@ export class InstallExtensionsTool implements IToolImpl {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) { }
 
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const parameters = context.parameters as InputParams;
 		return {
 			confirmationMessages: {

@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { asArray } from '../../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
+import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import type { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -21,6 +24,7 @@ import { TerminalCapability } from '../../../../../../platform/terminal/common/c
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
+import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationAction, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -33,14 +37,10 @@ import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
+import { OutputMonitor } from '../outputMonitor.js';
 import { isPowerShell } from '../runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { OutputMonitor } from '../outputMonitor.js';
-import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolSubPart.js';
-import type { SingleOrMany } from '../../../../../../base/common/types.js';
-import { asArray } from '../../../../../../base/common/arrays.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -183,7 +183,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 	}
 
-	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
 		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
