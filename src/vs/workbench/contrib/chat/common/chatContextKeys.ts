@@ -99,6 +99,10 @@ export namespace ChatContextKeys {
 	};
 
 	export const panelLocation = new RawContextKey<ViewContainerLocation>('chatPanelLocation', undefined, { type: 'number', description: localize('chatPanelLocation', "The location of the chat panel.") });
+
+	export const sessionId = new RawContextKey<string>('chatSessionId', '', { type: 'string', description: localize('chatSessionId', "The ID of the current chat session item.") });
+	export const sessionLabel = new RawContextKey<string>('chatSessionLabel', '', { type: 'string', description: localize('chatSessionLabel', "The label of the current chat session item.") });
+	export const sessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session item.") });
 }
 
 export namespace ChatContextKeyExprs {
