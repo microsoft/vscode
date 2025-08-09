@@ -525,6 +525,8 @@ export interface IChatEditingHunkAction {
 	kind: 'chatEditingHunkAction';
 	uri: URI;
 	lineCount: number;
+	linesAdded: number;
+	linesRemoved: number;
 	outcome: 'accepted' | 'rejected';
 	hasRemainingEdits: boolean;
 }
