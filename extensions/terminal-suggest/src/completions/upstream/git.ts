@@ -29,7 +29,7 @@ const postProcessTrackedFiles: Fig.Generator["postProcess"] = (
 
 			try {
 				ext = file.split(".").slice(-1)[0];
-			} catch (e) {}
+			} catch (e) { }
 
 			if (file.endsWith("/")) {
 				ext = "folder";
@@ -53,67 +53,67 @@ interface PostProcessBranchesOptions {
 
 const postProcessBranches =
 	(options: PostProcessBranchesOptions = {}): Fig.Generator["postProcess"] =>
-	(out) => {
-		const { insertWithoutRemotes = false } = options;
+		(out) => {
+			const { insertWithoutRemotes = false } = options;
 
-		const output = filterMessages(out);
+			const output = filterMessages(out);
 
-		if (output.startsWith("fatal:")) {
-			return [];
-		}
+			if (output.startsWith("fatal:")) {
+				return [];
+			}
 
-		const seen = new Set<string>();
-		return output
-			.split("\n")
-			.filter((line) => !line.trim().startsWith("HEAD"))
-			.map((branch) => {
-				let name = branch.trim();
-				const parts = branch.match(/\S+/g);
-				if (parts && parts.length > 1) {
-					if (parts[0] === "*") {
-						// We are in a detached HEAD state
-						if (branch.includes("HEAD detached")) {
-							return null;
+			const seen = new Set<string>();
+			return output
+				.split("\n")
+				.filter((line) => !line.trim().startsWith("HEAD"))
+				.map((branch) => {
+					let name = branch.trim();
+					const parts = branch.match(/\S+/g);
+					if (parts && parts.length > 1) {
+						if (parts[0] === "*") {
+							// We are in a detached HEAD state
+							if (branch.includes("HEAD detached")) {
+								return null;
+							}
+							// Current branch
+							return {
+								name: branch.replace("*", "").trim(),
+								description: "Current branch",
+								priority: 100,
+								icon: "⭐️",
+							};
+						} else if (parts[0] === "+") {
+							// Branch checked out in another worktree.
+							name = branch.replace("+", "").trim();
 						}
-						// Current branch
-						return {
-							name: branch.replace("*", "").trim(),
-							description: "Current branch",
-							priority: 100,
-							icon: "⭐️",
-						};
-					} else if (parts[0] === "+") {
-						// Branch checked out in another worktree.
-						name = branch.replace("+", "").trim();
 					}
-				}
 
-				let description = "Branch";
+					let description = "Branch";
 
-				if (insertWithoutRemotes && name.startsWith("remotes/")) {
-					name = name.slice(name.indexOf("/", 8) + 1);
-					description = "Remote branch";
-				}
+					if (insertWithoutRemotes && name.startsWith("remotes/")) {
+						name = name.slice(name.indexOf("/", 8) + 1);
+						description = "Remote branch";
+					}
 
-				const space = name.indexOf(" ");
-				if (space !== -1) {
-					name = name.slice(0, space);
-				}
+					const space = name.indexOf(" ");
+					if (space !== -1) {
+						name = name.slice(0, space);
+					}
 
-				return {
-					name,
-					description,
-					icon: "fig://icon?type=git",
-					priority: 75,
-				};
-			})
-			.filter((suggestion) => {
-				if (!suggestion) return false;
-				if (seen.has(suggestion.name)) return false;
-				seen.add(suggestion.name);
-				return true;
-			});
-	};
+					return {
+						name,
+						description,
+						icon: "fig://icon?type=git",
+						priority: 75,
+					};
+				})
+				.filter((suggestion) => {
+					if (!suggestion) return false;
+					if (seen.has(suggestion.name)) return false;
+					seen.add(suggestion.name);
+					return true;
+				});
+		};
 
 export const gitGenerators: Record<string, Fig.Generator> = {
 	// Commit history
@@ -126,11 +126,17 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				return [];
 			}
 
-			return output.split("\n").map((line) => {
+			const lines = output.split("\n");
+			const firstLine = lines.length > 0 ? lines[0] : undefined;
+			const hashLength =
+				firstLine && firstLine.length > 0 ? firstLine.indexOf(" ") : 7;
+			const descriptionStart = hashLength + 1;
+
+			return lines.map((line) => {
 				return {
-					name: line.substring(0, 7),
+					name: line.substring(0, hashLength),
 					icon: "fig://icon?type=node",
-					description: line.substring(7),
+					description: line.substring(descriptionStart),
 				};
 			});
 		},
@@ -426,7 +432,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 					let ext = "";
 					try {
 						ext = file.split(".").slice(-1)[0];
-					} catch (e) {}
+					} catch (e) { }
 
 					if (file.endsWith("/")) {
 						ext = "folder";
