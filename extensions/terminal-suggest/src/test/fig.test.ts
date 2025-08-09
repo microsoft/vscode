@@ -207,7 +207,7 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 		],
 		availableCommands: 'git',
 		testSpecs: [
-			{ input: 'git |', expectedCompletions: ["commit -m 'msg'", 'quick-commit', 'commit', 'add'] },
+			{ input: 'git |', expectedCompletions: ["commit -m ''", 'quick-commit', 'commit', 'add'] },
 		]
 	}
 ];

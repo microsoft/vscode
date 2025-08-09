@@ -376,22 +376,26 @@ async function addAdditionalSuggestions(
 			}
 			
 			for (const label of suggestionLabels) {
-				const completionItem = createCompletionItem(
-					terminalContext.cursorPosition,
-					prefix,
-					{ label },
-					undefined,
-					suggestion.description,
-					vscode.TerminalCompletionItemKind.Method
-				);
-				
-				// Handle icon property (fig://... icons are not directly supported yet,
-				// but we can use a lightbulb icon for additionalSuggestions)
-				if (suggestion.icon) {
-					// Note: Custom icons from fig (fig://...) are not yet supported.
-					// Using lightbulb outline icon as mentioned in issue #239706
-					completionItem.icon = new vscode.ThemeIcon('lightbulb');
+				// Use insertValue if available for the actual replacement text, otherwise fall back to label
+				let replacementText = label;
+				if (suggestion.insertValue) {
+					// Replace {cursor} placeholder with empty string since VS Code doesn't support cursor positioning
+					replacementText = suggestion.insertValue.replace('{cursor}', '');
 				}
+				
+				// Create completion item with custom replacement text
+				const endsWithSpace = prefix.endsWith(' ');
+				const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
+				
+				const completionItem: vscode.TerminalCompletionItem = {
+					label: replacementText, // The actual text that will be inserted
+					detail: suggestion.description ?? '',
+					documentation: suggestion.description,
+					replacementIndex: terminalContext.cursorPosition - lastWord.length,
+					replacementLength: lastWord.length,
+					// Use Alias kind for additional suggestions with icons to differentiate them
+					kind: suggestion.icon ? vscode.TerminalCompletionItemKind.Alias : vscode.TerminalCompletionItemKind.Method
+				};
 				
 				items.push(completionItem);
 			}
