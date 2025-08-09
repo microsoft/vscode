@@ -34,7 +34,7 @@ import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatCustomConfirmationWidget2, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
@@ -170,7 +170,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			appearance: { showPointer: true }
 		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
-			ChatCustomConfirmationWidget2,
+			ChatCustomConfirmationWidget,
 			this.context.container,
 			{
 				title,

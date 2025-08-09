@@ -107,7 +107,7 @@ export class ChatQueryTitlePart extends Disposable {
 	}
 }
 
-abstract class BaseChatConfirmationWidget extends Disposable {
+abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
 	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
 
@@ -262,7 +262,8 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		}
 	}
 }
-export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
+
+export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidget {
 	private _renderedMessage: HTMLElement | undefined;
 
 	constructor(
@@ -290,31 +291,15 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 	}
 }
 
-export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
-	constructor(
-		container: HTMLElement,
-		options: IChatConfirmationWidgetOptions & { message: HTMLElement },
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IHostService hostService: IHostService,
-		@IViewsService viewsService: IViewsService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-	) {
-		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
-		this.renderMessage(options.message, container);
-	}
-}
-
 export interface IChatConfirmationWidget2Options {
 	title: string | IMarkdownString;
-	icon: ThemeIcon;
+	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton[];
 	toolbarData?: { arg: any; partType: string };
 }
 
-abstract class BaseChatConfirmationWidget2 extends Disposable {
+abstract class BaseChatConfirmationWidget extends Disposable {
 	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
 	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
 
@@ -370,7 +355,7 @@ abstract class BaseChatConfirmationWidget2 extends Disposable {
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
-			new MarkdownString(`$(${icon.id}) ${title}`),
+			new MarkdownString(icon ? `$(${icon.id}) ${typeof title === 'string' ? title : title.value}` : typeof title === 'string' ? title : title.value),
 			subtitle,
 			this.markdownRenderer,
 		));
@@ -430,7 +415,15 @@ abstract class BaseChatConfirmationWidget2 extends Disposable {
 		}
 	}
 
-	protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
+	protected renderMessage(element: HTMLElement | IMarkdownString | string, listContainer: HTMLElement): void {
+		if (!dom.isHTMLElement(element)) {
+			const messageElement = this._register(this.markdownRenderer.render(
+				typeof element === 'string' ? new MarkdownString(element) : element,
+				{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
+			));
+			element = messageElement.element;
+		}
+
 		this.messageElement.append(element);
 
 		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
@@ -470,10 +463,37 @@ abstract class BaseChatConfirmationWidget2 extends Disposable {
 		}
 	}
 }
-export class ChatCustomConfirmationWidget2 extends BaseChatConfirmationWidget2 {
+export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
+	private _renderedMessage: HTMLElement | undefined;
+
+	constructor(
+		private readonly _container: HTMLElement,
+		options: IChatConfirmationWidget2Options & { message: HTMLElement | IMarkdownString | string },
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHostService hostService: IHostService,
+		@IViewsService viewsService: IViewsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
+		this.renderMessage(options.message, this._container);
+	}
+
+	public updateMessage(message: string | IMarkdownString): void {
+		this._renderedMessage?.remove();
+		const renderedMessage = this._register(this.markdownRenderer.render(
+			typeof message === 'string' ? new MarkdownString(message) : message,
+			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
+		));
+		this.renderMessage(renderedMessage.element, this._container);
+		this._renderedMessage = renderedMessage.element;
+	}
+}
+export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
 		container: HTMLElement,
-		options: IChatConfirmationWidget2Options & { message: HTMLElement },
+		options: IChatConfirmationWidget2Options & { message: HTMLElement | IMarkdownString | string },
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,

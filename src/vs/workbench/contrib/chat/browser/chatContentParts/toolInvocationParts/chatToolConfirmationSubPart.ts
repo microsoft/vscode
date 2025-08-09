@@ -30,7 +30,7 @@ import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatConfirmationWidget, ChatCustomConfirmationWidget2, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { SimpleChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
@@ -105,10 +105,10 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				tooltip: cancelTooltip
 			}];
 
-		let confirmWidget: ChatConfirmationWidget | ChatCustomConfirmationWidget2;
+		let confirmWidget: SimpleChatConfirmationWidget | ChatCustomConfirmationWidget;
 		if (typeof message === 'string') {
 			confirmWidget = this._register(this.instantiationService.createInstance(
-				ChatConfirmationWidget,
+				SimpleChatConfirmationWidget,
 				this.context.container,
 				{ title, subtitle: toolInvocation.originMessage, buttons, message, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } }
 			));
@@ -275,7 +275,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 
 			const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 			confirmWidget = this._register(this.instantiationService.createInstance(
-				ChatCustomConfirmationWidget2,
+				ChatCustomConfirmationWidget,
 				this.context.container,
 				{
 					title,

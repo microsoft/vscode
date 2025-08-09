@@ -201,13 +201,18 @@
 	}
 }
 
-.chat-confirmation-widget2 .chat-confirmation-widget-message {
+.chat-confirmation-widget2 .chat-confirmation-widget-message:not(:has(.interactive-result-code-block)) {
 	background: var(--vscode-chat-requestBackground);
 	border: 1px solid var(--vscode-chat-requestBorder);
 	padding: 6px 9px 0 9px;
+
+	p {
+		margin-top: 0;
+		margin-bottom: 9px;
+	}
 }
 
-.chat-confirmation-widget2 .chat-buttons-container {
+/* .chat-confirmation-widget2 .chat-buttons-container {
 	background: var(--vscode-chat-requestBackground);
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-top: none;
@@ -218,6 +223,10 @@
 	justify-content: space-between;
 	align-items: center;
 	margin-top: 0;
+} */
+
+.chat-confirmation-widget2.hideButtons .chat-buttons-container {
+	display: none;
 }
 
 .interactive-session .interactive-response .chat-confirmation-widget2 .chat-confirmation-widget-message .interactive-result-code-block {
