@@ -236,7 +236,16 @@ export interface IPreparedToolInvocation {
 export type IPreparedToolInvocationWithData<T> = IPreparedToolInvocation & ([T] extends [void] ? {} : { preparedData: T });
 
 export interface IToolImpl<TToolData = void> {
+	/**
+	 * This method is where the real work of the tool implementation should be done.
+	 */
 	invoke(invocation: IToolInvocation<TToolData>, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
+
+	/**
+	 * Produce display metadata for the tool invocation. This should generally be fast so we can move on to showing a proper progress message in the chat view.
+	 * Can optionally return `preparedData` when data needs to be shared with the `invoke` call.
+	 * This should not do any work or have any side effects.
+	 */
 	prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocationWithData<TToolData>>;
 }
 
