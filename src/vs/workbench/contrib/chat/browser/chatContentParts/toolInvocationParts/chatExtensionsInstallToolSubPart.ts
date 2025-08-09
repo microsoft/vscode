@@ -16,7 +16,7 @@ import { IChatToolInvocation } from '../../../common/chatService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
-import { SimpleChatConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { IChatConfirmationButton, ChatConfirmationWidget } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatExtensionsContentPart } from '../chatExtensionsContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
@@ -73,7 +73,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 			];
 
 			const confirmWidget = this._register(instantiationService.createInstance(
-				SimpleChatConfirmationWidget,
+				ChatConfirmationWidget,
 				context.container,
 				{
 					title: toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),

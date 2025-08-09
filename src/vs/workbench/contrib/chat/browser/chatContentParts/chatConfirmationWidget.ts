@@ -263,6 +263,7 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 	}
 }
 
+/** @deprecated Use ChatConfirmationWidget instead */
 export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidget {
 	private _renderedMessage: HTMLElement | undefined;
 

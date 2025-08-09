@@ -162,7 +162,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this._register(model.onDidChangeContent(e => {
 			terminalData.commandLine.userEdited = model.getValue();
 		}));
-		const messageElement = $('');
+		const messageElement = $('.chat-confirmation-message-terminal');
 		dom.append(messageElement, editor.object.element);
 		this._register(hoverService.setupDelayedHover(messageElement, {
 			content: message,
