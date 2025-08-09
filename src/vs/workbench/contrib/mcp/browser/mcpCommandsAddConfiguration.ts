@@ -18,6 +18,8 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IMcpServerManifest, PackageType } from '../../../../platform/mcp/common/mcpManagement.js';
+import { AbstractMcpResourceManagementService } from '../../../../platform/mcp/common/mcpManagementService.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -109,6 +111,18 @@ type AddServerCompletedClassification = {
 	packageType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of MCP server package' };
 	serverType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of MCP server' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The target of the MCP server configuration' };
+};
+
+type AssistedServerConfiguration = {
+	type?: 'vscode';
+	name?: string;
+	server: Omit<IMcpStdioServerConfiguration, 'type'>;
+	inputs?: IMcpServerVariable[];
+	inputValues?: Record<string, string>;
+} | {
+	type: 'server.json';
+	name?: string;
+	server: IMcpServerManifest;
 };
 
 export class McpAddConfigurationCommand {
@@ -284,7 +298,7 @@ export class McpAddConfigurationCommand {
 		return targetPick?.target;
 	}
 
-	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name: string; server: Omit<IMcpStdioServerConfiguration, 'type'>; inputs?: IMcpServerVariable[]; inputValues?: Record<string, string> } | undefined> {
+	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name?: string; server: Omit<IMcpStdioServerConfiguration, 'type'>; inputs?: IMcpServerVariable[]; inputValues?: Record<string, string> } | undefined> {
 		const packageName = await this._quickInputService.input({
 			ignoreFocusLost: true,
 			title: AssistedTypes[type].title,
@@ -384,13 +398,33 @@ export class McpAddConfigurationCommand {
 				return undefined;
 		}
 
-		return await this._commandService.executeCommand<{ name: string; server: Omit<IMcpStdioServerConfiguration, 'type'>; inputs?: IMcpServerVariable[]; inputValues?: Record<string, string> }>(
+		const config = await this._commandService.executeCommand<AssistedServerConfiguration>(
 			AddConfigurationCopilotCommand.StartFlow,
 			{
 				name: packageName,
 				type: packageType
 			}
 		);
+
+		if (config?.type === 'server.json') {
+			const packageType = this.getPackageTypeEnum(type);
+			if (!packageType) {
+				throw new Error(`Unsupported assisted package type ${type}`);
+			}
+			const server = AbstractMcpResourceManagementService.toScannedMcpServerAndInputs(config.server, packageType);
+			if (server.config.type !== McpServerType.LOCAL) {
+				throw new Error(`Unexpected server type ${server.config.type} for assisted configuration from server.json.`);
+			}
+			return {
+				name: config.name,
+				server: server.config,
+				inputs: server.inputs,
+			};
+		} else if (config?.type === 'vscode' || !config?.type) {
+			return config;
+		} else {
+			assertNever(config?.type);
+		}
 	}
 
 	/** Shows the location of a server config once it's discovered. */
@@ -547,6 +581,21 @@ export class McpAddConfigurationCommand {
 				}
 				break;
 			}
+		}
+	}
+
+	private getPackageTypeEnum(type: AddConfigurationType): PackageType | undefined {
+		switch (type) {
+			case AddConfigurationType.NpmPackage:
+				return PackageType.NODE;
+			case AddConfigurationType.PipPackage:
+				return PackageType.PYTHON;
+			case AddConfigurationType.NuGetPackage:
+				return PackageType.NUGET;
+			case AddConfigurationType.DockerImage:
+				return PackageType.DOCKER;
+			default:
+				return undefined;
 		}
 	}
 
