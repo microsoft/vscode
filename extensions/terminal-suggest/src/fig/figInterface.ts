@@ -385,11 +385,12 @@ async function addAdditionalSuggestions(
 					vscode.TerminalCompletionItemKind.Method
 				);
 				
-				// Handle insertValue for snippet-like behavior
-				if (suggestion.insertValue) {
-					// Convert fig's {cursor} placeholder to VS Code's snippet format
-					const insertText = suggestion.insertValue.replace(/\{cursor\}/g, '$0');
-					completionItem.insertText = insertText;
+				// Handle icon property (fig://... icons are not directly supported yet,
+				// but we can use a lightbulb icon for additionalSuggestions)
+				if (suggestion.icon) {
+					// Note: Custom icons from fig (fig://...) are not yet supported.
+					// Using lightbulb outline icon as mentioned in issue #239706
+					completionItem.icon = new vscode.ThemeIcon('lightbulb');
 				}
 				
 				items.push(completionItem);
