@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { thenIfNotDisposed } from '../../../../../../base/common/lifecycle.js';
@@ -14,7 +15,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -30,10 +33,12 @@ import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { ChatCustomConfirmationWidget2, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+
+const $ = dom.$;
 
 export interface ITerminalNewAutoApproveRule {
 	key: string;
@@ -69,6 +74,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ITextModelService textModelService: ITextModelService,
 	) {
 		super(toolInvocation);
 
@@ -114,19 +120,26 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				ariaLabel: typeof title === 'string' ? title : title.value
 			}
 		};
-		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
+		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this.modelService.createModel(
 			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
-			this.languageService.createById(langId),
+			this.languageService.createById(languageId),
 			this._getUniqueCodeBlockUri(),
 			true
 		);
+		textModelService.createModelReference(model.uri).then(ref => {
+			if (this._store.isDisposed) {
+				ref.dispose();
+			} else {
+				this._register(ref);
+			}
+		});
 		const editor = this._register(this.editorPool.get());
 		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
-			languageId: langId,
+			languageId,
 			renderOptions: codeBlockRenderOptions,
 			textModel: Promise.resolve(model),
 			chatSessionId: this.context.element.sessionId
@@ -150,13 +163,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this._register(model.onDidChangeContent(e => {
 			terminalData.commandLine.userEdited = model.getValue();
 		}));
-		const element = dom.$('');
+		const element = $('');
 		dom.append(element, editor.object.element);
 		dom.append(element, renderedMessage.element);
 		const confirmWidget = this._register(this.instantiationService.createInstance(
-			ChatCustomConfirmationWidget,
+			ChatCustomConfirmationWidget2,
 			this.context.container,
-			{ title, message: element, buttons },
+			{
+				title,
+				icon: Codicon.terminal,
+				message: element,
+				buttons
+			},
 		));
 
 		if (disclaimer) {
@@ -217,6 +235,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(false);
 			this._onNeedsRerender.fire();
 		});
+
+		// const
 		this.domNode = confirmWidget.domNode;
 	}
 

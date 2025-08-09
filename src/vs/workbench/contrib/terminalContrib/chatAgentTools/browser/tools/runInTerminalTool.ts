@@ -39,6 +39,7 @@ import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { OutputMonitor } from '../outputMonitor.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { basename } from '../../../../../../base/common/path.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -321,10 +322,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				customActions = this._generateAutoApproveActions(args.command, subCommands, { subCommandResults, commandLineResult });
 			}
 
+			let shellType = basename(shell, '.exe');
+			if (shellType === 'powershell') {
+				shellType = 'pwsh';
+			}
 			confirmationMessages = isAutoApproved ? undefined : {
 				title: args.isBackground
-					? localize('runInTerminal.background', "Run command in background terminal")
-					: localize('runInTerminal.foreground', "Run command in terminal"),
+					? localize('runInTerminal.background', "{0} (background terminal)", shellType)
+					: shellType,
 				message: new MarkdownString(args.explanation),
 				disclaimer,
 				terminalCustomActions: customActions,
