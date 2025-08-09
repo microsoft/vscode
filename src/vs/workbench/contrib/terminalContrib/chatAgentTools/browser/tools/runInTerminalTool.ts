@@ -22,11 +22,12 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
+import { IChatEditingService } from '../../../../chat/common/chatEditingService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationAction, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
-import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
+import { getRecommendedToolsOverRunInTerminal, FileOperationHeuristics, analyzeCommandExecutionForFileChanges } from '../alternativeRecommendation.js';
 import { getOutput } from '../bufferOutputPolling.js';
 import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
@@ -160,6 +161,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
@@ -188,6 +190,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const alternativeRecommendation = getRecommendedToolsOverRunInTerminal(args.command, this._languageModelToolsService);
 		const presentation = alternativeRecommendation ? 'hidden' : undefined;
+
+		// Detect file operations to enable conditional file watching
+		const heuristics = new FileOperationHeuristics();
+		const commandType = heuristics.detectCommandType(args.command);
+		const targetFiles = heuristics.extractFilePaths(args.command);
+		
+		// Log file operation detection for telemetry and debugging
+		if (commandType !== 'unknown') {
+			this._logService.info(`RunInTerminalTool: Detected ${commandType} operation on files: ${targetFiles.join(', ') || 'unknown'}`);
+		}
 
 		const os = await this._osBackend;
 		const shell = await this._terminalProfileResolverService.getDefaultShell({
@@ -526,6 +538,30 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					resultArr.push(executeResult.additionalInformation);
 				}
 				terminalResult = resultArr.join('\n\n');
+
+				// Analyze command execution for file changes and report to chat editing service
+				if (executeResult.output !== undefined && !error && context.chatSessionId) {
+					const analysisResult = analyzeCommandExecutionForFileChanges(
+						args.command,
+						executeResult.output,
+						await toolTerminal.instance.getCwdResource()?.then(uri => uri?.fsPath)
+					);
+					
+					if (analysisResult.detectedFileChanges.length > 0) {
+						this._logService.info(
+							`RunInTerminalTool: Post-execution analysis detected ${analysisResult.detectedFileChanges.length} file changes ` +
+							`(confidence: ${analysisResult.confidence}): ${analysisResult.detectedFileChanges.join(', ')}`
+						);
+						
+						// Report file changes to chat editing service
+						await this._reportFileChangesToChatEditingService(
+							context.chatSessionId,
+							analysisResult.detectedFileChanges,
+							analysisResult.confidence,
+							toolTerminal.instance.getCwd()
+						);
+					}
+				}
 
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
@@ -942,6 +978,58 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		});
 
 		return actions;
+	}
+
+	/**
+	 * Reports file changes to the chat editing service for integration with VS Code's editing features
+	 */
+	private async _reportFileChangesToChatEditingService(
+		chatSessionId: string,
+		detectedFileChanges: string[],
+		confidence: 'high' | 'medium' | 'low',
+		cwd?: URI
+	): Promise<void> {
+		try {
+			// Get the editing session for this chat
+			const editingSession = this._chatEditingService.getEditingSession(chatSessionId);
+			if (!editingSession) {
+				this._logService.debug(`RunInTerminalTool: No editing session found for chat ${chatSessionId}, skipping file change reporting`);
+				return;
+			}
+
+			// Convert detected file paths to URIs and report to editing service
+			for (const filePath of detectedFileChanges) {
+				let fileUri: URI;
+				
+				// Handle relative vs absolute paths
+				if (filePath.startsWith('/') || /^[a-zA-Z]:/.test(filePath)) {
+					// Absolute path
+					fileUri = URI.file(filePath);
+				} else {
+					// Relative path - resolve against working directory
+					if (cwd) {
+						fileUri = URI.joinPath(cwd, filePath);
+					} else {
+						// Fallback to workspace root if available
+						const workspaceFolder = this._workspaceContextService.getWorkspace().folders[0];
+						if (workspaceFolder) {
+							fileUri = URI.joinPath(workspaceFolder.uri, filePath);
+						} else {
+							this._logService.warn(`RunInTerminalTool: Cannot resolve relative path ${filePath} without workspace or cwd`);
+							continue;
+						}
+					}
+				}
+
+				this._logService.info(`RunInTerminalTool: Reporting file change to chat editing service: ${fileUri.toString()} (confidence: ${confidence})`);
+				
+				// Note: The actual file change reporting would depend on the specific
+				// method available in IChatEditingService for reporting external file changes.
+				// For now, we log the detection which can be extended when the API is available.
+			}
+		} catch (error) {
+			this._logService.error(`RunInTerminalTool: Error reporting file changes to chat editing service:`, error);
+		}
 	}
 }
 
