@@ -38,7 +38,7 @@ import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../su
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { OutputMonitor } from '../outputMonitor.js';
-import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolSubPart.js';
+import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 

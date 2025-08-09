@@ -48,7 +48,7 @@ export type TerminalNewAutoApproveButtonData = (
 	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] }
 );
 
-export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
+export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
