@@ -129,7 +129,7 @@ const postProcessBranches =
 export const gitGenerators: Record<string, Fig.Generator> = {
 	// Commit history
 	commits: {
-		script: ["git", "--no-optional-locks", "log", "--oneline"],
+		script: ["git", "--no-optional-locks", "log", "--oneline", "-n", "1000"],
 		postProcess: function (out) {
 			const output = filterMessages(out);
 
