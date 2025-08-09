@@ -183,6 +183,32 @@ export const figGenericTestSuites: ISuiteSpec[] = [
 			{ input: 'foo b|', expectedCompletions: ['b', 'foo'] },
 			{ input: 'foo c|', expectedCompletions: ['c', 'foo'] },
 		]
+	},
+	{
+		name: 'Fig additionalSuggestions support',
+		completionSpecs: [
+			{
+				name: 'git',
+				description: 'Git version control',
+				subcommands: [
+					{ name: 'commit', description: 'Commit changes' },
+					{ name: 'add', description: 'Add files' }
+				],
+				additionalSuggestions: [
+					{
+						name: "commit -m 'msg'",
+						description: "Git commit shortcut",
+						insertValue: "commit -m '{cursor}'",
+						icon: "fig://template?color=2ecc71&badge=🔥",
+					},
+					"quick-commit"
+				]
+			}
+		],
+		availableCommands: 'git',
+		testSpecs: [
+			{ input: 'git |', expectedCompletions: ["commit -m 'msg'", 'quick-commit', 'commit', 'add'] },
+		]
 	}
 ];
 

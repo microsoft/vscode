@@ -338,12 +338,64 @@ export async function collectCompletionItemResult(
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Subcommands) {
 		await addSuggestions(parsedArguments.completionObj.subcommands, vscode.TerminalCompletionItemKind.Method);
+		
+		// Add support for additionalSuggestions
+		if (parsedArguments.completionObj.additionalSuggestions) {
+			await addAdditionalSuggestions(parsedArguments.completionObj.additionalSuggestions, terminalContext, prefix, items);
+		}
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Options) {
 		await addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag, parsedArguments);
 	}
 
 	return { filesRequested, foldersRequested, fileExtensions };
+}
+
+async function addAdditionalSuggestions(
+	additionalSuggestions: (string | Fig.Suggestion)[],
+	terminalContext: { commandLine: string; cursorPosition: number },
+	prefix: string,
+	items: vscode.TerminalCompletionItem[]
+) {
+	for (const suggestion of additionalSuggestions) {
+		if (typeof suggestion === 'string') {
+			// Simple string suggestion
+			items.push(createCompletionItem(
+				terminalContext.cursorPosition,
+				prefix,
+				{ label: suggestion },
+				undefined,
+				undefined,
+				vscode.TerminalCompletionItemKind.Method
+			));
+		} else {
+			// Full suggestion object
+			const suggestionLabels = getFigSuggestionLabel(suggestion);
+			if (!suggestionLabels?.length) {
+				continue;
+			}
+			
+			for (const label of suggestionLabels) {
+				const completionItem = createCompletionItem(
+					terminalContext.cursorPosition,
+					prefix,
+					{ label },
+					undefined,
+					suggestion.description,
+					vscode.TerminalCompletionItemKind.Method
+				);
+				
+				// Handle insertValue for snippet-like behavior
+				if (suggestion.insertValue) {
+					// Convert fig's {cursor} placeholder to VS Code's snippet format
+					const insertText = suggestion.insertValue.replace(/\{cursor\}/g, '$0');
+					completionItem.insertText = insertText;
+				}
+				
+				items.push(completionItem);
+			}
+		}
+	}
 }
 
 function convertEnvRecordToArray(env: Record<string, string>): EnvironmentVariable[] {
