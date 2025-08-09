@@ -20,6 +20,9 @@ import { IContextKeyService, ContextKeyExpr } from '../../../../platform/context
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { Extensions, IViewContainersRegistry, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewDescriptor } from '../../../common/views.js';
@@ -27,6 +30,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -53,8 +57,25 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
+
+// Helper function to create context overlay for session items
+function getSessionItemContextOverlay(session: IChatSessionItem, provider?: IChatSessionItemProvider): [string, any][] {
+	const overlay: [string, any][] = [
+		[ChatContextKeys.sessionId.key, session.id],
+		[ChatContextKeys.sessionLabel.key, session.label],
+	];
+	
+	if (provider) {
+		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
+	}
+	
+	return overlay;
+}
 
 // Extended interface for local chat session items that includes editor information or widget information
 interface ILocalChatSessionItem extends IChatSessionItem {
@@ -546,6 +567,7 @@ interface ISessionTemplateData {
 	container: HTMLElement;
 	resourceLabel: IResourceLabel;
 	actionBar: ActionBar;
+	elementDisposable: DisposableStore;
 }
 
 // Renderer for session items in the tree
@@ -557,6 +579,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		private readonly labels: ResourceLabels,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -616,16 +640,22 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		const element = append(container, $('.chat-session-item'));
 		const resourceLabel = this.labels.create(element, { supportHighlights: true });
 		const actionBar = new ActionBar(container);
+		const elementDisposable = new DisposableStore();
 
 		return {
 			container: element,
 			resourceLabel,
-			actionBar
+			actionBar,
+			elementDisposable
 		};
 	}
 
 	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
 		const session = element.element;
+		const sessionWithProvider = session as IChatSessionItem & { provider: IChatSessionItemProvider };
+		
+		// Clear previous element disposables
+		templateData.elementDisposable.clear();
 
 		// Handle different icon types
 		let iconResource: URI | undefined;
@@ -661,9 +691,42 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			fileKind: undefined,
 			icon: iconTheme || iconUri
 		});
+
+		// Create context overlay for this specific session item
+		const contextOverlay = getSessionItemContextOverlay(session, sessionWithProvider.provider);
+		
+		const contextKeyService = this.contextKeyService.createOverlay(contextOverlay);
+
+		// Create menu for this session item
+		const menu = templateData.elementDisposable.add(
+			this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService)
+		);
+
+		// Setup action bar with contributed actions
+		const setupActionBar = () => {
+			templateData.actionBar.clear();
+
+			const { primary } = getActionBarActions(
+				menu.getActions({ arg: session, shouldForwardArgs: true }), 
+				'inline'
+			);
+			templateData.actionBar.push(primary, { icon: true, label: false });
+			
+			// Set context for the action bar
+			templateData.actionBar.context = session;
+		};
+
+		// Setup initial action bar and listen for menu changes
+		templateData.elementDisposable.add(menu.onDidChange(() => setupActionBar()));
+		setupActionBar();
+	}
+
+	disposeElement(_element: ITreeNode<IChatSessionItem, FuzzyScore>, _index: number, templateData: ISessionTemplateData): void {
+		templateData.elementDisposable.clear();
 	}
 
 	disposeTemplate(templateData: ISessionTemplateData): void {
+		templateData.elementDisposable.dispose();
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
 	}
@@ -867,7 +930,7 @@ class SessionsViewPane extends ViewPane {
 		this.dataSource = new SessionsDataSource(this.provider);
 
 		const delegate = new SessionsDelegate();
-		const renderer = new SessionsRenderer(this.labels, this.themeService, this.logService);
+		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.labels);
 		this._register(renderer);
 
 		this.tree = this.instantiationService.createInstance(
@@ -961,4 +1024,46 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	order: 1,
 	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
 });
+
+// Test menu contribution for chat session items
+MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+	command: {
+		id: 'workbench.action.chat.testSessionCommand',
+		title: nls.localize2('chatSession.testCommand', "Test Session Command"),
+		icon: Codicon.gear
+	},
+	group: 'inline',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionType.isEqualTo('local'),
+		ChatContextKeys.sessionId.notEqualsTo('')
+	),
+});
+
+// Test command implementation for chat session items
+class TestChatSessionCommand extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.testSessionCommand',
+			title: nls.localize2('chatSession.testCommand', "Test Session Command"),
+			f1: false, // Don't show in command palette
+		});
+	}
+
+	async run(accessor: ServicesAccessor, session?: IChatSessionItem): Promise<void> {
+		const notificationService = accessor.get(INotificationService);
+		
+		if (session) {
+			notificationService.info(
+				nls.localize('chatSession.testCommandExecuted', "Test command executed for session: {0} (ID: {1})", session.label, session.id)
+			);
+		} else {
+			notificationService.info(
+				nls.localize('chatSession.testCommandNoSession', "Test command executed without session context")
+			);
+		}
+	}
+}
+
+registerAction2(TestChatSessionCommand);
 
