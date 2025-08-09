@@ -87,7 +87,7 @@ export class EditTool implements IToolImpl {
 			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: parameters.explanation }],
 			location: 'tool',
 			chatRequestId: invocation.input.chatRequestId,
-			chatRequestModel: invocation.input.modelId,
+			chatRequestModel: invocation.modelId,
 			chatSessionId: invocation.input.context.sessionId,
 		}, {
 			textEdit: (target, edits) => {

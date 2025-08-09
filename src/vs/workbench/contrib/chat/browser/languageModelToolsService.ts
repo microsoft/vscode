@@ -214,97 +214,46 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this._memoryToolConfirmStore.clear();
 	}
 
-	async invokeTool(dto: IInvokeToolInput, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
-		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
+	async invokeTool(toolInput: IInvokeToolInput, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${toolInput.toolId} with parameters ${JSON.stringify(toolInput.parameters)}`);
 
 		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
-		let tool = this._tools.get(dto.toolId);
+		let tool = this._tools.get(toolInput.toolId);
 		if (!tool) {
-			throw new Error(`Tool ${dto.toolId} was not contributed`);
+			throw new Error(`Tool ${toolInput.toolId} was not contributed`);
 		}
 
 		if (!tool.impl) {
-			await this._extensionService.activateByEvent(`onLanguageModelTool:${dto.toolId}`);
+			await this._extensionService.activateByEvent(`onLanguageModelTool:${toolInput.toolId}`);
 
 			// Extension should activate and register the tool implementation
-			tool = this._tools.get(dto.toolId);
+			tool = this._tools.get(toolInput.toolId);
 			if (!tool?.impl) {
-				throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
+				throw new Error(`Tool ${toolInput.toolId} does not have an implementation registered.`);
 			}
 		}
 
 		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
-		let toolInvocation: ChatToolInvocation | undefined;
-		let invocationInput: IInvokeToolInput = dto;
+		let chatModelToolInvocation: ChatToolInvocation | undefined;
+		let invocationInput: IInvokeToolInput = toolInput;
 		let toolInvocationDto: IToolInvocation<unknown> = {
 			input: invocationInput,
 			preparedData: undefined
 		};
 
-		let prepared: IPreparedToolInvocationWithData<unknown>;
 		let requestId: string | undefined;
 		let store: DisposableStore | undefined;
 		let toolResult: IToolResult | undefined;
 		try {
-			if (dto.context) {
-				store = new DisposableStore();
-				const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel | undefined;
-				if (!model) {
-					throw new Error(`Tool called for unknown chat session`);
-				}
-
-				const request = model.getRequests().at(-1)!;
-				requestId = request.id;
-				// include modelId in the invocation input passed to the tool implementation
-				invocationInput = { ...invocationInput, modelId: request.modelId };
-
-				// Replace the token with a new token that we can cancel when cancelToolCallsForRequest is called
-				if (!this._callsByRequestId.has(requestId)) {
-					this._callsByRequestId.set(requestId, []);
-				}
-				const trackedCall: ITrackedCall = { store };
-				this._callsByRequestId.get(requestId)!.push(trackedCall);
-
-				const source = new CancellationTokenSource();
-				store.add(toDisposable(() => {
-					source.dispose(true);
-				}));
-				store.add(token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete(false);
-					source.cancel();
-				}));
-				store.add(source.token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete(false);
-				}));
-				token = source.token;
-
-				prepared = await this.prepareToolInvocation(tool, dto, token);
-				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
-				trackedCall.invocation = toolInvocation;
-				const autoConfirmed = this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
-				if (autoConfirmed) {
-					toolInvocation.confirmed.complete(true);
-				}
-
-				model.acceptResponseProgress(request, toolInvocation);
-
-				if (prepared.confirmationMessages) {
-					if (!toolInvocation.isConfirmed && !autoConfirmed) {
-						this.playAccessibilitySignal([toolInvocation]);
-					}
-					const userConfirmed = await toolInvocation.confirmed.p;
-					if (!userConfirmed) {
-						throw new CancellationError();
-					}
-				}
+			let prepared: IPreparedToolInvocationWithData<unknown>;
+			if (toolInput.context) {
+				const inChat = await this.prepareInvocationInChatSession(toolInput, tool, token);
+				prepared = inChat.prepared;
+				chatModelToolInvocation = inChat.toolInvocation;
+				store = inChat.store;
+				requestId = inChat.requestId;
 			} else {
-				prepared = await this.prepareToolInvocation(tool, dto, token);
-				if (prepared.confirmationMessages && !this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
-					const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
-					if (!result.confirmed) {
-						throw new CancellationError();
-					}
-				}
+				prepared = await this.prepareInvocationStandalone(toolInput, tool, token);
 			}
 
 			if (token.isCancellationRequested) {
@@ -320,7 +269,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 			toolResult = await tool.impl.invoke(toolInvocationDto, countTokens, {
 				report: step => {
-					toolInvocation?.acceptProgress(step);
+					chatModelToolInvocation?.acceptProgress(step);
 				}
 			}, token);
 			this.ensureToolDetails(toolInvocationDto, toolResult, tool.data);
@@ -329,7 +278,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				'languageModelToolInvoked',
 				{
 					result: 'success',
-					chatSessionId: dto.context?.sessionId,
+					chatSessionId: toolInput.context?.sessionId,
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
@@ -341,12 +290,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				'languageModelToolInvoked',
 				{
 					result,
-					chatSessionId: dto.context?.sessionId,
+					chatSessionId: toolInput.context?.sessionId,
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
 				});
-			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}:\n${toErrorMessage(err, true)}`);
+			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${toolInput.toolId} with parameters ${JSON.stringify(toolInput.parameters)}:\n${toErrorMessage(err, true)}`);
 
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
@@ -356,7 +305,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 			throw err;
 		} finally {
-			toolInvocation?.complete(toolResult);
+			chatModelToolInvocation?.complete(toolResult);
 
 			if (requestId && store) {
 				this.cleanupCallDisposables(requestId, store);
@@ -364,7 +313,75 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	private async prepareToolInvocation<T>(tool: IToolEntry<T>, input: IInvokeToolInput, token: CancellationToken): Promise<IPreparedToolInvocationWithData<T>> {
+	/** Prepare a tool invocation that is occurring outside of a chat session. */
+	private async prepareInvocationStandalone(toolInput: IInvokeToolInput, tool: IToolEntry<unknown>, token: CancellationToken): Promise<IPreparedToolInvocationWithData<unknown>> {
+		const prepared = await this.callPrepareToolInvocation(tool, toolInput, token);
+		if (prepared.confirmationMessages && !this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
+			const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
+			if (!result.confirmed) {
+				throw new CancellationError();
+			}
+		}
+		return prepared;
+	}
+
+	/**
+	 * Prepare a tool invocation that is occurring within a chat session context. This wires up
+	 * cancellation, confirmation, and progress reporting to the active chat model/request.
+	 */
+	private async prepareInvocationInChatSession(toolInput: IInvokeToolInput, tool: IToolEntry<unknown>, token: CancellationToken): Promise<{ store: DisposableStore; prepared: IPreparedToolInvocationWithData<unknown>; toolInvocation: ChatToolInvocation; modelId?: string; requestId?: string }> {
+		const store = new DisposableStore();
+		const model = this._chatService.getSession(toolInput.context!.sessionId) as ChatModel | undefined;
+		if (!model) {
+			throw new Error(`Tool called for unknown chat session`);
+		}
+
+		const request = model.getRequests().at(-1)!;
+		const requestId = request.id;
+
+		// Replace the token with a new token that we can cancel when cancelToolCallsForRequest is called
+		if (!this._callsByRequestId.has(requestId)) {
+			this._callsByRequestId.set(requestId, []);
+		}
+		const trackedCall: ITrackedCall = { store };
+		this._callsByRequestId.get(requestId)!.push(trackedCall);
+
+		const source = new CancellationTokenSource();
+		store.add(toDisposable(() => {
+			source.dispose(true);
+		}));
+		store.add(token.onCancellationRequested(() => {
+			trackedCall.invocation?.confirmed.complete(false);
+			source.cancel();
+		}));
+		store.add(source.token.onCancellationRequested(() => {
+			trackedCall.invocation?.confirmed.complete(false);
+		}));
+
+		const prepared = await this.callPrepareToolInvocation(tool, toolInput, source.token);
+		const toolInvocation = new ChatToolInvocation(prepared, tool.data, toolInput.callId);
+		trackedCall.invocation = toolInvocation;
+		const autoConfirmed = this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
+		if (autoConfirmed) {
+			toolInvocation.confirmed.complete(true);
+		}
+
+		model.acceptResponseProgress(request, toolInvocation);
+
+		if (prepared.confirmationMessages) {
+			if (!toolInvocation.isConfirmed && !autoConfirmed) {
+				this.playAccessibilitySignal([toolInvocation]);
+			}
+			const userConfirmed = await toolInvocation.confirmed.p;
+			if (!userConfirmed) {
+				throw new CancellationError();
+			}
+		}
+
+		return { store, prepared, toolInvocation, modelId: request.modelId, requestId };
+	}
+
+	private async callPrepareToolInvocation<T>(tool: IToolEntry<T>, input: IInvokeToolInput, token: CancellationToken): Promise<IPreparedToolInvocationWithData<T>> {
 		const prepared = await tool.impl!.prepareToolInvocation({
 			parameters: input.parameters,
 			chatRequestId: input.chatRequestId,

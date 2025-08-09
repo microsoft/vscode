@@ -115,11 +115,11 @@ export interface IInvokeToolInput {
 
 	// Plumbing telemetry data through from the extension
 	readonly chatRequestId?: string;
-	readonly modelId?: string;
 }
 
 export interface IToolInvocation<T = void> {
 	readonly input: IInvokeToolInput;
+	readonly modelId?: string;
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 	readonly preparedData: T;
 }

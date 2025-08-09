@@ -184,8 +184,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			options.chatSessionId = dto.input.context?.sessionId;
 		}
 
-		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.input.modelId) {
-			options.model = await this.getModel(dto.input.modelId, item.extension);
+		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
+			options.model = await this.getModel(dto.modelId, item.extension);
 		}
 
 		if (dto.input.tokenBudget !== undefined) {
