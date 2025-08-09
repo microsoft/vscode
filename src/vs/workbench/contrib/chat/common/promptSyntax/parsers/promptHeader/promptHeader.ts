@@ -102,8 +102,9 @@ export class PromptHeader extends HeaderBase<IPromptMetadata> {
 		}
 
 		// when mode is set, valid, and tools are present,
-		// the only valid value for the mode is 'agent'
-		return (mode.value === ChatModeKind.Agent);
+		// allow 'agent' mode or any custom mode (non-builtin modes)
+		return (mode.value === ChatModeKind.Agent ||
+			(mode.value !== ChatModeKind.Ask && mode.value !== ChatModeKind.Edit));
 	}
 
 	/**
@@ -127,8 +128,8 @@ export class PromptHeader extends HeaderBase<IPromptMetadata> {
 			'Mode metadata must have been present.',
 		);
 		assert(
-			mode.value !== ChatModeKind.Agent,
-			'Mode metadata must not be agent mode.',
+			mode.value === ChatModeKind.Ask || mode.value === ChatModeKind.Edit,
+			'Mode metadata must be ask or edit mode when incompatible with tools.',
 		);
 
 		this.issues.push(
