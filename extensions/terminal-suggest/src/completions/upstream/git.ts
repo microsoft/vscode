@@ -8191,6 +8191,11 @@ const completionSpec: Fig.Spec = {
 						'When recording the commit, append a line that says "(cherry picked from commit ...)" to the original commit message in order to indicate which commit this change was cherry-picked from',
 				},
 				{
+					name: "-r",
+					description:
+						"It used to be that the command defaulted to do -x described above, and -r was to disable it. Now the default is not to do -x so this option is a no-op",
+				},
+				{
 					name: ["-m", "--mainline"],
 					description:
 						"Specifies the parent number (starting from 1) of the mainline and allows cherry-pick to replay the change relative to the specified parent",
@@ -8239,8 +8244,29 @@ const completionSpec: Fig.Spec = {
 					description: "Allow commits with empty messages to be cherry picked",
 				},
 				{
+					name: "--empty",
+					description: "How to handle commits being cherry-picked that are redundant with changes already in the current history",
+					args: {
+						name: "mode",
+						suggestions: [
+							{
+								name: "drop",
+								description: "The commit will be dropped",
+							},
+							{
+								name: "keep",
+								description: "The commit will be kept. Implies --allow-empty",
+							},
+							{
+								name: "stop",
+								description: "The cherry-pick will stop when the commit is applied, allowing you to examine the commit. This is the default behavior",
+							},
+						],
+					},
+				},
+				{
 					name: "--keep-redundant-commits",
-					description: "Creates an empty commit object. Implies --allow-empty",
+					description: "Deprecated synonym for --empty=keep. Creates an empty commit object. Implies --allow-empty",
 				},
 				{
 					name: "--strategy",
