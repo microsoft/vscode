@@ -22,7 +22,7 @@ import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.
 import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
-export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubPart {
+export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;

@@ -19,8 +19,8 @@ import { CollapsibleListPool } from '../chatReferencesContentPart.js';
 import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
-import { ChatTerminalMarkdownProgressPart } from './chatTerminalMarkdownProgressPart.js';
-import { TerminalConfirmationWidgetSubPart } from './chatTerminalToolSubPart.js';
+import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
+import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
@@ -86,7 +86,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 			if (this.toolInvocation.confirmationMessages) {
 				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
-					return this.instantiationService.createInstance(TerminalConfirmationWidgetSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
+					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				}
@@ -94,7 +94,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
-			return this.instantiationService.createInstance(ChatTerminalMarkdownProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
+			return this.instantiationService.createInstance(ChatTerminalToolProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
 		}
 
 		if (Array.isArray(this.toolInvocation.resultDetails) && this.toolInvocation.resultDetails?.length) {
