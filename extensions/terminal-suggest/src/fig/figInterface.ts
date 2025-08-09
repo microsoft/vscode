@@ -338,12 +338,69 @@ export async function collectCompletionItemResult(
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Subcommands) {
 		await addSuggestions(parsedArguments.completionObj.subcommands, vscode.TerminalCompletionItemKind.Method);
+		
+		// Add support for additionalSuggestions
+		if (parsedArguments.completionObj.additionalSuggestions) {
+			await addAdditionalSuggestions(parsedArguments.completionObj.additionalSuggestions, terminalContext, prefix, items);
+		}
 	}
 	if (parsedArguments.suggestionFlags & SuggestionFlag.Options) {
 		await addSuggestions(parsedArguments.completionObj.options, vscode.TerminalCompletionItemKind.Flag, parsedArguments);
 	}
 
 	return { filesRequested, foldersRequested, fileExtensions };
+}
+
+async function addAdditionalSuggestions(
+	additionalSuggestions: (string | Fig.Suggestion)[],
+	terminalContext: { commandLine: string; cursorPosition: number },
+	prefix: string,
+	items: vscode.TerminalCompletionItem[]
+) {
+	for (const suggestion of additionalSuggestions) {
+		if (typeof suggestion === 'string') {
+			// Simple string suggestion
+			items.push(createCompletionItem(
+				terminalContext.cursorPosition,
+				prefix,
+				{ label: suggestion },
+				undefined,
+				undefined,
+				vscode.TerminalCompletionItemKind.Method
+			));
+		} else {
+			// Full suggestion object
+			const suggestionLabels = getFigSuggestionLabel(suggestion);
+			if (!suggestionLabels?.length) {
+				continue;
+			}
+			
+			for (const label of suggestionLabels) {
+				// Use insertValue if available for the actual replacement text, otherwise fall back to label
+				let replacementText = label;
+				if (suggestion.insertValue) {
+					// Replace {cursor} placeholder with empty string since VS Code doesn't support cursor positioning
+					replacementText = suggestion.insertValue.replace('{cursor}', '');
+				}
+				
+				// Create completion item with custom replacement text
+				const endsWithSpace = prefix.endsWith(' ');
+				const lastWord = endsWithSpace ? '' : prefix.split(' ').at(-1) ?? '';
+				
+				const completionItem: vscode.TerminalCompletionItem = {
+					label: replacementText, // The actual text that will be inserted
+					detail: suggestion.description ?? '',
+					documentation: suggestion.description,
+					replacementIndex: terminalContext.cursorPosition - lastWord.length,
+					replacementLength: lastWord.length,
+					// Use Alias kind for additional suggestions with icons to differentiate them
+					kind: suggestion.icon ? vscode.TerminalCompletionItemKind.Alias : vscode.TerminalCompletionItemKind.Method
+				};
+				
+				items.push(completionItem);
+			}
+		}
+	}
 }
 
 function convertEnvRecordToArray(env: Record<string, string>): EnvironmentVariable[] {
