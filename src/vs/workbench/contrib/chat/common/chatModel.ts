@@ -20,13 +20,12 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatClearToPreviousToolInvocation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext, ChatResponseClearToPreviousToolInvocationReason } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
@@ -118,6 +117,7 @@ export type IChatProgressHistoryResponseContent =
 	| IChatNotebookEditGroup
 	| IChatConfirmation
 	| IChatExtensionsContent
+	| IChatThinkingPart
 	| IChatPullRequestContent;
 
 /**
@@ -365,6 +365,7 @@ class AbstractResponse implements IResponse {
 				case 'undoStop':
 				case 'prepareToolInvocation':
 				case 'elicitation':
+				case 'thinking':
 				case 'multiDiffData':
 					// Ignore
 					continue;
@@ -516,6 +517,20 @@ export class Response extends AbstractResponse implements IDisposable {
 				// Don't modify the current object, since it's being diffed by the renderer
 				const idx = this._responseParts.indexOf(lastResponsePart);
 				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
+			}
+			this._updateRepr(quiet);
+		} else if (progress.kind === 'thinking') {
+
+			// TODO: @justschen merge thinking and markdown handling
+			const lastResponsePart = this._responseParts
+				.filter(p => p.kind !== 'textEditGroup')
+				.at(-1);
+
+			if (!lastResponsePart || lastResponsePart.kind !== 'thinking' || !canMergeMarkdownStrings(new MarkdownString(lastResponsePart.value), new MarkdownString(progress.value))) {
+				this._responseParts.push(progress);
+			} else {
+				const idx = this._responseParts.indexOf(lastResponsePart);
+				this._responseParts[idx] = { ...lastResponsePart, value: appendMarkdownString(new MarkdownString(lastResponsePart.value), new MarkdownString(progress.value)).value };
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
@@ -974,12 +989,6 @@ export interface IChatModel extends IDisposable {
 	setCustomTitle(title: string): void;
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
-}
-
-export const IChatModelService = createDecorator<IChatModelService>('chatModelService');
-
-export interface IChatModelService {
-	readonly _serviceBrand: undefined;
 }
 
 export interface ISerializableChatsData {
@@ -1736,6 +1745,13 @@ export class ChatModel extends Disposable implements IChatModel {
 								return item.treeData;
 							} else if (item.kind === 'markdownContent') {
 								return item.content;
+							} else if (item.kind === 'thinking') {
+								return {
+									kind: 'thinking',
+									value: item.value,
+									id: item.id,
+									metadata: item.metadata
+								};
 							} else {
 								return item as any; // TODO
 							}

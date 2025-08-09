@@ -10,7 +10,6 @@ import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/
 export interface IQuickTreeFilterData {
 	readonly labelHighlights?: IMatch[];
 	readonly descriptionHighlights?: IMatch[];
-	readonly detailHighlights?: IMatch[];
 }
 
 export function getParentNodeState(parentChildren: ITreeNode<IQuickTreeItem | null, IQuickTreeFilterData>[] | IObjectTreeElement<IQuickTreeItem>[]): boolean | 'partial' {

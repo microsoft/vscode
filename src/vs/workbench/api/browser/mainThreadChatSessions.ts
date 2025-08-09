@@ -5,8 +5,8 @@
 
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IObservable, observableValue, autorun } from '../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -290,8 +290,11 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 
 @extHostNamedCustomer(MainContext.MainThreadChatSessions)
 export class MainThreadChatSessions extends Disposable implements MainThreadChatSessionsShape {
-	private readonly _itemProvidersRegistrations = this._register(new DisposableMap<number>());
-	private readonly _contentProvidersRegisterations = this._register(new DisposableMap<number>());
+	private readonly _itemProvidersRegistrations = this._register(new DisposableMap<number, IDisposable & {
+		readonly provider: IChatSessionItemProvider;
+		readonly onDidChangeItems: Emitter<void>;
+	}>());
+	private readonly _contentProvidersRegistrations = this._register(new DisposableMap<number>());
 
 	private readonly _activeSessions = new Map<string, ObservableChatSession>();
 	private readonly _sessionDisposables = new Map<string, IDisposable>();
@@ -313,17 +316,25 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
 		// Register the provider handle - this tracks that a provider exists
+		const disposables = new DisposableStore();
+		const changeEmitter = disposables.add(new Emitter<void>());
+
 		const provider: IChatSessionItemProvider = {
 			chatSessionType,
+			onDidChangeChatSessionItems: changeEmitter.event,
 			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
 		};
+		disposables.add(this._chatSessionsService.registerChatSessionItemProvider(provider));
 
-		this._itemProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionItemProvider(provider));
+		this._itemProvidersRegistrations.set(handle, {
+			dispose: () => disposables.dispose(),
+			provider,
+			onDidChangeItems: changeEmitter,
+		});
 	}
 
-	$onDidChangeChatSessionItems(chatSessionType: string): void {
-		// Notify the provider that its chat session items have changed
-		this._chatSessionsService.notifySessionItemsChange(chatSessionType);
+	$onDidChangeChatSessionItems(handle: number): void {
+		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();
 	}
 
 	private async _provideChatSessionItems(handle: number, token: CancellationToken): Promise<IChatSessionItem[]> {
@@ -378,15 +389,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void {
 		const provider: IChatSessionContentProvider = {
-			chatSessionType,
 			provideChatSessionContent: (id, token) => this._provideChatSessionContent(handle, id, token)
 		};
 
-		this._contentProvidersRegisterations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(provider));
+		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionType, provider));
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {
-		this._contentProvidersRegisterations.deleteAndDispose(handle);
+		this._contentProvidersRegistrations.deleteAndDispose(handle);
 		// dispose all sessions from this provider and clean up its disposables
 		for (const [key, session] of this._activeSessions) {
 			if (session.providerHandle === handle) {

@@ -7626,10 +7626,15 @@ declare namespace monaco.languages {
 	export type LifetimeSummary = {
 		requestUuid: string;
 		partiallyAccepted: number;
+		partiallyAcceptedCountSinceOriginal: number;
+		partiallyAcceptedRatioSinceOriginal: number;
+		partiallyAcceptedCharactersSinceOriginal: number;
 		shown: boolean;
 		shownDuration: number;
 		shownDurationUncollapsed: number;
 		timeUntilShown: number | undefined;
+		timeUntilProviderRequest: number;
+		timeUntilProviderResponse: number;
 		editorType: string;
 		viewKind: string | undefined;
 		error: string | undefined;
@@ -8385,7 +8390,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface CodeLensList {
-		lenses: CodeLens[];
+		readonly lenses: readonly CodeLens[];
 		dispose?(): void;
 	}
 

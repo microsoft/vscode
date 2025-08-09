@@ -138,7 +138,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._evaluateAvailability();
 		}));
 	}
-	public registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
+
+	private registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
 		if (this._contributions.has(contribution.type)) {
 			this._logService.warn(`Chat session contribution with id '${contribution.type}' is already registered.`);
 			return { dispose: () => { } };
@@ -279,13 +280,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return disposable;
 	}
 
-	getChatSessionContributions(): IChatSessionsExtensionPoint[] {
+	getAllChatSessionContributions(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values()).filter(contribution =>
 			this._isContributionAvailable(contribution)
 		);
 	}
 
-	getChatSessionItemProviders(): IChatSessionItemProvider[] {
+	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
 		return [...this._itemsProviders.values()].filter(provider => {
 			// Check if the provider's corresponding contribution is available
 			const contribution = this._contributions.get(provider.chatSessionType);
@@ -307,10 +308,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
 
 		return this._itemsProviders.has(chatViewType);
-	}
-
-	public notifySessionItemsChange(chatSessionType: string): void {
-		this._onDidChangeSessionItems.fire(chatSessionType);
 	}
 
 	async canResolveContentProvider(chatViewType: string) {
@@ -349,8 +346,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._itemsProviders.set(chatSessionType, provider);
 		this._onDidChangeItemsProviders.fire(provider);
 
+		const disposables = new DisposableStore();
+		disposables.add(provider.onDidChangeChatSessionItems(() => {
+			this._onDidChangeSessionItems.fire(chatSessionType);
+		}));
+
 		return {
 			dispose: () => {
+				disposables.dispose();
+
 				const provider = this._itemsProviders.get(chatSessionType);
 				if (provider) {
 					this._itemsProviders.delete(chatSessionType);
@@ -360,15 +364,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	registerChatSessionContentProvider(provider: IChatSessionContentProvider): IDisposable {
-		this._contentProviders.set(provider.chatSessionType, provider);
+	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
+		this._contentProviders.set(chatSessionType, provider);
 		return {
 			dispose: () => {
-				this._contentProviders.delete(provider.chatSessionType);
+				this._contentProviders.delete(chatSessionType);
 
 				// Remove all sessions that were created by this provider
 				for (const [key, session] of this._sessions) {
-					if (session.chatSessionType === provider.chatSessionType) {
+					if (session.chatSessionType === chatSessionType) {
 						session.dispose();
 						this._sessions.delete(key);
 					}
@@ -406,10 +410,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _onWillDisposeSession(session: ChatSession, chatSessionType: string, id: string): void {
 		const sessionKey = `${chatSessionType}_${id}`;
 		this._sessions.delete(sessionKey);
-	}
-
-	public get hasChatSessionItemProviders(): boolean {
-		return this._itemsProviders.size > 0;
 	}
 }
 

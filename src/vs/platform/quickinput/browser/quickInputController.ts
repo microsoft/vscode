@@ -546,7 +546,9 @@ export class QuickInputController extends Disposable {
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
-			input.sortByLabel = !!options.sortByLabel;
+			if (options.sortByLabel !== undefined) {
+				input.sortByLabel = options.sortByLabel;
+			}
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
@@ -881,6 +883,7 @@ export class QuickInputController extends Disposable {
 			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
 			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.list.style(this.styles.list);
+			this.ui.tree.tree.style(this.styles.list);
 
 			const content: string[] = [];
 			if (this.styles.pickerGroup.pickerGroupBorder) {

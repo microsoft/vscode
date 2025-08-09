@@ -147,13 +147,20 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderedMarkdown = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
 	}
 
-	const htmlParser = new DOMParser();
-	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown(renderedMarkdown, markdown.isTrusted ?? false, options.sanitizerConfig) as unknown as string, 'text/html');
+	const renderedContent = document.createElement('div');
+	const sanitizerConfig = getDomSanitizerConfig(markdown.isTrusted ?? false, options.sanitizerConfig ?? {});
+	domSanitize.safeSetInnerHtml(renderedContent, renderedMarkdown, sanitizerConfig);
 
-	rewriteRenderedLinks(markdown, options, markdownHtmlDoc.body);
+	// Rewrite links and images before potentially inserting them into the real dom
+	rewriteRenderedLinks(markdown, options, renderedContent);
 
-	const element = target ?? document.createElement('div');
-	element.innerHTML = sanitizeRenderedMarkdown(markdownHtmlDoc.body.innerHTML, markdown.isTrusted ?? false, options.sanitizerConfig) as unknown as string;
+	let outElement: HTMLElement;
+	if (target) {
+		outElement = target;
+		DOM.reset(target, ...renderedContent.children);
+	} else {
+		outElement = renderedContent;
+	}
 
 	if (codeBlocks.length > 0) {
 		Promise.all(codeBlocks).then((tuples) => {
@@ -161,7 +168,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				return;
 			}
 			const renderedElements = new Map(tuples);
-			const placeholderElements = element.querySelectorAll<HTMLDivElement>(`div[data-code]`);
+			const placeholderElements = outElement.querySelectorAll<HTMLDivElement>(`div[data-code]`);
 			for (const placeholderElement of placeholderElements) {
 				const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
 				if (renderedElement) {
@@ -172,7 +179,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		});
 	} else if (syncCodeBlocks.length > 0) {
 		const renderedElements = new Map(syncCodeBlocks);
-		const placeholderElements = element.querySelectorAll<HTMLDivElement>(`div[data-code]`);
+		const placeholderElements = outElement.querySelectorAll<HTMLDivElement>(`div[data-code]`);
 		for (const placeholderElement of placeholderElements) {
 			const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
 			if (renderedElement) {
@@ -183,7 +190,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Signal size changes for image tags
 	if (options.asyncRenderCallback) {
-		for (const img of element.getElementsByTagName('img')) {
+		for (const img of outElement.getElementsByTagName('img')) {
 			const listener = disposables.add(DOM.addDisposableListener(img, 'load', () => {
 				listener.dispose();
 				options.asyncRenderCallback!();
@@ -193,17 +200,17 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Add event listeners for links
 	if (options.actionHandler) {
-		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
-		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
+		const onClick = options.actionHandler.disposables.add(new DomEmitter(outElement, 'click'));
+		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(outElement, 'auxclick'));
 		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
-			const mouseEvent = new StandardMouseEvent(DOM.getWindow(element), e);
+			const mouseEvent = new StandardMouseEvent(DOM.getWindow(outElement), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
 			}
 			activateLink(markdown, options, mouseEvent);
 		}));
 
-		options.actionHandler.disposables.add(DOM.addDisposableListener(element, 'keydown', (e) => {
+		options.actionHandler.disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
 			if (!keyboardEvent.equals(KeyCode.Space) && !keyboardEvent.equals(KeyCode.Enter)) {
 				return;
@@ -213,7 +220,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	// Remove/disable inputs
-	for (const input of [...element.getElementsByTagName('input')]) {
+	for (const input of [...outElement.getElementsByTagName('input')]) {
 		if (input.attributes.getNamedItem('type')?.value === 'checkbox') {
 			input.setAttribute('disabled', '');
 		} else {
@@ -227,7 +234,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	return {
-		element,
+		element: outElement,
 		dispose: () => {
 			isDisposed = true;
 			disposables.dispose();

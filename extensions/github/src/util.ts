@@ -24,23 +24,11 @@ export class DisposableStore {
 }
 
 function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	return (_target: any, key: string, descriptor: any) => {
-		let fnKey: string | null = null;
-		let fn: Function | null = null;
-
-		if (typeof descriptor.value === 'function') {
-			fnKey = 'value';
-			fn = descriptor.value;
-		} else if (typeof descriptor.get === 'function') {
-			fnKey = 'get';
-			fn = descriptor.get;
+	return function (original: any, context: ClassMethodDecoratorContext) {
+		if (context.kind === 'method' || context.kind === 'getter' || context.kind === 'setter') {
+			return decorator(original, context.name.toString());
 		}
-
-		if (!fn || !fnKey) {
-			throw new Error('not supported');
-		}
-
-		descriptor[fnKey] = decorator(fn, key);
+		throw new Error('not supported');
 	};
 }
 

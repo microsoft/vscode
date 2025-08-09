@@ -2,26 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
+import path from 'path';
+import { run } from '../esbuild-webview-common.mjs';
 
-//@ts-check
+const srcDir = path.join(import.meta.dirname, 'notebook');
+const outDir = path.join(import.meta.dirname, 'notebook-out');
 
-'use strict';
-
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/extension.ts'
-	},
-	output: {
-		libraryTarget: 'module',
-		chunkFormat: 'module',
-	},
-	externals: {
-		'vscode': 'module vscode',
-	},
-	experiments: {
-		outputModule: true
-	}
-});
+run({
+	entryPoints: [
+		path.join(srcDir, 'index.ts'),
+	],
+	srcDir,
+	outdir: outDir,
+}, process.argv);

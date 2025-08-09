@@ -191,6 +191,14 @@ export class ChatAgentResponseStream {
 					_report(dto, task);
 					return this;
 				},
+				thinkingProgress(value, id?, metadata?) {
+					throwIfDone(this.thinkingProgress);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					const part = new extHostTypes.ChatResponseThinkingProgressPart(value, id, metadata);
+					const dto = typeConvert.ChatResponseThinkingProgressPart.from(part);
+					_report(dto);
+					return this;
+				},
 				warning(value) {
 					throwIfDone(this.progress);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -296,6 +304,7 @@ export class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
 						part instanceof extHostTypes.ChatResponseExtensionsPart ||
+						part instanceof extHostTypes.ChatResponseThinkingProgressPart ||
 						part instanceof extHostTypes.ChatResponsePullRequestPart ||
 						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {
@@ -308,6 +317,9 @@ export class ChatAgentResponseStream {
 					} else if (part instanceof extHostTypes.ChatResponseProgressPart2) {
 						const dto = part.task ? typeConvert.ChatTask.from(part) : typeConvert.ChatResponseProgressPart.from(part);
 						_report(dto, part.task);
+					} else if (part instanceof extHostTypes.ChatResponseThinkingProgressPart) {
+						const dto = typeConvert.ChatResponseThinkingProgressPart.from(part);
+						_report(dto);
 					} else if (part instanceof extHostTypes.ChatResponseAnchorPart) {
 						const dto = typeConvert.ChatResponseAnchorPart.from(part);
 
@@ -811,7 +823,6 @@ class ExtHostChatAgent {
 	private _followupProvider: vscode.ChatFollowupProvider | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
-	private _helpTextVariablesPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatResultFeedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatUserActionEvent>();
@@ -906,7 +917,6 @@ class ExtHostChatAgent {
 					themeIcon: this._iconPath instanceof extHostTypes.ThemeIcon ? this._iconPath : undefined,
 					hasFollowups: this._followupProvider !== undefined,
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
-					helpTextVariablesPrefix: (!this._helpTextVariablesPrefix || typeof this._helpTextVariablesPrefix === 'string') ? this._helpTextVariablesPrefix : typeConvert.MarkdownString.from(this._helpTextVariablesPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
 					requester: this._requester,
@@ -949,15 +959,6 @@ class ExtHostChatAgent {
 			set helpTextPrefix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._helpTextPrefix = v;
-				updateMetadataSoon();
-			},
-			get helpTextVariablesPrefix() {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				return that._helpTextVariablesPrefix;
-			},
-			set helpTextVariablesPrefix(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				that._helpTextVariablesPrefix = v;
 				updateMetadataSoon();
 			},
 			get helpTextPostfix() {
