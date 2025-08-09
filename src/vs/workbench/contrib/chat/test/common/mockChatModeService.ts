@@ -23,7 +23,11 @@ export class MockChatModeService implements IChatModeService {
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		return this.getFlatModes().find(mode => mode.name === name);
+		const builtIn = this._modes.builtin.find(mode => mode.kind === name);
+		if (builtIn) {
+			return builtIn;
+		}
+		return this._modes.custom.find(mode => mode.name === name);
 	}
 
 	private getFlatModes(): IChatMode[] {
