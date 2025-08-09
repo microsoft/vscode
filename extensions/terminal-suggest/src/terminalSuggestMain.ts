@@ -279,9 +279,10 @@ export async function activate(context: vscode.ExtensionContext) {
 					terminal.name,
 					token
 				),
-				createTimeoutPromise(300, undefined)
+				createTimeoutPromise(5000, undefined)
 			]);
 			if (!result) {
+				console.debug('#terminalCompletions Timed out fetching completions from specs');
 				return;
 			}
 
@@ -409,7 +410,7 @@ export async function getCompletionItemsFromSpecs(
 	token?: vscode.CancellationToken,
 	executeExternals?: IFigExecuteExternals,
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
-	const items: vscode.TerminalCompletionItem[] = [];
+	let items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
 	let hasCurrentArg = false;
@@ -431,7 +432,7 @@ export async function getCompletionItemsFromSpecs(
 		foldersRequested ||= result.foldersRequested;
 		fileExtensions = result.fileExtensions;
 		if (result.items) {
-			items.push(...result.items);
+			items = items.concat(result.items);
 		}
 	}
 
