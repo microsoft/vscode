@@ -3118,17 +3118,11 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
-export interface IChatRequestTurnDto {
-
-}
+export type IChatSessionHistoryItemDto = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgressDto[] };
 
 export interface ChatSessionDto {
 	id: string;
-
-	history: Array<
-		| { type: 'request'; prompt: string }
-		| { type: 'response'; parts: IChatProgressDto[] }>;
-
+	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
 }

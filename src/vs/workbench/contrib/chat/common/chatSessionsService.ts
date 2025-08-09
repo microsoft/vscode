@@ -6,6 +6,7 @@
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -32,15 +33,14 @@ export interface IChatSessionItem {
 	} | ThemeIcon;
 }
 
+export type IChatSessionHistoryItem = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgress[] };
+
 export interface ChatSession extends IDisposable {
-	readonly id: string;
+	readonly sessionId: string;
 	readonly onWillDispose: Event<void>;
-
-	history: Array<
-		| { type: 'request'; prompt: string }
-		| { type: 'response'; parts: IChatProgress[] }>;
-
-	readonly progressEvent?: Event<IChatProgress[]>;
+	history: Array<IChatSessionHistoryItem>;
+	readonly progressObs?: IObservable<IChatProgress[]>;
+	readonly isCompleteObs?: IObservable<boolean>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 
 	requestHandler?: (
