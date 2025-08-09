@@ -299,7 +299,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 			}
 
-			// TODO: Surface reason on tool part https://github.com/microsoft/vscode/issues/256780
+			// Log detailed auto approval reasoning
 			for (const reason of autoApproveReasons) {
 				this._logService.info(`- ${reason}`);
 			}
