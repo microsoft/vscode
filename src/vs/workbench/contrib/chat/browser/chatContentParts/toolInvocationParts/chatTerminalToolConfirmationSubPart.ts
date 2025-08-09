@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
@@ -15,12 +16,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -75,6 +76,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITextModelService textModelService: ITextModelService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super(toolInvocation);
 
@@ -104,11 +106,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				data: false,
 				isSecondary: true,
 				tooltip: cancelTooltip,
-			}];
-		const renderedMessage = this._register(this.renderer.render(
-			typeof message === 'string' ? new MarkdownString(message) : message,
-			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
-		));
+			}
+		];
 		const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 			hideToolbar: true,
 			reserveWidth: 19,
@@ -163,22 +162,26 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this._register(model.onDidChangeContent(e => {
 			terminalData.commandLine.userEdited = model.getValue();
 		}));
-		const element = $('');
-		dom.append(element, editor.object.element);
-		dom.append(element, renderedMessage.element);
+		const messageElement = $('');
+		dom.append(messageElement, editor.object.element);
+		this._register(hoverService.setupDelayedHover(messageElement, {
+			content: message,
+			position: { hoverPosition: HoverPosition.BELOW },
+			appearance: { showPointer: true }
+		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget2,
 			this.context.container,
 			{
 				title,
 				icon: Codicon.terminal,
-				message: element,
+				message: messageElement,
 				buttons
 			},
 		));
 
 		if (disclaimer) {
-			this._appendMarkdownPart(element, disclaimer, codeBlockRenderOptions);
+			this._appendMarkdownPart(messageElement, disclaimer, codeBlockRenderOptions);
 		}
 
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
@@ -236,7 +239,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this._onNeedsRerender.fire();
 		});
 
-		// const
 		this.domNode = confirmWidget.domNode;
 	}
 
