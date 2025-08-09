@@ -20,7 +20,10 @@ import { IImageResizeService } from '../../../../platform/imageResize/common/ima
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
@@ -196,6 +199,9 @@ class McpToolImplementation implements IToolImpl {
 		@IProductService private readonly _productService: IProductService,
 		@IFileService private readonly _fileService: IFileService,
 		@IImageResizeService private readonly _imageResizeService: IImageResizeService,
+		@IAuthenticationQueryService private authenticationQueryService: IAuthenticationQueryService,
+		@IAuthenticationService private authenticationService: IAuthenticationService,
+		@ISharedWebContentExtractorService private sharedWebContentExtractorService: ISharedWebContentExtractorService
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext): Promise<IPreparedToolInvocation> {
@@ -261,7 +267,25 @@ class McpToolImplementation implements IToolImpl {
 					} catch {
 						finalData = decodeBase64(value);
 					}
-					result.content.push({ kind: 'data', value: { mimeType, data: finalData } });
+					const chatProviderId = this._productService.defaultChatAgent?.provider?.default?.id;
+					const chatExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
+
+					let token: string | undefined;
+
+					if (chatExtensionId && chatProviderId) {
+						const preferredAccountName = this.authenticationQueryService.extension(chatExtensionId).provider(chatProviderId).getPreferredAccount();
+						const sessions = await this.authenticationService.getSessions(chatProviderId);
+						token = sessions?.find(s => s.account.label === preferredAccountName)?.accessToken;
+					}
+
+					try {
+						const uri = await this.sharedWebContentExtractorService.chatImageUploader(finalData, 'mcp_tool_result.png', mimeType, token);
+						const encoder = new TextEncoder();
+						const encoded = VSBuffer.wrap(encoder.encode(uri.toString()));
+						result.content.push({ kind: 'data', value: { mimeType, data: encoded } });
+					} catch (error) {
+						result.content.push({ kind: 'data', value: { mimeType, data: finalData } });
+					}
 				}
 			};
 
@@ -293,7 +317,7 @@ class McpToolImplementation implements IToolImpl {
 							kind: 'data',
 							value: {
 								mimeType: item.mimeType,
-								data: await this._fileService.readFile(uri).then(f => f.value).catch(() => VSBuffer.alloc(0)),
+								data: await this._fileService.readFile(uri).then(f => f.value).catch(() => VSBuffer.alloc(0))
 							}
 						});
 					} else {

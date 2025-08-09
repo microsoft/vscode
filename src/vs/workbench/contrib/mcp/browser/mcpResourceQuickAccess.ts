@@ -97,7 +97,7 @@ export class McpResourcePickHelper {
 	}
 
 	private async _resourceToAttachment(resource: { uri: URI; name: string; mimeType?: string }): Promise<IChatRequestVariableEntry | undefined> {
-		const asImage = await this._chatAttachmentResolveService.resolveImageEditorAttachContext(resource.uri, undefined, resource.mimeType);
+		const asImage = await this._chatAttachmentResolveService.resolveImageEditorAttachContext(resource.uri, undefined, undefined, resource.mimeType);
 		if (asImage) {
 			return asImage;
 		}

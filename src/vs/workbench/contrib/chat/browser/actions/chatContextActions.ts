@@ -44,6 +44,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
+import { IChatAttachmentResolveService } from '../chatAttachmentResolveService.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
 import { resizeImage } from '../imageUtils.js';
@@ -494,7 +495,7 @@ export class AttachContextAction extends Action2 {
 	private async _handleQPPick(accessor: ServicesAccessor, widget: IChatWidget, isInBackground: boolean, pick: IQuickPickServicePickItem) {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
-
+		const chatAttachmentResolveService = accessor.get(IChatAttachmentResolveService);
 		const toAttach: IChatRequestVariableEntry[] = [];
 
 		if (isIQuickPickItemWithResource(pick) && pick.resource) {
@@ -502,16 +503,27 @@ export class AttachContextAction extends Action2 {
 				// checks if the file is an image
 				if (URI.isUri(pick.resource)) {
 					// read the image and attach a new file context.
-					const readFile = await fileService.readFile(pick.resource);
-					const resizedImage = await resizeImage(readFile.value.buffer);
-					toAttach.push({
-						id: pick.resource.toString(),
-						name: pick.label,
-						fullName: pick.label,
-						value: resizedImage,
-						kind: 'image',
-						references: [{ reference: pick.resource, kind: 'reference' }]
-					});
+					const uploadedImage = await chatAttachmentResolveService.resolveImageEditorAttachContext(
+						pick.resource,
+						(updatedEntry) => {
+							widget.attachmentModel.updateContext([], [updatedEntry]);
+						}
+					);
+
+					if (uploadedImage) {
+						toAttach.push(uploadedImage);
+					} else {
+						const readFile = await fileService.readFile(pick.resource);
+						const resizedImage = await resizeImage(readFile.value.buffer);
+						toAttach.push({
+							id: pick.resource.toString(),
+							name: pick.label,
+							fullName: pick.label,
+							value: resizedImage,
+							kind: 'image',
+							references: [{ reference: pick.resource, kind: 'reference' }]
+						});
+					}
 				}
 			} else {
 				let omittedState = OmittedState.NotOmitted;

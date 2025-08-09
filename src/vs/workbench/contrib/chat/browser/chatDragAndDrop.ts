@@ -255,7 +255,9 @@ export class ChatDragAndDrop extends Themable {
 		const editorDragData = extractEditorsDropData(e);
 		if (editorDragData.length > 0) {
 			return coalesce(await Promise.all(editorDragData.map(editorInput => {
-				return this.chatAttachmentResolveService.resolveEditorAttachContext(editorInput);
+				return this.chatAttachmentResolveService.resolveEditorAttachContext(editorInput, (updatedEntry) => {
+					this.attachmentModel.updateContext([], [updatedEntry]);
+				});
 			})));
 		}
 
@@ -264,7 +266,9 @@ export class ChatDragAndDrop extends Themable {
 			const uriList = UriList.parse(internal);
 			if (uriList.length) {
 				return coalesce(await Promise.all(
-					uriList.map(uri => this.chatAttachmentResolveService.resolveEditorAttachContext({ resource: URI.parse(uri) }))
+					uriList.map(uri => this.chatAttachmentResolveService.resolveEditorAttachContext({ resource: URI.parse(uri) }, (updatedEntry) => {
+						this.attachmentModel.updateContext([], [updatedEntry]);
+					}))
 				));
 			}
 		}
@@ -355,7 +359,10 @@ export class ChatDragAndDrop extends Themable {
 			imageTransferData.push(...imageTransferDataFromUrl.filter(data => !!data));
 		}
 
-		return await this.chatAttachmentResolveService.resolveImageAttachContext(imageTransferData);
+		return await this.chatAttachmentResolveService.resolveImageAttachContext(imageTransferData, (updatedEntry) => {
+			// Update the attachment when upload completes
+			this.attachmentModel.updateContext([], [updatedEntry]);
+		});
 	}
 
 	private setOverlay(target: HTMLElement, type: ChatDragAndDropType | undefined): void {
