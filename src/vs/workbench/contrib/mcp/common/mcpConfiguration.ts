@@ -221,10 +221,10 @@ export const mcpServerSchema: IJSONSchema = {
 
 export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContribution[]> = {
 	extensionPoint: 'mcpServerDefinitionProviders',
-	activationEventsGenerator(contribs, result) {
+	activationEventsGenerator: function* (contribs) {
 		for (const contrib of contribs) {
 			if (contrib.id) {
-				result.push(mcpActivationEvent(contrib.id));
+				yield mcpActivationEvent(contrib.id);
 			}
 		}
 	},
