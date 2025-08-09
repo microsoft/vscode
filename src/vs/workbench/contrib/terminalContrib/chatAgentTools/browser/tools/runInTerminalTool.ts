@@ -83,6 +83,7 @@ export const RunInTerminalToolData: IToolData = {
 	].join('\n'),
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
 	source: ToolDataSource.Internal,
+	icon: Codicon.terminal,
 	inputSchema: {
 		type: 'object',
 		properties: {

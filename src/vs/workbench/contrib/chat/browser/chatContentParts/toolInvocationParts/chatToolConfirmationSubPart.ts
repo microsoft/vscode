@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { count } from '../../../../../../base/common/strings.js';
@@ -29,7 +30,7 @@ import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { ChatConfirmationWidget, ChatCustomConfirmationWidget2, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
@@ -104,7 +105,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				tooltip: cancelTooltip
 			}];
 
-		let confirmWidget: ChatConfirmationWidget | ChatCustomConfirmationWidget;
+		let confirmWidget: ChatConfirmationWidget | ChatCustomConfirmationWidget2;
 		if (typeof message === 'string') {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatConfirmationWidget,
@@ -272,10 +273,18 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				elements.disclaimer.remove();
 			}
 
+			const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 			confirmWidget = this._register(this.instantiationService.createInstance(
-				ChatCustomConfirmationWidget,
+				ChatCustomConfirmationWidget2,
 				this.context.container,
-				{ title, subtitle: toolInvocation.originMessage, buttons, message: elements.root, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } },
+				{
+					title,
+					icon: tool?.icon && 'id' in tool.icon ? tool.icon : Codicon.tools,
+					subtitle: toolInvocation.originMessage,
+					buttons,
+					message: elements.root,
+					toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' }
+				},
 			));
 		}
 
