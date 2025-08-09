@@ -259,11 +259,12 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 	// Ask for confirmation if there are any edits
 	const entries = currentEditingSession.entries.get();
 	if (entries.length > 0) {
+		const sourceLabel = currentEditingSession?.sourceLabel ?? localize('agentEditsLabel', 'Agent Edits');
 		const confirmation = await dialogService.confirm({
 			title: localize('chat.editing.discardAll.confirmation.title', "Undo all edits?"),
 			message: entries.length === 1
-				? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made by {0} in {1}. Do you want to proceed?", 'Copilot Edits', basename(entries[0].modifiedURI))
-				: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made by {0} in {1} files. Do you want to proceed?", 'Copilot Edits', entries.length),
+				? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made by {0} in {1}. Do you want to proceed?", sourceLabel, basename(entries[0].modifiedURI))
+				: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made by {0} in {1} files. Do you want to proceed?", sourceLabel, entries.length),
 			primaryButton: localize('chat.editing.discardAll.confirmation.primaryButton', "Yes"),
 			type: 'info'
 		});
