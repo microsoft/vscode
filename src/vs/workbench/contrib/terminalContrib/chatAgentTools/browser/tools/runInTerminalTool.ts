@@ -28,7 +28,7 @@ import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerm
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
 import { getOutput } from '../bufferOutputPolling.js';
-import { CommandLineAutoApprover, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
+import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
@@ -39,6 +39,8 @@ import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { OutputMonitor } from '../outputMonitor.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolSubPart.js';
+import type { SingleOrMany } from '../../../../../../base/common/types.js';
+import { asArray } from '../../../../../../base/common/arrays.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -253,19 +255,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 			}
 
+			function formatRuleLinks(result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string {
+				return asArray(result).map(e => {
+					return `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget} "${localize('ruleTooltip', 'View rule in settings')}")`;
+				}).join(', ');
+			}
 			if (isAutoApproved) {
 				switch (autoApproveReason) {
 					case 'commandLine': {
 						if (commandLineResult.rule) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', `[\`${commandLineResult.rule.sourceText}\`](settings_${commandLineResult.rule.sourceTarget})`)}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult))}_`);
 						}
 						break;
 					}
 					case 'subCommand': {
 						if (subCommandResults.length === 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(subCommandResults))}_`);
 						} else if (subCommandResults.length > 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', subCommandResults.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', formatRuleLinks(subCommandResults))}_`);
 						}
 						break;
 					}
@@ -274,16 +281,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				switch (autoApproveReason) {
 					case 'commandLine': {
 						if (commandLineResult.rule) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', `[\`${commandLineResult.rule.sourceText}\`](settings_${commandLineResult.rule.sourceTarget})`)}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(commandLineResult))}_`);
 						}
 						break;
 					}
 					case 'subCommand': {
 						const deniedRules = subCommandResults.filter(e => e.result === 'denied');
 						if (deniedRules.length === 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', deniedRules.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(deniedRules))}_`);
 						} else if (deniedRules.length > 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', deniedRules.map(e => `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget})`).join(', '))}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(deniedRules))}_`);
 						}
 						break;
 					}
