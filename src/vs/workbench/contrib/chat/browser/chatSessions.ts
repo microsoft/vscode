@@ -57,9 +57,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -1024,46 +1021,4 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	order: 1,
 	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
 });
-
-// Test menu contribution for chat session items
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
-	command: {
-		id: 'workbench.action.chat.testSessionCommand',
-		title: nls.localize2('chatSession.testCommand', "Test Session Command"),
-		icon: Codicon.gear
-	},
-	group: 'inline',
-	order: 1,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.sessionType.isEqualTo('local'),
-		ChatContextKeys.sessionId.notEqualsTo('')
-	),
-});
-
-// Test command implementation for chat session items
-class TestChatSessionCommand extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.testSessionCommand',
-			title: nls.localize2('chatSession.testCommand', "Test Session Command"),
-			f1: false, // Don't show in command palette
-		});
-	}
-
-	async run(accessor: ServicesAccessor, session?: IChatSessionItem): Promise<void> {
-		const notificationService = accessor.get(INotificationService);
-		
-		if (session) {
-			notificationService.info(
-				nls.localize('chatSession.testCommandExecuted', "Test command executed for session: {0} (ID: {1})", session.label, session.id)
-			);
-		} else {
-			notificationService.info(
-				nls.localize('chatSession.testCommandNoSession', "Test command executed without session context")
-			);
-		}
-	}
-}
-
-registerAction2(TestChatSessionCommand);
 
