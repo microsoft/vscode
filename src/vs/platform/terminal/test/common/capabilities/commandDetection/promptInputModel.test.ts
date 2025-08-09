@@ -947,6 +947,47 @@ suite('PromptInputModel', () => {
 					'|'.replaceAll('\n', '\u23CE')
 				);
 			});
+
+			test('serialize and deserialize preserves trailing whitespace', async () => {
+				// Setup a prompt with trailing whitespace
+				await writePromise('$ ');
+				fireCommandStart();
+				await assertPromptInput('|');
+
+				// Type a command with trailing space
+				xterm.input('ls ', true);
+				await writePromise('ls ');
+				await assertPromptInput('ls |');
+
+				// Serialize the current state
+				const serialized = promptInputModel.serialize();
+
+				// Verify serialized state contains trailing whitespace
+				strictEqual(serialized.modelState.value, 'ls ');
+				strictEqual(serialized.modelState.cursorIndex, 3);
+
+				// Test deserialization by modifying the existing model state
+				// (This simulates what happens during window reload)
+				const changeEventFired = new Promise<void>(resolve => {
+					const disposable = promptInputModel.onDidChangeInput(() => {
+						disposable.dispose();
+						resolve();
+					});
+				});
+
+				// Clear state and then deserialize
+				promptInputModel['_value'] = '';
+				promptInputModel['_cursorIndex'] = 0;
+				promptInputModel.deserialize(serialized);
+
+				// Wait for change event
+				await changeEventFired;
+
+				// After deserialization, trailing whitespace should be preserved
+				strictEqual(promptInputModel.value, 'ls ');
+				strictEqual(promptInputModel.cursorIndex, 3);
+				strictEqual(promptInputModel.getCombinedString(), 'ls |');
+			});
 		});
 	});
 });

@@ -198,6 +198,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._lastPromptLine = serialized.lastPromptLine;
 		this._continuationPrompt = serialized.continuationPrompt;
 		this._lastUserInput = serialized.lastUserInput;
+		
+		// Fire change event to notify listeners that the state has been restored
+		this._onDidChangeInput.fire(this._createStateObject());
+		
+		// Sync to ensure state is consistent with current terminal buffer
+		this._sync();
 	}
 
 	private _handleCommandStart(command: { marker: IMarker }) {
