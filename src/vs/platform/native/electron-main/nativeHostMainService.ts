@@ -396,41 +396,34 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					return;
 				}
 			}
-
-			// Different source, delete it first
-			await fs.promises.unlink(source);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				throw error; // throw on any error but file not found
 			}
 		}
 
+		await this.installShellCommandWithPrivileges(windowId, source, target);
+	}
+
+	private async installShellCommandWithPrivileges(windowId: number | undefined, source: string, target: string): Promise<void> {
+		const { response } = await this.showMessageBox(windowId, {
+			type: 'info',
+			message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
+			buttons: [
+				localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+				localize('cancel', "Cancel")
+			]
+		});
+
+		if (response === 1 /* Cancel */) {
+			throw new CancellationError();
+		}
+
 		try {
-			await fs.promises.symlink(target, source);
+			const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
+			await promisify(exec)(command);
 		} catch (error) {
-			if (error.code !== 'EACCES' && error.code !== 'ENOENT') {
-				throw error;
-			}
-
-			const { response } = await this.showMessageBox(windowId, {
-				type: 'info',
-				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
-				buttons: [
-					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-					localize('cancel', "Cancel")
-				]
-			});
-
-			if (response === 1 /* Cancel */) {
-				throw new CancellationError();
-			}
-
-			try {
-				const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
-				await promisify(exec)(command);
-			} catch (error) {
-				throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
-			}
+			throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
 		}
 	}
 
