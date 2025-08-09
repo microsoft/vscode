@@ -7,7 +7,7 @@ import { coalesce, equals, isNonEmptyArray } from '../../../../base/common/array
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { illegalArgument, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, wrapInStdDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -116,7 +116,7 @@ export async function getCodeActions(
 		trigger: trigger.type,
 	};
 
-	const cts = new TextModelCancellationTokenSource(model, token);
+	using cts = new TextModelCancellationTokenSource(model, token);
 	// if the trigger is auto (autosave, lightbulb, etc), we should exclude notebook codeActions
 	const excludeNotebookCodeActions = (trigger.type === languages.CodeActionTriggerType.Auto);
 	const providers = getCodeActionProviders(registry, model, (excludeNotebookCodeActions) ? notebookFilter : filter);
@@ -152,12 +152,12 @@ export async function getCodeActions(
 		}
 	});
 
-	const listener = registry.onDidChange(() => {
+	using _ = wrapInStdDisposable(registry.onDidChange(() => {
 		const newProviders = registry.all(model);
 		if (!equals(newProviders, providers)) {
 			cts.cancel();
 		}
-	});
+	}));
 
 	try {
 		const actions = await Promise.all(promises);
@@ -172,9 +172,6 @@ export async function getCodeActions(
 	} catch (err) {
 		disposables.dispose();
 		throw err;
-	} finally {
-		listener.dispose();
-		cts.dispose();
 	}
 }
 

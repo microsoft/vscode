@@ -216,49 +216,45 @@ const defaultDomPurifyConfig = Object.freeze({
  * @returns A sanitized string of html.
  */
 export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): TrustedHTML {
-	const store = new DisposableStore();
-	try {
-		const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
+	using store = new DisposableStore();
+	const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
 
-		if (config?.allowedTags) {
-			if (config.allowedTags.override) {
-				resolvedConfig.ALLOWED_TAGS = [...config.allowedTags.override];
-			}
-
-			if (config.allowedTags.augment) {
-				resolvedConfig.ALLOWED_TAGS = [...(resolvedConfig.ALLOWED_TAGS ?? []), ...config.allowedTags.augment];
-			}
+	if (config?.allowedTags) {
+		if (config.allowedTags.override) {
+			resolvedConfig.ALLOWED_TAGS = [...config.allowedTags.override];
 		}
 
-		if (config?.allowedAttributes) {
-			if (config.allowedAttributes.override) {
-				resolvedConfig.ALLOWED_ATTR = [...config.allowedAttributes.override];
-			}
-
-			if (config.allowedAttributes.augment) {
-				resolvedConfig.ALLOWED_ATTR = [...(resolvedConfig.ALLOWED_ATTR ?? []), ...config.allowedAttributes.augment];
-			}
+		if (config.allowedTags.augment) {
+			resolvedConfig.ALLOWED_TAGS = [...(resolvedConfig.ALLOWED_TAGS ?? []), ...config.allowedTags.augment];
 		}
-
-		store.add(hookDomPurifyHrefAndSrcSanitizer(
-			config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
-			config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https]));
-
-		if (config?.replaceWithPlaintext) {
-			store.add(addDompurifyHook('uponSanitizeElement', replaceWithPlainTextHook));
-		}
-
-		if (config?._do_not_use_hooks?.uponSanitizeAttribute) {
-			store.add(addDompurifyHook('uponSanitizeAttribute', config._do_not_use_hooks.uponSanitizeAttribute));
-		}
-
-		return dompurify.sanitize(untrusted, {
-			...resolvedConfig,
-			RETURN_TRUSTED_TYPE: true
-		});
-	} finally {
-		store.dispose();
 	}
+
+	if (config?.allowedAttributes) {
+		if (config.allowedAttributes.override) {
+			resolvedConfig.ALLOWED_ATTR = [...config.allowedAttributes.override];
+		}
+
+		if (config.allowedAttributes.augment) {
+			resolvedConfig.ALLOWED_ATTR = [...(resolvedConfig.ALLOWED_ATTR ?? []), ...config.allowedAttributes.augment];
+		}
+	}
+
+	store.add(hookDomPurifyHrefAndSrcSanitizer(
+		config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
+		config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https]));
+
+	if (config?.replaceWithPlaintext) {
+		store.add(addDompurifyHook('uponSanitizeElement', replaceWithPlainTextHook));
+	}
+
+	if (config?._do_not_use_hooks?.uponSanitizeAttribute) {
+		store.add(addDompurifyHook('uponSanitizeAttribute', config._do_not_use_hooks.uponSanitizeAttribute));
+	}
+
+	return dompurify.sanitize(untrusted, {
+		...resolvedConfig,
+		RETURN_TRUSTED_TYPE: true
+	});
 }
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];

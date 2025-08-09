@@ -128,7 +128,7 @@ export class EditorStateCancellationTokenSource extends EditorKeybindingCancella
 /**
  * A cancellation token source that cancels when the provided model changes
  */
-export class TextModelCancellationTokenSource extends CancellationTokenSource implements IDisposable {
+export class TextModelCancellationTokenSource extends CancellationTokenSource {
 
 	private _listener: IDisposable;
 
@@ -140,5 +140,9 @@ export class TextModelCancellationTokenSource extends CancellationTokenSource im
 	override dispose() {
 		this._listener.dispose();
 		super.dispose();
+	}
+
+	[Symbol.dispose]() {
+		this.dispose();
 	}
 }
