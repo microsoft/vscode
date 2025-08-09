@@ -277,45 +277,6 @@ class ToggleChatModeAction extends Action2 {
 	}
 }
 
-export const ToggleRequestPausedActionId = 'workbench.action.chat.toggleRequestPaused';
-export class ToggleRequestPausedAction extends Action2 {
-	static readonly ID = ToggleRequestPausedActionId;
-
-	constructor() {
-		super({
-			id: ToggleRequestPausedAction.ID,
-			title: localize2('interactive.toggleRequestPausd.label', "Toggle Request Paused"),
-			category: CHAT_CATEGORY,
-			icon: Codicon.debugPause,
-			toggled: {
-				condition: ChatContextKeys.isRequestPaused,
-				icon: Codicon.play,
-				tooltip: localize('requestIsPaused', "Resume Request"),
-			},
-			tooltip: localize('requestNotPaused', "Pause Request"),
-			menu: [
-				{
-					id: MenuId.ChatExecute,
-					order: 3.5,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.canRequestBePaused,
-						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
-					),
-					group: 'navigation',
-				}]
-		});
-	}
-
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
-		const context: IChatExecuteActionContext | undefined = args[0];
-		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		widget?.togglePaused();
-	}
-}
-
 class SwitchToNextModelAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.switchToNextModel';
 
@@ -925,7 +886,6 @@ export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitWithCodebaseAction);
 	registerAction2(CreateRemoteAgentJobAction);
 	registerAction2(ToggleChatModeAction);
-	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
