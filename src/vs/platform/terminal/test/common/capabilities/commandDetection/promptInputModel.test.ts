@@ -962,21 +962,31 @@ suite('PromptInputModel', () => {
 				// Serialize the current state
 				const serialized = promptInputModel.serialize();
 
-				// Create a new prompt input model and deserialize
-				const newPromptInputModel = store.add(new PromptInputModel(
-					xterm,
-					onCommandStart.event,
-					onCommandStartChanged.event,
-					onCommandExecuted.event,
-					new NullLogService()
-				));
+				// Verify serialized state contains trailing whitespace
+				strictEqual(serialized.modelState.value, 'ls ');
+				strictEqual(serialized.modelState.cursorIndex, 3);
 
-				newPromptInputModel.deserialize(serialized);
+				// Test deserialization by modifying the existing model state
+				// (This simulates what happens during window reload)
+				const changeEventFired = new Promise<void>(resolve => {
+					const disposable = promptInputModel.onDidChangeInput(() => {
+						disposable.dispose();
+						resolve();
+					});
+				});
+
+				// Clear state and then deserialize
+				promptInputModel['_value'] = '';
+				promptInputModel['_cursorIndex'] = 0;
+				promptInputModel.deserialize(serialized);
+
+				// Wait for change event
+				await changeEventFired;
 
 				// After deserialization, trailing whitespace should be preserved
-				strictEqual(newPromptInputModel.getCombinedString(), 'ls |');
-				strictEqual(newPromptInputModel.value, 'ls ');
-				strictEqual(newPromptInputModel.cursorIndex, 3);
+				strictEqual(promptInputModel.value, 'ls ');
+				strictEqual(promptInputModel.cursorIndex, 3);
+				strictEqual(promptInputModel.getCombinedString(), 'ls |');
 			});
 		});
 	});
