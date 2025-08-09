@@ -59,7 +59,7 @@ export class InstallExtensionsTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const input = invocation.parameters as InputParams;
+		const input = invocation.input.parameters as InputParams;
 		const installed = this.extensionsWorkbenchService.local.filter(e => input.ids.some(id => areSameExtensions({ id }, e.identifier)));
 		return {
 			content: [{

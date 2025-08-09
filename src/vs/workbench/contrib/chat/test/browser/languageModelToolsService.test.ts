@@ -15,7 +15,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { IToolData, IToolImpl, IToolInvocationInput, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { IInvokeToolInput, IToolData, IToolImpl, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 
 suite('LanguageModelToolsService', () => {
@@ -154,16 +154,16 @@ suite('LanguageModelToolsService', () => {
 		const toolImpl: IToolImpl = {
 			prepareToolInvocation: async () => ({}),
 			invoke: async (invocation) => {
-				assert.strictEqual(invocation.callId, '1');
-				assert.strictEqual(invocation.toolId, 'testTool');
-				assert.deepStrictEqual(invocation.parameters, { a: 1 });
+				assert.strictEqual(invocation.input.callId, '1');
+				assert.strictEqual(invocation.input.toolId, 'testTool');
+				assert.deepStrictEqual(invocation.input.parameters, { a: 1 });
 				return { content: [{ kind: 'text', value: 'result' }] };
 			}
 		};
 
 		store.add(service.registerToolImplementation('testTool', toolImpl));
 
-		const dto: IToolInvocationInput = {
+		const dto: IInvokeToolInput = {
 			callId: '1',
 			toolId: 'testTool',
 			tokenBudget: 100,
@@ -191,9 +191,9 @@ suite('LanguageModelToolsService', () => {
 		const toolImpl: IToolImpl = {
 			prepareToolInvocation: async () => ({}),
 			invoke: async (invocation, countTokens, progress, cancelToken) => {
-				assert.strictEqual(invocation.callId, '1');
-				assert.strictEqual(invocation.toolId, 'testTool');
-				assert.deepStrictEqual(invocation.parameters, { a: 1 });
+				assert.strictEqual(invocation.input.callId, '1');
+				assert.strictEqual(invocation.input.toolId, 'testTool');
+				assert.deepStrictEqual(invocation.input.parameters, { a: 1 });
 				await toolBarrier.wait();
 				if (cancelToken.isCancellationRequested) {
 					throw new CancellationError();
@@ -207,7 +207,7 @@ suite('LanguageModelToolsService', () => {
 
 		const sessionId = 'sessionId';
 		const requestId = 'requestId';
-		const dto: IToolInvocationInput = {
+		const dto: IInvokeToolInput = {
 			callId: '1',
 			toolId: 'testTool',
 			tokenBudget: 100,

@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 import { raceCancellation } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -14,13 +15,12 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/tools.js';
+import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
-import { Lazy } from '../../../base/common/lazy.js';
 
 class Tool {
 
@@ -170,29 +170,29 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	}
 
 	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
-		const item = this._registeredTools.get(dto.toolId);
+		const item = this._registeredTools.get(dto.input.toolId);
 		if (!item) {
-			throw new Error(`Unknown tool ${dto.toolId}`);
+			throw new Error(`Unknown tool ${dto.input.toolId}`);
 		}
 
 		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
-			input: dto.parameters,
-			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
+			input: dto.input.parameters,
+			toolInvocationToken: dto.input.context as vscode.ChatParticipantToolToken | undefined,
 		};
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate')) {
-			options.chatRequestId = dto.chatRequestId;
-			options.chatSessionId = dto.context?.sessionId;
+			options.chatRequestId = dto.input.chatRequestId;
+			options.chatSessionId = dto.input.context?.sessionId;
 		}
 
-		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
-			options.model = await this.getModel(dto.modelId, item.extension);
+		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.input.modelId) {
+			options.model = await this.getModel(dto.input.modelId, item.extension);
 		}
 
-		if (dto.tokenBudget !== undefined) {
+		if (dto.input.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
-				tokenBudget: dto.tokenBudget,
-				countTokens: this._tokenCountFuncs.get(dto.callId) || ((value, token = CancellationToken.None) =>
-					this._proxy.$countTokensForInvocation(dto.callId, value, token))
+				tokenBudget: dto.input.tokenBudget,
+				countTokens: this._tokenCountFuncs.get(dto.input.callId) || ((value, token = CancellationToken.None) =>
+					this._proxy.$countTokensForInvocation(dto.input.callId, value, token))
 			};
 		}
 
@@ -200,7 +200,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		if (isProposedApiEnabled(item.extension, 'toolProgress')) {
 			progress = {
 				report: value => {
-					this._proxy.$acceptToolProgress(dto.callId, {
+					this._proxy.$acceptToolProgress(dto.input.callId, {
 						message: typeConvert.MarkdownString.fromStrict(value.message),
 						increment: value.increment,
 						total: 100,

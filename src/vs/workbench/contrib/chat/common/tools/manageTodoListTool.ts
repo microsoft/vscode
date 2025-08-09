@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IChatTodo, IChatTodoListService, IChatTodoListStorage } from '../chatTodoListService.js';
 import {
+	IPreparedToolInvocation,
 	IToolData,
 	IToolImpl,
 	IToolInvocation,
-	IToolResult,
-	ToolDataSource,
 	IToolInvocationPreparationContext,
-	IPreparedToolInvocation
+	IToolResult,
+	ToolDataSource
 } from '../languageModelToolsService.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatTodo, IChatTodoListService, IChatTodoListStorage } from '../chatTodoListService.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
 export const TodoListToolSettingId = 'chat.todoListTool.enabled';
 
@@ -96,12 +96,12 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: any, _progress: any, _token: CancellationToken): Promise<IToolResult> {
-		const chatSessionId = invocation.context?.sessionId;
+		const chatSessionId = invocation.input.context?.sessionId;
 		if (chatSessionId === undefined) {
 			throw new Error('A chat session ID is required for this tool');
 		}
 
-		const args = invocation.parameters as IManageTodoListToolInputParams;
+		const args = invocation.input.parameters as IManageTodoListToolInputParams;
 		this.logService.debug(`ManageTodoListTool: Invoking with options ${JSON.stringify(args)}`);
 
 		try {

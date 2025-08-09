@@ -369,11 +369,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		const args = invocation.parameters as IRunInTerminalInputParams;
+		const args = invocation.input.parameters as IRunInTerminalInputParams;
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | undefined;
 
-		const chatSessionId = invocation.context?.sessionId ?? 'no-chat-session';
+		const chatSessionId = invocation.input.context?.sessionId ?? 'no-chat-session';
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
@@ -432,7 +432,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution);
 				store.add(outputMonitor);
 
-				outputAndIdle = await outputMonitor.startMonitoring(this._chatService, command, invocation.context!, token);
+				outputAndIdle = await outputMonitor.startMonitoring(this._chatService, command, invocation.input.context!, token);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}

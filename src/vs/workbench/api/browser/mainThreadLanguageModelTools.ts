@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolImpl, IToolInvocationInput, IToolProgressStep, IToolResult, ToolProgress, toolResultHasBuffers } from '../../contrib/chat/common/languageModelToolsService.js';
+import { CountTokensCallback, IInvokeToolInput, ILanguageModelToolsService, IToolImpl, IToolProgressStep, IToolResult, ToolProgress, toolResultHasBuffers } from '../../contrib/chat/common/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostLanguageModelToolsShape, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
@@ -49,7 +49,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return this.getToolDtos();
 	}
 
-	async $invokeTool(dto: IToolInvocationInput, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+	async $invokeTool(dto: IInvokeToolInput, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
 		const result = await this._languageModelToolsService.invokeTool(
 			dto,
 			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
@@ -80,12 +80,12 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 			{
 				invoke: async (dto, countTokens, progress, token) => {
 					try {
-						this._runningToolCalls.set(dto.callId, { countTokens, progress });
+						this._runningToolCalls.set(dto.input.callId, { countTokens, progress });
 						const resultSerialized = await this._proxy.$invokeTool(dto, token);
 						const resultDto: Dto<IToolResult> = resultSerialized instanceof SerializableObjectWithBuffers ? resultSerialized.value : resultSerialized;
 						return revive<IToolResult>(resultDto);
 					} finally {
-						this._runningToolCalls.delete(dto.callId);
+						this._runningToolCalls.delete(dto.input.callId);
 					}
 				},
 				prepareToolInvocation: async (context, token) => await this._proxy.$prepareToolInvocation(id, context, token) ?? {},

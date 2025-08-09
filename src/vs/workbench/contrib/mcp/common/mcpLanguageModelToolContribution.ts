@@ -235,9 +235,9 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
-		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, any>, progress, { chatRequestId: invocation.chatRequestId, chatSessionId: invocation.context?.sessionId }, token);
+		const callResult = await this._tool.callWithProgress(invocation.input.parameters as Record<string, any>, progress, { chatRequestId: invocation.input.chatRequestId, chatSessionId: invocation.input.context?.sessionId }, token);
 		const details: IToolResultInputOutputDetails = {
-			input: JSON.stringify(invocation.parameters, undefined, 2),
+			input: JSON.stringify(invocation.input.parameters, undefined, 2),
 			output: [],
 			isError: callResult.isError === true,
 		};
@@ -318,7 +318,7 @@ class McpToolImplementation implements IToolImpl {
 					});
 
 					if (isForModel) {
-						const permalink = invocation.chatRequestId && invocation.context && ChatResponseResource.createUri(invocation.context.sessionId, invocation.chatRequestId, invocation.callId, result.content.length, basename(uri));
+						const permalink = invocation.input.chatRequestId && invocation.input.context && ChatResponseResource.createUri(invocation.input.context.sessionId, invocation.input.chatRequestId, invocation.input.callId, result.content.length, basename(uri));
 
 						result.content.push({
 							kind: 'text',

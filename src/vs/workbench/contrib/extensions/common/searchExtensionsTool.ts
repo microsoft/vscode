@@ -73,7 +73,7 @@ export class SearchExtensionsTool implements IToolImpl {
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const params = invocation.parameters as InputParams;
+		const params = invocation.input.parameters as InputParams;
 		if (!params.keywords?.length && !params.category && !params.ids?.length) {
 			return {
 				content: [{

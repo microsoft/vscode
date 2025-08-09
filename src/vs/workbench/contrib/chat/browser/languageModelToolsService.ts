@@ -35,7 +35,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocationWithData, IToolData, IToolImpl, IToolInvocation, IToolInvocationInput, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, IInvokeToolInput, ILanguageModelToolsService, IPreparedToolInvocationWithData, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -214,7 +214,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this._memoryToolConfirmStore.clear();
 	}
 
-	async invokeTool(dto: IToolInvocationInput, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+	async invokeTool(dto: IInvokeToolInput, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
 
 		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
@@ -235,8 +235,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
 		let toolInvocation: ChatToolInvocation | undefined;
-		const toolInvocationDto: IToolInvocation<unknown> = {
-			...dto,
+		let invocationInput: IInvokeToolInput = dto;
+		let toolInvocationDto: IToolInvocation<unknown> = {
+			input: invocationInput,
 			preparedData: undefined
 		};
 
@@ -254,7 +255,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const request = model.getRequests().at(-1)!;
 				requestId = request.id;
-				dto.modelId = request.modelId;
+				// include modelId in the invocation input passed to the tool implementation
+				invocationInput = { ...invocationInput, modelId: request.modelId };
 
 				// Replace the token with a new token that we can cancel when cancelToolCallsForRequest is called
 				if (!this._callsByRequestId.has(requestId)) {
@@ -309,12 +311,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				throw new CancellationError();
 			}
 
-			toolInvocationDto.preparedData = prepared.preparedData;
-			toolInvocationDto.toolSpecificData = prepared.toolSpecificData;
-			if (toolInvocationDto.toolSpecificData?.kind === 'input') {
-				toolInvocationDto.parameters = toolInvocationDto.toolSpecificData.rawInput;
-				toolInvocationDto.toolSpecificData = undefined;
+			let toolSpecificData = prepared.toolSpecificData;
+			if (toolSpecificData?.kind === 'input') {
+				invocationInput = { ...invocationInput, parameters: toolSpecificData.rawInput };
+				toolSpecificData = undefined;
 			}
+			toolInvocationDto = { input: invocationInput, preparedData: prepared.preparedData, toolSpecificData };
 
 			toolResult = await tool.impl.invoke(toolInvocationDto, countTokens, {
 				report: step => {
@@ -362,7 +364,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	private async prepareToolInvocation<T>(tool: IToolEntry<T>, input: IToolInvocationInput, token: CancellationToken): Promise<IPreparedToolInvocationWithData<T>> {
+	private async prepareToolInvocation<T>(tool: IToolEntry<T>, input: IInvokeToolInput, token: CancellationToken): Promise<IPreparedToolInvocationWithData<T>> {
 		const prepared = await tool.impl!.prepareToolInvocation({
 			parameters: input.parameters,
 			chatRequestId: input.chatRequestId,
@@ -411,7 +413,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private formatToolInput(dto: IToolInvocation<unknown>): string {
-		return JSON.stringify(dto.parameters, undefined, 2);
+		return JSON.stringify(dto.input.parameters, undefined, 2);
 	}
 
 	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {

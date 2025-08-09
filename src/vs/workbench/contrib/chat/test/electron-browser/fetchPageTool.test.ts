@@ -66,11 +66,10 @@ class ExtendedTestFileService extends TestFileService {
 	}
 }
 
-function invokeTool(tool: FetchWebPageTool, input: Omit<IToolInvocation, 'preparedData' | 'context'>): Promise<IToolResult> {
+function invokeTool(tool: FetchWebPageTool, input: { callId: string; toolId: string; parameters: any }): Promise<IToolResult> {
 	const toolInvocation: IToolInvocation = {
-		...input,
+		input: { ...input, context: undefined },
 		preparedData: undefined,
-		context: undefined
 	};
 	return tool.invoke(toolInvocation, () => Promise.resolve(0), { report: () => { } }, CancellationToken.None);
 }

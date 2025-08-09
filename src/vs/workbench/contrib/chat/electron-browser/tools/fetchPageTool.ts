@@ -46,7 +46,7 @@ export class FetchWebPageTool implements IToolImpl {
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const urls = (invocation.parameters as { urls?: string[] }).urls || [];
+		const urls = (invocation.input.parameters as { urls?: string[] }).urls || [];
 		const { webUris, fileUris, invalidUris } = this._parseUris(urls);
 		const allValidUris = [...webUris.values(), ...fileUris.values()];
 

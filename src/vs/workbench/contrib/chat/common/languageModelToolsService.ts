@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { localize } from '../../../../nls.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
-import { IChatExtensionsContent, IChatToolInputInvocationData, IChatTodoListContent, type IChatTerminalToolInvocationData } from './chatService.js';
-import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
-import { Iterable } from '../../../../base/common/iterator.js';
-import { localize } from '../../../../nls.js';
+import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from './chatService.js';
 import { LanguageModelPartAudience } from './languageModels.js';
+import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
 export interface IToolData {
 	id: string;
@@ -106,35 +106,26 @@ export namespace ToolDataSource {
 	}
 }
 
-export interface IToolInvocationInput {
-	callId: string;
-	toolId: string;
-	parameters: Object;
-	tokenBudget?: number;
-	context: IToolInvocationContext | undefined;
+export interface IInvokeToolInput {
+	readonly callId: string;
+	readonly toolId: string;
+	readonly parameters: Object;
+	readonly tokenBudget?: number;
+	readonly context: IToolInvocationContext | undefined;
 
 	// Plumbing telemetry data through from the extension
-	chatRequestId?: string;
-	modelId?: string;
+	readonly chatRequestId?: string;
+	readonly modelId?: string;
 }
 
-// TODO refactor to have an InvocationInput prop
 export interface IToolInvocation<T = void> {
-	callId: string;
-	toolId: string;
-	parameters: Object;
-	tokenBudget?: number;
-	context: IToolInvocationContext | undefined;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
-	preparedData: T;
-
-	// Plumbing telemetry data through from the extension
-	modelId?: string;
-	chatRequestId?: string;
+	readonly input: IInvokeToolInput;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
+	readonly preparedData: T;
 }
 
 export interface IToolInvocationContext {
-	sessionId: string;
+	readonly sessionId: string;
 }
 
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
@@ -142,9 +133,9 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 }
 
 export interface IToolInvocationPreparationContext {
-	parameters: any;
-	chatRequestId?: string;
-	chatSessionId?: string;
+	readonly parameters: any;
+	readonly chatRequestId?: string;
+	readonly chatSessionId?: string;
 }
 
 export type ToolInputOutputBase = {
@@ -315,7 +306,7 @@ export interface ILanguageModelToolsService {
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
-	invokeTool(invocation: IToolInvocationInput, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invokeTool(invocation: IInvokeToolInput, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;

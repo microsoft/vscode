@@ -42,7 +42,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const args = invocation.parameters as IGetTerminalOutputInputParams;
+		const args = invocation.input.parameters as IGetTerminalOutputInputParams;
 		return {
 			content: [{
 				kind: 'text',

@@ -39,15 +39,15 @@ export class EditTool implements IToolImpl {
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		if (!invocation.context) {
+		if (!invocation.input.context) {
 			throw new Error('toolInvocationToken is required for this tool');
 		}
 
-		const parameters = invocation.parameters as EditToolParams;
+		const parameters = invocation.input.parameters as EditToolParams;
 		const fileUri = URI.revive(parameters.uri);
 		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
 
-		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
+		const model = this.chatService.getSession(invocation.input.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
 
 		model.acceptResponseProgress(request, {
@@ -86,9 +86,9 @@ export class EditTool implements IToolImpl {
 		const result = await this.codeMapperService.mapCode({
 			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: parameters.explanation }],
 			location: 'tool',
-			chatRequestId: invocation.chatRequestId,
-			chatRequestModel: invocation.modelId,
-			chatSessionId: invocation.context.sessionId,
+			chatRequestId: invocation.input.chatRequestId,
+			chatRequestModel: invocation.input.modelId,
+			chatSessionId: invocation.input.context.sessionId,
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });

@@ -110,7 +110,7 @@ class RunTestTool implements IToolImpl {
 	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		const params: IRunTestToolParams = invocation.parameters;
+		const params: IRunTestToolParams = invocation.input.parameters;
 		const testFiles = await this._getFileTestsToRun(params, progress);
 		const testCases = await this._getTestCasesToRun(params, testFiles, progress);
 		if (!testCases.length) {
