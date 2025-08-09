@@ -538,6 +538,12 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
+		'chat.todoListTool.writeOnly': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, removing the operation parameter and preventing read operations to avoid unnecessary context checking."),
+			tags: ['experimental']
+		},
 		[ChatConfiguration.ShowThinking]: {
 			type: 'boolean',
 			default: false,
