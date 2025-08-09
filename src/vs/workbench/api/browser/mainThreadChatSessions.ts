@@ -43,6 +43,8 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 
 	private readonly _pendingProgressChunks = new Map<string, IChatProgress[]>();
 	private _isInitialized = false;
+	private _interruptionWasCanceled = false;
+	private _disposalPending = false;
 
 	private _initializationPromise?: Promise<void>;
 
@@ -121,9 +123,27 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 						message: localize('interruptActiveResponse', 'Are you sure you want to interrupt the active session?')
 					}).then(confirmed => {
 						if (confirmed.confirmed) {
+							// User confirmed interruption - dispose the session content on extension host
+							if (this._disposalPending) {
+								this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionId);
+								this._disposalPending = false;
+							}
 							this._proxy.$interruptChatSessionActiveResponse(this._providerHandle, this.sessionId, 'ongoing');
 							return true;
 						} else {
+							// When user cancels the interruption, fire an empty progress message to keep the session alive
+							// This matches the behavior of the old implementation
+							this._addProgress([{
+								kind: 'progressMessage',
+								content: { value: '', isTrusted: false }
+							}]);
+							// Set flag to prevent completion when extension host calls handleProgressComplete
+							this._interruptionWasCanceled = true;
+							// User canceled interruption - cancel the deferred disposal
+							if (this._disposalPending) {
+								this._logService.info(`Canceling deferred disposal for session ${this.sessionId} (user canceled interruption)`);
+								this._disposalPending = false;
+							}
 							return false;
 						}
 					});
@@ -161,7 +181,9 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 					try {
 						await this._proxy.$invokeChatSessionRequestHandler(this._providerHandle, this.sessionId, request, history, token);
 
-						if (!this._isCompleteObservable.get()) {
+						// Only mark as complete if there's no active response callback
+						// Sessions with active response callbacks should only complete when explicitly told to via handleProgressComplete
+						if (!this._isCompleteObservable.get() && !this.interruptActiveResponseCallback) {
 							this._markComplete();
 						}
 					} catch (error) {
@@ -227,10 +249,13 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 		this._pendingProgressChunks.delete(requestId);
 
 		if (this._isInitialized) {
-			this._markComplete();
-		} else {
-			// If not initialized, we'll mark complete during initialization
-			// Don't queue artificial completion messages
+			// Don't mark as complete if user canceled the interruption
+			if (!this._interruptionWasCanceled) {
+				this._markComplete();
+			} else {
+				// Reset the flag and don't mark as complete
+				this._interruptionWasCanceled = false;
+			}
 		}
 	}
 
@@ -249,7 +274,16 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 		this._onWillDispose.fire();
 		this._onWillDispose.dispose();
 		this._pendingProgressChunks.clear();
-		this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionId);
+
+		// If this session has an active response callback and disposal is happening,
+		// defer the actual session content disposal until we know the user's choice
+		if (this.interruptActiveResponseCallback && !this._interruptionWasCanceled) {
+			this._disposalPending = true;
+			// The actual disposal will happen in the interruption callback based on user's choice
+		} else {
+			// No active response callback or user already canceled interruption - dispose immediately
+			this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionId);
+		}
 		super.dispose();
 	}
 }
