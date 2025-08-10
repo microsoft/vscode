@@ -7,6 +7,7 @@ import { ok, strictEqual } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { Separator } from '../../../../../../base/common/actions.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -287,18 +288,29 @@ suite('RunInTerminalTool', () => {
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
+			strictEqual(customActions.length, 4, 'Expected 4 custom actions (including separator)');
 
 			strictEqual(customActions[0].label, 'Always Allow Command: npm');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			ok(!(customActions[0] instanceof Separator), 'Expected first action to not be a separator');
+			if (!(customActions[0] instanceof Separator)) {
+				strictEqual(customActions[0].data.type, 'newRule');
+				ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			}
 
 			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm run build');
-			strictEqual(customActions[1].data.type, 'newRule');
-			ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
+			ok(!(customActions[1] instanceof Separator), 'Expected second action to not be a separator');
+			if (!(customActions[1] instanceof Separator)) {
+				strictEqual(customActions[1].data.type, 'newRule');
+				ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
+			}
 
-			strictEqual(customActions[2].label, 'Configure Auto Approve...');
-			strictEqual(customActions[2].data.type, 'configure');
+			ok(customActions[2] instanceof Separator, 'Expected third action to be a separator');
+
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			ok(!(customActions[3] instanceof Separator), 'Expected fourth action to not be a separator');
+			if (!(customActions[3] instanceof Separator)) {
+				strictEqual(customActions[3].data.type, 'configure');
+			}
 		});
 
 		test('should generate custom actions for single word commands', async () => {
@@ -312,14 +324,22 @@ suite('RunInTerminalTool', () => {
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
 
-			strictEqual(customActions.length, 2, 'Expected 2 custom actions for single word command');
+			strictEqual(customActions.length, 3, 'Expected 3 custom actions for single word command (including separator)');
 
 			strictEqual(customActions[0].label, 'Always Allow Command: git');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			ok(!(customActions[0] instanceof Separator), 'Expected first action to not be a separator');
+			if (!(customActions[0] instanceof Separator)) {
+				strictEqual(customActions[0].data.type, 'newRule');
+				ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			}
 
-			strictEqual(customActions[1].label, 'Configure Auto Approve...');
-			strictEqual(customActions[1].data.type, 'configure');
+			ok(customActions[1] instanceof Separator, 'Expected second action to be a separator');
+
+			strictEqual(customActions[2].label, 'Configure Auto Approve...');
+			ok(!(customActions[2] instanceof Separator), 'Expected third action to not be a separator');
+			if (!(customActions[2] instanceof Separator)) {
+				strictEqual(customActions[2].data.type, 'configure');
+			}
 		});
 
 		test('should not generate custom actions for auto-approved commands', async () => {
@@ -352,7 +372,10 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 1, 'Expected only 1 custom action for explicitly denied commands');
 
 			strictEqual(customActions[0].label, 'Configure Auto Approve...');
-			strictEqual(customActions[0].data.type, 'configure');
+			ok(!(customActions[0] instanceof Separator), 'Expected action to not be a separator');
+			if (!(customActions[0] instanceof Separator)) {
+				strictEqual(customActions[0].data.type, 'configure');
+			}
 		});
 
 		test('should handle && in command line labels with proper mnemonic escaping', async () => {
@@ -365,16 +388,27 @@ suite('RunInTerminalTool', () => {
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
+			strictEqual(customActions.length, 4, 'Expected 4 custom actions (including separator)');
 
 			strictEqual(customActions[0].label, 'Always Allow Command: npm');
-			strictEqual(customActions[0].data.type, 'newRule');
+			ok(!(customActions[0] instanceof Separator), 'Expected first action to not be a separator');
+			if (!(customActions[0] instanceof Separator)) {
+				strictEqual(customActions[0].data.type, 'newRule');
+			}
 
 			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm install &&& npm run build');
-			strictEqual(customActions[1].data.type, 'newRule');
+			ok(!(customActions[1] instanceof Separator), 'Expected second action to not be a separator');
+			if (!(customActions[1] instanceof Separator)) {
+				strictEqual(customActions[1].data.type, 'newRule');
+			}
 
-			strictEqual(customActions[2].label, 'Configure Auto Approve...');
-			strictEqual(customActions[2].data.type, 'configure');
+			ok(customActions[2] instanceof Separator, 'Expected third action to be a separator');
+
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			ok(!(customActions[3] instanceof Separator), 'Expected fourth action to not be a separator');
+			if (!(customActions[3] instanceof Separator)) {
+				strictEqual(customActions[3].data.type, 'configure');
+			}
 		});
 
 	});
