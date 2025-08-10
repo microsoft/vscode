@@ -229,7 +229,7 @@ suite('RunInTerminalTool', () => {
 				command: '',
 				explanation: 'Empty command'
 			});
-			assertConfirmationRequired(result);
+			assertAutoApproved(result);
 		});
 
 		test('should handle commands with only whitespace', async () => {
