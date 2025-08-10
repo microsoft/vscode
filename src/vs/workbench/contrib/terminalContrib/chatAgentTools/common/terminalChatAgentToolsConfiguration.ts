@@ -96,6 +96,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			head: true,
 			tail: true,
 			grep: true,
+			findstr: true,
 			wc: true,
 			sort: true,
 			uniq: true,
