@@ -132,7 +132,7 @@ suite('splitCommandLineIntoSubCommands', () => {
 
 		test('should handle empty command', () => {
 			const commandLine = '';
-			const expectedSubCommands = [''];
+			const expectedSubCommands: string[] = [];
 			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'zsh', OperatingSystem.Linux);
 			deepStrictEqual(actualSubCommands, expectedSubCommands);
 		});
@@ -146,7 +146,7 @@ suite('splitCommandLineIntoSubCommands', () => {
 
 		test('should handle multiple consecutive operators', () => {
 			const commandLine = 'echo test && && ls';
-			const expectedSubCommands = ['echo test', '', 'ls'];
+			const expectedSubCommands = ['echo test', 'ls'];
 			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
 			deepStrictEqual(actualSubCommands, expectedSubCommands);
 		});
