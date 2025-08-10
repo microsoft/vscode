@@ -158,6 +158,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidAcceptFollowup: Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 	readonly onDidAcceptFollowup: Event<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 
+	private _onDidClickOverlay: Emitter<void> = new Emitter<void>();
+	readonly onDidClickOverlay: Event<void> = this._onDidClickOverlay.event;
+
 	private readonly _attachmentModel: ChatAttachmentModel;
 	public get attachmentModel(): ChatAttachmentModel {
 		return this._attachmentModel;
@@ -217,6 +220,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private attachmentsContainer!: HTMLElement;
 
 	private chatInputOverlay!: HTMLElement;
+	private _overlayClickListener: IDisposable | undefined;
 
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables: MutableDisposable<DisposableStore>;
@@ -1303,6 +1307,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public toggleChatInputOverlay(editing: boolean): void {
 		this.chatInputOverlay.classList.toggle('disabled', editing);
+		if (editing) {
+			this._overlayClickListener?.dispose();
+			this._overlayClickListener = this._register(dom.addStandardDisposableListener(this.chatInputOverlay, dom.EventType.CLICK, e => {
+				e.preventDefault();
+				e.stopPropagation();
+				this._onDidClickOverlay.fire();
+			}));
+		} else {
+			this._overlayClickListener?.dispose();
+			this._overlayClickListener = undefined;
+		}
 	}
 
 	public renderAttachedContext() {
