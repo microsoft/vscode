@@ -303,6 +303,16 @@ export class AuxiliaryEditorPart {
 			}
 		}));
 
+		disposables.add(editorPart.onDidAddGroup(() => {
+			updateCompact(false); // leave compact mode when a group is added
+		}));
+
+		disposables.add(editorPart.activeGroup.onDidActiveEditorChange(() => {
+			if (editorPart.activeGroup.count > 1) {
+				updateCompact(false); // leave compact mode when more than 1 editor is active
+			}
+		}));
+
 		// Have a scoped instantiation service that is scoped to the auxiliary window
 		const scopedInstantiationService = disposables.add(scopedEditorPartInstantiationService.createChild(new ServiceCollection(
 			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)]

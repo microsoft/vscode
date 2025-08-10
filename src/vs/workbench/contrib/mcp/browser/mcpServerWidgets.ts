@@ -9,7 +9,7 @@ import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as platform from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,9 +18,20 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { installCountIcon, starEmptyIcon, starFullIcon, starHalfIcon } from '../../extensions/browser/extensionsIcons.js';
-import { IMcpServerContainer, IWorkbenchMcpServer, mcpServerIcon } from '../common/mcpTypes.js';
+import { IMcpServerContainer, IWorkbenchMcpServer } from '../common/mcpTypes.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { McpServerStatusAction } from './mcpServerActions.js';
+import { reset } from '../../../../base/browser/dom.js';
+import { mcpServerIcon, mcpServerRemoteIcon, mcpServerWorkspaceIcon } from './mcpServerIcons.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { ExtensionHoverOptions, ExtensionIconBadge } from '../../extensions/browser/extensionsWidgets.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export abstract class McpServerWidget extends Disposable implements IMcpServerContainer {
 	private _mcpServer: IWorkbenchMcpServer | null = null;
@@ -322,4 +333,194 @@ export class RatingsWidget extends McpServerWidget {
 		}
 	}
 
+}
+
+export class McpServerHoverWidget extends McpServerWidget {
+
+	private readonly hover = this._register(new MutableDisposable<IDisposable>());
+
+	constructor(
+		private readonly options: ExtensionHoverOptions,
+		private readonly mcpServerStatusAction: McpServerStatusAction,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+	}
+
+	render(): void {
+		this.hover.value = undefined;
+		if (this.mcpServer) {
+			this.hover.value = this.hoverService.setupManagedHover({
+				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
+				showHover: (options, focus) => {
+					return this.hoverService.showInstantHover({
+						...options,
+						additionalClasses: ['extension-hover'],
+						position: {
+							hoverPosition: this.options.position(),
+							forcePosition: true,
+						},
+						persistence: {
+							hideOnKeyDown: true,
+						}
+					}, focus);
+				},
+				placement: 'element'
+			},
+				this.options.target,
+				{
+					markdown: () => Promise.resolve(this.getHoverMarkdown()),
+					markdownNotSupportedFallback: undefined
+				},
+				{
+					appearance: {
+						showHoverHint: true
+					}
+				}
+			);
+		}
+	}
+
+	private getHoverMarkdown(): MarkdownString | undefined {
+		if (!this.mcpServer) {
+			return undefined;
+		}
+		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+
+		markdown.appendMarkdown(`**${this.mcpServer.label}**`);
+		markdown.appendText(`\n`);
+
+		if (this.mcpServer.local?.scope === LocalMcpServerScope.Workspace) {
+			markdown.appendMarkdown(`$(${mcpServerWorkspaceIcon.id})&nbsp;`);
+			markdown.appendMarkdown(localize('workspace extension', "Workspace MCP Server"));
+			markdown.appendText(`\n`);
+		}
+
+		if (this.mcpServer.local?.scope === LocalMcpServerScope.RemoteUser) {
+			markdown.appendMarkdown(`$(${mcpServerRemoteIcon.id})&nbsp;`);
+			markdown.appendMarkdown(localize('remote user extension', "Remote MCP Server"));
+			markdown.appendText(`\n`);
+		}
+
+		if (this.mcpServer.description) {
+			markdown.appendMarkdown(`${this.mcpServer.description}`);
+			markdown.appendText(`\n`);
+		}
+
+		const extensionStatus = this.mcpServerStatusAction.status;
+
+		if (extensionStatus.length) {
+
+			markdown.appendMarkdown(`---`);
+			markdown.appendText(`\n`);
+
+			for (const status of extensionStatus) {
+				if (status.icon) {
+					markdown.appendMarkdown(`$(${status.icon.id})&nbsp;`);
+				}
+				markdown.appendMarkdown(status.message.value);
+				markdown.appendText(`\n`);
+			}
+
+		}
+
+		return markdown;
+	}
+
+}
+
+export class McpServerScopeBadgeWidget extends McpServerWidget {
+
+	private readonly badge = this._register(new MutableDisposable<ExtensionIconBadge>());
+	private element: HTMLElement;
+
+	constructor(
+		readonly container: HTMLElement,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+		this.element = dom.append(this.container, dom.$(''));
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		this.badge.value?.element.remove();
+		this.badge.clear();
+	}
+
+	render(): void {
+		this.clear();
+
+		const scope = this.mcpServer?.local?.scope;
+
+		if (!scope || scope === LocalMcpServerScope.User) {
+			return;
+		}
+
+		let icon: ThemeIcon;
+		switch (scope) {
+			case LocalMcpServerScope.Workspace: {
+				icon = mcpServerWorkspaceIcon;
+				break;
+			}
+			case LocalMcpServerScope.RemoteUser: {
+				icon = mcpServerRemoteIcon;
+				break;
+			}
+		}
+
+		this.badge.value = this.instantiationService.createInstance(ExtensionIconBadge, icon, undefined);
+		dom.append(this.element, this.badge.value.element);
+	}
+}
+
+export class McpServerStatusWidget extends McpServerWidget {
+
+	private readonly renderDisposables = this._register(new MutableDisposable());
+
+	private readonly _onDidRender = this._register(new Emitter<void>());
+	readonly onDidRender: Event<void> = this._onDidRender.event;
+
+	constructor(
+		private readonly container: HTMLElement,
+		private readonly extensionStatusAction: McpServerStatusAction,
+		@IOpenerService private readonly openerService: IOpenerService,
+	) {
+		super();
+		this.render();
+		this._register(extensionStatusAction.onDidChangeStatus(() => this.render()));
+	}
+
+	render(): void {
+		reset(this.container);
+		this.renderDisposables.value = undefined;
+		const disposables = new DisposableStore();
+		this.renderDisposables.value = disposables;
+		const extensionStatus = this.extensionStatusAction.status;
+		if (extensionStatus.length) {
+			const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+			for (let i = 0; i < extensionStatus.length; i++) {
+				const status = extensionStatus[i];
+				if (status.icon) {
+					markdown.appendMarkdown(`$(${status.icon.id})&nbsp;`);
+				}
+				markdown.appendMarkdown(status.message.value);
+				if (i < extensionStatus.length - 1) {
+					markdown.appendText(`\n`);
+				}
+			}
+			const rendered = disposables.add(renderMarkdown(markdown, {
+				actionHandler: {
+					callback: (content) => {
+						this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+					},
+					disposables
+				}
+			}));
+			dom.append(this.container, rendered.element);
+		}
+		this._onDidRender.fire();
+	}
 }

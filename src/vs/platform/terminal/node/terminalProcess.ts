@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType } from '../common/terminal.js';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { ChildProcessMonitor } from './childProcessMonitor.js';
 import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
@@ -202,7 +202,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}));
 	}
 
-	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
 		const firstError = results.find(r => r !== undefined);
 		if (firstError) {

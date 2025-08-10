@@ -10,8 +10,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ICommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
-import { PYTHON_LANGUAGE_ID, VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
+import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { VSCODE_LSP_TERMINAL_PROMPT_TRACKER } from './lspTerminalUtil.js';
 
 export interface ILspTerminalModelContentProvider extends ITextModelContentProvider {
 	setContent(content: string): void;
@@ -57,8 +57,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	 */
 	setContent(content: string): void {
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		// Trailing coming from Python itself shouldn't be included in the REPL.
-		if (content !== 'exit()' && this._shellType === GeneralShellType.Python) {
+		if (this._shellType) {
 			if (model) {
 				const existingContent = model.getValue();
 				if (existingContent === '') {
@@ -86,7 +85,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 	trackPromptInputToVirtualFile(content: string): void {
 		this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
 		const model = this._modelService.getModel(this._virtualTerminalDocumentUri);
-		if (content !== 'exit()' && this._shellType === GeneralShellType.Python) {
+		if (this._shellType) {
 			if (model) {
 				const existingContent = model.getValue();
 				const delimiterIndex = existingContent.lastIndexOf(VSCODE_LSP_TERMINAL_PROMPT_TRACKER);
@@ -113,7 +112,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			// Inconsistent repro: Covering case where commandDetection is available but onCommandFinished becomes available later
 			if (this._commandDetection && this._commandDetection.onCommandFinished) {
 				this._onCommandFinishedListener.value = this._register(this._commandDetection.onCommandFinished((e) => {
-					if (e.exitCode === 0 && this._shellType === GeneralShellType.Python) {
+					if (e.exitCode === 0 && this._shellType) {
 						this.setContent(e.command);
 					}
 
@@ -132,7 +131,6 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 	}
 
-	// TODO: Adapt to support non-python virtual document for non-python REPLs.
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 
@@ -140,20 +138,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 			return existing;
 		}
 
-		const extension = resource.path.split('.').pop();
-		let languageId: string | undefined | null = undefined;
-		if (extension) {
-			languageId = this._languageService.getLanguageIdByLanguageName(extension);
-
-			if (!languageId) {
-				switch (extension) {
-					case 'py': languageId = PYTHON_LANGUAGE_ID; break;
-					// case 'ps1': languageId = 'powershell'; break;
-					// case 'js': languageId = 'javascript'; break;
-					// case 'ts': languageId = 'typescript'; break; etc...
-				}
-			}
-		}
+		const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 
 		const languageSelection = languageId ?
 			this._languageService.createById(languageId) :

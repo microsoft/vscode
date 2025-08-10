@@ -134,9 +134,7 @@ const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	providerId: product.defaultChatAgent?.providerId ?? '',
-	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
-	alternativeProviderId: product.defaultChatAgent?.alternativeProviderId ?? '',
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '' }, enterprise: { id: '' } },
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
@@ -421,11 +419,11 @@ interface IQuotas {
 export class ChatEntitlementRequests extends Disposable {
 
 	static providerId(configurationService: IConfigurationService): string {
-		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.enterpriseProviderId) {
-			return defaultChat.enterpriseProviderId;
+		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.provider.enterprise.id) {
+			return defaultChat.provider.enterprise.id;
 		}
 
-		return defaultChat.providerId;
+		return defaultChat.provider.default.id;
 	}
 
 	private state: IEntitlements;
@@ -517,21 +515,26 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 	}
 
-	private async findMatchingProviderSession(token: CancellationToken): Promise<AuthenticationSession | undefined> {
+	private async findMatchingProviderSession(token: CancellationToken): Promise<AuthenticationSession[] | undefined> {
 		const sessions = await this.doGetSessions(ChatEntitlementRequests.providerId(this.configurationService));
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
+		const matchingSessions = new Set<AuthenticationSession>();
 		for (const session of sessions) {
 			for (const scopes of defaultChat.providerScopes) {
-				if (this.scopesMatch(session.scopes, scopes)) {
-					return session;
+				if (this.includesScopes(session.scopes, scopes)) {
+					matchingSessions.add(session);
 				}
 			}
 		}
 
-		return undefined;
+		// We intentionally want to return an array of matching sessions and
+		// not just the first, because it is possible that a matching session
+		// has an expired token. As such, we want to try them all until we
+		// succeeded with the request.
+		return matchingSessions.size > 0 ? Array.from(matchingSessions) : undefined;
 	}
 
 	private async doGetSessions(providerId: string): Promise<readonly AuthenticationSession[]> {
@@ -553,12 +556,12 @@ export class ChatEntitlementRequests extends Disposable {
 		return [];
 	}
 
-	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
-		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
+	private includesScopes(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
+		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async resolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IEntitlements | undefined> {
-		const entitlements = await this.doResolveEntitlement(session, token);
+	private async resolveEntitlement(sessions: AuthenticationSession[], token: CancellationToken): Promise<IEntitlements | undefined> {
+		const entitlements = await this.doResolveEntitlement(sessions, token);
 		if (typeof entitlements?.entitlement === 'number' && !token.isCancellationRequested) {
 			this.didResolveEntitlements = true;
 			this.update(entitlements);
@@ -567,8 +570,8 @@ export class ChatEntitlementRequests extends Disposable {
 		return entitlements;
 	}
 
-	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IEntitlements | undefined> {
-		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
+	private async doResolveEntitlement(sessions: AuthenticationSession[], token: CancellationToken): Promise<IEntitlements | undefined> {
+		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
 			this.logService.trace('[chat entitlement]: enterprise provider, assuming Enterprise plan');
 			return { entitlement: ChatEntitlement.Enterprise };
 		}
@@ -577,7 +580,7 @@ export class ChatEntitlementRequests extends Disposable {
 			return undefined;
 		}
 
-		const response = await this.request(defaultChat.entitlementUrl, 'GET', undefined, session, token);
+		const response = await this.request(defaultChat.entitlementUrl, 'GET', undefined, sessions, token);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -715,26 +718,42 @@ export class ChatEntitlementRequests extends Disposable {
 		return quotas;
 	}
 
-	private async request(url: string, type: 'GET', body: undefined, session: AuthenticationSession, token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'POST', body: object, session: AuthenticationSession, token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, session: AuthenticationSession, token: CancellationToken): Promise<IRequestContext | undefined> {
-		try {
-			return await this.requestService.request({
-				type,
-				url,
-				data: type === 'POST' ? JSON.stringify(body) : undefined,
-				disableCache: true,
-				headers: {
-					'Authorization': `Bearer ${session.accessToken}`
-				}
-			}, token);
-		} catch (error) {
-			if (!token.isCancellationRequested) {
-				this.logService.error(`[chat entitlement] request: error ${error}`);
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined> {
+		let lastRequest: IRequestContext | undefined;
+
+		for (const session of sessions) {
+			if (token.isCancellationRequested) {
+				return lastRequest;
 			}
 
-			return undefined;
+			try {
+				const response = await this.requestService.request({
+					type,
+					url,
+					data: type === 'POST' ? JSON.stringify(body) : undefined,
+					disableCache: true,
+					headers: {
+						'Authorization': `Bearer ${session.accessToken}`
+					}
+				}, token);
+
+				const status = response.res.statusCode;
+				if (status && status !== 200) {
+					lastRequest = response;
+					continue; // try next session
+				}
+
+				return response;
+			} catch (error) {
+				if (!token.isCancellationRequested) {
+					this.logService.error(`[chat entitlement] request: error ${error}`);
+				}
+			}
 		}
+
+		return lastRequest;
 	}
 
 	private update(state: IEntitlements): void {
@@ -747,28 +766,28 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 	}
 
-	async forceResolveEntitlement(session: AuthenticationSession | undefined, token = CancellationToken.None): Promise<IEntitlements | undefined> {
-		if (!session) {
-			session = await this.findMatchingProviderSession(token);
+	async forceResolveEntitlement(sessions: AuthenticationSession[] | undefined, token = CancellationToken.None): Promise<IEntitlements | undefined> {
+		if (!sessions) {
+			sessions = await this.findMatchingProviderSession(token);
 		}
 
-		if (!session) {
+		if (!sessions || sessions.length === 0) {
 			return undefined;
 		}
 
-		return this.resolveEntitlement(session, token);
+		return this.resolveEntitlement(sessions, token);
 	}
 
-	async signUpFree(session: AuthenticationSession): Promise<true /* signed up */ | false /* already signed up */ | { errorCode: number } /* error */> {
+	async signUpFree(sessions: AuthenticationSession[]): Promise<true /* signed up */ | false /* already signed up */ | { errorCode: number } /* error */> {
 		const body = {
 			restricted_telemetry: this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? 'disabled' : 'enabled',
 			public_code_suggestions: 'enabled'
 		};
 
-		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None);
+		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, sessions, CancellationToken.None);
 		if (!response) {
 			const retry = await this.onUnknownSignUpError(localize('signUpNoResponseError', "No response received."), '[chat entitlement] sign-up: no response');
-			return retry ? this.signUpFree(session) : { errorCode: 1 };
+			return retry ? this.signUpFree(sessions) : { errorCode: 1 };
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
@@ -787,7 +806,7 @@ export class ChatEntitlementRequests extends Disposable {
 				}
 			}
 			const retry = await this.onUnknownSignUpError(localize('signUpUnexpectedStatusError', "Unexpected status code {0}.", response.res.statusCode), `[chat entitlement] sign-up: unexpected status code ${response.res.statusCode}`);
-			return retry ? this.signUpFree(session) : { errorCode: response.res.statusCode };
+			return retry ? this.signUpFree(sessions) : { errorCode: response.res.statusCode };
 		}
 
 		let responseText: string | null = null;
@@ -799,7 +818,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 		if (!responseText) {
 			const retry = await this.onUnknownSignUpError(localize('signUpNoResponseContentsError', "Response has no contents."), '[chat entitlement] sign-up: response has no content');
-			return retry ? this.signUpFree(session) : { errorCode: 2 };
+			return retry ? this.signUpFree(sessions) : { errorCode: 2 };
 		}
 
 		let parsedResult: { subscribed: boolean } | undefined = undefined;
@@ -808,7 +827,7 @@ export class ChatEntitlementRequests extends Disposable {
 			this.logService.trace(`[chat entitlement] sign-up: response is ${responseText}`);
 		} catch (err) {
 			const retry = await this.onUnknownSignUpError(localize('signUpInvalidResponseError', "Invalid response contents."), `[chat entitlement] sign-up: error parsing response (${err})`);
-			return retry ? this.signUpFree(session) : { errorCode: 3 };
+			return retry ? this.signUpFree(sessions) : { errorCode: 3 };
 		}
 
 		// We have made it this far, so the user either did sign-up or was signed-up already.
@@ -857,14 +876,14 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 	}
 
-	async signIn(options?: { useAlternateProvider?: boolean }) {
+	async signIn(options?: { useSocialProvider?: string }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
-		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0], options?.useAlternateProvider ? { provider: defaultChat.alternativeProviderId } : undefined);
+		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0], options?.useSocialProvider ? { provider: options.useSocialProvider } : undefined);
 
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);
 
-		const entitlements = await this.forceResolveEntitlement(session);
+		const entitlements = await this.forceResolveEntitlement([session]);
 
 		return { session, entitlements };
 	}

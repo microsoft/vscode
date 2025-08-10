@@ -714,7 +714,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
 			...setting.range,
-			message: nls.localize('unsupportedApplicationSetting', "This setting has an application scope and can be set only in the user settings file.")
+			message: nls.localize('unsupportedApplicationSetting', "This setting has an application scope and can only be set in the settings file from the Default profile.")
 		};
 	}
 

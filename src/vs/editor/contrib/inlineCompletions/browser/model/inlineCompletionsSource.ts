@@ -421,6 +421,7 @@ class InlineCompletionsState extends Disposable {
 			let item;
 			if (oldItem && oldItem !== i) {
 				item = i.withIdentity(oldItem.identity);
+				i.setIsPreceeded(oldItem);
 				oldItem.setEndOfLifeReason({ kind: InlineCompletionEndOfLifeReasonKind.Ignored, userTypingDisagreed: false, supersededBy: i.getSourceCompletion() });
 			} else {
 				item = i;

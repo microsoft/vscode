@@ -66,7 +66,6 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		if (!completed || token.isCancellationRequested) {
 			return;
 		}
-		console.log(`Prompt header diagnostics for ${this.model.uri.toString()}:`);
 
 		const markers: IMarkerData[] = [];
 		for (const diagnostic of header.diagnostics) {
@@ -83,7 +82,6 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		}
 
 		if (markers.length === 0) {
-			console.warn(`No markers for ${this.model.uri.toString()}`);
 			this.markerService.remove(MARKERS_OWNER_ID, [this.model.uri]);
 			return;
 		}
@@ -123,7 +121,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
 		for (const model of languageModes) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
-			if (metadata && metadata.isUserSelectable !== false && metadata.name === modelName) {
+			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.asQualifiedName(metadata) === modelName) {
 				return metadata;
 			}
 		}

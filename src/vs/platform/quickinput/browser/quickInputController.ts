@@ -17,13 +17,13 @@ import { Disposable, DisposableStore, dispose } from '../../../base/common/lifec
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType } from '../common/quickInput.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, IQuickTree, IQuickTreeItem } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey, QuickInputAlignmentContextKey } from './quickInput.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { QuickInputTree } from './quickInputTree.js';
+import { QuickInputList } from './quickInputList.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
@@ -33,8 +33,10 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { Platform, platform } from '../../../base/common/platform.js';
 import { getWindowControlsStyle, WindowControlsStyle } from '../../window/common/window.js';
 import { getZoomFactor } from '../../../base/browser/browser.js';
-import { Checkbox } from '../../../base/browser/ui/toggle/toggle.js';
+import { TriStateCheckbox } from '../../../base/browser/ui/toggle/toggle.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
+import { QuickInputTreeController } from './tree/quickInputTreeController.js';
+import { QuickTree } from './tree/quickTree.js';
 
 const $ = dom.$;
 
@@ -154,11 +156,11 @@ export class QuickInputController extends Disposable {
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
-		const checkAll = this._register(new Checkbox(localize('quickInput.checkAll', "Toggle all checkboxes"), false, { ...defaultCheckboxStyles, size: 15 }));
+		const checkAll = this._register(new TriStateCheckbox(localize('quickInput.checkAll', "Toggle all checkboxes"), false, { ...defaultCheckboxStyles, size: 15 }));
 		dom.append(headerContainer, checkAll.domNode);
 		this._register(checkAll.onChange(() => {
 			const checked = checkAll.checked;
-			list.setAllVisibleChecked(checked);
+			list.setAllVisibleChecked(checked === true);
 		}));
 		this._register(dom.addDisposableListener(checkAll.domNode, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
@@ -209,13 +211,17 @@ export class QuickInputController extends Disposable {
 
 		const description1 = dom.append(container, $('.quick-input-description'));
 
+		// List
 		const listId = this.idPrefix + 'list';
-		const list = this._register(this.instantiationService.createInstance(QuickInputTree, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
+		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
-			inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
+			if (inputBox.hasFocus()) {
+				inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
+			}
 		}));
 		this._register(list.onChangedAllVisibleChecked(checked => {
+			// TODO: Support tri-state checkbox when we remove the .indent property that is faking tree structure.
 			checkAll.checked = checked;
 		}));
 		this._register(list.onChangedVisibleCount(c => {
@@ -237,6 +243,30 @@ export class QuickInputController extends Disposable {
 				}
 			}, 0);
 		}));
+
+		// Tree
+		const tree = this._register(this.instantiationService.createInstance(
+			QuickInputTreeController,
+			container,
+			this.options.hoverDelegate
+		));
+		this._register(tree.tree.onDidChangeFocus(() => {
+			if (inputBox.hasFocus()) {
+				inputBox.setAttribute('aria-activedescendant', tree.getActiveDescendant() ?? '');
+			}
+		}));
+		this._register(tree.onLeave(() => {
+			// Defer to avoid the input field reacting to the triggering key.
+			// TODO@TylerLeonhardt https://github.com/microsoft/vscode/issues/203675
+			setTimeout(() => {
+				if (!this.controller) {
+					return;
+				}
+				inputBox.setFocus();
+				tree.tree.setFocus([]);
+			}, 0);
+		}));
+		this._register(tree.tree.onDidChangeContentHeight(() => this.updateLayout()));
 
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
@@ -406,6 +436,7 @@ export class QuickInputController extends Disposable {
 			customButtonContainer,
 			customButton,
 			list,
+			tree,
 			progressBar,
 			onDidAccept: this.onDidAcceptEmitter.event,
 			onDidCustom: this.onDidCustomEmitter.event,
@@ -515,7 +546,9 @@ export class QuickInputController extends Disposable {
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
-			input.sortByLabel = !!options.sortByLabel;
+			if (options.sortByLabel !== undefined) {
+				input.sortByLabel = options.sortByLabel;
+			}
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
@@ -639,6 +672,11 @@ export class QuickInputController extends Disposable {
 		return new QuickWidget(ui);
 	}
 
+	createQuickTree<T extends IQuickTreeItem>(): IQuickTree<T> {
+		const ui = this.getUI(true);
+		return new QuickTree<T>(ui);
+	}
+
 	private show(controller: IQuickInput) {
 		const ui = this.getUI(true);
 		this.onShowEmitter.fire();
@@ -700,6 +738,7 @@ export class QuickInputController extends Disposable {
 		ui.message.style.display = visibilities.message ? '' : 'none';
 		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
 		ui.list.displayed = !!visibilities.list;
+		ui.tree.displayed = !!visibilities.tree;
 		ui.container.classList.toggle('show-checkboxes', !!visibilities.checkBox);
 		ui.container.classList.toggle('hidden-input', !visibilities.inputBox && !visibilities.description);
 		this.updateLayout(); // TODO
@@ -824,6 +863,7 @@ export class QuickInputController extends Disposable {
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
+			this.ui.tree.layout(this.dimension && this.dimension.height * 0.4);
 		}
 	}
 
@@ -843,6 +883,7 @@ export class QuickInputController extends Disposable {
 			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
 			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.list.style(this.styles.list);
+			this.ui.tree.tree.style(this.styles.list);
 
 			const content: string[] = [];
 			if (this.styles.pickerGroup.pickerGroupBorder) {

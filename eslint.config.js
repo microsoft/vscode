@@ -9,14 +9,13 @@ import tseslint from 'typescript-eslint';
 import { fileURLToPath } from 'url';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
-import pluginLocal from 'eslint-plugin-local';
+import * as pluginLocal from './.eslint-plugin-local/index.js';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
 pluginHeader.rules.header.meta.schema = false;
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
+const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore'), 'utf8')
 	.toString()
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));

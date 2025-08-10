@@ -64,7 +64,7 @@ const EXPERIMENT_CONFIGURATIONS: Record<string, ExperimentConfiguration> = {
 	},
 	insider: {
 		experimentName: STARTUP_EXPERIMENT_NAME,
-		targetPercentage: 20,
+		targetPercentage: 50,
 		groups: [
 			// Bump the iteration each time we change group allocations
 			{ name: StartupExperimentGroup.Control, min: 0.0, max: 0.25, iteration: 1 },
@@ -89,8 +89,12 @@ export class CoreExperimentationService extends Disposable implements ICoreExper
 	) {
 		super();
 
-		if (environmentService.disableExperiments) {
-			return; // explicitly disabled
+		if (
+			environmentService.disableExperiments ||
+			environmentService.enableSmokeTestDriver ||
+			environmentService.extensionTestsLocationURI
+		) {
+			return; //not applicable in this environment
 		}
 
 		this.initializeExperiments();

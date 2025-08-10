@@ -158,8 +158,9 @@ registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
 });
 
 // Map alt+arrow to ctrl+arrow to allow word navigation in most shells to just work with alt. This
-// is non-standard behavior, but a lot of terminals act like this (see #190629). Note that
-// macOS uses different sequences here to get the desired behavior.
+// is non-standard behavior, but a lot of terminals act like this (see
+// https://github.com/microsoft/vscode/issues/190629). Note that macOS uses different sequences here
+// to get the desired behavior.
 registerSendSequenceKeybinding('\x1b[1;5A', {
 	when: ContextKeyExpr.and(TerminalContextKeys.focus),
 	primary: KeyMod.Alt | KeyCode.UpArrow
