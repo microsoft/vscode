@@ -288,6 +288,8 @@ export interface IChatTerminalToolInvocationData {
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;
 	language: string;
+	terminalToolSessionId?: string;
+	autoApproveInfo?: IMarkdownString;
 }
 
 /**
@@ -523,6 +525,8 @@ export interface IChatEditingHunkAction {
 	kind: 'chatEditingHunkAction';
 	uri: URI;
 	lineCount: number;
+	linesAdded: number;
+	linesRemoved: number;
 	outcome: 'accepted' | 'rejected';
 	hasRemainingEdits: boolean;
 }

@@ -52,6 +52,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatSessionUri } from '../common/chatUri.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -121,6 +122,8 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	readonly onDidChangeChatSessionItems = Event.None;
 
 	// Track the current editor set to detect actual new additions
 	private currentEditorSet = new Set<string>();
@@ -391,17 +394,16 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		return title;
 	}
 
-	private getAllChatSessionProviders(): IChatSessionItemProvider[] {
-		if (this.localProvider) {
-			return [this.localProvider, ...this.chatSessionsService.getChatSessionItemProviders()];
-		} else {
-			return this.chatSessionsService.getChatSessionItemProviders();
-		}
+	private getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
+		return coalesce([
+			this.localProvider,
+			...this.chatSessionsService.getAllChatSessionItemProviders()
+		]);
 	}
 
 	private refreshProviderTree(chatSessionType: string): void {
 		// Find the provider with the matching chatSessionType
-		const providers = this.getAllChatSessionProviders();
+		const providers = this.getAllChatSessionItemProviders();
 		const targetProvider = providers.find(provider => provider.chatSessionType === chatSessionType);
 
 		if (targetProvider) {
@@ -416,9 +418,9 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 	private async updateViewRegistration(): Promise<void> {
 		// prepare all chat session providers
-		const contributions = await this.chatSessionsService.getChatSessionContributions();
+		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		await Promise.all(contributions.map(contrib => this.chatSessionsService.canResolveItemProvider(contrib.type)));
-		const currentProviders = this.getAllChatSessionProviders();
+		const currentProviders = this.getAllChatSessionItemProviders();
 		const currentProviderIds = new Set(currentProviders.map(p => p.chatSessionType));
 
 		// Find views that need to be unregistered (providers that are no longer available)
@@ -444,7 +446,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 	private async registerViews(extensionPointContributions: IChatSessionsExtensionPoint[]) {
 		const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(VIEWLET_ID);
-		const providers = this.getAllChatSessionProviders();
+		const providers = this.getAllChatSessionItemProviders();
 
 		if (container && providers.length > 0) {
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
@@ -716,7 +718,7 @@ class SessionsViewPane extends ViewPane {
 	}
 
 	private getProviderDisplayName(): string {
-		const contributions = this.chatSessionsService.getChatSessionContributions();
+		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		const contribution = contributions.find(c => c.type === this.provider.chatSessionType);
 		if (contribution) {
 			return contribution.displayName;

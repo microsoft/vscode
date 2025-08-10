@@ -3,15 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-const path = require('path');
+import withDefaults from '../shared.webpack.config.mjs';
 
-const srcDir = path.join(__dirname, 'notebook');
-const outDir = path.join(__dirname, 'notebook-out');
-
-require('../esbuild-webview-common').run({
-	entryPoints: [
-		path.join(srcDir, 'index.ts'),
-	],
-	srcDir,
-	outdir: outDir,
-}, process.argv);
+export default withDefaults({
+	context: import.meta.dirname,
+	entry: {
+		extension: './src/extension.ts'
+	},
+	output: {
+		libraryTarget: 'module',
+		chunkFormat: 'module',
+	},
+	externals: {
+		'vscode': 'module vscode',
+	},
+	experiments: {
+		outputModule: true
+	}
+});

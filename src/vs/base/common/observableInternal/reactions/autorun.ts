@@ -154,3 +154,33 @@ export function autorunIterableDelta<T>(
 		}
 	});
 }
+
+export interface IReaderWithDispose extends IReaderWithStore, IDisposable { }
+
+/**
+ * An autorun with a `dispose()` method on its `reader` which cancels the autorun.
+ * It it safe to call `dispose()` synchronously.
+ */
+export function autorunSelfDisposable(fn: (reader: IReaderWithDispose) => void, debugLocation = DebugLocation.ofCaller()): IDisposable {
+	let ar: IDisposable | undefined;
+	let disposed = false;
+
+	// eslint-disable-next-line prefer-const
+	ar = autorun(reader => {
+		fn({
+			delayedStore: reader.delayedStore,
+			store: reader.store,
+			readObservable: reader.readObservable.bind(reader),
+			dispose: () => {
+				ar?.dispose();
+				disposed = true;
+			}
+		});
+	}, debugLocation);
+
+	if (disposed) {
+		ar.dispose();
+	}
+
+	return ar;
+}

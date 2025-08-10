@@ -131,7 +131,7 @@ export class ChatEditor extends EditorPane {
 			const identifier = ChatSessionUri.parse(input.resource);
 			if (identifier) {
 				await this.chatSessionsService.canResolveContentProvider(input.resource.authority);
-				const contributions = this.chatSessionsService.getChatSessionContributions();
+				const contributions = this.chatSessionsService.getAllChatSessionContributions();
 				const contribution = contributions.find(c => c.type === identifier.chatSessionType);
 				if (contribution) {
 					this.widget.lockToCodingAgent(contribution.name, contribution.displayName);

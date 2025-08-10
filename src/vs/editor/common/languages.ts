@@ -986,10 +986,15 @@ export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion
 export type LifetimeSummary = {
 	requestUuid: string;
 	partiallyAccepted: number;
+	partiallyAcceptedCountSinceOriginal: number;
+	partiallyAcceptedRatioSinceOriginal: number;
+	partiallyAcceptedCharactersSinceOriginal: number;
 	shown: boolean;
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilProviderRequest: number;
+	timeUntilProviderResponse: number;
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;

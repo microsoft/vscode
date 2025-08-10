@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-
 /**
  * @fileoverview Common build script for extension scripts used in in webviews.
  */
-
-const path = require('path');
-const esbuild = require('esbuild');
+import path from 'node:path';
+import esbuild from 'esbuild';
 
 /**
  * @typedef {Partial<import('esbuild').BuildOptions> & {
@@ -62,7 +60,7 @@ async function tryBuild(options, didBuild) {
  * @param {string[]} args
  * @param {(outDir: string) => unknown} [didBuild]
  */
-module.exports.run = async function (config, args, didBuild) {
+export async function run(config, args, didBuild) {
 	let outdir = config.outdir;
 	const outputRootIndex = args.indexOf('--outputRoot');
 	if (outputRootIndex >= 0) {
@@ -84,10 +82,9 @@ module.exports.run = async function (config, args, didBuild) {
 	const isWatch = args.indexOf('--watch') >= 0;
 	if (isWatch) {
 		await tryBuild(resolvedOptions, didBuild);
-
-		const watcher = require('@parcel/watcher');
+		const watcher = await import('@parcel/watcher');
 		watcher.subscribe(config.srcDir, () => tryBuild(resolvedOptions, didBuild));
 	} else {
 		return build(resolvedOptions, didBuild).catch(() => process.exit(1));
 	}
-};
+}
