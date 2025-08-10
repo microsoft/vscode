@@ -120,12 +120,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
-		const model = this.modelService.createModel(
+		const model = this._register(this.modelService.createModel(
 			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
 			this.languageService.createById(languageId),
 			this._getUniqueCodeBlockUri(),
 			true
-		);
+		));
 		textModelService.createModelReference(model.uri).then(ref => {
 			if (this._store.isDisposed) {
 				ref.dispose();
