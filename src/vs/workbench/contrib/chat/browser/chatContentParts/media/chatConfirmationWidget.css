@@ -222,6 +222,8 @@
 	background: var(--vscode-chat-requestBackground);
 	border: 1px solid var(--vscode-chat-requestBorder);
 	padding: 6px 9px 0 9px;
+	border-bottom-left-radius: 3px;
+	border-bottom-right-radius: 3px;
 
 	p {
 		margin-top: 0;
