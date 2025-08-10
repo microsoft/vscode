@@ -12467,8 +12467,15 @@ declare module 'vscode' {
 
 		/**
 		 * The nonce to use to verify shell integration sequences are coming from a trusted source.
-		 * If your terminal implements [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences)
-		 * this should be set to a random GUID and then passed along in the relevant sequences.
+		 * An example impact of UX of this is if the command line is reported with a nonce, it will
+		 * not need to verify with the user that the command line is correct before rerunning it
+		 * via the [shell integration command decoration](https://code.visualstudio.com/docs/terminal/shell-integration#_command-decorations-and-the-overview-ruler).
+		 *
+		 * This should be used if the terminal includes [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences).
+		 * It should be set to a random GUID which will then set the `VSCODE_NONCE` environment
+		 * variable. Inside the shell, this should then be removed from the environment so as to
+		 * protect it from general access. Once that is done it can be passed through in the
+		 * relevant sequences to make them trusted.
 		 */
 		shellIntegrationNonce?: string;
 	}
@@ -12513,8 +12520,13 @@ declare module 'vscode' {
 
 		/**
 		 * The nonce to use to verify shell integration sequences are coming from a trusted source.
-		 * If your terminal implements [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences)
-		 * this should be set to a random GUID and then passed along in the relevant sequences.
+		 * An example impact of UX of this is if the command line is reported with a nonce, it will
+		 * not need to verify with the user that the command line is correct before rerunning it
+		 * via the [shell integration command decoration](https://code.visualstudio.com/docs/terminal/shell-integration#_command-decorations-and-the-overview-ruler).
+		 *
+		 * This should be used if the terminal includes [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences).
+		 * It should be set to a random GUID. Inside the {@link Pseudoterminal} implementation, this value
+		 * can be passed through in the relevant sequences to make them trusted.
 		 */
 		shellIntegrationNonce?: string;
 	}
