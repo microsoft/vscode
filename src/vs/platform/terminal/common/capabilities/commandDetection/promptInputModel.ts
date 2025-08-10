@@ -201,9 +201,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		
 		// Fire change event to notify listeners that the state has been restored
 		this._onDidChangeInput.fire(this._createStateObject());
-		
-		// Sync to ensure state is consistent with current terminal buffer
-		this._sync();
 	}
 
 	private _handleCommandStart(command: { marker: IMarker }) {
