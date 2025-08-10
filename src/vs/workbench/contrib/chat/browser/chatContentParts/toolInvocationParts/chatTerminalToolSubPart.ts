@@ -160,7 +160,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		));
 
 		if (disclaimer) {
-			this._appendMarkdownPart(element, disclaimer, codeBlockRenderOptions);
+			this._appendMarkdownPart(element, disclaimer, codeBlockRenderOptions, true);
 		}
 
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
@@ -227,10 +227,10 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		});
 	}
 
-	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
+	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions, isDisclaimer = false) {
 		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, {
 			kind: 'markdownContent',
-			content: typeof message === 'string' ? new MarkdownString().appendText(message) : message
+			content: typeof message === 'string' ? (isDisclaimer ? new MarkdownString().appendMarkdown(message) : new MarkdownString().appendText(message)) : message
 		},
 			this.context,
 			this.editorPool,
