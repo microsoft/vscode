@@ -267,7 +267,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			messageSeeMoreObserver.startObserving();
 
 			if (disclaimer) {
-				this._makeMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions);
+				this._makeMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions, true);
 			} else {
 				elements.disclaimer.remove();
 			}
@@ -315,8 +315,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		this.domNode = confirmWidget.domNode;
 	}
 
-	private _makeMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
-		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, { kind: 'markdownContent', content: typeof message === 'string' ? new MarkdownString().appendText(message) : message }, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, undefined, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
+	private _makeMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions, isDisclaimer = false) {
+		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, { kind: 'markdownContent', content: typeof message === 'string' ? (isDisclaimer ? new MarkdownString().appendMarkdown(message) : new MarkdownString().appendText(message)) : message }, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, undefined, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
 		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 		container.append(part.domNode);
 
