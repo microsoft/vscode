@@ -756,7 +756,7 @@ export function registerChatActions() {
 						const contextItem = context.item as ICodingAgentPickerItem;
 						commandService.executeCommand(buttonItem.id, {
 							uri: contextItem.uri,
-							session: contextItem.session,
+							session: contextItem.session?.session,
 							$mid: MarshalledId.ChatSessionContext
 						});
 

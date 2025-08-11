@@ -24,6 +24,7 @@ import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { Extensions, IViewContainersRegistry, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewDescriptor } from '../../../common/views.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -698,7 +699,13 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		const setupActionBar = () => {
 			templateData.actionBar.clear();
 
-			const actions = menu.getActions({ arg: session, shouldForwardArgs: true });
+			// Create marshalled context for command execution
+			const marshalledSession = {
+				session: session,
+				$mid: MarshalledId.ChatSessionContext
+			};
+
+			const actions = menu.getActions({ arg: marshalledSession, shouldForwardArgs: true });
 
 			const { primary } = getActionBarActions(
 				actions,
