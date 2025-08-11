@@ -184,6 +184,23 @@ export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 }
 
 /**
+ * An invocation of a terminal command starting with '!'
+ */
+export class ChatRequestTerminalCommandPart implements IParsedChatRequestPart {
+	static readonly Kind = 'terminalCommand';
+	readonly kind = ChatRequestTerminalCommandPart.Kind;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: string) { }
+
+	get text(): string {
+		return `!${this.command}`;
+	}
+
+	get promptText(): string {
+		return '';
+	}
+}
+
+/**
  * An invocation of a dynamic reference like '#file:'
  */
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
@@ -270,6 +287,12 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestSlashPromptPart).slashPromptCommand
+				);
+			} else if (part.kind === ChatRequestTerminalCommandPart.Kind) {
+				return new ChatRequestTerminalCommandPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestTerminalCommandPart).command
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				return new ChatRequestDynamicVariablePart(

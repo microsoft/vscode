@@ -28,7 +28,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTerminalCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
@@ -734,6 +734,7 @@ export class ChatService extends Disposable implements IChatService {
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
 		const agentSlashCommandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 		const commandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
+		const terminalCommandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestTerminalCommandPart => r instanceof ChatRequestTerminalCommandPart);
 		const requests = [...model.getRequests()];
 		const requestTelemetry = this.instantiationService.createInstance(ChatRequestTelemetry, {
 			agentPart,
@@ -810,6 +811,48 @@ export class ChatService extends Disposable implements IChatService {
 				let rawResult: IChatAgentResult | null | undefined;
 				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
 				let chatTitlePromise: Promise<string | undefined> | undefined;
+
+				// Handle terminal commands with !
+				if (terminalCommandPart) {
+					this.trace('sendRequest', `Terminal command detected: ${terminalCommandPart.command}`);
+
+					// Create a request entry for the terminal command
+					const initVariableData: IChatRequestVariableData = { variables: [] };
+					request = model.addRequest(parsedRequest, initVariableData, attempt, defaultAgent, undefined, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId);
+
+					// Create a modified agent request that includes the run_in_terminal tool invocation
+					const agentRequest: IChatAgentRequest = {
+						sessionId,
+						requestId: request.id,
+						agentId: defaultAgent.id,
+						message: `Please run this terminal command: ${terminalCommandPart.command}`,
+						command: undefined,
+						variables: initVariableData,
+						enableCommandDetection: false,
+						isParticipantDetected: false,
+						attempt,
+						location,
+						locationData: request.locationData,
+						acceptedConfirmationData: options?.acceptedConfirmationData,
+						rejectedConfirmationData: options?.rejectedConfirmationData,
+						userSelectedModelId: options?.userSelectedModelId,
+						userSelectedTools: { 'run_in_terminal': true },
+						modeInstructions: undefined,
+						editedFileEvents: request.editedFileEvents
+					};
+
+					// Invoke the agent with the terminal command
+					try {
+						rawResult = await this.chatAgentService.invokeAgent(defaultAgent.id, agentRequest, progressCallback, [], token);
+						completeResponseCreated();
+					} catch (e) {
+						this.trace('sendRequest', `Error invoking agent for terminal command: ${e}`);
+						model.cancelRequest(request);
+						throw e;
+					}
+
+					return;
+				}
 
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
