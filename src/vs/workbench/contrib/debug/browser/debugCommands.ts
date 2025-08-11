@@ -1182,7 +1182,6 @@ registerAction2(class extends Action2 {
 		super({
 			id: ATTACH_TO_CURRENT_CODE_RENDERER,
 			title: nls.localize2('attachToCurrentCodeRenderer', "Attach to Current Code Renderer"),
-			f1: true,
 		});
 	}
 
