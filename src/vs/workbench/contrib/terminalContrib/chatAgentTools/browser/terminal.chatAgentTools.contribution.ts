@@ -104,7 +104,7 @@ registerActiveInstanceAction({
 	menu: [
 		{
 			id: MenuId.TerminalInstanceContext,
-			group: TerminalContextMenuGroup.Create,
+			group: TerminalContextMenuGroup.Chat,
 			order: 1,
 			when: TerminalContextKeys.textSelected,
 		},

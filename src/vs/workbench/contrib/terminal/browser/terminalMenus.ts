@@ -20,6 +20,7 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/ed
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export const enum TerminalContextMenuGroup {
+	Chat = '0_chat',
 	Create = '1_create',
 	Edit = '3_edit',
 	Clear = '5_clear',

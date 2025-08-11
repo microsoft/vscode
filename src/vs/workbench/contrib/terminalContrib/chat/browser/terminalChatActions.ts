@@ -39,7 +39,7 @@ registerActiveXtermAction({
 	),
 	menu: {
 		id: MenuId.TerminalInstanceContext,
-		group: TerminalContextMenuGroup.Create,
+		group: TerminalContextMenuGroup.Chat,
 		order: 2
 	},
 	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {
