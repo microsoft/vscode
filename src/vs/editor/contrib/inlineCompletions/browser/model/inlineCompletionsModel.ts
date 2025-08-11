@@ -984,7 +984,11 @@ export class InlineCompletionsModel extends Disposable {
 			// This assumes that the inline completion and the model use the same EOL style.
 			const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
 			const acceptedLength = text.length;
-			completion.reportPartialAccept(acceptedLength, { kind, acceptedLength: acceptedLength });
+			completion.reportPartialAccept(
+				acceptedLength,
+				{ kind, acceptedLength: acceptedLength },
+				{ characters: acceptUntilIndexExclusive, ratio: acceptUntilIndexExclusive / ghostTextVal.length, count: 1 }
+			);
 
 		} finally {
 			completion.removeRef();
@@ -1003,6 +1007,10 @@ export class InlineCompletionsModel extends Disposable {
 		augmentedCompletion.completion.reportPartialAccept(itemEdit.text.length, {
 			kind: PartialAcceptTriggerKind.Suggest,
 			acceptedLength,
+		}, {
+			characters: itemEdit.text.length,
+			count: 1,
+			ratio: 1
 		});
 	}
 

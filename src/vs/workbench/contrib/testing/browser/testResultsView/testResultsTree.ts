@@ -906,15 +906,17 @@ class TreeActionsProvider {
 				...getTestItemContextOverlay(element.test, capabilities),
 			);
 
-			primary.push(new Action(
-				'testing.outputPeek.goToTest',
-				localize('testing.goToTest', "Go to Test"),
-				ThemeIcon.asClassName(Codicon.goToFile),
-				undefined,
-				() => this.commandService.executeCommand('vscode.revealTest', element.test.item.extId),
-			));
+			const { extId, uri } = element.test.item;
+			if (uri) {
+				primary.push(new Action(
+					'testing.outputPeek.goToTest',
+					localize('testing.goToTest', "Go to Test"),
+					ThemeIcon.asClassName(Codicon.goToFile),
+					undefined,
+					() => this.commandService.executeCommand('vscode.revealTest', extId),
+				));
+			}
 
-			const extId = element.test.item.extId;
 			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',

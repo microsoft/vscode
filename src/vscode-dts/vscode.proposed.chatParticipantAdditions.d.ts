@@ -553,6 +553,8 @@ declare module 'vscode' {
 		kind: 'chatEditingHunkAction';
 		uri: Uri;
 		lineCount: number;
+		linesAdded: number;
+		linesRemoved: number;
 		outcome: ChatEditingSessionActionOutcome;
 		hasRemainingEdits: boolean;
 	}

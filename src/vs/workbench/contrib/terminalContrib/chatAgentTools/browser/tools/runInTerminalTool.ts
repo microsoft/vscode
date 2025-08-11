@@ -22,14 +22,13 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, type IToolConfirmationAction, type IToolConfirmationMessages } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
-import { getOutput, pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
-import { CommandLineAutoApprover, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
+import { getOutput } from '../bufferOutputPolling.js';
+import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
@@ -38,7 +37,10 @@ import { isPowerShell } from '../runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { OutputMonitor } from '../outputMonitor.js';
 import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolSubPart.js';
+import type { SingleOrMany } from '../../../../../../base/common/types.js';
+import { asArray } from '../../../../../../base/common/arrays.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -159,7 +161,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService
 	) {
 		super();
 
@@ -254,19 +255,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 			}
 
+			function formatRuleLinks(result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string {
+				return asArray(result).map(e => {
+					return `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget} "${localize('ruleTooltip', 'View rule in settings')}")`;
+				}).join(', ');
+			}
 			if (isAutoApproved) {
 				switch (autoApproveReason) {
 					case 'commandLine': {
 						if (commandLineResult.rule) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', `\`${commandLineResult.rule.sourceText}\``)}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(commandLineResult))}_`);
 						}
 						break;
 					}
 					case 'subCommand': {
-						if (subCommandResults.length === 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', subCommandResults.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
-						} else if (subCommandResults.length > 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', subCommandResults.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						const uniqueRules = Array.from(new Set(subCommandResults));
+						if (uniqueRules.length === 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules))}_`);
+						} else if (uniqueRules.length > 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApprove.rules', 'Auto approved by rules {0}', formatRuleLinks(uniqueRules))}_`);
 						}
 						break;
 					}
@@ -275,23 +282,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				switch (autoApproveReason) {
 					case 'commandLine': {
 						if (commandLineResult.rule) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', `\`${commandLineResult.rule.sourceText}\``)}_`);
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(commandLineResult))}_`);
 						}
 						break;
 					}
 					case 'subCommand': {
 						const deniedRules = subCommandResults.filter(e => e.result === 'denied');
-						if (deniedRules.length === 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', deniedRules.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
-						} else if (deniedRules.length > 1) {
-							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', deniedRules.map(e => `\`${e.rule!.sourceText}\``).join(', '))}_`);
+						const uniqueRules = Array.from(new Set(deniedRules));
+						if (uniqueRules.length === 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules))}_`);
+						} else if (uniqueRules.length > 1) {
+							autoApproveInfo = new MarkdownString(`_${localize('autoApproveDenied.rules', 'Auto approval denied by rules {0}', formatRuleLinks(uniqueRules))}_`);
 						}
 						break;
 					}
 				}
 			}
 
-			// TODO: Surface reason on tool part https://github.com/microsoft/vscode/issues/256780
+			// Log detailed auto approval reasoning
 			for (const reason of autoApproveReasons) {
 				this._logService.info(`- ${reason}`);
 			}
@@ -414,29 +422,19 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (args.isBackground) {
 			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } | undefined = undefined;
+			let outputMonitor: OutputMonitor | undefined = undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
 
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputAndIdle = await pollForOutputAndIdle(execution, false, token, this._languageModelsService);
+				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution);
+				store.add(outputMonitor);
+
+				outputAndIdle = await outputMonitor.startMonitoring(this._chatService, command, invocation.context!, token);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
-				}
-
-				if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-					outputAndIdle = await racePollingOrPrompt(
-						() => pollForOutputAndIdle(execution, true, token, this._languageModelsService),
-						() => promptForMorePolling(command, token, invocation.context!, this._chatService),
-						outputAndIdle,
-						token,
-						this._languageModelsService,
-						execution
-					);
-					if (token.isCancellationRequested) {
-						throw new CancellationError();
-					}
 				}
 
 				let resultText = (
@@ -889,8 +887,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// wouldn't get auto approved with a new rule
 		const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
 		if (canCreateAutoApproval) {
-			// Allow all sub-commands
-			const subCommandsFirstWordOnly = subCommands.map(command => command.split(' ')[0]);
+			const unapprovedSubCommands = subCommands.filter((_, index) => {
+				return autoApproveResult.subCommandResults[index].result !== 'approved';
+			});
+
+			const subCommandsFirstWordOnly = Array.from(new Set(unapprovedSubCommands.map(command => command.split(' ')[0])));
 			let subCommandLabel: string;
 			let subCommandTooltip: string;
 			if (subCommandsFirstWordOnly.length === 1) {
@@ -898,20 +899,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				subCommandTooltip = localize('autoApprove.baseCommandSingleTooltip', 'Always allow command starting with `{0}` to run without confirmation', subCommandsFirstWordOnly[0]);
 			} else {
 				const commandSeparated = subCommandsFirstWordOnly.join(', ');
-				subCommandLabel = localize('autoApprove.baseCommand', 'Always allow commands: {0}', commandSeparated);
+				subCommandLabel = localize('autoApprove.baseCommand', 'Always Allow Commands: {0}', commandSeparated);
 				subCommandTooltip = localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated);
 			}
-			actions.push({
-				label: subCommandLabel,
-				tooltip: subCommandTooltip,
-				data: {
-					type: 'newRule',
-					rule: subCommandsFirstWordOnly.map(key => ({
-						key,
-						value: true
-					}))
-				} satisfies TerminalNewAutoApproveButtonData
-			});
+
+			if (unapprovedSubCommands.length > 0) {
+				actions.push({
+					label: subCommandLabel,
+					tooltip: subCommandTooltip,
+					data: {
+						type: 'newRule',
+						rule: subCommandsFirstWordOnly.map(key => ({
+							key,
+							value: true
+						}))
+					} satisfies TerminalNewAutoApproveButtonData
+				});
+			}
 
 			// Allow exact command line, don't do this if it's just the first sub-command's first
 			// word
