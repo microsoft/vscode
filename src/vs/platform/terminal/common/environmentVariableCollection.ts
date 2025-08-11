@@ -13,6 +13,9 @@ const mutatorTypeToLabelMap: Map<EnvironmentVariableMutatorType, string> = new M
 	[EnvironmentVariableMutatorType.Prepend, 'PREPEND'],
 	[EnvironmentVariableMutatorType.Replace, 'REPLACE']
 ]);
+// TODO: key was --> 'VSCODE_BASH_ACTIVATE:::file:///Users/anthonykim/Desktop/Skeleton'
+const PYTHON_ACTIVATION_VARS_PATTERN = /^VSCODE_(PWSH|ZSH|BASH)_ACTIVATE/;
+const PYTHON_ENV_EXTENSION_ID = 'ms-python.vscode-python-envs';
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
 	private readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
@@ -20,6 +23,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
+		// TODO: @ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		collections.forEach((collection, extensionIdentifier) => {
 			this.populateDescriptionMap(collection, extensionIdentifier);
@@ -28,6 +32,14 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			while (!next.done) {
 				const mutator = next.value[1];
 				const key = next.value[0];
+				// Only Python env extension can modify Python activate env var.
+				if (PYTHON_ACTIVATION_VARS_PATTERN.test(key) &&
+					PYTHON_ENV_EXTENSION_ID !== extensionIdentifier) {
+					// this._logService.warn(`Extension '${extensionIdentifier}' attempted to modify Python activation variable '${key}' but was blocked`);
+					next = it.next();
+					continue;
+				}
+
 				let entry = this.map.get(key);
 				if (!entry) {
 					entry = [];
