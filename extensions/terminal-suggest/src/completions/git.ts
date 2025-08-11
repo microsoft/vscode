@@ -472,15 +472,13 @@ export const gitGenerators = {
 				return [];
 			}
 
-			// Filter lines that start with 'M ' (modified in index) or contain 'A ' (added)
-			// Equivalent to: sed -ne '/^M /p' -e '/A /p'
 			const filteredLines = output.split("\n").filter(line => {
 				return line.match(/^M /) || line.match(/A /);
 			});
 
 			return postProcessTrackedFiles(filteredLines.join("\n"), context);
 		},
-	},
+	} satisfies Fig.Generator,
 
 	getUnstagedFiles: {
 		script: ["git", "--no-optional-locks", "diff", "--name-only"],
@@ -498,14 +496,10 @@ export const gitGenerators = {
 
 			let filteredLines;
 			if (context.includes("--staged") || context.includes("--cached")) {
-				// Filter lines that start with 'M ' or contain 'A '
-				// Equivalent to: sed -ne '/^M /p' -e '/A /p'
 				filteredLines = output.split("\n").filter(line => {
 					return line.match(/^M /) || line.match(/A /);
 				});
 			} else {
-				// Filter lines that contain 'M ' or 'A ' anywhere
-				// Equivalent to: sed -ne '/M /p' -e '/A /p'
 				filteredLines = output.split("\n").filter(line => {
 					return line.match(/M /) || line.match(/A /);
 				});
