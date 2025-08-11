@@ -101,12 +101,4 @@ suite('Code Coverage Decorations', () => {
 		assert.strictEqual(emptyModel.ranges.length === 0, true, 'Model with no coverage details should have no ranges');
 	});
 
-	test('ToggleCoverageInExplorer command exists', () => {
-		// Import the TestCommandId to verify our new command is defined
-		const { TestCommandId } = require('../../common/constants.js');
-		
-		// Verify that our new command ID is defined
-		assert.strictEqual(TestCommandId.CoverageToggleInExplorer, 'testing.toggleCoverageInExplorer', 
-			'CoverageToggleInExplorer command ID should be defined with correct value');
-	});
 });

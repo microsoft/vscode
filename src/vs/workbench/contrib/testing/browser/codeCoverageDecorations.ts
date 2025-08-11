@@ -893,15 +893,6 @@ registerAction2(class ToggleCoverageInExplorer extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
-				{
-					id: MenuId.ViewTitle,
-					group: 'navigation',
-					order: 100,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals('view', Testing.ExplorerViewId),
-						TestingContextKeys.isTestCoverageOpen
-					),
-				},
 			]
 		});
 	}
