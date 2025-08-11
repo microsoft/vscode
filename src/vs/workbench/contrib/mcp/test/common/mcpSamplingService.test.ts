@@ -4,23 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationService } from '../../../../../platform/configuration/common/configurationService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { mcpServerSamplingSection } from '../../common/mcpConfiguration.js';
 import { McpSamplingService } from '../../common/mcpSamplingService.js';
 import { IMcpServer } from '../../common/mcpTypes.js';
-import { TestNotificationService } from '../../../../test/common/workbenchTestServices.js';
-import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { TestCommandService } from '../../../../test/common/workbenchTestServices.js';
-import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 
 suite('MCP - Sampling Service Configuration', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let configurationService: TestConfigurationService;
+	let configurationService: IConfigurationService;
 	let samplingService: McpSamplingService;
 	let instantiationService: TestInstantiationService;
 
@@ -54,7 +59,11 @@ suite('MCP - Sampling Service Configuration', () => {
 	} as any;
 
 	setup(() => {
-		configurationService = new TestConfigurationService();
+		const fileService = ds.add(new FileService(new NullLogService()));
+		const diskFileSystemProvider = ds.add(new InMemoryFileSystemProvider());
+		ds.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
+
+		configurationService = ds.add(new ConfigurationService(URI.file('__testFile'), fileService, new NullPolicyService(), new NullLogService()));
 		instantiationService = ds.add(new TestInstantiationService());
 		instantiationService.stub(ILanguageModelsService, mockLanguageModelsService);
 
@@ -63,7 +72,7 @@ suite('MCP - Sampling Service Configuration', () => {
 			configurationService,
 			new TestDialogService(),
 			new TestNotificationService(),
-			new TestCommandService(instantiationService),
+			NullCommandService,
 			instantiationService
 		));
 	});
