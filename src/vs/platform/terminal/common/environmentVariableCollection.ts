@@ -13,7 +13,6 @@ const mutatorTypeToLabelMap: Map<EnvironmentVariableMutatorType, string> = new M
 	[EnvironmentVariableMutatorType.Prepend, 'PREPEND'],
 	[EnvironmentVariableMutatorType.Replace, 'REPLACE']
 ]);
-// TODO: key was --> 'VSCODE_BASH_ACTIVATE:::file:///Users/anthonykim/Desktop/Skeleton'
 const PYTHON_ACTIVATION_VARS_PATTERN = /^VSCODE_(PWSH|ZSH|BASH)_ACTIVATE/;
 const PYTHON_ENV_EXTENSION_ID = 'ms-python.vscode-python-envs';
 
@@ -32,6 +31,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			while (!next.done) {
 				const mutator = next.value[1];
 				const key = next.value[0];
+
 				// Only Python env extension can modify Python activate env var.
 				if (PYTHON_ACTIVATION_VARS_PATTERN.test(key) &&
 					PYTHON_ENV_EXTENSION_ID !== extensionIdentifier) {
@@ -82,6 +82,13 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			for (const mutator of mutators) {
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
+
+				// Only Python env extension can modify Python activate env var.
+				if (PYTHON_ACTIVATION_VARS_PATTERN.test(mutator.variable) && PYTHON_ENV_EXTENSION_ID !== mutator.extensionIdentifier) {
+					// this._logService.warn(`Extension '${mutator.extensionIdentifier}' attempted to modify Python activation variable '${mutator.variable}' but was blocked`);
+					continue;
+				}
+
 				// Default: true
 				if (mutator.options?.applyAtProcessCreation ?? true) {
 					switch (mutator.type) {
