@@ -3,35 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from '../../../../../base/common/assert.js';
+import { $ } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { diffSets } from '../../../../../base/common/collections.js';
-import { Event } from '../../../../../base/common/event.js';
-import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { AddConfigurationAction } from '../../../mcp/browser/mcpCommands.js';
-import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, McpConnectionState } from '../../../mcp/common/mcpTypes.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
-import { ChatMode } from '../../common/constants.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { ChatModeKind } from '../../common/constants.js';
+import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ToolsScope } from '../chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { showToolsPicker } from './chatToolPicker.js';
 
 
 type SelectedToolData = {
@@ -81,43 +76,31 @@ class AcceptToolConfirmation extends Action2 {
 	}
 }
 
-export class AttachToolsAction extends Action2 {
-
-	static readonly id = 'workbench.action.chat.attachTools';
+class ConfigureToolsAction extends Action2 {
+	public static ID = 'workbench.action.chat.configureTools';
 
 	constructor() {
 		super({
-			id: AttachToolsAction.id,
-			title: localize('label', "Select Tools..."),
+			id: ConfigureToolsAction.ID,
+			title: localize('label', "Configure Tools..."),
 			icon: Codicon.tools,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-			menu: {
-				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-				id: MenuId.ChatInput,
+			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			menu: [{
+				when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.lockedToCodingAgent.negate()),
+				id: MenuId.ChatExecute,
 				group: 'navigation',
-				order: 100
-			},
-			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent)),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
-				weight: KeybindingWeight.EditorContrib
-			}
+				order: 1,
+			}]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 
-		const quickPickService = accessor.get(IQuickInputService);
-		const mcpService = accessor.get(IMcpService);
-		const mcpRegistry = accessor.get(IMcpRegistry);
-		const toolsService = accessor.get(ILanguageModelToolsService);
+		const instaService = accessor.get(IInstantiationService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const commandService = accessor.get(ICommandService);
-		const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const editorService = accessor.get(IEditorService);
 
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
@@ -135,275 +118,121 @@ export class AttachToolsAction extends Action2 {
 			return;
 		}
 
-		const mcpServerByTool = new Map<string, IMcpServer>();
-		for (const server of mcpService.servers.get()) {
-			for (const tool of server.tools.get()) {
-				mcpServerByTool.set(tool.id, server);
-			}
+		let placeholder;
+		let description;
+		const { entriesScope, entriesMap } = widget.input.selectedToolsModel;
+		switch (entriesScope) {
+			case ToolsScope.Session:
+				placeholder = localize('chat.tools.placeholder.session', "Select tools for this chat session");
+				description = localize('chat.tools.description.session', "The selected tools were configured by a prompt command and only apply to this chat session.");
+				break;
+			case ToolsScope.Mode:
+				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this chat mode");
+				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode. Changes to the tools will be applied to the mode file as well.", widget.input.currentModeObs.get().name);
+				break;
+			case ToolsScope.Global:
+				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
+				description = undefined;
+				break;
 		}
 
-		const enum BucketOrdinal { Extension, Mcp, Other }
-		type BucketPick = IQuickPickItem & { picked: boolean; ordinal: BucketOrdinal; status?: string; children: ToolPick[]; source: ToolDataSource };
-		type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
-		type AddPick = IQuickPickItem & { pickable: false; run: () => void };
-		type MyPick = ToolPick | BucketPick | AddPick;
-		type ActionableButton = IQuickInputButton & { action: () => void };
-
-		const addMcpPick: AddPick = { type: 'item', label: localize('addServer', "Add MCP Server..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => commandService.executeCommand(AddConfigurationAction.ID) };
-		const addExpPick: AddPick = { type: 'item', label: localize('addExtension', "Install Extension..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: () => extensionWorkbenchService.openSearch('@tag:language-model-tools') };
-		const addPick: AddPick = {
-			type: 'item', label: localize('addAny', "Add More Tools..."), iconClass: ThemeIcon.asClassName(Codicon.add), pickable: false, run: async () => {
-				const pick = await quickPickService.pick(
-					[addMcpPick, addExpPick],
-					{
-						canPickMany: false,
-						title: localize('noTools', "Add tools to chat")
-					}
-				);
-				pick?.run();
-			}
-		};
-
-		const defaultBucket: BucketPick = {
-			type: 'item',
-			children: [],
-			label: localize('defaultBucketLabel', "Other Tools"),
-			source: { type: 'internal' },
-			ordinal: BucketOrdinal.Other,
-			picked: true,
-		};
-
-		const nowSelectedTools = new Set(widget.input.selectedToolsModel.tools.get());
-		const toolBuckets = new Map<string, BucketPick>();
-
-		for (const tool of toolsService.getTools()) {
-			if (!tool.supportsToolPicker) {
-				continue;
-			}
-
-			let bucket: BucketPick | undefined;
-
-			if (tool.source.type === 'mcp') {
-				const mcpServer = mcpServerByTool.get(tool.id);
-				if (!mcpServer) {
-					continue;
-				}
-				const key = tool.source.type + mcpServer.definition.id;
-				bucket = toolBuckets.get(key);
-
-				if (!bucket) {
-					const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
-					const buttons: ActionableButton[] = [];
-					if (collection?.presentation?.origin) {
-						buttons.push({
-							iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-							tooltip: localize('configMcpCol', "Configure {0}", collection.label),
-							action: () => editorService.openEditor({
-								resource: collection!.presentation!.origin,
-							})
-						});
-					}
-					if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
-						buttons.push({
-							iconClass: ThemeIcon.asClassName(Codicon.warning),
-							tooltip: localize('mcpShowOutput', "Show Output"),
-							action: () => mcpServer.showOutput(),
-						});
-					}
-
-					bucket = {
-						type: 'item',
-						label: localize('mcplabel', "MCP Server: {0}", mcpServer?.definition.label),
-						status: localize('mcpstatus', "from {0}", mcpServer.collection.label),
-						ordinal: BucketOrdinal.Mcp,
-						source: tool.source,
-						picked: false,
-						children: [],
-						buttons,
-					};
-					toolBuckets.set(key, bucket);
-				}
-			} else if (tool.source.type === 'extension') {
-				const key = tool.source.type + ExtensionIdentifier.toKey(tool.source.extensionId);
-
-				bucket = toolBuckets.get(key) ?? {
-					type: 'item',
-					label: tool.source.label,
-					ordinal: BucketOrdinal.Extension,
-					picked: false,
-					source: tool.source,
-					children: []
-				};
-				toolBuckets.set(key, bucket);
-			} else if (tool.source.type === 'internal') {
-				bucket = defaultBucket;
-			} else {
-				assertNever(tool.source);
-			}
-
-			const picked = nowSelectedTools.has(tool);
-
-			bucket.children.push({
-				tool,
-				parent: bucket,
-				type: 'item',
-				label: tool.displayName,
-				description: tool.userDescription,
-				picked,
-				indented: true,
-			});
-
-			if (picked) {
-				bucket.picked = true;
-			}
-		}
-
-		function isBucketPick(obj: any): obj is BucketPick {
-			return Boolean((obj as BucketPick).children);
-		}
-		function isToolPick(obj: any): obj is ToolPick {
-			return Boolean((obj as ToolPick).tool);
-		}
-		function isAddPick(obj: any): obj is AddPick {
-			return Boolean((obj as AddPick).run);
-		}
-		function isActionableButton(obj: IQuickInputButton): obj is ActionableButton {
-			return typeof (obj as ActionableButton).action === 'function';
-		}
-
-		const store = new DisposableStore();
-
-		const picks: (MyPick | IQuickPickSeparator)[] = [];
-
-		for (const bucket of Array.from(toolBuckets.values()).sort((a, b) => a.ordinal - b.ordinal)) {
-			picks.push({
-				type: 'separator',
-				label: bucket.status
-			});
-
-			picks.push(bucket);
-			picks.push(...bucket.children);
-		}
-
-		const picker = store.add(quickPickService.createQuickPick<MyPick>({ useSeparators: true }));
-		picker.placeholder = localize('placeholder', "Select tools that are available to chat");
-		picker.canSelectMany = true;
-		picker.keepScrollPosition = true;
-		picker.matchOnDescription = true;
-
-		if (picks.length === 0) {
-			picker.placeholder = localize('noTools', "Add tools to chat");
-			picker.canSelectMany = false;
-			picks.push(
-				addMcpPick,
-				addExpPick,
-			);
-		} else {
-			picks.push(
-				{ type: 'separator' },
-				addPick,
-			);
-		}
-
-
-		let lastSelectedItems = new Set<MyPick>();
-		let ignoreEvent = false;
-
-		const _update = () => {
-			ignoreEvent = true;
-			try {
-				const items = picks.filter((p): p is MyPick => p.type === 'item' && Boolean(p.picked));
-				lastSelectedItems = new Set(items);
-				picker.selectedItems = items;
-
-				const disableBuckets: ToolDataSource[] = [];
-				const disableTools: IToolData[] = [];
-				for (const item of picks) {
-					if (item.type === 'item' && !item.picked) {
-						if (isBucketPick(item)) {
-							disableBuckets.push(item.source);
-						} else if (isToolPick(item) && item.parent.picked) {
-							disableTools.push(item.tool);
-						}
+		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, entriesMap.get(), newEntriesMap => {
+			const disableToolSets: ToolSet[] = [];
+			const disableTools: IToolData[] = [];
+			for (const [item, enabled] of newEntriesMap) {
+				if (!enabled) {
+					if (item instanceof ToolSet) {
+						disableToolSets.push(item);
+					} else {
+						disableTools.push(item);
 					}
 				}
-
-				widget.input.selectedToolsModel.update(disableBuckets, disableTools);
-			} finally {
-				ignoreEvent = false;
 			}
-		};
-
-		_update();
-		picker.items = picks;
-		picker.show();
-
-		store.add(picker.onDidTriggerItemButton(e => {
-			if (isActionableButton(e.button)) {
-				e.button.action();
-				store.dispose();
-			}
-		}));
-
-		store.add(picker.onDidChangeSelection(selectedPicks => {
-			if (ignoreEvent) {
-				return;
-			}
-
-			const addPick = selectedPicks.find(isAddPick);
-			if (addPick) {
-				addPick.run();
-				picker.hide();
-				return;
-			}
-
-			const { added, removed } = diffSets(lastSelectedItems, new Set(selectedPicks));
-
-			for (const item of added) {
-				item.picked = true;
-
-				if (isBucketPick(item)) {
-					// add server -> add back tools
-					for (const toolPick of item.children) {
-						toolPick.picked = true;
-					}
-				} else if (isToolPick(item)) {
-					// add server when tool is picked
-					item.parent.picked = true;
-				}
-			}
-
-			for (const item of removed) {
-				item.picked = false;
-
-				if (isBucketPick(item)) {
-					// removed server -> remove tools
-					for (const toolPick of item.children) {
-						toolPick.picked = false;
-					}
-				} else if (isToolPick(item) && item.parent.children.every(child => !child.picked)) {
-					// remove LAST tool -> remove server
-					item.parent.picked = false;
-				}
-			}
-
-			_update();
-		}));
-
-		store.add(picker.onDidAccept(() => {
-			picker.activeItems.find(isAddPick)?.run();
-		}));
-
-		await Promise.race([Event.toPromise(Event.any(picker.onDidAccept, picker.onDidHide))]);
-		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
-			enabled: widget.input.selectedToolsModel.tools.get().length,
-			total: Iterable.length(toolsService.getTools()),
 		});
-		store.dispose();
+		if (result) {
+			widget.input.selectedToolsModel.set(result, false);
+		}
+
+		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
+			total: widget.input.selectedToolsModel.entriesMap.get().size,
+			enabled: widget.input.selectedToolsModel.entries.get().size,
+		});
+	}
+}
+
+class ConfigureToolsActionRendering implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.configureToolsActionRendering';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+	) {
+		const disposable = actionViewItemService.register(MenuId.ChatExecute, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(class extends MenuEntryActionViewItem {
+				private warningElement!: HTMLElement;
+
+				override render(container: HTMLElement): void {
+					super.render(container);
+
+					// Add warning indicator element
+					this.warningElement = $(`.tool-warning-indicator${ThemeIcon.asCSSSelector(Codicon.warning)}`);
+					this.warningElement.style.display = 'none';
+					container.appendChild(this.warningElement);
+					container.style.position = 'relative';
+
+					// Set up context key listeners
+					this.updateWarningState();
+					this._register(this._contextKeyService.onDidChangeContext(() => {
+						this.updateWarningState();
+					}));
+				}
+
+				private updateWarningState(): void {
+					const wasShown = this.warningElement.style.display === 'block';
+					const shouldBeShown = this.isAboveToolLimit();
+
+					if (!wasShown && shouldBeShown) {
+						this.warningElement.style.display = 'block';
+						this.updateTooltip();
+					} else if (wasShown && !shouldBeShown) {
+						this.warningElement.style.display = 'none';
+						this.updateTooltip();
+					}
+				}
+
+				protected override getTooltip(): string {
+					if (this.isAboveToolLimit()) {
+						const warningMessage = localize('chatTools.tooManyEnabled', 'More than {0} tools are enabled, you may experience degraded tool calling.', this._contextKeyService.getContextKeyValue(ChatContextKeys.chatToolGroupingThreshold.key));
+						return `${warningMessage}`;
+					}
+
+					return super.getTooltip();
+				}
+
+				private isAboveToolLimit() {
+					const rawToolLimit = this._contextKeyService.getContextKeyValue(ChatContextKeys.chatToolGroupingThreshold.key);
+					const rawToolCount = this._contextKeyService.getContextKeyValue(ChatContextKeys.chatToolCount.key);
+					if (rawToolLimit === undefined || rawToolCount === undefined) {
+						return false;
+					}
+
+					const toolLimit = Number(rawToolLimit || 0);
+					const toolCount = Number(rawToolCount || 0);
+					return toolCount > toolLimit;
+				}
+			}, action, undefined);
+		});
+
+		// Reduces flicker a bit on reload/restart
+		markAsSingleton(disposable);
 	}
 }
 
 export function registerChatToolActions() {
 	registerAction2(AcceptToolConfirmation);
-	registerAction2(AttachToolsAction);
+	registerAction2(ConfigureToolsAction);
+	registerWorkbenchContribution2(ConfigureToolsActionRendering.ID, ConfigureToolsActionRendering, WorkbenchPhase.BlockRestore);
 }

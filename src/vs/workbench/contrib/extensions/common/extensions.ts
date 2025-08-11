@@ -22,6 +22,7 @@ import { ProgressLocation } from '../../../../platform/progress/common/progress.
 import { Severity } from '../../../../platform/notification/common/notification.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize2 } from '../../../../nls.js';
+import { ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 export const EXTENSIONS_CATEGORY = localize2('extensions', "Extensions");
@@ -78,8 +79,8 @@ export interface IExtension {
 	readonly url?: string;
 	readonly repository?: string;
 	readonly supportUrl?: string;
-	readonly iconUrl: string;
-	readonly iconUrlFallback: string;
+	readonly iconUrl?: string;
+	readonly iconUrlFallback?: string;
 	readonly licenseUrl?: string;
 	readonly installCount?: number;
 	readonly rating?: number;
@@ -107,6 +108,7 @@ export interface IExtension {
 	readonly isMalicious: boolean | undefined;
 	readonly maliciousInfoLink: string | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
+	readonly missingFromGallery?: boolean;
 }
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
@@ -144,7 +146,7 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: URI, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	installInServer(extension: IExtension, server: IExtensionManagementServer, installOptions?: InstallOptions): Promise<void>;
-	downloadVSIX(extension: string, prerelease: boolean): Promise<void>;
+	downloadVSIX(extension: string, versionKind: 'prerelease' | 'release' | 'any'): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
 	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
@@ -250,9 +252,12 @@ export const INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID = 'workbench.extensions.comm
 export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.extensions.action.listWorkspaceUnsupportedExtensions';
 
 // Context Keys
+export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
 export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
+export const CONTEXT_EXTENSIONS_GALLERY_STATUS = new RawContextKey<string>('extensionsGalleryStatus', ExtensionGalleryManifestStatus.Unavailable);
 export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
+export const SearchMcpServersContext = new RawContextKey<boolean>('searchMcpServers', false);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';
@@ -260,6 +265,7 @@ export const INSTALL_ACTIONS_GROUP = '0_install';
 export const UPDATE_ACTIONS_GROUP = '0_update';
 
 export const extensionsSearchActionsMenu = new MenuId('extensionsSearchActionsMenu');
+export const extensionsFilterSubMenu = new MenuId('extensionsFilterSubMenu');
 
 export interface IExtensionArg {
 	id: string;

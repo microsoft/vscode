@@ -127,7 +127,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode(),
+			tabFocusMode: this._validatedOptions.get(EditorOption.tabFocusMode) || TabFocus.getTabFocusMode(),
 			inputMode: InputMode.getInputMode(),
 			accessibilitySupport: partialEnv.accessibilitySupport,
 			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount,
@@ -229,14 +229,13 @@ function digitCount(n: number): number {
 
 function getExtraEditorClassName(): string {
 	let extra = '';
-	if (!browser.isSafari && !browser.isWebkitWebView) {
-		// Use user-select: none in all browsers except Safari and native macOS WebView
-		extra += 'no-user-select ';
-	}
-	if (browser.isSafari) {
+	if (browser.isSafari || browser.isWebkitWebView) {
 		// See https://github.com/microsoft/vscode/issues/108822
 		extra += 'no-minimap-shadow ';
 		extra += 'enable-user-select ';
+	} else {
+		// Use user-select: none in all browsers except Safari and native macOS WebView
+		extra += 'no-user-select ';
 	}
 	if (platform.isMacintosh) {
 		extra += 'mac ';

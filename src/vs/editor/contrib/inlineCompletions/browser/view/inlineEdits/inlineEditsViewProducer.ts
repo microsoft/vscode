@@ -36,7 +36,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit;
 		if (!editOffset) { return undefined; }
 
-		const edits = editOffset.edits.map(e => {
+		const edits = editOffset.replacements.map(e => {
 			const innerEditRange = Range.fromPositions(
 				textModel.getPositionAt(e.replaceRange.start),
 				textModel.getPositionAt(e.replaceRange.endExclusive)

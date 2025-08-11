@@ -222,7 +222,7 @@ const fetchFeatureUse: FetchFeatureUseEvent = {
 	manualRedirect: 0,
 };
 
-let timer: NodeJS.Timeout | undefined;
+let timer: Timeout | undefined;
 const enableFeatureUseTelemetry = false;
 function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, feature: keyof typeof fetchFeatureUse) {
 	if (enableFeatureUseTelemetry && !fetchFeatureUse[feature]++) {
@@ -232,7 +232,7 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 		timer = setTimeout(() => {
 			mainThreadTelemetry.$publicLog2<FetchFeatureUseEvent, FetchFeatureUseClassification>('fetchFeatureUse', fetchFeatureUse);
 		}, 10000); // collect additional features for 10 seconds
-		timer.unref();
+		(timer as unknown as NodeJS.Timeout).unref?.();
 	}
 }
 

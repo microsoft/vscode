@@ -5,10 +5,12 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { isEmptyObject } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { ElementSizeObserver } from '../../../../../../editor/browser/config/elementSizeObserver.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -19,24 +21,28 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatMarkdownContent, IChatToolInvocation } from '../../../common/chatService.js';
+import { IChatToolInvocation } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
+import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfirmationWidget, ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+
+const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 30;
 
 export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 
-	private markdownPart: ChatMarkdownContentPart | undefined;
+	private markdownParts: ChatMarkdownContentPart[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
-		return this.markdownPart?.codeblocks ?? [];
+		return this.markdownParts.flatMap(part => part.codeblocks);
 	}
 
 	constructor(
@@ -56,13 +62,14 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		@ICommandService private readonly commandService: ICommandService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super(toolInvocation);
 
 		if (!toolInvocation.confirmationMessages) {
 			throw new Error('Confirmation messages are missing');
 		}
-		const { title, message, allowAutoConfirm } = toolInvocation.confirmationMessages;
+		const { title, message, allowAutoConfirm, disclaimer } = toolInvocation.confirmationMessages;
 		const continueLabel = localize('continue', "Continue");
 		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
@@ -76,6 +83,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			AllowWorkspace,
 			AllowGlobally,
 			AllowSession,
+			CustomAction,
 		}
 
 		const buttons: IChatConfirmationButton[] = [
@@ -95,36 +103,39 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				isSecondary: true,
 				tooltip: cancelTooltip
 			}];
+
 		let confirmWidget: ChatConfirmationWidget | ChatCustomConfirmationWidget;
 		if (typeof message === 'string') {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatConfirmationWidget,
-				title,
-				toolInvocation.originMessage,
-				message,
-				buttons,
 				this.context.container,
+				{ title, subtitle: toolInvocation.originMessage, buttons, message, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } }
 			));
 		} else {
-			const chatMarkdownContent: IChatMarkdownContent = {
-				kind: 'markdownContent',
-				content: message,
-			};
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 				hideToolbar: true,
 				reserveWidth: 19,
 				verticalPadding: 5,
 				editorOptions: {
-					wordWrap: 'on'
-				}
+					tabFocusMode: true,
+					ariaLabel: typeof title === 'string' ? title : title.value
+				},
 			};
 
 			const elements = dom.h('div', [
-				dom.h('.message@message'),
+				dom.h('.message@messageContainer', [
+					dom.h('.message-wrapper@message'),
+					dom.h('a.see-more@showMore'),
+				]),
 				dom.h('.editor@editor'),
+				dom.h('.disclaimer@disclaimer'),
 			]);
 
 			if (toolInvocation.toolSpecificData?.kind === 'input' && toolInvocation.toolSpecificData.rawInput && !isEmptyObject(toolInvocation.toolSpecificData.rawInput)) {
+
+				const title = document.createElement('h3');
+				title.textContent = localize('chat.input', "Input");
+				elements.editor.appendChild(title);
 
 				const inputData = toolInvocation.toolSpecificData;
 
@@ -135,7 +146,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 					verticalPadding: 5,
 					editorOptions: {
 						wordWrap: 'off',
-						readOnly: false
+						readOnly: false,
+						ariaLabel: typeof toolInvocation.confirmationMessages.title === 'string' ? toolInvocation.confirmationMessages.title : toolInvocation.confirmationMessages.title.value
 					}
 				};
 
@@ -221,6 +233,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 						try {
 							const parsed = JSON.parse(model.getValue());
 							model.setValue(JSON.stringify(parsed, null, 2));
+							editor.object.editor.updateOptions({ tabFocusMode: false });
 							editor.object.editor.updateOptions({ wordWrap: 'on' });
 						} catch {
 							// ignored
@@ -231,17 +244,38 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				}
 			}
 
-			this.markdownPart = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
-			elements.message.append(this.markdownPart.domNode);
+			this._makeMarkdownPart(elements.message, message, codeBlockRenderOptions);
+			elements.showMore.textContent = localize('seeMore', "See more");
 
-			this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+			const messageSeeMoreObserver = this._register(new ElementSizeObserver(elements.message, undefined));
+			const updateSeeMoreDisplayed = () => {
+				const show = messageSeeMoreObserver.getHeight() > SHOW_MORE_MESSAGE_HEIGHT_TRIGGER;
+				if (elements.messageContainer.classList.contains('can-see-more') !== show) {
+					elements.messageContainer.classList.toggle('can-see-more', show);
+					this._onDidChangeHeight.fire();
+				}
+			};
+
+			this._register(dom.addDisposableListener(elements.showMore, 'click', () => {
+				elements.messageContainer.classList.toggle('can-see-more', false);
+				this._onDidChangeHeight.fire();
+				messageSeeMoreObserver.dispose();
+			}));
+
+
+			this._register(messageSeeMoreObserver.onDidChange(updateSeeMoreDisplayed));
+			messageSeeMoreObserver.startObserving();
+
+			if (disclaimer) {
+				this._makeMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions);
+			} else {
+				elements.disclaimer.remove();
+			}
+
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
-				title,
-				toolInvocation.originMessage,
-				elements.root,
-				buttons,
 				this.context.container,
+				{ title, subtitle: toolInvocation.originMessage, buttons, message: elements.root, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } },
 			));
 		}
 
@@ -279,5 +313,27 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			this._onNeedsRerender.fire();
 		});
 		this.domNode = confirmWidget.domNode;
+	}
+
+	private _makeMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
+		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
+			{
+				kind: 'markdownContent',
+				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message
+			},
+			this.context,
+			this.editorPool,
+			false,
+			this.codeBlockStartIndex,
+			this.renderer,
+			undefined,
+			this.currentWidthDelegate(),
+			this.codeBlockModelCollection,
+			{ codeBlockRenderOptions }
+		));
+		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+		container.append(part.domNode);
+
+		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 	}
 }

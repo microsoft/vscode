@@ -50,6 +50,7 @@ import { Color } from '../../../../base/common/color.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { getOuterEditor } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { quickDiffDecorationCount } from './quickDiffDecorator.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 
 export const isQuickDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
@@ -63,7 +64,8 @@ export class QuickDiffPickerViewItem extends SelectActionViewItem<IQuickDiffSele
 	constructor(
 		action: IAction,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const styles = { ...defaultSelectBoxStyles };
 		const theme = themeService.getColorTheme();
@@ -71,7 +73,7 @@ export class QuickDiffPickerViewItem extends SelectActionViewItem<IQuickDiffSele
 		const peekTitleColor = theme.getColor(peekViewTitleBackground);
 		const opaqueTitleColor = peekTitleColor?.makeOpaque(editorBackgroundColor!) ?? editorBackgroundColor!;
 		styles.selectBackground = opaqueTitleColor.lighten(.6).toString();
-		super(null, action, [], 0, contextViewService, styles, { ariaLabel: nls.localize('remotes', 'Switch quick diff base') });
+		super(null, action, [], 0, contextViewService, styles, { ariaLabel: nls.localize('remotes', 'Switch quick diff base'), useCustomDrawn: !hasNativeContextMenu(configurationService) });
 	}
 
 	public setSelection(quickDiffs: QuickDiff[], providerId: string) {
@@ -229,7 +231,9 @@ class QuickDiffWidget extends PeekViewWidget {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const editorHeight = this.editor.getLayoutInfo().height;
 		const editorHeightInLines = Math.floor(editorHeight / lineHeight);
-		const height = Math.min(getChangeHeight(change) + /* padding */ 8, Math.floor(editorHeightInLines / 3));
+		const height = Math.min(
+			getChangeHeight(change) + 2 /* arrow, frame, header */ + 6 /* 3 lines above/below the change */,
+			Math.floor(editorHeightInLines / 3));
 
 		this.renderTitle();
 		this.updateDropdown();
@@ -250,7 +254,10 @@ class QuickDiffWidget extends PeekViewWidget {
 		}
 		this._actionbarWidget!.context = [diffEditorModel.modified.uri, providerSpecificChanges, contextIndex];
 		if (usePosition) {
-			this.show(position, height);
+			// In order to account for the 1px border-top of the content element we
+			// have to add 1px. The pixel value needs to be expressed as a fraction
+			// of the line height.
+			this.show(position, height + (1 / lineHeight));
 			this.editor.setPosition(position);
 			this.editor.focus();
 		}

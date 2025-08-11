@@ -5,10 +5,11 @@
 
 import { strictEquals } from '../../../base/common/equals.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-// eslint-disable-next-line local/code-no-deep-import-of-internal
-import { ObservableValue } from '../../../base/common/observableInternal/base.js';
+import { DebugLocation } from '../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { DebugNameData } from '../../../base/common/observableInternal/debugName.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { ObservableValue } from '../../../base/common/observableInternal/observables/observableValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 
 interface IObservableMementoOpts<T> {
@@ -63,7 +64,7 @@ export class ObservableMemento<T> extends ObservableValue<T> implements IDisposa
 			}
 		}
 
-		super(new DebugNameData(undefined, `storage/${opts.key}`, undefined), initialValue, strictEquals);
+		super(new DebugNameData(undefined, `storage/${opts.key}`, undefined), initialValue, strictEquals, DebugLocation.ofCaller());
 
 		const didChange = storageService.onDidChangeValue(storageScope, opts.key, this._store);
 		// only take external changes if there aren't local changes we've made

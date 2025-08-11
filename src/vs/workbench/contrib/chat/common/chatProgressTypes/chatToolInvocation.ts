@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { encodeBase64 } from '../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
-import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult } from '../languageModelToolsService.js';
+import { IChatExtensionsContent, IChatToolInputInvocationData, IChatTodoListContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData } from '../chatService.js';
+import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
@@ -45,7 +46,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
 
-	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData;
+	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 
 	public readonly progress = observableValue<{ message?: string | IMarkdownString; progress: number }>(this, { progress: 0 });
 
@@ -106,7 +107,9 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			originMessage: this.originMessage,
 			isConfirmed: this._isConfirmed,
 			isComplete: this._isComplete,
-			resultDetails: this._resultDetails,
+			resultDetails: isToolResultOutputDetails(this._resultDetails)
+				? { output: { type: 'data', mimeType: this._resultDetails.output.mimeType, base64Data: encodeBase64(this._resultDetails.output.value) } }
+				: this._resultDetails,
 			toolSpecificData: this.toolSpecificData,
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,

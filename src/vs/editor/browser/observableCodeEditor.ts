@@ -143,9 +143,12 @@ export class ObservableCodeEditor extends Disposable {
 		this.layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
 		this.layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
 		this.layoutInfoWidth = this.layoutInfo.map(l => l.width);
+		this.layoutInfoHeight = this.layoutInfo.map(l => l.height);
 		this.layoutInfoMinimap = this.layoutInfo.map(l => l.minimap);
 		this.layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
 		this.contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
+		this.contentHeight = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentHeight());
+
 		this._widgetCounter = 0;
 		this.openedPeekWidgets = observableValue(this, 0);
 
@@ -201,6 +204,11 @@ export class ObservableCodeEditor extends Disposable {
 				this._endUpdate();
 			}
 		}));
+
+		this.domNode = derived(reader => {
+			this.model.read(reader);
+			return this.editor.getDomNode();
+		});
 	}
 
 	public forceUpdate(): void;
@@ -263,10 +271,14 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly layoutInfoContentLeft;
 	public readonly layoutInfoDecorationsLeft;
 	public readonly layoutInfoWidth;
+	public readonly layoutInfoHeight;
 	public readonly layoutInfoMinimap;
 	public readonly layoutInfoVerticalScrollbarWidth;
 
 	public readonly contentWidth;
+	public readonly contentHeight;
+
+	public readonly domNode;
 
 	public getOption<T extends EditorOption>(id: T): IObservable<FindComputedEditorOptionValueById<T>> {
 		return observableFromEvent(this, cb => this.editor.onDidChangeConfiguration(e => {
@@ -399,6 +411,51 @@ export class ObservableCodeEditor extends Disposable {
 		}));
 		return isHovered;
 	}
+
+	observeLineHeightForPosition(position: IObservable<Position> | Position): IObservable<number>;
+	observeLineHeightForPosition(position: IObservable<null>): IObservable<null>;
+	observeLineHeightForPosition(position: IObservable<Position | null> | Position): IObservable<number | null> {
+		return derived(reader => {
+			const pos = position instanceof Position ? position : position.read(reader);
+			if (pos === null) {
+				return null;
+			}
+
+			this.getOption(EditorOption.lineHeight).read(reader);
+
+			return this.editor.getLineHeightForPosition(pos);
+		});
+	}
+
+	observeLineHeightForLine(lineNumber: IObservable<number> | number): IObservable<number>;
+	observeLineHeightForLine(lineNumber: IObservable<null>): IObservable<null>;
+	observeLineHeightForLine(lineNumber: IObservable<number | null> | number): IObservable<number | null> {
+		if (typeof lineNumber === 'number') {
+			return this.observeLineHeightForPosition(new Position(lineNumber, 1));
+		}
+
+		return derived(reader => {
+			const line = lineNumber.read(reader);
+			if (line === null) {
+				return null;
+			}
+
+			return this.observeLineHeightForPosition(new Position(line, 1)).read(reader);
+		});
+	}
+
+	observeLineHeightsForLineRange(lineNumber: IObservable<LineRange> | LineRange): IObservable<number[]> {
+		return derived(reader => {
+			const range = lineNumber instanceof LineRange ? lineNumber : lineNumber.read(reader);
+
+			const heights: number[] = [];
+			for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
+				heights.push(this.observeLineHeightForLine(i).read(reader));
+			}
+			return heights;
+		});
+	}
+
 }
 
 interface IObservableOverlayWidget {

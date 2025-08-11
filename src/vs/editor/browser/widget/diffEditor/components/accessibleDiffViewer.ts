@@ -11,7 +11,7 @@ import { forEachAdjacent, groupAdjacentBy } from '../../../../../base/common/arr
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, observableValue, subtransaction, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableValue, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { applyStyle } from '../utils.js';
@@ -77,14 +77,14 @@ export class AccessibleDiffViewer extends Disposable {
 		super();
 	}
 
-	private readonly _state = derivedWithStore(this, (reader, store) => {
+	private readonly _state = derived(this, (reader) => {
 		const visible = this._visible.read(reader);
 		this._parentNode.style.visibility = visible ? 'visible' : 'hidden';
 		if (!visible) {
 			return null;
 		}
-		const model = store.add(this._instantiationService.createInstance(ViewModel, this._diffs, this._models, this._setVisible, this._canClose));
-		const view = store.add(this._instantiationService.createInstance(View, this._parentNode, model, this._width, this._height, this._models));
+		const model = reader.store.add(this._instantiationService.createInstance(ViewModel, this._diffs, this._models, this._setVisible, this._canClose));
+		const view = reader.store.add(this._instantiationService.createInstance(View, this._parentNode, model, this._width, this._height, this._models));
 		return { model, view, };
 	}).recomputeInitiallyAndOnChange(this._store);
 
@@ -658,6 +658,7 @@ class View extends Disposable {
 	private _getLineHtml(model: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number, languageIdCodec: ILanguageIdCodec): string {
 		const lineContent = model.getLineContent(lineNumber);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const verticalScrollbarSize = options.get(EditorOption.scrollbar).verticalScrollbarSize;
 		const lineTokens = LineTokens.createEmpty(lineContent, languageIdCodec);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
@@ -680,7 +681,9 @@ class View extends Disposable {
 			options.get(EditorOption.renderWhitespace),
 			options.get(EditorOption.renderControlCharacters),
 			options.get(EditorOption.fontLigatures) !== EditorFontLigatures.OFF,
-			null
+			null,
+			null,
+			verticalScrollbarSize
 		));
 
 		return r.html;

@@ -17,14 +17,16 @@
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title  {
-	display: flex;
-	align-items: center;
 	width: 100%;
 	border-radius: 3px;
 	padding: 3px 8px;
 	user-select: none;
-	gap: 4px;
-	border: none;
+
+	&.monaco-button {
+		display: flex;
+		align-items: center;
+		border: 0;
+	}
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.expandable {
@@ -97,7 +99,7 @@
 	}
 }
 
-.chat-confirmation-widget .chat-confirmation-buttons-container,
+.chat-confirmation-widget .chat-buttons-container,
 .chat-confirmation-widget .chat-confirmation-widget-message {
 	flex-basis: 100%;
 	padding: 0 8px;
@@ -106,6 +108,23 @@
 	&:last-child {
 		margin-bottom: 0;
 	}
+}
+
+.chat-confirmation-widget .chat-buttons-container {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+}
+
+.chat-confirmation-widget .chat-buttons {
+	display: flex;
+	gap: 8px;
+}
+
+.chat-confirmation-widget .chat-toolbar {
+	display: flex;
+	align-items: center;
 }
 
 .chat-confirmation-widget.collapsed .chat-confirmation-widget-message {
@@ -131,17 +150,26 @@
 	}
 }
 
-.chat-confirmation-widget .chat-confirmation-buttons-container {
-	display: flex;
-	gap: 8px;
-	margin-top: 0px;
-	flex-wrap: wrap;
-
-	&:last-child {
-		margin-bottom: 8px;
-	}
+.chat-confirmation-widget .chat-buttons-container:last-child {
+	margin-bottom: 8px;
 }
 
-.chat-confirmation-widget.hideButtons .chat-confirmation-buttons-container {
+.chat-confirmation-widget.hideButtons .chat-buttons-container {
 	display: none;
+}
+
+.chat-collapsible-io-resource-group {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	margin-bottom: 8px !important;
+
+	.chat-collapsible-io-resource-items {
+		display: flex;
+		align-items: center;
+
+		.chat-attached-context {
+			margin-bottom: 0 !important;
+		}
+	}
 }

@@ -7,7 +7,7 @@ import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -57,6 +57,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { getIgnoredSettings } from '../../../../platform/userDataSync/common/settingsMerge.js';
 import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -1063,7 +1064,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.toDispose.dispose();
 	}
 
-	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
+	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate): void {
 		(template as ISettingItemTemplate).elementDisposables?.clear();
 	}
 }
@@ -1178,7 +1179,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		const onClickOrKeydown = (e: UIEvent) => {
 			if (isLanguageTagSetting) {
-				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey}`);
+				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey.replaceAll(' ', '')}`);
 			} else {
 				this._onDidOpenSettings.fire(dataElement.setting.key);
 			}
@@ -1816,7 +1817,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 		});
 
 		const selectBox = new SelectBox([], 0, this._contextViewService, styles, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+			useCustomDrawn: !hasNativeContextMenu(this._configService) || !(isIOS && BrowserFeatures.pointerEvents)
 		});
 
 		common.toDispose.add(selectBox);
@@ -2538,7 +2539,7 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 				ariaLabelSections.push(`${indicatorsLabelAriaLabel}.`);
 			}
 
-			const descriptionWithoutSettingLinks = renderMarkdownAsPlaintext({ value: fixSettingLinks(element.description, false) });
+			const descriptionWithoutSettingLinks = renderAsPlaintext({ value: fixSettingLinks(element.description, false) });
 			if (descriptionWithoutSettingLinks.length) {
 				ariaLabelSections.push(descriptionWithoutSettingLinks);
 			}

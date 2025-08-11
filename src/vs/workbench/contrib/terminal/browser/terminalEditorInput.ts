@@ -151,15 +151,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		const instanceOnDidFocusListener = instance.onDidFocus(() => this._terminalEditorFocusContextKey.set(true));
 		const instanceOnDidBlurListener = instance.onDidBlur(() => this._terminalEditorFocusContextKey.reset());
 
-		this._register(toDisposable(() => {
-			if (!this._isDetached && !this._isShuttingDown) {
-				// Will be ignored if triggered by onExit or onDisposed terminal events
-				// as disposed was already called
-				instance.dispose(TerminalExitReason.User);
-			}
-			dispose([instanceOnDidFocusListener, instanceOnDidBlurListener]);
-		}));
-
 		const disposeListeners = [
 			instance.onExit((e) => {
 				if (!instance.waitOnExit) {
@@ -174,9 +165,19 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 
+		this._register(toDisposable(() => {
+			if (!this._isDetached && !this._isShuttingDown) {
+				// Will be ignored if triggered by onExit or onDisposed terminal events
+				// as disposed was already called
+				instance.dispose(TerminalExitReason.User);
+			}
+			dispose(disposeListeners);
+			dispose([instanceOnDidFocusListener, instanceOnDidBlurListener]);
+		}));
+
 		// Don't dispose editor when instance is torn down on shutdown to avoid extra work and so
 		// the editor/tabs don't disappear
-		this._lifecycleService.onWillShutdown((e: WillShutdownEvent) => {
+		this._register(this._lifecycleService.onWillShutdown((e: WillShutdownEvent) => {
 			this._isShuttingDown = true;
 			dispose(disposeListeners);
 
@@ -187,7 +188,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			} else {
 				instance.dispose(TerminalExitReason.Shutdown);
 			}
-		});
+		}));
 	}
 
 	override getName() {

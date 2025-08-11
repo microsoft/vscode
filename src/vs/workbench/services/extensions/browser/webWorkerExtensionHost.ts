@@ -146,7 +146,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		let port!: MessagePort;
 		let barrierError: Error | null = null;
 		let barrierHasError = false;
-		let startTimeout: any = null;
+		let startTimeout: Timeout | undefined = undefined;
 
 		const rejectBarrier = (exitCode: number, error: Error) => {
 			barrierError = error;
@@ -294,6 +294,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
+			date: this._productService.date,
 			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
@@ -331,7 +332,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
-			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart || this.startup === ExtensionHostStartup.LazyAutoStart),
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,

@@ -26,7 +26,7 @@ fi
 ARCH=$(uname -m)
 found_required_glibc=0
 found_required_glibcxx=0
-MIN_GLIBCXX_VERSION="3.4.26"
+MIN_GLIBCXX_VERSION="3.4.25"
 
 # Extract the ID value from /etc/os-release
 if [ -f /etc/os-release ]; then

@@ -183,6 +183,9 @@ export class DiffEditorEditors extends Disposable {
 		};
 		clonedOptions.inDiffEditor = true;
 		clonedOptions.automaticLayout = false;
+		clonedOptions.allowVariableLineHeights = false;
+		clonedOptions.allowVariableFonts = false;
+		clonedOptions.allowVariableFontsInAccessibilityMode = false;
 
 		// Clone scrollbar options before changing them
 		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };

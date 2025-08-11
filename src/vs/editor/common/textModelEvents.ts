@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from './core/range.js';
+import { IPosition } from './core/position.js';
+import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
+import { TextModelEditSource } from './textModelEditSource.js';
 
 /**
  * An event describing that the current language associated with a model has changed.
@@ -85,6 +87,57 @@ export interface IModelContentChangedEvent {
 	 * Flag that indicates that this event describes an eol change.
 	 */
 	readonly isEolChange: boolean;
+
+	/**
+	 * Detailed reason information for the change
+	 * @internal
+	 */
+	readonly detailedReasons: TextModelEditSource[];
+
+	/**
+	 * The sum of these lengths equals changes.length.
+	 * The length of this array must equal the length of detailedReasons.
+	*/
+	readonly detailedReasonsChangeLengths: number[];
+}
+
+export interface ISerializedModelContentChangedEvent {
+	/**
+	 * The changes are ordered from the end of the document to the beginning, so they should be safe to apply in sequence.
+	 */
+	readonly changes: IModelContentChange[];
+	/**
+	 * The (new) end-of-line character.
+	 */
+	readonly eol: string;
+	/**
+	 * The new version id the model has transitioned to.
+	 */
+	readonly versionId: number;
+	/**
+	 * Flag that indicates that this event was generated while undoing.
+	 */
+	readonly isUndoing: boolean;
+	/**
+	 * Flag that indicates that this event was generated while redoing.
+	 */
+	readonly isRedoing: boolean;
+	/**
+	 * Flag that indicates that all decorations were lost with this edit.
+	 * The model has been reset to a new value.
+	 */
+	readonly isFlush: boolean;
+
+	/**
+	 * Flag that indicates that this event describes an eol change.
+	 */
+	readonly isEolChange: boolean;
+
+	/**
+	 * Detailed reason information for the change
+	 * @internal
+	 */
+	readonly detailedReason: Record<string, unknown> | undefined;
 }
 
 /**
@@ -266,6 +319,26 @@ export class ModelLineHeightChanged {
 }
 
 /**
+ * An event describing that a line height has changed in the model.
+ * @internal
+ */
+export class ModelFontChanged {
+	/**
+	 * Editor owner ID
+	 */
+	public readonly ownerId: number;
+	/**
+	 * The line that has changed.
+	 */
+	public readonly lineNumber: number;
+
+	constructor(ownerId: number, lineNumber: number) {
+		this.ownerId = ownerId;
+		this.lineNumber = lineNumber;
+	}
+}
+
+/**
  * An event describing that line(s) have been deleted in a model.
  * @internal
  */
@@ -403,6 +476,37 @@ export class ModelLineHeightChangedEvent {
 	constructor(changes: ModelLineHeightChanged[]) {
 		this.changes = changes;
 	}
+
+	public affects(rangeOrPosition: IRange | IPosition) {
+		if (Range.isIRange(rangeOrPosition)) {
+			for (const change of this.changes) {
+				if (change.lineNumber >= rangeOrPosition.startLineNumber && change.lineNumber <= rangeOrPosition.endLineNumber) {
+					return true;
+				}
+			}
+			return false;
+		} else {
+			for (const change of this.changes) {
+				if (change.lineNumber === rangeOrPosition.lineNumber) {
+					return true;
+				}
+			}
+			return false;
+		}
+	}
+}
+
+/**
+ * An event describing a change in fonts.
+ * @internal
+ */
+export class ModelFontChangedEvent {
+
+	public readonly changes: ModelFontChanged[];
+
+	constructor(changes: ModelFontChanged[]) {
+		this.changes = changes;
+	}
 }
 
 /**
@@ -436,6 +540,8 @@ export class InternalModelContentChangeEvent {
 			isUndoing: isUndoing,
 			isRedoing: isRedoing,
 			isFlush: isFlush,
+			detailedReasons: a.detailedReasons.concat(b.detailedReasons),
+			detailedReasonsChangeLengths: a.detailedReasonsChangeLengths.concat(b.detailedReasonsChangeLengths),
 		};
 	}
 }

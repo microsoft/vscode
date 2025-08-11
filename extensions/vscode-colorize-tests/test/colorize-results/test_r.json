@@ -561,7 +561,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.r punctuation.section.braces.begin.r",
+		"t": "source.r punctuation.section.block.begin.bracket.curly.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -617,7 +617,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.r punctuation.section.braces.end.r",
+		"t": "source.r punctuation.section.block.end.bracket.curly.r",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

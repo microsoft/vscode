@@ -393,9 +393,10 @@ export class TestResultsViewContent extends Disposable {
 
 			if (provider.onDidContentSizeChange) {
 				this.currentSubjectStore.add(provider.onDidContentSizeChange(() => {
-					if (this.dimension && !this.isDoingLayoutUpdate) {
+					const width = this.splitView.getViewSize(SubView.Diff);
+					if (this.dimension && !this.isDoingLayoutUpdate && width !== -1) {
 						this.isDoingLayoutUpdate = true;
-						topFrame.height.set(provider.layout(this.dimension, hasMultipleFrames)!, undefined);
+						topFrame.height.set(provider.layout({ width, height: this.dimension.height }, hasMultipleFrames)!, undefined);
 						this.isDoingLayoutUpdate = false;
 					}
 				}));

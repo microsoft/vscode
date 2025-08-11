@@ -29,16 +29,15 @@ declare module 'vscode' {
 		provideChatTitle(context: ChatContext, token: CancellationToken): ProviderResult<string>;
 	}
 
+	export interface ChatSummarizer {
+		provideChatSummary(context: ChatContext, token: CancellationToken): ProviderResult<string>;
+	}
+
 	export interface ChatParticipant {
 		/**
 		 * A string that will be added before the listing of chat participants in `/help`.
 		 */
 		helpTextPrefix?: string | MarkdownString;
-
-		/**
-		 * A string that will be added before the listing of chat variables in `/help`.
-		 */
-		helpTextVariablesPrefix?: string | MarkdownString;
 
 		/**
 		 * A string that will be appended after the listing of chat participants in `/help`.
@@ -47,6 +46,7 @@ declare module 'vscode' {
 
 		additionalWelcomeMessage?: string | MarkdownString;
 		titleProvider?: ChatTitleProvider;
+		summarizer?: ChatSummarizer;
 		requester?: ChatRequesterInformation;
 	}
 }

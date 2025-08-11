@@ -22,13 +22,13 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 // #############################################################################################
 //
 
-const ignored = new Set([
-	'vs/editor/browser/view/viewLayer.ts',
-	'vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts',
-	'vs/editor/contrib/inlayHints/browser/inlayHintsController.ts',
-	'vs/workbench/contrib/editSessions/browser/editSessionsStorageService.ts',
-	'vs/workbench/api/common/extHostLanguageFeatures.ts',
-]);
+enum EntryKind {
+	Span,
+	Node,
+	StringLiteral,
+	SearchedLocalFoundProperty,
+	SearchedPropertyFoundLocal,
+}
 
 const cancellationToken: ts.CancellationToken = {
 	isCancellationRequested: () => false,
@@ -59,12 +59,6 @@ for (const file of program.getSourceFiles()) {
 	if (!file || file.isDeclarationFile) {
 		continue;
 	}
-
-	const relativePath = path.relative(path.dirname(TS_CONFIG_PATH), file.fileName).replace(/\\/g, '/');
-	if (ignored.has(relativePath)) {
-		continue;
-	}
-
 	visit(file);
 }
 
@@ -284,14 +278,6 @@ type Definition =
 	| { readonly type: DefinitionKind.String; readonly node: ts.StringLiteralLike }
 	| { readonly type: DefinitionKind.TripleSlashReference; readonly reference: ts.FileReference; readonly file: ts.SourceFile };
 
-/** @internal */
-export const enum EntryKind {
-	Span,
-	Node,
-	StringLiteral,
-	SearchedLocalFoundProperty,
-	SearchedPropertyFoundLocal,
-}
 type NodeEntryKind = EntryKind.Node | EntryKind.StringLiteral | EntryKind.SearchedLocalFoundProperty | EntryKind.SearchedPropertyFoundLocal;
 type Entry = NodeEntry | SpanEntry;
 interface ContextWithStartAndEndNode {

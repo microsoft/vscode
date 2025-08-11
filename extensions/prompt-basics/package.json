@@ -8,7 +8,9 @@
   "engines": {
     "vscode": "^1.20.0"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -34,6 +36,17 @@
           "copilot-instructions.md"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "chatmode",
+        "aliases": [
+          "Chat Mode",
+          "chat mode"
+        ],
+        "extensions": [
+          ".chatmode.md"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -54,30 +67,52 @@
           "markup.underline.link.markdown",
           "punctuation.definition.list.begin.markdown"
         ]
+      },
+      {
+        "language": "chatmode",
+        "path": "./syntaxes/prompt.tmLanguage.json",
+        "scopeName": "text.html.markdown.prompt",
+        "unbalancedBracketScopes": [
+          "markup.underline.link.markdown",
+          "punctuation.definition.list.begin.markdown"
+        ]
       }
     ],
     "configurationDefaults": {
       "[prompt]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
-        "diffEditor.ignoreTrimWhitespace": false
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "off",
+          "other": "off"
+        }
       },
       "[instructions]": {
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
-        "diffEditor.ignoreTrimWhitespace": false
-      }
-    },
-    "snippets": [
-     {
-        "language": "prompt",
-        "path": "./snippets/prompt.code-snippets"
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "off",
+          "other": "off"
+        }
       },
-      {
-        "language": "instructions",
-        "path": "./snippets/instructions.code-snippets"
+      "[chatmode]": {
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.unicodeHighlight.invisibleCharacters": false,
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "off",
+          "other": "off"
+        }
       }
-    ]
+    }
   },
   "scripts": {},
   "repository": {

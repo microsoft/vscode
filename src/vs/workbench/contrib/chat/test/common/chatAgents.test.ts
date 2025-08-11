@@ -9,6 +9,7 @@ import { ContextKeyExpression } from '../../../../../platform/contextkey/common/
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatAgentService, IChatAgentData, IChatAgentImplementation } from '../../common/chatAgents.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 const testAgentId = 'testAgent';
 const testAgentData: IChatAgentData = {
@@ -42,7 +43,7 @@ suite('ChatAgents', function () {
 	let contextKeyService: TestingContextKeyService;
 	setup(() => {
 		contextKeyService = new TestingContextKeyService();
-		chatAgentService = store.add(new ChatAgentService(contextKeyService));
+		chatAgentService = store.add(new ChatAgentService(contextKeyService, new TestConfigurationService()));
 	});
 
 	test('registerAgent', async () => {

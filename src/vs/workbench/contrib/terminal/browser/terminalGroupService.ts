@@ -8,7 +8,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -32,8 +32,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	lastAccessedMenu: 'inline-tab' | 'tab-list' = 'inline-tab';
-
-	private _terminalGroupCountContextKey: IContextKey<number>;
 
 	private _container: HTMLElement | undefined;
 
@@ -71,10 +69,16 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	) {
 		super();
 
-		this._terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
+		const terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
+		this._register(Event.runAndSubscribe(this.onDidChangeGroups, () => terminalGroupCountContextKey.set(this.groups.length)));
+
+		const splitTerminalActiveContextKey = TerminalContextKeys.splitTerminalActive.bindTo(this._contextKeyService);
+		this._register(Event.runAndSubscribe(this.onDidFocusInstance, () => {
+			const activeInstance = this.activeInstance;
+			splitTerminalActiveContextKey.set(activeInstance ? this.instanceIsSplit(activeInstance) : false);
+		}));
 
 		this._register(this.onDidDisposeGroup(group => this._removeGroup(group)));
-		this._register(this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length)));
 		this._register(Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances)(() => this.updateVisibility()));
 		this._register(this._quickInputService.onShow(() => this._isQuickInputOpened = true));
 		this._register(this._quickInputService.onHide(() => this._isQuickInputOpened = false));
@@ -218,7 +222,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			if (this.groups.length > 0 && !this._isQuickInputOpened) {
 				const newIndex = index < this.groups.length ? index : this.groups.length - 1;
 				this.setActiveGroupByIndex(newIndex, true);
-				this.activeInstance?.focus(true);
+				if (group.hadFocusOnExit) {
+					this.activeInstance?.focus(true);
+				}
 			}
 		} else {
 			// Adjust the active group if the removed group was above the active group

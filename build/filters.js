@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
 
 /**
  * Hygiene works by creating cascading subsets of all our files and
@@ -24,8 +25,10 @@ module.exports.all = [
 	'test/**/*',
 	'!cli/**/*',
 	'!out*/**',
+	'!extensions/**/out*/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
+	'!**/*.js.map',
 ];
 
 module.exports.unicodeFilter = [
@@ -103,6 +106,7 @@ module.exports.indentationFilter = [
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!build/monaco/**',
 	'!build/win32/**',
+	'!build/checker/**',
 
 	// except multiple specific files
 	'!**/package.json',

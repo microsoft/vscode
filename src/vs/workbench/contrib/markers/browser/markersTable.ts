@@ -82,7 +82,7 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 		return { actionBar, icon };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData): void {
 		const toggleQuickFix = (enabled?: boolean) => {
 			if (!isUndefinedOrNull(enabled)) {
 				const container = DOM.findParentWithClass(templateData.icon, 'monaco-table-td')!;
@@ -138,7 +138,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		return { codeColumn, sourceLabel, codeLabel, codeLink, templateDisposable };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData): void {
 		templateData.codeColumn.classList.remove('code-label');
 		templateData.codeColumn.classList.remove('code-link');
 
@@ -186,7 +186,7 @@ class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMa
 		return { columnElement, highlightedLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData): void {
 		templateData.columnElement.title = element.marker.message;
 		templateData.highlightedLabel.set(element.marker.message, element.messageMatches);
 	}
@@ -216,7 +216,7 @@ class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		return { columnElement, fileLabel, positionLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerFileColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerFileColumnTemplateData): void {
 		const positionLabel = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.marker.startLineNumber, element.marker.startColumn);
 
 		templateData.columnElement.title = `${this.labelService.getUriLabel(element.marker.resource, { relative: false })} ${positionLabel}`;
@@ -242,7 +242,7 @@ class MarkerSourceColumnRenderer implements ITableRenderer<MarkerTableItem, IMar
 		return { columnElement, highlightedLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData): void {
 		templateData.columnElement.title = element.marker.source ?? '';
 		templateData.highlightedLabel.set(element.marker.source ?? '', element.sourceMatches);
 	}

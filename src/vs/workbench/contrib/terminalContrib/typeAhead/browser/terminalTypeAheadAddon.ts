@@ -1346,7 +1346,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		}));
 		this._register(this._processManager.onBeforeProcessData(e => this._onBeforeProcessData(e)));
 
-		let nextStatsSend: any;
+		let nextStatsSend: Timeout | undefined;
 		this._register(stats.onChange(() => {
 			if (!nextStatsSend) {
 				nextStatsSend = setTimeout(() => {

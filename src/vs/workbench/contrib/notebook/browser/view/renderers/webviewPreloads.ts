@@ -188,9 +188,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}, 0);
 	};
 
-	const isEditableElement = (element: Element) => {
-		return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea'
-			|| ('editContext' in element && !!element.editContext);
+	const hasActiveEditableElement = (
+		parent: Node | DocumentFragment,
+		root: ShadowRoot | Document = document
+	): boolean => {
+		const element = root.activeElement;
+		return !!(element && parent.contains(element)
+			&& (element.matches(':read-write') || element.tagName.toLowerCase() === 'select'
+				|| (element.shadowRoot && hasActiveEditableElement(element.shadowRoot, element.shadowRoot)))
+		);
 	};
 
 	// check if an input element is focused within the output element
@@ -202,7 +208,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		const id = lastFocusedOutput?.id;
-		if (id && (isEditableElement(activeElement) || activeElement.tagName === 'SELECT')) {
+		if (id && (hasActiveEditableElement(activeElement, window.document))) {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
@@ -309,7 +315,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement && isEditableElement(activeElement)) {
+		if (activeElement && hasActiveEditableElement(activeElement, window.document)) {
 			(activeElement as HTMLInputElement).select();
 		}
 	};
@@ -335,7 +341,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement && isEditableElement(activeElement)) {
+		if (activeElement && hasActiveEditableElement(activeElement, window.document)) {
 			// Leave for default behavior.
 			return;
 		}
@@ -363,7 +369,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 		const activeElement = window.document.activeElement;
-		if (activeElement && isEditableElement(activeElement)) {
+		if (activeElement && hasActiveEditableElement(activeElement, window.document)) {
 			// The input element will handle this.
 			return;
 		}
@@ -500,7 +506,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private readonly _observer: ResizeObserver;
 
 		private readonly _observedElements = new WeakMap<Element, IObservedElement>();
-		private _outputResizeTimer: any;
+		private _outputResizeTimer: Timeout | undefined;
 
 		constructor() {
 			this._observer = new ResizeObserver(entries => {
@@ -584,7 +590,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	let previousDelta: number | undefined;
-	let scrollTimeout: any /* NodeJS.Timeout */ | undefined;
+	let scrollTimeout: Timeout | undefined;
 	let scrolledElement: Element | undefined;
 	let lastTimeScrolled: number | undefined;
 	function flagRecentlyScrolled(node: Element, deltaY?: number) {
@@ -702,7 +708,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusableElement.tabIndex = -1;
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
 			} else {
-				const inputFocused = isEditableElement(focusableElement);
+				const inputFocused = hasActiveEditableElement(focusableElement, focusableElement.ownerDocument);
 				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
@@ -1070,7 +1076,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([valueBytes], { type: this.mime });
+					return new Blob([valueBytes as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				get _allOutputItems() {
@@ -1584,12 +1590,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	const copyOutputImage = async (outputId: string, altOutputId: string, retries = 5) => {
+	const copyOutputImage = async (outputId: string, altOutputId: string, textAlternates?: { mimeType: string; content: string }[], retries = 5) => {
 		if (!window.document.hasFocus() && retries > 0) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, textAlternates, retries - 1); }, 50);
 			return;
 		}
 
@@ -1611,7 +1617,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (image) {
 				const imageToCopy = image;
-				await navigator.clipboard.write([new ClipboardItem({
+
+				// Build clipboard data with both image and text formats
+				const clipboardData: Record<string, any> = {
 					'image/png': new Promise((resolve) => {
 						const canvas = document.createElement('canvas');
 						canvas.width = imageToCopy.naturalWidth;
@@ -1628,7 +1636,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 							canvas.remove();
 						}, 'image/png');
 					})
-				})]);
+				};
+
+				// Add text alternates if provided
+				if (textAlternates) {
+					for (const alternate of textAlternates) {
+						clipboardData[alternate.mimeType] = alternate.content;
+					}
+				}
+
+				await navigator.clipboard.write([new ClipboardItem(clipboardData)]);
 			} else {
 				console.error('Could not find image element to copy for output with id', outputId);
 			}
@@ -1738,7 +1755,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'copyImage': {
-				await copyOutputImage(event.data.outputId, event.data.altOutputId);
+				await copyOutputImage(event.data.outputId, event.data.altOutputId, event.data.textAlternates);
 				break;
 			}
 			case 'ack-dimension': {
@@ -2520,7 +2537,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				},
 
 				blob(): Blob {
-					return new Blob([this.data()], { type: this.mime });
+					return new Blob([this.data() as Uint8Array<ArrayBuffer>], { type: this.mime });
 				},
 
 				_allOutputItems: [{

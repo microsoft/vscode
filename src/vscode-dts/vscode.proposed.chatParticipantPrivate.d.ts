@@ -137,7 +137,31 @@ declare module 'vscode' {
 		/**
 		 * @hidden
 		 */
-		private constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+	}
+
+	export class ChatResponseTurn2 {
+		/**
+		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 */
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart | ChatToolInvocationPart>;
+
+		/**
+		 * The result that was received from the chat participant.
+		 */
+		readonly result: ChatResult;
+
+		/**
+		 * The id of the chat participant that this response came from.
+		 */
+		readonly participant: string;
+
+		/**
+		 * The name of the command that this response came from.
+		 */
+		readonly command?: string;
+
+		constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart>, result: ChatResult, participant: string);
 	}
 
 	export interface ChatParticipant {
@@ -190,25 +214,19 @@ declare module 'vscode' {
 		terminalCommand?: string;
 	}
 
+	export interface LanguageModelToolInvocationPrepareOptions<T> {
+		/**
+		 * The input that the tool is being invoked with.
+		 */
+		input: T;
+		chatRequestId?: string;
+		chatSessionId?: string;
+		chatInteractionId?: string;
+	}
+
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
 		presentation?: 'hidden' | undefined;
-	}
-
-	export interface LanguageModelTool<T> {
-		prepareInvocation2?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedTerminalToolInvocation>;
-	}
-
-	export class PreparedTerminalToolInvocation {
-		readonly command: string;
-		readonly language: string;
-		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
-
-		constructor(
-			command: string,
-			language: string,
-			confirmationMessages?: LanguageModelToolConfirmationMessages,
-		);
 	}
 
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
@@ -241,25 +259,16 @@ declare module 'vscode' {
 
 	// #endregion
 
-	export interface ChatRequestToolSelection {
-		/**
-		 * A list of tools that the user selected for this request.
-		 * Tools can be called with {@link lm.invokeTool} with input that match their
-		 * declared `inputSchema`.
-		 */
-		readonly tools: readonly LanguageModelToolInformation[];
+	// #region ChatErrorDetailsWithConfirmation
 
-		/**
-		 * When true, only this set of tools (and toolReferences) should be used. When false, the base set of agent tools can also be included.
-		 */
-		readonly isExclusive?: boolean;
+	export interface ChatErrorDetails {
+		confirmationButtons?: ChatErrorDetailsConfirmationButton[];
 	}
 
-	export interface ChatRequest {
-		/**
-		 * A list of tools that the user selected for this request, when `undefined` any tool
-		 * from {@link lm.tools} should be used.
-		 */
-		readonly toolSelection: ChatRequestToolSelection | undefined;
+	export interface ChatErrorDetailsConfirmationButton {
+		data: any;
+		label: string;
 	}
+
+	// #endregion
 }
