@@ -402,7 +402,7 @@ export class DisposableStore implements IDisposable {
 	/**
 	 * Dispose of all registered disposables and mark this object as disposed.
 	 *
-	 * Any future disposables added to this object will be disposed of on `add`.
+	 * Any future disposables added to this object will trigger a warning and be leaked.
 	 */
 	public dispose(): void {
 		if (this._isDisposed) {
@@ -412,6 +412,10 @@ export class DisposableStore implements IDisposable {
 		markAsDisposed(this);
 		this._isDisposed = true;
 		this.clear();
+	}
+
+	[Symbol.dispose](): void {
+		this.dispose();
 	}
 
 	/**
@@ -515,6 +519,10 @@ export abstract class Disposable implements IDisposable {
 		this._store.dispose();
 	}
 
+	[Symbol.dispose](): void {
+		this.dispose();
+	}
+
 	/**
 	 * Adds `o` to the collection of disposables managed by this object.
 	 */
@@ -568,6 +576,10 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 		markAsDisposed(this);
 		this._value?.dispose();
 		this._value = undefined;
+	}
+
+	[Symbol.dispose](): void {
+		this.dispose();
 	}
 
 	/**
@@ -697,15 +709,6 @@ export class ImmortalReference<T> implements IReference<T> {
 	dispose(): void { /* noop */ }
 }
 
-export function disposeOnReturn(fn: (store: DisposableStore) => void): void {
-	const store = new DisposableStore();
-	try {
-		fn(store);
-	} finally {
-		store.dispose();
-	}
-}
-
 /**
  * A map the manages the lifecycle of the values that it stores.
  */
@@ -817,4 +820,15 @@ export function thenIfNotDisposed<T>(promise: Promise<T>, then: (result: T) => v
 	return toDisposable(() => {
 		disposed = true;
 	});
+}
+
+/**
+ * Adapts a disposable to the standard `Symbol.dispose` API. This allows disposing of it with a`using` statement.
+ */
+export function wrapInStdDisposable(value: IDisposable): { [Symbol.dispose](): void } {
+	return {
+		[Symbol.dispose](): void {
+			value.dispose();
+		}
+	};
 }
