@@ -369,6 +369,7 @@ interface IArgvConfig {
 	readonly 'disable-chromium-sandbox'?: boolean;
 	readonly 'use-inmemory-secretstorage'?: boolean;
 	readonly 'enable-rdp-display-tracking'?: boolean;
+	readonly 'remote-debugging-port'?: string;
 }
 
 function readArgvConfigSync(): IArgvConfig {
