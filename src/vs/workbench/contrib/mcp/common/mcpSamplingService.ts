@@ -279,7 +279,10 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 			}
 		}
 
-		return { value: undefined, mapping: undefined, key, target: leastSpecificConfig, resource };
+		// When no existing config is found for this server, still return the mapping
+		// at the target level so we can merge with existing server configurations
+		const targetMapping = getConfigValueInTarget(configValue, leastSpecificConfig);
+		return { value: undefined, mapping: targetMapping, key, target: leastSpecificConfig, resource };
 	}
 
 	public async updateConfig(server: IMcpServer, mutate: (r: IMcpServerSamplingConfiguration) => unknown) {
