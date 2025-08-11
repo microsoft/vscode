@@ -109,7 +109,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatConfirmationWidget,
 				this.context.container,
-				{ title, subtitle: toolInvocation.originMessage, buttons, message, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } }
+				{ title, subtitle: toolInvocation.originMessage, buttons, message, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation', partSource: toolInvocation.source.type } }
 			));
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
@@ -275,7 +275,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
 				this.context.container,
-				{ title, subtitle: toolInvocation.originMessage, buttons, message: elements.root, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' } },
+				{ title, subtitle: toolInvocation.originMessage, buttons, message: elements.root, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation', partSource: toolInvocation.source?.type } },
 			));
 		}
 

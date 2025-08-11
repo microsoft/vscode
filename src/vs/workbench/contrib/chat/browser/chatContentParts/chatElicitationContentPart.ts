@@ -31,7 +31,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			{ label: elicitation.acceptButtonLabel, data: true },
 			{ label: elicitation.rejectButtonLabel, data: false, isSecondary: true },
 		];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, { title: elicitation.title, subtitle: elicitation.subtitle, buttons, message: this.getMessageToRender(elicitation), toolbarData: { partType: elicitation.source ? `${elicitation.source.type}Elicitation` : 'elicitation', arg: elicitation } }));
+		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, { title: elicitation.title, subtitle: elicitation.subtitle, buttons, message: this.getMessageToRender(elicitation), toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation } }));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
 		this._register(elicitation.onDidRequestHide(() => this.domNode.remove()));
