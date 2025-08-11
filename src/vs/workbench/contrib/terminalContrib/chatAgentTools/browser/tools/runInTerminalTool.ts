@@ -920,9 +920,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Allow exact command line, don't do this if it's just the first sub-command's first
 			// word
 			if (subCommandsFirstWordOnly[0] !== commandLine) {
+				const truncatedCommandLine = commandLine.length > 40 ? commandLine.substring(0, 40) + '\u2026' : commandLine;
 				actions.push({
 					// Add an extra & since it's treated as a mnemonic
-					label: localize('autoApprove.exactCommand', 'Always Allow Full Command Line: {0}', commandLine.replaceAll('&&', '&&&')),
+					label: localize('autoApprove.exactCommand', 'Always Allow Full Command Line: {0}', truncatedCommandLine.replaceAll('&&', '&&&')),
 					tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
 					data: {
 						type: 'newRule',
