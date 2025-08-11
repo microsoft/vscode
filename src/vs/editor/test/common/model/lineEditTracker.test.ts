@@ -462,7 +462,6 @@ suite('LineEditTracker - Edit Source Classification', () => {
 			EditSources.unknown({ name: 'unknown' }),
 			EditSources.setValue(),
 			EditSources.eolChange(),
-			EditSources.applyEdits(),
 			EditSources.reloadFromDisk()
 		];
 
@@ -479,6 +478,20 @@ suite('LineEditTracker - Edit Source Classification', () => {
 
 			assert.strictEqual(tracker.getLineEditSource(1), LineEditSource.Undetermined, `Failed for test case ${index}`);
 		});
+	});
+
+	test('should classify applyEdits as AI (legacy behavior)', () => {
+		const changes: IModelContentChange[] = [{
+			range: new Range(1, 1, 1, 1),
+			rangeOffset: 0,
+			rangeLength: 0,
+			text: 'test'
+		}];
+		const editSources = [EditSources.applyEdits()];
+
+		tracker.handleContentChanges(changes, editSources);
+
+		assert.strictEqual(tracker.getLineEditSource(1), LineEditSource.AI);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
