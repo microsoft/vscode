@@ -91,6 +91,7 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	builtin unset VSCODE_ENV_APPEND
 fi
 
+# Register Python shell activate hooks
 if [ -n "$VSCODE_BASH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
 	# Prevent crashing by negating exit code
 	if ! builtin eval "$VSCODE_BASH_ACTIVATE"; then

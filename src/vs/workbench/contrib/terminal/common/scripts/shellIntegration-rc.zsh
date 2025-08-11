@@ -68,6 +68,16 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	unset VSCODE_ENV_APPEND
 fi
 
+# Register Python shell activate hooks
+if [ -n "$VSCODE_ZSH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
+	# Prevent crashing by negating exit code
+	if ! builtin eval "$VSCODE_ZSH_ACTIVATE"; then
+		__vsc_activation_status=$?
+		# TODO: Figure out how to add 'star' icon similar to terminal restored.
+		builtin printf 'VS Code Python zsh activation failed with exit code %d\n' "$__vsc_activation_status"
+	fi
+fi
+
 # Report prompt type
 if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
 	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
