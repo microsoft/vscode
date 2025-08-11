@@ -232,5 +232,33 @@ suite('platform - terminalEnvironment', async () => {
 				});
 			});
 		}
+
+		suite('custom shell integration nonce', async () => {
+			test('should fail for unsupported shell but nonce should still be available', async () => {
+				const customProcessOptions: ITerminalProcessOptions = {
+					shellIntegration: { enabled: true, suggestEnabled: false, nonce: 'custom-nonce-12345' },
+					windowsEnableConpty: true,
+					windowsUseConptyDll: false,
+					environmentVariableCollections: undefined,
+					workspaceFolder: undefined
+				};
+
+				// Test with an unsupported shell (julia)
+				const result = await getShellIntegrationInjection(
+					{ executable: 'julia', args: ['-i'] },
+					customProcessOptions,
+					defaultEnvironment,
+					logService,
+					productService,
+					true
+				);
+
+				// Should fail due to unsupported shell
+				strictEqual(result.type, 'failure');
+
+				// But the nonce should be available in the process options for the terminal process to use
+				strictEqual(customProcessOptions.shellIntegration.nonce, 'custom-nonce-12345');
+			});
+		});
 	});
 });
