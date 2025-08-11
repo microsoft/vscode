@@ -769,8 +769,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	async setInput(input: TInput, viewState?: IAsyncDataTreeViewState): Promise<void> {
-		this.refreshPromises.forEach(promise => promise.cancel());
-		this.refreshPromises.clear();
+		this.cancelAllRefreshPromises()
 
 		this.root.element = input!;
 
@@ -792,12 +791,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		await this._updateChildren(element, recursive, rerender, undefined, options);
 	}
 
-	cancelAllRefreshPromises(): void {
+	cancelAllRefreshPromises(includeSubTrees: boolean = false): void {
 		this.refreshPromises.forEach(promise => promise.cancel());
 		this.refreshPromises.clear();
 
-		this.subTreeRefreshPromises.forEach(promise => promise.cancel());
-		this.subTreeRefreshPromises.clear();
+		if (includeSubTrees) {
+			this.subTreeRefreshPromises.forEach(promise => promise.cancel());
+			this.subTreeRefreshPromises.clear();
+		}
 	}
 
 	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
