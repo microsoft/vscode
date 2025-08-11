@@ -220,7 +220,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private attachmentsContainer!: HTMLElement;
 
 	private chatInputOverlay!: HTMLElement;
-	private readonly _overlayClickListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly overlayClickListener: MutableDisposable<DisposableStore>;
 
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables: MutableDisposable<DisposableStore>;
@@ -393,6 +393,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHeight = 0;
 		this.followupsDisposables = this._register(new DisposableStore());
 		this.attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
+		this.overlayClickListener = this._register(new MutableDisposable<DisposableStore>());
 		this._inputPartHeight = 0;
 		this._followupsHeight = 0;
 		this._editSessionWidgetHeight = 0;
@@ -1308,13 +1309,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	public toggleChatInputOverlay(editing: boolean): void {
 		this.chatInputOverlay.classList.toggle('disabled', editing);
 		if (editing) {
-			this._overlayClickListener.value = dom.addStandardDisposableListener(this.chatInputOverlay, dom.EventType.CLICK, e => {
+			const store = new DisposableStore();
+			this.overlayClickListener.value = store;
+			store.add(dom.addStandardDisposableListener(this.chatInputOverlay, dom.EventType.CLICK, e => {
 				e.preventDefault();
 				e.stopPropagation();
 				this._onDidClickOverlay.fire();
-			});
+			}));
 		} else {
-			this._overlayClickListener.clear();
+			this.overlayClickListener.clear();
 		}
 	}
 
