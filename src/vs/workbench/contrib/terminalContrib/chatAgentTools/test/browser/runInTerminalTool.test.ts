@@ -377,6 +377,73 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions[2].data.type, 'configure');
 		});
 
+		test('should not show approved commands in custom actions dropdown', async () => {
+			setAutoApprove({
+				head: true  // head is approved by default in real scenario
+			});
+
+			const result = await executeToolTest({
+				command: 'foo | head -20',
+				explanation: 'Run foo command and show first 20 lines'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
+
+			strictEqual(customActions[0].label, 'Always Allow Command: foo', 'Should only show \'foo\' since \'head\' is auto-approved');
+			strictEqual(customActions[0].data.type, 'newRule');
+
+			strictEqual(customActions[1].label, 'Always Allow Full Command Line: foo | head -20');
+			strictEqual(customActions[1].data.type, 'newRule');
+
+			strictEqual(customActions[2].label, 'Configure Auto Approve...');
+			strictEqual(customActions[2].data.type, 'configure');
+		});
+
+		test('should not show any command-specific actions when all sub-commands are approved', async () => {
+			setAutoApprove({
+				foo: true,
+				head: true
+			});
+
+			const result = await executeToolTest({
+				command: 'foo | head -20',
+				explanation: 'Run foo command and show first 20 lines'
+			});
+
+			assertAutoApproved(result);
+		});
+
+		test('should handle mixed approved and unapproved commands correctly', async () => {
+			setAutoApprove({
+				head: true,
+				tail: true
+			});
+
+			const result = await executeToolTest({
+				command: 'foo | head -20 && bar | tail -10',
+				explanation: 'Run multiple piped commands'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
+
+			strictEqual(customActions[0].label, 'Always Allow Commands: foo, bar', 'Should only show \'foo, bar\' since \'head\' and \'tail\' are auto-approved');
+			strictEqual(customActions[0].data.type, 'newRule');
+
+			strictEqual(customActions[1].label, 'Always Allow Full Command Line: foo | head -20 &&& bar | tail -10');
+			strictEqual(customActions[1].data.type, 'newRule');
+
+			strictEqual(customActions[2].label, 'Configure Auto Approve...');
+			strictEqual(customActions[2].data.type, 'configure');
+		});
+
 	});
 
 	suite('command re-writing', () => {

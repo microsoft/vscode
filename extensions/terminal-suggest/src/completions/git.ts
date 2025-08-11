@@ -126,7 +126,7 @@ const postProcessBranches =
 				});
 		};
 
-export const gitGenerators: Record<string, Fig.Generator> = {
+export const gitGenerators = {
 	// Commit history
 	commits: {
 		script: ["git", "--no-optional-locks", "log", "--oneline", "-n", "1000"],
@@ -151,7 +151,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// user aliases
 	aliases: {
@@ -178,7 +178,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				return true;
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	revs: {
 		script: ["git", "rev-list", "--all", "--oneline"],
@@ -197,7 +197,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// Saved stashes
 	// TODO: maybe only print names of stashes
@@ -219,7 +219,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// Tree-ish
 	// This needs to be fleshed out properly....
@@ -245,7 +245,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// All branches
 	remoteLocalBranches: {
@@ -258,7 +258,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 			"--sort=-committerdate",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
-	},
+	} satisfies Fig.Generator,
 
 	localBranches: {
 		script: [
@@ -269,7 +269,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 			"--sort=-committerdate",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
-	},
+	} satisfies Fig.Generator,
 
 	// custom generator to display local branches by default or
 	// remote branches if '-r' flag is used. See branch -d for use
@@ -308,7 +308,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				);
 			}
 		},
-	},
+	} satisfies Fig.Generator,
 
 	remotes: {
 		script: ["git", "--no-optional-locks", "remote", "-v"],
@@ -345,7 +345,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	tags: {
 		script: [
@@ -361,7 +361,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				icon: "🏷️", // allow-any-unicode-next-line
 			}));
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// Files for staging
 	files_for_staging: {
@@ -461,7 +461,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				}),
 			];
 		},
-	},
+	} satisfies Fig.Generator,
 
 	getStagedFiles: {
 		script: [
@@ -475,7 +475,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 	getUnstagedFiles: {
 		script: ["git", "--no-optional-locks", "diff", "--name-only"],
 		splitOn: "\n",
-	},
+	} satisfies Fig.Generator,
 
 	getChangedTrackedFiles: {
 		script: function (context) {
@@ -494,7 +494,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 			}
 		},
 		postProcess: postProcessTrackedFiles,
-	},
+	} satisfies Fig.Generator,
 };
 
 const configSuggestions: Fig.Suggestion[] = [

@@ -887,8 +887,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// wouldn't get auto approved with a new rule
 		const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
 		if (canCreateAutoApproval) {
-			// Allow all sub-commands
-			const subCommandsFirstWordOnly = Array.from(new Set(subCommands.map(command => command.split(' ')[0])));
+			const unapprovedSubCommands = subCommands.filter((_, index) => {
+				return autoApproveResult.subCommandResults[index].result !== 'approved';
+			});
+
+			const subCommandsFirstWordOnly = Array.from(new Set(unapprovedSubCommands.map(command => command.split(' ')[0])));
 			let subCommandLabel: string;
 			let subCommandTooltip: string;
 			if (subCommandsFirstWordOnly.length === 1) {
@@ -899,24 +902,28 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				subCommandLabel = localize('autoApprove.baseCommand', 'Always Allow Commands: {0}', commandSeparated);
 				subCommandTooltip = localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated);
 			}
-			actions.push({
-				label: subCommandLabel,
-				tooltip: subCommandTooltip,
-				data: {
-					type: 'newRule',
-					rule: subCommandsFirstWordOnly.map(key => ({
-						key,
-						value: true
-					}))
-				} satisfies TerminalNewAutoApproveButtonData
-			});
+
+			if (unapprovedSubCommands.length > 0) {
+				actions.push({
+					label: subCommandLabel,
+					tooltip: subCommandTooltip,
+					data: {
+						type: 'newRule',
+						rule: subCommandsFirstWordOnly.map(key => ({
+							key,
+							value: true
+						}))
+					} satisfies TerminalNewAutoApproveButtonData
+				});
+			}
 
 			// Allow exact command line, don't do this if it's just the first sub-command's first
 			// word
 			if (subCommandsFirstWordOnly[0] !== commandLine) {
+				const truncatedCommandLine = commandLine.length > 40 ? commandLine.substring(0, 40) + '\u2026' : commandLine;
 				actions.push({
 					// Add an extra & since it's treated as a mnemonic
-					label: localize('autoApprove.exactCommand', 'Always Allow Full Command Line: {0}', commandLine.replaceAll('&&', '&&&')),
+					label: localize('autoApprove.exactCommand', 'Always Allow Full Command Line: {0}', truncatedCommandLine.replaceAll('&&', '&&&')),
 					tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
 					data: {
 						type: 'newRule',
