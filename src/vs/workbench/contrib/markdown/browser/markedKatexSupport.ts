@@ -22,6 +22,19 @@ export class MarkedKatexSupport {
 					...trustedMathMlTags,
 				]
 			},
+			allowedAttributes: {
+				override: [
+					...baseConfig.allowedAttributes,
+					// Math
+					'stretchy',
+					'encoding',
+					'accent',
+					// SVG
+					'd',
+					'viewBox',
+					'preserveAspectRatio',
+				]
+			},
 			customAttrSanitizer: (attrName, attrValue) => {
 				if (attrName === 'class') {
 					return true; // TODO: allows all classes for now since we don't have a list of possible katex classes
@@ -29,7 +42,7 @@ export class MarkedKatexSupport {
 					return this.sanitizeKatexStyles(attrValue);
 				}
 
-				return baseConfig.allowedAttributes.includes(attrName);
+				return true; // Allow through other attrs. Our allow list already filtered out bad ones
 			},
 		};
 	}

@@ -56,6 +56,9 @@ export interface MarkdownSanitizerConfig {
 	readonly allowedTags?: {
 		readonly override: readonly string[];
 	};
+	readonly allowedAttributes?: {
+		readonly override: readonly string[];
+	};
 	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
 	readonly allowedLinkSchemes?: {
 		readonly augment: readonly string[];
@@ -510,7 +513,7 @@ function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions
 			override: options.allowedTags?.override ?? allowedMarkdownHtmlTags
 		},
 		allowedAttributes: {
-			override: allowedMarkdownHtmlAttributes,
+			override: options.allowedAttributes?.override ?? allowedMarkdownHtmlAttributes,
 		},
 		allowedLinkProtocols: {
 			override: allowedLinkSchemes,
