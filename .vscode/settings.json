@@ -1,6 +1,14 @@
 {
 	// --- Chat ---
 	// "inlineChat.enableV2": true,
+	"chat.tools.terminal.autoApprove": {
+		"/^npm (test|lint|run compile)\\b/": true,
+		"/^npx tsc\\b.*--noEmit/": true,
+		"scripts/test.bat": true,
+		"scripts/test.sh": true,
+		"scripts/test-integration.bat": true,
+		"scripts/test-integration.sh": true,
+	},
 
 	// --- Editor ---
 	"editor.insertSpaces": false,
