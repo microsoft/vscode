@@ -71,7 +71,7 @@ export function splitCommandLineIntoSubCommands(commandLine: string, envShell: s
 			}
 		}
 	}
-	return subCommands;
+	return subCommands.filter(e => e.length > 0);
 }
 
 export function extractInlineSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): Set<string> {

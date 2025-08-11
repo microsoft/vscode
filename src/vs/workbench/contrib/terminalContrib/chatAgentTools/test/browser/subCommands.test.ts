@@ -132,7 +132,7 @@ suite('splitCommandLineIntoSubCommands', () => {
 
 		test('should handle empty command', () => {
 			const commandLine = '';
-			const expectedSubCommands = [''];
+			const expectedSubCommands: string[] = [];
 			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'zsh', OperatingSystem.Linux);
 			deepStrictEqual(actualSubCommands, expectedSubCommands);
 		});
@@ -146,7 +146,7 @@ suite('splitCommandLineIntoSubCommands', () => {
 
 		test('should handle multiple consecutive operators', () => {
 			const commandLine = 'echo test && && ls';
-			const expectedSubCommands = ['echo test', '', 'ls'];
+			const expectedSubCommands = ['echo test', 'ls'];
 			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
 			deepStrictEqual(actualSubCommands, expectedSubCommands);
 		});
@@ -259,28 +259,28 @@ suite('splitCommandLineIntoSubCommands', () => {
 		suite('stream redirection', () => {
 			test('should split on stdout to stderr redirection', () => {
 				const commandLine = 'echo error 1>&2';
-				const expectedSubCommands = ['echo error', ''];
+				const expectedSubCommands = ['echo error'];
 				const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
 				deepStrictEqual(actualSubCommands, expectedSubCommands);
 			});
 
 			test('should split on stderr to stdout redirection', () => {
 				const commandLine = 'command 2>&1';
-				const expectedSubCommands = ['command', ''];
+				const expectedSubCommands = ['command'];
 				const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
 				deepStrictEqual(actualSubCommands, expectedSubCommands);
 			});
 
 			test('should split on stream redirection with numbered descriptors', () => {
 				const commandLine = 'exec 3>&1 && exec 4>&2';
-				const expectedSubCommands = ['exec', '', 'exec', ''];
+				const expectedSubCommands = ['exec', 'exec'];
 				const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
 				deepStrictEqual(actualSubCommands, expectedSubCommands);
 			});
 
 			test('should split on multiple stream redirections', () => {
 				const commandLine = 'command 2>&1 1>&3 3>&2';
-				const expectedSubCommands = ['command', '', '', ''];
+				const expectedSubCommands = ['command'];
 				const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
 				deepStrictEqual(actualSubCommands, expectedSubCommands);
 			});
@@ -384,7 +384,7 @@ suite('splitCommandLineIntoSubCommands', () => {
 
 			test('should split on PowerShell stream to stream redirection', () => {
 				const commandLine = 'Write-Error "error" 2>&1';
-				const expectedSubCommands = ['Write-Error "error"', ''];
+				const expectedSubCommands = ['Write-Error "error"'];
 				const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'powershell.exe', OperatingSystem.Windows);
 				deepStrictEqual(actualSubCommands, expectedSubCommands);
 			});
@@ -414,7 +414,7 @@ suite('splitCommandLineIntoSubCommands', () => {
 
 			test('should handle redirection with background processes', () => {
 				const commandLine = 'long_running_command > output.log 2>&1 & echo "started"';
-				const expectedSubCommands = ['long_running_command', 'output.log', '', 'echo "started"'];
+				const expectedSubCommands = ['long_running_command', 'output.log', 'echo "started"'];
 				const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
 				deepStrictEqual(actualSubCommands, expectedSubCommands);
 			});
