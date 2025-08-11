@@ -16,6 +16,7 @@
 	"command.openChange": "Open Changes",
 	"command.openAllChanges": "Open All Changes",
 	"command.openFile": "Open File",
+	"command.openWorktreeChange": "Open Worktree Change",
 	"command.openHEADFile": "Open File (HEAD)",
 	"command.stage": "Stage Changes",
 	"command.stageAll": "Stage All Changes",

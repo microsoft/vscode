@@ -1484,6 +1484,75 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.openWorktreeChange')
+	async openWorktreeChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		let resources: Resource[] | undefined = undefined;
+
+		if (arg instanceof Uri) {
+			const resource = this.getSCMResource(arg);
+			if (resource !== undefined) {
+				resources = [resource];
+			}
+		} else {
+			let resource: Resource | undefined = undefined;
+			if (arg instanceof Resource) {
+				resource = arg;
+			} else {
+				resource = this.getSCMResource();
+			}
+			if (resource) {
+				resources = [...resourceStates as Resource[], resource];
+			}
+		}
+
+		if (!resources) {
+			return;
+		}
+
+		for (const resource of resources) {
+			await this._openWorktreeChange(resource);
+		}
+	}
+
+	private async _openWorktreeChange(resource: Resource): Promise<void> {
+		const repository = this.model.getRepository(resource.resourceUri);
+		if (!repository) {
+			return;
+		}
+
+		// Only works for worktree repositories
+		if (repository.kind !== 'worktree' || !repository.dotGit.commonPath) {
+			return;
+		}
+
+		// Get the main repository path
+		const mainRepositoryPath = path.dirname(repository.dotGit.commonPath);
+		const mainRepository = this.model.getRepository(Uri.file(mainRepositoryPath));
+
+		if (!mainRepository || !mainRepository.HEAD?.commit) {
+			return;
+		}
+
+		// Create git URI for the main repository's HEAD version
+		const mainRepoUri = toGitUri(resource.resourceUri, mainRepository.HEAD.commit);
+
+		// Use the current file as the right side (worktree version)
+		const worktreeUri = resource.resourceUri;
+
+		// Create title
+		const basename = path.basename(resource.resourceUri.fsPath);
+		const title = `${basename} (Worktree ↔ Main Repository)`;
+
+		// Open the diff directly using vscode.diff
+		await commands.executeCommand(
+			'vscode.diff',
+			mainRepoUri,
+			worktreeUri,
+			title,
+			{ preview: false }
+		);
+	}
+
 	@command('git.rename', { repository: true })
 	async rename(repository: Repository, fromUri: Uri | undefined): Promise<void> {
 		fromUri = fromUri ?? window.activeTextEditor?.document.uri;
@@ -3482,7 +3551,7 @@ export class CommandCenter {
 
 			if (choice.refName === repository.HEAD?.name) {
 				const message = l10n.t('Branch "{0}" is already checked out in the current repository.', choice.refName);
-				const createBranch = l10n.t('Create New Branch');
+				const createBranch = l10n.t('Create New Branch!');
 				const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
 
 				if (pick === createBranch) {
