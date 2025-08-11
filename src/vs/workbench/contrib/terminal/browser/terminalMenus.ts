@@ -19,7 +19,7 @@ import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
-const enum ContextMenuGroup {
+export const enum TerminalContextMenuGroup {
 	Create = '1_create',
 	Edit = '3_edit',
 	Clear = '5_clear',
@@ -106,31 +106,11 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalInstanceContext,
 				item: {
-					group: ContextMenuGroup.Create,
-					command: {
-						id: TerminalCommandId.Split,
-						title: terminalStrings.split.value
-					}
-				}
-			},
-			{
-				id: MenuId.TerminalInstanceContext,
-				item: {
-					command: {
-						id: TerminalCommandId.New,
-						title: terminalStrings.new
-					},
-					group: ContextMenuGroup.Create
-				}
-			},
-			{
-				id: MenuId.TerminalInstanceContext,
-				item: {
 					command: {
 						id: TerminalCommandId.KillViewOrEditor,
 						title: terminalStrings.kill.value,
 					},
-					group: ContextMenuGroup.Kill
+					group: TerminalContextMenuGroup.Kill
 				}
 			},
 			{
@@ -140,7 +120,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.CopySelection,
 						title: localize('workbench.action.terminal.copySelection.short', "Copy")
 					},
-					group: ContextMenuGroup.Edit,
+					group: TerminalContextMenuGroup.Edit,
 					order: 1
 				}
 			},
@@ -151,7 +131,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.CopySelectionAsHtml,
 						title: localize('workbench.action.terminal.copySelectionAsHtml', "Copy as HTML")
 					},
-					group: ContextMenuGroup.Edit,
+					group: TerminalContextMenuGroup.Edit,
 					order: 2
 				}
 			},
@@ -162,7 +142,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.Paste,
 						title: localize('workbench.action.terminal.paste.short', "Paste")
 					},
-					group: ContextMenuGroup.Edit,
+					group: TerminalContextMenuGroup.Edit,
 					order: 3
 				}
 			},
@@ -173,7 +153,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.Clear,
 						title: localize('workbench.action.terminal.clear', "Clear")
 					},
-					group: ContextMenuGroup.Clear,
+					group: TerminalContextMenuGroup.Clear,
 				}
 			},
 			{
@@ -183,7 +163,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.SizeToContentWidth,
 						title: terminalStrings.toggleSizeToContentWidth
 					},
-					group: ContextMenuGroup.Config
+					group: TerminalContextMenuGroup.Config
 				}
 			},
 
@@ -194,7 +174,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.SelectAll,
 						title: localize('workbench.action.terminal.selectAll', "Select All"),
 					},
-					group: ContextMenuGroup.Edit,
+					group: TerminalContextMenuGroup.Edit,
 					order: 3
 				}
 			},
@@ -226,7 +206,7 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalEditorInstanceContext,
 				item: {
-					group: ContextMenuGroup.Create,
+					group: TerminalContextMenuGroup.Create,
 					command: {
 						id: TerminalCommandId.Split,
 						title: terminalStrings.split.value
@@ -240,7 +220,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.New,
 						title: terminalStrings.new
 					},
-					group: ContextMenuGroup.Create
+					group: TerminalContextMenuGroup.Create
 				}
 			},
 			{
@@ -250,7 +230,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.KillEditor,
 						title: terminalStrings.kill.value
 					},
-					group: ContextMenuGroup.Kill
+					group: TerminalContextMenuGroup.Kill
 				}
 			},
 			{
@@ -260,7 +240,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.CopySelection,
 						title: localize('workbench.action.terminal.copySelection.short', "Copy")
 					},
-					group: ContextMenuGroup.Edit,
+					group: TerminalContextMenuGroup.Edit,
 					order: 1
 				}
 			},
@@ -271,7 +251,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.CopySelectionAsHtml,
 						title: localize('workbench.action.terminal.copySelectionAsHtml', "Copy as HTML")
 					},
-					group: ContextMenuGroup.Edit,
+					group: TerminalContextMenuGroup.Edit,
 					order: 2
 				}
 			},
@@ -282,7 +262,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.Paste,
 						title: localize('workbench.action.terminal.paste.short', "Paste")
 					},
-					group: ContextMenuGroup.Edit,
+					group: TerminalContextMenuGroup.Edit,
 					order: 3
 				}
 			},
@@ -293,7 +273,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.Clear,
 						title: localize('workbench.action.terminal.clear', "Clear")
 					},
-					group: ContextMenuGroup.Clear,
+					group: TerminalContextMenuGroup.Clear,
 				}
 			},
 			{
@@ -303,7 +283,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.SelectAll,
 						title: localize('workbench.action.terminal.selectAll', "Select All"),
 					},
-					group: ContextMenuGroup.Edit,
+					group: TerminalContextMenuGroup.Edit,
 					order: 3
 				}
 			},
@@ -314,7 +294,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.SizeToContentWidth,
 						title: terminalStrings.toggleSizeToContentWidth
 					},
-					group: ContextMenuGroup.Config
+					group: TerminalContextMenuGroup.Config
 				}
 			}
 		]
@@ -329,7 +309,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.NewWithProfile,
 						title: localize('workbench.action.terminal.newWithProfile.short', "New Terminal With Profile...")
 					},
-					group: ContextMenuGroup.Create
+					group: TerminalContextMenuGroup.Create
 				}
 			},
 			{
@@ -339,7 +319,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.New,
 						title: terminalStrings.new
 					},
-					group: ContextMenuGroup.Create
+					group: TerminalContextMenuGroup.Create
 				}
 			}
 		]
@@ -551,7 +531,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.SplitActiveTab,
 						title: terminalStrings.split.value,
 					},
-					group: ContextMenuGroup.Create,
+					group: TerminalContextMenuGroup.Create,
 					order: 1
 				}
 			},
@@ -562,7 +542,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.MoveToEditor,
 						title: terminalStrings.moveToEditor.value
 					},
-					group: ContextMenuGroup.Create,
+					group: TerminalContextMenuGroup.Create,
 					order: 2
 				}
 			},
@@ -573,7 +553,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.MoveIntoNewWindow,
 						title: terminalStrings.moveIntoNewWindow.value
 					},
-					group: ContextMenuGroup.Create,
+					group: TerminalContextMenuGroup.Create,
 					order: 2
 				}
 			},
@@ -584,7 +564,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.RenameActiveTab,
 						title: localize('workbench.action.terminal.renameInstance', "Rename...")
 					},
-					group: ContextMenuGroup.Edit
+					group: TerminalContextMenuGroup.Edit
 				}
 			},
 			{
@@ -594,7 +574,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.ChangeIconActiveTab,
 						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
 					},
-					group: ContextMenuGroup.Edit
+					group: TerminalContextMenuGroup.Edit
 				}
 			},
 			{
@@ -604,7 +584,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.ChangeColorActiveTab,
 						title: localize('workbench.action.terminal.changeColor', "Change Color...")
 					},
-					group: ContextMenuGroup.Edit
+					group: TerminalContextMenuGroup.Edit
 				}
 			},
 			{
@@ -614,7 +594,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.SizeToContentWidth,
 						title: terminalStrings.toggleSizeToContentWidth
 					},
-					group: ContextMenuGroup.Edit
+					group: TerminalContextMenuGroup.Edit
 				}
 			},
 			{
@@ -625,7 +605,7 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.joinInstance', "Join Terminals")
 					},
 					when: TerminalContextKeys.tabsSingularSelection.toNegated(),
-					group: ContextMenuGroup.Config
+					group: TerminalContextMenuGroup.Config
 				}
 			},
 			{
@@ -636,7 +616,7 @@ export function setupTerminalMenus(): void {
 						title: terminalStrings.unsplit.value
 					},
 					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminalTabFocused),
-					group: ContextMenuGroup.Config
+					group: TerminalContextMenuGroup.Config
 				}
 			},
 			{
@@ -646,7 +626,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.KillActiveTab,
 						title: terminalStrings.kill.value
 					},
-					group: ContextMenuGroup.Kill,
+					group: TerminalContextMenuGroup.Kill,
 				}
 			}
 		]
