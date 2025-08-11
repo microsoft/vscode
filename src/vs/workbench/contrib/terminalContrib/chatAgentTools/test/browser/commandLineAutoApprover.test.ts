@@ -378,6 +378,124 @@ suite('CommandLineAutoApprover', () => {
 		});
 	});
 
+	suite('path-aware auto approval', () => {
+		test('should handle path variations with forward slashes', () => {
+			setAutoApprove({
+				"bin/foo": true
+			});
+
+			// Should approve the exact match
+			ok(isAutoApproved('bin/foo'));
+			ok(isAutoApproved('bin/foo --arg'));
+
+			// Should approve with Windows backslashes
+			ok(isAutoApproved('bin\\foo'));
+			ok(isAutoApproved('bin\\foo --arg'));
+
+			// Should approve with current directory prefixes
+			ok(isAutoApproved('./bin/foo'));
+			ok(isAutoApproved('.\\bin/foo'));
+			ok(isAutoApproved('./bin\\foo'));
+			ok(isAutoApproved('.\\bin\\foo'));
+
+			// Should not approve partial matches
+			ok(!isAutoApproved('bin/foobar'));
+			ok(!isAutoApproved('notbin/foo'));
+		});
+
+		test('should handle path variations with backslashes', () => {
+			setAutoApprove({
+				"bin\\script.bat": true
+			});
+
+			// Should approve the exact match
+			ok(isAutoApproved('bin\\script.bat'));
+			ok(isAutoApproved('bin\\script.bat --help'));
+
+			// Should approve with forward slashes
+			ok(isAutoApproved('bin/script.bat'));
+			ok(isAutoApproved('bin/script.bat --help'));
+
+			// Should approve with current directory prefixes
+			ok(isAutoApproved('./bin\\script.bat'));
+			ok(isAutoApproved('.\\bin\\script.bat'));
+			ok(isAutoApproved('./bin/script.bat'));
+			ok(isAutoApproved('.\\bin/script.bat'));
+		});
+
+		test('should handle deep paths', () => {
+			setAutoApprove({
+				"src/utils/helper.js": true
+			});
+
+			ok(isAutoApproved('src/utils/helper.js'));
+			ok(isAutoApproved('src\\utils\\helper.js'));
+			ok(isAutoApproved('src/utils\\helper.js'));
+			ok(isAutoApproved('src\\utils/helper.js'));
+			ok(isAutoApproved('./src/utils/helper.js'));
+			ok(isAutoApproved('.\\src\\utils\\helper.js'));
+		});
+
+		test('should not treat non-paths as paths', () => {
+			setAutoApprove({
+				"echo": true,  // Not a path
+				"ls": true,    // Not a path
+				"git": true    // Not a path
+			});
+
+			// These should work as normal command matching, not path matching
+			ok(isAutoApproved('echo'));
+			ok(isAutoApproved('ls'));
+			ok(isAutoApproved('git'));
+
+			// Should not be treated as paths, so these prefixes shouldn't work
+			ok(!isAutoApproved('./echo'));
+			ok(!isAutoApproved('.\\ls'));
+		});
+
+		test('should handle paths with mixed separators in config', () => {
+			setAutoApprove({
+				"bin/foo\\bar": true  // Mixed separators in config
+			});
+
+			ok(isAutoApproved('bin/foo\\bar'));
+			ok(isAutoApproved('bin\\foo/bar'));
+			ok(isAutoApproved('bin/foo/bar'));
+			ok(isAutoApproved('bin\\foo\\bar'));
+			ok(isAutoApproved('./bin/foo\\bar'));
+			ok(isAutoApproved('.\\bin\\foo\\bar'));
+		});
+
+		test('should work with command line auto approval for paths', () => {
+			setAutoApproveWithCommandLine({
+				"bin/deploy": { approve: true, matchCommandLine: true }
+			});
+
+			ok(isCommandLineAutoApproved('bin/deploy --prod'));
+			ok(isCommandLineAutoApproved('bin\\deploy --prod'));
+			ok(isCommandLineAutoApproved('./bin/deploy --prod'));
+			ok(isCommandLineAutoApproved('.\\bin\\deploy --prod'));
+		});
+
+		test('should handle special characters in paths', () => {
+			setAutoApprove({
+				"bin/my-script.sh": true,
+				"scripts/build_all.py": true,
+				"tools/run (debug).exe": true
+			});
+
+			ok(isAutoApproved('bin/my-script.sh'));
+			ok(isAutoApproved('bin\\my-script.sh'));
+			ok(isAutoApproved('./bin/my-script.sh'));
+
+			ok(isAutoApproved('scripts/build_all.py'));
+			ok(isAutoApproved('scripts\\build_all.py'));
+
+			ok(isAutoApproved('tools/run (debug).exe'));
+			ok(isAutoApproved('tools\\run (debug).exe'));
+		});
+	});
+
 	suite('PowerShell-specific commands', () => {
 		setup(() => {
 			shell = 'pwsh';
