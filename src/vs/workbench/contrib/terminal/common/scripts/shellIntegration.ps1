@@ -68,6 +68,22 @@ if ($env:VSCODE_ENV_APPEND) {
 	$env:VSCODE_ENV_APPEND = $null
 }
 
+# Register Python shell activate hooks
+if ($env:VSCODE_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
+	$activateScript = $env:VSCODE_PWSH_ACTIVATE
+	Remove-Item Env:VSCODE_PWSH_ACTIVATE
+
+	try {
+		Invoke-Expression $activateScript
+		Write-Host "this seem working "
+	}
+	catch {
+		$activationError = $_
+		# TODO: Figure out how to add 'star' icon similar to terminal restored.
+		Write-Host "VS Code Python PowerShell activation failed: $($activationError.Exception.Message)" -ForegroundColor Red
+	}
+}
+
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
