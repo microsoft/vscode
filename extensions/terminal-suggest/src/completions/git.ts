@@ -1,3 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* eslint-disable local/code-no-unexternalized-strings */
+
 function ai(...args: any[]): undefined { return undefined; }
 
 const filterMessages = (out: string): string => {
@@ -29,7 +36,7 @@ const postProcessTrackedFiles: Fig.Generator["postProcess"] = (
 
 			try {
 				ext = file.split(".").slice(-1)[0];
-			} catch (e) {}
+			} catch (e) { }
 
 			if (file.endsWith("/")) {
 				ext = "folder";
@@ -53,72 +60,76 @@ interface PostProcessBranchesOptions {
 
 const postProcessBranches =
 	(options: PostProcessBranchesOptions = {}): Fig.Generator["postProcess"] =>
-	(out) => {
-		const { insertWithoutRemotes = false } = options;
+		(out) => {
+			const { insertWithoutRemotes = false } = options;
 
-		const output = filterMessages(out);
+			const output = filterMessages(out);
 
-		if (output.startsWith("fatal:")) {
-			return [];
-		}
+			if (output.startsWith("fatal:")) {
+				return [];
+			}
 
-		const seen = new Set<string>();
-		return output
-			.split("\n")
-			.filter((line) => !line.trim().startsWith("HEAD"))
-			.map((branch) => {
-				let name = branch.trim();
-				const parts = branch.match(/\S+/g);
-				if (parts && parts.length > 1) {
-					if (parts[0] === "*") {
-						// We are in a detached HEAD state
-						if (branch.includes("HEAD detached")) {
-							return null;
+			const seen = new Set<string>();
+			return output
+				.split("\n")
+				.filter((line) => !line.trim().startsWith("HEAD"))
+				.map((branch) => {
+					let name = branch.trim();
+					const parts = branch.match(/\S+/g);
+					if (parts && parts.length > 1) {
+						if (parts[0] === "*") {
+							// We are in a detached HEAD state
+							if (branch.includes("HEAD detached")) {
+								return null;
+							}
+							// Current branch
+							return {
+								name: branch.replace("*", "").trim(),
+								description: "Current branch",
+								priority: 100,
+								icon: "⭐️", // allow-any-unicode-next-line
+							};
+						} else if (parts[0] === "+") {
+							// Branch checked out in another worktree.
+							name = branch.replace("+", "").trim();
 						}
-						// Current branch
-						return {
-							name: branch.replace("*", "").trim(),
-							description: "Current branch",
-							priority: 100,
-							icon: "⭐️",
-						};
-					} else if (parts[0] === "+") {
-						// Branch checked out in another worktree.
-						name = branch.replace("+", "").trim();
 					}
-				}
 
-				let description = "Branch";
+					let description = "Branch";
 
-				if (insertWithoutRemotes && name.startsWith("remotes/")) {
-					name = name.slice(name.indexOf("/", 8) + 1);
-					description = "Remote branch";
-				}
+					if (insertWithoutRemotes && name.startsWith("remotes/")) {
+						name = name.slice(name.indexOf("/", 8) + 1);
+						description = "Remote branch";
+					}
 
-				const space = name.indexOf(" ");
-				if (space !== -1) {
-					name = name.slice(0, space);
-				}
+					const space = name.indexOf(" ");
+					if (space !== -1) {
+						name = name.slice(0, space);
+					}
 
-				return {
-					name,
-					description,
-					icon: "fig://icon?type=git",
-					priority: 75,
-				};
-			})
-			.filter((suggestion) => {
-				if (!suggestion) return false;
-				if (seen.has(suggestion.name)) return false;
-				seen.add(suggestion.name);
-				return true;
-			});
-	};
+					return {
+						name,
+						description,
+						icon: "fig://icon?type=git",
+						priority: 75,
+					};
+				})
+				.filter((suggestion) => {
+					if (!suggestion) {
+						return false;
+					}
+					if (seen.has(suggestion.name)) {
+						return false;
+					}
+					seen.add(suggestion.name);
+					return true;
+				});
+		};
 
-export const gitGenerators: Record<string, Fig.Generator> = {
+export const gitGenerators = {
 	// Commit history
 	commits: {
-		script: ["git", "--no-optional-locks", "log", "--oneline"],
+		script: ["git", "--no-optional-locks", "log", "--oneline", "-n", "1000"],
 		postProcess: function (out) {
 			const output = filterMessages(out);
 
@@ -126,15 +137,21 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				return [];
 			}
 
-			return output.split("\n").map((line) => {
+			const lines = output.split("\n");
+			const firstLine = lines.length > 0 ? lines[0] : undefined;
+			const hashLength =
+				firstLine && firstLine.length > 0 ? firstLine.indexOf(" ") : 7;
+			const descriptionStart = hashLength + 1;
+
+			return lines.map((line) => {
 				return {
-					name: line.substring(0, 7),
+					name: line.substring(0, hashLength),
 					icon: "fig://icon?type=node",
-					description: line.substring(7),
+					description: line.substring(descriptionStart),
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// user aliases
 	aliases: {
@@ -161,7 +178,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				return true;
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	revs: {
 		script: ["git", "rev-list", "--all", "--oneline"],
@@ -180,7 +197,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// Saved stashes
 	// TODO: maybe only print names of stashes
@@ -202,7 +219,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// Tree-ish
 	// This needs to be fleshed out properly....
@@ -228,7 +245,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// All branches
 	remoteLocalBranches: {
@@ -241,7 +258,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 			"--sort=-committerdate",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
-	},
+	} satisfies Fig.Generator,
 
 	localBranches: {
 		script: [
@@ -252,7 +269,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 			"--sort=-committerdate",
 		],
 		postProcess: postProcessBranches({ insertWithoutRemotes: true }),
-	},
+	} satisfies Fig.Generator,
 
 	// custom generator to display local branches by default or
 	// remote branches if '-r' flag is used. See branch -d for use
@@ -291,7 +308,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				);
 			}
 		},
-	},
+	} satisfies Fig.Generator,
 
 	remotes: {
 		script: ["git", "--no-optional-locks", "remote", "-v"],
@@ -328,7 +345,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				};
 			});
 		},
-	},
+	} satisfies Fig.Generator,
 
 	tags: {
 		script: [
@@ -341,10 +358,10 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 		postProcess: function (output) {
 			return output.split("\n").map((tag) => ({
 				name: tag,
-				icon: "🏷️",
+				icon: "🏷️", // allow-any-unicode-next-line
 			}));
 		},
-	},
+	} satisfies Fig.Generator,
 
 	// Files for staging
 	files_for_staging: {
@@ -426,7 +443,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 					let ext = "";
 					try {
 						ext = file.split(".").slice(-1)[0];
-					} catch (e) {}
+					} catch (e) { }
 
 					if (file.endsWith("/")) {
 						ext = "folder";
@@ -444,7 +461,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 				}),
 			];
 		},
-	},
+	} satisfies Fig.Generator,
 
 	getStagedFiles: {
 		script: [
@@ -458,7 +475,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 	getUnstagedFiles: {
 		script: ["git", "--no-optional-locks", "diff", "--name-only"],
 		splitOn: "\n",
-	},
+	} satisfies Fig.Generator,
 
 	getChangedTrackedFiles: {
 		script: function (context) {
@@ -477,7 +494,7 @@ export const gitGenerators: Record<string, Fig.Generator> = {
 			}
 		},
 		postProcess: postProcessTrackedFiles,
-	},
+	} satisfies Fig.Generator,
 };
 
 const configSuggestions: Fig.Suggestion[] = [
@@ -3851,7 +3868,7 @@ const addOptions: Fig.Option[] = [
 	{
 		name: ["-n", "--dry-run"],
 		description:
-			"Don’t actually add the file(s), just show if they exist and/or will be ignored",
+			"Don't actually add the file(s), just show if they exist and/or will be ignored",
 	},
 	{ name: ["-v", "--verbose"], description: "Be verbose" },
 	{
@@ -3861,7 +3878,7 @@ const addOptions: Fig.Option[] = [
 	{
 		name: ["-i", "--interactive"],
 		description:
-			"Add modified contents in the working tree interactively to the index. Optional path arguments may be supplied to limit operation to a subset of the working tree. See “Interactive mode” for details",
+			"Add modified contents in the working tree interactively to the index. Optional path arguments may be supplied to limit operation to a subset of the working tree. See \"Interactive mode\" for details",
 	},
 	{
 		name: ["-p", "--patch"],
@@ -3896,7 +3913,7 @@ const addOptions: Fig.Option[] = [
 	{
 		name: "--refresh",
 		description:
-			"Don’t add the file(s), but only refresh their stat() information in the index",
+			"Don't add the file(s), but only refresh their stat() information in the index",
 	},
 	{
 		name: "--ignore-errors",
@@ -3952,7 +3969,7 @@ const addOptions: Fig.Option[] = [
 const headSuggestions = [
 	{
 		name: "HEAD",
-		icon: "🔻",
+		icon: "🔻", // allow-any-unicode-next-line
 		description: "The most recent commit",
 	},
 	{
@@ -4105,7 +4122,7 @@ const completionSpec: Fig.Spec = {
 		},
 		{
 			name: "--html-path",
-			description: "Print Git’s HTML documentation path",
+			description: "Print Git's HTML documentation path",
 		},
 		{
 			name: "--man-path",
@@ -4918,7 +4935,7 @@ const completionSpec: Fig.Spec = {
 					suggestCurrentToken: true,
 					suggestions: configSuggestions.map((suggestion) => ({
 						...suggestion,
-						icon: "⚙️",
+						icon: "⚙️", // allow-any-unicode-next-line
 					})),
 					generators: {
 						script: ["git", "config", "--get-regexp", ".*"],
@@ -4937,7 +4954,7 @@ const completionSpec: Fig.Spec = {
 										line.startsWith("remote.") ||
 										!configSuggestions.find(({ name }) => line === name)
 								)
-								.map((name) => ({ name, icon: "⚙️" })),
+								.map((name) => ({ name, icon: "⚙️" })), // allow-any-unicode-next-line
 					},
 				},
 				{
@@ -4961,7 +4978,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--keep-base",
 					description:
-						"Set the starting point at which to create the new commits to the merge base of <upstream> <branch>. Running git rebase --keep-base <upstream> <branch> is equivalent to running git rebase --onto <upstream>…​ <upstream>. This option is useful in the case where one is developing a feature on top of an upstream branch. While the feature is being worked on, the upstream branch may advance and it may not be the best idea to keep rebasing on top of the upstream but to keep the base commit as-is. Although both this option and --fork-point find the merge base between <upstream> and <branch>, this option uses the merge base as the starting point on which new commits will be created, whereas --fork-point uses the merge base to determine the set of commits which will be rebased",
+						"Set the starting point at which to create the new commits to the merge base of <upstream> <branch>. Running git rebase --keep-base <upstream> <branch> is equivalent to running git rebase --onto <upstream>...<branch> <upstream> <branch>. This option is useful in the case where one is developing a feature on top of an upstream branch. While the feature is being worked on, the upstream branch may advance and it may not be the best idea to keep rebasing on top of the upstream but to keep the base commit as-is. Although both this option and --fork-point find the merge base between <upstream> and <branch>, this option uses the merge base as the starting point on which new commits will be created, whereas --fork-point uses the merge base to determine the set of commits which will be rebased",
 				},
 				{
 					name: "--continue",
@@ -4995,12 +5012,12 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--no-keep-empty",
 					description:
-						"Do not keep commits that start empty before the rebase (i.e. that do not change anything from its parent) in the result. The default is to keep commits which start empty, since creating such commits requires passing the --allow-empty override flag to git commit, signifying that a user is very intentionally creating such a commit and thus wants to keep it. Usage of this flag will probably be rare, since you can get rid of commits that start empty by just firing up an interactive rebase and removing the lines corresponding to the commits you don’t want. This flag exists as a convenient shortcut, such as for cases where external tools generate many empty commits and you want them all removed. For commits which do not start empty but become empty after rebasing, see the --empty flag",
+						"Do not keep commits that start empty before the rebase (i.e. that do not change anything from its parent) in the result. The default is to keep commits which start empty, since creating such commits requires passing the --allow-empty override flag to git commit, signifying that a user is very intentionally creating such a commit and thus wants to keep it. Usage of this flag will probably be rare, since you can get rid of commits that start empty by just firing up an interactive rebase and removing the lines corresponding to the commits you don't want. This flag exists as a convenient shortcut, such as for cases where external tools generate many empty commits and you want them all removed. For commits which do not start empty but become empty after rebasing, see the --empty flag",
 				},
 				{
 					name: "--keep-empty",
 					description:
-						"Keep commits that start empty before the rebase (i.e. that do not change anything from its parent) in the result. The default is to keep commits which start empty, since creating such commits requires passing the --allow-empty override flag to git commit, signifying that a user is very intentionally creating such a commit and thus wants to keep it. Usage of this flag will probably be rare, since you can get rid of commits that start empty by just firing up an interactive rebase and removing the lines corresponding to the commits you don’t want. This flag exists as a convenient shortcut, such as for cases where external tools generate many empty commits and you want them all removed. For commits which do not start empty but become empty after rebasing, see the --empty flag",
+						"Keep commits that start empty before the rebase (i.e. that do not change anything from its parent) in the result. The default is to keep commits which start empty, since creating such commits requires passing the --allow-empty override flag to git commit, signifying that a user is very intentionally creating such a commit and thus wants to keep it. Usage of this flag will probably be rare, since you can get rid of commits that start empty by just firing up an interactive rebase and removing the lines corresponding to the commits you don't want. This flag exists as a convenient shortcut, such as for cases where external tools generate many empty commits and you want them all removed. For commits which do not start empty but become empty after rebasing, see the --empty flag",
 				},
 				{
 					name: "--reapply-cherry-picks",
@@ -5208,12 +5225,12 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--autosquash",
 					description:
-						"When the commit log message begins with 'squash! …​' (or 'fixup! …​'), and there is already a commit in the todo list that matches the same ..., automatically modify the todo list of rebase -i so that the commit marked for squashing comes right after the commit to be modified, and change the action of the moved commit from pick to squash (or fixup). A commit matches the ... if the commit subject matches, or if the ... refers to the commit’s hash. As a fall-back, partial matches of the commit subject work, too. The recommended way to create fixup/squash commits is by using the --fixup/--squash options of git-commit[1]",
+						"When the commit log message begins with 'squash!' (or 'fixup!'), and there is already a commit in the todo list that matches the same ..., automatically modify the todo list of rebase -i so that the commit marked for squashing comes right after the commit to be modified, and change the action of the moved commit from pick to squash (or fixup). A commit matches the ... if the commit subject matches, or if the ... refers to the commit's hash. As a fall-back, partial matches of the commit subject work, too. The recommended way to create fixup/squash commits is by using the --fixup/--squash options of git-commit[1]",
 				},
 				{
 					name: "--no-autosquash",
 					description:
-						"When the commit log message begins with 'squash! …' (or 'fixup! …'), and there is already a commit in the todo list that matches the same ..., automatically modify the todo list of rebase -i so that the commit marked for squashing comes right after the commit to be modified, and change the action of the moved commit from pick to squash (or fixup). A commit matches the ... if the commit subject matches, or if the ... refers to the commit’s hash. As a fall-back, partial matches of the commit subject work, too. The recommended way to create fixup/squash commits is by using the --fixup/--squash options of git-commit[1]",
+						"When the commit log message begins with 'squash!' (or 'fixup!'), and there is already a commit in the todo list that matches the same ..., automatically modify the todo list of rebase -i so that the commit marked for squashing comes right after the commit to be modified, and change the action of the moved commit from pick to squash (or fixup). A commit matches the ... if the commit subject matches, or if the ... refers to the commit's hash. As a fall-back, partial matches of the commit subject work, too. The recommended way to create fixup/squash commits is by using the --fixup/--squash options of git-commit[1]",
 				},
 				{
 					name: "--autostash",
@@ -5482,7 +5499,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: ["-n", "--dry-run"],
 					description:
-						"Don’t actually remove anything, just show what would be done",
+						"Don't actually remove anything, just show what would be done",
 				},
 				{
 					name: ["-q", "--quiet"],
@@ -5500,7 +5517,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "-x",
 					description:
-						"Don’t use the standard ignore rules (see gitignore(5)), but still use the ignore rules given with -e options from the command line. This allows removing all untracked files, including build products. This can be used (possibly in conjunction with git restore or git reset) to create a pristine working directory to test a clean build",
+						"Don't use the standard ignore rules (see gitignore(5)), but still use the ignore rules given with -e options from the command line. This allows removing all untracked files, including build products. This can be used (possibly in conjunction with git restore or git reset) to create a pristine working directory to test a clean build",
 				},
 				{
 					name: "-X",
@@ -5721,7 +5738,7 @@ const completionSpec: Fig.Spec = {
 					name: ["--rebase", "-r"],
 					isDangerous: true,
 					description:
-						"Fetch the remote’s copy of current branch and rebases it into the local copy",
+						"Fetch the remote's copy of current branch and rebases it into the local copy",
 					args: {
 						isOptional: true,
 						name: "remote",
@@ -5813,7 +5830,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--signoff",
 					description:
-						"Add a Signed-off-by trailer by the committer at the end of the commit log message. The meaning of a signoff depends on the project to which you’re committing. For example, it may certify that the committer has the rights to submit the work under the project’s license or agrees to some contributor representation, such as a Developer Certificate of Origin. (See http://developercertificate.org for the one used by the Linux kernel and Git projects.) Consult the documentation or leadership of the project to which you’re contributing to understand how the signoffs are used in that project",
+						"Add a Signed-off-by trailer by the committer at the end of the commit log message. The meaning of a signoff depends on the project to which you're committing. For example, it may certify that the committer has the rights to submit the work under the project's license or agrees to some contributor representation, such as a Developer Certificate of Origin. (See http://developercertificate.org for the one used by the Linux kernel and Git projects.) Consult the documentation or leadership of the project to which you're contributing to understand how the signoffs are used in that project",
 				},
 				{
 					name: "--no-signoff",
@@ -6349,7 +6366,7 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "-m",
 							description:
-								"A symbolic-ref refs/remotes/<name>/HEAD is set up to point at remote’s <master> branch",
+								"A symbolic-ref refs/remotes/<name>/HEAD is set up to point at remote's <master> branch",
 							args: {
 								name: "master",
 							},
@@ -6778,7 +6795,7 @@ const completionSpec: Fig.Spec = {
 						name: "path",
 					},
 					description:
-						'Prepend <path> to paths printed in informative messages such as ”Fetching submodule foo". This option is used internally when recursing over submodules',
+						'Prepend <path> to paths printed in informative messages such as "Fetching submodule foo". This option is used internally when recursing over submodules',
 				},
 				{
 					name: "--recurse-submodules-default",
@@ -7155,7 +7172,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--server-option",
 					description:
-						"Transmit the given string to the server when communicating using protocol version 2. The given string must not contain a NUL or LF character. The server’s handling of server options, including unknown ones, is server-specific. When multiple --server-option=<option> are given, they are all sent to the other side in the order listed on the command line",
+						"Transmit the given string to the server when communicating using protocol version 2. The given string must not contain a NUL or LF character. The server's handling of server options, including unknown ones, is server-specific. When multiple --server-option=<option> are given, they are all sent to the other side in the order listed on the command line",
 					requiresSeparator: true,
 					args: {
 						name: "option",
@@ -7197,7 +7214,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: ["-b", "--branch"],
 					description:
-						"Instead of pointing the newly created HEAD to the branch pointed to by the cloned repository’s HEAD, point to <name> branch instead. In a non-bare repository, this is the branch that will be checked out. --branch can also take tags and detaches the HEAD at that commit in the resulting repository",
+						"Instead of pointing the newly created HEAD to the branch pointed to by the cloned repository's HEAD, point to <name> branch instead. In a non-bare repository, this is the branch that will be checked out. --branch can also take tags and detaches the HEAD at that commit in the resulting repository",
 					args: { name: "branch name" },
 				},
 				{
@@ -7252,17 +7269,17 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--single-branch",
 					description:
-						"Clone only the history leading to the tip of a single branch, either specified by the --branch option or the primary branch remote’s HEAD points at. Further fetches into the resulting repository will only update the remote-tracking branch for the branch this option was used for the initial cloning. If the HEAD at the remote did not point at any branch when --single-branch clone was made, no remote-tracking branch is created",
+						"Clone only the history leading to the tip of a single branch, either specified by the --branch option or the primary branch remote's HEAD points at. Further fetches into the resulting repository will only update the remote-tracking branch for the branch this option was used for the initial cloning. If the HEAD at the remote did not point at any branch when --single-branch clone was made, no remote-tracking branch is created",
 				},
 				{
 					name: "--no-single-branch",
 					description:
-						"Do not clone only the history leading to the tip of a single branch, either specified by the --branch option or the primary branch remote’s HEAD points at. Further fetches into the resulting repository will only update the remote-tracking branch for the branch this option was used for the initial cloning. If the HEAD at the remote did not point at any branch when --single-branch clone was made, no remote-tracking branch is created",
+						"Do not clone only the history leading to the tip of a single branch, either specified by the --branch option or the primary branch remote's HEAD points at. Further fetches into the resulting repository will only update the remote-tracking branch for the branch this option was used for the initial cloning. If the HEAD at the remote did not point at any branch when --single-branch clone was made, no remote-tracking branch is created",
 				},
 				{
 					name: "--no-tags",
 					description:
-						"Don’t clone any tags, and set remote.<remote>.tagOpt=--no-tags in the config, ensuring that future git pull and git fetch operations won’t follow any tags. Subsequent explicit tag fetches will still work, (see git-fetch[1])",
+						"Don't clone any tags, and set remote.<remote>.tagOpt=--no-tags in the config, ensuring that future git pull and git fetch operations won't follow any tags. Subsequent explicit tag fetches will still work, (see git-fetch[1])",
 				},
 				{
 					name: "--recurse-submodules",
@@ -7285,7 +7302,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--remote-submodules",
 					description:
-						"All submodules which are cloned will use the status of the submodule’s remote-tracking branch to update the submodule, rather than the superproject’s recorded SHA-1. Equivalent to passing --remote to git submodule update",
+						"All submodules which are cloned will use the status of the submodule's remote-tracking branch to update the submodule, rather than the superproject's recorded SHA-1. Equivalent to passing --remote to git submodule update",
 				},
 				{
 					name: "--no-remote-submodules",
@@ -7473,7 +7490,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: ["-n", "--dry-run"],
 					description:
-						"Don’t actually remove any file(s). Instead, just show if they exist in the index and would otherwise be removed by the command",
+						"Don't actually remove any file(s). Instead, just show if they exist in the index and would otherwise be removed by the command",
 				},
 				{ name: "-r", description: "Allow recursive removal" },
 			],
@@ -7995,7 +8012,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "-l",
 					description:
-						"Create the new branch’s reflog; see git-branch[1] for details",
+						"Create the new branch's reflog; see git-branch[1] for details",
 				},
 				{
 					name: ["-d", "--detach"],
@@ -8314,7 +8331,7 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "--name",
 							description:
-								"It sets the submodule’s name to the given string instead of defaulting to its path",
+								"It sets the submodule's name to the given string instead of defaulting to its path",
 							insertValue: "--name '{cursor}'",
 							args: {
 								name: "name",
@@ -8403,7 +8420,7 @@ const completionSpec: Fig.Spec = {
 						{
 							name: ["-f", "--force"],
 							description:
-								"The submodule’s working tree will be removed even if it contains local modifications",
+								"The submodule's working tree will be removed even if it contains local modifications",
 						},
 						{
 							name: "--all",
@@ -8434,11 +8451,11 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "--remote",
 							description:
-								"Instead of using the superproject’s recorded SHA-1 to update the submodule, use the status of the submodule’s remote-tracking branch",
+								"Instead of using the superproject's recorded SHA-1 to update the submodule, use the status of the submodule's remote-tracking branch",
 						},
 						{
 							name: ["-N", "--no-fetch"],
-							description: "Don’t fetch new objects from the remote site",
+							description: "Don't fetch new objects from the remote site",
 						},
 						{
 							name: "--no-recommend-shallow",
@@ -8653,7 +8670,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "absorbgitdirs",
 					description:
-						"If a git directory of a submodule is inside the submodule, move the git directory of the submodule into its superproject’s $GIT_DIR/modules path and then connect the git directory and its working directory by setting the core.worktree and adding a .git file pointing to the git directory embedded in the superprojects git directory",
+						"If a git directory of a submodule is inside the submodule, move the git directory of the submodule into its superproject's $GIT_DIR/modules path and then connect the git directory and its working directory by setting the core.worktree and adding a .git file pointing to the git directory embedded in the superprojects git directory",
 				},
 			],
 			options: [
@@ -8765,7 +8782,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--signoff",
 					description:
-						"Add a Signed-off-by trailer by the committer at the end of the commit log message. The meaning of a signoff depends on the project to which you’re committing. For example, it may certify that the committer has the rights to submit the work under the project’s license or agrees to some contributor representation, such as a Developer Certificate of Origin. (See http://developercertificate.org for the one used by the Linux kernel and Git projects.) Consult the documentation or leadership of the project to which you’re contributing to understand how the signoffs are used in that project",
+						"Add a Signed-off-by trailer by the committer at the end of the commit log message. The meaning of a signoff depends on the project to which you're committing. For example, it may certify that the committer has the rights to submit the work under the project's license or agrees to some contributor representation, such as a Developer Certificate of Origin. (See http://developercertificate.org for the one used by the Linux kernel and Git projects.) Consult the documentation or leadership of the project to which you're contributing to understand how the signoffs are used in that project",
 				},
 				{
 					name: "--no-signoff",
@@ -9625,7 +9642,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--strict-paths",
 					description:
-						'Match paths exactly (i.e. don’t allow "/foo/repo" when the real path is "/foo/repo.git" or "/foo/repo/.git") and don’t do user-relative paths.  git daemon will refuse to start when this option is enabled and no whitelist is specified',
+						'Match paths exactly (i.e. don\'t allow "/foo/repo" when the real path is "/foo/repo.git" or "/foo/repo/.git") and don\'t do user-relative paths.  git daemon will refuse to start when this option is enabled and no whitelist is specified',
 				},
 				{
 					name: "--base-path",
@@ -9643,7 +9660,7 @@ const completionSpec: Fig.Spec = {
 					name: "--interpolated-path",
 					requiresSeparator: true,
 					description:
-						"To support virtual hosting, an interpolated path template can be used to dynamically construct alternate paths. The template supports %H for the target hostname as supplied by the client but converted to all lowercase, %CH for the canonical hostname, %IP for the server’s IP address, %P for the port number, and %D for the absolute path of the named repository. After interpolation, the path is validated against the directory whitelist",
+						"To support virtual hosting, an interpolated path template can be used to dynamically construct alternate paths. The template supports %H for the target hostname as supplied by the client but converted to all lowercase, %CH for the canonical hostname, %IP for the server's IP address, %P for the port number, and %D for the absolute path of the named repository. After interpolation, the path is validated against the directory whitelist",
 					args: { name: "path-template" },
 				},
 				{
@@ -9738,7 +9755,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--user",
 					description:
-						"Change daemon’s uid and gid before entering the service loop. When only --user is given without --group, the primary group ID for the user is used. The values of the option are given to getpwnam(3) and getgrnam(3) and numeric IDs are not supported",
+						"Change daemon's uid and gid before entering the service loop. When only --user is given without --group, the primary group ID for the user is used. The values of the option are given to getpwnam(3) and getgrnam(3) and numeric IDs are not supported",
 					requiresSeparator: true,
 					exclusiveOn: ["--inetd"],
 					args: { name: "user" },
@@ -9746,7 +9763,7 @@ const completionSpec: Fig.Spec = {
 				{
 					name: "--group",
 					description:
-						"Change daemon’s gid before entering the service loop. The value of this option is given to getgrnam(3) and numeric IDs are not supported",
+						"Change daemon's gid before entering the service loop. The value of this option is given to getgrnam(3) and numeric IDs are not supported",
 					exclusiveOn: ["--inetd"],
 				},
 				{
@@ -9803,7 +9820,7 @@ const completionSpec: Fig.Spec = {
 			name: "commit -m 'msg'",
 			description: "Git commit shortcut",
 			insertValue: "commit -m '{cursor}'",
-			icon: "fig://template?color=2ecc71&badge=🔥",
+			icon: "fig://template?color=2ecc71&badge=🔥", // allow-any-unicode-next-line
 			// type: "shortcut",
 		},
 	],

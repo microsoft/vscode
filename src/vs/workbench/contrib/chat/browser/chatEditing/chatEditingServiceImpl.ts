@@ -254,10 +254,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			for (const remaining of editsSeen) {
 				remaining?.streaming.complete();
 			}
-			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
-				// Roll back everything
-				session.restoreSnapshot(responseModel.requestId, undefined);
-			}
 
 			editsSeen.length = 0;
 			editedFilesExist.clear();

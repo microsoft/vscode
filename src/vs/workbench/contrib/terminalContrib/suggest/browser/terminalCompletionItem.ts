@@ -122,10 +122,16 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 		this.labelLowExcludeFileExt = this.labelLow;
 		this.labelLowNormalizedPath = this.labelLow;
 
-		if (isFile(completion)) {
+		// HACK: Treat branch as a path separator, otherwise they get filtered out. Hard code the
+		// documentation for now, but this would be better to come in through a `kind`
+		// See https://github.com/microsoft/vscode/issues/255864
+		if (isFile(completion) || completion.documentation === 'Branch') {
 			if (isWindows) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
 			}
+		}
+
+		if (isFile(completion)) {
 			// Don't include dotfiles as extensions when sorting
 			const extIndex = this.labelLow.lastIndexOf('.');
 			if (extIndex > 0) {

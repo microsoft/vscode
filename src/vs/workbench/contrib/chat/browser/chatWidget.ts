@@ -1163,7 +1163,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 			this.input.inputEditor.focus();
 
-			this._register(dom.addDisposableListener(this.inputPart.element, dom.EventType.CLICK, () => {
+			this._register(this.inputPart.onDidClickOverlay(() => {
 				if (this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
 					this.finishedEditing();
 				}
