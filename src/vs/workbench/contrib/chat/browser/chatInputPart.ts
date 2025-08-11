@@ -74,7 +74,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatEditingSession } from '../common/chatEditingService.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
@@ -1495,14 +1495,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
 		const seenEntries = new ResourceSet();
-		const entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
-			seenEntries.add(entry.modifiedURI);
-			return {
-				reference: entry.modifiedURI,
-				state: entry.state.get(),
-				kind: 'reference',
-			};
-		}) ?? [];
+		const entries: IChatCollapsibleListItem[] = [];
+		if (chatEditingSession) {
+			for (const entry of chatEditingSession.entries.get()) {
+				if (entry.state.get() !== ModifiedFileEntryState.Modified) {
+					continue;
+				}
+
+				if (!seenEntries.has(entry.modifiedURI)) {
+					seenEntries.add(entry.modifiedURI);
+					entries.push({
+						reference: entry.modifiedURI,
+						state: entry.state.get(),
+						kind: 'reference',
+					});
+				}
+			}
+		}
 
 		if (!chatEditingSession || !this.options.renderWorkingSet || !entries.length) {
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
@@ -1513,16 +1522,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Summary of number of files changed
 		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
-		for (const entry of chatEditingSession.entries.get()) {
-			if (!seenEntries.has(entry.modifiedURI)) {
-				entries.unshift({
-					reference: entry.modifiedURI,
-					state: entry.state.get(),
-					kind: 'reference',
-				});
-				seenEntries.add(entry.modifiedURI);
-			}
-		}
 
 		entries.sort((a, b) => {
 			if (a.kind === 'reference' && b.kind === 'reference') {
