@@ -325,7 +325,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			let customActions: IToolConfirmationAction[] | undefined;
 			if (!isAutoApproved) {
-				customActions = this._generateAutoApproveActions(args.command, subCommands, { subCommandResults, commandLineResult });
+				customActions = this._generateAutoApproveActions(actualCommand, subCommands, { subCommandResults, commandLineResult });
 			}
 
 			confirmationMessages = isAutoApproved ? undefined : {
