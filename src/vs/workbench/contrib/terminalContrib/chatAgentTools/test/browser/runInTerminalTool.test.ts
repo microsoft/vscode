@@ -292,14 +292,14 @@ suite('RunInTerminalTool', () => {
 
 			strictEqual(customActions[0].label, 'Always Allow Command: npm');
 			ok(!(customActions[0] instanceof Separator), 'Expected first action to not be a separator');
-			if (!(customActions[0] instanceof Separator)) {
+			if ('data' in customActions[0]) {
 				strictEqual(customActions[0].data.type, 'newRule');
 				ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 			}
 
 			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm run build');
 			ok(!(customActions[1] instanceof Separator), 'Expected second action to not be a separator');
-			if (!(customActions[1] instanceof Separator)) {
+			if ('data' in customActions[1]) {
 				strictEqual(customActions[1].data.type, 'newRule');
 				ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
 			}
@@ -308,7 +308,7 @@ suite('RunInTerminalTool', () => {
 
 			strictEqual(customActions[3].label, 'Configure Auto Approve...');
 			ok(!(customActions[3] instanceof Separator), 'Expected fourth action to not be a separator');
-			if (!(customActions[3] instanceof Separator)) {
+			if ('data' in customActions[3]) {
 				strictEqual(customActions[3].data.type, 'configure');
 			}
 		});
@@ -328,7 +328,7 @@ suite('RunInTerminalTool', () => {
 
 			strictEqual(customActions[0].label, 'Always Allow Command: git');
 			ok(!(customActions[0] instanceof Separator), 'Expected first action to not be a separator');
-			if (!(customActions[0] instanceof Separator)) {
+			if ('data' in customActions[0]) {
 				strictEqual(customActions[0].data.type, 'newRule');
 				ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 			}
@@ -337,7 +337,7 @@ suite('RunInTerminalTool', () => {
 
 			strictEqual(customActions[2].label, 'Configure Auto Approve...');
 			ok(!(customActions[2] instanceof Separator), 'Expected third action to not be a separator');
-			if (!(customActions[2] instanceof Separator)) {
+			if ('data' in customActions[2]) {
 				strictEqual(customActions[2].data.type, 'configure');
 			}
 		});
@@ -428,12 +428,15 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
 
 			strictEqual(customActions[0].label, 'Always Allow Command: foo', 'Should only show \'foo\' since \'head\' is auto-approved');
+			ok('data' in customActions[0]);
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			strictEqual(customActions[1].label, 'Always Allow Full Command Line: foo | head -20');
+			ok('data' in customActions[1]);
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			strictEqual(customActions[2].label, 'Configure Auto Approve...');
+			ok('data' in customActions[2]);
 			strictEqual(customActions[2].data.type, 'configure');
 		});
 
@@ -469,12 +472,15 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
 
 			strictEqual(customActions[0].label, 'Always Allow Commands: foo, bar', 'Should only show \'foo, bar\' since \'head\' and \'tail\' are auto-approved');
+			ok('data' in customActions[0]);
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			strictEqual(customActions[1].label, 'Always Allow Full Command Line: foo | head -20 &&& bar | tail -10');
+			ok('data' in customActions[1]);
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			strictEqual(customActions[2].label, 'Configure Auto Approve...');
+			ok('data' in customActions[2]);
 			strictEqual(customActions[2].data.type, 'configure');
 		});
 
