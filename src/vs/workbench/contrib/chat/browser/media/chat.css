@@ -2339,11 +2339,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: 100%;
 	background-color: var(--vscode-sideBar-background);
 	opacity: 0.6;
-	pointer-events: none;
 	display: flex;
-	cursor: default;
 	z-index: 101;
 	user-select: none;
+	cursor: default;
 }
 
 .interactive-session .focused-input-dom {
