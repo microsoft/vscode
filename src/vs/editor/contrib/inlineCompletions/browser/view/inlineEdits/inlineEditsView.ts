@@ -90,7 +90,7 @@ export class InlineEditsView extends Disposable {
 			}
 
 			if (state.kind === InlineCompletionViewKind.SideBySide) {
-				const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange);
+				const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange, textModel.getOptions().tabSize);
 				newText = indentationAdjustmentEdit.applyToString(newText);
 
 				mappings = applyEditToModifiedRangeMappings(mappings, indentationAdjustmentEdit);
