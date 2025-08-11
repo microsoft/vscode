@@ -316,7 +316,21 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private _makeMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
-		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, { kind: 'markdownContent', content: typeof message === 'string' ? new MarkdownString().appendText(message) : message }, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, undefined, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
+		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
+			{
+				kind: 'markdownContent',
+				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message
+			},
+			this.context,
+			this.editorPool,
+			false,
+			this.codeBlockStartIndex,
+			this.renderer,
+			undefined,
+			this.currentWidthDelegate(),
+			this.codeBlockModelCollection,
+			{ codeBlockRenderOptions }
+		));
 		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 		container.append(part.domNode);
 
