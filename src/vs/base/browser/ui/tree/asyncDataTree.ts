@@ -769,7 +769,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	async setInput(input: TInput, viewState?: IAsyncDataTreeViewState): Promise<void> {
-		this.cancelAllRefreshPromises()
+		this.cancelAllRefreshPromises();
 
 		this.root.element = input!;
 
