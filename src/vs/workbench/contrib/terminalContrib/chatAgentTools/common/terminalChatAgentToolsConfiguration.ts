@@ -88,6 +88,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		default: {
 			// Safe and common readonly commands (automatically approved)
+			cd: true,
 			echo: true,
 			ls: true,
 			pwd: true,
