@@ -7,7 +7,7 @@ import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equal
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -315,14 +315,11 @@ export class InlineEditsView extends Disposable {
 		}).recomputeInitiallyAndOnChange(this._store);
 
 		const textModel = this._editor.getModel()!;
-		const onDidContentChange = observableFromEvent(this, textModel.onDidChangeContent, () => { });
 
 		let viewZoneId: string | undefined;
 		this._register(autorun(reader => {
 			const minScrollHeight = minEditorScrollHeight.read(reader);
 			this._editor.changeViewZones(accessor => {
-				onDidContentChange.read(reader);
-
 				const scrollHeight = this._editor.getScrollHeight();
 				const viewZoneHeight = minScrollHeight - scrollHeight + 1 /* Add 1px so there is a small gap */;
 
