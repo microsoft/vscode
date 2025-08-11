@@ -92,10 +92,10 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 fi
 
 if [ -n "$VSCODE_BASH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
-	builtin eval "$VSCODE_BASH_ACTIVATE"
-	__vsc_activation_status=$?
-	if [ $__vsc_activation_status -ne 0 ]; then
-		# TODO: Figure out how to attach * next to the message similar to terminal restored.
+	# Prevent crashing by negating exit code
+	if ! builtin eval "$VSCODE_BASH_ACTIVATE"; then
+		__vsc_activation_status=$?
+		# TODO: Figure out how to add 'star' icon similar to terminal restored.
 		builtin printf 'VS Code Python bash activation failed with exit code %d\n' "$__vsc_activation_status"
 	fi
 fi
