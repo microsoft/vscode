@@ -3464,7 +3464,7 @@ export class CommandCenter {
 			return;
 		}
 
-		let branch: string | undefined = undefined;
+		let branch: string | undefined;
 		let commitish: string;
 
 		if (choice === createBranch) {
