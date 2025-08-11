@@ -1488,13 +1488,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: menuContext
 });
 
-MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
-	submenu: MenuId.ChatTerminalMenu,
-	group: '2_copilot',
-	title,
-	when: menuContext
-});
-
 // --- Chat Default Visibility
 
 registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
