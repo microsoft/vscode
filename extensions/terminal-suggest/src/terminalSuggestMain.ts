@@ -8,24 +8,25 @@ import * as vscode from 'vscode';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
 import codeInsidersCompletionSpec from './completions/code-insiders';
+import codeTunnelCompletionSpec from './completions/code-tunnel';
+import codeTunnelInsidersCompletionSpec from './completions/code-tunnel-insiders';
+import gitCompletionSpec from './completions/git';
 import npxCompletionSpec from './completions/npx';
 import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
 import { ITerminalEnvironment, PathExecutableCache, watchPathDirectories } from './env/pathExecutableCache';
+import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
+import { getFigSuggestions } from './fig/figInterface';
+import { createCompletionItem } from './helpers/completionItem';
 import { osIsWindows } from './helpers/os';
+import { createTimeoutPromise } from './helpers/promise';
 import { getFriendlyResourcePath } from './helpers/uri';
 import { getBashGlobals } from './shell/bash';
 import { getFishGlobals } from './shell/fish';
 import { getPwshGlobals } from './shell/pwsh';
 import { getZshGlobals } from './shell/zsh';
-import { getTokenType, TokenType, shellTypeResetChars, defaultShellTypeResetChars } from './tokens';
+import { defaultShellTypeResetChars, getTokenType, shellTypeResetChars, TokenType } from './tokens';
 import type { ICompletionResource } from './types';
-import { createCompletionItem } from './helpers/completionItem';
-import { getFigSuggestions } from './fig/figInterface';
-import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
-import { createTimeoutPromise } from './helpers/promise';
-import codeTunnelCompletionSpec from './completions/code-tunnel';
-import codeTunnelInsidersCompletionSpec from './completions/code-tunnel-insiders';
 
 export const enum TerminalShellType {
 	Bash = 'bash',
@@ -59,6 +60,7 @@ export const availableSpecs: Fig.Spec[] = [
 	codeCompletionSpec,
 	codeTunnelCompletionSpec,
 	codeTunnelInsidersCompletionSpec,
+	gitCompletionSpec,
 	npxCompletionSpec,
 	setLocationSpec,
 ];
@@ -277,9 +279,10 @@ export async function activate(context: vscode.ExtensionContext) {
 					terminal.name,
 					token
 				),
-				createTimeoutPromise(300, undefined)
+				createTimeoutPromise(5000, undefined)
 			]);
 			if (!result) {
+				console.debug('#terminalCompletions Timed out fetching completions from specs');
 				return;
 			}
 
@@ -407,7 +410,7 @@ export async function getCompletionItemsFromSpecs(
 	token?: vscode.CancellationToken,
 	executeExternals?: IFigExecuteExternals,
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
-	const items: vscode.TerminalCompletionItem[] = [];
+	let items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
 	let hasCurrentArg = false;
@@ -429,7 +432,7 @@ export async function getCompletionItemsFromSpecs(
 		foldersRequested ||= result.foldersRequested;
 		fileExtensions = result.fileExtensions;
 		if (result.items) {
-			items.push(...result.items);
+			items = items.concat(result.items);
 		}
 	}
 

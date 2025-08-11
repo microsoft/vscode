@@ -193,7 +193,8 @@
 	min-height: var(--chat-current-response-min-height);
 }
 
-.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
 	/* Complete response only */
 	display: block;
 	opacity: 0;
@@ -204,7 +205,8 @@
 
 /* Show toolbar on hover and last response */
 .interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar,
-.interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar {
+.interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
 	visibility: visible;
 }
@@ -224,11 +226,6 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
 	margin-left: auto;
-}
-
-/* Show details only on hover of the footer toolbar */
-.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar:hover .chat-footer-details {
-	display: block;
 }
 
 .interactive-item-container .chat-footer-details.hidden {
@@ -2342,11 +2339,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: 100%;
 	background-color: var(--vscode-sideBar-background);
 	opacity: 0.6;
-	pointer-events: none;
 	display: flex;
-	cursor: default;
 	z-index: 101;
 	user-select: none;
+	cursor: default;
 }
 
 .interactive-session .focused-input-dom {
@@ -2458,14 +2454,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-todo-list-widget .todo-list-container {
 	padding-left: 10px;
 	margin-top: 2px;
-	max-height: calc(6.5 * 21px); /* 6.5 items to show half-line affordance */
+	max-height: calc(6.5 * 21px);
+	/* 6.5 items to show half-line affordance */
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	scrollbar-width: thin;
 	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 	scroll-behavior: smooth;
-	scroll-padding-top: 24px; /* Half item height to show partial next item */
-	scroll-padding-bottom: 24px; /* Half item height to show partial previous item */
+	scroll-padding-top: 24px;
+	/* Half item height to show partial next item */
+	scroll-padding-bottom: 24px;
+	/* Half item height to show partial previous item */
 }
 
 /* Modern scrollbar styling for WebKit browsers */
@@ -2532,5 +2531,3 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		align-items: flex-start;
 	}
 }
-
-
