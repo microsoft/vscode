@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
@@ -32,7 +32,6 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConstants.js';
-import { renderMarkdownDocument } from '../../../markdown/browser/markdownDocumentRenderer.js';
 import { getAttachableImageExtension } from '../../common/chatModel.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
@@ -291,7 +290,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		this._editorReferences.push(editorReference);
 	}
 
-	private async addMarkdownContent(part: IChatCollapsibleIODataPart, container: HTMLElement) {
+	private addMarkdownContent(part: IChatCollapsibleIODataPart, container: HTMLElement) {
 		if (!part.value) {
 			return;
 		}
@@ -302,17 +301,9 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		// Create a container for the markdown content
 		const markdownContainer = dom.$('.chat-markdown-content');
-		markdownContainer.style.border = '1px solid var(--vscode-panel-border)';
-		markdownContainer.style.borderRadius = '4px';
-		markdownContainer.style.padding = '8px';
-		markdownContainer.style.margin = '4px 0';
-		markdownContainer.style.backgroundColor = 'var(--vscode-editor-background)';
 
 		// Add a title showing the filename
 		const titleElement = dom.$('.chat-markdown-title');
-		titleElement.style.fontWeight = 'bold';
-		titleElement.style.marginBottom = '8px';
-		titleElement.style.color = 'var(--vscode-foreground)';
 		titleElement.textContent = basename(part.uri.path);
 		markdownContainer.appendChild(titleElement);
 
@@ -320,21 +311,14 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		const contentElement = dom.$('.chat-markdown-body');
 		markdownContainer.appendChild(contentElement);
 
-		try {
-			// Render the markdown
-			const rendered = await renderMarkdownDocument(
-				markdownText,
-				this._extensionService,
-				this._languageService
-			);
-			contentElement.innerHTML = rendered;
-		} catch (error) {
-			// Fallback to plain text if markdown rendering fails
-			const pre = dom.$('pre');
-			pre.textContent = markdownText;
-			contentElement.appendChild(pre);
-		}
-
+		// Create a MarkdownRenderer and render the content
+		const renderer = this._instantiationService.createInstance(MarkdownRenderer, {});
+		const markdownString = new MarkdownString(markdownText);
+		const renderResult = this._register(renderer.render(markdownString, {
+			asyncRenderCallback: () => this._onDidChangeHeight.fire()
+		}));
+		
+		contentElement.appendChild(renderResult.element);
 		container.appendChild(markdownContainer);
 	}
 

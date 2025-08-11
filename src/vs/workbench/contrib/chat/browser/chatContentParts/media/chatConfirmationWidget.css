@@ -173,3 +173,21 @@
 		}
 	}
 }
+
+.chat-markdown-content {
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+	padding: 8px;
+	margin: 4px 0;
+	background-color: var(--vscode-editor-background);
+}
+
+.chat-markdown-title {
+	font-weight: bold;
+	margin-bottom: 8px;
+	color: var(--vscode-foreground);
+}
+
+.chat-markdown-body {
+	/* Markdown content will be rendered here */
+}
