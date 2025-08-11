@@ -20,9 +20,9 @@ import { IContextKeyService, ContextKeyExpr } from '../../../../platform/context
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { Extensions, IViewContainersRegistry, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewDescriptor } from '../../../common/views.js';
@@ -37,7 +37,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { ResourceLabels, IResourceLabel } from '../../../browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
 import { append, $, getActiveWindow, clearNode } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -49,7 +48,6 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { IChatWidgetService, IChatWidget } from './chat.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
-import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -62,15 +60,11 @@ export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
 // Helper function to create context overlay for session items
 function getSessionItemContextOverlay(session: IChatSessionItem, provider?: IChatSessionItemProvider): [string, any][] {
-	const overlay: [string, any][] = [
-		[ChatContextKeys.sessionId.key, session.id],
-		[ChatContextKeys.sessionLabel.key, session.label],
-	];
-	
+	const overlay: [string, any][] = [];
 	if (provider) {
 		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
 	}
-	
+
 	return overlay;
 }
 
@@ -636,7 +630,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
 		const element = append(container, $('.chat-session-item'));
 		const resourceLabel = this.labels.create(element, { supportHighlights: true });
-		const actionBar = new ActionBar(container);
+		const actionsContainer = append(resourceLabel.element, $('.actions'));
+		const actionBar = new ActionBar(actionsContainer);
 		const elementDisposable = new DisposableStore();
 
 		return {
@@ -650,7 +645,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
 		const session = element.element;
 		const sessionWithProvider = session as IChatSessionItem & { provider: IChatSessionItemProvider };
-		
+
 		// Clear previous element disposables
 		templateData.elementDisposable.clear();
 
@@ -691,7 +686,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 		// Create context overlay for this specific session item
 		const contextOverlay = getSessionItemContextOverlay(session, sessionWithProvider.provider);
-		
+
 		const contextKeyService = this.contextKeyService.createOverlay(contextOverlay);
 
 		// Create menu for this session item
@@ -703,12 +698,15 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		const setupActionBar = () => {
 			templateData.actionBar.clear();
 
+			const actions = menu.getActions({ arg: session, shouldForwardArgs: true });
+
 			const { primary } = getActionBarActions(
-				menu.getActions({ arg: session, shouldForwardArgs: true }), 
-				'inline'
+				actions,
+				'inline',
 			);
+
 			templateData.actionBar.push(primary, { icon: true, label: false });
-			
+
 			// Set context for the action bar
 			templateData.actionBar.context = session;
 		};

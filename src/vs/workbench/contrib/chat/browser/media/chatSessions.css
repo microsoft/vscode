@@ -40,3 +40,15 @@
 .chat-sessions-message .no-sessions-message .codicon {
 	opacity: 0.7;
 }
+
+/* Hide action bar actions by default */
+.chat-sessions-tree .chat-session-item .actions .action-label {
+	display: none;
+}
+
+/* Show action bar actions on hover and focus */
+.chat-sessions-tree .chat-session-item:hover .actions .action-label,
+.chat-sessions-tree .monaco-list-row.focused .chat-session-item .actions .action-label,
+.chat-sessions-tree .monaco-list-row.selected .chat-session-item .actions .action-label {
+	display: block;
+}
