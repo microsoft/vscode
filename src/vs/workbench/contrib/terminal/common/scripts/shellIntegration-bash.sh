@@ -91,6 +91,15 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	builtin unset VSCODE_ENV_APPEND
 fi
 
+if [ -n "$VSCODE_BASH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
+	builtin eval "$VSCODE_BASH_ACTIVATE"
+	__vsc_activation_status=$?
+	if [ $__vsc_activation_status -ne 0 ]; then
+		# TODO: Figure out how to attach * next to the message similar to terminal restored.
+		builtin printf 'VS Code Python bash activation failed with exit code %d\n' "$__vsc_activation_status"
+	fi
+fi
+
 __vsc_get_trap() {
 	# 'trap -p DEBUG' outputs a shell command like `trap -- '…shellcode…' DEBUG`.
 	# The terms are quoted literals, but are not guaranteed to be on a single line.
