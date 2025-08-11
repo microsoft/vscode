@@ -1544,6 +1544,58 @@ begin
     end;
 #endif
 
+    { ---------------------------------------------------------------------- }
+    { Self-heal classic context menu registrations (Windows Explorer)       }
+    { Rationale: Some users reported missing "Open with Code" after update. }
+    { If a background update runs (tasks UI not shown) or keys vanished     }
+    { unexpectedly, recreate them when NOT on Windows 11 Insiders AppX path }
+    { and user previously had them (detected by existing keys) or selected. }
+    { ---------------------------------------------------------------------- }
+    try
+      if not (IsWindows11OrLater() and QualityIsInsiders()) then begin
+        { Heal file context menu }
+        if (WizardIsTaskSelected('addcontextmenufiles') or IsBackgroundUpdate()) then begin
+          if (WizardIsTaskSelected('addcontextmenufiles')) or
+             (RegKeyExists(HKCU, 'Software\Classes\*\shell\{#RegValueName}') or
+              RegKeyExists(HKLM, 'Software\Classes\*\shell\{#RegValueName}') or
+              RegKeyExists(HKCU, 'Software\Classes\{#RegValueName}ContextMenu') or
+              RegKeyExists(HKLM, 'Software\Classes\{#RegValueName}ContextMenu')) then begin
+            if not RegKeyExists({#SoftwareClassesRootKey}, 'Software\Classes\*\shell\{#RegValueName}') then begin
+              Log('Healing VS Code file context menu entries...');
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\*\shell\{#RegValueName}', '', ExpandConstant('{cm:OpenWithCodeContextMenu,{#ShellNameShort}}'));
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\*\shell\{#RegValueName}', 'Icon', ExpandConstant('{app}\{#ExeBasename}.exe'));
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\*\shell\{#RegValueName}\command', '', '"' + ExpandConstant('{app}\{#ExeBasename}.exe') + '" "%1"');
+            end;
+          end;
+        end;
+        { Heal folder / background / drive context menus }
+        if (WizardIsTaskSelected('addcontextmenufolders') or IsBackgroundUpdate()) then begin
+          if (WizardIsTaskSelected('addcontextmenufolders')) or
+             (RegKeyExists(HKCU, 'Software\Classes\directory\shell\{#RegValueName}') or
+              RegKeyExists(HKLM, 'Software\Classes\directory\shell\{#RegValueName}')) then begin
+            if not RegKeyExists({#SoftwareClassesRootKey}, 'Software\Classes\directory\shell\{#RegValueName}') then begin
+              Log('Healing VS Code folder context menu entries...');
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\directory\shell\{#RegValueName}', '', ExpandConstant('{cm:OpenWithCodeContextMenu,{#ShellNameShort}}'));
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\directory\shell\{#RegValueName}', 'Icon', ExpandConstant('{app}\{#ExeBasename}.exe'));
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\directory\shell\{#RegValueName}\command', '', '"' + ExpandConstant('{app}\{#ExeBasename}.exe') + '" "%V"');
+            end;
+            if not RegKeyExists({#SoftwareClassesRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}') then begin
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}', '', ExpandConstant('{cm:OpenWithCodeContextMenu,{#ShellNameShort}}'));
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}', 'Icon', ExpandConstant('{app}\{#ExeBasename}.exe'));
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}\command', '', '"' + ExpandConstant('{app}\{#ExeBasename}.exe') + '" "%V"');
+            end;
+            if not RegKeyExists({#SoftwareClassesRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}') then begin
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}', '', ExpandConstant('{cm:OpenWithCodeContextMenu,{#ShellNameShort}}'));
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}', 'Icon', ExpandConstant('{app}\{#ExeBasename}.exe'));
+              RegWriteExpandStringValue({#SoftwareClassesRootKey}, 'Software\Classes\Drive\shell\{#RegValueName}\command', '', '"' + ExpandConstant('{app}\{#ExeBasename}.exe') + '" "%V"');
+            end;
+          end;
+        end;
+      end;
+    except
+      Log('Context menu self-heal skipped due to exception: ' + GetExceptionMessage);
+    end;
+
     if IsBackgroundUpdate() then
     begin
       CreateMutex('{#AppMutex}-ready');
