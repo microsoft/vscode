@@ -395,7 +395,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHeight = 0;
 		this.followupsDisposables = this._register(new DisposableStore());
 		this.attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
-		this.overlayClickListener = this._register(new MutableDisposable<DisposableStore>());
+		this.overlayClickListener = this._register(new MutableDisposable<IDisposable>());
 		this._inputPartHeight = 0;
 		this._followupsHeight = 0;
 		this._editSessionWidgetHeight = 0;
