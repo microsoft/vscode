@@ -248,7 +248,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 				entries.push([k, { map: deserializeEnvironmentVariableCollection(v), descriptionMap: deserializeEnvironmentDescriptionMap(d) }]);
 			}
 			const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
-			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
+			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections, this._logService);
 			const workspaceFolder = activeWorkspaceFolder ? activeWorkspaceFolder ?? undefined : undefined;
 			await mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}

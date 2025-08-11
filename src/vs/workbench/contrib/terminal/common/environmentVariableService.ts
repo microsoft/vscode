@@ -13,6 +13,7 @@ import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableServ
 import { TerminalStorageKeys } from './terminalStorageKeys.js';
 import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string;
@@ -34,7 +35,8 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
 
@@ -105,7 +107,7 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 	}
 
 	private _resolveMergedCollection(): IMergedEnvironmentVariableCollection {
-		return new MergedEnvironmentVariableCollection(this.collections);
+		return new MergedEnvironmentVariableCollection(this.collections, this._logService);
 	}
 
 	private async _invalidateExtensionCollections(): Promise<void> {

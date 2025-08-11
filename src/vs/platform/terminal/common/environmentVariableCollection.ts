@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProcessEnvironment, isWindows } from '../../../base/common/platform.js';
+import { ILogService } from '../../log/common/log.js';
 import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentDescriptionMutator, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from './environmentVariable.js';
+import { ITerminalLogService } from './terminal.js';
 
 type VariableResolver = (str: string) => Promise<string>;
 
@@ -22,7 +24,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
-		// TODO: @ITerminalLogService private readonly _logService: ITerminalLogService,
+		readonly _logService: ITerminalLogService | ILogService,
 	) {
 		collections.forEach((collection, extensionIdentifier) => {
 			this.populateDescriptionMap(collection, extensionIdentifier);
@@ -35,7 +37,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				// Only Python env extension can modify Python activate env var.
 				if (PYTHON_ACTIVATION_VARS_PATTERN.test(key) &&
 					PYTHON_ENV_EXTENSION_ID !== extensionIdentifier) {
-					// this._logService.warn(`Extension '${extensionIdentifier}' attempted to modify Python activation variable '${key}' but was blocked`);
+					this._logService.warn(`Extension '${extensionIdentifier}' attempted to modify Python activation variable '${key}' but was blocked`);
 					next = it.next();
 					continue;
 				}

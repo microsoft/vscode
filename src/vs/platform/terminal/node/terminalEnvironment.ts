@@ -9,7 +9,6 @@ import * as path from '../../../base/common/path.js';
 import { IProcessEnvironment, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import * as process from '../../../base/common/process.js';
 import { format } from '../../../base/common/strings.js';
-import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions, ShellIntegrationInjectionFailureReason } from '../common/terminal.js';
 import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
@@ -17,6 +16,7 @@ import { deserializeEnvironmentVariableCollections } from '../common/environment
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
 import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
+import { ILogService } from '../../log/common/log.js';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -133,7 +133,7 @@ export async function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
-				addEnvMixinPathPrefix(options, envMixin, shell);
+				addEnvMixinPathPrefix(options, envMixin, shell, logService);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
@@ -155,7 +155,7 @@ export async function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
-				addEnvMixinPathPrefix(options, envMixin, shell);
+				addEnvMixinPathPrefix(options, envMixin, shell, logService);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
@@ -180,7 +180,7 @@ export async function getShellIntegrationInjection(
 
 			// On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
 			// to apply the path prefix fix always, not only for login shells (see #232291)
-			addEnvMixinPathPrefix(options, envMixin, shell);
+			addEnvMixinPathPrefix(options, envMixin, shell, logService);
 
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
@@ -208,7 +208,7 @@ export async function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
 			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
-				addEnvMixinPathPrefix(options, envMixin, shell);
+				addEnvMixinPathPrefix(options, envMixin, shell, logService);
 			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
 				newArgs = originalArgs;
 			}
@@ -300,11 +300,11 @@ export async function getShellIntegrationInjection(
  *
  * See #99878 for more information.
  */
-function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment, shell: string): void {
+function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment, shell: string, logService: ILogService): void {
 	if ((isMacintosh || shell === 'fish') && options.environmentVariableCollections) {
 		// Deserialize and merge
 		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
-		const merged = new MergedEnvironmentVariableCollection(deserialized);
+		const merged = new MergedEnvironmentVariableCollection(deserialized, logService);
 
 		// Get all prepend PATH entries
 		const pathEntry = merged.getVariableMap({ workspaceFolder: options.workspaceFolder }).get('PATH');
