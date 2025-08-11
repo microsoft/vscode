@@ -48,142 +48,152 @@ export class LineEditTracker extends Disposable {
 			return;
 		}
 
-		const affectedLines = new Map<number, LineEditSource>();
+		try {
+			const affectedLines = new Map<number, LineEditSource>();
 
-		// Process changes from end to beginning to avoid line number shifting issues
-		for (let i = changes.length - 1; i >= 0; i--) {
-			const change = changes[i];
-			const editSource = editSources[Math.min(i, editSources.length - 1)];
+			// Process changes from end to beginning to avoid line number shifting issues
+			for (let i = changes.length - 1; i >= 0; i--) {
+				const change = changes[i];
+				const editSource = editSources[Math.min(i, editSources.length - 1)];
 
-			const lineEditSource = this._classifyEditSource(editSource);
-			const startLine = change.range.startLineNumber;
-			const endLine = change.range.endLineNumber;
+				const lineEditSource = this._classifyEditSource(editSource);
+				const startLine = change.range.startLineNumber;
+				const endLine = change.range.endLineNumber;
 
-			/**
-			 * Analyze deletion characteristics
-			 */
-			const startColumn = change.range.startColumn;
-			const endColumn = change.range.endColumn;
-			const isPureDeletion = change.text === '';
-			// Partial deletion within a single line
-			const isPartialLineDeletion = (startLine === endLine) && isPureDeletion;
-			// Full line deletion only when entire lines are removed (from col 1 to col 1 across lines)
-			const isFullLineDeletion = isPureDeletion && (startLine < endLine) && (startColumn === 1) && (endColumn === 1);
-
-			// Determine how many line breaks were inserted and how many logical lines are affected
-			const newlineCount = this._countNewLines(change.text);
-			const affectedInsertedLines = (change.text === '') ? 0 : (newlineCount + 1);
-
-			if (isPartialLineDeletion) {
-				// Partial deletion within a line - mark as edited by the deletion source
-				this._setLineEditSource(startLine, lineEditSource);
-				affectedLines.set(startLine, lineEditSource);
-			} else if (isFullLineDeletion) {
-				// Complete line deletion - remove deleted lines and shift remaining lines
-				this._handleLineDeletion(startLine, endLine - 1);
-				// Shift lines that come after the deletion
-				const deletedLineCount = endLine - startLine;
-				if (deletedLineCount > 0) {
-					this._shiftLineNumbers(endLine, -deletedLineCount);
-				}
-			} else if (change.text !== '') {
-				// Handle insertions and replacements
-				// For replacements, first clear the existing range
-				if (startLine < endLine || change.rangeLength > 0) {
-					for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
-						this._lineEditSources.delete(lineNum);
-					}
+				// Validate line numbers to prevent invalid operations
+				if (startLine <= 0 || endLine <= 0 || startLine > endLine) {
+					continue; // Skip invalid changes
 				}
 
 				/**
-				 * Handle line number shifts for insertions.
-				 * A positive delta shifts following lines down.
+				 * Analyze deletion characteristics
 				 */
-				const lineDelta = newlineCount - (endLine - startLine);
-				if (lineDelta > 0) {
-					// When inserting lines, shift existing lines that come after the insertion point
-					// For insertions, we need to shift lines that come after the end of the replacement range
-					this._shiftLineNumbers(endLine + 1, lineDelta);
-				} else if (lineDelta < 0) {
-					// Handle case where replacement results in fewer lines
-					this._shiftLineNumbers(endLine + 1, lineDelta);
-				}
+				const startColumn = change.range.startColumn;
+				const endColumn = change.range.endColumn;
+				const isPureDeletion = change.text === '';
+				// Partial deletion within a single line
+				const isPartialLineDeletion = (startLine === endLine) && isPureDeletion;
+				// Full line deletion only when entire lines are removed (from col 1 to col 1 across lines)
+				const isFullLineDeletion = isPureDeletion && (startLine < endLine) && (startColumn === 1) && (endColumn === 1);
 
-				// Check if we're inserting only newlines (empty line insertion)
-				const isEmptyLineInsertion = change.text.trim() === '' && newlineCount > 0;
+				// Determine how many line breaks were inserted and how many logical lines are affected
+				const newlineCount = this._countNewLines(change.text);
+				const affectedInsertedLines = (change.text === '') ? 0 : (newlineCount + 1);
 
-				// Special case: Check if this is a line merge operation disguised as an insertion/replacement
-				// This happens when user backspaces from one line to merge with previous line using replacement text
-				const isLineMergeReplacement = startLine !== endLine && startColumn > 1 && endColumn === 1;
-
-				if (isLineMergeReplacement) {
-					// This is a line merge via replacement - only mark the start line if it was already marked
-					const existingSource = this._lineEditSources.get(startLine);
-					if (existingSource !== undefined) {
-						// Preserve the existing source, but update with current edit source if it's more specific
-						const finalSource = this._resolveEditSourcePriority(existingSource, lineEditSource);
-						this._setLineEditSource(startLine, finalSource);
-						affectedLines.set(startLine, finalSource);
-					}
-					// Don't automatically mark pristine lines just from merge operations
-					// Shift remaining lines
+				if (isPartialLineDeletion) {
+					// Partial deletion within a line - mark as edited by the deletion source
+					this._setLineEditSource(startLine, lineEditSource);
+					affectedLines.set(startLine, lineEditSource);
+				} else if (isFullLineDeletion) {
+					// Complete line deletion - remove deleted lines and shift remaining lines
+					this._handleLineDeletion(startLine, endLine - 1);
+					// Shift lines that come after the deletion
 					const deletedLineCount = endLine - startLine;
 					if (deletedLineCount > 0) {
-						this._shiftLineNumbers(endLine + 1, -deletedLineCount);
+						this._shiftLineNumbers(endLine, -deletedLineCount);
 					}
-				} else {
-					// Regular insertion/replacement - mark lines appropriately
-					if (!isEmptyLineInsertion) {
-						// Mark all affected lines with content
-						for (let j = 0; j < affectedInsertedLines; j++) {
-							const lineNum = startLine + j;
-							this._setLineEditSource(lineNum, lineEditSource);
-							affectedLines.set(lineNum, lineEditSource);
+				} else if (change.text !== '') {
+					// Handle insertions and replacements
+					// For replacements, first clear the existing range
+					if (startLine < endLine || change.rangeLength > 0) {
+						for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+							this._lineEditSources.delete(lineNum);
 						}
 					}
-					// Note: Empty line insertions are not tracked (remain Undetermined)
-					// This maintains consistency with test expectations and avoids tracking
-					// lines that contain no actual content
-				}
-			} else if (isPureDeletion && startLine !== endLine) {
-				// Handle cross-line deletion (like deleting from end of one line to start of next)
-				// This typically happens when deleting a newline character (merging lines)
-				const isCrossLineMerge = startColumn > 1 && endColumn === 1;
-				if (isCrossLineMerge) {
-					// This is a line merge operation - the second line is being merged into the first
-					// Remove the attribution from all deleted lines
-					for (let lineNum = startLine + 1; lineNum <= endLine; lineNum++) {
-						this._lineEditSources.delete(lineNum);
-					}
-					// Use consistent merge logic: preserve existing source, apply priority resolution
-					const existingSource = this._lineEditSources.get(startLine);
-					if (existingSource !== undefined) {
-						const finalSource = this._resolveEditSourcePriority(existingSource, lineEditSource);
-						this._setLineEditSource(startLine, finalSource);
-						affectedLines.set(startLine, finalSource);
-					}
-					// If the line was previously undetermined, leave it undetermined - don't mark it just from the merge
 
-					// Shift all lines after the deletion up
-					const deletedLineCount = endLine - startLine;
-					this._shiftLineNumbers(endLine + 1, -deletedLineCount);
-				} else {
-					// Regular cross-line deletion - remove all affected lines and shift
-					for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
-						this._lineEditSources.delete(lineNum);
+					/**
+					 * Handle line number shifts for insertions.
+					 * A positive delta shifts following lines down.
+					 */
+					const lineDelta = newlineCount - (endLine - startLine);
+					if (lineDelta > 0) {
+						// When inserting lines, shift existing lines that come after the insertion point
+						// For insertions, we need to shift lines that come after the end of the replacement range
+						this._shiftLineNumbers(endLine + 1, lineDelta);
+					} else if (lineDelta < 0) {
+						// Handle case where replacement results in fewer lines
+						this._shiftLineNumbers(endLine + 1, lineDelta);
 					}
-					// For pure deletions across lines, don't automatically mark as any particular source
-					const deletedLineCount = endLine - startLine;
-					if (deletedLineCount > 0) {
+
+					// Check if we're inserting only newlines (empty line insertion)
+					const isEmptyLineInsertion = change.text.trim() === '' && newlineCount > 0;
+
+					// Special case: Check if this is a line merge operation disguised as an insertion/replacement
+					// This happens when user backspaces from one line to merge with previous line using replacement text
+					const isLineMergeReplacement = startLine !== endLine && startColumn > 1 && endColumn === 1;
+
+					if (isLineMergeReplacement) {
+						// This is a line merge via replacement - only mark the start line if it was already marked
+						const existingSource = this._lineEditSources.get(startLine);
+						if (existingSource !== undefined) {
+							// Preserve the existing source, but update with current edit source if it's more specific
+							const finalSource = this._resolveEditSourcePriority(existingSource, lineEditSource);
+							this._setLineEditSource(startLine, finalSource);
+							affectedLines.set(startLine, finalSource);
+						}
+						// Don't automatically mark pristine lines just from merge operations
+						// Shift remaining lines
+						const deletedLineCount = endLine - startLine;
+						if (deletedLineCount > 0) {
+							this._shiftLineNumbers(endLine + 1, -deletedLineCount);
+						}
+					} else {
+						// Regular insertion/replacement - mark lines appropriately
+						if (!isEmptyLineInsertion) {
+							// Mark all affected lines with content
+							for (let j = 0; j < affectedInsertedLines; j++) {
+								const lineNum = startLine + j;
+								this._setLineEditSource(lineNum, lineEditSource);
+								affectedLines.set(lineNum, lineEditSource);
+							}
+						}
+						// Note: Empty line insertions are not tracked (remain Undetermined)
+						// This maintains consistency with test expectations and avoids tracking
+						// lines that contain no actual content
+					}
+				} else if (isPureDeletion && startLine !== endLine) {
+					// Handle cross-line deletion (like deleting from end of one line to start of next)
+					// This typically happens when deleting a newline character (merging lines)
+					const isCrossLineMerge = startColumn > 1 && endColumn === 1;
+					if (isCrossLineMerge) {
+						// This is a line merge operation - the second line is being merged into the first
+						// Remove the attribution from all deleted lines
+						for (let lineNum = startLine + 1; lineNum <= endLine; lineNum++) {
+							this._lineEditSources.delete(lineNum);
+						}
+						// Use consistent merge logic: preserve existing source, apply priority resolution
+						const existingSource = this._lineEditSources.get(startLine);
+						if (existingSource !== undefined) {
+							const finalSource = this._resolveEditSourcePriority(existingSource, lineEditSource);
+							this._setLineEditSource(startLine, finalSource);
+							affectedLines.set(startLine, finalSource);
+						}
+						// If the line was previously undetermined, leave it undetermined - don't mark it just from the merge
+
+						// Shift all lines after the deletion up
+						const deletedLineCount = endLine - startLine;
 						this._shiftLineNumbers(endLine + 1, -deletedLineCount);
+					} else {
+						// Regular cross-line deletion - remove all affected lines and shift
+						for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+							this._lineEditSources.delete(lineNum);
+						}
+						// For pure deletions across lines, don't automatically mark as any particular source
+						const deletedLineCount = endLine - startLine;
+						if (deletedLineCount > 0) {
+							this._shiftLineNumbers(endLine + 1, -deletedLineCount);
+						}
 					}
 				}
 			}
-		}
 
-		// Fire event if any lines were affected
-		if (affectedLines.size > 0) {
-			this._onDidChangeLineEditSources.fire({ changes: affectedLines });
+			// Fire event if any lines were affected
+			if (affectedLines.size > 0) {
+				this._onDidChangeLineEditSources.fire({ changes: affectedLines });
+			}
+		} catch (error) {
+			// Log error and continue gracefully - don't let edit tracking break the editor
+			console.warn('LineEditTracker: Error processing content changes:', error);
 		}
 	}
 
@@ -191,9 +201,11 @@ export class LineEditTracker extends Disposable {
 	 * Classify a TextModelEditSource into a LineEditSource
 	 */
 	private _classifyEditSource(editSource: TextModelEditSource): LineEditSource {
+		// Check AI edits first (now includes extension.applyEdits)
 		if (isAiEdit(editSource)) {
 			return LineEditSource.AI;
 		}
+
 		if (isUserEdit(editSource)) {
 			return LineEditSource.Human;
 		}
@@ -211,16 +223,18 @@ export class LineEditTracker extends Disposable {
 			}
 		}
 
-		// Check for potential AI edit patterns from different tools (including Cline/Roo)
-		// Note: Being conservative here - applyEdits can be used by various tools
-		// We should only classify as AI when we have stronger evidence
-		if (metadata.source === 'snippet') {
-			// Snippets can be AI-generated (e.g., from completion providers) or user-invoked
-			// Without more context, we'll treat this as potentially AI for better coverage
+		// Legacy applyEdits handling (for backwards compatibility)
+		// When we can't detect the extension context, treat as AI to be conservative
+		if (metadata.source === 'applyEdits') {
 			return LineEditSource.AI;
 		}
 
 		// Check for other AI patterns that might indicate automated tool usage
+		if (metadata.source === 'snippet') {
+			// Snippets can be AI-generated (e.g., from completion providers) or user-invoked
+			return LineEditSource.AI;
+		}
+
 		if (metadata.source === 'codeAction') {
 			// Code actions can be triggered by AI tools
 			return LineEditSource.AI;
@@ -231,9 +245,6 @@ export class LineEditTracker extends Disposable {
 			return LineEditSource.AI;
 		}
 
-		// For now, classify applyEdits and other generic operations as Undetermined
-		// This maintains compatibility with existing tests while still providing
-		// the infrastructure for future AI tool detection
 		return LineEditSource.Undetermined;
 	}
 
@@ -326,6 +337,14 @@ export class LineEditTracker extends Disposable {
 		if (hadChanges) {
 			this._onDidChangeLineEditSources.fire({ changes: new Map() });
 		}
+	}
+
+	/**
+	 * Dispose of the tracker and clean up resources
+	 */
+	public override dispose(): void {
+		this._lineEditSources.clear();
+		super.dispose();
 	}
 
 	/**

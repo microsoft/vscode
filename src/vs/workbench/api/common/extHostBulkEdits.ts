@@ -30,6 +30,10 @@ export class ExtHostBulkEdits {
 
 	applyWorkspaceEdit(edit: vscode.WorkspaceEdit, extension: IExtensionDescription, metadata: vscode.WorkspaceEditMetadata | undefined): Promise<boolean> {
 		const dto = new SerializableObjectWithBuffers(WorkspaceEdit.from(edit, this._versionInformationProvider));
-		return this._proxy.$tryApplyWorkspaceEdit(dto, undefined, metadata?.isRefactoring ?? false);
+		const extensionContext = {
+			extensionId: extension.identifier.value,
+			extensionName: extension.displayName || extension.name
+		};
+		return this._proxy.$tryApplyWorkspaceEdit(dto, undefined, metadata?.isRefactoring ?? false, extensionContext);
 	}
 }

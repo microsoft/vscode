@@ -7,6 +7,7 @@ import { VSBuffer, decodeBase64 } from '../../../base/common/buffer.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IBulkEditService, ResourceFileEdit, ResourceTextEdit } from '../../../editor/browser/services/bulkEditService.js';
 import { WorkspaceEdit } from '../../../editor/common/languages.js';
+import { EditSources, isKnownAiExtension } from '../../../editor/common/textModelEditSource.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceCellEditDto, IWorkspaceEditDto, IWorkspaceFileEditDto, MainContext, MainThreadBulkEditsShape } from '../common/extHost.protocol.js';
@@ -28,9 +29,22 @@ export class MainThreadBulkEdits implements MainThreadBulkEditsShape {
 
 	dispose(): void { }
 
-	$tryApplyWorkspaceEdit(dto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean): Promise<boolean> {
+	$tryApplyWorkspaceEdit(dto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, isRefactoring?: boolean, extensionContext?: { extensionId: string; extensionName?: string }): Promise<boolean> {
 		const edits = reviveWorkspaceEditDto(dto.value, this._uriIdentService);
-		return this._bulkEditService.apply(edits, { undoRedoGroupId, respectAutoSaveConfig: isRefactoring }).then((res) => res.isApplied, err => {
+
+		// Use the provided extension context to create a more accurate edit source
+		const reason = EditSources.extensionApplyEdits({
+			extensionId: extensionContext?.extensionId,
+			extensionName: extensionContext?.extensionName,
+			// The isKnownAiExtension function will now work properly with exact extension IDs
+			isAiTool: extensionContext?.extensionId ? isKnownAiExtension(extensionContext.extensionId) : undefined
+		});
+
+		return this._bulkEditService.apply(edits, {
+			undoRedoGroupId,
+			respectAutoSaveConfig: isRefactoring,
+			reason
+		}).then((res) => res.isApplied, err => {
 			this._logService.warn(`IGNORING workspace edit: ${err}`);
 			return false;
 		});
