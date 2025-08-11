@@ -42,7 +42,7 @@ import { IQuickInputButton, IQuickInputService, QuickPickInput } from '../../../
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
-import { TestCommandId, Testing } from '../common/constants.js';
+import { TestCommandId } from '../common/constants.js';
 import { FileCoverage } from '../common/testCoverage.js';
 import { ITestCoverageService } from '../common/testCoverageService.js';
 import { TestId } from '../common/testId.js';
