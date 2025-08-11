@@ -75,12 +75,11 @@ if ($env:VSCODE_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
 
 	try {
 		Invoke-Expression $activateScript
-		Write-Host "this seem working "
 	}
 	catch {
 		$activationError = $_
 		# TODO: Figure out how to add 'star' icon similar to terminal restored.
-		Write-Host "VS Code Python PowerShell activation failed: $($activationError.Exception.Message)" -ForegroundColor Red
+		Write-Host "VS Code Python PowerShell activation failed: $($activationError.Exception.Message)"
 	}
 }
 
