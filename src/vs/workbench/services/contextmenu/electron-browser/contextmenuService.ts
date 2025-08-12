@@ -126,36 +126,30 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			let x: number | undefined;
 			let y: number | undefined;
 
-			// Obtain baseline (page) zoom factor for the window hosting the anchor (or active window if not an element)
+			// Page (webFrame) zoom factor. This scales the whole document (CSS px -> device independent px).
 			const windowZoom = getZoomFactor(dom.isHTMLElement(anchor) ? dom.getWindow(anchor) : dom.getActiveWindow());
 			let effectiveZoom = windowZoom; // what we actually multiply coordinates by
 
 			if (dom.isHTMLElement(anchor)) {
-				// Use viewport-relative position. getDomNodePagePosition adds window scroll offsets which are
-				// appropriate for laying out DOM overlays but incorrect for native menus (Electron expects
-				// window client coordinates scaled to device pixels). Including scrollY caused the menu to
-				// appear too far down when the window body is scrolled (Issue Reporter case).
+				// Positioning strategy:
+				//    Use the element's client rect (viewport coordinates). Page-based helpers add scroll offsets
+				//    that are correct for DOM overlays but push native menus too far when the window is scrolled.
 				const clientRect = anchor.getBoundingClientRect();
 				const elementPosition = { left: clientRect.left, top: clientRect.top, width: clientRect.width, height: clientRect.height };
 
-				// Compute cumulative CSS zoom applied to the element and its ancestors. This value (>1) means
-				// the element has been magnified in layout; (<1) generally indicates a counter-zoom (e.g. title bar).
+				// Adjust for CSS zoom on ancestors:
+				//    elementZoom > 1  (magnification): bounding rect already includes this, so dividing it out
+				//                         avoids double scaling (Issue Reporter had an extra zoom here).
+				//    elementZoom < 1  (counter / inverse zoom like custom title bar): multiply to restore physical
+				//                         coordinate accuracy.
+				//    elementZoom === 1: nothing special.
 				const elementZoom = dom.getDomNodeZoomLevel(anchor);
 
-				// Legacy logic multiplied coordinates by windowZoom * elementZoom. That double-counted magnifying zooms
-				// because getBoundingClientRect() already reflects them, producing excessive displacement (seen in
-				// the issue reporter which adds its own css zoom). We only retain the elementZoom factor when it is a
-				// counter-zoom (<1) so that inverse zoom regions (like the custom title bar) still end up with correct
-				// physical coordinates.
+				// Compute effective scaling for native menu coordinates.
 				if (elementZoom < 1) {
-					// Counter-zoom: element visually neutralizes part of window zoom (e.g. title bar using inverse zoom)
-					// Multiply so we still land in correct physical coordinates.
 					effectiveZoom = windowZoom * elementZoom;
 				} else if (elementZoom > 1) {
-					// Magnifying zoom: bounding rect already includes the magnification. To avoid double counting we
-					// divide it out so effective scaling maps from the *visual* (already zoomed) CSS pixels to device.
-					// This also helps when the page is scrolled; the scroll offset component (in zoomed CSS px) should
-					// only be scaled by window zoom, not by the additional element zoom.
+					// Rect already includes magnification; neutralize it.
 					effectiveZoom = windowZoom / elementZoom;
 				} else {
 					effectiveZoom = windowZoom; // No element zoom.
@@ -193,7 +187,6 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 				// macOS: maintain a constant ~4 DIP padding below the element (issue #84231)
 				if (isMacintosh) {
-					// Add before scaling; divide by effective scale so final added distance is 4 DIP regardless of zoom/counter-zoom.
 					y += 4 / effectiveZoom;
 				}
 			} else if (isAnchor(anchor)) {
