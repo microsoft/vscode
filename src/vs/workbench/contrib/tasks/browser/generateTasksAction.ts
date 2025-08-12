@@ -140,10 +140,7 @@ export class GenerateTasksFromRequirementsAction extends Action2 {
 				tasksContent = await tasksGenerator.generateTasksFromFiles(requirementsFile, designFile);
 			} else {
 				// Generate from requirements only
-				const requirementsFileContent = await fileService.readFile(requirementsFile);
-				const requirements = tasksGenerator.parseRequirementsFile(requirementsFileContent.value.toString());
-				const plan = tasksGenerator.generateTasksPlan(requirements, {});
-				tasksContent = tasksGenerator.formatTasksMarkdown(plan);
+				tasksContent = await tasksGenerator.generateTasksFromRequirements(requirementsFile);
 			}
 
 			// Save the tasks.md file
@@ -187,7 +184,7 @@ Users must be able to securely authenticate to access the application.
 - Users can log in with valid credentials
 - Users can log out from any page
 - Invalid login attempts are handled gracefully
-- Passwords must meet security requirements
+- Passwords must meet security requirements (min 8 chars, special characters)
 
 ## Dashboard Overview
 **Priority:** high
@@ -199,6 +196,7 @@ Users need a central dashboard to view key information and navigate the applicat
 - Navigation menu is accessible from dashboard
 - Dashboard loads quickly (< 2 seconds)
 - Dashboard is responsive on mobile devices
+- Dashboard supports keyboard navigation
 
 ## Data Management
 **Priority:** medium
@@ -211,6 +209,7 @@ Users should be able to create, read, update, and delete their data.
 - Users can edit their data entries
 - Users can delete data with confirmation
 - Data changes are saved automatically
+- Data validation prevents invalid entries
 
 ## Reporting Features
 **Priority:** low
@@ -222,6 +221,7 @@ Users should be able to generate reports from their data.
 - Reports can be exported to PDF
 - Reports include date range filtering
 - Reports are accessible and screen-reader friendly
+- Reports can be printed with proper formatting
 `;
 	}
 

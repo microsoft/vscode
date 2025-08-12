@@ -44,7 +44,7 @@ import { promiseWithResolvers } from '../../../../base/common/async.js';
 import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
-import './generateTasksAction.js';
+import { GenerateTasksFromRequirementsAction } from './generateTasksAction.js';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
@@ -347,6 +347,16 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.openUserTasks',
 		title: nls.localize2('workbench.action.tasks.openUserTasks', "Open User Tasks"), category: TASKS_CATEGORY
+	},
+	when: TaskExecutionSupportedContext
+});
+
+// Add the new Generate Tasks from Requirements command
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: GenerateTasksFromRequirementsAction.ID,
+		title: GenerateTasksFromRequirementsAction.LABEL,
+		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
 });

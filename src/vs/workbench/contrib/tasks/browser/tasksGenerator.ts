@@ -42,6 +42,7 @@ export interface ITaskGenerationPlan {
 
 export interface ITasksGeneratorService {
 	generateTasksFromFiles(requirementsFile: URI, designFile: URI): Promise<string>;
+	generateTasksFromRequirements(requirementsFile: URI): Promise<string>;
 	parseRequirementsFile(content: string): ITaskGenerationRequirement[];
 	parseDesignFile(content: string): any;
 	generateTasksPlan(requirements: ITaskGenerationRequirement[], design: any): ITaskGenerationPlan;
@@ -56,16 +57,59 @@ export class TasksGeneratorService implements ITasksGeneratorService {
 		@ILogService private readonly _logService: ILogService
 	) { }
 
-	async generateTasksFromFiles(requirementsFile: URI, designFile: URI): Promise<string> {
+	async generateTasksFromRequirements(requirementsFile: URI): Promise<string> {
 		try {
+			this._logService.info('Starting task generation from requirements only', { requirementsFile: requirementsFile.toString() });
+			
+			const requirementsContent = await this._fileService.readFile(requirementsFile).catch(err => {
+				this._logService.warn('Could not read requirements file', err);
+				throw new Error(`Could not read requirements file: ${err.message}`);
+			});
+
+			const requirements = this.parseRequirementsFile(requirementsContent.value.toString());
+			if (requirements.length === 0) {
+				throw new Error('No requirements found in requirements.md. Please check the file format.');
+			}
+
+			const plan = this.generateTasksPlan(requirements, {});
+			
+			this._logService.info('Task generation from requirements completed successfully', { 
+				taskCount: plan.tasks.length, 
+				requirementCount: plan.requirements.length 
+			});
+			
+			return this.formatTasksMarkdown(plan);
+		} catch (error) {
+			this._logService.error('Failed to generate tasks from requirements', error);
+			throw error;
+		}
+	}
+		try {
+			this._logService.info('Starting task generation from files', { requirementsFile: requirementsFile.toString(), designFile: designFile.toString() });
+			
 			const [requirementsContent, designContent] = await Promise.all([
-				this._fileService.readFile(requirementsFile),
-				this._fileService.readFile(designFile)
+				this._fileService.readFile(requirementsFile).catch(err => {
+					this._logService.warn('Could not read requirements file', err);
+					throw new Error(`Could not read requirements file: ${err.message}`);
+				}),
+				this._fileService.readFile(designFile).catch(err => {
+					this._logService.warn('Could not read design file', err);
+					throw new Error(`Could not read design file: ${err.message}`);
+				})
 			]);
 
 			const requirements = this.parseRequirementsFile(requirementsContent.value.toString());
+			if (requirements.length === 0) {
+				throw new Error('No requirements found in requirements.md. Please check the file format.');
+			}
+
 			const design = this.parseDesignFile(designContent.value.toString());
 			const plan = this.generateTasksPlan(requirements, design);
+			
+			this._logService.info('Task generation completed successfully', { 
+				taskCount: plan.tasks.length, 
+				requirementCount: plan.requirements.length 
+			});
 			
 			return this.formatTasksMarkdown(plan);
 		} catch (error) {
