@@ -13,6 +13,12 @@ import { IChatProgress } from './chatService.js';
 import { IChatAgentRequest } from './chatAgents.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 
+export const enum ChatSessionStatus {
+	Failed = 0,
+	Completed = 1,
+	InProgress = 2
+}
+
 export interface IChatSessionsExtensionPoint {
 	readonly id: string;
 	readonly type: string;
@@ -30,6 +36,8 @@ export interface IChatSessionItem {
 		light: URI;
 		dark: URI;
 	} | ThemeIcon;
+	description?: string;
+	status?: ChatSessionStatus;
 }
 
 export interface ChatSession extends IDisposable {

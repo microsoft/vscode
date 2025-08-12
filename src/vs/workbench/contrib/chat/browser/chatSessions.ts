@@ -30,7 +30,7 @@ import { Extensions, IViewContainersRegistry, IViewDescriptorService, ViewContai
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, ChatSessionStatus } from '../common/chatSessionsService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IAsyncDataSource, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
@@ -76,6 +76,7 @@ interface ILocalChatSessionItem extends IChatSessionItem {
 	widget?: IChatWidget;
 	sessionType: 'editor' | 'widget';
 	description?: string;
+	status?: ChatSessionStatus;
 }
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
