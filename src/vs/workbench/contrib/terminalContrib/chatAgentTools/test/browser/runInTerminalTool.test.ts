@@ -412,7 +412,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run foo command and show first 20 lines'
 			});
 
-			assertConfirmationRequired(result, 'Run command in terminal');
+			assertConfirmationRequired(result, 'pwsh');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
@@ -458,7 +458,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run multiple piped commands'
 			});
 
-			assertConfirmationRequired(result, 'Run command in terminal');
+			assertConfirmationRequired(result, 'pwsh');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
