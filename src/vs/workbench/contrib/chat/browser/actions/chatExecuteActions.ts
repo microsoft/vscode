@@ -150,7 +150,7 @@ abstract class SubmitAction extends Action2 {
 	}
 }
 
-const whenNotInProgressOrPaused = ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate());
+const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
 
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
@@ -185,7 +185,7 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						whenNotInProgressOrPaused,
+						whenNotInProgress,
 						menuCondition,
 					),
 					group: 'navigation',
@@ -411,17 +411,14 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgressOrPaused, menuCondition),
+					when: ContextKeyExpr.and(whenNotInProgress, menuCondition),
 					order: 1
 				},
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.or(
-							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
-							ChatContextKeys.requestInProgress.negate(),
-						),
+						ChatContextKeys.requestInProgress.negate(),
 						menuCondition),
 					group: 'navigation',
 				}]
@@ -437,7 +434,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
+			whenNotInProgress,
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 		);
 
@@ -483,7 +480,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
+			whenNotInProgress,
 			ChatContextKeys.remoteJobCreating.negate(),
 		);
 
@@ -685,7 +682,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
+			whenNotInProgress,
 		);
 
 		super({
@@ -742,7 +739,7 @@ class SendToNewChatAction extends Action2 {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
+			whenNotInProgress,
 		);
 
 		super({
@@ -803,7 +800,6 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.isRequestPaused.negate(),
 					ChatContextKeys.requestInProgress,
 					ChatContextKeys.remoteJobCreating.negate()
 				),
