@@ -39,7 +39,8 @@ import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../su
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { OutputMonitor } from '../outputMonitor.js';
-import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolSubPart.js';
+import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { basename } from '../../../../../../base/common/path.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 
@@ -85,6 +86,7 @@ export const RunInTerminalToolData: IToolData = {
 	].join('\n'),
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
 	source: ToolDataSource.Internal,
+	icon: Codicon.terminal,
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -329,10 +331,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				customActions = this._generateAutoApproveActions(actualCommand, subCommands, { subCommandResults, commandLineResult });
 			}
 
+			let shellType = basename(shell, '.exe');
+			if (shellType === 'powershell') {
+				shellType = 'pwsh';
+			}
 			confirmationMessages = isAutoApproved ? undefined : {
 				title: args.isBackground
-					? localize('runInTerminal.background', "Run command in background terminal")
-					: localize('runInTerminal.foreground', "Run command in terminal"),
+					? localize('runInTerminal.background', "{0} (background terminal)", shellType)
+					: shellType,
 				message: new MarkdownString(args.explanation),
 				disclaimer,
 				terminalCustomActions: customActions,

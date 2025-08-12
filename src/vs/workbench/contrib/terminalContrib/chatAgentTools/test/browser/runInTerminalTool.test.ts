@@ -22,6 +22,7 @@ import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
+import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -67,6 +68,9 @@ suite('RunInTerminalTool', () => {
 		});
 		instantiationService.stub(IChatService, {
 			onDidDisposeSession: chatServiceDisposeEmitter.event
+		});
+		instantiationService.stub(ITerminalProfileResolverService, {
+			getDefaultShell: async () => 'pwsh'
 		});
 		workspaceService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService)) as TestContextService;
 
@@ -155,7 +159,7 @@ suite('RunInTerminalTool', () => {
 				command: 'rm file.txt',
 				explanation: 'Remove a file'
 			});
-			assertConfirmationRequired(result, 'Run command in terminal');
+			assertConfirmationRequired(result, 'pwsh');
 		});
 
 		test('should require confirmation for commands in deny list even if in allow list', async () => {
@@ -168,7 +172,7 @@ suite('RunInTerminalTool', () => {
 				command: 'rm dangerous-file.txt',
 				explanation: 'Remove a dangerous file'
 			});
-			assertConfirmationRequired(result, 'Run command in terminal');
+			assertConfirmationRequired(result, 'pwsh');
 		});
 
 		test('should handle background commands with confirmation', async () => {
@@ -181,7 +185,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Start watching for file changes',
 				isBackground: true
 			});
-			assertConfirmationRequired(result, 'Run command in background terminal');
+			assertConfirmationRequired(result, 'pwsh (background terminal)');
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
@@ -308,7 +312,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Build the project'
 			});
 
-			assertConfirmationRequired(result, 'Run command in terminal');
+			assertConfirmationRequired(result, 'pwsh');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
@@ -380,7 +384,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Build the project'
 			});
 
-			assertConfirmationRequired(result, 'Run command in terminal');
+			assertConfirmationRequired(result, 'pwsh');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
@@ -397,7 +401,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Install dependencies and build'
 			});
 
-			assertConfirmationRequired(result, 'Run command in terminal');
+			assertConfirmationRequired(result, 'pwsh');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
@@ -428,7 +432,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run foo command and show first 20 lines'
 			});
 
-			assertConfirmationRequired(result, 'Run command in terminal');
+			assertConfirmationRequired(result, 'pwsh');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
@@ -474,7 +478,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run multiple piped commands'
 			});
 
-			assertConfirmationRequired(result, 'Run command in terminal');
+			assertConfirmationRequired(result, 'pwsh');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
