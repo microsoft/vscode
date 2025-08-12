@@ -87,7 +87,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 				// Only Python env extension can modify Python activate env var.
 				if (PYTHON_ACTIVATION_VARS_PATTERN.test(mutator.variable) && PYTHON_ENV_EXTENSION_ID !== mutator.extensionIdentifier) {
-					// this._logService.warn(`Extension '${mutator.extensionIdentifier}' attempted to modify Python activation variable '${mutator.variable}' but was blocked`);
+					this._logService.warn(`Extension '${mutator.extensionIdentifier}' attempted to modify Python activation variable '${mutator.variable}' but was blocked`);
 					continue;
 				}
 
