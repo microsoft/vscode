@@ -69,9 +69,9 @@ if ($env:VSCODE_ENV_APPEND) {
 }
 
 # Register Python shell activate hooks
-if ($env:VSCODE_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
-	$activateScript = $env:VSCODE_PWSH_ACTIVATE
-	Remove-Item Env:VSCODE_PWSH_ACTIVATE
+if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
+	$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
+	Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
 
 	try {
 		Invoke-Expression $activateScript
