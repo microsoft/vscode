@@ -44,6 +44,7 @@ export class MsalLoggerOptions {
 				return;
 			case MsalLogLevel.Trace:
 				// Do not log trace messages
+				this._output.trace(message);
 				return;
 			default:
 				this._output.debug(message);
