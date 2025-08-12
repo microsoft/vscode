@@ -337,8 +337,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			confirmationMessages = isAutoApproved ? undefined : {
 				title: args.isBackground
-					? localize('runInTerminal.background', "{0} (background terminal)", shellType)
-					: shellType,
+					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
+					: localize('runInTerminal', "Run `{0}` command?", shellType),
 				message: new MarkdownString(args.explanation),
 				disclaimer,
 				terminalCustomActions: customActions,
