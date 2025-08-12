@@ -740,10 +740,13 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 class ChatSessionsDragAndDrop implements ITreeDragAndDrop<IChatSessionItem> {
 	constructor() { }
 
+	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
+		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
+	}
+
 	getDragURI(element: IChatSessionItem): string | null {
 		// Only enable drag for local chat session items
-		const localItem = element as ILocalChatSessionItem;
-		if (localItem && ('sessionType' in localItem)) {
+		if (this.isLocalChatSessionItem(element)) {
 			// For local chat sessions, create a ChatSessionUri
 			return ChatSessionUri.forSession('local', element.id).toString();
 		}
