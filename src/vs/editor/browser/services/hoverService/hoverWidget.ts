@@ -41,6 +41,7 @@ const enum Constants {
 	PointerSize = 3,
 	HoverBorderWidth = 2,
 	HoverWindowEdgeMargin = 2,
+	MinHoverHeight = 50,
 }
 
 export class HoverWidget extends Widget implements IHoverWidget {
@@ -568,6 +569,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				maxHeight = Math.min(maxHeight, this._targetWindow.innerHeight - target.bottom - padding);
 			}
 		}
+
+		// Ensure maxHeight is never below a reasonable minimum to prevent layout issues
+		maxHeight = Math.max(maxHeight, Constants.MinHoverHeight);
 
 		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
 		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
