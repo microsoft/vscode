@@ -221,7 +221,20 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			this.registerCommandDecoration(command);
 		}
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
-			this.registerCommandDecoration(command);
+			const buffer = this._terminal?.buffer?.active;
+			const marker = command.promptStartMarker;
+
+			// Edge case: Handle case where tsc watch commands clears buffer, but decoration of that tsc command re-appears
+			const shouldRegisterDecoration = (
+				command.exitCode === undefined ||
+				// Only register decoration if the cursor is at or below the promptStart marker.
+				(buffer && marker && buffer.baseY + buffer.cursorY >= marker.line)
+			);
+
+			if (shouldRegisterDecoration) {
+				this.registerCommandDecoration(command);
+			}
+
 			if (command.exitCode) {
 				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
 			} else {

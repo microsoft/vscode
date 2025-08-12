@@ -41,6 +41,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 				userDescription: tool.userDescription,
 				modelDescription: tool.modelDescription,
 				inputSchema: tool.inputSchema,
+				source: tool.source,
 			} satisfies IToolDataDto));
 	}
 
@@ -87,7 +88,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 						this._runningToolCalls.delete(dto.callId);
 					}
 				},
-				prepareToolInvocation: (parameters, token) => this._proxy.$prepareToolInvocation(id, parameters, token),
+				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
 			});
 		this._tools.set(id, disposable);
 	}

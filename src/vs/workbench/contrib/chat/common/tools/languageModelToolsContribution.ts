@@ -164,7 +164,7 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 			required: ['name', 'description', 'tools'],
 			properties: {
 				name: {
-					description: localize('toolSetName', "A name for this tool set. Used as reference and should not contain white."),
+					description: localize('toolSetName', "A name for this tool set. Used as reference and should not contain whitespace."),
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
@@ -177,8 +177,9 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 					type: 'string'
 				},
 				tools: {
-					description: localize('toolSetTools', "An array of tool or tool set names that are part of this set."),
+					markdownDescription: localize('toolSetTools', "A list of tools or tool sets to include in this tool set. Cannot be empty and must reference tools by their `toolReferenceName`."),
 					type: 'array',
+					minItems: 1,
 					items: {
 						type: 'string'
 					}

@@ -128,9 +128,7 @@ export class Link extends Disposable {
 	}
 
 	private setTooltip(title: string | undefined): void {
-		if (this.hoverDelegate.showNativeHover) {
-			this.el.title = title ?? '';
-		} else if (!this.hover && title) {
+		if (!this.hover && title) {
 			this.hover = this._register(this._hoverService.setupManagedHover(this.hoverDelegate, this.el, title));
 		} else if (this.hover) {
 			this.hover.update(title);

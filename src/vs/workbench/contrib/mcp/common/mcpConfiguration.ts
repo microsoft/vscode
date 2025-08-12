@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { IMcpCollectionContribution } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionManifest, IMcpCollectionContribution } from '../../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
 import { inputsSchema } from '../../../services/configurationResolver/common/configurationResolverSchema.js';
+import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
-
-export type { McpConfigurationServer, IMcpConfigurationStdio, IMcpConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 const mcpActivationEventPrefix = 'onMcpCollection:';
 
@@ -41,10 +44,15 @@ export const discoverySourceLabel: Record<DiscoverySource, string> = {
 	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
 	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
 };
+export const discoverySourceSettingsLabel: Record<DiscoverySource, string> = {
+	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop.config', "Claude Desktop configuration (`claude_desktop_config.json`)"),
+	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf.config', "Windsurf configurations (`~/.codeium/windsurf/mcp_config.json`)"),
+	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global.config', "Cursor global configuration (`~/.cursor/mcp.json`)"),
+	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace.config', "Cursor workspace configuration (`.cursor/mcp.json`)"),
+};
 
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
-export const mcpEnabledSection = 'chat.mcp.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
 
 export interface IMcpServerSamplingConfiguration {
@@ -221,7 +229,7 @@ export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContr
 		}
 	},
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.mcp', 'Contributes Model Context Protocol servers. Users of this should also use `vscode.lm.registerMcpConfigurationProvider`.'),
+		description: localize('vscode.extension.contributes.mcp', 'Contributes Model Context Protocol servers. Users of this should also use `vscode.lm.registerMcpServerDefinitionProvider`.'),
 		type: 'array',
 		defaultSnippets: [{ body: [{ id: '', label: '' }] }],
 		items: {
@@ -241,3 +249,42 @@ export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContr
 		}
 	}
 };
+
+class McpServerDefinitionsProviderRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.mcpServerDefinitionProviders && Array.isArray(manifest.contributes.mcpServerDefinitionProviders) && manifest.contributes.mcpServerDefinitionProviders.length > 0;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const mcpServerDefinitionProviders = manifest.contributes?.mcpServerDefinitionProviders ?? [];
+		const headers = [localize('id', "ID"), localize('name', "Name")];
+		const rows: IRowData[][] = mcpServerDefinitionProviders
+			.map(mcpServerDefinitionProvider => {
+				return [
+					new MarkdownString().appendMarkdown(`\`${mcpServerDefinitionProvider.id}\``),
+					mcpServerDefinitionProvider.label
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: mcpConfigurationSection,
+	label: localize('mcpServerDefinitionProviders', "MCP Servers"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(McpServerDefinitionsProviderRenderer),
+});
+

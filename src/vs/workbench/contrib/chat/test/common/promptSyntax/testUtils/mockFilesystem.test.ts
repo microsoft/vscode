@@ -46,11 +46,11 @@ interface IExpectedFolder extends IExpectedFilesystemNode {
 /**
  * Validates that file at {@link filePath} has expected attributes.
  */
-const validateFile = async (
+async function validateFile(
 	filePath: string,
 	expectedFile: IExpectedFile,
 	fileService: IFileService,
-) => {
+) {
 	let readFile: IFileStat | undefined;
 	try {
 		readFile = await fileService.resolve(URI.file(filePath));
@@ -100,16 +100,16 @@ const validateFile = async (
 		expectedFile.contents,
 		`File '${expectedFile.resource.fsPath}' must have correct contents.`,
 	);
-};
+}
 
 /**
  * Validates that folder at {@link folderPath} has expected attributes.
  */
-const validateFolder = async (
+async function validateFolder(
 	folderPath: string,
 	expectedFolder: IExpectedFolder,
 	fileService: IFileService,
-) => {
+): Promise<void> {
 	let readFolder: IFileStat | undefined;
 	try {
 		readFolder = await fileService.resolve(URI.file(folderPath));
@@ -177,7 +177,7 @@ const validateFolder = async (
 			fileService,
 		);
 	}
-};
+}
 
 suite('MockFilesystem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -195,7 +195,7 @@ suite('MockFilesystem', () => {
 		instantiationService.stub(IFileService, fileService);
 	});
 
-	test('• mocks file structure', async () => {
+	test('mocks file structure', async () => {
 		const mockFilesystem = instantiationService.createInstance(MockFilesystem, [
 			{
 				name: '/root/folder',

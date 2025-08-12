@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as fs from 'fs';
-import { fileURLToPath } from 'url';
 import { createRequire, register } from 'node:module';
 import { product, pkg } from './bootstrap-meta.js';
 import './bootstrap-node.js';
@@ -13,7 +11,6 @@ import * as performance from './vs/base/common/performance.js';
 import { INLSConfiguration } from './vs/nls.js';
 
 const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Install a hook to module resolution to map 'fs' to 'original-fs'
 if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
@@ -43,7 +40,7 @@ if (process.env['VSCODE_DEV']) {
 	} catch (error) { /* ignore */ }
 }
 globalThis._VSCODE_PACKAGE_JSON = { ...pkg };
-globalThis._VSCODE_FILE_ROOT = __dirname;
+globalThis._VSCODE_FILE_ROOT = import.meta.dirname;
 
 //#region NLS helpers
 

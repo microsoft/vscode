@@ -32,7 +32,7 @@ interface IAsyncDataTreeNode<TInput, T> {
 	readonly parent: IAsyncDataTreeNode<TInput, T> | null;
 	readonly children: IAsyncDataTreeNode<TInput, T>[];
 	readonly id?: string | null;
-	refreshPromise: Promise<void> | undefined;
+	refreshPromise: CancelablePromise<void> | undefined;
 	hasChildren: boolean;
 	stale: boolean;
 	slow: boolean;
@@ -528,7 +528,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	private readonly findController?: AsyncFindController<TInput, T, TFilterData>;
 	private readonly getDefaultCollapseState: { (e: T): undefined | ObjectTreeElementCollapseState.PreserveOrCollapsed | ObjectTreeElementCollapseState.PreserveOrExpanded };
 
-	private readonly subTreeRefreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
+	private readonly subTreeRefreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<void>>();
 	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<Iterable<T>>>();
 
 	protected readonly identityProvider?: IIdentityProvider<T>;
@@ -769,8 +769,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	async setInput(input: TInput, viewState?: IAsyncDataTreeViewState): Promise<void> {
-		this.refreshPromises.forEach(promise => promise.cancel());
-		this.refreshPromises.clear();
+		this.cancelAllRefreshPromises();
 
 		this.root.element = input!;
 
@@ -790,6 +789,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
 		await this._updateChildren(element, recursive, rerender, undefined, options);
+	}
+
+	cancelAllRefreshPromises(includeSubTrees: boolean = false): void {
+		this.refreshPromises.forEach(promise => promise.cancel());
+		this.refreshPromises.clear();
+
+		if (includeSubTrees) {
+			this.subTreeRefreshPromises.forEach(promise => promise.cancel());
+			this.subTreeRefreshPromises.clear();
+		}
 	}
 
 	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
@@ -875,7 +884,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 
 		if (node.refreshPromise) {
-			await this.root.refreshPromise;
+			await node.refreshPromise;
 			await Event.toPromise(this._onDidRender.event);
 		}
 
@@ -886,7 +895,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const result = this.tree.expand(node === this.root ? null : node, recursive);
 
 		if (node.refreshPromise) {
-			await this.root.refreshPromise;
+			await node.refreshPromise;
 			await Event.toPromise(this._onDidRender.event);
 		}
 
@@ -1088,28 +1097,26 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				return;
 			}
 		}
-
 		return this.doRefreshSubTree(node, recursive, viewStateContext);
 	}
 
 	private async doRefreshSubTree(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<void> {
-		let done: () => void;
-		node.refreshPromise = new Promise(c => done = c);
-		this.subTreeRefreshPromises.set(node, node.refreshPromise);
-
-		node.refreshPromise.finally(() => {
-			node.refreshPromise = undefined;
-			this.subTreeRefreshPromises.delete(node);
-		});
-
-		try {
+		const cancelablePromise = createCancelablePromise(async () => {
 			const childrenToRefresh = await this.doRefreshNode(node, recursive, viewStateContext);
 			node.stale = false;
 
 			await Promises.settled(childrenToRefresh.map(child => this.doRefreshSubTree(child, recursive, viewStateContext)));
-		} finally {
-			done!();
-		}
+		});
+
+		node.refreshPromise = cancelablePromise;
+		this.subTreeRefreshPromises.set(node, cancelablePromise);
+
+		cancelablePromise.finally(() => {
+			node.refreshPromise = undefined;
+			this.subTreeRefreshPromises.delete(node);
+		});
+
+		return cancelablePromise;
 	}
 
 	private async doRefreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<IAsyncDataTreeNode<TInput, T>[]> {

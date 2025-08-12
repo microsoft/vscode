@@ -9,14 +9,13 @@ import tseslint from 'typescript-eslint';
 import { fileURLToPath } from 'url';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
-import pluginLocal from 'eslint-plugin-local';
+import * as pluginLocal from './.eslint-plugin-local/index.js';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
 pluginHeader.rules.header.meta.schema = false;
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
+const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore'), 'utf8')
 	.toString()
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));
@@ -99,7 +98,7 @@ export default tseslint.config(
 					'browser': [
 						'common'
 					],
-					'electron-sandbox': [
+					'electron-browser': [
 						'common',
 						'browser'
 					],
@@ -406,10 +405,10 @@ export default tseslint.config(
 			]
 		}
 	},
-	// browser/electron-sandbox layer
+	// browser/electron-browser layer
 	{
 		files: [
-			'src/**/{browser,electron-sandbox}/**/*.ts'
+			'src/**/{browser,electron-browser}/**/*.ts'
 		],
 		languageOptions: {
 			parser: tseslint.parser,
@@ -770,7 +769,7 @@ export default tseslint.config(
 				{
 					// imports that are allowed in all files of layers:
 					// - browser
-					// - electron-sandbox
+					// - electron-browser
 					'when': 'hasBrowser',
 					'allow': []
 				},
@@ -866,18 +865,18 @@ export default tseslint.config(
 				//  - src/vs/base/common
 				//  - src/vs/base/worker
 				//  - src/vs/base/browser
-				//  - src/vs/base/electron-sandbox
+				//  - src/vs/base/electron-browser
 				//  - src/vs/base/node
 				//  - src/vs/base/electron-main
 				//  - src/vs/base/test/common
 				//  - src/vs/base/test/worker
 				//  - src/vs/base/test/browser
-				//  - src/vs/base/test/electron-sandbox
+				//  - src/vs/base/test/electron-browser
 				//  - src/vs/base/test/node
 				//  - src/vs/base/test/electron-main
 				//
 				// When /~ is used in the restrictions, it will be replaced with the correct
-				// layers that can be used e.g. 'src/vs/base/electron-sandbox' will be able
+				// layers that can be used e.g. 'src/vs/base/electron-browser' will be able
 				// to import '{common,browser,electron-sanbox}', etc.
 				//
 				// It is possible to use /~ in the restrictions property even without using it in
@@ -1203,7 +1202,7 @@ export default tseslint.config(
 				},
 				{
 					'target': 'src/vs/workbench/workbench.desktop.main.ts',
-					'layer': 'electron-sandbox',
+					'layer': 'electron-browser',
 					'restrictions': [
 						'vs/base/*/~',
 						'vs/base/parts/*/~',

@@ -21,14 +21,14 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
-import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem } from '../chatContextPickService.js';
+import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState } from '../../common/chatModel.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
 import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
-import { ChatInstructionsPickerPick } from './promptActions/chatAttachInstructionsAction.js';
+import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
@@ -65,10 +65,7 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 	readonly icon: ThemeIcon = Codicon.tools;
 	readonly ordinal = -500;
 
-	asPicker(widget: IChatWidget): {
-		readonly placeholder: string;
-		readonly picks: Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]>;
-	} {
+	asPicker(widget: IChatWidget): IChatContextPicker {
 
 		type Pick = IChatContextPickerPickItem & { toolInfo: { ordinal: number; label: string } };
 		const items: Pick[] = [];
@@ -198,10 +195,7 @@ class RelatedFilesContextPickerPick implements IChatContextPickerItem {
 		return this._chatEditingService.hasRelatedFilesProviders() && (Boolean(widget.getInput()) || widget.attachmentModel.fileAttachments.length > 0);
 	}
 
-	asPicker(widget: IChatWidget): {
-		readonly placeholder: string;
-		readonly picks: Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]>;
-	} {
+	asPicker(widget: IChatWidget): IChatContextPicker {
 
 		const picks = (async () => {
 			const chatSessionId = widget.viewModel?.sessionId;

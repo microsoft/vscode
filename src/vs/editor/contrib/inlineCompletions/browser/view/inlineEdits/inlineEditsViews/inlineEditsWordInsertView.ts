@@ -48,7 +48,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 				return undefined;
 			}
 			const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
-			const lineHeight = this._editor.getOption(EditorOption.lineHeight).read(reader);
+			const lineHeight = this._editor.observeLineHeightForPosition(this._edit.range.getStartPosition()).read(reader);
 
 			const w = this._editor.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 			const width = this._edit.text.length * w + 5;

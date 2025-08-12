@@ -69,13 +69,30 @@ export function activate(context: vscode.ExtensionContext) {
 
 	let before = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
 	let githubEnterpriseAuthProvider = initGHES(context, uriHandler);
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
 		if (e.affectsConfiguration('github-enterprise.uri')) {
 			const after = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
 			if (before !== after) {
 				githubEnterpriseAuthProvider?.dispose();
 				before = after;
 				githubEnterpriseAuthProvider = initGHES(context, uriHandler);
+			}
+		}
+	}));
+
+	// Listener to prompt for reload when the fetch implementation setting changes
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
+		if (e.affectsConfiguration('github-authentication.useElectronFetch')) {
+			const selection = await vscode.window.showInformationMessage(
+				vscode.l10n.t('GitHub Authentication - Reload required'),
+				{
+					modal: true,
+					detail: vscode.l10n.t('A reload is required for the fetch setting change to take effect.')
+				},
+				vscode.l10n.t('Reload Window')
+			);
+			if (selection) {
+				await vscode.commands.executeCommand('workbench.action.reloadWindow');
 			}
 		}
 	}));

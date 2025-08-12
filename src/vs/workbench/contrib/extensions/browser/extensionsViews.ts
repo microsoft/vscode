@@ -109,7 +109,11 @@ function isLocalSortBy(value: any): value is LocalSortBy {
 type SortBy = LocalSortBy | GallerySortBy;
 type IQueryOptions = Omit<IGalleryQueryOptions, 'sortBy'> & { sortBy?: SortBy };
 
-export class ExtensionsListView extends ViewPane {
+export abstract class AbstractExtensionsListView<T> extends ViewPane {
+	abstract show(query: string, refresh?: boolean): Promise<IPagedModel<T>>;
+}
+
+export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 	private static RECENT_UPDATE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -1547,16 +1551,6 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 		}
 	}
 
-}
-
-export function getAriaLabelForExtension(extension: IExtension | null): string {
-	if (!extension) {
-		return '';
-	}
-	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublisher', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publisher', "Publisher {0}", extension.publisherDisplayName);
-	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
-	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
-	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
 }
 
 export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {

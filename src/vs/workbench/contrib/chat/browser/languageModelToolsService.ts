@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveDocument } from '../../../../base/browser/dom.js';
-import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
@@ -144,6 +143,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
+	flushToolChanges(): void {
+		this._onDidChangeToolsScheduler.cancel();
+		this._onDidChangeTools.fire();
+	}
+
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
 		const entry = this._tools.get(id);
 		if (!entry) {
@@ -277,6 +281,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				model.acceptResponseProgress(request, toolInvocation);
 
+				dto.toolSpecificData = toolInvocation?.toolSpecificData;
+
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
@@ -286,8 +292,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 						throw new CancellationError();
 					}
 
-					dto.toolSpecificData = toolInvocation?.toolSpecificData;
-
 					if (dto.toolSpecificData?.kind === 'input') {
 						dto.parameters = dto.toolSpecificData.rawInput;
 						dto.toolSpecificData = undefined;
@@ -296,11 +300,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			} else {
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				if (prepared?.confirmationMessages && !this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
-					const result = await this._dialogService.confirm({ message: renderStringAsPlaintext(prepared.confirmationMessages.title), detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
+					const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
 					if (!result.confirmed) {
 						throw new CancellationError();
 					}
 				}
+
+				dto.toolSpecificData = prepared?.toolSpecificData;
 			}
 
 			if (token.isCancellationRequested) {
@@ -340,7 +346,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolResult ??= { content: [] };
 			toolResult.toolResultError = err instanceof Error ? err.message : String(err);
 			if (tool.data.alwaysDisplayInputOutput) {
-				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ isText: true, value: String(err) }], isError: true };
+				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'embed', isText: true, value: String(err) }], isError: true };
 			}
 
 			throw err;
@@ -355,7 +361,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const prepared = tool.impl!.prepareToolInvocation ?
-			await tool.impl!.prepareToolInvocation(dto.parameters, token)
+			await tool.impl!.prepareToolInvocation({
+				parameters: dto.parameters,
+				chatRequestId: dto.chatRequestId,
+				chatSessionId: dto.context?.sessionId,
+				chatInteractionId: dto.chatInteractionId
+			}, token)
 			: undefined;
 
 		if (prepared?.confirmationMessages) {
@@ -375,14 +386,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
-		const hasFocusedWindow = getActiveDocument().hasFocus();
 		const autoApproved = this._configurationService.getValue('chat.tools.autoApprove');
 		if (autoApproved) {
 			return;
 		}
-		const setting: { sound: 'auto' | 'on' | 'off' } = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
-		if (setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized() || !hasFocusedWindow))) {
-			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true });
+		const setting: { sound?: 'auto' | 'on' | 'off'; announcement?: 'auto' | 'off' } | undefined = this._configurationService.getValue(AccessibilitySignal.chatUserActionRequired.settingsKey);
+		if (!setting) {
+			return;
+		}
+		const soundEnabled = setting.sound === 'on' || (setting.sound === 'auto' && (this._accessibilityService.isScreenReaderOptimized()));
+		const announcementEnabled = this._accessibilityService.isScreenReaderOptimized() && setting.announcement === 'auto';
+		if (soundEnabled || announcementEnabled) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { customAlertMessage: this._instantiationService.invokeFunction(getToolConfirmationAlert, toolInvocations), userGesture: true, modality: !soundEnabled ? 'announcement' : undefined });
 		}
 	}
 
@@ -402,11 +417,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private toolResultToIO(toolResult: IToolResult): IToolResultInputOutputDetails['output'] {
 		return toolResult.content.map(part => {
 			if (part.kind === 'text') {
-				return { isText: true, value: part.value };
+				return { type: 'embed', isText: true, value: part.value };
 			} else if (part.kind === 'promptTsx') {
-				return { isText: true, value: stringifyPromptTsxPart(part) };
+				return { type: 'embed', isText: true, value: stringifyPromptTsxPart(part) };
 			} else if (part.kind === 'data') {
-				return { value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
+				return { type: 'embed', value: encodeBase64(part.value.data), mimeType: part.value.mimeType };
 			} else {
 				assertNever(part);
 			}
@@ -455,11 +470,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	toEnablementMap(toolOrToolsetNames: Iterable<string>): Record<string, boolean> {
-		const toolOrToolset = new Set<string>(toolOrToolsetNames);
+	toToolEnablementMap(toolOrToolsetNames: Set<string>): Record<string, boolean> {
 		const result: Record<string, boolean> = {};
 		for (const tool of this._tools.values()) {
-			if (tool.data.toolReferenceName && toolOrToolset.has(tool.data.toolReferenceName) || toolOrToolset.has(tool.data.id)) {
+			if (tool.data.toolReferenceName && toolOrToolsetNames.has(tool.data.toolReferenceName)) {
 				result[tool.data.id] = true;
 			} else {
 				result[tool.data.id] = false;
@@ -467,11 +481,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		for (const toolSet of this._toolSets) {
-			if (toolOrToolset.has(toolSet.referenceName)) {
-				result[toolSet.referenceName] = true;
-			}
-			for (const tool of toolSet.getTools()) {
-				if (toolOrToolset.has(tool.id)) {
+			if (toolOrToolsetNames.has(toolSet.referenceName)) {
+				for (const tool of toolSet.getTools()) {
 					result[tool.id] = true;
 				}
 			}
@@ -480,9 +491,47 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return result;
 	}
 
+	/**
+	 * Create a map that contains all tools and toolsets with their enablement state.
+	 * @param toolOrToolSetNames A list of tool or toolset names to check for enablement. If undefined, all tools and toolsets are enabled.
+	 * @returns A map of tool or toolset instances to their enablement state.
+	 */
+	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
+		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
+		const result = new Map<ToolSet | IToolData, boolean>();
+		for (const tool of this.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				result.set(tool, toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
+			}
+		}
+		for (const toolSet of this._toolSets) {
+			const enabled = toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName);
+			result.set(toolSet, enabled);
+
+			// if a mcp toolset is enabled, all tools in it are enabled
+			if (enabled && toolSet.source.type === 'mcp') {
+				for (const tool of toolSet.getTools()) {
+					if (tool.canBeReferencedInPrompt) {
+						result.set(tool, enabled);
+					}
+				}
+			}
+		}
+		return result;
+	}
+
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 
 	readonly toolSets: IObservable<Iterable<ToolSet>> = this._toolSets.observable;
+
+	getToolSet(id: string): ToolSet | undefined {
+		for (const toolSet of this._toolSets) {
+			if (toolSet.id === id) {
+				return toolSet;
+			}
+		}
+		return undefined;
+	}
 
 	getToolSetByName(name: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {

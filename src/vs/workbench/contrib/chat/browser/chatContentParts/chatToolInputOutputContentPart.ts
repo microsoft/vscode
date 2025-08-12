@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -31,7 +30,8 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConstants.js';
-import { getAttachableImageExtension, IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { getAttachableImageExtension } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
@@ -51,7 +51,7 @@ export interface IChatCollapsibleIOCodePart {
 
 export interface IChatCollapsibleIODataPart {
 	kind: 'data';
-	value: Uint8Array;
+	value?: Uint8Array;
 	mimeType: string | undefined;
 	uri: URI;
 }
@@ -312,7 +312,7 @@ class SaveResourcesAction extends Action2 {
 			const target = isFolder ? joinPath(uri, basename(part.uri)) : uri;
 			try {
 				if (part.kind === 'data') {
-					await fileService.writeFile(target, VSBuffer.wrap(part.value));
+					await fileService.copy(part.uri, target, true);
 				} else {
 					// MCP doesn't support streaming data, so no sense trying
 					const contents = await fileService.readFile(part.uri);
