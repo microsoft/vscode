@@ -148,6 +148,14 @@ suite('CommandLineAutoApprover', () => {
 	});
 
 	suite('redirection operators', () => {
+		test('should auto-approve echo with output redirection - issue #258658', () => {
+			setAutoApprove({
+				"echo": true
+			});
+			// This was the specific failing case reported in the issue
+			ok(isAutoApproved('echo "Hello, this is some random text content for file1!" > ~/Desktop/test_folder/file1.txt'));
+		});
+
 		test('should auto-approve commands with output redirection when command is approved', () => {
 			setAutoApprove({
 				"echo": true

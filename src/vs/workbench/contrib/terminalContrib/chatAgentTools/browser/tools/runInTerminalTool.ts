@@ -36,7 +36,6 @@ import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from '../runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
-import { splitCommandLineForAutoApproval } from '../subCommandsForAutoApproval.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { OutputMonitor } from '../outputMonitor.js';
@@ -45,6 +44,93 @@ import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
+
+/**
+ * Filter out file redirection targets from a list of sub-commands for auto-approval purposes.
+ * This prevents file paths after redirection operators (>, >>, <, 2>, etc.) from requiring 
+ * individual approval when the base command is already approved.
+ */
+function filterRedirectionTargets(subCommands: string[], originalCommand: string, shell: string, os: OperatingSystem): string[] {
+	if (subCommands.length <= 1) {
+		return subCommands; // Nothing to filter
+	}
+
+	// Get redirection patterns for this shell
+	const redirectionPatterns = getRedirectionPatterns(shell, os);
+	const filtered: string[] = [];
+
+	for (let i = 0; i < subCommands.length; i++) {
+		const subCommand = subCommands[i];
+		
+		// Check if this sub-command appears after a redirection operator in the original command
+		const isRedirectionTarget = isLikelyRedirectionTarget(subCommand, originalCommand, redirectionPatterns);
+		
+		if (!isRedirectionTarget) {
+			filtered.push(subCommand);
+		}
+	}
+
+	return filtered;
+}
+
+/**
+ * Get redirection patterns for the given shell
+ */
+function getRedirectionPatterns(shell: string, os: OperatingSystem): string[] {
+	const shellWithoutExe = shell.replace(/\.exe$/, '');
+	
+	if (isPowerShell(shell, os)) {
+		// PowerShell redirection patterns
+		return [
+			// Stream redirection
+			'1>', '2>', '3>', '4>', '5>', '6>', '*>',
+			'1>>', '2>>', '3>>', '4>>', '5>>', '6>>', '*>>',
+			'>', '>>', '<'
+		];
+	} else {
+		// POSIX shell redirection patterns (bash, zsh, sh)
+		const patterns = [
+			// Numbered stream redirection
+			'1>', '2>', '3>', '4>', '5>', '6>', '7>', '8>', '9>',
+			'1>>', '2>>', '3>>', '4>>', '5>>', '6>>', '7>>', '8>>', '9>>',
+			// General redirection
+			'&>', '&>>', '>', '>>', '<', '0<'
+		];
+		
+		if (shellWithoutExe === 'zsh') {
+			patterns.push('>|', '>!'); // zsh-specific clobber override
+		}
+		
+		return patterns;
+	}
+}
+
+/**
+ * Check if a sub-command is likely a file redirection target by examining the original command
+ */
+function isLikelyRedirectionTarget(subCommand: string, originalCommand: string, redirectionPatterns: string[]): boolean {
+	// Find where this sub-command appears in the original command
+	const subCommandIndex = originalCommand.indexOf(subCommand);
+	if (subCommandIndex === -1) {
+		return false;
+	}
+	
+	// Look at what precedes this sub-command
+	const beforeSubCommand = originalCommand.substring(0, subCommandIndex).trim();
+	
+	// Check if it ends with any redirection operator
+	for (const pattern of redirectionPatterns) {
+		if (beforeSubCommand.endsWith(pattern)) {
+			return true;
+		}
+		// Also check with space before the pattern (e.g. "echo test > file.txt")
+		if (beforeSubCommand.endsWith(` ${pattern}`)) {
+			return true;
+		}
+	}
+	
+	return false;
+}
 
 interface IStoredTerminalAssociation {
 	sessionId: string;
@@ -212,18 +298,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationMessages = undefined;
 		} else {
 			const actualCommand = toolEditedCommand ?? args.command;
-			
-			// Get sub-commands with redirection metadata for smarter auto-approval
-			const subCommandInfos = splitCommandLineForAutoApproval(actualCommand, shell, os);
-			const subCommands = subCommandInfos.map(info => info.command);
-			
-			// For inline sub-commands, use the original logic (no redirection filtering needed)
+			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			
-			// Filter out redirection targets from auto-approval checks
-			const commandsToCheck = subCommandInfos
-				.filter(info => !info.isRedirectionTarget)
-				.map(info => info.command);
+			// Filter out file redirection targets from auto-approval checks
+			const commandsToCheck = filterRedirectionTargets(subCommands, actualCommand, shell, os);
 			
 			const allSubCommands = [...commandsToCheck, ...inlineSubCommands];
 			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
