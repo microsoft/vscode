@@ -1218,7 +1218,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 			const combinedShellArgs = this._addExecStringFlags(shellSpecified, basename, shellArgs, platform);
 			if (windowsShellArgs) {
-				combinedShellArgs.push('"' + commandLine + '"');
+				// Check if commandLine is already quoted to avoid double quoting
+				const isAlreadyQuoted = commandLine.length >= 2 && commandLine.startsWith('"') && commandLine.endsWith('"');
+				combinedShellArgs.push(isAlreadyQuoted ? commandLine : '"' + commandLine + '"');
 				shellLaunchConfig.args = combinedShellArgs.join(' ');
 			} else {
 				combinedShellArgs.push(commandLine);
