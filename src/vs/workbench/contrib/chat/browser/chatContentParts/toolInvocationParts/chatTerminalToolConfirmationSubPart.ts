@@ -205,10 +205,15 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							throw new ErrorNoTelemetry(`Cannot add new rule, existing setting is unexpected format`);
 						}
 						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue);
+						function formatRuleLinks(newRules: ITerminalNewAutoApproveRule[]): string {
+							return newRules.map(e => {
+								return `[\`${e.key}\`](settings_${ConfigurationTarget.USER} "${localize('ruleTooltip', 'View rule in settings')}")`;
+							}).join(', ');
+						}
 						if (newRules.length === 1) {
-							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule', 'Auto approve rule {0} added', `[\`${newRules[0].key}\`](settings_a)`)}_`);
+							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule', 'Auto approve rule {0} added', formatRuleLinks(newRules))}_`);
 						} else if (newRules.length > 1) {
-							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule.plural', 'Auto approve rules {0} added', newRules.map(r => `[\`${r.key}\`](settings_a)`).join(', '))}_`);
+							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule.plural', 'Auto approve rules {0} added', formatRuleLinks(newRules))}_`);
 						}
 						break;
 					}
