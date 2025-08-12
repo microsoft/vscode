@@ -1452,6 +1452,69 @@ export class CommandCenter {
 		return await commands.executeCommand<void>('vscode.open', HEAD, opts, title);
 	}
 
+	@command('git.compareWithMain')
+	async compareWithMain(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		let resources: Resource[] | undefined = undefined;
+
+		if (arg instanceof Uri) {
+			const resource = this.getSCMResource(arg);
+			if (resource !== undefined) {
+				resources = [resource];
+			}
+		} else {
+			let resource: Resource | undefined = undefined;
+			if (arg instanceof Resource) {
+				resource = arg;
+			} else {
+				resource = this.getSCMResource();
+			}
+			if (resource) {
+				resources = [...resourceStates as Resource[], resource];
+			}
+		}
+
+		if (!resources) {
+			return;
+		}
+
+		for (const resource of resources) {
+			await this._openWorktreeChange(resource);
+		}
+	}
+
+	private async _openWorktreeChange(resource: Resource): Promise<void> {
+		const repository = this.model.getRepository(resource.resourceUri);
+		if (!repository) {
+			return;
+		}
+
+		if (repository.kind !== 'worktree' || !repository.dotGit.commonPath) {
+			return;
+		}
+
+		const mainRepositoryPath = path.dirname(repository.dotGit.commonPath);
+		const mainRepository = this.model.getRepository(Uri.file(mainRepositoryPath));
+
+		if (!mainRepository || !mainRepository.HEAD?.commit) {
+			return;
+		}
+
+		const mainRepoUri = toGitUri(resource.resourceUri, mainRepository.HEAD.commit);
+
+		const worktreeUri = resource.resourceUri;
+
+		const basename = path.basename(resource.resourceUri.fsPath);
+		const title = `${basename} (Worktree ↔ Main Repository)`;
+
+		await commands.executeCommand(
+			'vscode.diff',
+			mainRepoUri,
+			worktreeUri,
+			title,
+			{ preview: false }
+		);
+	}
+
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
@@ -3658,7 +3721,6 @@ export class CommandCenter {
 		}
 		return;
 	}
-
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
 	async deleteWorktree(repository: Repository): Promise<void> {
