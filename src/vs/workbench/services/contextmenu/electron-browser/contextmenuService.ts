@@ -126,19 +126,44 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			let x: number | undefined;
 			let y: number | undefined;
 
-			let zoom = getZoomFactor(dom.isHTMLElement(anchor) ? dom.getWindow(anchor) : dom.getActiveWindow());
-			if (dom.isHTMLElement(anchor)) {
-				const elementPosition = dom.getDomNodePagePosition(anchor);
+			// Obtain baseline (page) zoom factor for the window hosting the anchor (or active window if not an element)
+			const windowZoom = getZoomFactor(dom.isHTMLElement(anchor) ? dom.getWindow(anchor) : dom.getActiveWindow());
+			let effectiveZoom = windowZoom; // what we actually multiply coordinates by
 
-				// When drawing context menus, we adjust the pixel position for native menus using zoom level
-				// In areas where zoom is applied to the element or its ancestors, we need to adjust accordingly
-				// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
-				// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Coordinate Multiplier: 1.5 * 1.0 / 1.5 = 1.0
-				zoom *= dom.getDomNodeZoomLevel(anchor);
+			if (dom.isHTMLElement(anchor)) {
+				// Use viewport-relative position. getDomNodePagePosition adds window scroll offsets which are
+				// appropriate for laying out DOM overlays but incorrect for native menus (Electron expects
+				// window client coordinates scaled to device pixels). Including scrollY caused the menu to
+				// appear too far down when the window body is scrolled (Issue Reporter case).
+				const clientRect = anchor.getBoundingClientRect();
+				const elementPosition = { left: clientRect.left, top: clientRect.top, width: clientRect.width, height: clientRect.height };
+
+				// Compute cumulative CSS zoom applied to the element and its ancestors. This value (>1) means
+				// the element has been magnified in layout; (<1) generally indicates a counter-zoom (e.g. title bar).
+				const elementZoom = dom.getDomNodeZoomLevel(anchor);
+
+				// Legacy logic multiplied coordinates by windowZoom * elementZoom. That double-counted magnifying zooms
+				// because getBoundingClientRect() already reflects them, producing excessive displacement (seen in
+				// the issue reporter which adds its own css zoom). We only retain the elementZoom factor when it is a
+				// counter-zoom (<1) so that inverse zoom regions (like the custom title bar) still end up with correct
+				// physical coordinates.
+				if (elementZoom < 1) {
+					// Counter-zoom: element visually neutralizes part of window zoom (e.g. title bar using inverse zoom)
+					// Multiply so we still land in correct physical coordinates.
+					effectiveZoom = windowZoom * elementZoom;
+				} else if (elementZoom > 1) {
+					// Magnifying zoom: bounding rect already includes the magnification. To avoid double counting we
+					// divide it out so effective scaling maps from the *visual* (already zoomed) CSS pixels to device.
+					// This also helps when the page is scrolled; the scroll offset component (in zoomed CSS px) should
+					// only be scaled by window zoom, not by the additional element zoom.
+					effectiveZoom = windowZoom / elementZoom;
+				} else {
+					effectiveZoom = windowZoom; // No element zoom.
+				}
 
 				// Position according to the axis alignment and the anchor alignment:
 				// `HORIZONTAL` aligns at the top left or right of the anchor and
-				//  `VERTICAL` aligns at the bottom left of the anchor.
+				// `VERTICAL` aligns at the bottom left or right of the anchor.
 				if (delegate.anchorAxisAlignment === AnchorAxisAlignment.HORIZONTAL) {
 					if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
 						x = elementPosition.left;
@@ -152,11 +177,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 						const window = dom.getWindow(anchor);
 						const availableHeightForMenu = window.screen.height - y;
 						if (availableHeightForMenu < actions.length * (isWindows ? 45 : 32) /* guess of 1 menu item height */) {
-							// this is a guess to detect whether the context menu would
-							// open to the bottom from this point or to the top. If the
-							// menu opens to the top, make sure to align it to the bottom
-							// of the anchor and not to the top.
-							// this seems to be only necessary for Windows and Linux.
+							// Align to bottom if the native menu will open upward (Windows/Linux heuristic)
 							y += elementPosition.height;
 						}
 					}
@@ -170,11 +191,10 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					}
 				}
 
-				// Shift macOS menus by a few pixels below elements
-				// to account for extra padding on top of native menu
-				// https://github.com/microsoft/vscode/issues/84231
+				// macOS: maintain a constant ~4 DIP padding below the element (issue #84231)
 				if (isMacintosh) {
-					y += 4 / zoom;
+					// Add before scaling; divide by effective scale so final added distance is 4 DIP regardless of zoom/counter-zoom.
+					y += 4 / effectiveZoom;
 				}
 			} else if (isAnchor(anchor)) {
 				x = anchor.x;
@@ -184,12 +204,23 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				// Electron taking care of opening the menu at the cursor position.
 			}
 
-			if (typeof x === 'number') {
-				x = Math.floor(x * zoom);
-			}
-
-			if (typeof y === 'number') {
-				y = Math.floor(y * zoom);
+			// Apply final scaling
+			if (dom.isHTMLElement(anchor)) {
+				if (typeof x === 'number') {
+					x = Math.floor(x * effectiveZoom);
+				}
+				if (typeof y === 'number') {
+					y = Math.floor(y * effectiveZoom);
+				}
+			} else {
+				// Non-element anchors: still apply window zoom (no element zoom context)
+				const baseZoom = getZoomFactor(dom.getActiveWindow());
+				if (typeof x === 'number') {
+					x = Math.floor(x * baseZoom);
+				}
+				if (typeof y === 'number') {
+					y = Math.floor(y * baseZoom);
+				}
 			}
 
 			popup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, }, () => onHide());
