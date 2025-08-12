@@ -9,7 +9,7 @@ import { asArray } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { thenIfNotDisposed } from '../../../../../../base/common/lifecycle.js';
+import { thenIfNotDisposed, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -126,13 +126,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this._getUniqueCodeBlockUri(),
 			true
 		));
-		textModelService.createModelReference(model.uri).then(ref => {
-			if (this._store.isDisposed) {
-				ref.dispose();
-			} else {
-				this._register(ref);
-			}
-		});
+		thenRegisterOrDispose(textModelService.createModelReference(model.uri), this._store);
 		const editor = this._register(this.editorPool.get());
 		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
