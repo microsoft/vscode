@@ -138,7 +138,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 
 		let output = '';
 		if (result?.exitCode) {
-			output = `Task \`${args.task.label}\` failed with exit code ${result.exitCode}.`;
+			output = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', args.task.label, result.exitCode);
 		} else {
 			output += `Task \`${args.task.label}\` `;
 			output += terminalResults.every(r => r.idle)
