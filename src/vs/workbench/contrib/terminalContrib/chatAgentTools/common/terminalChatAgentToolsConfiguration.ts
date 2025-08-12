@@ -87,7 +87,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			]
 		},
 		default: {
-			// Safe and common readonly commands (automatically approved)
+			// Safe and common readonly commands
 			cd: true,
 			echo: true,
 			ls: true,
@@ -125,6 +125,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			jq: true,
 			sleep: true,
 			'Start-Sleep': true,
+
+			// Safe and common sub-commands
+			'git status': true,
+			'git log': true,
+			'git show': true,
+			'git diff': true,
+
 			// While these PowerShell verbs can have side effects, they are generally innocuous (eg.
 			// updating OS-level file access info) and and often have prompts if they're more
 			// involved (eg. Get-Credential)

@@ -892,25 +892,42 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				return autoApproveResult.subCommandResults[index].result !== 'approved';
 			});
 
-			const subCommandsFirstWordOnly = Array.from(new Set(unapprovedSubCommands.map(command => command.split(' ')[0])));
-			let subCommandLabel: string;
-			let subCommandTooltip: string;
-			if (subCommandsFirstWordOnly.length === 1) {
-				subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always Allow Command: {0}', subCommandsFirstWordOnly[0]);
-				subCommandTooltip = localize('autoApprove.baseCommandSingleTooltip', 'Always allow command starting with `{0}` to run without confirmation', subCommandsFirstWordOnly[0]);
-			} else {
-				const commandSeparated = subCommandsFirstWordOnly.join(', ');
-				subCommandLabel = localize('autoApprove.baseCommand', 'Always Allow Commands: {0}', commandSeparated);
-				subCommandTooltip = localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated);
-			}
+			// For each unapproved sub-command (within the overall command line), decide whether to
+			// suggest just the commnad or sub-command (with that sub-command line) to always allow.
+			const commandsWithSubcommands = new Set(['git', 'npm', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
+			const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
+			const subCommandsToSuggest = Array.from(new Set(unapprovedSubCommands.map(command => {
+				const parts = command.trim().split(/\s+/);
+				const baseCommand = parts[0].toLowerCase();
+				const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
 
-			if (unapprovedSubCommands.length > 0) {
+				if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3) {
+					return `${parts[0]} ${parts[1]} ${parts[2]}`;
+				} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2) {
+					return `${parts[0]} ${parts[1]}`;
+				} else {
+					return parts[0];
+				}
+			})));
+
+			if (subCommandsToSuggest.length > 0) {
+				let subCommandLabel: string;
+				let subCommandTooltip: string;
+				if (subCommandsToSuggest.length === 1) {
+					subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always Allow Command: {0}', subCommandsToSuggest[0]);
+					subCommandTooltip = localize('autoApprove.baseCommandSingleTooltip', 'Always allow command starting with `{0}` to run without confirmation', subCommandsToSuggest[0]);
+				} else {
+					const commandSeparated = subCommandsToSuggest.join(', ');
+					subCommandLabel = localize('autoApprove.baseCommand', 'Always Allow Commands: {0}', commandSeparated);
+					subCommandTooltip = localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated);
+				}
+
 				actions.push({
 					label: subCommandLabel,
 					tooltip: subCommandTooltip,
 					data: {
 						type: 'newRule',
-						rule: subCommandsFirstWordOnly.map(key => ({
+						rule: subCommandsToSuggest.map(key => ({
 							key,
 							value: true
 						}))
@@ -920,12 +937,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			// Allow exact command line, don't do this if it's just the first sub-command's first
 			// word
-			if (subCommandsFirstWordOnly[0] !== commandLine) {
+			const firstSubcommandFirstWord = unapprovedSubCommands.length > 0 ? unapprovedSubCommands[0].split(' ')[0] : '';
+			if (firstSubcommandFirstWord !== commandLine) {
 				const truncatedCommandLine = commandLine.length > 40 ? commandLine.substring(0, 40) + '\u2026' : commandLine;
 				actions.push({
 					// Add an extra & since it's treated as a mnemonic
-					label: localize('autoApprove.exactCommand', 'Always Allow Full Command Line: {0}', truncatedCommandLine.replaceAll('&&', '&&&')),
-					tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command to run without confirmation'),
+					label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line: {0}', truncatedCommandLine.replaceAll('&&', '&&&')),
+					tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command line to run without confirmation'),
 					data: {
 						type: 'newRule',
 						rule: {
