@@ -9,7 +9,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 
 const enum ShellLaunchType {
@@ -37,6 +39,7 @@ export class ToolTerminalCreator {
 	private static _lastSuccessfulShell: ShellLaunchType = ShellLaunchType.Unknown;
 
 	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 	}
@@ -48,9 +51,17 @@ export class ToolTerminalCreator {
 			shellIntegrationQuality: ShellIntegrationQuality.None,
 		};
 
-		// The default profile has shell integration
-		if (ToolTerminalCreator._lastSuccessfulShell <= ShellLaunchType.Default) {
-			const shellIntegrationQuality = await this._waitForShellIntegration(instance, 5000);
+		// Wait for shell integration when the fallback case has not been hit or when shell
+		// integration injection is enabled. Note that it's possible for the fallback case to happen
+		// and then for SI to activate again later in the session.
+		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
+		if (
+			ToolTerminalCreator._lastSuccessfulShell !== ShellLaunchType.Fallback ||
+			siInjectionEnabled
+		) {
+			// Use a reasonable wait time depending on whether the injection setting is set
+			const waitTime = siInjectionEnabled ? 5000 : (instance.isRemote ? 3000 : 2000);
+			const shellIntegrationQuality = await this._waitForShellIntegration(instance, waitTime);
 			if (token.isCancellationRequested) {
 				instance.dispose();
 				throw new CancellationError();
