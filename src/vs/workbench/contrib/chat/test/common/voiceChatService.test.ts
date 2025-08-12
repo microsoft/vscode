@@ -73,6 +73,7 @@ suite('VoiceChat', () => {
 		getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
 		getActivatedAgents(): IChatAgent[] { return agents; }
 		getAgents(): IChatAgent[] { return agents; }
+		getAgentImpl(id: string, includeDisabled?: boolean): IChatAgent | undefined { return undefined; }
 		getEngines(): IChatAgentData[] { return []; }
 		getDefaultAgent(): IChatAgent | undefined { throw new Error(); }
 		getContributedDefaultAgent(): IChatAgentData | undefined { throw new Error(); }

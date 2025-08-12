@@ -25,6 +25,7 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -35,6 +36,7 @@ import { EditorOptions, IEditorOptions } from '../../../../editor/common/config/
 import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -85,7 +87,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } 
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
-import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenEnginePickerActionId, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -102,9 +104,6 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
-import { IEnginePickerDelegate, EnginePickerActionItem } from './modelPicker/enginePickerActionItem.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { isLocation } from '../../../../editor/common/languages.js';
 
 const $ = dom.$;
 
@@ -279,7 +278,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
-	private engineWidget: EnginePickerActionItem | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable>;
 	private _onDidChangeCurrentLanguageModel: Emitter<ILanguageModelChatMetadataAndIdentifier>;
 
@@ -587,10 +585,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public openModePicker(): void {
 		this.modeWidget?.show();
-	}
-
-	public openEnginePicker(): void {
-		this.engineWidget?.show();
 	}
 
 	private checkModelSupported(): void {
@@ -1226,15 +1220,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						currentEngineId: this._currentEngineIdObservable
 					};
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
-				} else if (action.id === ChatOpenEnginePickerActionId && action instanceof MenuItemAction) {
-					const showEnginePicker = this.configurationService.getValue('chat.enginePicker');
-					if (!showEnginePicker) {
-						return undefined;
-					}
-					const delegate: IEnginePickerDelegate = {
-						currentEngineId: this._currentEngineIdObservable,
-					};
-					return this.engineWidget = this.instantiationService.createInstance(EnginePickerActionItem, action, delegate);
 				}
 
 				return undefined;
