@@ -159,7 +159,7 @@ suite('RunInTerminalTool', () => {
 				command: 'rm file.txt',
 				explanation: 'Remove a file'
 			});
-			assertConfirmationRequired(result, 'pwsh');
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 		});
 
 		test('should require confirmation for commands in deny list even if in allow list', async () => {
@@ -172,7 +172,7 @@ suite('RunInTerminalTool', () => {
 				command: 'rm dangerous-file.txt',
 				explanation: 'Remove a dangerous file'
 			});
-			assertConfirmationRequired(result, 'pwsh');
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 		});
 
 		test('should handle background commands with confirmation', async () => {
@@ -185,7 +185,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Start watching for file changes',
 				isBackground: true
 			});
-			assertConfirmationRequired(result, 'pwsh (background terminal)');
+			assertConfirmationRequired(result, 'Run `pwsh` command? (background terminal)');
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
@@ -312,7 +312,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Build the project'
 			});
 
-			assertConfirmationRequired(result, 'pwsh');
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
@@ -384,7 +384,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Build the project'
 			});
 
-			assertConfirmationRequired(result, 'pwsh');
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
@@ -401,7 +401,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Install dependencies and build'
 			});
 
-			assertConfirmationRequired(result, 'pwsh');
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
@@ -432,7 +432,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run foo command and show first 20 lines'
 			});
 
-			assertConfirmationRequired(result, 'pwsh');
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
@@ -478,7 +478,7 @@ suite('RunInTerminalTool', () => {
 				explanation: 'Run multiple piped commands'
 			});
 
-			assertConfirmationRequired(result, 'pwsh');
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
