@@ -12,9 +12,7 @@ import { ILanguageModelsService } from '../../../../../chat/common/languageModel
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../../bufferOutputPolling.js';
-import { getOutput } from '../../outputHelpers.js';
-import { getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
@@ -79,30 +77,21 @@ export class RunTaskTool implements IToolImpl {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskLabel)) };
 		}
 
-		const terminalResults: Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }> = [];
-		_progress.report({ message: new MarkdownString(localize('copilotChat.checkingOutput', 'Checking output for `{0}`', taskLabel)) });
-		for (const terminal of terminals) {
-			let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
-			if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				outputAndIdle = await racePollingOrPrompt(
-					() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-					() => promptForMorePolling(taskLabel, token, invocation.context!, this._chatService),
-					outputAndIdle,
-					token,
-					this._languageModelsService,
-					{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
-				);
-			}
-			terminalResults.push({
-				name: terminal.shellLaunchConfig.name ?? 'unknown',
-				output: outputAndIdle?.output ?? '',
-				pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
-				idle: !!outputAndIdle?.terminalExecutionIdleBeforeTimeout
-			});
+		const terminalResults = await collectTerminalResults(
+			terminals,
+			task,
+			this._languageModelsService,
+			this._chatService,
+			invocation.context!,
+			_progress,
+			token,
+			() => this._isTaskActive(task)
+		);
+		for (const r of terminalResults) {
 			this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
 				taskId: args.id,
-				bufferLength: outputAndIdle?.output.length ?? 0,
-				pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
+				bufferLength: r.output.length ?? 0,
+				pollDurationMs: r.pollDurationMs ?? 0,
 			});
 		}
 

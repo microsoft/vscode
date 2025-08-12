@@ -3,11 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatService } from '../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { ToolProgress } from '../../../chat/common/languageModelToolsService.js';
 import { ConfiguringTask, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
+import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { pollForOutputAndIdle, getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -125,3 +131,33 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 	}));
 	return dependencyTasks.filter((t: Task | undefined): t is Task => t !== undefined);
 }
+
+/**
+ * Collects output, polling duration, and idle status for all terminals.
+ */
+export async function collectTerminalResults(
+	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>): Promise<Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }>> {
+	const results: Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }> = [];
+	progress.report({ message: `Checking output for task` });
+	for (const terminal of terminals) {
+		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive }, false, token, languageModelsService);
+		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
+			outputAndIdle = await racePollingOrPrompt(
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive }, true, token, languageModelsService),
+				() => promptForMorePolling(task._label, token, invocationContext, chatService),
+				outputAndIdle,
+				token,
+				languageModelsService,
+				{ getOutput: () => getOutput(terminal), isActive }
+			);
+		}
+		results.push({
+			name: terminal.shellLaunchConfig.name ?? 'unknown',
+			output: outputAndIdle?.output ?? '',
+			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
+			idle: !!outputAndIdle?.terminalExecutionIdleBeforeTimeout
+		});
+	}
+	return results;
+}
+
