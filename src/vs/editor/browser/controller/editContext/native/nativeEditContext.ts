@@ -497,11 +497,13 @@ export class NativeEditContext extends AbstractEditContext {
 		let left = parentBounds.left + contentLeft - this._scrollLeft;
 		let width: number;
 
+		// Position the screen reader box at the start of the selection
+		const linesVisibleRanges = ctx.visibleRangeForPosition(viewSelection.getStartPosition());
+		if (linesVisibleRanges) {
+			left += linesVisibleRanges.left;
+		}
+
 		if (this._primarySelection.isEmpty()) {
-			const linesVisibleRanges = ctx.visibleRangeForPosition(viewSelection.getStartPosition());
-			if (linesVisibleRanges) {
-				left += linesVisibleRanges.left;
-			}
 			width = 0;
 		} else {
 			width = parentBounds.width - contentLeft;
