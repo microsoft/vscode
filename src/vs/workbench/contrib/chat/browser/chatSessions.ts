@@ -6,6 +6,7 @@
 import './media/chatSessions.css';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,6 +15,7 @@ import { IProgressService } from '../../../../platform/progress/common/progress.
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -38,6 +40,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { ResourceLabels, IResourceLabel } from '../../../browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { append, $, getActiveWindow, clearNode } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -741,6 +744,7 @@ class SessionsViewPane extends ViewPane {
 	private dataSource?: SessionsDataSource;
 	private labels?: ResourceLabels;
 	private messageElement?: HTMLElement;
+	private newChatButton?: Button;
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
@@ -759,6 +763,7 @@ class SessionsViewPane extends ViewPane {
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -796,27 +801,47 @@ class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		// Only show message for non-local providers
-		if (this.provider.chatSessionType === 'local') {
-			this.hideMessage();
-			return;
-		}
-
-		const providerName = this.getProviderDisplayName();
-		if (!providerName) {
-			return;
-		}
-
-		const messageText = nls.localize('chatSessions.noResults', "No sessions found from {0}", providerName);
-
 		// Clear the message element using DOM utility
 		clearNode(this.messageElement);
 
 		const messageContainer = append(this.messageElement, $('.no-sessions-message'));
 
-		append(messageContainer, $('.codicon.codicon-info'));
-		const textElement = append(messageContainer, $('span'));
-		textElement.textContent = messageText;
+		if (this.provider.chatSessionType === 'local') {
+			// Show empty state for local chat sessions with create button
+			const messageText = nls.localize('chatSessions.noLocalSessions', "Start a new chat session to begin");
+			
+			append(messageContainer, $('.codicon.codicon-info'));
+			const textElement = append(messageContainer, $('span'));
+			textElement.textContent = messageText;
+
+			// Add a primary button that creates a new chat
+			const buttonContainer = append(messageContainer, $('.new-chat-button-container'));
+			this.newChatButton = new Button(buttonContainer, {
+				...defaultButtonStyles,
+				title: nls.localize('chatSessions.newChat', "New Chat")
+			});
+			this.newChatButton.label = nls.localize('chatSessions.newChat', "New Chat");
+			
+			// Register button disposal
+			this._register(this.newChatButton);
+			
+			// Execute the openChat command when clicked
+			this._register(this.newChatButton.onDidClick(() => {
+				this.commandService.executeCommand('workbench.action.openChat');
+			}));
+		} else {
+			// Show message for non-local providers
+			const providerName = this.getProviderDisplayName();
+			if (!providerName) {
+				return;
+			}
+
+			const messageText = nls.localize('chatSessions.noResults', "No sessions found from {0}", providerName);
+			
+			append(messageContainer, $('.codicon.codicon-info'));
+			const textElement = append(messageContainer, $('span'));
+			textElement.textContent = messageText;
+		}
 
 		// Show the message element
 		this.messageElement.style.display = 'block';
@@ -830,6 +855,12 @@ class SessionsViewPane extends ViewPane {
 	private hideMessage(): void {
 		if (this.messageElement) {
 			this.messageElement.style.display = 'none';
+		}
+
+		// Dispose of the button if it exists
+		if (this.newChatButton) {
+			this.newChatButton.dispose();
+			this.newChatButton = undefined;
 		}
 
 		// Show the tree
