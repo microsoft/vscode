@@ -197,6 +197,26 @@ suite('RunInTerminalTool', () => {
 			assertAutoApproved(result);
 		});
 
+		test('should include auto-approve info for background commands', async () => {
+			setAutoApprove({
+				npm: true
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run watch',
+				explanation: 'Start watching for file changes',
+				isBackground: true
+			});
+			assertAutoApproved(result);
+			
+			// Verify that auto-approve information is included
+			ok(result?.toolSpecificData, 'Expected toolSpecificData to be defined');
+			const terminalData = result!.toolSpecificData as any;
+			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined for auto-approved background command');
+			ok(terminalData.autoApproveInfo.value, 'Expected autoApproveInfo to have a value');
+			ok(terminalData.autoApproveInfo.value.includes('npm'), 'Expected autoApproveInfo to mention the approved rule');
+		});
+
 		test('should handle regex patterns in allow list', async () => {
 			setAutoApprove({
 				'/^git (status|log)/': true
