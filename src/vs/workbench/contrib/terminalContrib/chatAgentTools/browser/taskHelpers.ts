@@ -88,9 +88,6 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 		const customTasks: Task[] | undefined = tasksForWorkspace.set?.tasks;
 		resolvedTask = customTasks?.find(t => task.label === t._label || task.label === t._label);
 	}
-	if (!resolvedTask?.type && resolvedTask?.getDefinition()?.dependencies) {
-		return resolvedTask;
-	}
 	return resolvedTask;
 }
 
