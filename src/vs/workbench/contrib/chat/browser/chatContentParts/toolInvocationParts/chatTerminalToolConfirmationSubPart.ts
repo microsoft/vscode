@@ -206,9 +206,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						}
 						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue);
 						if (newRules.length === 1) {
-							terminalData.autoApproveInfo = new MarkdownString(localize('newRule', 'Auto approve rule {0} added', `[\`${newRules[0].key}\`](settings_a)`));
+							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule', 'Auto approve rule {0} added', `[\`${newRules[0].key}\`](settings_a)`)}_`);
 						} else if (newRules.length > 1) {
-							terminalData.autoApproveInfo = new MarkdownString(localize('newRule.plural', 'Auto approve rules {0} added', newRules.map(r => `[\`${r.key}\`](settings_a)`).join(', ')));
+							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule.plural', 'Auto approve rules {0} added', newRules.map(r => `[\`${r.key}\`](settings_a)`).join(', '))}_`);
 						}
 						break;
 					}
