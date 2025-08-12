@@ -25,7 +25,6 @@ suite('racePollingOrPrompt', () => {
 		const terminal = new RawXtermTerminal();
 		terminal.write(longString);
 		const output = getOutput(terminal);
-		assert.strictEqual(output.length, 16000);
 		assert.strictEqual(output, longString.slice(-16000));
 	});
 
