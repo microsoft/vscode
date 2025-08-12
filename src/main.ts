@@ -225,7 +225,9 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'disable-lcd-text',
 
 		// bypass any specified proxy for the given semi-colon-separated list of hosts
-		'proxy-bypass-list'
+		'proxy-bypass-list',
+
+		'remote-debugging-port'
 	];
 
 	if (process.platform === 'linux') {
@@ -249,7 +251,7 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'use-inmemory-secretstorage',
 
 		// Enables display tracking to restore maximized windows under RDP: https://github.com/electron/electron/issues/47016
-		'enable-rdp-display-tracking'
+		'enable-rdp-display-tracking',
 	];
 
 	// Read argv config
@@ -367,6 +369,7 @@ interface IArgvConfig {
 	readonly 'disable-chromium-sandbox'?: boolean;
 	readonly 'use-inmemory-secretstorage'?: boolean;
 	readonly 'enable-rdp-display-tracking'?: boolean;
+	readonly 'remote-debugging-port'?: string;
 }
 
 function readArgvConfigSync(): IArgvConfig {
