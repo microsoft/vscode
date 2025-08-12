@@ -447,19 +447,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	private parseChallengeString(challengeStr: string): AuthenticationChallenge[] {
 		// Parse multiple challenges from WWW-Authenticate header
 		// Example: "Bearer realm="", authorization_uri="...", error="insufficient_claims", claims="...""
-		const challenges: AuthenticationChallenge[] = [];
-
 		try {
-			const parsed = parseWWWAuthenticateHeader(challengeStr);
-			challenges.push({
-				scheme: parsed.scheme,
-				params: parsed.params
-			});
+			return parseWWWAuthenticateHeader(challengeStr);
 		} catch (error) {
 			this.logService.error('Failed to parse WWW-Authenticate header:', error);
 		}
-
-		return challenges;
+		return [];
 	}
 
 	private extractScopesFromChallenges(challenges: readonly AuthenticationChallenge[]): string[] {
