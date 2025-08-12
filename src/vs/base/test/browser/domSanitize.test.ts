@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
-import { sanitizeHtml } from '../../browser/domSanitize.js';
 import * as assert from 'assert';
+import { sanitizeHtml } from '../../browser/domSanitize.js';
 import { Schemas } from '../../common/network.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('DomSanitize', () => {
 
@@ -112,6 +112,45 @@ suite('DomSanitize', () => {
 		const str = result.toString();
 
 		assert.ok(str.includes('src="data:image/png;base64,'));
+	});
+
+	test('Supports dynamic attribute sanitization', () => {
+		const html = '<div title="a" other="1">text1</div><div title="b" other="2">text2</div>';
+		const result = sanitizeHtml(html, {
+			allowedAttributes: {
+				override: [
+					{
+						attributeName: 'title',
+						shouldKeep: (_el, data) => {
+							return data.attrValue.includes('b');
+						}
+					}
+				]
+			}
+		});
+		const str = result.toString();
+		assert.strictEqual(str, '<div>text1</div><div title="b">text2</div>');
+	});
+
+	test('Supports changing attributes in dynamic sanitization', () => {
+		const html = '<div title="abc" other="1">text1</div><div title="xyz" other="2">text2</div>';
+		const result = sanitizeHtml(html, {
+			allowedAttributes: {
+				override: [
+					{
+						attributeName: 'title',
+						shouldKeep: (_el, data) => {
+							if (data.attrValue === 'abc') {
+								return false;
+							}
+							return data.attrValue + data.attrValue;
+						}
+					}
+				]
+			}
+		});
+		// xyz title should be preserved and doubled
+		assert.strictEqual(result.toString(), '<div>text1</div><div title="xyzxyz">text2</div>');
 	});
 
 	suite('replaceWithPlaintext', () => {

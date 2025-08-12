@@ -22,14 +22,19 @@ export class MarkedKatexSupport {
 					...trustedMathMlTags,
 				]
 			},
-			customAttrSanitizer: (attrName, attrValue) => {
-				if (attrName === 'class') {
-					return true; // TODO: allows all classes for now since we don't have a list of possible katex classes
-				} else if (attrName === 'style') {
-					return this.sanitizeKatexStyles(attrValue);
-				}
+			allowedAttributes: {
+				override: [
+					...baseConfig.allowedAttributes,
 
-				return baseConfig.allowedAttributes.includes(attrName);
+					// Allow all classes since we don't have a list of allowed katex classes
+					'class',
+
+					// Sanitize allowed styles for katex
+					{
+						attributeName: 'style',
+						shouldKeep: (_el, data) => this.sanitizeKatexStyles(data.attrValue),
+					},
+				]
 			},
 		};
 	}
