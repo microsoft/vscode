@@ -9,7 +9,8 @@ import { getOutput, PollingConsts, racePollingOrPrompt } from '../../browser/buf
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatElicitationRequestPart } from '../../../../chat/browser/chatElicitationRequestPart.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import type { Terminal as RawXtermTerminal, IBufferCell, IBuffer } from '@xterm/xterm';
+// eslint-disable-next-line local/code-amd-node-module
+import { Terminal as RawXtermTerminal } from '@xterm/xterm';
 
 suite('racePollingOrPrompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -21,31 +22,8 @@ suite('racePollingOrPrompt', () => {
 
 	test('getOutput enforces 16000 character limit', () => {
 		const longString = 'A'.repeat(17000);
-		const buffer: IBuffer = {
-			length: 1,
-			getLine: () => ({
-				translateToString: () => longString,
-				isWrapped: false,
-				length: longString.length,
-				getCell: () => undefined
-			}),
-			type: 'normal',
-			cursorY: 0,
-			cursorX: 0,
-			viewportY: 0,
-			baseY: 0,
-			getNullCell: function (): IBufferCell {
-				throw new Error('Function not implemented.');
-			}
-		};
-		const terminal: Pick<RawXtermTerminal, 'buffer'> = {
-			buffer: {
-				active: buffer,
-				normal: buffer,
-				alternate: buffer,
-				onBufferChange: new Emitter<IBuffer>().event
-			},
-		};
+		const terminal = new RawXtermTerminal();
+		terminal.write(longString);
 		const output = getOutput(terminal);
 		assert.strictEqual(output.length, 16000);
 		assert.strictEqual(output, longString.slice(-16000));
