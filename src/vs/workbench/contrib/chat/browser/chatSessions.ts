@@ -32,8 +32,10 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IAsyncDataSource, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeDragAndDrop } from '../../../../base/browser/ui/tree/tree.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IDragAndDropData } from '../../../../base/browser/dnd.js';
+import { ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { ResourceLabels, IResourceLabel } from '../../../browser/labels.js';
@@ -734,6 +736,45 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 	}
 }
 
+// Drag and drop implementation for chat sessions
+class ChatSessionsDragAndDrop implements ITreeDragAndDrop<IChatSessionItem> {
+	constructor() { }
+
+	getDragURI(element: IChatSessionItem): string | null {
+		// Only enable drag for local chat session items
+		const localItem = element as ILocalChatSessionItem;
+		if (localItem && ('sessionType' in localItem)) {
+			// For local chat sessions, create a ChatSessionUri
+			return ChatSessionUri.forSession('local', element.id).toString();
+		}
+		return null;
+	}
+
+	getDragLabel?(elements: IChatSessionItem[], originalEvent: DragEvent): string | undefined {
+		if (elements.length === 1) {
+			return elements[0].label;
+		}
+		return undefined;
+	}
+
+	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void {
+		// Optional: could implement drag start behavior here
+	}
+
+	onDragOver(data: IDragAndDropData, targetElement: IChatSessionItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean {
+		// Reject all drop operations since we only want to enable drag out
+		return false;
+	}
+
+	drop(data: IDragAndDropData, targetElement: IChatSessionItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
+		// No-op since we reject all drops
+	}
+
+	dispose(): void {
+		// No resources to dispose
+	}
+}
+
 // Sessions view pane for a specific provider
 class SessionsViewPane extends ViewPane {
 	private tree?: WorkbenchAsyncDataTree<IChatSessionItemProvider, IChatSessionItem, FuzzyScore>;
@@ -935,6 +976,9 @@ class SessionsViewPane extends ViewPane {
 		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.labels);
 		this._register(renderer);
 
+		const dnd = new ChatSessionsDragAndDrop();
+		this._register(dnd);
+
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'SessionsTree',
@@ -953,6 +997,7 @@ class SessionsViewPane extends ViewPane {
 					getAriaLabel: (element: IChatSessionItem) => element.label,
 					getWidgetAriaLabel: () => nls.localize('chatSessions.treeAriaLabel', "Chat Sessions")
 				},
+				dnd,
 				hideTwistiesOfChildlessElements: true,
 				allowNonCollapsibleParents: true  // Allow nodes to be non-collapsible even if they have children
 			}
