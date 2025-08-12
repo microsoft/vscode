@@ -969,6 +969,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	},
 	group: 'submenu',
 	order: 1,
+	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
@@ -978,6 +979,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	},
 	group: 'submenu',
 	order: 1,
+	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
 });
 
 
@@ -988,6 +990,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	},
 	group: 'submenu',
 	order: 1,
+	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
@@ -997,4 +1000,5 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	},
 	group: 'submenu',
 	order: 1,
+	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
 });
