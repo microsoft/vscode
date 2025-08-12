@@ -31,6 +31,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	private readonly _enableListeners = this._register(new MutableDisposable());
 	private readonly _disableListeners = this._register(new MutableDisposable());
+	private readonly _richCommandDetectionListeners = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -91,6 +92,16 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 				});
 			}
 		}
+
+		// Always listen for rich command detection changes
+		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
+		if (capability && !this._richCommandDetectionListeners.value) {
+			this._richCommandDetectionListeners.value = capability.onSetRichCommandDetection(() => {
+				this._refreshState();
+			});
+		} else if (!capability) {
+			this._richCommandDetectionListeners.clear();
+		}
 	}
 
 	private _tryEnable(): void {
@@ -115,6 +126,6 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	private _shouldBeEnabled(): boolean {
 		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
-		return !!(this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled) && capability && this._xterm?.raw?.element);
+		return !!(this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled) && capability && capability.hasRichCommandDetection && this._xterm?.raw?.element);
 	}
 }
