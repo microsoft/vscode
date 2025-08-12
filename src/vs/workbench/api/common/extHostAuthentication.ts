@@ -13,7 +13,7 @@ import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/com
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { AuthorizationErrorType, fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationErrorResponse, isAuthorizationTokenResponse, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AuthorizationErrorType, fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationErrorResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ILogger, ILoggerService, ILogService } from '../../../platform/log/common/log.js';
@@ -88,7 +88,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationSessionChallenge, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const extensionName = requestingExtension.displayName || requestingExtension.name;
-		
+
 		// Handle challenge-based authentication
 		if ('challenge' in scopesOrChallenge) {
 			const challenge = scopesOrChallenge as vscode.AuthenticationSessionChallenge;
@@ -101,7 +101,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				return this._proxy.$getSessionFromChallenge(providerId, challenge, extensionId, extensionName, options);
 			});
 		}
-		
+
 		// Handle traditional scope-based authentication
 		const scopes = scopesOrChallenge as readonly string[];
 		const sortedScopes = [...scopes].sort().join(' ');
@@ -221,7 +221,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	private _extractScopesFromChallenges(challenges: vscode.AuthenticationChallenge[]): string[] {
+	private _extractScopesFromChallenges(challenges: readonly vscode.AuthenticationChallenge[]): string[] {
 		const scopes: string[] = [];
 		for (const challenge of challenges) {
 			if (challenge.params.scope) {

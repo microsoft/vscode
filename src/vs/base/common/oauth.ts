@@ -776,7 +776,7 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 }
 
 
-export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string) {
+export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): { scheme: string; params: Record<string, string> } {
 	const parts = wwwAuthenticateHeaderValue.split(' ');
 	const scheme = parts[0];
 	const params: Record<string, string> = {};

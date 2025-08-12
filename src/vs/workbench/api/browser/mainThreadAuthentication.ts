@@ -448,7 +448,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		// Parse multiple challenges from WWW-Authenticate header
 		// Example: "Bearer realm="", authorization_uri="...", error="insufficient_claims", claims="...""
 		const challenges: AuthenticationChallenge[] = [];
-		
+
 		try {
 			const parsed = parseWWWAuthenticateHeader(challengeStr);
 			challenges.push({
@@ -458,11 +458,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		} catch (error) {
 			this.logService.error('Failed to parse WWW-Authenticate header:', error);
 		}
-		
+
 		return challenges;
 	}
 
-	private extractScopesFromChallenges(challenges: AuthenticationChallenge[]): string[] {
+	private extractScopesFromChallenges(challenges: readonly AuthenticationChallenge[]): string[] {
 		const scopes: string[] = [];
 		for (const challenge of challenges) {
 			if (challenge.params.scope) {
@@ -485,14 +485,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		// Try to get existing sessions first using challenge-aware methods
 		try {
 			const challengeSessions = await this._proxy.$getSessionsFromChallenges(providerId, constraint, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
-			
+
 			// Check if we have a valid existing session
 			if (challengeSessions.length > 0) {
 				const matchingAccountPreferenceSession = this._getAccountPreference(extensionId, providerId, scopes, challengeSessions);
 				if (matchingAccountPreferenceSession && this.authenticationAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, extensionId)) {
 					return matchingAccountPreferenceSession;
 				}
-				
+
 				// Return the first accessible session
 				const validSession = challengeSessions.find(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
 				if (validSession) {
@@ -537,13 +537,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	async $getSessionFromChallenge(providerId: string, challenge: AuthenticationSessionChallenge, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const parsedChallenges = this.parseChallengeString(challenge.challenge);
 		const scopes = challenge.scopes ? [...challenge.scopes] : this.extractScopesFromChallenges(parsedChallenges);
-		
+
 		// Create the constraint object with challenges and scopes
 		const constraint: AuthenticationConstraint = {
 			challenges: parsedChallenges,
 			scopes: scopes.length > 0 ? scopes : undefined
 		};
-		
+
 		this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
 		const session = await this.doGetSessionFromChallenge(providerId, constraint, extensionId, extensionName, options);
 

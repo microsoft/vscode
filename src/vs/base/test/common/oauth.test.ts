@@ -255,6 +255,18 @@ suite('OAuth', () => {
 			});
 		});
 
+		test('parseWWWAuthenticateHeader should correctly parse multiple', () => {
+			const result = parseWWWAuthenticateHeader('Bearer realm="api", error="invalid_token", error_description="The access token expired", Basic realm="hi"');
+
+			assert.strictEqual(result.scheme, 'Bearer');
+			assert.deepStrictEqual(result.params, {
+				realm: 'api',
+				error: 'invalid_token',
+				error_description: 'The access token expired'
+			});
+		});
+
+
 		test('getClaimsFromJWT should correctly parse a JWT token', () => {
 			// Create a sample JWT with known payload
 			const payload: IAuthorizationJWTClaims = {
