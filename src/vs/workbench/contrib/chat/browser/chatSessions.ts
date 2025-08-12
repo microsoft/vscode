@@ -962,12 +962,3 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
 });
 
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	command: {
-		id: 'workbench.action.chat.openInNewEditorGroup',
-		title: nls.localize2('chatSessions.openNewChatInNewEditorGroup', 'Open New Chat in Editor Group'),
-	},
-	group: 'submenu',
-	order: 1,
-	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
-});

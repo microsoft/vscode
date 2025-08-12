@@ -44,7 +44,7 @@ import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/t
 import { ActiveEditorContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -909,7 +909,7 @@ export function registerChatActions() {
 			super({
 				id: `workbench.action.chat.newChatInNewWindow`,
 				title: localize2('chatSessions.openNewChatInNewWindow', 'Open New Chat in New Window'),
-				f1: true,
+				f1: false,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				menu: {
@@ -938,7 +938,7 @@ export function registerChatActions() {
 			super({
 				id: `workbench.action.chat.newChatInNewMaximizedWindow`,
 				title: localize2('chatSessions.openNewChatInNewMaximizedWindow', 'Open New Chat in Maximized Window'),
-				f1: true,
+				f1: false,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				menu: {
@@ -967,7 +967,7 @@ export function registerChatActions() {
 			super({
 				id: `workbench.action.chat.newChatInSideBar`,
 				title: localize2('chatSessions.openNewChatInSideBar', 'Open New Chat in Side Bar'),
-				f1: true,
+				f1: false,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				menu: {
@@ -995,6 +995,39 @@ export function registerChatActions() {
 				// Focus the input area
 				chatWidget.focusInput();
 			}
+		}
+	});
+
+	registerAction2(class OpenChatInNewEditorGroupAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.openInNewEditorGroup',
+				title: localize2('chat.openInNewEditorGroup.label', "Open Chat in New Editor Group"),
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				f1: false,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const editorService = accessor.get(IEditorService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			// Create a new editor group to the right
+			const newGroup = editorGroupService.addGroup(editorGroupService.activeGroup, GroupDirection.RIGHT);
+			editorGroupService.activateGroup(newGroup);
+
+			// Open a new chat editor in the new group
+			await editorService.openEditor(
+				{ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } },
+				newGroup.id
+			);
 		}
 	});
 
