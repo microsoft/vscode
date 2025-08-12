@@ -807,14 +807,13 @@ class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		const messageText = nls.localize('chatSessions.noResults', "No sessions found from {0}", providerName);
+		const messageText = nls.localize('chatSessions.noResults', "No sessions found", providerName);
 
 		// Clear the message element using DOM utility
 		clearNode(this.messageElement);
 
 		const messageContainer = append(this.messageElement, $('.no-sessions-message'));
 
-		append(messageContainer, $('.codicon.codicon-info'));
 		const textElement = append(messageContainer, $('span'));
 		textElement.textContent = messageText;
 
