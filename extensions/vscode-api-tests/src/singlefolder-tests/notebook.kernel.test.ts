@@ -159,8 +159,11 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	});
 
 	test('cell execute command takes arguments', async () => {
+		console.log('Step1.cell execute command takes arguments');
 		const notebook = await openRandomNotebookDocument();
+		console.log('Step2.cell execute command takes arguments');
 		await vscode.window.showNotebookDocument(notebook);
+		console.log('Step3.cell execute command takes arguments');
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.notebook.cellAt(0);
@@ -190,8 +193,11 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	});
 
 	test('cell execute command takes arguments 2', async () => {
+		console.log('Step1.cell execute command takes arguments 2');
 		const notebook = await openRandomNotebookDocument();
+		console.log('Step2.cell execute command takes arguments 2');
 		await vscode.window.showNotebookDocument(notebook);
+		console.log('Step3.cell execute command takes arguments 2');
 
 		let firstCellExecuted = false;
 		let secondCellExecuted = false;
