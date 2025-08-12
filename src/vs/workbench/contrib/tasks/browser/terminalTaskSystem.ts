@@ -276,7 +276,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	getTerminalsForTask(task: Task | Task[]): URI[] | undefined {
+	getTerminalsForTasks(task: Task | Task[]): URI[] | undefined {
 		const results: URI[] = [];
 		if (Array.isArray(task)) {
 			for (const t of task) {
