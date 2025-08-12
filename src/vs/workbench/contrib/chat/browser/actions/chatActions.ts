@@ -1001,8 +1001,8 @@ export function registerChatActions() {
 	registerAction2(class OpenChatInNewEditorGroupAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.openInNewEditorGroup',
-				title: localize2('chat.openInNewEditorGroup.label', "Open Chat in New Editor Group"),
+				id: 'workbench.action.chat.openNewChatToTheSide',
+				title: localize2('chat.openNewChatToTheSide.label', "Open New Chat to the Side"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				f1: false,
