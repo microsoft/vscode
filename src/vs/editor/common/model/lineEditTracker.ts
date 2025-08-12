@@ -287,7 +287,6 @@ export class LineEditTracker extends Disposable {
 
 	/**
 	 * Shift line numbers when lines are inserted or deleted
-	 * FIXED: Properly handle negative deltas and ensure all affected lines are shifted
 	 */
 	private _shiftLineNumbers(fromLine: number, delta: number): void {
 		if (delta === 0) {
@@ -360,8 +359,7 @@ export class LineEditTracker extends Disposable {
 
 	/**
 	 * Restore from serialized data
-	 * FIXED: Improved validation to reject invalid line numbers (0, negative)
-	 */
+	*/
 	public deserialize(data: { [lineNumber: string]: LineEditSource }): void {
 		this._lineEditSources.clear();
 

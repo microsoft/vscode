@@ -7,15 +7,14 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
 import { LineEditSource } from '../../../editor/common/lineEditSource.js';
 import { ITextModel } from '../../../editor/common/model.js';
-import { LineEditTracker } from '../../../editor/common/model/lineEditTracker.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IModelService } from '../../../editor/common/services/model.js';
-import { ExtHostContext, ExtHostLineEditTrackerShape, ILineEditSourcesChangeData, MainThreadLineEditTrackerShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLineEditTrackerShape, ILineEditSourcesChangeData, MainThreadLineEditTrackerShape, MainContext } from '../common/extHost.protocol.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 
-@extHostNamedCustomer(ExtHostContext.ExtHostLineEditTracker)
+@extHostNamedCustomer(MainContext.MainThreadLineEditTracker)
 export class MainThreadLineEditTracker extends Disposable implements MainThreadLineEditTrackerShape {
 
 	private readonly _proxy: ExtHostLineEditTrackerShape;
@@ -39,23 +38,15 @@ export class MainThreadLineEditTracker extends Disposable implements MainThreadL
 	}
 
 	private _onModelAdded(model: ITextModel): void {
-		const tracker = this._getLineEditTracker(model);
-		if (tracker) {
-			this._register(tracker.onDidChangeLineEditSources(e => {
-				this._notifyExtHostOfChanges(model, e.changes);
-			}));
-		}
+		// Use the public API to listen for line edit source changes
+		this._register(model.onDidChangeLineEditSources(e => {
+			this._notifyExtHostOfChanges(model, e.changes);
+		}));
 	}
 
 	private _onActiveEditorChange(): void {
 		// When the active editor changes, we could notify the extension host
 		// but the extension host already tracks active editor changes
-	}
-
-	private _getLineEditTracker(model: ITextModel): LineEditTracker | undefined {
-		// Access the LineEditTracker from the text model
-		// The LineEditTracker is a private field, so we need to access it through the public interface
-		return (model as any)._lineEditTracker;
 	}
 
 	private _notifyExtHostOfChanges(model: ITextModel, changes: Map<number, LineEditSource>): void {
@@ -94,12 +85,8 @@ export class MainThreadLineEditTracker extends Disposable implements MainThreadL
 			return LineEditSource.Undetermined;
 		}
 
-		const tracker = this._getLineEditTracker(model);
-		if (!tracker) {
-			return LineEditSource.Undetermined;
-		}
-
-		return tracker.getLineEditSource(lineNumber);
+		// Use the public API directly on the model
+		return model.getLineEditSource(lineNumber);
 	}
 
 	async $getAllLineEditSources(uri: UriComponents): Promise<{ [lineNumber: string]: number }> {
@@ -108,15 +95,11 @@ export class MainThreadLineEditTracker extends Disposable implements MainThreadL
 			return {};
 		}
 
-		const tracker = this._getLineEditTracker(model);
-		if (!tracker) {
-			return {};
-		}
-
-		const sources = tracker.getAllLineEditSources();
+		// Use the public API directly on the model
+		const sources = model.getAllLineEditSources();
 		const result: { [lineNumber: string]: number } = {};
 
-		sources.forEach((source, lineNumber) => {
+		sources.forEach((source: LineEditSource, lineNumber: number) => {
 			result[lineNumber.toString()] = source;
 		});
 

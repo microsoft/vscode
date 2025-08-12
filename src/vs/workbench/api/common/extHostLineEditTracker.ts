@@ -24,8 +24,8 @@ export class ExtHostLineEditTracker extends Disposable implements IExtHostLineEd
 	private readonly _proxy: MainThreadLineEditTrackerShape;
 
 	constructor(
-		@IExtHostRpcService rpcService: IExtHostRpcService,
-		@IExtHostDocumentsAndEditors private readonly _documentsAndEditors: IExtHostDocumentsAndEditors
+		rpcService: IExtHostRpcService,
+		private readonly _documentsAndEditors: IExtHostDocumentsAndEditors
 	) {
 		super();
 		this._proxy = rpcService.getProxy(MainContext.MainThreadLineEditTracker);
