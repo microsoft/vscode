@@ -34,8 +34,9 @@ import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { DataChannelForwardingTelemetryService } from '../../contrib/editTelemetry/browser/telemetry/forwardingTelemetryService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -49,7 +50,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -189,9 +190,10 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			},
 			resolveCodeLens: async (model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
 				const result = await this._proxy.$resolveCodeLens(handle, codeLens, token);
-				if (!result) {
+				if (!result || token.isCancellationRequested) {
 					return undefined;
 				}
+
 				return {
 					...result,
 					range: model.validateRange(result.range),
@@ -653,6 +655,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					shownDuration: lifetimeSummary.shownDuration,
 					shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
 					timeUntilShown: lifetimeSummary.timeUntilShown,
+					timeUntilProviderRequest: lifetimeSummary.timeUntilProviderRequest,
+					timeUntilProviderResponse: lifetimeSummary.timeUntilProviderResponse,
 					editorType: lifetimeSummary.editorType,
 					viewKind: lifetimeSummary.viewKind,
 					preceeded: lifetimeSummary.preceeded,
@@ -672,12 +676,17 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					extensionId,
 					extensionVersion,
 					partiallyAccepted: lifetimeSummary.partiallyAccepted,
+					partiallyAcceptedCountSinceOriginal: lifetimeSummary.partiallyAcceptedCountSinceOriginal,
+					partiallyAcceptedRatioSinceOriginal: lifetimeSummary.partiallyAcceptedRatioSinceOriginal,
+					partiallyAcceptedCharactersSinceOriginal: lifetimeSummary.partiallyAcceptedCharactersSinceOriginal,
 					superseded: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored && !!reason.supersededBy,
 					reason: reason.kind === InlineCompletionEndOfLifeReasonKind.Accepted ? 'accepted'
 						: reason.kind === InlineCompletionEndOfLifeReasonKind.Rejected ? 'rejected'
 							: 'ignored'
 				};
-				this._telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
+
+				const telemetryService = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
+				telemetryService.publicLog2<InlineCompletionEndOfLifeEvent, InlineCompletionsEndOfLifeClassification>('inlineCompletion.endOfLife', endOfLifeSummary);
 			},
 			disposeInlineCompletions: (completions: IdentifiableInlineCompletions, reason: languages.InlineCompletionsDisposeReason): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid, reason);
@@ -1307,8 +1316,13 @@ type InlineCompletionEndOfLifeEvent = {
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilProviderRequest: number;
+	timeUntilProviderResponse: number;
 	reason: 'accepted' | 'rejected' | 'ignored';
 	partiallyAccepted: number;
+	partiallyAcceptedCountSinceOriginal: number;
+	partiallyAcceptedRatioSinceOriginal: number;
+	partiallyAcceptedCharactersSinceOriginal: number;
 	preceeded: boolean;
 	requestReason: string;
 	languageId: string;
@@ -1338,8 +1352,13 @@ type InlineCompletionsEndOfLifeClassification = {
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
 	timeUntilShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
+	timeUntilProviderRequest: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be requested from the provider' };
+	timeUntilProviderResponse: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
 	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
+	partiallyAcceptedCountSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted since the original request' };
+	partiallyAcceptedRatioSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The percentage of characters accepted since the original request' };
+	partiallyAcceptedCharactersSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count accepted since the original request' };
 	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
 	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };

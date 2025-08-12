@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
-import { ISanitizerOptions } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownSanitizerConfig } from '../../../../base/browser/markdownRenderer.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import type * as marked from '../../../../base/common/marked/marked.js';
@@ -14,12 +14,14 @@ export class MarkedKatexSupport {
 	public static getSanitizerOptions(baseConfig: {
 		readonly allowedTags: readonly string[];
 		readonly allowedAttributes: readonly string[];
-	}): ISanitizerOptions {
+	}): MarkdownSanitizerConfig {
 		return {
-			allowedTags: [
-				...baseConfig.allowedTags,
-				...trustedMathMlTags,
-			],
+			allowedTags: {
+				override: [
+					...baseConfig.allowedTags,
+					...trustedMathMlTags,
+				]
+			},
 			customAttrSanitizer: (attrName, attrValue) => {
 				if (attrName === 'class') {
 					return true; // TODO: allows all classes for now since we don't have a list of possible katex classes
@@ -73,9 +75,21 @@ export class MarkedKatexSupport {
 			'font-weight',
 			'font-size',
 			'height',
+			'min-height',
+			'max-height',
 			'width',
+			'min-width',
+			'max-width',
 			'margin',
+			'margin-top',
+			'margin-right',
+			'margin-bottom',
+			'margin-left',
 			'padding',
+			'padding-top',
+			'padding-right',
+			'padding-bottom',
+			'padding-left',
 			'top',
 			'left',
 			'right',
@@ -83,6 +97,10 @@ export class MarkedKatexSupport {
 			'vertical-align',
 			'transform',
 			'border',
+			'border-top-width',
+			'border-right-width',
+			'border-bottom-width',
+			'border-left-width',
 			'color',
 			'white-space',
 			'text-align',
@@ -95,7 +113,7 @@ export class MarkedKatexSupport {
 
 	private static _katex?: typeof import('katex').default;
 	private static _katexPromise = new Lazy(async () => {
-		this._katex = await importAMDNodeModule('katex', 'dist/katex.min.js');
+		this._katex = await importAMDNodeModule<typeof import('katex').default>('katex', 'dist/katex.min.js');
 		return this._katex;
 	});
 
@@ -148,12 +166,20 @@ export namespace MarkedKatexExtension {
 		};
 	}
 
-	function createRenderer(katex: typeof import('katex').default, options: MarkedKatexOptions, newlineAfter: boolean): marked.RendererExtensionFunction {
+	function createRenderer(katex: typeof import('katex').default, options: MarkedKatexOptions, isBlock: boolean): marked.RendererExtensionFunction {
 		return (token: marked.Tokens.Generic) => {
-			return katex.renderToString(token.text, {
-				...options,
-				displayMode: token.displayMode,
-			}) + (newlineAfter ? '\n' : '');
+			let out: string;
+			try {
+				out = katex.renderToString(token.text, {
+					...options,
+					throwOnError: true,
+					displayMode: token.displayMode,
+				});
+			} catch {
+				// On failure, just use the original text including the wrapping $ or $$
+				out = token.raw;
+			}
+			return out + (isBlock ? '\n' : '');
 		};
 	}
 
@@ -205,6 +231,9 @@ export namespace MarkedKatexExtension {
 		return {
 			name: 'blockKatex',
 			level: 'block',
+			start(src: string) {
+				return src.match(new RegExp(blockRule.source, 'm'))?.index;
+			},
 			tokenizer(src: string, tokens: marked.Token[]) {
 				const match = src.match(blockRule);
 				if (match) {

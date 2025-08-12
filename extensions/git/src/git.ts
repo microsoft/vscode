@@ -349,8 +349,13 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.DirtyWorkTree;
 	} else if (/detected dubious ownership in repository at/.test(stderr)) {
 		return GitErrorCodes.NotASafeGitRepository;
+	} else if (/contains modified or untracked files|use --force to delete it/.test(stderr)) {
+		return GitErrorCodes.WorktreeContainsChanges;
+	} else if (/fatal: '[^']+' already exists/.test(stderr)) {
+		return GitErrorCodes.WorktreeAlreadyExists;
+	} else if (/is already used by worktree at/.test(stderr)) {
+		return GitErrorCodes.WorktreeBranchAlreadyUsed;
 	}
-
 	return undefined;
 }
 
@@ -863,6 +868,7 @@ export class GitStatusParser {
 export interface Worktree {
 	readonly name: string;
 	readonly path: string;
+	readonly ref: string;
 }
 
 export interface Submodule {
@@ -2033,8 +2039,26 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async deleteWorktree(path: string): Promise<void> {
-		const args = ['worktree', 'remove', path];
+	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
+		const args = ['worktree', 'add'];
+
+		if (options.branch) {
+			args.push('-b', options.branch);
+		}
+
+		args.push(options.path, options.commitish);
+
+		await this.exec(args);
+	}
+
+	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+		const args = ['worktree', 'remove'];
+
+		if (options?.force) {
+			args.push('--force');
+		}
+
+		args.push(path);
 		await this.exec(args);
 	}
 
@@ -2755,10 +2779,17 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
-		const worktreesPath = path.join(this.repositoryRoot, '.git', 'worktrees');
+		const config = workspace.getConfiguration('git', Uri.file(this.repositoryRoot));
+		const shouldDetectWorktrees = config.get<boolean>('detectWorktrees') === true;
+
+		if (!shouldDetectWorktrees) {
+			this.logger.info('[Git][getWorktreesFS] Worktree detection is disabled, skipping worktree detection');
+			return [];
+		}
 
 		try {
 			// List all worktree folder names
+			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
 			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
 			const result: Worktree[] = [];
 
@@ -2767,13 +2798,20 @@ export class Repository {
 					continue;
 				}
 
-				const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
-
 				try {
+					const headPath = path.join(worktreesPath, dirent.name, 'HEAD');
+					const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+
+					const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
 					const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
-					// Remove trailing '/.git'
-					const gitdirTrimmed = gitdirContent.replace(/\.git.*$/, '');
-					result.push({ name: dirent.name, path: gitdirTrimmed });
+
+					result.push({
+						name: dirent.name,
+						// Remove '/.git' suffix
+						path: gitdirContent.replace(/\/.git.*$/, ''),
+						// Remove 'ref: ' prefix
+						ref: headContent.replace(/^ref: /, ''),
+					});
 				} catch (err) {
 					if (/ENOENT/.test(err.message)) {
 						continue;
@@ -2786,7 +2824,7 @@ export class Repository {
 			return result;
 		}
 		catch (err) {
-			if (/ENOENT/.test(err.message)) {
+			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
 				return [];
 			}
 

@@ -83,6 +83,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			AllowWorkspace,
 			AllowGlobally,
 			AllowSession,
+			CustomAction,
 		}
 
 		const buttons: IChatConfirmationButton[] = [
@@ -102,15 +103,13 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				isSecondary: true,
 				tooltip: cancelTooltip
 			}];
+
 		let confirmWidget: ChatConfirmationWidget | ChatCustomConfirmationWidget;
 		if (typeof message === 'string') {
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatConfirmationWidget,
-				title,
-				toolInvocation.originMessage,
-				message,
-				buttons,
 				this.context.container,
+				{ title, subtitle: toolInvocation.originMessage, buttons, message, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation', partSource: toolInvocation.source.type } }
 			));
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
@@ -275,11 +274,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 
 			confirmWidget = this._register(this.instantiationService.createInstance(
 				ChatCustomConfirmationWidget,
-				title,
-				toolInvocation.originMessage,
-				elements.root,
-				buttons,
 				this.context.container,
+				{ title, subtitle: toolInvocation.originMessage, buttons, message: elements.root, toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation', partSource: toolInvocation.source?.type } },
 			));
 		}
 
@@ -320,7 +316,21 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private _makeMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
-		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, { kind: 'markdownContent', content: typeof message === 'string' ? new MarkdownString().appendText(message) : message }, this.context, this.editorPool, false, this.codeBlockStartIndex, this.renderer, this.currentWidthDelegate(), this.codeBlockModelCollection, { codeBlockRenderOptions }));
+		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
+			{
+				kind: 'markdownContent',
+				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message
+			},
+			this.context,
+			this.editorPool,
+			false,
+			this.codeBlockStartIndex,
+			this.renderer,
+			undefined,
+			this.currentWidthDelegate(),
+			this.codeBlockModelCollection,
+			{ codeBlockRenderOptions }
+		));
 		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 		container.append(part.domNode);
 

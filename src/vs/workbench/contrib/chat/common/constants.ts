@@ -12,6 +12,8 @@ export enum ChatConfiguration {
 	EnableMath = 'chat.math.enabled',
 	EnginePicker = 'chat.enginePicker',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
+	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
+	ShowThinking = 'chat.agent.showThinking',
 }
 
 /**

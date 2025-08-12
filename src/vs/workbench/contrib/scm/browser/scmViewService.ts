@@ -71,7 +71,9 @@ export class RepositoryPicker {
 		picks.push(...this._scmViewService.repositories.map(r => ({
 			label: r.provider.name,
 			description: r.provider.rootUri?.fsPath,
-			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			iconClass: ThemeIcon.isThemeIcon(r.provider.iconPath)
+				? ThemeIcon.asClassName(r.provider.iconPath)
+				: ThemeIcon.asClassName(Codicon.repo),
 			repository: r
 		})));
 

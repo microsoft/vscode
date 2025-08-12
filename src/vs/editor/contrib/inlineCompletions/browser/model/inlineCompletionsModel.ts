@@ -43,7 +43,7 @@ import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './in
 import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
-import { TextModelEditReason, EditReasons } from '../../../../common/textModelEditReason.js';
+import { TextModelEditSource, EditSources } from '../../../../common/textModelEditSource.js';
 import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { IInlineCompletionsService } from '../../../../browser/services/inlineCompletionsService.js';
@@ -145,6 +145,12 @@ export class InlineCompletionsModel extends Disposable {
 				: this.isInDiffEditor ? InlineCompletionEditorType.DiffEditor
 					: InlineCompletionEditorType.TextEditor;
 		}
+
+		this._register(recomputeInitiallyAndOnChange(this.state, (s) => {
+			if (s && s.inlineCompletion) {
+				this._inlineCompletionsService.reportNewCompletion(s.inlineCompletion.requestUuid);
+			}
+		}));
 
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
@@ -381,6 +387,7 @@ export class InlineCompletionsModel extends Disposable {
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
+			requestIssuedDateTime: requestInfo.startTime,
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
@@ -784,19 +791,21 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
-	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): TextModelEditReason {
+	private _getMetadata(completion: InlineSuggestionItem, languageId: string, type: 'word' | 'line' | undefined = undefined): TextModelEditSource {
 		if (type) {
-			return EditReasons.inlineCompletionPartialAccept({
+			return EditSources.inlineCompletionPartialAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
 				providerId: completion.source.provider.providerId,
+				languageId,
 				type,
 			});
 		} else {
-			return EditReasons.inlineCompletionAccept({
+			return EditSources.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
 				providerId: completion.source.provider.providerId,
+				languageId
 			});
 		}
 	}
@@ -829,7 +838,7 @@ export class InlineCompletionsModel extends Disposable {
 				const mainEdit = TextReplacement.delete(completion.editRange);
 				const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 				const edit = TextEdit.fromParallelReplacementsUnsorted([mainEdit, ...additionalEdits]);
-				editor.edit(edit, this._getMetadata(completion));
+				editor.edit(edit, this._getMetadata(completion, this.textModel.getLanguageId()));
 
 				editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 				SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
@@ -848,7 +857,7 @@ export class InlineCompletionsModel extends Disposable {
 				const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 				const edit = TextEdit.fromParallelReplacementsUnsorted([...edits, ...additionalEdits]);
 
-				editor.edit(edit, this._getMetadata(completion));
+				editor.edit(edit, this._getMetadata(completion, this.textModel.getLanguageId()));
 
 				if (completion.displayLocation === undefined) {
 					// do not move the cursor when the completion is displayed in a different location
@@ -975,7 +984,11 @@ export class InlineCompletionsModel extends Disposable {
 			// This assumes that the inline completion and the model use the same EOL style.
 			const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
 			const acceptedLength = text.length;
-			completion.reportPartialAccept(acceptedLength, { kind, acceptedLength: acceptedLength });
+			completion.reportPartialAccept(
+				acceptedLength,
+				{ kind, acceptedLength: acceptedLength },
+				{ characters: acceptUntilIndexExclusive, ratio: acceptUntilIndexExclusive / ghostTextVal.length, count: 1 }
+			);
 
 		} finally {
 			completion.removeRef();
@@ -994,6 +1007,10 @@ export class InlineCompletionsModel extends Disposable {
 		augmentedCompletion.completion.reportPartialAccept(itemEdit.text.length, {
 			kind: PartialAcceptTriggerKind.Suggest,
 			acceptedLength,
+		}, {
+			characters: itemEdit.text.length,
+			count: 1,
+			ratio: 1
 		});
 	}
 

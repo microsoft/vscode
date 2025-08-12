@@ -25,8 +25,9 @@ import { UntitledTextEditorInput } from '../../../services/untitled/common/untit
 import { createNotebookOutputVariableEntry, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT_CONST } from '../../notebook/browser/contrib/chat/notebookChatUtils.js';
 import { getOutputViewModelFromId } from '../../notebook/browser/controller/cellOutputActions.js';
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
+import { SCMHistoryItemTransferData } from '../../scm/browser/scmHistoryChatContext.js';
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../common/chatModel.js';
-import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind } from '../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, OmittedState, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, ISCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { imageToHash } from './chatPasteProviders.js';
 import { resizeImage } from './imageUtils.js';
@@ -45,6 +46,7 @@ export interface IChatAttachmentResolveService {
 	resolveMarkerAttachContext(markers: MarkerTransferData[]): IDiagnosticVariableEntry[];
 	resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): ISymbolVariableEntry[];
 	resolveNotebookOutputAttachContext(data: NotebookCellOutputTransferData): IChatRequestVariableEntry[];
+	resolveSourceControlHistoryItemAttachContext(data: SCMHistoryItemTransferData[]): ISCMHistoryItemVariableEntry[];
 }
 
 export class ChatAttachmentResolveService implements IChatAttachmentResolveService {
@@ -273,6 +275,21 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		}
 
 		return [];
+	}
+
+	// --- SOURCE CONTROL ---
+
+	public resolveSourceControlHistoryItemAttachContext(data: SCMHistoryItemTransferData[]): ISCMHistoryItemVariableEntry[] {
+		return data.map(d => ({
+			id: d.historyItem.id,
+			name: d.name,
+			value: URI.revive(d.resource),
+			historyItem: {
+				...d.historyItem,
+				references: []
+			},
+			kind: 'scmHistoryItem'
+		} satisfies ISCMHistoryItemVariableEntry));
 	}
 }
 

@@ -17,14 +17,16 @@
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title  {
-	display: flex;
-	align-items: center;
 	width: 100%;
 	border-radius: 3px;
 	padding: 3px 8px;
 	user-select: none;
-	gap: 4px;
-	border: none;
+
+	&.monaco-button {
+		display: flex;
+		align-items: center;
+		border: 0;
+	}
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.expandable {
@@ -106,6 +108,23 @@
 	&:last-child {
 		margin-bottom: 0;
 	}
+}
+
+.chat-confirmation-widget .chat-buttons-container {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+}
+
+.chat-confirmation-widget .chat-buttons {
+	display: flex;
+	gap: 8px;
+}
+
+.chat-confirmation-widget .chat-toolbar {
+	display: flex;
+	align-items: center;
 }
 
 .chat-confirmation-widget.collapsed .chat-confirmation-widget-message {

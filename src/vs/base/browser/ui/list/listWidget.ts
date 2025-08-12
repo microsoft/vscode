@@ -29,7 +29,7 @@ import { isNumber } from '../../../common/types.js';
 import './list.css';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListElementRenderDetails, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView.js';
-import { StandardMouseEvent } from '../../mouseEvent.js';
+import { IMouseWheelEvent, StandardMouseEvent } from '../../mouseEvent.js';
 import { autorun, constObservable, IObservable } from '../../../common/observable.js';
 
 interface ITraitChangeEvent {
@@ -672,10 +672,10 @@ const DefaultMultipleSelectionController = {
 export class MouseController<T> implements IDisposable {
 
 	private multipleSelectionController: IMultipleSelectionController<T> | undefined;
-	private mouseSupport: boolean;
+	private readonly mouseSupport: boolean;
 	private readonly disposables = new DisposableStore();
 
-	private _onPointer = new Emitter<IListMouseEvent<T>>();
+	private readonly _onPointer = this.disposables.add(new Emitter<IListMouseEvent<T>>());
 	readonly onPointer: Event<IListMouseEvent<T>> = this._onPointer.event;
 
 	constructor(protected list: List<T>) {
@@ -1969,6 +1969,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	style(styles: IListStyles): void {
 		this.styleController.style(styles);
+	}
+
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	private toListEvent({ indexes, browserEvent }: ITraitChangeEvent) {

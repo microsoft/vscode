@@ -9,6 +9,7 @@ import { DebugNameData } from '../debugName.js';
 import { BugIndicatingError, DisposableStore, EqualityComparer, assertFn, onBugIndicatingError } from '../commonFacade/deps.js';
 import { getLogger } from '../logging/logging.js';
 import { IChangeTracker } from '../changeTracker.js';
+import { DebugLocation } from '../debugLocation.js';
 
 export interface IDerivedReader<TChange = void> extends IReaderWithStore {
 	/**
@@ -65,8 +66,9 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 		private readonly _changeTracker: IChangeTracker<TChangeSummary> | undefined,
 		private readonly _handleLastObserverRemoved: (() => void) | undefined = undefined,
 		private readonly _equalityComparator: EqualityComparer<T>,
+		debugLocation: DebugLocation,
 	) {
-		super();
+		super(debugLocation);
 		this._changeSummary = this._changeTracker?.createChangeSummary(undefined);
 	}
 
@@ -427,6 +429,7 @@ export class DerivedWithSetter<T, TChangeSummary = any, TOutChanges = any> exten
 		handleLastObserverRemoved: (() => void) | undefined = undefined,
 		equalityComparator: EqualityComparer<T>,
 		public readonly set: (value: T, tx: ITransaction | undefined, change: TOutChanges) => void,
+		debugLocation: DebugLocation,
 	) {
 		super(
 			debugNameData,
@@ -434,6 +437,7 @@ export class DerivedWithSetter<T, TChangeSummary = any, TOutChanges = any> exten
 			changeTracker,
 			handleLastObserverRemoved,
 			equalityComparator,
+			debugLocation,
 		);
 	}
 }

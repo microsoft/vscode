@@ -88,7 +88,7 @@ function Global:Prompt() {
 	$Result = ""
 	# Skip finishing the command if the first command has not yet started or an execution has not
 	# yet begun
-	if ($Global:__VSCodeState.LastHistoryId -ne -1 -and $Global:__VSCodeState.IsInExecution -eq $true) {
+	if ($Global:__VSCodeState.LastHistoryId -ne -1 -and ($Global:__VSCodeState.HasPSReadLine -eq $false -or $Global:__VSCodeState.IsInExecution -eq $true)) {
 		$Global:__VSCodeState.IsInExecution = $false
 		if ($LastHistoryEntry.Id -eq $Global:__VSCodeState.LastHistoryId) {
 			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
@@ -153,7 +153,9 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
+$Global:__VSCodeState.HasPSReadLine = $false
 if (Get-Module -Name PSReadLine) {
+	$Global:__VSCodeState.HasPSReadLine = $true
 	[Console]::Write("$([char]0x1b)]633;P;HasRichCommandDetection=True`a")
 
 	$Global:__VSCodeState.OriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
