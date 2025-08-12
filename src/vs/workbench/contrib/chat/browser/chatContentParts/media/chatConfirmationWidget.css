@@ -223,12 +223,14 @@
 }
 
 
-.interactive-session .interactive-response .chat-confirmation-widget2 .chat-confirmation-message-terminal .interactive-result-code-block {
+.chat-confirmation-widget2 .chat-confirmation-message-terminal .interactive-result-code-block {
 	border-radius: 0px;
 }
-.interactive-session .interactive-response .chat-confirmation-widget2 .chat-confirmation-widget-buttons:not(:has(.chat-confirmation-widget-buttons)) .chat-confirmation-message-terminal .interactive-result-code-block {
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
+.chat-confirmation-widget2.hideButtons .chat-confirmation-widget-message,
+.chat-confirmation-widget2.hideButtons .chat-confirmation-message-terminal .interactive-result-code-block,
+.chat-confirmation-widget2.hideButtons .chat-confirmation-message-terminal:not(:has(.interactive-result-code-block)) {
+	border-bottom-left-radius: 4px !important;
+	border-bottom-right-radius: 4px !important;
 }
 
 .chat-confirmation-widget2.hideButtons .chat-confirmation-widget-buttons,
