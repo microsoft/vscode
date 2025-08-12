@@ -148,6 +148,43 @@ suite('Workbench - TerminalProfiles', () => {
 					strictEqual(profiles[0].profileName, 'PowerShell');
 				});
 			});
+			test('should not call getWslProfiles when useWslProfiles is false', async () => {
+				// This test ensures that WSL detection is not performed when useWslProfiles is disabled
+				const fsProvider = createFsProvider([]);
+				const config: ITestTerminalConfig = {
+					profiles: {
+						windows: {},
+						linux: {},
+						osx: {}
+					},
+					useWslProfiles: false
+				};
+				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
+				
+				// Mock cp.exec to verify it's not called with wsl.exe
+				const originalExec = require('child_process').exec;
+				let wslExecCalled = false;
+				require('child_process').exec = (cmd: string, options: any, callback: any) => {
+					if (cmd.includes('wsl.exe')) {
+						wslExecCalled = true;
+					}
+					return originalExec(cmd, options, callback);
+				};
+				
+				try {
+					const profiles = await detectAvailableProfiles(undefined, undefined, true, configurationService, process.env, fsProvider, undefined, undefined, undefined);
+					
+					// Verify that wsl.exe was not called
+					strictEqual(wslExecCalled, false, 'wsl.exe should not be called when useWslProfiles is false');
+					
+					// Verify that no WSL profiles are returned
+					const wslProfiles = profiles.filter(p => p.profileName.includes('(WSL)'));
+					strictEqual(wslProfiles.length, 0, 'No WSL profiles should be detected when useWslProfiles is false');
+				} finally {
+					// Restore original exec
+					require('child_process').exec = originalExec;
+				}
+			});
 		} else {
 			const absoluteConfig = ({
 				profiles: {
