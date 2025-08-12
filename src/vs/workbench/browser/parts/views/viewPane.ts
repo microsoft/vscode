@@ -219,7 +219,7 @@ class ViewWelcomeController {
 
 	private render(): void {
 		this.renderDisposables.clear();
-		this.element!.innerText = '';
+		this.element!.textContent = '';
 
 		const contents = this.getContentDescriptors();
 
@@ -342,8 +342,8 @@ export abstract class ViewPane extends Pane implements IView {
 
 	readonly menuActions: ViewMenuActions;
 
-	private progressBar!: ProgressBar;
-	private progressIndicator!: IProgressIndicator;
+	private progressBar?: ProgressBar;
+	private progressIndicator?: IProgressIndicator;
 
 	private toolbar?: WorkbenchToolBar;
 	private readonly showActions: ViewPaneShowActions;
@@ -355,7 +355,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private iconContainer?: HTMLElement;
 	private iconContainerHover?: IManagedHover;
 	protected twistiesContainer?: HTMLElement;
-	private viewWelcomeController!: ViewWelcomeController;
+	private viewWelcomeController?: ViewWelcomeController;
 
 	private readonly headerActionViewItems: DisposableMap<string, IActionViewItem> = this._register(new DisposableMap());
 
@@ -625,7 +625,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected layoutBody(height: number, width: number): void {
-		this.viewWelcomeController.layout(height, width);
+		this.viewWelcomeController?.layout(height, width);
 	}
 
 	onDidScrollRoot() {
@@ -634,7 +634,6 @@ export abstract class ViewPane extends Pane implements IView {
 
 	getProgressIndicator() {
 		if (this.progressBar === undefined) {
-			// Progress bar
 			this.progressBar = this._register(new ProgressBar(this.element, defaultProgressBarStyles));
 			this.progressBar.hide();
 		}
@@ -660,7 +659,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	focus(): void {
-		if (this.viewWelcomeController.enabled) {
+		if (this.viewWelcomeController?.enabled) {
 			this.viewWelcomeController.focus();
 		} else if (this.element) {
 			this.element.focus();

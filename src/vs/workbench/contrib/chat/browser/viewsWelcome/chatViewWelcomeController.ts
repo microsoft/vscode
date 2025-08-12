@@ -8,6 +8,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -20,7 +21,9 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 
 const $ = dom.$;
 
@@ -142,6 +145,7 @@ export class ChatViewWelcomePart extends Disposable {
 		@ILogService private logService: ILogService,
 		@IChatWidgetService private chatWidgetService: IChatWidgetService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
 		this.element = dom.$('.chat-welcome-view');
@@ -160,13 +164,15 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 
 			// Preview indicator
-			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent) {
+			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
+			if (typeof content.message !== 'function' && options?.isWidgetAgentWelcomeViewContent && !expEmptyState) {
 				const container = dom.append(this.element, $('.chat-welcome-view-indicator-container'));
 				dom.append(container, $('.chat-welcome-view-subtitle', undefined, localize('agentModeSubtitle', "Agent Mode")));
 			}
 
 			// Message
 			const message = dom.append(this.element, content.isExperimental ? $('.chat-welcome-experimental-view-message') : $('.chat-welcome-view-message'));
+			message.classList.toggle('experimental-empty-state', expEmptyState);
 			if (typeof content.message === 'function') {
 				dom.append(message, content.message(this._register(new DisposableStore())));
 			} else {
@@ -183,14 +189,17 @@ export class ChatViewWelcomePart extends Disposable {
 					const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
 					for (const prompt of content.suggestedPrompts) {
 						const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
+						// Make the prompt element keyboard accessible
+						promptElement.setAttribute('role', 'button');
+						promptElement.setAttribute('tabindex', '0');
+						promptElement.setAttribute('aria-label', localize('suggestedPromptAriaLabel', 'Suggested prompt: {0}', prompt.label));
 						if (prompt.icon) {
 							const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
 							iconElement.appendChild(renderIcon(prompt.icon));
 						}
 						const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
 						labelElement.textContent = prompt.label;
-						this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, () => {
-
+						const executePrompt = () => {
 							type SuggestedPromptClickEvent = { suggestedPrompt: string };
 
 							type SuggestedPromptClickData = {
@@ -203,7 +212,25 @@ export class ChatViewWelcomePart extends Disposable {
 								suggestedPrompt: prompt.prompt,
 							});
 
-							this.chatWidgetService.lastFocusedWidget?.setInput(prompt.prompt);
+							if (!this.chatWidgetService.lastFocusedWidget) {
+								const widgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+								if (widgets.length) {
+									widgets[0].setInput(prompt.prompt);
+								}
+							} else {
+								this.chatWidgetService.lastFocusedWidget.setInput(prompt.prompt);
+							}
+						};
+						// Add click handler
+						this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, executePrompt));
+						// Add keyboard handler for Enter and Space keys
+						this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
+							const event = new StandardKeyboardEvent(e);
+							if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+								e.preventDefault();
+								e.stopPropagation();
+								executePrompt();
+							}
 						}));
 					}
 				}

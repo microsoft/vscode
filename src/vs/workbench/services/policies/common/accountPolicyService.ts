@@ -5,6 +5,7 @@
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { equals } from '../../../../base/common/objects.js';
+import { PolicyTag } from '../../../../base/common/policy.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
@@ -12,12 +13,14 @@ import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js'
 interface IAccountPolicy {
 	readonly chatPreviewFeaturesEnabled: boolean;
 	readonly mcpEnabled: boolean;
+	readonly chatAgentEnabled: boolean;
 }
 
 export class AccountPolicyService extends AbstractPolicyService implements IPolicyService {
 	private accountPolicy: IAccountPolicy = {
 		chatPreviewFeaturesEnabled: true,
-		mcpEnabled: true
+		mcpEnabled: true,
+		chatAgentEnabled: true
 	};
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -29,12 +32,14 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			.then(account => {
 				this._update({
 					chatPreviewFeaturesEnabled: account?.chat_preview_features_enabled ?? true,
-					mcpEnabled: account?.mcp ?? true
+					mcpEnabled: account?.mcp ?? true,
+					chatAgentEnabled: account?.chat_agent_enabled ?? true
 				});
 				this._register(this.defaultAccountService.onDidChangeDefaultAccount(
 					account => this._update({
 						chatPreviewFeaturesEnabled: account?.chat_preview_features_enabled ?? true,
-						mcpEnabled: account?.mcp ?? true
+						mcpEnabled: account?.mcp ?? true,
+						chatAgentEnabled: account?.chat_agent_enabled ?? true
 					})
 				));
 			});
@@ -68,15 +73,23 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			}
 		};
 
+		const hasAllTags = (policy: PolicyDefinition, tags: PolicyTag[]): boolean | undefined => {
+			return policy.tags && tags.every(tag => policy.tags!.includes(tag));
+		};
+
 		for (const key in policyDefinitions) {
 			const policy = policyDefinitions[key];
-			// Preview Features
-			if (policy.previewFeature) {
+
+			// Map chat preview features with ACCOUNT + PREVIEW tags
+			if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.Preview])) {
 				updateIfNeeded(key, policy, this.accountPolicy?.chatPreviewFeaturesEnabled);
 			}
-			// MCP
-			else if (key === 'ChatMCP') {
+			// Map MCP feature with MCP tag
+			else if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.MCP])) {
 				updateIfNeeded(key, policy, this.accountPolicy?.mcpEnabled);
+			}
+			else if (hasAllTags(policy, [PolicyTag.Account, PolicyTag.Agent])) {
+				updateIfNeeded(key, policy, this.accountPolicy?.chatAgentEnabled);
 			}
 		}
 

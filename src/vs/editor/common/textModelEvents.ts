@@ -7,7 +7,7 @@ import { IPosition } from './core/position.js';
 import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
-import { TextModelEditReason } from './textModelEditReason.js';
+import { TextModelEditSource } from './textModelEditSource.js';
 
 /**
  * An event describing that the current language associated with a model has changed.
@@ -92,7 +92,7 @@ export interface IModelContentChangedEvent {
 	 * Detailed reason information for the change
 	 * @internal
 	 */
-	readonly detailedReasons: TextModelEditReason[];
+	readonly detailedReasons: TextModelEditSource[];
 
 	/**
 	 * The sum of these lengths equals changes.length.

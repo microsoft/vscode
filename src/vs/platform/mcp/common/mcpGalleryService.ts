@@ -177,6 +177,23 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
+		let icon: { light: string; dark: string } | undefined;
+		const mcpGalleryUrl = this.getMcpGalleryUrl();
+		if (mcpGalleryUrl && this.productService.extensionsGallery?.mcpUrl !== mcpGalleryUrl) {
+			if (item.iconUrl) {
+				icon = {
+					light: item.iconUrl,
+					dark: item.iconUrl
+				};
+			}
+			if (item.iconUrlLight && item.iconUrlDark) {
+				icon = {
+					light: item.iconUrlLight,
+					dark: item.iconUrlDark
+				};
+			}
+		}
+
 		return {
 			id: item.id ?? item.name,
 			name: item.name,
@@ -187,6 +204,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			lastUpdated: item.version_detail ? Date.parse(item.version_detail.release_date) : undefined,
 			repositoryUrl: item.repository?.url,
 			codicon: item.codicon,
+			icon,
 			readmeUrl: item.readmeUrl,
 			manifestUrl: this.getManifestUrl(item),
 			packageTypes: item.package_types ?? [],

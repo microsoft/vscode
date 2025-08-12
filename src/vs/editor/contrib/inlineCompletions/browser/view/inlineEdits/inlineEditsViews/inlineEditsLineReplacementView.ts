@@ -23,7 +23,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
 import { getEditorValidOverlayRect, getPrefixTrim, mapOutFalsy, rectToProps } from '../utils/utils.js';
@@ -45,6 +45,8 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 	private readonly _div;
 
 	readonly isHovered;
+
+	readonly minEditorScrollHeight;
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
@@ -187,6 +189,13 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			const viewZoneHeight = layout.lowerBackground.height;
 			const viewZoneLineNumber = edit.originalRange.endLineNumberExclusive;
 			return { height: viewZoneHeight, lineNumber: viewZoneLineNumber };
+		});
+		this.minEditorScrollHeight = derived(reader => {
+			const layout = mapOutFalsy(this._layout).read(reader);
+			if (!layout || this._viewZoneInfo.read(reader) !== undefined) {
+				return 0;
+			}
+			return layout.read(reader).lowerText.bottom + this._editor.editor.getScrollTop();
 		});
 		this._div = n.div({
 			class: 'line-replacement',

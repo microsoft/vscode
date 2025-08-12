@@ -7,6 +7,7 @@ import { AutorunObserver } from '../reactions/autorunImpl.js';
 import { IObservable } from '../base.js';
 import { TransactionImpl } from '../transaction.js';
 import type { Derived } from '../observables/derivedImpl.js';
+import { DebugLocation } from '../debugLocation.js';
 
 let globalObservableLogger: IObservableLogger | undefined;
 
@@ -44,12 +45,12 @@ export interface IChangeInformation {
 }
 
 export interface IObservableLogger {
-	handleObservableCreated(observable: IObservable<any>): void;
+	handleObservableCreated(observable: IObservable<any>, location: DebugLocation): void;
 	handleOnListenerCountChanged(observable: IObservable<any>, newCount: number): void;
 
 	handleObservableUpdated(observable: IObservable<any>, info: IChangeInformation): void;
 
-	handleAutorunCreated(autorun: AutorunObserver): void;
+	handleAutorunCreated(autorun: AutorunObserver, location: DebugLocation): void;
 	handleAutorunDisposed(autorun: AutorunObserver): void;
 	handleAutorunDependencyChanged(autorun: AutorunObserver, observable: IObservable<any>, change: unknown): void;
 	handleAutorunStarted(autorun: AutorunObserver): void;
@@ -67,9 +68,9 @@ class ComposedLogger implements IObservableLogger {
 		public readonly loggers: IObservableLogger[],
 	) { }
 
-	handleObservableCreated(observable: IObservable<any>): void {
+	handleObservableCreated(observable: IObservable<any>, location: DebugLocation): void {
 		for (const logger of this.loggers) {
-			logger.handleObservableCreated(observable);
+			logger.handleObservableCreated(observable, location);
 		}
 	}
 	handleOnListenerCountChanged(observable: IObservable<any>, newCount: number): void {
@@ -82,9 +83,9 @@ class ComposedLogger implements IObservableLogger {
 			logger.handleObservableUpdated(observable, info);
 		}
 	}
-	handleAutorunCreated(autorun: AutorunObserver): void {
+	handleAutorunCreated(autorun: AutorunObserver, location: DebugLocation): void {
 		for (const logger of this.loggers) {
-			logger.handleAutorunCreated(autorun);
+			logger.handleAutorunCreated(autorun, location);
 		}
 	}
 	handleAutorunDisposed(autorun: AutorunObserver): void {

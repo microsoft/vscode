@@ -2,7 +2,6 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"experimentalDecorators": true,
 		"typeRoots": [
 			"./node_modules/@types"
 		]
@@ -17,6 +16,7 @@
 		"../../src/vscode-dts/vscode.proposed.quickPickSortByLabel.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmActionButton.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmHistoryProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.scmProviderOptions.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmSelectedProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmValidation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmMultiDiffEditor.d.ts",

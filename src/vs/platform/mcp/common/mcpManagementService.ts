@@ -6,11 +6,13 @@
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
@@ -18,7 +20,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService } from './mcpManagement.js';
 import { IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
@@ -43,7 +45,7 @@ export interface ILocalMcpServerInfo {
 	licenseUrl?: string;
 }
 
-export abstract class AbstractMcpResourceManagementService extends Disposable implements IMcpManagementService {
+export abstract class AbstractMcpResourceManagementService extends Disposable {
 
 	_serviceBrand: undefined;
 
@@ -82,8 +84,11 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 	private initialize(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
-				this.local = await this.populateLocalServers();
-				this.startWatching();
+				try {
+					this.local = await this.populateLocalServers();
+				} finally {
+					this.startWatching();
+				}
 			})();
 		}
 		return this.initializePromise;
@@ -176,7 +181,6 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 			mcpResource: this.mcpResource,
 			version: mcpServerInfo.version,
 			location: mcpServerInfo.location,
-			id: mcpServerInfo.id,
 			displayName: mcpServerInfo.displayName,
 			description: mcpServerInfo.description,
 			publisher: mcpServerInfo.publisher,
@@ -319,6 +323,13 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 			else if (serverPackage.registry_name === PackageType.DOCKER) {
 				args.push(serverPackage.version ? `${serverPackage.name}:${serverPackage.version}` : serverPackage.name);
 			}
+			else if (serverPackage.registry_name === PackageType.NUGET) {
+				args.push(serverPackage.version ? `${serverPackage.name}@${serverPackage.version}` : serverPackage.name);
+			}
+
+			if (serverPackage.package_arguments && serverPackage.registry_name === PackageType.NUGET) {
+				args.push('--');
+			}
 
 			for (const arg of serverPackage.package_arguments ?? []) {
 				const variables = arg.variables ? this.getVariables(arg.variables) : [];
@@ -364,6 +375,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 			case PackageType.NODE: return 'npx';
 			case PackageType.DOCKER: return 'docker';
 			case PackageType.PYTHON: return 'uvx';
+			case PackageType.NUGET: return 'dnx';
 		}
 		return packageType;
 	}
@@ -386,11 +398,12 @@ export abstract class AbstractMcpResourceManagementService extends Disposable im
 	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	abstract updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<ILocalMcpServer>;
 	protected abstract getLocalServerInfo(name: string, mcpServerConfig: IMcpServerConfiguration): Promise<ILocalMcpServerInfo | undefined>;
+	protected abstract installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer>;
 }
 
-export class McpUserResourceManagementService extends AbstractMcpResourceManagementService implements IMcpManagementService {
+export class McpUserResourceManagementService extends AbstractMcpResourceManagementService {
 
-	private readonly mcpLocation: URI;
+	protected readonly mcpLocation: URI;
 
 	constructor(
 		mcpResource: URI,
@@ -498,16 +511,49 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		return storedMcpServerInfo;
 	}
 
-	private getLocation(name: string, version?: string): URI {
+	protected getLocation(name: string, version?: string): URI {
 		name = name.replace('/', '.');
 		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, version ? `${name}-${version}` : name);
 	}
 
+	protected override installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
+		throw new Error('Method not supported.');
+	}
+
 }
 
-export class McpManagementService extends Disposable implements IMcpManagementService {
+export abstract class AbstractMcpManagementService extends Disposable implements IMcpManagementService {
 
 	readonly _serviceBrand: undefined;
+
+	constructor(
+		@IAllowedMcpServersService protected readonly allowedMcpServersService: IAllowedMcpServersService,
+	) {
+		super();
+	}
+
+	canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		const allowedToInstall = this.allowedMcpServersService.isAllowed(server);
+		if (allowedToInstall !== true) {
+			return new MarkdownString(localize('not allowed to install', "This mcp server cannot be installed because {0}", allowedToInstall.value));
+		}
+		return true;
+	}
+
+	abstract onInstallMcpServer: Event<InstallMcpServerEvent>;
+	abstract onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
+	abstract onDidUpdateMcpServers: Event<readonly InstallMcpServerResult[]>;
+	abstract onUninstallMcpServer: Event<UninstallMcpServerEvent>;
+	abstract onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
+
+	abstract getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]>;
+	abstract install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
+	abstract updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
+	abstract uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
+}
+
+export class McpManagementService extends AbstractMcpManagementService implements IMcpManagementService {
 
 	private readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
 	readonly onInstallMcpServer = this._onInstallMcpServer.event;
@@ -527,17 +573,18 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 	private readonly mcpResourceManagementServices = new ResourceMap<{ service: McpUserResourceManagementService } & IDisposable>();
 
 	constructor(
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
-		super();
+		super(allowedMcpServersService);
 	}
 
 	private getMcpResourceManagementService(mcpResource: URI): McpUserResourceManagementService {
 		let mcpResourceManagementService = this.mcpResourceManagementServices.get(mcpResource);
 		if (!mcpResourceManagementService) {
 			const disposables = new DisposableStore();
-			const service = disposables.add(this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource));
+			const service = disposables.add(this.createMcpResourceManagementService(mcpResource));
 			disposables.add(service.onInstallMcpServer(e => this._onInstallMcpServer.fire(e)));
 			disposables.add(service.onDidInstallMcpServers(e => this._onDidInstallMcpServers.fire(e)));
 			disposables.add(service.onDidUpdateMcpServers(e => this._onDidUpdateMcpServers.fire(e)));
@@ -576,6 +623,10 @@ export class McpManagementService extends Disposable implements IMcpManagementSe
 		this.mcpResourceManagementServices.forEach(service => service.dispose());
 		this.mcpResourceManagementServices.clear();
 		super.dispose();
+	}
+
+	protected createMcpResourceManagementService(mcpResource: URI): McpUserResourceManagementService {
+		return this.instantiationService.createInstance(McpUserResourceManagementService, mcpResource);
 	}
 
 }

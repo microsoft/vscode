@@ -149,19 +149,23 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			}
 
 			this.hasCustomModes.set(this._customModeInstances.size > 0);
-
-			if (fireChangeEvent) {
-				this._onDidChangeChatModes.fire();
-			}
 		} catch (error) {
 			this.logService.error(error, 'Failed to load custom chat modes');
 			this._customModeInstances.clear();
 			this.hasCustomModes.set(false);
 		}
+		if (fireChangeEvent) {
+			this._onDidChangeChatModes.fire();
+		}
 	}
 
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
-		return { builtin: this.getBuiltinModes(), custom: Array.from(this._customModeInstances.values()) };
+		return {
+			builtin: this.getBuiltinModes(),
+			custom: this.chatAgentService.hasToolsAgent ?
+				Array.from(this._customModeInstances.values()) :
+				[]
+		};
 	}
 
 	private getFlatModes(): IChatMode[] {
@@ -333,9 +337,9 @@ export class BuiltinChatMode implements IChatMode {
 }
 
 export namespace ChatMode {
-	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Ask Copilot"));
-	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit files in your workspace"));
-	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Edit files in your workspace in agent mode"));
+	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Ask a question."));
+	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit files."));
+	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Provide instructions."));
 }
 
 export function isBuiltinChatMode(mode: IChatMode): boolean {

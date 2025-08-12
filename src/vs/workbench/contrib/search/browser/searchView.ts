@@ -543,9 +543,9 @@ export class SearchView extends ViewPane {
 		// Subscribe to AI search result changes and update the tree when new AI results are reported
 		this._onAIResultChangedDisposable?.dispose();
 		this._onAIResultChangedDisposable = this._register(
-			this.viewModel.searchResult.aiTextSearchResult.onChange(() => {
+			this.viewModel.searchResult.aiTextSearchResult.onChange((e) => {
 				// Only refresh the AI node, not the whole tree
-				if (this.tree && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
+				if (this.tree && this.tree.hasNode(this.searchResult.aiTextSearchResult) && !e.removed) {
 					this.tree.updateChildren(this.searchResult.aiTextSearchResult);
 				}
 			})
@@ -1349,6 +1349,7 @@ export class SearchView extends ViewPane {
 			this.searchWidget.clear();
 		}
 		this.viewModel.cancelSearch();
+		this.viewModel.cancelAISearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
 		this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
@@ -1746,10 +1747,10 @@ export class SearchView extends ViewPane {
 
 			if (aiName) {
 				const searchWithAIButtonTooltip = appendKeyBindingLabel(
-					nls.localize('triggerAISearch.tooltip', "Search with {0}", aiName),
+					nls.localize('triggerAISearch.tooltip', "Search with AI."),
 					this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
 				);
-				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with {0}.", aiName);
+				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with AI.");
 				const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
 					searchWithAIButtonText,
 					() => {
@@ -1858,17 +1859,17 @@ export class SearchView extends ViewPane {
 
 	public clearAIResults() {
 		this.model.searchResult.aiTextSearchResult.hidden = true;
-		if (!this._pendingSemanticSearchPromise) {
-			this._cachedResults = undefined;
-			this._cachedKeywords = [];
-			this.model.cancelAISearch(true);
-			this.model.clearAiSearchResults();
-		}
+		this.refreshTreeController.clearAllPending();
+		this._pendingSemanticSearchPromise = undefined;
+		this._cachedResults = undefined;
+		this._cachedKeywords = [];
+		this.model.cancelAISearch(true);
+		this.model.clearAiSearchResults();
 	}
 
 	public async requestAIResults() {
 		this.logService.info(`SearchView: Requesting semantic results from keybinding. Cached: ${!!this.cachedResults}`);
-		if (!this.cachedResults || this.cachedResults.results.length === 0) {
+		if ((!this.cachedResults || this.cachedResults.results.length === 0) && !this._pendingSemanticSearchPromise) {
 			this.clearAIResults();
 		}
 		this.model.searchResult.aiTextSearchResult.hidden = false;
@@ -2645,6 +2646,10 @@ class RefreshTreeController extends Disposable {
 	}
 
 	private queuedIChangeEvents: IChangeEvent[] = [];
+
+	public clearAllPending(): void {
+		this.searchView.getControl().cancelAllRefreshPromises(true);
+	}
 
 	public async queue(e?: IChangeEvent): Promise<void> {
 		if (e) {
