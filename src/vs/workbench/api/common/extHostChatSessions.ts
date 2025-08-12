@@ -150,7 +150,9 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				response.push({
 					id: sessionContent.id,
 					label: sessionContent.label,
-					iconPath: sessionContent.iconPath
+					iconPath: sessionContent.iconPath,
+					description: sessionContent.description,
+					status: sessionContent.status
 				});
 			}
 		}
