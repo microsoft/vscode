@@ -23,9 +23,10 @@ suite('racePollingOrPrompt', () => {
 	test('getOutput enforces 16000 character limit', () => {
 		const longString = 'A'.repeat(17000);
 		const terminal = new RawXtermTerminal();
-		terminal.write(longString);
-		const output = getOutput(terminal);
-		assert.strictEqual(output, longString.slice(-16000));
+		terminal.write(longString, () => {
+			const output = getOutput(terminal);
+			assert.strictEqual(output, longString.slice(-16000));
+		});
 	});
 
 	/**
