@@ -74,6 +74,7 @@ export namespace ChatContextKeys {
 	};
 
 	export const Entitlement = {
+		internal: new RawContextKey<boolean>('chatEntitlementInternal', false, true), // True when user is a chat internal user.
 		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), // True when user is signed out.
 		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat free user.
 		free: new RawContextKey<boolean>('chatPlanFree', false, true),					// True when user is a chat free user.
