@@ -48,11 +48,9 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, ChatSessionStatus } from '../common/chatSessionsService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { IChatWidget, IChatWidgetService } from './chat.js';
@@ -553,9 +551,15 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 // Tree delegate for session items
 class SessionsDelegate implements IListVirtualDelegate<IChatSessionItem> {
 	static readonly ITEM_HEIGHT = 22;
+	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 38; // Slightly smaller for cleaner look
 
 	getHeight(element: IChatSessionItem): number {
-		return SessionsDelegate.ITEM_HEIGHT;
+		// Check if element has a non-empty description
+		const hasDescription = 'description' in element &&
+			typeof element.description === 'string' &&
+			element.description.trim().length > 0;
+
+		return hasDescription ? SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION : SessionsDelegate.ITEM_HEIGHT;
 	}
 
 	getTemplateId(element: IChatSessionItem): string {

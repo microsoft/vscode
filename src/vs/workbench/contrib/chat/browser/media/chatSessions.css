@@ -52,3 +52,33 @@
 .chat-sessions-tree .monaco-list-row.selected .chat-session-item .actions .action-label {
 	display: block;
 }
+
+/* Multi-line description support - make it look like VS Code's built-in tree items */
+.chat-sessions-tree .chat-session-item .monaco-icon-label-container {
+	flex-direction: column !important;
+	align-items: flex-start !important;
+	gap: 1px;
+}
+
+.chat-sessions-tree .chat-session-item .monaco-icon-name-container {
+	display: flex;
+	align-items: center;
+	width: 100%;
+}
+
+.chat-sessions-tree .chat-session-item .monaco-icon-description-container {
+	width: 100%;
+	padding-left: 0;
+}
+
+.chat-sessions-tree .chat-session-item .monaco-icon-description-container > .label-description {
+	margin-left: 0 !important;
+	margin-top: 0;
+	opacity: 0.6;
+	font-size: 0.9em;
+	color: var(--vscode-descriptionForeground);
+	white-space: normal !important;
+	word-wrap: break-word;
+	line-height: 1.3;
+	display: block;
+}
