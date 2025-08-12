@@ -114,3 +114,14 @@ export interface IConfiguredTask {
 	problemMatcher?: string[];
 	group?: string;
 }
+
+export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task[] | undefined> {
+	if (!parentTask.configurationProperties?.dependsOn) {
+		return undefined;
+	}
+	const dependencyTasks = await Promise.all(parentTask.configurationProperties.dependsOn.map(async (dep: any) => {
+		const depId = typeof dep.task === 'string' ? dep.task : dep.task?._key;
+		return await getTaskForTool(depId, { taskLabel: dep.task }, workspaceFolder, configurationService, taskService);
+	}));
+	return dependencyTasks.filter((t: Task | undefined): t is Task => t !== undefined);
+}

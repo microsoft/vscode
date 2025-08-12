@@ -14,7 +14,7 @@ import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/ta
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../../bufferOutputPolling.js';
 import { getOutput } from '../../outputHelpers.js';
-import { getTaskForTool, IConfiguredTask } from '../../taskHelpers.js';
+import { IConfiguredTask, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -114,13 +114,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
 
-		let resolvedDependencyTasks: Task[] | undefined;
-		if (task.configurationProperties?.dependsOn) {
-			const dependencyTasks = await Promise.all(task.configurationProperties.dependsOn.map(async (dep: any) => {
-				return await getTaskForTool(typeof dep.task === 'string' ? dep.task : dep.task?._key, { taskLabel: dep.task }, args.workspaceFolder, this._configurationService, this._tasksService);
-			}));
-			resolvedDependencyTasks = dependencyTasks.filter((t: Task | undefined): t is Task => t !== undefined);
-		}
+		const resolvedDependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
 		const resources = this._tasksService.getTerminalsForTasks(resolvedDependencyTasks ?? task);
 		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean);
 		if (!terminals || terminals.length === 0) {

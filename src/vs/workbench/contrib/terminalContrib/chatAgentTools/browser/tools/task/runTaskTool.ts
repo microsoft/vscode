@@ -14,7 +14,7 @@ import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/ta
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../../bufferOutputPolling.js';
 import { getOutput } from '../../outputHelpers.js';
-import { getTaskDefinition, getTaskForTool } from '../../taskHelpers.js';
+import { getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 
@@ -68,13 +68,7 @@ export class RunTaskTool implements IToolImpl {
 		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
-		let resolvedDependencyTasks: Task[] | undefined;
-		if (task.configurationProperties.dependsOn) {
-			const dependencyTasks = await Promise.all(task.configurationProperties.dependsOn.map(async (dep) => {
-				return await getTaskForTool(typeof dep.task === 'string' ? dep.task : dep.task?._key, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
-			}));
-			resolvedDependencyTasks = dependencyTasks.filter((t): t is Task => t !== undefined);
-		}
+		const resolvedDependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
 		const resources = this._tasksService.getTerminalsForTasks(resolvedDependencyTasks ?? task);
 		if (!resources || resources.length === 0) {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskLabel)) };

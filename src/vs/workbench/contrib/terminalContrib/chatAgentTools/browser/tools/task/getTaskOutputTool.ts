@@ -9,10 +9,10 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, Task } from '../../../../../tasks/common/taskService.js';
+import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { getOutput } from '../../bufferOutputPolling.js';
-import { getTaskDefinition, getTaskForTool } from '../../taskHelpers.js';
+import { getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
@@ -79,13 +79,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		if (!task) {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
-		let resolvedDependencyTasks: Task[] | undefined;
-		if (task.configurationProperties?.dependsOn) {
-			const dependencyTasks = await Promise.all(task.configurationProperties.dependsOn.map(async (dep: any) => {
-				return await getTaskForTool(typeof dep.task === 'string' ? dep.task : dep.task?._key, { taskLabel: dep.task }, args.workspaceFolder, this._configurationService, this._tasksService);
-			}));
-			resolvedDependencyTasks = dependencyTasks.filter((t: Task | undefined): t is Task => t !== undefined);
-		}
+
+		const resolvedDependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
 		const resources = this._tasksService.getTerminalsForTasks(resolvedDependencyTasks ?? task);
 		const taskLabel = task._label;
 		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean);
