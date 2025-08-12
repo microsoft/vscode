@@ -6,15 +6,12 @@
 import { localize } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatWidgetService } from '../chat.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -47,22 +44,22 @@ export class RenameChatSessionAction extends Action2 {
 			return;
 		}
 
-		const dialogService = accessor.get(IDialogService);
+		const quickInputService = accessor.get(IQuickInputService);
 		const chatService = accessor.get(IChatService);
 		const notificationService = accessor.get(INotificationService);
 
 		try {
-			const result = await dialogService.input({
+			const result = await quickInputService.input({
 				prompt: localize('renameSession.prompt', "Enter new name for chat session"),
 				value: context.currentTitle,
-				validateInput: (value: string) => {
+				validateInput: async (value: string) => {
 					if (!value || value.trim().length === 0) {
 						return localize('renameSession.emptyName', "Name cannot be empty");
 					}
 					if (value.length > 100) {
 						return localize('renameSession.nameTooLong', "Name is too long (maximum 100 characters)");
 					}
-					return null;
+					return undefined;
 				}
 			});
 
@@ -76,13 +73,14 @@ export class RenameChatSessionAction extends Action2 {
 			}
 		} catch (error) {
 			notificationService.error(
-				localize('renameSession.error', "Failed to rename chat session: {0}", error.message || error)
+				localize('renameSession.error', "Failed to rename chat session: {0}", 
+					(error instanceof Error ? error.message : String(error)))
 			);
 		}
 	}
 }
 
-// Register the action
+// Register the menu item - only show for local chat sessions 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: RenameChatSessionAction.ID,
@@ -90,5 +88,5 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: '1_modification',
 	order: 1,
-	when: ContextKeyExpr.true()
+	when: ContextKeyExpr.true() // Will be filtered by context menu handler
 });
