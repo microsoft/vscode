@@ -161,7 +161,6 @@ export class CreateAndRunTaskTool implements IToolImpl {
 				: 'started and will continue to run in the background.';
 		}
 
-		// Provide all terminal outputs and polling durations to the model
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nPolling duration: ${r.pollDurationMs}ms\nOutput:\n${r.output}`).join('\n\n');
 		return {
 			content: [{ kind: 'text', value: `Task output summary:\n${details}` }],

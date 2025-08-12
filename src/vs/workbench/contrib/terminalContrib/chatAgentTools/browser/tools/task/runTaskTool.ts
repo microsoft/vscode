@@ -119,7 +119,7 @@ export class RunTaskTool implements IToolImpl {
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nPolling duration: ${r.pollDurationMs}ms\nOutput:\n${r.output}`).join('\n\n');
 		return {
 			content: [{ kind: 'text', value: `Task output summary:\n${details}` }],
-			toolResultMessage: output
+			toolResultMessage: new MarkdownString(output)
 		};
 	}
 
