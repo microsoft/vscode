@@ -35,7 +35,7 @@ export const IExtHostLanguageModels = createDecorator<IExtHostLanguageModels>('I
 type LanguageModelProviderData = {
 	readonly extension: ExtensionIdentifier;
 	readonly extensionName: string;
-	readonly provider: vscode.LanguageModelChatProvider2;
+	readonly provider: vscode.LanguageModelChatProvider;
 };
 
 class LanguageModelResponseStream {
@@ -175,7 +175,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._onDidChangeProviders.dispose();
 	}
 
-	registerLanguageModelProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider2): IDisposable {
+	registerLanguageModelProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
 
 		this._languageModelProviders.set(vendor, { extension: extension.identifier, extensionName: extension.displayName || extension.name, provider });
 		this._proxy.$registerLanguageModelProvider(vendor);

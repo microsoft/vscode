@@ -60,14 +60,14 @@ declare module 'vscode' {
 		readonly family: string;
 
 		/**
-		 * An optional, human-readable description of the language model.
+		 * The tooltip to render when hovering the model
 		 */
-		readonly description?: string;
+		readonly tooltip?: string;
 
 		/**
-		 * An optional, human-readable string representing the cost of using the language model.
+		 * An optional, human-readable string which will be rendered alongside the model.
 		 */
-		readonly cost?: string;
+		readonly detail?: string;
 
 		/**
 		 * Opaque version string of the model. This is defined by the extension contributing the language model
@@ -101,23 +101,17 @@ declare module 'vscode' {
 			// TODO@API should be `boolean | number` so extensions can express how many tools they support
 			readonly toolCalling?: boolean | number;
 
-			// TODO@API DO NOT SUPPORT THIS
-			// readonly agentMode?: boolean;
-
-			// TODO@API support prompt TSX style messages, MAYBE leave it out for now
-			readonly promptTsx?: boolean;
 		};
 
 		/**
 		 * Optional category to group models by in the model picker.
 		 * The lower the order, the higher the category appears in the list.
 		 * Has no effect if `isUserSelectable` is `false`.
-		 * If not specified, the model will appear in the "Other Models" category.
 		 */
 		readonly category?: { label: string; order: number };
 	}
 
-	export interface LanguageModelChatProvider2<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
 
 		// signals a change from the provider to the editor so that prepareLanguageModelChat is called again
 		onDidChangeLanguageModelInformation?: Event<void>;
@@ -132,7 +126,7 @@ declare module 'vscode' {
 
 	export namespace lm {
 
-		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider2): Disposable;
+		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
 	}
 
 	export interface PrepareLMChatModelOptions {
