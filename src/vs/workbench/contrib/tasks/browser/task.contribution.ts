@@ -44,6 +44,7 @@ import { promiseWithResolvers } from '../../../../base/common/async.js';
 import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
+import './generateTasksAction.js';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
