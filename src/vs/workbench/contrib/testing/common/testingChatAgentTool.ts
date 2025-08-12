@@ -85,7 +85,7 @@ class RunTestTool implements IToolImpl {
 				testNames: {
 					type: 'array',
 					items: { type: 'string' },
-					description: 'Array of case-insensitive substrings matched against test item labels (suite/class/case). Use to run only specific tests within the provided files. Omit to run all tests in those files.',
+					description: 'Array of substrings matched against test item labels (suite/class/case). Use to run only specific tests within the provided files. Omit to run all tests in those files.',
 				}
 			},
 		},
