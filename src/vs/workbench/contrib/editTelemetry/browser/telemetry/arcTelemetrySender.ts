@@ -7,7 +7,8 @@ import { sumBy } from '../../../../../base/common/arrays.js';
 import { TimeoutTimer } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { runOnChange, IObservableWithChange } from '../../../../../base/common/observable.js';
+import { runOnChange, IObservableWithChange, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { LineEdit } from '../../../../../editor/common/core/edits/lineEdit.js';
 import { AnnotatedStringEdit, BaseStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
@@ -22,6 +23,7 @@ export class InlineEditArcTelemetrySender extends Disposable {
 	constructor(
 		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
 		scmRepoBridge: ScmRepoBridge | undefined,
+		private readonly _document: { uri: URI; languageId: IObservable<string> },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -42,12 +44,14 @@ export class InlineEditArcTelemetrySender extends Disposable {
 			const data = edit.replacements[0].data.editSource.metadata;
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
+			const documentLanguageId = data.$$languageId || this._document.languageId.get();
 			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, [0, 30, 120, 300, 600, 900].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
 				res.telemetryService.publicLog2<{
 					extensionId: string;
 					extensionVersion: string;
 					opportunityId: string;
 					languageId: string;
+					mode: string;
 					didBranchChange: number;
 					timeDelayMs: number;
 					arc: number;
@@ -64,6 +68,7 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 					opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES.' };
 					languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
+					mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode of the edit (edit or agent).' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
@@ -77,7 +82,8 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					extensionId: data.$extensionId ?? '',
 					extensionVersion: data.$extensionVersion ?? '',
 					opportunityId: data.$$requestUuid ?? 'unknown',
-					languageId: data.$$languageId,
+					languageId: documentLanguageId,
+					mode: res.mode,
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
 					arc: res.arc,
@@ -87,7 +93,7 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					originalDeletedLineCount: res.originalDeletedLineCount,
 					currentDeletedLineCount: res.currentDeletedLineCount,
 				});
-			});
+			}, 'edit', documentLanguageId);
 
 			this._register(toDisposable(() => {
 				reporter.cancel();
@@ -100,6 +106,7 @@ export class ChatArcTelemetrySender extends Disposable {
 	constructor(
 		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
 		scmRepoBridge: ScmRepoBridge | undefined,
+		private readonly _document: { uri: URI; languageId: IObservable<string> },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -119,6 +126,7 @@ export class ChatArcTelemetrySender extends Disposable {
 			const data = edit.replacements[0].data.editSource;
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
+			const documentLanguageId = data.props.$$languageId || this._document.languageId.get();
 			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, [0, 60, 300].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
 				res.telemetryService.publicLog2<{
 					sourceKeyCleaned: string;
@@ -128,7 +136,8 @@ export class ChatArcTelemetrySender extends Disposable {
 					editSessionId: string | undefined;
 					requestId: string | undefined;
 					modelId: string | undefined;
-					languageId: string | undefined;
+					languageId: string;
+					mode: string;
 
 					didBranchChange: number;
 					timeDelayMs: number;
@@ -150,6 +159,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request id.' };
 					modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
 					languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
+					mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode of the edit (edit or agent).' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
@@ -174,7 +184,8 @@ export class ChatArcTelemetrySender extends Disposable {
 					editSessionId: data.props.$$sessionId,
 					requestId: data.props.$$requestId,
 					modelId: data.props.$modelId,
-					languageId: data.props.$$languageId,
+					languageId: documentLanguageId,
+					mode: res.mode,
 
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
@@ -185,7 +196,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					currentLineCount: res.currentLineCount,
 					originalDeletedLineCount: res.originalDeletedLineCount,
 				});
-			});
+			}, 'agent', documentLanguageId);
 
 			this._register(toDisposable(() => {
 				reporter.cancel();
@@ -206,6 +217,8 @@ export interface EditTelemetryData {
 	currentDeletedLineCount: number;
 	originalLineCount: number;
 	originalDeletedLineCount: number;
+	mode: 'edit' | 'agent';
+	documentLanguageId: string;
 }
 
 export class ArcTelemetryReporter {
@@ -223,6 +236,8 @@ export class ArcTelemetryReporter {
 		private readonly _gitRepo: ScmRepoBridge | undefined,
 		private readonly _trackedEdit: BaseStringEdit,
 		private readonly _sendTelemetryEvent: (res: EditTelemetryData) => void,
+		private readonly _mode: 'edit' | 'agent',
+		private readonly _documentLanguageId: string,
 
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
@@ -290,6 +305,8 @@ export class ArcTelemetryReporter {
 			currentDeletedLineCount: currentLineCounts.deletedLineCounts,
 			originalLineCount: this._initialLineCounts.insertedLineCounts,
 			originalDeletedLineCount: this._initialLineCounts.deletedLineCounts,
+			mode: this._mode,
+			documentLanguageId: this._documentLanguageId,
 		});
 	}
 

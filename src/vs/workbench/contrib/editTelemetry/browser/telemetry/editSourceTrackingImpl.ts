@@ -100,8 +100,8 @@ class TrackedDocumentInfo extends Disposable {
 				}));
 			}
 
-			this._store.add(this._instantiationService.createInstance(InlineEditArcTelemetrySender, _doc.documentWithAnnotations, repo));
-			this._store.add(this._instantiationService.createInstance(ChatArcTelemetrySender, _doc.documentWithAnnotations, repo));
+			this._store.add(this._instantiationService.createInstance(InlineEditArcTelemetrySender, _doc.documentWithAnnotations, repo, _doc.document));
+			this._store.add(this._instantiationService.createInstance(ChatArcTelemetrySender, _doc.documentWithAnnotations, repo, _doc.document));
 		})();
 
 		const resetSignal = observableSignal('resetSignal');
