@@ -109,22 +109,22 @@ export class BaseIssueReporterService extends Disposable {
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 
-			const previewAction = new Action('issueReporter.preview', localize('preview', "Preview"), undefined, true, async () => {
+			const createAction = new Action('issueReporter.create', localize('create', "Create on GitHub"), undefined, true, async () => {
 				this.delayedSubmit.trigger(async () => {
-					this.createIssue(true);
+					this.createIssue();
 				});
 			});
 
 			this.previewButton = this._register(new ButtonWithDropdown(issueReporterElement, {
 				contextMenuProvider: this.contextMenuService,
 				addPrimaryActionToDropdown: true,
-				actions: [previewAction],
+				actions: [createAction],
 				...unthemedButtonStyles
 			}));
 
 			this._register(this.previewButton.onDidClick(async () => {
 				this.delayedSubmit.trigger(async () => {
-					await this.createIssue();
+					await this.createIssue(true);
 				});
 			}));
 
@@ -527,11 +527,7 @@ export class BaseIssueReporterService extends Disposable {
 			this.previewButton.label = localize('acknowledge', "Confirm Version Acknowledgement");
 			this.previewButton.enabled = false;
 		} else if (this.isPreviewEnabled()) {
-			if (this.data.githubAccessToken) {
-				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
-			} else {
-				this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
-			}
+			this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
 			this.previewButton.enabled = true;
 		} else {
 			this.previewButton.enabled = false;

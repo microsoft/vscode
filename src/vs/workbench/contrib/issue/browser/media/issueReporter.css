@@ -91,6 +91,7 @@
 
 .issue-reporter-body .monaco-button-dropdown .monaco-button.monaco-dropdown-button {
 	border: none;
+	padding: 0 4px;
 }
 
 .issue-reporter-body select {
