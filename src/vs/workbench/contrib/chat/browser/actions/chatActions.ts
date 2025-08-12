@@ -927,35 +927,6 @@ export function registerChatActions() {
 				resource: ChatEditorInput.getNewEditorUri(),
 				options: {
 					pinned: true,
-					auxiliary: { compact: true, bounds: { width: 640, height: 640 } }
-				} satisfies IChatEditorOptions
-			}, AUX_WINDOW_GROUP);
-		}
-	});
-
-	registerAction2(class OpenChatEditorInNewMaximizedWindowAction extends Action2 {
-		constructor() {
-			super({
-				id: `workbench.action.chat.newChatInNewMaximizedWindow`,
-				title: localize2('chatSessions.openNewChatInNewMaximizedWindow', 'Open New Chat in Maximized Window'),
-				f1: false,
-				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled,
-				menu: {
-					id: MenuId.ViewTitle,
-					group: 'submenu',
-					order: 1,
-					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
-				}
-			});
-		}
-
-		async run(accessor: ServicesAccessor) {
-			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({
-				resource: ChatEditorInput.getNewEditorUri(),
-				options: {
-					pinned: true,
 					auxiliary: { compact: false }
 				} satisfies IChatEditorOptions
 			}, AUX_WINDOW_GROUP);
@@ -965,8 +936,8 @@ export function registerChatActions() {
 	registerAction2(class NewChatInSideBarAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.newChatInSideBar`,
-				title: localize2('chatSessions.openNewChatInSideBar', 'Open New Chat in Side Bar'),
+				id: `workbench.action.chat.newChatInWidget`,
+				title: localize2('chatSessions.newChatInWidget', 'Open New Chat in Widget'),
 				f1: false,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
