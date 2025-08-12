@@ -899,8 +899,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const subCommandsToSuggest = Array.from(new Set(unapprovedSubCommands.map(command => {
 				const parts = command.trim().split(/\s+/);
 				const baseCommand = parts[0].toLowerCase();
+				const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
 
-				if (commandsWithSubSubCommands.has(baseCommand) && parts.length >= 3) {
+				if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3) {
 					return `${parts[0]} ${parts[1]} ${parts[2]}`;
 				} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2) {
 					return `${parts[0]} ${parts[1]}`;

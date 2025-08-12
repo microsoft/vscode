@@ -296,12 +296,12 @@ suite('RunInTerminalTool', () => {
 
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm');
+			strictEqual(customActions[0].label, 'Always Allow Command: npm run build');
 			strictEqual(customActions[0].data.type, 'newRule');
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm run build');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: npm run build');
 			strictEqual(customActions[1].data.type, 'newRule');
 			ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
 
@@ -384,11 +384,11 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 4);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm install, npm run build');
+			strictEqual(customActions[0].label, 'Always Allow Commands: npm install, npm run build');
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm install &&& npm run build');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: npm install &&& npm run build');
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			ok(isSeparator(customActions[2]));
@@ -419,7 +419,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Full Command Line: foo | head -20');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: foo | head -20');
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			ok(isSeparator(customActions[2]));
@@ -465,7 +465,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Full Command Line: foo | head -20 &&& bar | tail -10');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: foo | head -20 &&& bar | tail -10');
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			ok(isSeparator(customActions[2]));
