@@ -815,13 +815,22 @@ function getObjectRenderableSchemaType(schema: IJSONSchema, key: string): 'simpl
 				return 'simple';
 			}
 		}
-
+		
+		// General handling for array types including null
+		if (type.length === 2 && type.includes('null') && type.some(t => isSimpleType(t))) {
+			return 'simple';
+		}
+		
 		for (const t of type) {
-			if (!isSimpleType(t)) {
+			if (!isSimpleType(t) && t !== 'null') {
 				return false;
 			}
 		}
 		return 'complex';
+	}
+
+	if (type === 'null') {
+		return 'simple'; // null values are allowed and don't block rendering
 	}
 
 	if (isSimpleType(type)) {
@@ -850,6 +859,14 @@ function getObjectRenderableSchemaType(schema: IJSONSchema, key: string): 'simpl
 	}
 
 	if (type === 'object') {
+		// Special case for terminal auto approve pattern: objects with approve + matchCommandLine
+		if (schema.properties && 
+			schema.properties.approve && 
+			(schema.properties.approve as any).type === 'boolean' &&
+			(!schema.properties.matchCommandLine || (schema.properties.matchCommandLine as any).type === 'boolean')) {
+			return 'complex';
+		}
+		
 		// Handle object types with simple properties
 		if (schema.properties) {
 			for (const propertySchema of Object.values(schema.properties)) {
@@ -910,14 +927,29 @@ function getObjectSettingSchemaType({
 
 	let schemaType: 'simple' | 'complex' | false = 'simple';
 	for (const schema of schemas) {
-		for (const subSchema of Array.isArray(schema.anyOf) ? schema.anyOf : [schema]) {
+		const subSchemas = Array.isArray(schema.anyOf) ? schema.anyOf : [schema];
+		
+		// Check if all sub-schemas are renderable (excluding null which is always ok)
+		let hasRenderableSchema = false;
+		let hasComplexSchema = false;
+		
+		for (const subSchema of subSchemas) {
 			const subSchemaType = getObjectRenderableSchemaType(subSchema, key);
-			if (subSchemaType === false) {
-				return false;
-			}
 			if (subSchemaType === 'complex') {
-				schemaType = 'complex';
+				hasComplexSchema = true;
+				hasRenderableSchema = true;
+			} else if (subSchemaType === 'simple') {
+				hasRenderableSchema = true;
 			}
+			// Note: we don't fail for 'false' here because null types return false but are ok
+		}
+		
+		if (!hasRenderableSchema) {
+			return false;
+		}
+		
+		if (hasComplexSchema) {
+			schemaType = 'complex';
 		}
 	}
 

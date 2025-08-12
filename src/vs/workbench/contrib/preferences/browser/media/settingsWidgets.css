@@ -385,3 +385,33 @@
 .codicon-settings-edit:hover {
 	cursor: pointer;
 }
+
+/* Terminal auto approve complex widget styles */
+.setting-list-object-input-value-complex .terminal-auto-approve-container {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	width: 100%;
+	min-width: 300px;
+}
+
+.terminal-auto-approve-container .approve-control,
+.terminal-auto-approve-container .match-command-line-control {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.terminal-auto-approve-container .approve-control label,
+.terminal-auto-approve-container .match-command-line-control label {
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.terminal-auto-approve-container .approve-control .monaco-select-box {
+	min-width: 60px;
+}
+
+.terminal-auto-approve-container .match-command-line-control .monaco-custom-toggle {
+	margin: 0;
+}

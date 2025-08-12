@@ -17,6 +17,7 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isIOS } from '../../../../base/common/platform.js';
@@ -871,8 +872,14 @@ interface IObjectBoolData {
 	data: boolean;
 }
 
+interface IObjectComplexData {
+	type: 'complex';
+	data: any;
+	schema: IJSONSchema;
+}
+
 type ObjectKey = IObjectStringData | IObjectEnumData;
-export type ObjectValue = IObjectStringData | IObjectEnumData | IObjectBoolData;
+export type ObjectValue = IObjectStringData | IObjectEnumData | IObjectBoolData | IObjectComplexData;
 type ObjectWidget = InputBox | SelectBox;
 
 export interface IObjectDataItem {
@@ -948,6 +955,9 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	}
 
 	override isItemNew(item: IObjectDataItem): boolean {
+		if (item.value.type === 'complex') {
+			return item.key.data === '' && (!item.value.data || (typeof item.value.data === 'object' && Object.keys(item.value.data).length === 0));
+		}
 		return item.key.data === '' && item.value.data === '';
 	}
 
@@ -1033,7 +1043,27 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
 
 		keyElement.textContent = item.key.data;
-		valueElement.textContent = item.value.data.toString();
+		
+		// Handle complex value display
+		if (item.value.type === 'complex') {
+			const complexData = item.value.data;
+			if (typeof complexData === 'object' && complexData !== null) {
+				// For terminal auto approve objects, show a readable format
+				if ('approve' in complexData) {
+					const parts = [`approve: ${complexData.approve}`];
+					if (complexData.matchCommandLine) {
+						parts.push('matchCommandLine: true');
+					}
+					valueElement.textContent = `{ ${parts.join(', ')} }`;
+				} else {
+					valueElement.textContent = JSON.stringify(complexData);
+				}
+			} else {
+				valueElement.textContent = String(complexData);
+			}
+		} else {
+			valueElement.textContent = item.value.data.toString();
+		}
 
 		return { rowElement, keyElement, valueElement };
 	}
@@ -1153,6 +1183,8 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 					},
 					options,
 				);
+			case 'complex':
+				return this.renderComplexEditWidget(keyOrValue, options);
 		}
 	}
 
@@ -1235,6 +1267,109 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		return { widget: selectBox, element: wrapper };
 	}
 
+	private renderComplexEditWidget(
+		keyOrValue: IObjectComplexData,
+		{ idx, isKey, originalItem, changedItem, update }: IObjectRenderEditWidgetOptions,
+	) {
+		const wrapper = $(isKey ? '.setting-list-object-input-key' : '.setting-list-object-input-value-complex');
+		
+		// For the terminal auto approve setting, handle the specific object structure
+		if (!isKey && keyOrValue.schema && keyOrValue.schema.properties) {
+			return this.renderTerminalAutoApproveWidget(keyOrValue, { idx, isKey, originalItem, changedItem, update }, wrapper);
+		}
+		
+		// Fallback to JSON string input for other complex objects
+		const inputBox = new InputBox(wrapper, this.contextViewService, {
+			placeholder: localize('complexObjectInputPlaceholder', "JSON value"),
+			inputBoxStyles: getInputBoxStyle({
+				inputBackground: settingsTextInputBackground,
+				inputForeground: settingsTextInputForeground,
+				inputBorder: settingsTextInputBorder
+			}),
+		});
+
+		inputBox.value = JSON.stringify(keyOrValue.data);
+		this.listDisposables.add(inputBox);
+
+		this.listDisposables.add(
+			inputBox.onDidChange((value) => {
+				try {
+					const parsedValue = JSON.parse(value);
+					const changedKeyOrValue = isKey ? changedItem.key : changedItem.value;
+					update({ ...changedKeyOrValue, data: parsedValue });
+				} catch (e) {
+					// Invalid JSON, don't update
+				}
+			})
+		);
+
+		return { widget: inputBox, element: wrapper };
+	}
+
+	private renderTerminalAutoApproveWidget(
+		keyOrValue: IObjectComplexData,
+		{ idx, isKey, originalItem, changedItem, update }: IObjectRenderEditWidgetOptions,
+		wrapper: HTMLElement
+	) {
+		// Create a container for the approve and matchCommandLine controls
+		const container = DOM.append(wrapper, $('.terminal-auto-approve-container'));
+		
+		// Get current data with defaults
+		const currentData = keyOrValue.data || {};
+		const approve = currentData.approve ?? true;
+		const matchCommandLine = currentData.matchCommandLine ?? false;
+		
+		// Create approve dropdown
+		const approveContainer = DOM.append(container, $('.approve-control'));
+		DOM.append(approveContainer, $('label')).textContent = localize('autoApprove.approve', "Approve:");
+		
+		const approveSelect = new SelectBox(
+			[
+				{ text: 'true', value: 'true' },
+				{ text: 'false', value: 'false' }
+			],
+			approve ? 0 : 1,
+			this.contextViewService,
+			undefined,
+			getSelectBoxStyles({
+				selectBackground: settingsSelectBackground,
+				selectForeground: settingsSelectForeground,
+				selectBorder: settingsSelectBorder,
+				selectListBorder: settingsSelectListBorder
+			})
+		);
+		
+		approveContainer.appendChild(approveSelect.element);
+		this.listDisposables.add(approveSelect);
+		
+		// Create matchCommandLine checkbox container
+		const matchContainer = DOM.append(container, $('.match-command-line-control'));
+		DOM.append(matchContainer, $('label')).textContent = localize('autoApprove.matchCommandLine', "Match command line:");
+		
+		const matchCheckbox = new Toggle({
+			isChecked: matchCommandLine,
+			...unthemedToggleStyles
+		});
+		matchContainer.appendChild(matchCheckbox.domNode);
+		this.listDisposables.add(matchCheckbox);
+		
+		// Update function that combines both values
+		const updateComplexValue = () => {
+			const newData = {
+				approve: approveSelect.selected === 'true',
+				...(matchCheckbox.checked ? { matchCommandLine: true } : {})
+			};
+			
+			const changedKeyOrValue = isKey ? changedItem.key : changedItem.value;
+			update({ ...changedKeyOrValue, data: newData });
+		};
+		
+		this.listDisposables.add(approveSelect.onDidSelect(updateComplexValue));
+		this.listDisposables.add(matchCheckbox.onDidChange(updateComplexValue));
+		
+		return { widget: approveSelect, element: wrapper };
+	}
+
 	private shouldUseSuggestion(originalValue: ObjectValue, previousValue: ObjectValue, newValue: ObjectValue): boolean {
 		// suggestion is exactly the same
 		if (newValue.type !== 'enum' && newValue.type === previousValue.type && newValue.data === previousValue.data) {
@@ -1246,8 +1381,13 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 			return true;
 		}
 
-		if (previousValue.type === newValue.type && newValue.type !== 'enum') {
+		if (previousValue.type === newValue.type && newValue.type !== 'enum' && newValue.type !== 'complex') {
 			return false;
+		}
+
+		// For complex types, always suggest since the structure can be quite different
+		if (newValue.type === 'complex' || previousValue.type === 'complex') {
+			return true;
 		}
 
 		// check if all enum options are the same

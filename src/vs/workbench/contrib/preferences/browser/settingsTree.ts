@@ -135,6 +135,9 @@ function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
 function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
 	if (schema.anyOf) {
 		const subTypes = schema.anyOf.map(getObjectValueType);
+		if (subTypes.some(type => type === 'complex')) {
+			return 'complex';
+		}
 		if (subTypes.some(type => type === 'enum')) {
 			return 'enum';
 		}
@@ -145,16 +148,24 @@ function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
 		return 'boolean';
 	} else if (schema.type === 'string' && isDefined(schema.enum) && schema.enum.length > 0) {
 		return 'enum';
+	} else if (schema.type === 'object' && schema.properties) {
+		// Check for terminal auto approve pattern
+		if (schema.properties.approve && (schema.properties.approve as any).type === 'boolean') {
+			return 'complex';
+		}
+		return 'complex';
 	} else {
 		return 'string';
 	}
 }
 
-function getObjectEntryValueDisplayValue(type: ObjectValue['type'], data: unknown, options: IObjectEnumOption[]): ObjectValue {
+function getObjectEntryValueDisplayValue(type: ObjectValue['type'], data: unknown, options: IObjectEnumOption[], schema?: IJSONSchema): ObjectValue {
 	if (type === 'boolean') {
 		return { type, data: !!data };
 	} else if (type === 'enum') {
 		return { type, data: '' + data, options };
+	} else if (type === 'complex') {
+		return { type, data, schema: schema || {} };
 	} else {
 		return { type, data: '' + data };
 	}
@@ -204,7 +215,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: key,
 					options: wellDefinedKeyEnumOptions,
 				},
-				value: getObjectEntryValueDisplayValue(getObjectValueType(objectProperties[key]), data[key], valueEnumOptions),
+				value: getObjectEntryValueDisplayValue(getObjectValueType(objectProperties[key]), data[key], valueEnumOptions, objectProperties[key]),
 				keyDescription: objectProperties[key].description,
 				removable: isUndefinedOrNull(defaultValue),
 				resetable: !isUndefinedOrNull(defaultValue),
@@ -221,7 +232,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			const valueEnumOptions = getEnumOptionsFromSchema(schema);
 			return {
 				key: { type: 'string', data: key },
-				value: getObjectEntryValueDisplayValue(getObjectValueType(schema), data[key], valueEnumOptions),
+				value: getObjectEntryValueDisplayValue(getObjectValueType(schema), data[key], valueEnumOptions, schema),
 				keyDescription: schema.description,
 				removable,
 				resetable,
@@ -241,6 +252,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				typeof objectAdditionalProperties === 'object' ? getObjectValueType(objectAdditionalProperties) : 'string',
 				data[key],
 				additionalValueEnums,
+				typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties : undefined
 			),
 			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
 			removable,
