@@ -8,6 +8,7 @@ import CopyWebpackPlugin from 'copy-webpack-plugin';
 import path from 'path';
 
 const isWindows = process.platform === 'win32';
+const isMacOS = process.platform === 'darwin';
 
 export default withDefaults({
 	context: import.meta.dirname,
@@ -31,10 +32,10 @@ export default withDefaults({
 			patterns: [
 				{
 					// The native files we need to ship with the extension
-					from: '**/dist/msal*.(node|dll)',
+					from: '**/dist/*msal*.(node|dll|dylib)',
 					to: '[name][ext]',
 					// These will only be present on Windows for now
-					noErrorOnMissing: !isWindows
+					noErrorOnMissing: !isWindows && !isMacOS
 				}
 			]
 		})
