@@ -358,7 +358,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				if (!provider) {
 					provider = options?.actionViewItemProvider;
 				}
-				const viewItem = provider?.(action, opts);
+				const viewItem = provider?.(action, opts, instaService);
 				if (viewItem) {
 					return viewItem;
 				}

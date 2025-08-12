@@ -18,7 +18,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
 
-export const allowedChatMarkdownHtmlTags = [
+export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
 	'blockquote',
 	'br',
@@ -53,7 +53,9 @@ export const allowedChatMarkdownHtmlTags = [
 	// Not in the official list, but used for codicons and other vscode markdown extensions
 	'span',
 	'div',
-];
+
+	'input', // Allowed for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
+]);
 
 /**
  * This wraps the MarkdownRenderer and applies sanitizer options needed for Chat.

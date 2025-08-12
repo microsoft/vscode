@@ -56,6 +56,7 @@ export interface IChatAgentData {
 	isDynamic?: boolean;
 	/** This agent is contributed from core and not from an extension */
 	isCore?: boolean;
+	isCodingAgent?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
@@ -111,7 +112,6 @@ export interface IChatRequesterInformation {
 
 export interface IChatAgentMetadata {
 	helpTextPrefix?: string | IMarkdownString;
-	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
 	icon?: URI;
 	iconDark?: URI;
@@ -161,6 +161,7 @@ export interface IChatAgentResult {
 	timings?: IChatAgentResultTimings;
 	/** Extra properties that the agent can use to identify a result */
 	readonly metadata?: { readonly [key: string]: any };
+	readonly details?: string;
 	nextQuestion?: IChatQuestion;
 }
 

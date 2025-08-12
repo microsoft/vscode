@@ -10,13 +10,16 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { ChatContextKeys } from './chatContextKeys.js';
 
 export const enum ChatMessageRole {
 	System,
@@ -24,9 +27,16 @@ export const enum ChatMessageRole {
 	Assistant,
 }
 
+export enum LanguageModelPartAudience {
+	Assistant = 0,
+	User = 1,
+	Extension = 2,
+}
+
 export interface IChatMessageTextPart {
 	type: 'text';
 	value: string;
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatMessageImagePart {
@@ -38,6 +48,7 @@ export interface IChatMessageDataPart {
 	type: 'data';
 	mimeType: string;
 	data: VSBuffer;
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatImageURLPart {
@@ -90,6 +101,7 @@ export interface IChatMessage {
 export interface IChatResponseTextPart {
 	type: 'text';
 	value: string;
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatResponsePromptTsxPart {
@@ -99,7 +111,9 @@ export interface IChatResponsePromptTsxPart {
 
 export interface IChatResponseDataPart {
 	type: 'data';
-	value: IChatImageURLPart;
+	mimeType: string;
+	data: VSBuffer;
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IChatResponseToolUsePart {
@@ -109,7 +123,25 @@ export interface IChatResponseToolUsePart {
 	parameters: any;
 }
 
-export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart;
+export interface IChatResponseThinkingPart {
+	type: 'thinking';
+	value: string;
+	id?: string;
+	metadata?: string;
+}
+
+export interface IChatResponsePullRequestPart {
+	type: 'pullRequest';
+	uri: URI;
+	title: string;
+	description: string;
+	author: string;
+	linkTag: string;
+}
+
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart;
+
+export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
 export interface IChatResponseFragment {
 	index: number;
@@ -276,16 +308,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
 	private readonly _modelPickerUserPreferences: Record<string, boolean> = {}; // We use a record instead of a map for better serialization when storing
 
+	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<void>());
 	readonly onDidChangeLanguageModels: Event<void> = this._onLanguageModelChange.event;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
-
+		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._storageService.getObject<Record<string, boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
+
+		this._store.add(this.onDidChangeLanguageModels(() => {
+			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));
+		}));
 
 		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
 
@@ -333,13 +371,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._logService.warn(`[LM] Cannot update model picker preference for unknown model ${modelIdentifier}`);
 			return;
 		}
-		delete this._modelPickerUserPreferences[modelIdentifier];
-		if (model.isUserSelectable !== showInModelPicker) {
-			this._modelPickerUserPreferences[modelIdentifier] = showInModelPicker;
+
+		this._modelPickerUserPreferences[modelIdentifier] = showInModelPicker;
+		if (showInModelPicker === model.isUserSelectable) {
+			delete this._modelPickerUserPreferences[modelIdentifier];
 			this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
-			this._onLanguageModelChange.fire();
-			this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
+		} else if (model.isUserSelectable !== showInModelPicker) {
+			this._storageService.store('chatModelPickerPreferences', this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
 		}
+		this._onLanguageModelChange.fire();
+		this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
 	}
 
 	getVendors(): IUserFriendlyLanguageModel[] {
@@ -375,6 +416,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (typeof vendors === 'string') {
 			vendors = [vendors];
 		}
+		// Activate extensions before requesting to resolve the models
+		const all = vendors.map(vendor => this._extensionService.activateByEvent(`onLanguageModelChat:${vendor}`));
+		await Promise.all(all);
 		this._clearModelCache(vendors);
 		for (const vendor of vendors) {
 			const provider = this._providers.get(vendor);
@@ -402,14 +446,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 	async selectLanguageModels(selector: ILanguageModelChatSelector, allowPromptingUser?: boolean): Promise<string[]> {
 
 		if (selector.vendor) {
-			// selective activation
-			await this._extensionService.activateByEvent(`onLanguageModelChat:${selector.vendor}}`);
 			await this.resolveLanguageModels([selector.vendor], !allowPromptingUser);
 		} else {
-			// activate all extensions that do language models
 			const allVendors = Array.from(this._vendors.keys());
-			const all = allVendors.map(vendor => this._extensionService.activateByEvent(`onLanguageModelChat:${vendor}`));
-			await Promise.all(all);
 			await this.resolveLanguageModels(allVendors, !allowPromptingUser);
 		}
 
@@ -441,7 +480,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		this._providers.set(vendor, provider);
 
-		// TODO @lramos15 - Smarter restore logic. Don't activate all providers, but only those which were known to need restoring
+		// TODO @lramos15 - Smarter restore logic. Don't resolve models for all providers, but only those which were known to need restoring
 		this.resolveLanguageModels(vendor, true).then(() => {
 			this._onLanguageModelChange.fire();
 		});

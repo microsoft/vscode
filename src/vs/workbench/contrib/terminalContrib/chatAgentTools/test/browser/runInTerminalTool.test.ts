@@ -7,12 +7,12 @@ import { ok, strictEqual } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { Separator } from '../../../../../../base/common/actions.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService } from '../../../../chat/common/languageModelToolsService.js';
-import { CommandLineAutoApprover } from '../../browser/commandLineAutoApprover.js';
-import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/runInTerminalTool.js';
+import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
+import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
@@ -20,11 +20,14 @@ import type { TestInstantiationService } from '../../../../../../platform/instan
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { IChatService } from '../../../../chat/common/chatService.js';
+import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
-	get commandLineAutoApprover(): CommandLineAutoApprover { return this._commandLineAutoApprover; }
+	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
+	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 
 	async rewriteCommandIfNeeded(args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
 		return this._rewriteCommandIfNeeded(args, instance, shell);
@@ -41,11 +44,16 @@ suite('RunInTerminalTool', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let workspaceService: TestContextService;
+	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
+	let chatServiceDisposeEmitter: Emitter<{ sessionId: string; reason: 'cleared' }>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
+		chatServiceDisposeEmitter = new Emitter<{ sessionId: string; reason: 'cleared' }>();
+
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
 		}, store);
@@ -55,18 +63,17 @@ suite('RunInTerminalTool', () => {
 			},
 		});
 		instantiationService.stub(ITerminalService, {
-			onDidDisposeInstance: new Emitter<ITerminalInstance>().event
+			onDidDisposeInstance: terminalServiceDisposeEmitter.event
+		});
+		instantiationService.stub(IChatService, {
+			onDidDisposeSession: chatServiceDisposeEmitter.event
 		});
 		workspaceService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService)) as TestContextService;
 
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
 	});
 
-	function setAutoApprove(value: { [key: string]: boolean }) {
-		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
-	}
-
-	function setAutoApproveWithCommandLine(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
+	function setAutoApprove(value: { [key: string]: { approve: boolean; matchCommandLine?: boolean } | boolean }) {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
@@ -103,6 +110,10 @@ suite('RunInTerminalTool', () => {
 
 		const result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
 		return result;
+	}
+
+	function isSeparator(action: ToolConfirmationAction): action is Separator {
+		return action instanceof Separator;
 	}
 
 	/**
@@ -186,6 +197,26 @@ suite('RunInTerminalTool', () => {
 			assertAutoApproved(result);
 		});
 
+		test('should include auto-approve info for background commands', async () => {
+			setAutoApprove({
+				npm: true
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run watch',
+				explanation: 'Start watching for file changes',
+				isBackground: true
+			});
+			assertAutoApproved(result);
+
+			// Verify that auto-approve information is included
+			ok(result?.toolSpecificData, 'Expected toolSpecificData to be defined');
+			const terminalData = result!.toolSpecificData as any;
+			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined for auto-approved background command');
+			ok(terminalData.autoApproveInfo.value, 'Expected autoApproveInfo to have a value');
+			ok(terminalData.autoApproveInfo.value.includes('npm'), 'Expected autoApproveInfo to mention the approved rule');
+		});
+
 		test('should handle regex patterns in allow list', async () => {
 			setAutoApprove({
 				'/^git (status|log)/': true
@@ -223,7 +254,7 @@ suite('RunInTerminalTool', () => {
 				command: '',
 				explanation: 'Empty command'
 			});
-			assertConfirmationRequired(result);
+			assertAutoApproved(result);
 		});
 
 		test('should handle commands with only whitespace', async () => {
@@ -239,19 +270,432 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should handle matchCommandLine: true patterns', async () => {
-			setAutoApproveWithCommandLine({
+			setAutoApprove({
 				"/dangerous/": { approve: false, matchCommandLine: true },
 				"echo": { approve: true, matchCommandLine: true }
 			});
 
-			// Command line pattern should be approved
 			const result1 = await executeToolTest({ command: 'echo hello world' });
 			assertAutoApproved(result1);
 
-			// Command line pattern should be denied due to dangerous content
 			const result2 = await executeToolTest({ command: 'echo this is a dangerous command' });
 			assertConfirmationRequired(result2);
 		});
+
+		test('should only approve when neither sub-commands or command lines are denied', async () => {
+			setAutoApprove({
+				"foo": true,
+				"/^foo$/": { approve: false, matchCommandLine: true },
+			});
+
+			const result1 = await executeToolTest({ command: 'foo' });
+			assertConfirmationRequired(result1);
+
+			const result2 = await executeToolTest({ command: 'foo bar' });
+			assertAutoApproved(result2);
+		});
+	});
+
+	suite('prepareToolInvocation - custom actions for dropdown', () => {
+
+		test('should generate custom actions for non-auto-approved commands', async () => {
+			setAutoApprove({
+				ls: true,
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: npm run build');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+
+			ok(!isSeparator(customActions[1]));
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: npm run build');
+			strictEqual(customActions[1].data.type, 'newRule');
+			ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
+
+			ok(isSeparator(customActions[2]));
+
+			ok(!isSeparator(customActions[3]));
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			strictEqual(customActions[3].data.type, 'configure');
+		});
+
+		test('should generate custom actions for single word commands', async () => {
+			const result = await executeToolTest({
+				command: 'git',
+				explanation: 'Run git command'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+
+			strictEqual(customActions.length, 3);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: git');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+
+			ok(isSeparator(customActions[1]));
+
+			ok(!isSeparator(customActions[2]));
+			strictEqual(customActions[2].label, 'Configure Auto Approve...');
+			strictEqual(customActions[2].data.type, 'configure');
+		});
+
+		test('should not generate custom actions for auto-approved commands', async () => {
+			setAutoApprove({
+				npm: true
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertAutoApproved(result);
+		});
+
+		test('should only generate configure action for explicitly denied commands', async () => {
+			setAutoApprove({
+				npm: { approve: false }
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Build the project'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 1, 'Expected only 1 custom action for explicitly denied commands');
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Configure Auto Approve...');
+			strictEqual(customActions[0].data.type, 'configure');
+		});
+
+		test('should handle && in command line labels with proper mnemonic escaping', async () => {
+			const result = await executeToolTest({
+				command: 'npm install && npm run build',
+				explanation: 'Install dependencies and build'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Commands: npm install, npm run build');
+			strictEqual(customActions[0].data.type, 'newRule');
+
+			ok(!isSeparator(customActions[1]));
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: npm install &&& npm run build');
+			strictEqual(customActions[1].data.type, 'newRule');
+
+			ok(isSeparator(customActions[2]));
+
+			ok(!isSeparator(customActions[3]));
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			strictEqual(customActions[3].data.type, 'configure');
+		});
+
+		test('should not show approved commands in custom actions dropdown', async () => {
+			setAutoApprove({
+				head: true  // head is approved by default in real scenario
+			});
+
+			const result = await executeToolTest({
+				command: 'foo | head -20',
+				explanation: 'Run foo command and show first 20 lines'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: foo', 'Should only show \'foo\' since \'head\' is auto-approved');
+			strictEqual(customActions[0].data.type, 'newRule');
+
+			ok(!isSeparator(customActions[1]));
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: foo | head -20');
+			strictEqual(customActions[1].data.type, 'newRule');
+
+			ok(isSeparator(customActions[2]));
+
+			ok(!isSeparator(customActions[3]));
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			strictEqual(customActions[3].data.type, 'configure');
+		});
+
+		test('should not show any command-specific actions when all sub-commands are approved', async () => {
+			setAutoApprove({
+				foo: true,
+				head: true
+			});
+
+			const result = await executeToolTest({
+				command: 'foo | head -20',
+				explanation: 'Run foo command and show first 20 lines'
+			});
+
+			assertAutoApproved(result);
+		});
+
+		test('should handle mixed approved and unapproved commands correctly', async () => {
+			setAutoApprove({
+				head: true,
+				tail: true
+			});
+
+			const result = await executeToolTest({
+				command: 'foo | head -20 && bar | tail -10',
+				explanation: 'Run multiple piped commands'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Commands: foo, bar', 'Should only show \'foo, bar\' since \'head\' and \'tail\' are auto-approved');
+			strictEqual(customActions[0].data.type, 'newRule');
+
+			ok(!isSeparator(customActions[1]));
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: foo | head -20 &&& bar | tail -10');
+			strictEqual(customActions[1].data.type, 'newRule');
+
+			ok(isSeparator(customActions[2]));
+
+			ok(!isSeparator(customActions[3]));
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			strictEqual(customActions[3].data.type, 'configure');
+		});
+
+		test('should suggest subcommand for git commands', async () => {
+			const result = await executeToolTest({
+				command: 'git status',
+				explanation: 'Check git status'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: git status');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'git status');
+		});
+
+		test('should suggest subcommand for npm commands', async () => {
+			const result = await executeToolTest({
+				command: 'npm test',
+				explanation: 'Run npm tests'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: npm test');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'npm test');
+		});
+
+		test('should suggest 3-part subcommand for npm run commands', async () => {
+			const result = await executeToolTest({
+				command: 'npm run build',
+				explanation: 'Run build script'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: npm run build');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'npm run build');
+		});
+
+		test('should suggest 3-part subcommand for yarn run commands', async () => {
+			const result = await executeToolTest({
+				command: 'yarn run test',
+				explanation: 'Run test script'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: yarn run test');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'yarn run test');
+		});
+
+		test('should handle mixed npm run and other commands', async () => {
+			const result = await executeToolTest({
+				command: 'npm run build && git status',
+				explanation: 'Build and check status'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Commands: npm run build, git status');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			const rules = customActions[0].data.rule as any;
+			strictEqual(rules.length, 2);
+			strictEqual(rules[0].key, 'npm run build');
+			strictEqual(rules[1].key, 'git status');
+		});
+
+		test('should suggest mixed subcommands and base commands', async () => {
+			const result = await executeToolTest({
+				command: 'git push && echo "done"',
+				explanation: 'Push and print done'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Commands: git push, echo');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			const rules = customActions[0].data.rule as any;
+			strictEqual(rules.length, 2);
+			strictEqual(rules[0].key, 'git push');
+			strictEqual(rules[1].key, 'echo');
+		});
+
+		test('should suggest subcommands for multiple git commands', async () => {
+			const result = await executeToolTest({
+				command: 'git status && git log --oneline',
+				explanation: 'Check status and log'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Commands: git status, git log');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			const rules = customActions[0].data.rule as any;
+			strictEqual(rules.length, 2);
+			strictEqual(rules[0].key, 'git status');
+			strictEqual(rules[1].key, 'git log');
+		});
+
+		test('should suggest base command for non-subcommand tools', async () => {
+			const result = await executeToolTest({
+				command: 'curl https://example.com',
+				explanation: 'Download from example.com'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: curl');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'curl');
+		});
+
+		test('should handle single word commands from subcommand-aware tools', async () => {
+			const result = await executeToolTest({
+				command: 'git',
+				explanation: 'Run git command'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 3); // No full command line suggestion for single word
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: git');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'git');
+		});
+
+		test('should deduplicate identical subcommand suggestions', async () => {
+			const result = await executeToolTest({
+				command: 'npm test && npm test --verbose',
+				explanation: 'Run tests twice'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: npm test');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			const rules = customActions[0].data.rule as any;
+			strictEqual(rules.length, 1); // Should be deduplicated
+			strictEqual(rules[0].key, 'npm test');
+		});
+
 	});
 
 	suite('command re-writing', () => {
@@ -602,6 +1046,73 @@ suite('RunInTerminalTool', () => {
 					strictEqual(result, 'echo hello');
 				});
 			});
+		});
+	});
+
+	suite('chat session disposal cleanup', () => {
+		test('should dispose associated terminals when chat session is disposed', () => {
+			const sessionId = 'test-session-123';
+			const mockTerminal: ITerminalInstance = {
+				dispose: () => { /* Mock dispose */ },
+				processId: 12345
+			} as any;
+			let terminalDisposed = false;
+			mockTerminal.dispose = () => { terminalDisposed = true; };
+
+			runInTerminalTool.sessionTerminalAssociations.set(sessionId, {
+				instance: mockTerminal,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should exist before disposal');
+
+			chatServiceDisposeEmitter.fire({ sessionId, reason: 'cleared' });
+
+			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
+		});
+
+		test('should not affect other sessions when one session is disposed', () => {
+			const sessionId1 = 'test-session-1';
+			const sessionId2 = 'test-session-2';
+			const mockTerminal1: ITerminalInstance = {
+				dispose: () => { /* Mock dispose */ },
+				processId: 12345
+			} as any;
+			const mockTerminal2: ITerminalInstance = {
+				dispose: () => { /* Mock dispose */ },
+				processId: 67890
+			} as any;
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			runInTerminalTool.sessionTerminalAssociations.set(sessionId1, {
+				instance: mockTerminal1,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+			runInTerminalTool.sessionTerminalAssociations.set(sessionId2, {
+				instance: mockTerminal2,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
+
+			chatServiceDisposeEmitter.fire({ sessionId: sessionId1, reason: 'cleared' });
+
+			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
+			strictEqual(terminal2Disposed, false, 'Terminal 2 should NOT have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should be removed');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should remain');
+		});
+
+		test('should handle disposal of non-existent session gracefully', () => {
+			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
+			chatServiceDisposeEmitter.fire({ sessionId: 'non-existent-session', reason: 'cleared' });
+			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
 		});
 	});
 });

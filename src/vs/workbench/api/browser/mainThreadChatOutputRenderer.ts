@@ -18,7 +18,7 @@ export class MainThreadChatOutputRenderer extends Disposable implements MainThre
 
 	private _webviewHandlePool = 0;
 
-	private readonly registeredRenderers = new Map<string, IDisposable>();
+	private readonly registeredRenderers = new Map</* viewType */ string, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -36,8 +36,8 @@ export class MainThreadChatOutputRenderer extends Disposable implements MainThre
 		this.registeredRenderers.clear();
 	}
 
-	$registerChatOutputRenderer(mime: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void {
-		this._rendererService.registerRenderer(mime, {
+	$registerChatOutputRenderer(viewType: string, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): void {
+		this._rendererService.registerRenderer(viewType, {
 			renderOutputPart: async (mime, data, webview, token) => {
 				const webviewHandle = `chat-output-${++this._webviewHandlePool}`;
 
@@ -45,14 +45,14 @@ export class MainThreadChatOutputRenderer extends Disposable implements MainThre
 					serializeBuffersForPostMessage: true,
 				});
 
-				this._proxy.$renderChatOutput(mime, VSBuffer.wrap(data), webviewHandle, token);
+				this._proxy.$renderChatOutput(viewType, mime, VSBuffer.wrap(data), webviewHandle, token);
 			},
 		}, {
 			extension: { id: extensionId, location: URI.revive(extensionLocation) }
 		});
 	}
 
-	$unregisterChatOutputRenderer(mime: string): void {
-		this.registeredRenderers.get(mime)?.dispose();
+	$unregisterChatOutputRenderer(viewType: string): void {
+		this.registeredRenderers.get(viewType)?.dispose();
 	}
 }

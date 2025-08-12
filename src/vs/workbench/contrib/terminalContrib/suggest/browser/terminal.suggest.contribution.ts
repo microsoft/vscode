@@ -8,8 +8,8 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { AutoOpenBarrier } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore, MutableDisposable, toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
-import { isLinux, isWindows } from '../../../../../base/common/platform.js';
+import { DisposableStore, MutableDisposable, toDisposable, Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -37,8 +37,7 @@ import { LspCompletionProviderAddon } from './lspCompletionProviderAddon.js';
 import { createTerminalLanguageVirtualUri, LspTerminalModelContentProvider } from './lspTerminalModelContentProvider.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { env } from '../../../../../base/common/process.js';
-import { PYLANCE_DEBUG_DISPLAY_NAME } from './lspTerminalUtil.js';
+import { getTerminalLspSupportedLanguageObj } from './lspTerminalUtil.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
@@ -54,13 +53,13 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
-	private readonly _lspAddon: MutableDisposable<LspCompletionProviderAddon> = new MutableDisposable(); // TODO: Support multiple lspAddons in the future.
+	private readonly _lspAddons: DisposableMap<string, LspCompletionProviderAddon> = this.add(new DisposableMap());
 	private readonly _lspModelProvider: MutableDisposable<LspTerminalModelContentProvider> = new MutableDisposable();
 	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
 	get pwshAddon(): PwshCompletionProviderAddon | undefined { return this._pwshAddon.value; }
-	get lspAddon(): LspCompletionProviderAddon | undefined { return this._lspAddon.value; }
+	get lspAddons(): LspCompletionProviderAddon[] { return Array.from(this._lspAddons.values()); }
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -75,7 +74,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(toDisposable(() => {
 			this._addon?.dispose();
 			this._pwshAddon?.dispose();
-			this._lspAddon?.dispose();
 			this._lspModelProvider?.value?.dispose();
 			this._lspModelProvider?.dispose();
 		}));
@@ -86,7 +84,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				if (!completionsEnabled) {
 					this._addon.clear();
 					this._pwshAddon.clear();
-					this._lspAddon.clear();
+					this._lspAddons.clearAndDisposeAll();
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
 				if (!!xtermRaw && completionsEnabled) {
@@ -161,26 +159,14 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 	}
 
-	// TODO: Eventually support multiple LSP providers for [non-Python REPLs](https://github.com/microsoft/vscode/issues/249479)
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
-		const isWsl =
-			isLinux &&
-			(
-				!!env['WSL_DISTRO_NAME'] ||
-				!!env['WSL_INTEROP']
-			);
-
-		// Windows, WSL currently does not support shell integration for Python REPL.
-		if (isWindows || isWsl) {
+		let lspTerminalObj = undefined;
+		if (!this._ctx.instance.shellType || !(lspTerminalObj = getTerminalLspSupportedLanguageObj(this._ctx.instance.shellType))) {
+			this._lspAddons.clearAndDisposeAll();
 			return;
 		}
 
-		if (this._ctx.instance.shellType !== GeneralShellType.Python) {
-			this._lspAddon.clear();
-			return;
-		}
-
-		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, 'py');
+		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(this._ctx.instance.instanceId, lspTerminalObj.extension);
 
 		// Load and register the LSP completion providers (one per language server)
 		this._lspModelProvider.value = this._instantiationService.createInstance(LspTerminalModelContentProvider, this._ctx.instance.capabilities, this._ctx.instance.instanceId, virtualTerminalDocumentUri, this._ctx.instance.shellType);
@@ -190,13 +176,13 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this.add(textVirtualModel);
 
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(textVirtualModel.object.textEditorModel);
-		// TODO: Remove hard-coded filter for Python REPL.
-		const provider = virtualProviders.find(p => p._debugDisplayName === PYLANCE_DEBUG_DISPLAY_NAME || p._debugDisplayName === `ms-python.vscode-pylance(.["')`);
+		const filteredProviders = virtualProviders.filter(p => p._debugDisplayName !== 'wordbasedCompletions');
 
-		if (provider) {
-			const lspCompletionProviderAddon = this._lspAddon.value = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
+		// Iterate through all available providers
+		for (const provider of filteredProviders) {
+			const lspCompletionProviderAddon = this._instantiationService.createInstance(LspCompletionProviderAddon, provider, textVirtualModel, this._lspModelProvider.value);
+			this._lspAddons.set(provider._debugDisplayName, lspCompletionProviderAddon);
 			xterm.loadAddon(lspCompletionProviderAddon);
-			this.add(lspCompletionProviderAddon);
 			this.add(this._terminalCompletionService.registerTerminalCompletionProvider(
 				'lsp',
 				lspCompletionProviderAddon.id,
