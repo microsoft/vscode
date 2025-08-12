@@ -20,6 +20,11 @@ interface AuthenticationChallenge {
 	params: Record<string, string>;
 }
 
+interface AuthenticationConstraint {
+	challenges: readonly AuthenticationChallenge[];
+	scopes?: readonly string[];
+}
+
 const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
@@ -289,16 +294,16 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		this._logger.info('[removeSession]', sessionId, `attempted to remove ${promises.length} sessions`);
 	}
 
-	async getSessionsFromChallenges(challenges: readonly AuthenticationChallenge[], options: AuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
-		this._logger.info('[getSessionsFromChallenges]', 'starting with', challenges.length, 'challenges');
+	async getSessionsFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
+		this._logger.info('[getSessionsFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
 		
-		// Extract scopes from challenges and try to get existing sessions
-		const scopes = this.extractScopesFromChallenges(challenges);
+		// Use scopes from constraint if provided, otherwise extract from challenges
+		const scopes = constraint.scopes?.length ? [...constraint.scopes] : this.extractScopesFromChallenges(constraint.challenges);
 		const sessions = await this.getSessions(scopes.length > 0 ? scopes : undefined, options);
 		
 		// For Microsoft authentication, we also need to check if the existing sessions
 		// can satisfy the claims requirements from the challenges
-		const claimsRequirement = this.extractClaimsFromChallenges(challenges);
+		const claimsRequirement = this.extractClaimsFromChallenges(constraint.challenges);
 		if (claimsRequirement) {
 			// Filter sessions that might need to be refreshed with the new claims
 			// For now, we return all sessions and let MSAL handle the claims requirement during token acquisition
@@ -309,12 +314,12 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		return sessions;
 	}
 
-	async createSessionFromChallenges(challenges: readonly AuthenticationChallenge[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		this._logger.info('[createSessionFromChallenges]', 'starting with', challenges.length, 'challenges');
+	async createSessionFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
+		this._logger.info('[createSessionFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
 		
-		// Extract scopes and claims from challenges
-		const scopes = this.extractScopesFromChallenges(challenges);
-		const claims = this.extractClaimsFromChallenges(challenges);
+		// Use scopes from constraint if provided, otherwise extract from challenges
+		const scopes = constraint.scopes?.length ? [...constraint.scopes] : this.extractScopesFromChallenges(constraint.challenges);
+		const claims = this.extractClaimsFromChallenges(constraint.challenges);
 		
 		// Use scopes if available, otherwise fall back to default scopes
 		const effectiveScopes = scopes.length > 0 ? scopes : ['https://graph.microsoft.com/User.Read'];

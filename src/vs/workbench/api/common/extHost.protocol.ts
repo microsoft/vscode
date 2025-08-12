@@ -193,6 +193,11 @@ export interface AuthenticationSessionChallenge {
 	scopes?: readonly string[];
 }
 
+export interface AuthenticationConstraint {
+	challenges: readonly AuthenticationChallenge[];
+	scopes?: readonly string[];
+}
+
 export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedAuthorizationServers?: UriComponents[]): Promise<void>;
 	$unregisterAuthenticationProvider(id: string): Promise<void>;
@@ -1999,8 +2004,8 @@ export interface ExtHostLabelServiceShape {
 export interface ExtHostAuthenticationShape {
 	$getSessions(id: string, scopes: string[] | undefined, options: IAuthenticationGetSessionsOptions): Promise<ReadonlyArray<AuthenticationSession>>;
 	$createSession(id: string, scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
-	$getSessionsFromChallenges(id: string, challenges: AuthenticationChallenge[], options: IAuthenticationGetSessionsOptions): Promise<ReadonlyArray<AuthenticationSession>>;
-	$createSessionFromChallenges(id: string, challenges: AuthenticationChallenge[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
+	$getSessionsFromChallenges(id: string, constraint: AuthenticationConstraint, options: IAuthenticationGetSessionsOptions): Promise<ReadonlyArray<AuthenticationSession>>;
+	$createSessionFromChallenges(id: string, constraint: AuthenticationConstraint, options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]): Promise<void>;
 	$onDidUnregisterAuthenticationProvider(id: string): Promise<void>;

@@ -181,7 +181,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	$getSessionsFromChallenges(providerId: string, challenges: vscode.AuthenticationChallenge[], options: vscode.AuthenticationProviderSessionOptions): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
+	$getSessionsFromChallenges(providerId: string, constraint: vscode.AuthenticationConstraint, options: vscode.AuthenticationProviderSessionOptions): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
 		return this._providerOperations.queue(providerId, async () => {
 			const providerData = this._authenticationProviders.get(providerId);
 			if (providerData) {
@@ -189,11 +189,11 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				// Check if provider supports challenges
 				if (typeof provider.getSessionsFromChallenges === 'function') {
 					options.authorizationServer = URI.revive(options.authorizationServer);
-					return await provider.getSessionsFromChallenges(challenges, options);
+					return await provider.getSessionsFromChallenges(constraint, options);
 				}
 				// Fallback to regular getSessions if provider doesn't support challenges
-				// Extract scopes from the challenges if available
-				const scopes = this._extractScopesFromChallenges(challenges);
+				// Use scopes from the constraint if available, otherwise extract from challenges
+				const scopes = constraint.scopes || this._extractScopesFromChallenges(constraint.challenges);
 				return await providerData.provider.getSessions(scopes, options);
 			}
 
@@ -201,7 +201,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	$createSessionFromChallenges(providerId: string, challenges: vscode.AuthenticationChallenge[], options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
+	$createSessionFromChallenges(providerId: string, constraint: vscode.AuthenticationConstraint, options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
 		return this._providerOperations.queue(providerId, async () => {
 			const providerData = this._authenticationProviders.get(providerId);
 			if (providerData) {
@@ -209,11 +209,11 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				// Check if provider supports challenges
 				if (typeof provider.createSessionFromChallenges === 'function') {
 					options.authorizationServer = URI.revive(options.authorizationServer);
-					return await provider.createSessionFromChallenges(challenges, options);
+					return await provider.createSessionFromChallenges(constraint, options);
 				}
 				// Fallback to regular createSession if provider doesn't support challenges
-				// Extract scopes from the challenges if available
-				const scopes = this._extractScopesFromChallenges(challenges);
+				// Use scopes from the constraint if available, otherwise extract from challenges
+				const scopes = constraint.scopes || this._extractScopesFromChallenges(constraint.challenges);
 				return await providerData.provider.createSession(scopes, options);
 			}
 

@@ -54,6 +54,11 @@ export interface AuthenticationSessionChallenge {
 	scopes?: readonly string[];
 }
 
+export interface AuthenticationConstraint {
+	challenges: readonly AuthenticationChallenge[];
+	scopes?: readonly string[];
+}
+
 export class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
 
 	readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
@@ -467,16 +472,19 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return scopes;
 	}
 
-	private async doGetSessionFromChallenge(providerId: string, challenges: AuthenticationChallenge[], scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+	private async doGetSessionFromChallenge(providerId: string, constraint: AuthenticationConstraint, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		// Check if the provider exists
 		const provider = this.authenticationService.getProvider(providerId);
 		if (!provider) {
 			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
 		}
 
+		// Use scopes from constraint if provided, otherwise extract from challenges
+		const scopes = constraint.scopes ? [...constraint.scopes] : this.extractScopesFromChallenges(constraint.challenges);
+
 		// Try to get existing sessions first using challenge-aware methods
 		try {
-			const challengeSessions = await this._proxy.$getSessionsFromChallenges(providerId, challenges, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
+			const challengeSessions = await this._proxy.$getSessionsFromChallenges(providerId, constraint, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
 			
 			// Check if we have a valid existing session
 			if (challengeSessions.length > 0) {
@@ -498,7 +506,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		// If no existing session matches the challenge requirements, create a new one
 		if (options.createIfNone || options.forceNewSession) {
 			try {
-				const session = await this._proxy.$createSessionFromChallenges(providerId, challenges, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
+				const session = await this._proxy.$createSessionFromChallenges(providerId, constraint, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
 				if (session) {
 					this.authenticationExtensionsService.updateNewSessionRequests(providerId, [session]);
 					this._updateAccountPreference(extensionId, providerId, session);
@@ -530,8 +538,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const parsedChallenges = this.parseChallengeString(challenge.challenge);
 		const scopes = challenge.scopes ? [...challenge.scopes] : this.extractScopesFromChallenges(parsedChallenges);
 		
+		// Create the constraint object with challenges and scopes
+		const constraint: AuthenticationConstraint = {
+			challenges: parsedChallenges,
+			scopes: scopes.length > 0 ? scopes : undefined
+		};
+		
 		this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
-		const session = await this.doGetSessionFromChallenge(providerId, parsedChallenges, scopes, extensionId, extensionName, options);
+		const session = await this.doGetSessionFromChallenge(providerId, constraint, extensionId, extensionName, options);
 
 		if (session) {
 			this.sendProviderUsageTelemetry(extensionId, providerId);
