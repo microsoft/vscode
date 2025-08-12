@@ -56,7 +56,9 @@ export interface MarkdownSanitizerConfig {
 	readonly allowedTags?: {
 		readonly override: readonly string[];
 	};
-	readonly customAttrSanitizer?: (attrName: string, attrValue: string) => boolean | string;
+	readonly allowedAttributes?: {
+		readonly override: ReadonlyArray<string | domSanitize.SanitizeAttributeRule>;
+	};
 	readonly allowedLinkSchemes?: {
 		readonly augment: readonly string[];
 	};
@@ -448,14 +450,12 @@ export const allowedMarkdownHtmlTags = Object.freeze([
 	'input', // Allow inputs for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
 ]);
 
-export const allowedMarkdownHtmlAttributes = [
+export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSanitize.SanitizeAttributeRule>>([
 	'align',
 	'autoplay',
 	'alt',
-	'checked',
 	'colspan',
 	'controls',
-	'disabled',
 	'draggable',
 	'height',
 	'href',
@@ -470,16 +470,42 @@ export const allowedMarkdownHtmlAttributes = [
 	'type',
 	'width',
 	'start',
+
+	// Input (For disabled inputs)
+	'checked',
+	'disabled',
 	'value',
 
 	// Custom markdown attributes
 	'data-code',
 	'data-href',
 
-	// These attributes are sanitized in the hooks
-	'style',
-	'class',
-];
+	// Only allow very specific styles
+	{
+		attributeName: 'style',
+		shouldKeep: (element, data) => {
+			if (element.tagName === 'SPAN') {
+				if (data.attrName === 'style') {
+					return /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(data.attrValue);
+				}
+			}
+			return false;
+		}
+	},
+
+	// Only allow codicons for classes
+	{
+		attributeName: 'class',
+		shouldKeep: (element, data) => {
+			if (element.tagName === 'SPAN') {
+				if (data.attrName === 'class') {
+					return /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(data.attrValue);
+				}
+			}
+			return false;
+		},
+	},
+]);
 
 function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
 	const allowedLinkSchemes = [
@@ -510,7 +536,7 @@ function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions
 			override: options.allowedTags?.override ?? allowedMarkdownHtmlTags
 		},
 		allowedAttributes: {
-			override: allowedMarkdownHtmlAttributes,
+			override: options.allowedAttributes?.override ?? allowedMarkdownHtmlAttributes,
 		},
 		allowedLinkProtocols: {
 			override: allowedLinkSchemes,
@@ -527,45 +553,6 @@ function getDomSanitizerConfig(isTrusted: boolean | MarkdownStringTrustedOptions
 			]
 		},
 		replaceWithPlaintext: options.replaceWithPlaintext,
-		_do_not_use_hooks: {
-			uponSanitizeAttribute: (element, e) => {
-				if (options.customAttrSanitizer) {
-					const result = options.customAttrSanitizer(e.attrName, e.attrValue);
-					if (typeof result === 'string') {
-						if (result) {
-							e.attrValue = result;
-							e.keepAttr = true;
-						} else {
-							e.keepAttr = false;
-						}
-					} else {
-						e.keepAttr = result;
-					}
-					return;
-				}
-
-				if (e.attrName === 'style' || e.attrName === 'class') {
-					if (element.tagName === 'SPAN') {
-						if (e.attrName === 'style') {
-							e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
-							return;
-						} else if (e.attrName === 'class') {
-							e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
-							return;
-						}
-					}
-
-					e.keepAttr = false;
-					return;
-				} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
-					if ((e.attrName === 'type' && e.attrValue === 'checkbox') || e.attrName === 'disabled' || e.attrName === 'checked') {
-						e.keepAttr = true;
-						return;
-					}
-					e.keepAttr = false;
-				}
-			},
-		}
 	};
 }
 

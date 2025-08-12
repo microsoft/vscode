@@ -117,7 +117,11 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 					subtitle: toolInvocation.originMessage,
 					buttons,
 					message,
-					toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' }
+					toolbarData: {
+						arg: toolInvocation,
+						partType: 'chatToolConfirmation',
+						partSource: toolInvocation.source.type
+					}
 				}
 			));
 		} else {
@@ -291,7 +295,11 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 					subtitle: toolInvocation.originMessage,
 					buttons,
 					message: elements.root,
-					toolbarData: { arg: toolInvocation, partType: 'chatToolConfirmation' }
+					toolbarData: {
+						arg: toolInvocation,
+						partType: 'chatToolConfirmation',
+						partSource: toolInvocation.source?.type
+					}
 				},
 			));
 		}
@@ -336,7 +344,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
 			{
 				kind: 'markdownContent',
-				content: typeof message === 'string' ? new MarkdownString().appendText(message) : message
+				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message
 			},
 			this.context,
 			this.editorPool,

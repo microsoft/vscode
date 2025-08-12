@@ -24,7 +24,7 @@ import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
-import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails } from './languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -263,7 +263,7 @@ export interface IChatElicitationRequest {
 	acceptButtonLabel: string;
 	rejectButtonLabel: string;
 	subtitle?: string | IMarkdownString;
-	source?: { type: 'mcp'; definitionId: string };
+	source?: ToolDataSource;
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
@@ -319,6 +319,7 @@ export interface IChatToolInvocation {
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
+	source: ToolDataSource;
 	progress: IObservable<{ message?: string | IMarkdownString; progress: number }>;
 	readonly toolId: string;
 	readonly toolCallId: string;
@@ -351,6 +352,7 @@ export interface IChatToolInvocationSerialized {
 	isComplete: boolean;
 	toolCallId: string;
 	toolId: string;
+	source: ToolDataSource;
 	kind: 'toolInvocationSerialized';
 }
 

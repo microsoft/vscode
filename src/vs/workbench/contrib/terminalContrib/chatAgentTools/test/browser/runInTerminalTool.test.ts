@@ -7,10 +7,11 @@ import { ok, strictEqual } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { Separator } from '../../../../../../base/common/actions.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService } from '../../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -113,6 +114,10 @@ suite('RunInTerminalTool', () => {
 
 		const result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
 		return result;
+	}
+
+	function isSeparator(action: ToolConfirmationAction): action is Separator {
+		return action instanceof Separator;
 	}
 
 	/**
@@ -233,7 +238,7 @@ suite('RunInTerminalTool', () => {
 				command: '',
 				explanation: 'Empty command'
 			});
-			assertConfirmationRequired(result);
+			assertAutoApproved(result);
 		});
 
 		test('should handle commands with only whitespace', async () => {
@@ -291,18 +296,24 @@ suite('RunInTerminalTool', () => {
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
+			strictEqual(customActions.length, 4);
 
+
+			ok(!isSeparator(customActions[0]));
 			strictEqual(customActions[0].label, 'Always Allow Command: npm');
 			strictEqual(customActions[0].data.type, 'newRule');
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 
+			ok(!isSeparator(customActions[1]));
 			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm run build');
 			strictEqual(customActions[1].data.type, 'newRule');
 			ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
 
-			strictEqual(customActions[2].label, 'Configure Auto Approve...');
-			strictEqual(customActions[2].data.type, 'configure');
+			ok(isSeparator(customActions[2]));
+
+			ok(!isSeparator(customActions[3]));
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			strictEqual(customActions[3].data.type, 'configure');
 		});
 
 		test('should generate custom actions for single word commands', async () => {
@@ -316,14 +327,18 @@ suite('RunInTerminalTool', () => {
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
 
-			strictEqual(customActions.length, 2, 'Expected 2 custom actions for single word command');
+			strictEqual(customActions.length, 3);
 
+			ok(!isSeparator(customActions[0]));
 			strictEqual(customActions[0].label, 'Always Allow Command: git');
 			strictEqual(customActions[0].data.type, 'newRule');
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 
-			strictEqual(customActions[1].label, 'Configure Auto Approve...');
-			strictEqual(customActions[1].data.type, 'configure');
+			ok(isSeparator(customActions[1]));
+
+			ok(!isSeparator(customActions[2]));
+			strictEqual(customActions[2].label, 'Configure Auto Approve...');
+			strictEqual(customActions[2].data.type, 'configure');
 		});
 
 		test('should not generate custom actions for auto-approved commands', async () => {
@@ -355,6 +370,7 @@ suite('RunInTerminalTool', () => {
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
 			strictEqual(customActions.length, 1, 'Expected only 1 custom action for explicitly denied commands');
 
+			ok(!isSeparator(customActions[0]));
 			strictEqual(customActions[0].label, 'Configure Auto Approve...');
 			strictEqual(customActions[0].data.type, 'configure');
 		});
@@ -369,16 +385,98 @@ suite('RunInTerminalTool', () => {
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 3, 'Expected 3 custom actions');
+			strictEqual(customActions.length, 4);
 
+			ok(!isSeparator(customActions[0]));
 			strictEqual(customActions[0].label, 'Always Allow Command: npm');
 			strictEqual(customActions[0].data.type, 'newRule');
 
+			ok(!isSeparator(customActions[1]));
 			strictEqual(customActions[1].label, 'Always Allow Full Command Line: npm install &&& npm run build');
 			strictEqual(customActions[1].data.type, 'newRule');
 
-			strictEqual(customActions[2].label, 'Configure Auto Approve...');
-			strictEqual(customActions[2].data.type, 'configure');
+			ok(isSeparator(customActions[2]));
+
+			ok(!isSeparator(customActions[3]));
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			strictEqual(customActions[3].data.type, 'configure');
+		});
+
+		test('should not show approved commands in custom actions dropdown', async () => {
+			setAutoApprove({
+				head: true  // head is approved by default in real scenario
+			});
+
+			const result = await executeToolTest({
+				command: 'foo | head -20',
+				explanation: 'Run foo command and show first 20 lines'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: foo', 'Should only show \'foo\' since \'head\' is auto-approved');
+			strictEqual(customActions[0].data.type, 'newRule');
+
+			ok(!isSeparator(customActions[1]));
+			strictEqual(customActions[1].label, 'Always Allow Full Command Line: foo | head -20');
+			strictEqual(customActions[1].data.type, 'newRule');
+
+			ok(isSeparator(customActions[2]));
+
+			ok(!isSeparator(customActions[3]));
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			strictEqual(customActions[3].data.type, 'configure');
+		});
+
+		test('should not show any command-specific actions when all sub-commands are approved', async () => {
+			setAutoApprove({
+				foo: true,
+				head: true
+			});
+
+			const result = await executeToolTest({
+				command: 'foo | head -20',
+				explanation: 'Run foo command and show first 20 lines'
+			});
+
+			assertAutoApproved(result);
+		});
+
+		test('should handle mixed approved and unapproved commands correctly', async () => {
+			setAutoApprove({
+				head: true,
+				tail: true
+			});
+
+			const result = await executeToolTest({
+				command: 'foo | head -20 && bar | tail -10',
+				explanation: 'Run multiple piped commands'
+			});
+
+			assertConfirmationRequired(result, 'Run command in terminal');
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Commands: foo, bar', 'Should only show \'foo, bar\' since \'head\' and \'tail\' are auto-approved');
+			strictEqual(customActions[0].data.type, 'newRule');
+
+			ok(!isSeparator(customActions[1]));
+			strictEqual(customActions[1].label, 'Always Allow Full Command Line: foo | head -20 &&& bar | tail -10');
+			strictEqual(customActions[1].data.type, 'newRule');
+
+			ok(isSeparator(customActions[2]));
+
+			ok(!isSeparator(customActions[3]));
+			strictEqual(customActions[3].label, 'Configure Auto Approve...');
+			strictEqual(customActions[3].data.type, 'configure');
 		});
 
 	});

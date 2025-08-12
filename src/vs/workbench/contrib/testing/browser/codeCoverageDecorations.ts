@@ -878,6 +878,32 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 	}
 });
 
+registerAction2(class ToggleCoverageInExplorer extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageToggleInExplorer,
+			title: localize2('testing.toggleCoverageInExplorerTitle', "Toggle Coverage in Explorer"),
+			metadata: {
+				description: localize2('testing.toggleCoverageInExplorerDesc', 'Toggle the display of test coverage in the File Explorer view.')
+			},
+			category: Categories.Test,
+			toggled: {
+				condition: ContextKeyExpr.equals('config.testing.showCoverageInExplorer', true),
+				title: localize('testing.hideCoverageInExplorer', "Hide Coverage in Explorer"),
+			},
+			menu: [
+				{ id: MenuId.CommandPalette, when: TestingContextKeys.isTestCoverageOpen },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const config = accessor.get(IConfigurationService);
+		const value = getTestingConfiguration(config, TestingConfigKeys.ShowCoverageInExplorer);
+		config.updateValue(TestingConfigKeys.ShowCoverageInExplorer, !value);
+	}
+});
+
 class ActionWithIcon extends Action {
 	constructor(id: string, title: string, public readonly icon: ThemeIcon, enabled: boolean | undefined, run: () => void) {
 		super(id, title, undefined, enabled, run);

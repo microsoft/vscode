@@ -75,7 +75,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		commands.registerArgumentProcessor({
 			processArgument: (arg) => {
 				if (arg && arg.$mid === MarshalledId.ChatSessionContext) {
-					const id = arg.id;
+					const id = arg.session.id;
 					const sessionContent = this._sessionMap.get(id);
 					if (sessionContent) {
 						return sessionContent;

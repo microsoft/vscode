@@ -74,7 +74,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatEditingSession } from '../common/chatEditingService.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
@@ -158,6 +158,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidAcceptFollowup: Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 	readonly onDidAcceptFollowup: Event<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>;
 
+	private _onDidClickOverlay: Emitter<void>;
+	readonly onDidClickOverlay: Event<void>;
+
 	private readonly _attachmentModel: ChatAttachmentModel;
 	public get attachmentModel(): ChatAttachmentModel {
 		return this._attachmentModel;
@@ -217,6 +220,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private attachmentsContainer!: HTMLElement;
 
 	private chatInputOverlay!: HTMLElement;
+	private readonly overlayClickListener: MutableDisposable<IDisposable>;
 
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables: MutableDisposable<DisposableStore>;
@@ -378,6 +382,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.onDidFocus = this._onDidFocus.event;
 		this._onDidBlur = this._register(new Emitter<void>());
 		this.onDidBlur = this._onDidBlur.event;
+		this._onDidClickOverlay = this._register(new Emitter<void>());
+		this.onDidClickOverlay = this._onDidClickOverlay.event;
 		this._onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
 		this.onDidChangeContext = this._onDidChangeContext.event;
 		this._onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
@@ -389,6 +395,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHeight = 0;
 		this.followupsDisposables = this._register(new DisposableStore());
 		this.attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
+		this.overlayClickListener = this._register(new MutableDisposable<IDisposable>());
 		this._inputPartHeight = 0;
 		this._followupsHeight = 0;
 		this._editSessionWidgetHeight = 0;
@@ -1303,6 +1310,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public toggleChatInputOverlay(editing: boolean): void {
 		this.chatInputOverlay.classList.toggle('disabled', editing);
+		if (editing) {
+			this.overlayClickListener.value = dom.addStandardDisposableListener(this.chatInputOverlay, dom.EventType.CLICK, e => {
+				e.preventDefault();
+				e.stopPropagation();
+				this._onDidClickOverlay.fire();
+			});
+		} else {
+			this.overlayClickListener.clear();
+		}
 	}
 
 	public renderAttachedContext() {
@@ -1479,14 +1495,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
 		const seenEntries = new ResourceSet();
-		const entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
-			seenEntries.add(entry.modifiedURI);
-			return {
-				reference: entry.modifiedURI,
-				state: entry.state.get(),
-				kind: 'reference',
-			};
-		}) ?? [];
+		const entries: IChatCollapsibleListItem[] = [];
+		if (chatEditingSession) {
+			for (const entry of chatEditingSession.entries.get()) {
+				if (entry.state.get() !== ModifiedFileEntryState.Modified) {
+					continue;
+				}
+
+				if (!seenEntries.has(entry.modifiedURI)) {
+					seenEntries.add(entry.modifiedURI);
+					entries.push({
+						reference: entry.modifiedURI,
+						state: entry.state.get(),
+						kind: 'reference',
+					});
+				}
+			}
+		}
 
 		if (!chatEditingSession || !this.options.renderWorkingSet || !entries.length) {
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
@@ -1497,16 +1522,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Summary of number of files changed
 		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
-		for (const entry of chatEditingSession.entries.get()) {
-			if (!seenEntries.has(entry.modifiedURI)) {
-				entries.unshift({
-					reference: entry.modifiedURI,
-					state: entry.state.get(),
-					kind: 'reference',
-				});
-				seenEntries.add(entry.modifiedURI);
-			}
-		}
 
 		entries.sort((a, b) => {
 			if (a.kind === 'reference' && b.kind === 'reference') {

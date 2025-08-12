@@ -88,14 +88,15 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		default: {
 			// Safe and common readonly commands (automatically approved)
+			cd: true,
 			echo: true,
 			ls: true,
-			find: true,
 			pwd: true,
 			cat: true,
 			head: true,
 			tail: true,
 			grep: true,
+			findstr: true,
 			wc: true,
 			sort: true,
 			uniq: true,
@@ -138,14 +139,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Split-Path': true,
 			'Join-Path': true,
 
+			// Commands that are generally allowed with special cases we block
+			find: true,
+			'/find\\b.*-exec(dir)?\\b/': false, // Execute on results
+			top: true,
+			'/top\\b.*-(k|r)\\b/': false, // Kill or renice processes
+
 			// There are countless dangerous commands available on the command line, the defaults here
 			// include common ones that the user is likely to want to explicitly approve first. This is
 			// not intended to be a catch all as the user needs to opt-in to auto-approve commands, it
 			// provides additional safety when the commands get approved by broad rules or via LLM-based
 			// approval
-
-			// Overwriting allowed by default commands with special cases
-			'/find\\b.*-exec(dir)?\\b/': false,
 
 			// Deleting files
 			rm: false,

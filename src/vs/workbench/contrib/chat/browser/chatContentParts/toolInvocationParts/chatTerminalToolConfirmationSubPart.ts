@@ -250,10 +250,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	}
 
 	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
-		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, {
-			kind: 'markdownContent',
-			content: typeof message === 'string' ? new MarkdownString().appendText(message) : message
-		},
+		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
+			{
+				kind: 'markdownContent',
+				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message
+			},
 			this.context,
 			this.editorPool,
 			false,
