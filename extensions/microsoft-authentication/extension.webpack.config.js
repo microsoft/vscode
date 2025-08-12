@@ -32,7 +32,7 @@ export default withDefaults({
 			patterns: [
 				{
 					// The native files we need to ship with the extension
-					from: '**/dist/(lib|)msalruntime*.(node|dll|dylib)',
+					from: '**/dist/(lib|)msal*.(node|dll|dylib)',
 					to: '[name][ext]',
 					// These will only be present on Windows for now
 					noErrorOnMissing: !isWindows && !isMacOS
