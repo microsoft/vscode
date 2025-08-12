@@ -137,6 +137,11 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.compareWithMain",
+        "title": "%command.compareWithMain%",
+        "category": "Git"
+      },
+      {
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
@@ -1913,6 +1918,11 @@
           "group": "2_view@2"
         },
         {
+          "command": "git.compareWithMain",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "worktree_diff"
+        },
+        {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
           "group": "inline@1"
@@ -1966,6 +1976,11 @@
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "2_view@2"
+        },
+        {
+          "command": "git.compareWithMain",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "worktree_diff"
         },
         {
           "command": "git.openFile2",
@@ -2046,6 +2061,11 @@
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "2_view@2"
+        },
+        {
+          "command": "git.compareWithMain",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "worktree_diff"
         },
         {
           "command": "git.openChange",
