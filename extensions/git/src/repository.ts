@@ -327,6 +327,13 @@ export class Resource implements SourceControlResourceState {
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
 
+	async openWorkspaceCompare(): Promise<void> {
+		const command = this._commandResolver.resolveWorkspaceCompareCommand(this);
+		if (command) {
+			await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+		}
+	}
+
 	clone(resourceGroupType?: ResourceGroupType) {
 		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
 	}
@@ -531,6 +538,39 @@ class ResourceCommandResolver {
 				arguments: [resource.leftUri, resource.rightUri, title]
 			};
 		}
+	}
+
+	resolveWorkspaceCompareCommand(resource: Resource): Command | undefined {
+		// Only works for worktree
+		if (this.repository.kind !== 'worktree' || !this.repository.dotGit.commonPath) {
+			return undefined;
+		}
+
+		const mainRepositoryPath = path.dirname(this.repository.dotGit.commonPath);
+		const relativePathInWorktree = path.relative(this.repository.root, resource.resourceUri.fsPath);
+		const mainRepoFilePath = path.join(mainRepositoryPath, relativePathInWorktree);
+		const mainRepoFileUri = Uri.file(mainRepoFilePath);
+
+		// Left side: main repository working tree file (not HEAD). If missing, use empty tree to show full addition.
+		let left: Uri;
+		if (fs.existsSync(mainRepoFilePath)) {
+			left = mainRepoFileUri;
+		} else {
+			const EMPTY_TREE_ID = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+			left = toGitUri(mainRepoFileUri, EMPTY_TREE_ID);
+		}
+
+		const right = resource.resourceUri; // worktree file
+
+		const basename = path.basename(resource.resourceUri.fsPath);
+		const worktreeName = path.basename(this.repository.root);
+		const title = `${basename} (${worktreeName} ↔ Main Repository)`;
+
+		return {
+			command: 'vscode.diff',
+			title: l10n.t('Compare with Workspace'),
+			arguments: [left, right, title, { preview: false }]
+		};
 	}
 
 	getResources(resource: Resource): { left: Uri | undefined; right: Uri | undefined; original: Uri | undefined; modified: Uri | undefined } {

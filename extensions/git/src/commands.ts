@@ -1452,8 +1452,8 @@ export class CommandCenter {
 		return await commands.executeCommand<void>('vscode.open', HEAD, opts, title);
 	}
 
-	@command('git.compareWithMain')
-	async compareWithMain(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.compareWithWorkspace')
+	async compareWithWorkspace(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -1478,41 +1478,8 @@ export class CommandCenter {
 		}
 
 		for (const resource of resources) {
-			await this._openWorktreeChange(resource);
+			await resource.openWorkspaceCompare();
 		}
-	}
-
-	private async _openWorktreeChange(resource: Resource): Promise<void> {
-		const repository = this.model.getRepository(resource.resourceUri);
-		if (!repository) {
-			return;
-		}
-
-		if (repository.kind !== 'worktree' || !repository.dotGit.commonPath) {
-			return;
-		}
-
-		const mainRepositoryPath = path.dirname(repository.dotGit.commonPath);
-		const mainRepository = this.model.getRepository(Uri.file(mainRepositoryPath));
-
-		if (!mainRepository || !mainRepository.HEAD?.commit) {
-			return;
-		}
-
-		const mainRepoUri = toGitUri(resource.resourceUri, mainRepository.HEAD.commit);
-
-		const worktreeUri = resource.resourceUri;
-
-		const basename = path.basename(resource.resourceUri.fsPath);
-		const title = `${basename} (Worktree ↔ Main Repository)`;
-
-		await commands.executeCommand(
-			'vscode.diff',
-			mainRepoUri,
-			worktreeUri,
-			title,
-			{ preview: false }
-		);
 	}
 
 	@command('git.openChange')
@@ -3520,7 +3487,7 @@ export class CommandCenter {
 			return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
 		};
 
-		const placeHolder = l10n.t('Select a branch or tag to create the new worktree from');
+		const placeHolder = l10n.t('Select a branch or tag to create the new worktrees from');
 		const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
 		if (!choice) {

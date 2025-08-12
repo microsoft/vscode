@@ -137,8 +137,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.compareWithMain",
-        "title": "%command.compareWithMain%",
+        "command": "git.compareWithWorkspace",
+        "title": "%command.compareWithWorkspace%",
         "category": "Git"
       },
       {
@@ -1918,7 +1918,7 @@
           "group": "2_view@2"
         },
         {
-          "command": "git.compareWithMain",
+          "command": "git.compareWithWorkspace",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "worktree_diff"
         },
@@ -1978,7 +1978,7 @@
           "group": "2_view@2"
         },
         {
-          "command": "git.compareWithMain",
+          "command": "git.compareWithWorkspace",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "worktree_diff"
         },
@@ -2063,7 +2063,7 @@
           "group": "2_view@2"
         },
         {
-          "command": "git.compareWithMain",
+          "command": "git.compareWithWorkspace",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "worktree_diff"
         },
