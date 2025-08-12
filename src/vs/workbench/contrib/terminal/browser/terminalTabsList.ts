@@ -298,10 +298,20 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 
 		const actionBar = this._register(new ActionBar(actionsContainer, {
 			actionRunner: this._register(new TerminalContextActionRunner()),
-			actionViewItemProvider: (action, options) =>
-				action instanceof MenuItemAction
-					? this._register(this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate }))
-					: undefined
+			actionViewItemProvider: (action, options) => {
+				if (action instanceof MenuItemAction) {
+					try {
+						return this._register(this._instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate }));
+					} catch (e) {
+						// If the instantiation service has been disposed, return undefined
+						if (e instanceof Error && e.message === 'InstantiationService has been disposed') {
+							return undefined;
+						}
+						throw e;
+					}
+				}
+				return undefined;
+			}
 		}));
 
 		return {
@@ -347,7 +357,17 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 		const hoverInfo = getInstanceHoverInfo(instance, this._storageService);
 		template.context.hoverActions = hoverInfo.actions;
 
-		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
+		let iconId: string;
+		try {
+			iconId = this._instantiationService.invokeFunction(getIconId, instance);
+		} catch (e) {
+			// If the instantiation service has been disposed, fall back to the default terminal icon
+			if (e instanceof Error && e.message === 'InstantiationService has been disposed') {
+				iconId = Codicon.terminal.id;
+			} else {
+				throw e;
+			}
+		}
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
