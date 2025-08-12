@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
 import { IChatAccessibilityService } from '../chat.js';
-import { ChatConfirmationWidget, SimpleChatConfirmationWidget } from './chatConfirmationWidget.js';
+import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 export class ChatElicitationContentPart extends Disposable implements IChatContentPart {
@@ -40,8 +40,6 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
-		const messageToRender = this.getMessageToRender(elicitation);
-
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (e.data) {
 				await elicitation.accept();
@@ -50,15 +48,15 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			}
 
 			confirmationWidget.setShowButtons(false);
-			confirmationWidget.updateMessage(messageToRender);
+			confirmationWidget.updateMessage(this.getMessageToRender(elicitation));
 
 			this._onDidChangeHeight.fire();
 		}));
 
-
 		this.chatAccessibilityService.acceptElicitation(elicitation);
 		this.domNode = confirmationWidget.domNode;
 		this.domNode.tabIndex = 0;
+		const messageToRender = this.getMessageToRender(elicitation);
 		this.domNode.ariaLabel = elicitation.title + ' ' + (typeof messageToRender === 'string' ? messageToRender : messageToRender.value || '');
 	}
 
