@@ -132,20 +132,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'git show': true,
 			'git diff': true,
 
-			// Common npm/yarn run commands that are typically safe
-			'npm run build': true,
-			'npm run test': true,
-			'npm run dev': true,
-			'npm run start': true,
-			'npm run lint': true,
-			'npm run watch': true,
-			'yarn run build': true,
-			'yarn run test': true,
-			'yarn run dev': true,
-			'yarn run start': true,
-			'yarn run lint': true,
-			'yarn run watch': true,
-
 			// While these PowerShell verbs can have side effects, they are generally innocuous (eg.
 			// updating OS-level file access info) and and often have prompts if they're more
 			// involved (eg. Get-Credential)
