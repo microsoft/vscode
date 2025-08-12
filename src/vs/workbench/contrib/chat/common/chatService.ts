@@ -268,7 +268,7 @@ export interface IChatElicitationRequest {
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
 	reject(): Promise<void>;
-	onDidRequestHide: Event<void>;
+	onDidRequestHide?: Event<void>;
 }
 
 export interface IChatThinkingPart {

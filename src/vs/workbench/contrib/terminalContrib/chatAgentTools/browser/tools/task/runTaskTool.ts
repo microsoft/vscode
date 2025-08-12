@@ -17,6 +17,7 @@ import { getOutput } from '../../outputHelpers.js';
 import { getTaskDefinition, getTaskForTool } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -149,6 +150,7 @@ export const RunTaskToolData: IToolData = {
 	displayName: localize('runInTerminalTool.displayName', 'Run Task'),
 	modelDescription: 'Runs a VS Code task.\n\n- If you see that an appropriate task exists for building or running code, prefer to use this tool to run the task instead of using the run_in_terminal tool.\n- Make sure that any appropriate build or watch task is running before trying to run tests or execute code.\n- If the user asks to run a task, use this tool to do so.',
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running tasks in the workspace'),
+	icon: Codicon.tools,
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		'type': 'object',

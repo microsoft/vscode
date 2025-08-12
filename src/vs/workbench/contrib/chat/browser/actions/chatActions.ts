@@ -44,8 +44,8 @@ import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/t
 import { ActiveEditorContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -67,6 +67,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -900,6 +901,104 @@ export function registerChatActions() {
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
 			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
+		}
+	});
+
+	registerAction2(class OpenChatEditorInNewWindowAction extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.chat.newChatInNewWindow`,
+				title: localize2('chatSessions.openNewChatInNewWindow', 'Open New Chat in New Window'),
+				f1: false,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const editorService = accessor.get(IEditorService);
+			await editorService.openEditor({
+				resource: ChatEditorInput.getNewEditorUri(),
+				options: {
+					pinned: true,
+					auxiliary: { compact: false }
+				} satisfies IChatEditorOptions
+			}, AUX_WINDOW_GROUP);
+		}
+	});
+
+	registerAction2(class NewChatInSideBarAction extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.chat.newChatInWidget`,
+				title: localize2('chatSessions.newChatInWidget', 'Open New Chat in Widget'),
+				f1: false,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const viewsService = accessor.get(IViewsService);
+
+			// Open the chat view in the sidebar and get the widget
+			const chatWidget = await showChatView(viewsService);
+
+			if (chatWidget) {
+				// Clear the current chat to start a new one
+				chatWidget.clear();
+				await chatWidget.waitForReady();
+				chatWidget.attachmentModel.clear(true);
+				chatWidget.input.relatedFiles?.clear();
+
+				// Focus the input area
+				chatWidget.focusInput();
+			}
+		}
+	});
+
+	registerAction2(class OpenChatInNewEditorGroupAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.openNewChatToTheSide',
+				title: localize2('chat.openNewChatToTheSide.label', "Open New Chat to the Side"),
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				f1: false,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const editorService = accessor.get(IEditorService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			// Create a new editor group to the right
+			const newGroup = editorGroupService.addGroup(editorGroupService.activeGroup, GroupDirection.RIGHT);
+			editorGroupService.activateGroup(newGroup);
+
+			// Open a new chat editor in the new group
+			await editorService.openEditor(
+				{ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } },
+				newGroup.id
+			);
 		}
 	});
 

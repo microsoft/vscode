@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { thenIfNotDisposed } from '../../../../../../base/common/lifecycle.js';
+import { thenIfNotDisposed, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -19,6 +21,7 @@ import { ITextModelService } from '../../../../../../editor/common/services/reso
 import { localize } from '../../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -36,6 +39,8 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
+const $ = dom.$;
+
 export interface ITerminalNewAutoApproveRule {
 	key: string;
 	value: boolean | {
@@ -49,7 +54,7 @@ export type TerminalNewAutoApproveButtonData = (
 	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] }
 );
 
-export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
+export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
@@ -71,6 +76,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITextModelService textModelService: ITextModelService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super(toolInvocation);
 
@@ -81,18 +87,18 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		const { title, message, disclaimer, terminalCustomActions } = toolInvocation.confirmationMessages;
-		const continueLabel = localize('continue', "Continue");
-		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
+		const runLabel = localize('run', "Run");
+		const runKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+		const runTooltip = runKeybinding ? `${runLabel} (${runKeybinding})` : runLabel;
 		const cancelLabel = localize('cancel', "Cancel");
 		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
 		const buttons: IChatConfirmationButton[] = [
 			{
-				label: continueLabel,
+				label: runLabel,
 				data: true,
-				tooltip: continueTooltip,
+				tooltip: runTooltip,
 				moreActions: terminalCustomActions,
 			},
 			{
@@ -100,11 +106,8 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 				data: false,
 				isSecondary: true,
 				tooltip: cancelTooltip,
-			}];
-		const renderedMessage = this._register(this.renderer.render(
-			typeof message === 'string' ? new MarkdownString(message) : message,
-			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
-		));
+			}
+		];
 		const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 			hideToolbar: true,
 			reserveWidth: 19,
@@ -116,26 +119,20 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 				ariaLabel: typeof title === 'string' ? title : title.value
 			}
 		};
-		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
+		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this._register(this.modelService.createModel(
 			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
-			this.languageService.createById(langId),
+			this.languageService.createById(languageId),
 			this._getUniqueCodeBlockUri(),
 			true
 		));
-		textModelService.createModelReference(model.uri).then(ref => {
-			if (this._store.isDisposed) {
-				ref.dispose();
-			} else {
-				this._register(ref);
-			}
-		});
+		thenRegisterOrDispose(textModelService.createModelReference(model.uri), this._store);
 		const editor = this._register(this.editorPool.get());
 		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
-			languageId: langId,
+			languageId,
 			renderOptions: codeBlockRenderOptions,
 			textModel: Promise.resolve(model),
 			chatSessionId: this.context.element.sessionId
@@ -159,17 +156,26 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		this._register(model.onDidChangeContent(e => {
 			terminalData.commandLine.userEdited = model.getValue();
 		}));
-		const element = dom.$('');
-		dom.append(element, editor.object.element);
-		dom.append(element, renderedMessage.element);
+		const messageElement = $('.chat-confirmation-message-terminal');
+		dom.append(messageElement, editor.object.element);
+		this._register(hoverService.setupDelayedHover(messageElement, {
+			content: message,
+			position: { hoverPosition: HoverPosition.BELOW },
+			appearance: { showPointer: true }
+		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget,
 			this.context.container,
-			{ title, message: element, buttons },
+			{
+				title,
+				icon: Codicon.terminal,
+				message: messageElement,
+				buttons
+			},
 		));
 
 		if (disclaimer) {
-			this._appendMarkdownPart(element, disclaimer, codeBlockRenderOptions);
+			this._appendMarkdownPart(messageElement, disclaimer, codeBlockRenderOptions);
 		}
 
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
@@ -226,6 +232,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(false);
 			this._onNeedsRerender.fire();
 		});
+
 		this.domNode = confirmWidget.domNode;
 	}
 
