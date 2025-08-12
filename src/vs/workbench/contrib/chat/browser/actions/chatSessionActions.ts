@@ -23,13 +23,13 @@ export interface IChatSessionContext {
 }
 
 export class RenameChatSessionAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.renameSession';
+	static readonly id = 'workbench.action.chat.renameSession';
 
 	constructor() {
 		super({
-			id: RenameChatSessionAction.ID,
+			id: RenameChatSessionAction.id,
 			title: localize('renameSession', "Rename"),
-			f1: true,
+			f1: false,
 			category: 'Chat',
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -66,24 +66,24 @@ export class RenameChatSessionAction extends Action2 {
 			if (result) {
 				const newTitle = result.trim();
 				await chatService.setChatSessionTitle(context.sessionId, newTitle);
-				
+
 				notificationService.info(
 					localize('renameSession.success', "Chat session renamed to '{0}'", newTitle)
 				);
 			}
 		} catch (error) {
 			notificationService.error(
-				localize('renameSession.error', "Failed to rename chat session: {0}", 
+				localize('renameSession.error', "Failed to rename chat session: {0}",
 					(error instanceof Error ? error.message : String(error)))
 			);
 		}
 	}
 }
 
-// Register the menu item - only show for local chat sessions 
+// Register the menu item - only show for local chat sessions
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
-		id: RenameChatSessionAction.ID,
+		id: RenameChatSessionAction.id,
 		title: localize('renameSession', "Rename")
 	},
 	group: '1_modification',

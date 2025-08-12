@@ -27,7 +27,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
-import { IAsyncDataSource, ITreeRenderer, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -53,9 +53,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { RenameChatSessionAction, IChatSessionContext } from './actions/chatSessionActions.js';
+import { IChatSessionContext } from './actions/chatSessionActions.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -697,7 +695,6 @@ class SessionsViewPane extends ViewPane {
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -957,7 +954,7 @@ class SessionsViewPane extends ViewPane {
 
 		const sessionItem = e.element as ILocalChatSessionItem;
 		let actualSessionId: string | undefined;
-		
+
 		// Extract the actual chat session ID based on session type
 		if (sessionItem.sessionType === 'editor' && sessionItem.editor instanceof ChatEditorInput) {
 			// For editor sessions, use the ChatEditorInput's sessionId
@@ -970,7 +967,7 @@ class SessionsViewPane extends ViewPane {
 		if (!actualSessionId) {
 			return; // Cannot rename without a valid session ID
 		}
-		
+
 		// Create context for the rename action
 		const context: IChatSessionContext = {
 			sessionId: actualSessionId,
