@@ -468,7 +468,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private async doGetSessionFromChallenge(providerId: string, challenges: AuthenticationChallenge[], scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
-		// Check if the provider supports challenge-based authentication
+		// Check if the provider exists
 		const provider = this.authenticationService.getProvider(providerId);
 		if (!provider) {
 			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
@@ -476,22 +476,19 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		// Try to get existing sessions first using challenge-aware methods
 		try {
-			const extHostProvider = this._authenticationProviders.get(providerId);
-			if (extHostProvider) {
-				const challengeSessions = await extHostProvider.$getSessionsFromChallenges(providerId, challenges, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
+			const challengeSessions = await this._proxy.$getSessionsFromChallenges(providerId, challenges, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
+			
+			// Check if we have a valid existing session
+			if (challengeSessions.length > 0) {
+				const matchingAccountPreferenceSession = this._getAccountPreference(extensionId, providerId, scopes, challengeSessions);
+				if (matchingAccountPreferenceSession && this.authenticationAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, extensionId)) {
+					return matchingAccountPreferenceSession;
+				}
 				
-				// Check if we have a valid existing session
-				if (challengeSessions.length > 0) {
-					const matchingAccountPreferenceSession = this._getAccountPreference(extensionId, providerId, scopes, challengeSessions);
-					if (matchingAccountPreferenceSession && this.authenticationAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, extensionId)) {
-						return matchingAccountPreferenceSession;
-					}
-					
-					// Return the first accessible session
-					const validSession = challengeSessions.find(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
-					if (validSession) {
-						return validSession;
-					}
+				// Return the first accessible session
+				const validSession = challengeSessions.find(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
+				if (validSession) {
+					return validSession;
 				}
 			}
 		} catch (error) {
@@ -501,14 +498,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		// If no existing session matches the challenge requirements, create a new one
 		if (options.createIfNone || options.forceNewSession) {
 			try {
-				const extHostProvider = this._authenticationProviders.get(providerId);
-				if (extHostProvider) {
-					const session = await extHostProvider.$createSessionFromChallenges(providerId, challenges, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
-					if (session) {
-						this.authenticationExtensionsService.updateNewSessionRequests(providerId, [session]);
-						this._updateAccountPreference(extensionId, providerId, session);
-						return session;
-					}
+				const session = await this._proxy.$createSessionFromChallenges(providerId, challenges, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
+				if (session) {
+					this.authenticationExtensionsService.updateNewSessionRequests(providerId, [session]);
+					this._updateAccountPreference(extensionId, providerId, session);
+					return session;
 				}
 			} catch (error) {
 				this.logService.error('Failed to create session from challenges:', error);
