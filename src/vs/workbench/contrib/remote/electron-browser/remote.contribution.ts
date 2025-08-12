@@ -165,7 +165,8 @@ class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribut
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@INativeHostService nativeHostService: INativeHostService,
 		@IStorageService storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -179,13 +180,17 @@ class WSLContextKeyInitializer extends Disposable implements IWorkbenchContribut
 
 		if (defaultValue === undefined) {
 			lifecycleService.when(LifecyclePhase.Eventually).then(async () => {
-				nativeHostService.hasWSLFeatureInstalled().then(res => {
-					if (res) {
-						contextKey.set(true);
-						// once detected, set to true
-						storageService.store(storageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-					}
-				});
+				// Only detect WSL feature if useWslProfiles is not explicitly disabled
+				const useWslProfiles = configurationService.getValue('terminal.integrated.useWslProfiles') !== false;
+				if (useWslProfiles) {
+					nativeHostService.hasWSLFeatureInstalled().then(res => {
+						if (res) {
+							contextKey.set(true);
+							// once detected, set to true
+							storageService.store(storageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+						}
+					});
+				}
 			});
 		}
 	}
