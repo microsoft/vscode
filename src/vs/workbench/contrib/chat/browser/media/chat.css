@@ -745,20 +745,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
-.interactive-session .chat-editing-session .working-set-title .monaco-button {
-	padding: 4px 6px 4px 0px;
-	border-radius: 2px;
-	background-color: unset;
-	color: var(--vscode-foreground)
+.interactive-session .chat-editing-session .working-set-title {
+
+	.monaco-button {
+		padding: 4px 6px 4px 0px;
+		border-radius: 2px;
+		background-color: unset;
+		color: var(--vscode-foreground)
+	}
+
+	.monaco-button:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.monaco-button:focus-visible {
+		outline-offset: -1px !important;
+	}
 }
 
-.interactive-session .chat-editing-session .working-set-title .monaco-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.interactive-session .chat-editing-session .working-set-title .monaco-button:focus-visible {
-	outline-offset: -1px !important;
-}
 
 .interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
 	position: relative;
