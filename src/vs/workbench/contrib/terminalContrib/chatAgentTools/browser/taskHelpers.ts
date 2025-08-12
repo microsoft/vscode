@@ -10,7 +10,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ToolProgress } from '../../../chat/common/languageModelToolsService.js';
-import { ConfiguringTask, Task } from '../../../tasks/common/tasks.js';
+import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle, getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
@@ -125,9 +125,12 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 	if (!parentTask.configurationProperties?.dependsOn) {
 		return undefined;
 	}
-	const dependencyTasks = await Promise.all(parentTask.configurationProperties.dependsOn.map(async (dep: any) => {
-		const depId = typeof dep.task === 'string' ? dep.task : dep.task?._key;
-		return await getTaskForTool(depId, { taskLabel: dep.task }, workspaceFolder, configurationService, taskService);
+	const dependencyTasks = await Promise.all(parentTask.configurationProperties.dependsOn.map(async (dep: ITaskDependency) => {
+		const depId: string | undefined = typeof dep.task === 'string' ? dep.task : dep.task?._key;
+		if (!depId) {
+			return undefined;
+		}
+		return await getTaskForTool(depId, { taskLabel: depId }, workspaceFolder, configurationService, taskService);
 	}));
 	return dependencyTasks.filter((t: Task | undefined): t is Task => t !== undefined);
 }
