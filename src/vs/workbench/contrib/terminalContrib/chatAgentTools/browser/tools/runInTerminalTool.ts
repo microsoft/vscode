@@ -450,7 +450,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				} else if (outputAndIdle) {
 					resultText += `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
 				}
+
+				let toolResultMessage: string | undefined;
+				if (toolSpecificData.autoApproveInfo) {
+					toolResultMessage = toolSpecificData.autoApproveInfo.value;
+				}
+
 				return {
+					toolResultMessage: toolResultMessage ? new MarkdownString(toolResultMessage) : undefined,
 					content: [{
 						kind: 'text',
 						value: resultText,
