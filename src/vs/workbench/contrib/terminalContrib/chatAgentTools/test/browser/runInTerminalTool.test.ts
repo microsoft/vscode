@@ -208,7 +208,7 @@ suite('RunInTerminalTool', () => {
 				isBackground: true
 			});
 			assertAutoApproved(result);
-			
+
 			// Verify that auto-approve information is included
 			ok(result?.toolSpecificData, 'Expected toolSpecificData to be defined');
 			const terminalData = result!.toolSpecificData as any;
