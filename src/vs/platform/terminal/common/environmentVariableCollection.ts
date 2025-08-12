@@ -34,10 +34,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				const mutator = next.value[1];
 				const key = next.value[0];
 
-				// Only Python env extension can modify Python activate env var.
-				if (PYTHON_ACTIVATION_VARS_PATTERN.test(key) &&
-					PYTHON_ENV_EXTENSION_ID !== extensionIdentifier) {
-					this._logService.warn(`Extension '${extensionIdentifier}' attempted to modify Python activation variable '${key}' but was blocked`);
+				if (this.blockPythonActivationVar(key, extensionIdentifier)) {
 					next = it.next();
 					continue;
 				}
@@ -85,9 +82,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			for (const mutator of mutators) {
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
 
-				// Only Python env extension can modify Python activate env var.
-				if (PYTHON_ACTIVATION_VARS_PATTERN.test(mutator.variable) && PYTHON_ENV_EXTENSION_ID !== mutator.extensionIdentifier) {
-					this._logService.warn(`Extension '${mutator.extensionIdentifier}' attempted to modify Python activation variable '${mutator.variable}' but was blocked`);
+				if (this.blockPythonActivationVar(mutator.variable, mutator.extensionIdentifier)) {
 					continue;
 				}
 
@@ -116,6 +111,15 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 	private _encodeColons(value: string): string {
 		return value.replaceAll(':', '\\x3a');
+	}
+
+	private blockPythonActivationVar(variable: string, extensionIdentifier: string): boolean {
+		// Only Python env extension can modify Python activate env var.
+		if (PYTHON_ACTIVATION_VARS_PATTERN.test(variable) && PYTHON_ENV_EXTENSION_ID !== extensionIdentifier) {
+			this._logService.warn(`Extension '${extensionIdentifier}' attempted to modify Python activation variable '${variable}' but was blocked`);
+			return true;
+		}
+		return false;
 	}
 
 	diff(other: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined): IMergedEnvironmentVariableCollectionDiff | undefined {
