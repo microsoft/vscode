@@ -14,11 +14,12 @@ import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/ta
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../../bufferOutputPolling.js';
 import { getOutput } from '../../outputHelpers.js';
-import { IConfiguredTask } from '../../taskHelpers.js';
+import { getTaskForTool, IConfiguredTask } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
@@ -54,7 +55,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatService private readonly _chatService: IChatService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -111,40 +113,66 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
-		const resource = this._tasksService.getTerminalForTask(task);
-		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
-		if (!terminal) {
+
+		let resolvedDependencyTasks: Task[] | undefined;
+		if (task.configurationProperties?.dependsOn) {
+			const dependencyTasks = await Promise.all(task.configurationProperties.dependsOn.map(async (dep: any) => {
+				return await getTaskForTool(typeof dep.task === 'string' ? dep.task : dep.task?._key, { taskLabel: dep.task }, args.workspaceFolder, this._configurationService, this._tasksService);
+			}));
+			resolvedDependencyTasks = dependencyTasks.filter((t: Task | undefined): t is Task => t !== undefined);
+		}
+		const resources = this._tasksService.getTerminalsForTasks(resolvedDependencyTasks ?? task);
+		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean);
+		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label)) };
 		}
 
+		const terminalResults: Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }> = [];
 		_progress.report({ message: new MarkdownString(localize('copilotChat.checkingOutput', 'Checking output for `{0}`', args.task.label)) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
-		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-				() => promptForMorePolling(args.task.label, token, invocation.context!, this._chatService),
-				outputAndIdle,
-				token,
-				this._languageModelsService,
-				{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
-			);
+		for (const terminal of terminals) {
+			if (!terminal) {
+				continue;
+			}
+			let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
+			if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
+				outputAndIdle = await racePollingOrPrompt(
+					() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
+					() => promptForMorePolling(args.task.label, token, invocation.context!, this._chatService),
+					outputAndIdle,
+					token,
+					this._languageModelsService,
+					{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
+				);
+			}
+			terminalResults.push({
+				name: terminal.resource?.path ?? 'unknown',
+				output: outputAndIdle?.output ?? '',
+				pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
+				idle: !!outputAndIdle?.terminalExecutionIdleBeforeTimeout
+			});
+			this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
+				taskLabel: args.task.label,
+				bufferLength: outputAndIdle?.output.length ?? 0,
+				pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
+			});
 		}
+
 		let output = '';
 		if (result?.exitCode) {
 			output = `Task \`${args.task.label}\` failed with exit code ${result.exitCode}.`;
 		} else {
-			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task \`${args.task.label}\` finished`;
-			} else {
-				output += `Task \`${args.task.label}\` started and will continue to run in the background.`;
-			}
+			output += `Task \`${args.task.label}\` `;
+			output += terminalResults.every(r => r.idle)
+				? 'finished.'
+				: 'started and will continue to run in the background.';
 		}
-		this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
-			taskLabel: args.task.label,
-			bufferLength: outputAndIdle.output.length,
-			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
-		});
-		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: output };
+
+		// Provide all terminal outputs and polling durations to the model
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nPolling duration: ${r.pollDurationMs}ms\nOutput:\n${r.output}`).join('\n\n');
+		return {
+			content: [{ kind: 'text', value: `Task output summary:\n${details}` }],
+			toolResultMessage: output
+		};
 	}
 
 	private async _isTaskActive(task: Task): Promise<boolean> {

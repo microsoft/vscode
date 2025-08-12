@@ -55,7 +55,7 @@ export class RunTaskTool implements IToolImpl {
 		}
 
 		const taskDefinition = getTaskDefinition(args.id);
-		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService, true);
 		if (!task) {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
@@ -68,40 +68,66 @@ export class RunTaskTool implements IToolImpl {
 		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
-		const resource = this._tasksService.getTerminalForTask(task);
-		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
-		if (!terminal) {
+		let resolvedDependencyTasks: Task[] | undefined;
+		if (task.configurationProperties.dependsOn) {
+			const dependencyTasks = await Promise.all(task.configurationProperties.dependsOn.map(async (dep) => {
+				return await getTaskForTool(typeof dep.task === 'string' ? dep.task : dep.task?._key, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
+			}));
+			resolvedDependencyTasks = dependencyTasks.filter((t): t is Task => t !== undefined);
+		}
+		const resources = this._tasksService.getTerminalsForTasks(resolvedDependencyTasks ?? task);
+		if (!resources || resources.length === 0) {
+			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskLabel)) };
+		}
+		const terminals = this._terminalService.instances.filter(t => resources.some(r => r.path === t.resource.path && r.scheme === t.resource.scheme));
+		if (terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskLabel)) };
 		}
 
+
+		// Collect output and polling duration for all terminals
+		const terminalResults: Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }> = [];
 		_progress.report({ message: new MarkdownString(localize('copilotChat.checkingOutput', 'Checking output for `{0}`', taskLabel)) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
-		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-				() => promptForMorePolling(taskLabel, token, invocation.context!, this._chatService),
-				outputAndIdle,
-				token,
-				this._languageModelsService,
-				{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
-			);
+		for (const terminal of terminals) {
+			let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
+			if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
+				outputAndIdle = await racePollingOrPrompt(
+					() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
+					() => promptForMorePolling(taskLabel, token, invocation.context!, this._chatService),
+					outputAndIdle,
+					token,
+					this._languageModelsService,
+					{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
+				);
+			}
+			terminalResults.push({
+				name: terminal.resource?.path ?? 'unknown',
+				output: outputAndIdle?.output ?? '',
+				pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
+				idle: !!outputAndIdle?.terminalExecutionIdleBeforeTimeout
+			});
+			this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
+				taskId: args.id,
+				bufferLength: outputAndIdle?.output.length ?? 0,
+				pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
+			});
 		}
+
 		let output = '';
 		if (result?.exitCode) {
 			output = `Task \`${taskLabel}\` failed with exit code ${result.exitCode}.`;
 		} else {
-			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task \`${taskLabel}\` finished`;
-			} else {
-				output += `Task \`${taskLabel}\` started and will continue to run in the background.`;
-			}
+			output += `Task \`${taskLabel}\` `;
+			output += terminalResults.every(r => r.idle)
+				? 'finished.'
+				: 'started and will continue to run in the background.';
 		}
-		this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
-			taskId: args.id,
-			bufferLength: outputAndIdle.output.length,
-			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
-		});
-		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: output };
+
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nPolling duration: ${r.pollDurationMs}ms\nOutput:\n${r.output}`).join('\n\n');
+		return {
+			content: [{ kind: 'text', value: `Task output summary:\n${details}` }],
+			toolResultMessage: output
+		};
 	}
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
@@ -113,7 +139,7 @@ export class RunTaskTool implements IToolImpl {
 		const args = context.parameters as IRunTaskToolInput;
 		const taskDefinition = getTaskDefinition(args.id);
 
-		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService, true);
 		if (!task) {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}

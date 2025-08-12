@@ -33,7 +33,7 @@ export function getTaskRepresentation(task: IConfiguredTask | Task): string {
 	return '';
 }
 
-export async function getTaskForTool(id: string | undefined, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task | undefined> {
+export async function getTaskForTool(id: string | undefined, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService, allowParentTask?: boolean): Promise<Task | undefined> {
 	let index = 0;
 	let task: IConfiguredTask | undefined;
 	const workspaceFolderToTaskMap = await taskService.getWorkspaceTasks();
@@ -45,11 +45,12 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 		}
 	}
 	for (const configTask of configTasks) {
-		if (!configTask.type || 'hide' in configTask && configTask.hide) {
+		if ((!allowParentTask && !configTask.type) || ('hide' in configTask && configTask.hide)) {
 			// Skip these as they are not included in the agent prompt and we need to align with
 			// the indices used there.
 			continue;
 		}
+
 		if ((configTask.type && taskDefinition.taskType ? configTask.type === taskDefinition.taskType : true) &&
 			((getTaskRepresentation(configTask) === taskDefinition?.taskLabel) || (id === configTask.label))) {
 			task = configTask;
@@ -86,6 +87,9 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 	if (!resolvedTask) {
 		const customTasks: Task[] | undefined = tasksForWorkspace.set?.tasks;
 		resolvedTask = customTasks?.find(t => task.label === t._label || task.label === t._label);
+	}
+	if (!resolvedTask?.type && resolvedTask?.getDefinition()?.dependencies) {
+		return resolvedTask;
 	}
 	return resolvedTask;
 }
