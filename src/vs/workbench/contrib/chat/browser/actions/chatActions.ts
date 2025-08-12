@@ -580,7 +580,7 @@ export function registerChatActions() {
 
 								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
 								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
-								const menuActions = getContextMenuActions(actions, 'navigation');
+								const menuActions = getContextMenuActions(actions, 'inline');
 								ckey.reset();
 
 								// Use primary actions if available, otherwise fall back to secondary actions
@@ -756,7 +756,7 @@ export function registerChatActions() {
 						const contextItem = context.item as ICodingAgentPickerItem;
 						commandService.executeCommand(buttonItem.id, {
 							uri: contextItem.uri,
-							session: contextItem.session,
+							session: contextItem.session?.session,
 							$mid: MarshalledId.ChatSessionContext
 						});
 

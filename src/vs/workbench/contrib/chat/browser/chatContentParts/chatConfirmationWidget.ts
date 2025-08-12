@@ -41,7 +41,7 @@ export interface IChatConfirmationWidgetOptions {
 	title: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton[];
-	toolbarData?: { arg: any; partType: string };
+	toolbarData?: { arg: any; partType: string; partSource?: string };
 }
 
 export class ChatQueryTitlePart extends Disposable {
@@ -209,7 +209,10 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 		// Create toolbar if actions are provided
 		if (options?.toolbarData) {
-			const overlay = contextKeyService.createOverlay([['chatConfirmationPartType', options.toolbarData.partType]]);
+			const overlay = contextKeyService.createOverlay([
+				['chatConfirmationPartType', options.toolbarData.partType],
+				['chatConfirmationPartSource', options.toolbarData.partSource],
+			]);
 			const nestedInsta = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, overlay])));
 			this._register(nestedInsta.createInstance(
 				MenuWorkbenchToolBar,
