@@ -27,6 +27,16 @@ export class MarkedKatexSupport {
 				override: [
 					...baseConfig.allowedAttributes,
 
+					// Math
+					'stretchy',
+					'encoding',
+					'accent',
+
+					// SVG
+					'd',
+					'viewBox',
+					'preserveAspectRatio',
+
 					// Allow all classes since we don't have a list of allowed katex classes
 					'class',
 
