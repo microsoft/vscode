@@ -88,12 +88,12 @@ export class RunTaskTool implements IToolImpl {
 		}
 		let output = '';
 		if (result?.exitCode) {
-			output = `Task \`${taskLabel}\` failed with exit code ${result.exitCode}.`;
+			output = localize('taskFailed', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
 		} else {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task \`${taskLabel}\` finished`;
+				output = localize('taskFinished', 'Task `{0}` finished', taskLabel);
 			} else {
-				output += `Task \`${taskLabel}\` started and will continue to run in the background.`;
+				output = localize('taskStartedBackground', 'Task `{0}` started and will continue to run in the background.', taskLabel);
 			}
 		}
 		this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
@@ -101,7 +101,7 @@ export class RunTaskTool implements IToolImpl {
 			bufferLength: outputAndIdle.output.length,
 			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
 		});
-		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: output };
+		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: new MarkdownString(output) };
 	}
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
