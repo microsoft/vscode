@@ -964,37 +964,6 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {
-		id: 'workbench.action.chat.newChatInNewWindow',
-		title: nls.localize2('chatSessions.openNewChatInNewWindow', 'Open New Chat in New Window')
-	},
-	group: 'submenu',
-	order: 1,
-	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
-});
-
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	command: {
-		id: 'workbench.action.chat.newChatInSideBar',
-		title: nls.localize2('chatSessions.openNewChatInSideBar', 'Open New Chat in Side Bar'),
-	},
-	group: 'submenu',
-	order: 1,
-	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
-});
-
-
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	command: {
-		id: 'workbench.action.chat.newChatInNewMaximizedWindow',
-		title: nls.localize2('chatSessions.openNewChatInNewMaximizedWindow', 'Open New Chat in Maximized Window')
-	},
-	group: 'submenu',
-	order: 1,
-	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
-});
-
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	command: {
 		id: 'workbench.action.chat.openInNewEditorGroup',
 		title: nls.localize2('chatSessions.openNewChatInNewEditorGroup', 'Open New Chat in Editor Group'),
 	},

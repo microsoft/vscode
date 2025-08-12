@@ -67,6 +67,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -910,7 +911,13 @@ export function registerChatActions() {
 				title: localize2('chatSessions.openNewChatInNewWindow', 'Open New Chat in New Window'),
 				f1: true,
 				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
 			});
 		}
 
@@ -933,7 +940,13 @@ export function registerChatActions() {
 				title: localize2('chatSessions.openNewChatInNewMaximizedWindow', 'Open New Chat in Maximized Window'),
 				f1: true,
 				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
 			});
 		}
 
@@ -956,7 +969,13 @@ export function registerChatActions() {
 				title: localize2('chatSessions.openNewChatInSideBar', 'Open New Chat in Side Bar'),
 				f1: true,
 				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
 			});
 		}
 
