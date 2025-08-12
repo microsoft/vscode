@@ -74,7 +74,7 @@ export async function racePollingOrPrompt(
 }
 
 
-export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarker): string {
+export function getOutput(instance: Pick<ITerminalInstance, 'xterm'>, startMarker?: IXtermMarker): string {
 	if (!instance.xterm?.raw) {
 		return '';
 	}

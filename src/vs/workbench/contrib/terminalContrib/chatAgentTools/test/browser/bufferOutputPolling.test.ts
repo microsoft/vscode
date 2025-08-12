@@ -5,10 +5,11 @@
 
 import { strict as assert } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { PollingConsts, racePollingOrPrompt } from '../../browser/bufferOutputPolling.js';
+import { getOutput, PollingConsts, racePollingOrPrompt } from '../../browser/bufferOutputPolling.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatElicitationRequestPart } from '../../../../chat/browser/chatElicitationRequestPart.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 
 suite('racePollingOrPrompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -17,6 +18,19 @@ suite('racePollingOrPrompt', () => {
 	const defaultToken = CancellationToken.None;
 	const defaultLanguageModelsService = {} as any;
 	const defaultExecution = { getOutput: () => 'output' };
+
+	test('getOutput enforces 16000 character limit', () => {
+		const longString = 'A'.repeat(17000);
+		const fakeBuffer = {
+			length: 1,
+			getLine: () => ({ translateToString: () => longString }),
+		};
+		const fakeXterm = { raw: { buffer: { active: fakeBuffer } } };
+		const instance: Pick<ITerminalInstance, 'xterm'> = { xterm: fakeXterm as any };
+		const output = getOutput(instance);
+		assert.strictEqual(output.length, 16000);
+		assert.strictEqual(output, longString.slice(-16000));
+	});
 
 	/**
 	 * Returns a set of arguments for racePollingOrPrompt, allowing overrides for testing.
