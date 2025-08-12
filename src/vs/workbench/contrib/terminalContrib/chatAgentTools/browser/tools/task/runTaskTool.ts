@@ -17,6 +17,7 @@ import { getOutput } from '../../outputHelpers.js';
 import { getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -78,8 +79,6 @@ export class RunTaskTool implements IToolImpl {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskLabel)) };
 		}
 
-
-		// Collect output and polling duration for all terminals
 		const terminalResults: Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }> = [];
 		_progress.report({ message: new MarkdownString(localize('copilotChat.checkingOutput', 'Checking output for `{0}`', taskLabel)) });
 		for (const terminal of terminals) {
@@ -95,7 +94,7 @@ export class RunTaskTool implements IToolImpl {
 				);
 			}
 			terminalResults.push({
-				name: terminal.resource?.path ?? 'unknown',
+				name: terminal.shellLaunchConfig.name ?? 'unknown',
 				output: outputAndIdle?.output ?? '',
 				pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
 				idle: !!outputAndIdle?.terminalExecutionIdleBeforeTimeout
@@ -169,6 +168,7 @@ export const RunTaskToolData: IToolData = {
 	displayName: localize('runInTerminalTool.displayName', 'Run Task'),
 	modelDescription: 'Runs a VS Code task.\n\n- If you see that an appropriate task exists for building or running code, prefer to use this tool to run the task instead of using the run_in_terminal tool.\n- Make sure that any appropriate build or watch task is running before trying to run tests or execute code.\n- If the user asks to run a task, use this tool to do so.',
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running tasks in the workspace'),
+	icon: Codicon.tools,
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		'type': 'object',

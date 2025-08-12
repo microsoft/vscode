@@ -92,7 +92,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			if (!terminal) {
 				continue;
 			}
-			const name = terminal.resource?.path ?? 'unknown';
+			const name = terminal.shellLaunchConfig.name ?? 'unknown';
 			const output = getOutput(terminal);
 			detailsArr.push(`Terminal: ${name}\nOutput:\n${output}`);
 		}

@@ -139,7 +139,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 				);
 			}
 			terminalResults.push({
-				name: terminal.resource?.path ?? 'unknown',
+				name: terminal.shellLaunchConfig.name ?? 'unknown',
 				output: outputAndIdle?.output ?? '',
 				pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
 				idle: !!outputAndIdle?.terminalExecutionIdleBeforeTimeout
