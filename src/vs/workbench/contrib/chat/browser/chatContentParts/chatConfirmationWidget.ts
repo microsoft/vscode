@@ -305,7 +305,7 @@ export interface IChatConfirmationWidget2Options {
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton[];
-	toolbarData?: { arg: any; partType: string };
+	toolbarData?: { arg: any; partType: string; partSource?: string };
 }
 
 abstract class BaseChatConfirmationWidget extends Disposable {
@@ -382,16 +382,21 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 					...buttonOptions,
 					contextMenuProvider: contextMenuService,
 					addPrimaryActionToDropdown: false,
-					actions: buttonData.moreActions.map(action => this._register(new Action(
-						action.label,
-						action.label,
-						undefined,
-						!action.disabled,
-						() => {
-							this._onDidClick.fire(action);
-							return Promise.resolve();
-						},
-					))),
+					actions: buttonData.moreActions.map(action => {
+						if (action instanceof Separator) {
+							return action;
+						}
+						return this._register(new Action(
+							action.label,
+							action.label,
+							undefined,
+							!action.disabled,
+							() => {
+								this._onDidClick.fire(action);
+								return Promise.resolve();
+							},
+						));
+					}),
 				});
 			} else {
 				button = new Button(elements.buttons, buttonOptions);
@@ -407,7 +412,10 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 		// Create toolbar if actions are provided
 		if (options?.toolbarData) {
-			const overlay = contextKeyService.createOverlay([['chatConfirmationPartType', options.toolbarData.partType]]);
+			const overlay = contextKeyService.createOverlay([
+				['chatConfirmationPartType', options.toolbarData.partType],
+				['chatConfirmationPartSource', options.toolbarData.partSource],
+			]);
 			const nestedInsta = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, overlay])));
 			this._register(nestedInsta.createInstance(
 				MenuWorkbenchToolBar,
