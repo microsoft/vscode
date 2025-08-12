@@ -91,7 +91,16 @@ suite('Terminal Task System - Double Quoting', () => {
 		const complexCommand = '"C:\\Program Files\\MyApp\\app.exe" --input "file with spaces.txt" --output result.txt';
 		const result = testWindowsCommandQuoting(complexCommand);
 		
-		assert.strictEqual(result, complexCommand, 'Complex quoted command should not get additional quotes');
+		// This command is NOT fully quoted (doesn't end with quote), so it should get additional quotes
+		assert.strictEqual(result, `"${complexCommand}"`, 'Partially quoted command should get full quotes');
+	});
+
+	test('Should handle fully quoted complex command', () => {
+		const fullyQuotedCommand = '"C:\\Program Files\\MyApp\\app.exe --input file.txt --output result.txt"';
+		const result = testWindowsCommandQuoting(fullyQuotedCommand);
+		
+		// This command IS fully quoted (starts and ends with quotes), so it should remain unchanged
+		assert.strictEqual(result, fullyQuotedCommand, 'Fully quoted command should not get additional quotes');
 	});
 
 	test('Should handle unquoted complex command', () => {
