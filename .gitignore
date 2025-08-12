@@ -22,3 +22,4 @@ product.overrides.json
 *.snap.actual
 *.tsbuildinfo
 .vscode-test
+REMOTE_CODING_AGENT_VERIFICATION.md
