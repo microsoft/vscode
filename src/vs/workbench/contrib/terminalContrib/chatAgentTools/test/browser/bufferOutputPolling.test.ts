@@ -20,13 +20,18 @@ suite('racePollingOrPrompt', () => {
 	const defaultLanguageModelsService = {} as any;
 	const defaultExecution = { getOutput: () => 'output' };
 
-	test('getOutput enforces 16000 character limit', () => {
+	function write(data: string, terminal: RawXtermTerminal): Promise<void> {
+		return new Promise<void>((resolve) => {
+			terminal.write(data, resolve);
+		});
+	}
+
+	test('getOutput enforces 16000 character limit', async () => {
 		const longString = 'A'.repeat(17000);
 		const terminal = new RawXtermTerminal();
-		terminal.write(longString, () => {
-			const output = getOutput(terminal);
-			assert.strictEqual(output, longString.slice(-16000));
-		});
+		await write(longString, terminal);
+		const output = getOutput(terminal);
+		assert.strictEqual(output, longString.slice(-16000));
 	});
 
 	/**
