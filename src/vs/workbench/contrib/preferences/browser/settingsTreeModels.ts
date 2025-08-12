@@ -849,6 +849,27 @@ function getObjectRenderableSchemaType(schema: IJSONSchema, key: string): 'simpl
 		return false;
 	}
 
+	if (type === 'object') {
+		// Handle object types with simple properties
+		if (schema.properties) {
+			for (const propertySchema of Object.values(schema.properties)) {
+				const propertyType = (propertySchema as any).type;
+				if (Array.isArray(propertyType)) {
+					for (const t of propertyType) {
+						if (!isSimpleType(t)) {
+							return false;
+						}
+					}
+				} else if (!isSimpleType(propertyType)) {
+					return false;
+				}
+			}
+			return 'complex';
+		}
+		// Object without properties is not renderable
+		return false;
+	}
+
 	return false;
 }
 
