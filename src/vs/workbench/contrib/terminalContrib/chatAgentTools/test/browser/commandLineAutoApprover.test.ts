@@ -147,6 +147,63 @@ suite('CommandLineAutoApprover', () => {
 		});
 	});
 
+	suite('redirection operators', () => {
+		test('should auto-approve commands with output redirection when command is approved', () => {
+			setAutoApprove({
+				"echo": true
+			});
+			// These should pass after the fix - the echo command is approved
+			// The fix should exclude file.txt from needing individual approval
+			ok(isAutoApproved('echo "hello world" > file.txt'));
+			ok(isAutoApproved('echo test >> output.txt'));
+			ok(isAutoApproved('echo error 2> error.log'));
+		});
+
+		test('should auto-approve commands with input redirection when command is approved', () => {
+			setAutoApprove({
+				"cat": true,
+				"sort": true
+			});
+			ok(isAutoApproved('cat < input.txt'));
+			ok(isAutoApproved('sort < unsorted.txt > sorted.txt'));
+		});
+
+		test('should auto-approve commands with pipe to file when command is approved', () => {
+			setAutoApprove({
+				"ls": true,
+				"grep": true
+			});
+			ok(isAutoApproved('ls -la > listing.txt'));
+			ok(isAutoApproved('grep pattern file.txt > results.txt'));
+		});
+
+		test('should not auto-approve redirection if the base command is not approved', () => {
+			setAutoApprove({
+				"echo": true
+			});
+			// rm is not approved, so this should not be approved even with redirection fix
+			ok(!isAutoApproved('rm file.txt > /dev/null'));
+		});
+
+		test('should still work with pipes between commands (not redirection)', () => {
+			setAutoApprove({
+				"ls": true,
+				"grep": true
+			});
+			// Pipes between commands should still require both commands to be approved
+			// This tests that we don't break existing pipe functionality
+			ok(isAutoApproved('ls -la | grep test'));
+		});
+
+		test('should not auto-approve pipes if second command is not approved', () => {
+			setAutoApprove({
+				"ls": true
+			});
+			// grep is not approved, so this should fail
+			ok(!isAutoApproved('ls -la | grep test'));
+		});
+	});
+
 	suite('regex patterns', () => {
 		test('should handle /.*/', () => {
 			setAutoApprove({

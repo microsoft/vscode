@@ -36,6 +36,7 @@ import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from '../runInTerminalHelpers.js';
 import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
+import { splitCommandLineForAutoApproval } from '../subCommandsForAutoApproval.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { OutputMonitor } from '../outputMonitor.js';
@@ -211,9 +212,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationMessages = undefined;
 		} else {
 			const actualCommand = toolEditedCommand ?? args.command;
-			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
+			
+			// Get sub-commands with redirection metadata for smarter auto-approval
+			const subCommandInfos = splitCommandLineForAutoApproval(actualCommand, shell, os);
+			const subCommands = subCommandInfos.map(info => info.command);
+			
+			// For inline sub-commands, use the original logic (no redirection filtering needed)
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
-			const allSubCommands = [...subCommands, ...inlineSubCommands];
+			
+			// Filter out redirection targets from auto-approval checks
+			const commandsToCheck = subCommandInfos
+				.filter(info => !info.isRedirectionTarget)
+				.map(info => info.command);
+			
+			const allSubCommands = [...commandsToCheck, ...inlineSubCommands];
 			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
 			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
 			const autoApproveReasons: string[] = [
@@ -239,12 +251,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				autoApproveReason = 'commandLine';
 			} else {
 				if (subCommandResults.every(e => e.result === 'approved')) {
-					this._logService.info('autoApprove: All sub-commands auto-approved');
+					this._logService.info('autoApprove: All sub-commands auto-approved (excluding redirection targets)');
 					autoApproveReason = 'subCommand';
 					isAutoApproved = true;
 					autoApproveDefault = subCommandResults.every(e => e.rule?.isDefaultRule);
 				} else {
-					this._logService.info('autoApprove: All sub-commands NOT auto-approved');
+					this._logService.info('autoApprove: All sub-commands NOT auto-approved (excluding redirection targets)');
 					if (commandLineResult.result === 'approved') {
 						this._logService.info('autoApprove: Command line auto-approved');
 						autoApproveReason = 'commandLine';
