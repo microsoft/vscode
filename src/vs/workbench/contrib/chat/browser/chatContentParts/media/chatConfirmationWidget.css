@@ -240,6 +240,6 @@
 	border-top-right-radius: 0px;
 }
 
-.chat-confirmation-widget2.hideButtons .chat-buttons-container {
+.chat-confirmation-widget2.hideButtons .chat-buttons {
 	display: none;
 }

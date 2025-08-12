@@ -432,6 +432,17 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		}
 	}
 
+
+	// protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
+	// 	this.messageElement.append(element);
+
+	// 	if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
+	// 		const targetWindow = dom.getWindow(listContainer);
+	// 		if (!targetWindow.document.hasFocus()) {
+	// 			this.notifyConfirmationNeeded(targetWindow);
+	// 		}
+	// 	}
+	// }
 	protected renderMessage(element: HTMLElement | IMarkdownString | string, listContainer: HTMLElement): void {
 		if (!dom.isHTMLElement(element)) {
 			const messageElement = this._register(this.markdownRenderer.render(
@@ -441,6 +452,9 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			element = messageElement.element;
 		}
 
+		for (const child of this.messageElement.children) {
+			child.remove();
+		}
 		this.messageElement.append(element);
 
 		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {

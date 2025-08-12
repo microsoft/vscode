@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
 import { IChatAccessibilityService } from '../chat.js';
-import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
+import { ChatConfirmationWidget, SimpleChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 export class ChatElicitationContentPart extends Disposable implements IChatContentPart {
@@ -31,7 +31,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			{ label: elicitation.acceptButtonLabel, data: true },
 			{ label: elicitation.rejectButtonLabel, data: false, isSecondary: true },
 		];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, { title: elicitation.title, icon: undefined, subtitle: elicitation.subtitle, buttons, message: this.getMessageToRender(elicitation), toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation } }));
+		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, { title: elicitation.title, subtitle: elicitation.subtitle, buttons, message: this.getMessageToRender(elicitation), toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation } }));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
 		if (elicitation.onDidRequestHide) {
