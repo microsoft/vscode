@@ -44,6 +44,7 @@ import './mainThreadFileSystem.js';
 import './mainThreadFileSystemEventService.js';
 import './mainThreadLanguageFeatures.js';
 import './mainThreadLanguages.js';
+import './mainThreadLineEditTracker.js';
 import './mainThreadLogService.js';
 import './mainThreadMessageService.js';
 import './mainThreadManagedSockets.js';
