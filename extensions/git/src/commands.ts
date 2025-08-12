@@ -1520,12 +1520,10 @@ export class CommandCenter {
 			return;
 		}
 
-		// Only works for worktree repositories
 		if (repository.kind !== 'worktree' || !repository.dotGit.commonPath) {
 			return;
 		}
 
-		// Get the main repository path
 		const mainRepositoryPath = path.dirname(repository.dotGit.commonPath);
 		const mainRepository = this.model.getRepository(Uri.file(mainRepositoryPath));
 
@@ -1533,21 +1531,17 @@ export class CommandCenter {
 			return;
 		}
 
-		// Create git URI for the main repository's HEAD version
 		const mainRepoUri = toGitUri(resource.resourceUri, mainRepository.HEAD.commit);
 
-		// Use the current file as the right side (worktree version)
 		const worktreeUri = resource.resourceUri;
 
-		// Create title
 		const basename = path.basename(resource.resourceUri.fsPath);
 		const title = `${basename} (Worktree ↔ Main Repository)`;
 
-		// Open the diff directly using vscode.diff
 		await commands.executeCommand(
 			'vscode.diff',
-			mainRepoUri,
 			worktreeUri,
+			mainRepoUri,
 			title,
 			{ preview: false }
 		);
