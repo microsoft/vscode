@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -95,61 +95,52 @@ export class ToolTerminalCreator {
 		instance: ITerminalInstance,
 		timeoutMs: number
 	): Promise<ShellIntegrationQuality> {
-		const dataFinished = new DeferredPromise<void>();
+		const store = new DisposableStore();
+		const result = new DeferredPromise<ShellIntegrationQuality>();
 
-		const deferred = new DeferredPromise<ShellIntegrationQuality>();
-		const timer = disposableTimeout(() => deferred.complete(ShellIntegrationQuality.None), timeoutMs);
+		const siNoneTimer = store.add(new MutableDisposable());
+		siNoneTimer.value = disposableTimeout(() => result.complete(ShellIntegrationQuality.None), timeoutMs);
 
 		if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection) {
-			timer.dispose();
-			deferred.complete(ShellIntegrationQuality.Rich);
+			// Rich command detection is available immediately.
+			siNoneTimer.clear();
+			result.complete(ShellIntegrationQuality.Rich);
 		} else {
-			const onSetRichCommandDetection = this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection);
-
-			const richCommandDetectionListener = onSetRichCommandDetection.event((e) => {
+			const onSetRichCommandDetection = store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection));
+			store.add(onSetRichCommandDetection.event((e) => {
 				if (e.instance !== instance) {
 					return;
 				}
-				deferred.complete(ShellIntegrationQuality.Rich);
-			});
-
-			const store = new DisposableStore();
+				siNoneTimer.clear();
+				// Rich command detection becomes available some time after the terminal is created.
+				result.complete(ShellIntegrationQuality.Rich);
+			}));
 
 			const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
-				timer.dispose();
+				siNoneTimer.clear();
 				// When command detection lights up, allow up to 200ms for the rich command
 				// detection sequence to come in before declaring it as basic shell integration.
-				// up.
-				Promise.race([
-					dataFinished.p,
-					timeout(200)
-				]).then(() => {
-					if (!deferred.isResolved) {
-						deferred.complete(ShellIntegrationQuality.Basic);
-					}
-				});
+				store.add(disposableTimeout(() => {
+					result.complete(ShellIntegrationQuality.Basic);
+				}, 200));
 			} else {
 				store.add(instance.capabilities.onDidAddCapabilityType(e => {
 					if (e === TerminalCapability.CommandDetection) {
-						timer.dispose();
+						siNoneTimer.clear();
 						// When command detection lights up, allow up to 200ms for the rich command
-						// detection sequence to come in before declaring it as basic shell integration.
-						// up.
-						Promise.race([
-							dataFinished.p,
-							timeout(200)
-						]).then(() => deferred.complete(ShellIntegrationQuality.Basic));
+						// detection sequence to come in before declaring it as basic shell
+						// integration.
+						store.add(disposableTimeout(() => {
+							result.complete(ShellIntegrationQuality.Basic);
+						}, 200));
 					}
 				}));
 			}
-
-			deferred.p.finally(() => {
-				store.dispose();
-				richCommandDetectionListener.dispose();
-			});
 		}
 
-		return deferred.p;
+		result.p.finally(() => store.dispose());
+
+		return result.p;
 	}
 }
