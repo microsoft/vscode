@@ -13,7 +13,7 @@ import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/com
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { AuthorizationErrorType, fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationErrorResponse, isAuthorizationTokenResponse } from '../../../base/common/oauth.js';
+import { AuthorizationErrorType, fetchDynamicRegistration, getClaimsFromJWT, IAuthorizationJWTClaims, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, IAuthorizationTokenResponse, isAuthorizationErrorResponse, isAuthorizationTokenResponse, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ILogger, ILoggerService, ILogService } from '../../../platform/log/common/log.js';
@@ -83,14 +83,32 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: true }): Promise<vscode.AuthenticationSession>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: vscode.AuthenticationForceNewSessionOptions }): Promise<vscode.AuthenticationSession>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, challenge: vscode.AuthenticationSessionChallenge, options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, challenge: vscode.AuthenticationSessionChallenge, options?: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationSessionChallenge, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		const extensionName = requestingExtension.displayName || requestingExtension.name;
+		
+		// Handle challenge-based authentication
+		if ('challenge' in scopesOrChallenge) {
+			const challenge = scopesOrChallenge as vscode.AuthenticationSessionChallenge;
+			const challengeStr = challenge.challenge;
+			const scopesStr = challenge.scopes ? [...challenge.scopes].sort().join(' ') : '';
+			const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
+			const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
+			return await this._getSessionTaskSingler.getOrCreate(`${extensionId} ${providerId} challenge:${challengeStr} ${scopesStr} ${optionsStr}`, async () => {
+				await this._proxy.$ensureProvider(providerId);
+				return this._proxy.$getSessionFromChallenge(providerId, challenge, extensionId, extensionName, options);
+			});
+		}
+		
+		// Handle traditional scope-based authentication
+		const scopes = scopesOrChallenge as readonly string[];
 		const sortedScopes = [...scopes].sort().join(' ');
 		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
 		const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
 		return await this._getSessionTaskSingler.getOrCreate(`${extensionId} ${providerId} ${sortedScopes} ${optionsStr}`, async () => {
 			await this._proxy.$ensureProvider(providerId);
-			const extensionName = requestingExtension.displayName || requestingExtension.name;
 			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
 		});
 	}
@@ -161,6 +179,56 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 			throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 		});
+	}
+
+	$getSessionsFromChallenges(providerId: string, challenges: vscode.AuthenticationChallenge[], options: vscode.AuthenticationProviderSessionOptions): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
+		return this._providerOperations.queue(providerId, async () => {
+			const providerData = this._authenticationProviders.get(providerId);
+			if (providerData) {
+				const provider = providerData.provider as any;
+				// Check if provider supports challenges
+				if (typeof provider.getSessionsFromChallenges === 'function') {
+					options.authorizationServer = URI.revive(options.authorizationServer);
+					return await provider.getSessionsFromChallenges(challenges, options);
+				}
+				// Fallback to regular getSessions if provider doesn't support challenges
+				// Extract scopes from the challenges if available
+				const scopes = this._extractScopesFromChallenges(challenges);
+				return await providerData.provider.getSessions(scopes, options);
+			}
+
+			throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
+		});
+	}
+
+	$createSessionFromChallenges(providerId: string, challenges: vscode.AuthenticationChallenge[], options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
+		return this._providerOperations.queue(providerId, async () => {
+			const providerData = this._authenticationProviders.get(providerId);
+			if (providerData) {
+				const provider = providerData.provider as any;
+				// Check if provider supports challenges
+				if (typeof provider.createSessionFromChallenges === 'function') {
+					options.authorizationServer = URI.revive(options.authorizationServer);
+					return await provider.createSessionFromChallenges(challenges, options);
+				}
+				// Fallback to regular createSession if provider doesn't support challenges
+				// Extract scopes from the challenges if available
+				const scopes = this._extractScopesFromChallenges(challenges);
+				return await providerData.provider.createSession(scopes, options);
+			}
+
+			throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
+		});
+	}
+
+	private _extractScopesFromChallenges(challenges: vscode.AuthenticationChallenge[]): string[] {
+		const scopes: string[] = [];
+		for (const challenge of challenges) {
+			if (challenge.params.scope) {
+				scopes.push(...challenge.params.scope.split(' '));
+			}
+		}
+		return scopes;
 	}
 
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]) {

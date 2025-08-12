@@ -24,7 +24,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { ExtensionHostKind } from '../../services/extensions/common/extensionHostKind.js';
 import { IURLService } from '../../../platform/url/common/url.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
-import { IAuthorizationTokenResponse } from '../../../base/common/oauth.js';
+import { IAuthorizationTokenResponse, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
@@ -42,6 +42,16 @@ export interface AuthenticationGetSessionOptions {
 	silent?: boolean;
 	account?: AuthenticationSessionAccount;
 	authorizationServer?: UriComponents;
+}
+
+export interface AuthenticationChallenge {
+	scheme: string;
+	params: Record<string, string>;
+}
+
+export interface AuthenticationSessionChallenge {
+	challenge: string;
+	scopes?: readonly string[];
 }
 
 export class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
@@ -429,9 +439,105 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return undefined;
 	}
 
+	private parseChallengeString(challengeStr: string): AuthenticationChallenge[] {
+		// Parse multiple challenges from WWW-Authenticate header
+		// Example: "Bearer realm="", authorization_uri="...", error="insufficient_claims", claims="...""
+		const challenges: AuthenticationChallenge[] = [];
+		
+		try {
+			const parsed = parseWWWAuthenticateHeader(challengeStr);
+			challenges.push({
+				scheme: parsed.scheme,
+				params: parsed.params
+			});
+		} catch (error) {
+			this.logService.error('Failed to parse WWW-Authenticate header:', error);
+		}
+		
+		return challenges;
+	}
+
+	private extractScopesFromChallenges(challenges: AuthenticationChallenge[]): string[] {
+		const scopes: string[] = [];
+		for (const challenge of challenges) {
+			if (challenge.params.scope) {
+				scopes.push(...challenge.params.scope.split(' '));
+			}
+		}
+		return scopes;
+	}
+
+	private async doGetSessionFromChallenge(providerId: string, challenges: AuthenticationChallenge[], scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+		// Check if the provider supports challenge-based authentication
+		const provider = this.authenticationService.getProvider(providerId);
+		if (!provider) {
+			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
+		}
+
+		// Try to get existing sessions first using challenge-aware methods
+		try {
+			const extHostProvider = this._authenticationProviders.get(providerId);
+			if (extHostProvider) {
+				const challengeSessions = await extHostProvider.$getSessionsFromChallenges(providerId, challenges, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
+				
+				// Check if we have a valid existing session
+				if (challengeSessions.length > 0) {
+					const matchingAccountPreferenceSession = this._getAccountPreference(extensionId, providerId, scopes, challengeSessions);
+					if (matchingAccountPreferenceSession && this.authenticationAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, extensionId)) {
+						return matchingAccountPreferenceSession;
+					}
+					
+					// Return the first accessible session
+					const validSession = challengeSessions.find(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
+					if (validSession) {
+						return validSession;
+					}
+				}
+			}
+		} catch (error) {
+			this.logService.warn('Failed to get sessions from challenges, falling back to creating new session:', error);
+		}
+
+		// If no existing session matches the challenge requirements, create a new one
+		if (options.createIfNone || options.forceNewSession) {
+			try {
+				const extHostProvider = this._authenticationProviders.get(providerId);
+				if (extHostProvider) {
+					const session = await extHostProvider.$createSessionFromChallenges(providerId, challenges, { account: options.account, authorizationServer: URI.revive(options.authorizationServer) });
+					if (session) {
+						this.authenticationExtensionsService.updateNewSessionRequests(providerId, [session]);
+						this._updateAccountPreference(extensionId, providerId, session);
+						return session;
+					}
+				}
+			} catch (error) {
+				this.logService.error('Failed to create session from challenges:', error);
+				throw error;
+			}
+		}
+
+		// Fallback to regular authentication flow if challenge-based authentication isn't supported
+		return this.doGetSession(providerId, scopes, extensionId, extensionName, options);
+	}
+
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
 		const session = await this.doGetSession(providerId, scopes, extensionId, extensionName, options);
+
+		if (session) {
+			this.sendProviderUsageTelemetry(extensionId, providerId);
+			this.authenticationUsageService.addAccountUsage(providerId, session.account.label, scopes, extensionId, extensionName);
+		}
+
+		return session;
+	}
+
+	async $getSessionFromChallenge(providerId: string, challenge: AuthenticationSessionChallenge, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+		const parsedChallenges = this.parseChallengeString(challenge.challenge);
+		const scopes = challenge.scopes ? [...challenge.scopes] : this.extractScopesFromChallenges(parsedChallenges);
+		
+		this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
+		const session = await this.doGetSessionFromChallenge(providerId, parsedChallenges, scopes, extensionId, extensionName, options);
 
 		if (session) {
 			this.sendProviderUsageTelemetry(extensionId, providerId);

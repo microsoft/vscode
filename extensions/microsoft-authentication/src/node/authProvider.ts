@@ -15,6 +15,11 @@ import { BetterTokenStorage } from '../betterSecretStorage';
 import { IStoredSession } from '../AADHelper';
 import { ExtensionHost, getMsalFlows } from './flows';
 
+interface AuthenticationChallenge {
+	scheme: string;
+	params: Record<string, string>;
+}
+
 const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
@@ -282,6 +287,135 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		}
 
 		this._logger.info('[removeSession]', sessionId, `attempted to remove ${promises.length} sessions`);
+	}
+
+	async getSessionsFromChallenges(challenges: readonly AuthenticationChallenge[], options: AuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
+		this._logger.info('[getSessionsFromChallenges]', 'starting with', challenges.length, 'challenges');
+		
+		// Extract scopes from challenges and try to get existing sessions
+		const scopes = this.extractScopesFromChallenges(challenges);
+		const sessions = await this.getSessions(scopes.length > 0 ? scopes : undefined, options);
+		
+		// For Microsoft authentication, we also need to check if the existing sessions
+		// can satisfy the claims requirements from the challenges
+		const claimsRequirement = this.extractClaimsFromChallenges(challenges);
+		if (claimsRequirement) {
+			// Filter sessions that might need to be refreshed with the new claims
+			// For now, we return all sessions and let MSAL handle the claims requirement during token acquisition
+			this._logger.info('[getSessionsFromChallenges]', 'found claims requirement:', claimsRequirement);
+		}
+		
+		this._logger.info('[getSessionsFromChallenges]', 'returning', sessions.length, 'sessions');
+		return sessions;
+	}
+
+	async createSessionFromChallenges(challenges: readonly AuthenticationChallenge[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
+		this._logger.info('[createSessionFromChallenges]', 'starting with', challenges.length, 'challenges');
+		
+		// Extract scopes and claims from challenges
+		const scopes = this.extractScopesFromChallenges(challenges);
+		const claims = this.extractClaimsFromChallenges(challenges);
+		
+		// Use scopes if available, otherwise fall back to default scopes
+		const effectiveScopes = scopes.length > 0 ? scopes : ['https://graph.microsoft.com/User.Read'];
+		
+		const scopeData = new ScopeData(effectiveScopes, options.authorizationServer);
+		this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'starting with claims:', claims);
+		
+		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
+
+		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
+		let userCancelled: boolean | undefined;
+		const yes = l10n.t('Yes');
+		const no = l10n.t('No');
+		const promptToContinue = async (mode: string) => {
+			if (userCancelled === undefined) {
+				// We haven't had a failure yet so wait to prompt
+				return;
+			}
+			const message = userCancelled
+				? l10n.t('Having trouble logging in? Would you like to try a different way? ({0})', mode)
+				: l10n.t('You have not yet finished authorizing this extension to use your Microsoft Account. Would you like to try a different way? ({0})', mode);
+			const result = await window.showWarningMessage(message, yes, no);
+			if (result !== yes) {
+				throw new CancellationError();
+			}
+		};
+
+		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
+		const flows = getMsalFlows({
+			extensionHost: isNodeEnvironment
+				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
+				: ExtensionHost.WebWorker,
+		});
+
+		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
+		let lastError: Error | undefined;
+		for (const flow of flows) {
+			if (flow !== flows[0]) {
+				try {
+					await promptToContinue(flow.label);
+				} finally {
+					this._telemetryReporter.sendLoginFailedEvent();
+				}
+			}
+			try {
+				// Create the authentication request with claims if provided
+				const authRequest: any = {
+					cachedPca,
+					authority,
+					scopes: scopeData.scopesToSend,
+					loginHint: options.account?.label,
+					windowHandle: window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined,
+					logger: this._logger,
+					uriHandler: this._uriHandler
+				};
+
+				// Add claims to the request if present in the challenge
+				if (claims) {
+					authRequest.claims = claims;
+					this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'adding claims to request:', claims);
+				}
+
+				const result = await flow.trigger(authRequest);
+
+				const session = this.sessionFromAuthenticationResult(result, scopeData.originalScopes);
+				this._telemetryReporter.sendLoginEvent(session.scopes);
+				this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'returned session');
+				return session;
+			} catch (e) {
+				lastError = e as Error;
+				if (e instanceof ClientAuthError && e.errorCode === ClientAuthErrorCodes.userCanceled) {
+					this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'user cancelled');
+					userCancelled = true;
+					continue;
+				}
+				this._logger.error('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'error', e);
+				throw e;
+			}
+		}
+
+		this._telemetryReporter.sendLoginFailedEvent();
+		throw lastError!;
+	}
+
+	private extractScopesFromChallenges(challenges: readonly AuthenticationChallenge[]): string[] {
+		const scopes: string[] = [];
+		for (const challenge of challenges) {
+			if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.scope) {
+				scopes.push(...challenge.params.scope.split(' '));
+			}
+		}
+		return scopes;
+	}
+
+	private extractClaimsFromChallenges(challenges: readonly AuthenticationChallenge[]): string | undefined {
+		for (const challenge of challenges) {
+			if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.claims) {
+				return challenge.params.claims;
+			}
+		}
+		return undefined;
 	}
 
 	//#endregion

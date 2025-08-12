@@ -301,7 +301,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		})();
 
 		const authentication: typeof vscode.authentication = {
-			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
+			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationSessionChallenge, options?: vscode.AuthenticationGetSessionOptions) {
+				// Handle challenge-based authentication
+				if (typeof scopesOrChallenge === 'object' && 'challenge' in scopesOrChallenge) {
+					checkProposedApiEnabled(extension, 'authenticationChallenges');
+					return extHostAuthentication.getSession(extension, providerId, scopesOrChallenge, options as any);
+				}
+				
+				// Handle traditional scope-based authentication
+				const scopes = scopesOrChallenge as readonly string[];
 				if (
 					(typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) ||
 					(typeof options?.createIfNone === 'object' && options.createIfNone.learnMore)

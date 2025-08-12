@@ -183,12 +183,23 @@ export interface AuthenticationGetSessionOptions {
 	account?: AuthenticationSessionAccount;
 }
 
+export interface AuthenticationChallenge {
+	scheme: string;
+	params: Record<string, string>;
+}
+
+export interface AuthenticationSessionChallenge {
+	challenge: string;
+	scopes?: readonly string[];
+}
+
 export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedAuthorizationServers?: UriComponents[]): Promise<void>;
 	$unregisterAuthenticationProvider(id: string): Promise<void>;
 	$ensureProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): Promise<void>;
 	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
+	$getSessionFromChallenge(providerId: string, challenge: AuthenticationSessionChallenge, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
 	$getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents>;
@@ -1988,6 +1999,8 @@ export interface ExtHostLabelServiceShape {
 export interface ExtHostAuthenticationShape {
 	$getSessions(id: string, scopes: string[] | undefined, options: IAuthenticationGetSessionsOptions): Promise<ReadonlyArray<AuthenticationSession>>;
 	$createSession(id: string, scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
+	$getSessionsFromChallenges(id: string, challenges: AuthenticationChallenge[], options: IAuthenticationGetSessionsOptions): Promise<ReadonlyArray<AuthenticationSession>>;
+	$createSessionFromChallenges(id: string, challenges: AuthenticationChallenge[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]): Promise<void>;
 	$onDidUnregisterAuthenticationProvider(id: string): Promise<void>;
