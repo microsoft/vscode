@@ -13,6 +13,7 @@ import { IContextMenuService, IContextViewService } from '../../../../platform/c
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from './terminalActions.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
 import { ICreateTerminalOptions, ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from './terminal.js';
@@ -516,7 +517,16 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+			try {
+				dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+			} catch (e) {
+				// If the instantiation service has been disposed, fall back to a simple terminal label
+				if (e instanceof Error && e.message === 'InstantiationService has been disposed') {
+					dom.reset(label, ...renderLabelWithIcons(`$(${Codicon.terminal.id}) ${instance.title}`));
+				} else {
+					throw e;
+				}
+			}
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);
