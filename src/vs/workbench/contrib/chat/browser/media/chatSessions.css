@@ -31,15 +31,10 @@
 
 .chat-sessions-message .no-sessions-message {
 	display: flex;
-	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
 	font-style: italic;
-}
-
-.chat-sessions-message .no-sessions-message .new-chat-button-container {
-	margin-top: 12px;
 }
 
 .chat-sessions-message .no-sessions-message .codicon {
