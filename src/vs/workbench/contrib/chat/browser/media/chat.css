@@ -724,16 +724,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 2px;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-container .monaco-list .monaco-list-row .monaco-icon-name-container.modified {
-	font-weight: bold;
-}
-
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview {
 	display: flex;
 	flex-direction: row;
 	justify-content: space-between;
 	gap: 6px;
-	padding: 0 4px;
+	padding-right: 4px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > .working-set-title {
@@ -748,6 +744,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > .working-set-title .working-set-count.file-limit-reached {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
+
+.interactive-session .chat-editing-session .working-set-title {
+
+	.monaco-button {
+		padding: 4px 6px 4px 0px;
+		border-radius: 2px;
+		background-color: unset;
+		color: var(--vscode-foreground)
+	}
+
+	.monaco-button:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.monaco-button:focus-visible {
+		outline-offset: -1px !important;
+	}
+}
+
 
 .interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
 	position: relative;
@@ -1739,6 +1754,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.monaco-icon-label.excluded {
 		color: var(--vscode-notificationsWarningIcon-foreground)
 	}
+}
+
+.interactive-session .chat-editing-session-list.collapsed {
+	display: none;
 }
 
 .interactive-item-container .chat-notification-widget {
