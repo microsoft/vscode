@@ -8,9 +8,11 @@ import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ToolProgress } from '../../../chat/common/languageModelToolsService.js';
+import { ProblemMatcherRegistry } from '../../../tasks/common/problemMatcher.js';
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
@@ -140,19 +142,20 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>): Promise<Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }>> {
+	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, markerService: IMarkerService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }>> {
 	const results: Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }> = [];
 	for (const terminal of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive }, false, token, languageModelsService);
+		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, false, token, languageModelsService, markerService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive }, true, token, languageModelsService),
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, true, token, languageModelsService, markerService),
 				() => promptForMorePolling(task._label, token, invocationContext, chatService),
 				outputAndIdle,
 				token,
 				languageModelsService,
-				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive }
+				markerService,
+				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive, dependencyTasks },
 			);
 		}
 		results.push({
@@ -165,3 +168,78 @@ export async function collectTerminalResults(
 	return results;
 }
 
+
+export function resolveTaskProblemMatcherPatterns(task: Task): { beginsPattern?: RegExp; endsPattern?: RegExp } | undefined {
+	const matchers = Array.isArray(task.configurationProperties.problemMatchers) ? task.configurationProperties.problemMatchers : (task.configurationProperties.problemMatchers ? [task.configurationProperties.problemMatchers] : []);
+	for (const matcherRef of matchers) {
+		const matcher = typeof matcherRef === 'string'
+			? ProblemMatcherRegistry.get(matcherRef)
+			: matcherRef;
+		if (matcher?.watching?.beginsPattern && matcher?.watching?.endsPattern) {
+			return {
+				beginsPattern: matcher.watching.beginsPattern.regexp,
+				endsPattern: matcher.watching.endsPattern.regexp
+			};
+		}
+	}
+	return undefined;
+}
+
+// /**
+//  * Returns a map from each task (including dependencies) to its beginsPattern and endsPattern.
+//  * If the main task does not have patterns, dependencyTasks are checked.
+//  *
+//  * @param task The main Task to parse patterns for.
+//  * @param dependencyTasks Optional array of dependency Tasks to check for patterns.
+//  * @returns A map of Task to its { beginsPattern, endsPattern }.
+//  */
+// export function getTaskBeginEndPatternMap(task: Task, dependencyTasks?: Task[]): Map<Task, { beginsPattern: RegExp; endsPattern: RegExp }> {
+// 	const result = new Map<Task, { beginsPattern: RegExp; endsPattern: RegExp }>();
+
+// 	const extractPatterns = (t: Task): { beginsPattern: RegExp; endsPattern: RegExp } | undefined => {
+// 		const matchers = Array.isArray(t.configurationProperties.problemMatchers)
+// 			? t.configurationProperties.problemMatchers
+// 			: (t.configurationProperties.problemMatchers ? [t.configurationProperties.problemMatchers] : []);
+// 		for (const matcherRef of matchers) {
+// 			const matcher = typeof matcherRef === 'string'
+// 				? ProblemMatcherRegistry.get(matcherRef)
+// 				: matcherRef;
+// 			if (matcher?.watching?.beginsPattern && matcher?.watching?.endsPattern) {
+// 				return {
+// 					beginsPattern: matcher.watching.beginsPattern.regexp,
+// 					endsPattern: matcher.watching.endsPattern.regexp
+// 				};
+// 			}
+// 		}
+// 		return undefined;
+// 	};
+
+// 	// Main task
+// 	const mainPatterns = extractPatterns(task);
+// 	if (mainPatterns) {
+// 		result.set(task, mainPatterns);
+// 	}
+
+// 	// Dependencies
+// 	if (dependencyTasks) {
+// 		for (const depTask of dependencyTasks) {
+// 			const depPatterns = extractPatterns(depTask);
+// 			if (depPatterns) {
+// 				result.set(depTask, depPatterns);
+// 			}
+// 		}
+// 	}
+
+// 	// If main task has no patterns, but dependencies do, add main task with first dependency's patterns
+// 	if (!mainPatterns && dependencyTasks && dependencyTasks.length > 0) {
+// 		for (const depTask of dependencyTasks) {
+// 			const depPatterns = extractPatterns(depTask);
+// 			if (depPatterns) {
+// 				result.set(task, depPatterns);
+// 				break;
+// 			}
+// 		}
+// 	}
+
+// 	return result;
+// }
