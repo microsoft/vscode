@@ -72,28 +72,34 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					const [type, scopeRaw] = content.split('_');
 					switch (type) {
 						case 'settings': {
-							const scope = parseInt(scopeRaw);
-							const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
-							const options: IOpenSettingsOptions = {
-								jsonEditor: true,
-								revealSetting: {
-									key: TerminalContribSettingId.AutoApprove
-								}
-							};
-							switch (target) {
-								case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
-								case ConfigurationTarget.USER:
-								case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
-								case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
-								case ConfigurationTarget.WORKSPACE:
-								case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
-								default: {
-									// Fallback if something goes wrong
-									preferencesService.openSettings({
-										target: ConfigurationTarget.USER,
-										query: `@id:${TerminalContribSettingId.AutoApprove}`,
-									});
-									break;
+							if (scopeRaw === 'global') {
+								preferencesService.openSettings({
+									query: `@id:chat.tools.autoApprove`
+								});
+							} else {
+								const scope = parseInt(scopeRaw);
+								const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
+								const options: IOpenSettingsOptions = {
+									jsonEditor: true,
+									revealSetting: {
+										key: TerminalContribSettingId.AutoApprove
+									}
+								};
+								switch (target) {
+									case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
+									case ConfigurationTarget.USER:
+									case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
+									case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
+									case ConfigurationTarget.WORKSPACE:
+									case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
+									default: {
+										// Fallback if something goes wrong
+										preferencesService.openSettings({
+											target: ConfigurationTarget.USER,
+											query: `@id:${TerminalContribSettingId.AutoApprove}`,
+										});
+										break;
+									}
 								}
 							}
 							break;

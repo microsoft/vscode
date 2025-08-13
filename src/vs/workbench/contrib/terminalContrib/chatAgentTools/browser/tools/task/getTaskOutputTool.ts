@@ -103,7 +103,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		return {
 			content: [{
 				kind: 'text',
-				value: `Task output summary for \`${taskLabel}\`:\n${details}`
+				value: `Output of task \`${taskLabel}\`: ${details}`
 			}]
 		};
 	}

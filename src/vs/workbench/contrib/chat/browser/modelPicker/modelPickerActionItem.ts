@@ -13,13 +13,13 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
 import { ManageModelsAction } from '../actions/manageModelsActions.js';
+import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -50,44 +50,49 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 	};
 }
 
-function getModelPickerActionBarActions(menuService: IMenuService, contextKeyService: IContextKeyService, commandService: ICommandService, chatEntitlementService: IChatEntitlementService): IAction[] {
-	const additionalActions: IAction[] = [];
+function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService): IActionProvider {
 
-	if (
-		chatEntitlementService.entitlement === ChatEntitlement.Free ||
-		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
-		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
-		chatEntitlementService.isInternal
-	) {
-		additionalActions.push({
-			id: 'manageModels',
-			label: localize('chat.manageModels', "Manage Models..."),
-			enabled: true,
-			tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
-			class: undefined,
-			run: () => {
-				const commandId = ManageModelsAction.ID;
-				commandService.executeCommand(commandId);
+	const actionProvider: IActionProvider = {
+		getActions: () => {
+			const additionalActions: IAction[] = [];
+			if (
+				chatEntitlementService.entitlement === ChatEntitlement.Free ||
+				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
+				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+				chatEntitlementService.isInternal
+			) {
+				additionalActions.push({
+					id: 'manageModels',
+					label: localize('chat.manageModels', "Manage Models..."),
+					enabled: true,
+					tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
+					class: undefined,
+					run: () => {
+						const commandId = ManageModelsAction.ID;
+						commandService.executeCommand(commandId);
+					}
+				});
 			}
-		});
-	}
 
-	// Add upgrade option if entitlement is free
-	if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
-		additionalActions.push({
-			id: 'moreModels',
-			label: localize('chat.moreModels', "Add Premium Models"),
-			enabled: true,
-			tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
-			class: undefined,
-			run: () => {
-				const commandId = 'workbench.action.chat.upgradePlan';
-				commandService.executeCommand(commandId);
+			// Add upgrade option if entitlement is free
+			if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
+				additionalActions.push({
+					id: 'moreModels',
+					label: localize('chat.moreModels', "Add Premium Models"),
+					enabled: true,
+					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
+					class: undefined,
+					run: () => {
+						const commandId = 'workbench.action.chat.upgradePlan';
+						commandService.executeCommand(commandId);
+					}
+				});
 			}
-		});
-	}
 
-	return additionalActions;
+			return additionalActions;
+		}
+	};
+	return actionProvider;
 }
 
 /**
@@ -99,7 +104,6 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		private currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		delegate: IModelPickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
@@ -115,7 +119,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate),
-			actionBarActions: getModelPickerActionBarActions(menuService, contextKeyService, commandService, chatEntitlementService)
+			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService)
 		};
 
 		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
