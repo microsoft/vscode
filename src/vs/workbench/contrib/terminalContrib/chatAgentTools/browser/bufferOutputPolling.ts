@@ -162,11 +162,10 @@ export async function pollForOutputAndIdle(
 			if (problems) {
 				// Problem matchers exist for this task
 				const problemList: string[] = [];
-				for (const [owner, problemArray] of problems.entries()) {
+				for (const [, problemArray] of problems.entries()) {
 					if (problemArray.length) {
-						problemList.push(`Problems for task "${owner ?? 'unknown'}":`);
 						for (const p of problemArray) {
-							problemList.push(`Problem: ${p.message} (Code: ${p.code}, Severity: ${p.severity}, Range: [${p.startLineNumber},${p.startColumn}]-[${p.endLineNumber},${p.endColumn}], Target: ${typeof p.code === 'string' ? p.code : p.code?.value ?? 'unknown'})`);
+							problemList.push(`${p.severity}: ${p.message}`);
 						}
 					}
 				}
