@@ -317,6 +317,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _chatEditsActionsDisposables: DisposableStore;
 	private readonly _chatEditsDisposables: DisposableStore;
+	private _chatEditsContainer?: HTMLElement;
+	private _chatEditsApprovalContainer?: HTMLElement;
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
 	get selectedElements(): URI[] {
@@ -1506,6 +1508,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const seenEntries = new ResourceSet();
 		const entries: IChatCollapsibleListItem[] = [];
+		let manualApprovalNeeded = false;
 		if (chatEditingSession) {
 			for (const entry of chatEditingSession.entries.get()) {
 				if (entry.state.get() !== ModifiedFileEntryState.Modified) {
@@ -1514,11 +1517,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				if (!seenEntries.has(entry.modifiedURI)) {
 					seenEntries.add(entry.modifiedURI);
-					entries.push({
+					const item: IChatCollapsibleListItem = {
 						reference: entry.modifiedURI,
 						state: entry.state.get(),
 						kind: 'reference',
-					});
+					};
+
+					if (entry.editsRequireManualApproval.get()) {
+						item.iconPath = Codicon.warning;
+						item.description = localize('chatEditingSession.fileRequiresManualApproval', 'Edits requires manual approval');
+						manualApprovalNeeded = true;
+					}
+
+					entries.push(item);
 				}
 			}
 		}
@@ -1527,11 +1538,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
+			this._chatEditsContainer = undefined;
+			this._chatEditsApprovalContainer = undefined;
 			return;
 		}
 
 		// Summary of number of files changed
-		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
+		const approvalNotice = (this._chatEditsApprovalContainer ??= dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-approval-notice')));
+		const innerContainer = (this._chatEditsContainer ??= dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons')));
+
+		if (manualApprovalNeeded) {
+			approvalNotice.style.display = 'block';
+			approvalNotice.textContent = localize('chatEditingSession.manualApprovalNeeded', 'One or more file edits require manual approval');
+		} else {
+			approvalNotice.style.display = 'none';
+		}
 
 		entries.sort((a, b) => {
 			if (a.kind === 'reference' && b.kind === 'reference') {
