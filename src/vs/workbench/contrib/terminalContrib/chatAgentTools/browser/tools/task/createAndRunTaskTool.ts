@@ -146,7 +146,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 				: 'started and will continue to run in the background.';
 		}
 
-		const details = terminalResults.map(r => `Terminal: ${r.name}\nPolling duration: ${r.pollDurationMs}ms\nOutput:\n${r.output}`).join('\n\n');
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`).join('\n\n');
 		return {
 			content: [{ kind: 'text', value: `Task output summary:\n${details}` }],
 			toolResultMessage: output
