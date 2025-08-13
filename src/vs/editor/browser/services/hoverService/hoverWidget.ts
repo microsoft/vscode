@@ -394,8 +394,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			targetRect.center.y = targetRect.top + (height / 2);
 		}
 
-		this.computeXCordinate(targetRect);
-		this.computeYCordinate(targetRect);
+		this.computeXCoordinate(targetRect);
+		this.computeYCoordinate(targetRect);
 
 		if (this._hoverPointer) {
 			// reset
@@ -409,7 +409,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._hover.onContentsChanged();
 	}
 
-	private computeXCordinate(target: TargetRect): void {
+	private computeXCoordinate(target: TargetRect): void {
 		const hoverWidth = this._hover.containerDomNode.clientWidth + Constants.HoverBorderWidth;
 
 		if (this._target.x !== undefined) {
@@ -445,7 +445,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 	}
 
-	private computeYCordinate(target: TargetRect): void {
+	private computeYCoordinate(target: TargetRect): void {
 		if (this._target.y !== undefined) {
 			this._y = this._target.y;
 		}
