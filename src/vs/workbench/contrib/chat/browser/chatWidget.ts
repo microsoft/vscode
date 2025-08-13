@@ -1032,7 +1032,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					attempt: request.attempt + 1,
 					location: this.location,
 					userSelectedModelId: this.input.currentLanguageModel,
-					mode: this.input.currentModeKind,
+					modeInfo: this.input.currentModeInfo,
 				};
 				this.chatService.resendRequest(request, options).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
@@ -1854,7 +1854,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				attachedContext: requestInputs.attachedContext.asArray(),
 				noCommandDetection: options?.noCommandDetection,
 				...this.getModeRequestOptions(),
-				modeInstructions: this.input.currentModeObs.get().body?.get()
+				modeInfo: this.input.currentModeInfo,
 			});
 
 			if (result) {
@@ -1887,7 +1887,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
 		return {
-			modeInstructions: this.input.currentModeObs.get().body?.get(),
+			modeInfo: this.input.currentModeInfo,
 			userSelectedTools: this.input.selectedToolsModel.enablementMap.map(map => {
 				const userSelectedTools: Record<string, boolean> = {};
 				for (const [tool, enablement] of map) {
@@ -1895,7 +1895,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 				return userSelectedTools;
 			}),
-			mode: this.input.currentModeKind,
 		};
 	}
 

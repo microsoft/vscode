@@ -104,6 +104,7 @@ import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/model
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { isLocation } from '../../../../editor/common/languages.js';
+import { IChatRequestModeInfo } from '../common/chatModel.js';
 
 const $ = dom.$;
 
@@ -307,6 +308,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public get currentModeObs(): IObservable<IChatMode> {
 		return this._currentModeObservable;
+	}
+
+	public get currentModeInfo(): IChatRequestModeInfo {
+		const mode = this._currentModeObservable.get();
+		return {
+			kind: this.currentModeKind,
+			isBuiltin: mode.isBuiltin,
+			instructions: mode.body?.get()
+		};
 	}
 
 	private cachedDimensions: dom.Dimension | undefined;
