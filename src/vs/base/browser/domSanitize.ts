@@ -153,6 +153,18 @@ function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[
 	return toDisposable(() => dompurify.removeHook('afterSanitizeAttributes'));
 }
 
+/**
+ * Predicate that checks if an attribute should be kept or removed.
+ *
+ * @returns A boolean indicating whether the attribute should be kept or a string with the sanitized value (which implicitly keeps the attribute)
+ */
+export type SanitizeAttributePredicate = (node: Element, data: { readonly attrName: string; readonly attrValue: string }) => boolean | string;
+
+export interface SanitizeAttributeRule {
+	readonly attributeName: string;
+	shouldKeep: SanitizeAttributePredicate;
+}
+
 export interface DomSanitizerConfig {
 	/**
 	 * Configured the allowed html tags.
@@ -166,8 +178,8 @@ export interface DomSanitizerConfig {
 	 * Configured the allowed html attributes.
 	 */
 	readonly allowedAttributes?: {
-		readonly override?: readonly string[];
-		readonly augment?: readonly string[];
+		readonly override?: ReadonlyArray<string | SanitizeAttributeRule>;
+		readonly augment?: ReadonlyArray<string | SanitizeAttributeRule>;
 	};
 
 	/**
@@ -190,11 +202,6 @@ export interface DomSanitizerConfig {
 	 * For example, <p><bad>"text"</bad></p> becomes <p>"<bad>text</bad>"</p>.
 	 */
 	readonly replaceWithPlaintext?: boolean;
-
-	// TODO: move these into more controlled api
-	readonly _do_not_use_hooks?: {
-		readonly uponSanitizeAttribute?: UponSanitizeAttributeCb;
-	};
 }
 
 const defaultDomPurifyConfig = Object.freeze({
@@ -230,15 +237,26 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 			}
 		}
 
+		let resolvedAttributes: Array<string | SanitizeAttributeRule> = [...defaultAllowedAttrs];
 		if (config?.allowedAttributes) {
 			if (config.allowedAttributes.override) {
-				resolvedConfig.ALLOWED_ATTR = [...config.allowedAttributes.override];
+				resolvedAttributes = [...config.allowedAttributes.override];
 			}
 
 			if (config.allowedAttributes.augment) {
-				resolvedConfig.ALLOWED_ATTR = [...(resolvedConfig.ALLOWED_ATTR ?? []), ...config.allowedAttributes.augment];
+				resolvedAttributes = [...resolvedAttributes, ...config.allowedAttributes.augment];
 			}
 		}
+
+		const allowedAttrNames = new Set(resolvedAttributes.map(attr => typeof attr === 'string' ? attr : attr.attributeName));
+		const allowedAttrPredicates = new Map<string, SanitizeAttributeRule>();
+		for (const attr of resolvedAttributes) {
+			if (typeof attr !== 'string') {
+				allowedAttrPredicates.set(attr.attributeName, attr);
+			}
+		}
+
+		resolvedConfig.ALLOWED_ATTR = Array.from(allowedAttrNames);
 
 		store.add(hookDomPurifyHrefAndSrcSanitizer(
 			config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
@@ -248,8 +266,21 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 			store.add(addDompurifyHook('uponSanitizeElement', replaceWithPlainTextHook));
 		}
 
-		if (config?._do_not_use_hooks?.uponSanitizeAttribute) {
-			store.add(addDompurifyHook('uponSanitizeAttribute', config._do_not_use_hooks.uponSanitizeAttribute));
+		if (allowedAttrPredicates.size) {
+			store.add(addDompurifyHook('uponSanitizeAttribute', (node, e) => {
+				const predicate = allowedAttrPredicates.get(e.attrName);
+				if (predicate) {
+					const result = predicate.shouldKeep(node, e);
+					if (typeof result === 'string') {
+						e.keepAttr = true;
+						e.attrValue = result;
+					} else {
+						e.keepAttr = result;
+					}
+				} else {
+					e.keepAttr = allowedAttrNames.has(e.attrName);
+				}
+			}));
 		}
 
 		return dompurify.sanitize(untrusted, {

@@ -163,8 +163,8 @@ export function promptForMorePolling(command: string, token: CancellationToken, 
 			let part: ChatElicitationRequestPart | undefined = undefined;
 			const promise = new Promise<boolean>(resolve => {
 				const thePart = part = new ChatElicitationRequestPart(
-					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
-					new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
+					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting?")),
+					new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
 					'',
 					localize('poll.terminal.accept', 'Yes'),
 					localize('poll.terminal.reject', 'No'),
