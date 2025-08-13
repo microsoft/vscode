@@ -190,6 +190,8 @@ export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 export class ChatRequestTerminalCommandPart implements IParsedChatRequestPart {
 	static readonly Kind = 'terminalCommand';
 	readonly kind = ChatRequestTerminalCommandPart.Kind;
+	readonly description = ' Run a command in the terminal';
+
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange) { }
 
 	get text(): string {

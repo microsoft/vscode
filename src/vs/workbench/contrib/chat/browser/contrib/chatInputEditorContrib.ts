@@ -20,7 +20,7 @@ import { inputPlaceholderForeground } from '../../../../../platform/theme/common
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTerminalCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatTerminalCommandLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTerminalCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
@@ -236,6 +236,23 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
+		const onlyTerminalCommandAndWhitespace = terminalCommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestTerminalCommandPart);
+		if (onlyTerminalCommandAndWhitespace) {
+			if (terminalCommandPart && inputValue.trim().length === 1) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(terminalCommandPart),
+					renderOptions: {
+						after: {
+							contentText: terminalCommandPart.description,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
+		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
+
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
 			textDecorations.push({ range: agentPart.editorRange });
@@ -254,22 +271,7 @@ class InputEditorDecorations extends Disposable {
 
 		if (terminalCommandPart) {
 			textDecorations.push({ range: terminalCommandPart.editorRange });
-
-			// Add shell mode indicator for terminal commands
-			if (!placeholderDecoration && inputValue.trim() === chatTerminalCommandLeader) {
-				placeholderDecoration = [{
-					range: getRangeForPlaceholder(terminalCommandPart),
-					renderOptions: {
-						after: {
-							contentText: ' Run a command in the terminal',
-							color: this.getPlaceholderColor(),
-						}
-					}
-				}];
-			}
 		}
-
-		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 
