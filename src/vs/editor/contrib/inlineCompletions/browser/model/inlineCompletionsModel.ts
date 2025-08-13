@@ -96,6 +96,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _inlineEditsEnabled;
 	private readonly _inlineEditsShowCollapsedEnabled;
 	private readonly _triggerCommandOnProviderChange;
+	private readonly _minShowDelay;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -125,6 +126,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
+		this._minShowDelay = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.minShowDelay);
 		this._typing = this._register(new TypingInterval(this.textModel));
 
 		this._register(this._inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {
@@ -388,6 +390,7 @@ export class InlineCompletionsModel extends Disposable {
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 			requestIssuedDateTime: requestInfo.startTime,
+			earliestShownDateTime: requestInfo.startTime + this._minShowDelay.get(),
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
@@ -984,7 +987,11 @@ export class InlineCompletionsModel extends Disposable {
 			// This assumes that the inline completion and the model use the same EOL style.
 			const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
 			const acceptedLength = text.length;
-			completion.reportPartialAccept(acceptedLength, { kind, acceptedLength: acceptedLength });
+			completion.reportPartialAccept(
+				acceptedLength,
+				{ kind, acceptedLength: acceptedLength },
+				{ characters: acceptUntilIndexExclusive, ratio: acceptUntilIndexExclusive / ghostTextVal.length, count: 1 }
+			);
 
 		} finally {
 			completion.removeRef();
@@ -1003,6 +1010,10 @@ export class InlineCompletionsModel extends Disposable {
 		augmentedCompletion.completion.reportPartialAccept(itemEdit.text.length, {
 			kind: PartialAcceptTriggerKind.Suggest,
 			acceptedLength,
+		}, {
+			characters: itemEdit.text.length,
+			count: 1,
+			ratio: 1
 		});
 	}
 

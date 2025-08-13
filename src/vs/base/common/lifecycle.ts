@@ -634,35 +634,6 @@ export class RefCountedDisposable {
 	}
 }
 
-/**
- * A safe disposable can be `unset` so that a leaked reference (listener)
- * can be cut-off.
- */
-export class SafeDisposable implements IDisposable {
-
-	dispose: () => void = () => { };
-	unset: () => void = () => { };
-	isset: () => boolean = () => false;
-
-	constructor() {
-		trackDisposable(this);
-	}
-
-	set(fn: Function) {
-		let callback: Function | undefined = fn;
-		this.unset = () => callback = undefined;
-		this.isset = () => callback !== undefined;
-		this.dispose = () => {
-			if (callback) {
-				callback();
-				callback = undefined;
-				markAsDisposed(this);
-			}
-		};
-		return this;
-	}
-}
-
 export interface IReference<T> extends IDisposable {
 	readonly object: T;
 }
@@ -845,5 +816,20 @@ export function thenIfNotDisposed<T>(promise: Promise<T>, then: (result: T) => v
 	});
 	return toDisposable(() => {
 		disposed = true;
+	});
+}
+
+/**
+ * Call `then` on a promise that resolves to a {@link IDisposable}, then either register the
+ * disposable or register it to the {@link DisposableStore}, depending on whether the store is
+ * disposed or not.
+ */
+export function thenRegisterOrDispose<T extends IDisposable>(promise: Promise<T>, store: DisposableStore): void {
+	promise.then(ref => {
+		if (store.isDisposed) {
+			ref.dispose();
+		} else {
+			store.add(ref);
+		}
 	});
 }

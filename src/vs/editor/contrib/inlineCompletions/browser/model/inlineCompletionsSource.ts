@@ -226,6 +226,11 @@ export class InlineCompletionsSource extends Disposable {
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}
 
+				const remainingTimeToWait = context.earliestShownDateTime - Date.now();
+				if (remainingTimeToWait > 0) {
+					await wait(remainingTimeToWait, source.token);
+				}
+
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId
 					|| userJumpedToActiveCompletion.get()  /* In the meantime the user showed interest for the active completion so dont hide it */) {
 					return false;
@@ -421,8 +426,8 @@ class InlineCompletionsState extends Disposable {
 			let item;
 			if (oldItem && oldItem !== i) {
 				item = i.withIdentity(oldItem.identity);
+				i.setIsPreceeded(oldItem);
 				oldItem.setEndOfLifeReason({ kind: InlineCompletionEndOfLifeReasonKind.Ignored, userTypingDisagreed: false, supersededBy: i.getSourceCompletion() });
-				i.setIsPreceeded();
 			} else {
 				item = i;
 			}

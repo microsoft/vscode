@@ -112,7 +112,6 @@ export interface IChatRequesterInformation {
 
 export interface IChatAgentMetadata {
 	helpTextPrefix?: string | IMarkdownString;
-	helpTextVariablesPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
 	icon?: URI;
 	iconDark?: URI;

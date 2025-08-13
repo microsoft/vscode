@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { localize } from '../../../../../../nls.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IChatService } from '../../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, ITaskSummary, Task } from '../../../../tasks/common/taskService.js';
-import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../bufferOutputPolling.js';
-import { getOutput } from '../outputHelpers.js';
-import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { timeout } from '../../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { localize } from '../../../../../../../nls.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { IChatService } from '../../../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
+import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
+import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../../bufferOutputPolling.js';
+import { getOutput } from '../../outputHelpers.js';
+import { getTaskDefinition, getTaskForTool } from '../../taskHelpers.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -88,12 +89,12 @@ export class RunTaskTool implements IToolImpl {
 		}
 		let output = '';
 		if (result?.exitCode) {
-			output = `Task \`${taskLabel}\` failed with exit code ${result.exitCode}.`;
+			output = localize('taskFailed', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
 		} else {
 			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task \`${taskLabel}\` finished`;
+				output = localize('taskFinished', 'Task `{0}` finished', taskLabel);
 			} else {
-				output += `Task \`${taskLabel}\` started and will continue to run in the background.`;
+				output = localize('taskStartedBackground', 'Task `{0}` started and will continue to run in the background.', taskLabel);
 			}
 		}
 		this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
@@ -101,7 +102,7 @@ export class RunTaskTool implements IToolImpl {
 			bufferLength: outputAndIdle.output.length,
 			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
 		});
-		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: output };
+		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: new MarkdownString(output) };
 	}
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
@@ -149,6 +150,7 @@ export const RunTaskToolData: IToolData = {
 	displayName: localize('runInTerminalTool.displayName', 'Run Task'),
 	modelDescription: 'Runs a VS Code task.\n\n- If you see that an appropriate task exists for building or running code, prefer to use this tool to run the task instead of using the run_in_terminal tool.\n- Make sure that any appropriate build or watch task is running before trying to run tests or execute code.\n- If the user asks to run a task, use this tool to do so.',
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running tasks in the workspace'),
+	icon: Codicon.tools,
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		'type': 'object',

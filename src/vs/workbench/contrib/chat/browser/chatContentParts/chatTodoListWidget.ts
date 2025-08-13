@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
@@ -18,6 +20,8 @@ export class ChatTodoListWidget extends Disposable {
 	private _isExpanded: boolean = true;
 	private expandoElement!: HTMLElement;
 	private todoListContainer!: HTMLElement;
+	private clearButtonContainer!: HTMLElement;
+	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
 
 	constructor(
@@ -41,14 +45,24 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoElement.setAttribute('aria-expanded', 'true');
 		this.expandoElement.setAttribute('tabindex', '0');
 
+		// Create title section to group icon and title
+		const titleSection = dom.$('.todo-list-title-section');
+
 		const expandIcon = dom.$('.expand-icon.codicon');
 		expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
 
 		const titleElement = dom.$('.todo-list-title');
 		titleElement.textContent = localize('chat.todoList.title', 'Todos');
 
-		this.expandoElement.appendChild(expandIcon);
-		this.expandoElement.appendChild(titleElement);
+		// Add clear button container to the expand element
+		this.clearButtonContainer = dom.$('.todo-clear-button-container');
+		this.createClearButton();
+
+		titleSection.appendChild(expandIcon);
+		titleSection.appendChild(titleElement);
+
+		this.expandoElement.appendChild(titleSection);
+		this.expandoElement.appendChild(this.clearButtonContainer);
 
 		this.todoListContainer = dom.$('.todo-list-container');
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
@@ -68,6 +82,21 @@ export class ChatTodoListWidget extends Disposable {
 		}));
 
 		return container;
+	}
+
+	private createClearButton(): void {
+		this.clearButton = new Button(this.clearButtonContainer, {
+			supportIcons: true,
+			title: localize('chat.todoList.clearButton', 'Clear all todos'),
+			ariaLabel: localize('chat.todoList.clearButton.ariaLabel', 'Clear all todos')
+		});
+		this.clearButton.element.tabIndex = 0;
+		this.clearButton.icon = Codicon.clearAll;
+		this._register(this.clearButton);
+
+		this._register(this.clearButton.onDidClick(() => {
+			this.clearAllTodos();
+		}));
 	}
 
 	public updateSessionId(sessionId: string | undefined): void {
@@ -160,6 +189,16 @@ export class ChatTodoListWidget extends Disposable {
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
 		this._onDidChangeHeight.fire();
+	}
+
+	private clearAllTodos(): void {
+		if (!this._currentSessionId) {
+			return;
+		}
+
+		const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
+		todoListStorage.setTodoList(this._currentSessionId, []);
+		this.updateTodoDisplay();
 	}
 
 	private scrollToRelevantItem(lastActiveIndex: number, firstCompletedIndex: number, firstPendingAfterCompletedIndex: number, totalItems: number): void {
