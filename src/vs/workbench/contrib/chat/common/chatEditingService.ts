@@ -238,6 +238,7 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
+	readonly editsRequireManualApproval: IObservable<boolean>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
