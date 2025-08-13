@@ -390,7 +390,7 @@ export class InlineCompletionsModel extends Disposable {
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 			requestIssuedDateTime: requestInfo.startTime,
-			earliestShownDateTime: requestInfo.startTime + this._minimalDelay.get(),
+			earliestShownDateTime: requestInfo.startTime + changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit ? 0 : this._minimalDelay.get(),
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
