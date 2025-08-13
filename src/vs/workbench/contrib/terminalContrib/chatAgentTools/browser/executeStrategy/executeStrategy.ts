@@ -8,9 +8,16 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 export interface ITerminalExecuteStrategy {
 	readonly type: 'rich' | 'basic' | 'none';
+
+	readonly startMarker?: IXtermMarker;
+	readonly endMarker?: IXtermMarker;
+
+	readonly onUpdate: Event<void>;
+
 	/**
 	 * Executes a command line and gets a result designed to be passed directly to an LLM. The
 	 * result will include information about the exit code.

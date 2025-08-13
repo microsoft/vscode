@@ -3,15 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
+import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { TerminalInstance, TerminalInstanceColorProvider } from '../../../../terminal/browser/terminalInstance.js';
+import { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
+import type { ITerminalExecuteStrategy } from '../../../../terminalContrib/chatAgentTools/browser/executeStrategy/executeStrategy.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
@@ -24,6 +33,25 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
+	private readonly container: HTMLElement;
+
+	// HACK: Just for prototyping
+	static trackingInstance?: {
+		instance: ITerminalInstance;
+		executeStrategy: ITerminalExecuteStrategy;
+	};
+	static _onDidChangeTrackingInstance = new Emitter<{
+		instance: ITerminalInstance;
+		executeStrategy: ITerminalExecuteStrategy;
+	}>();
+	static setTrackingInstance(instance: ITerminalInstance, executeStrategy: ITerminalExecuteStrategy) {
+		this.trackingInstance = {
+			instance,
+			executeStrategy
+		};
+		this._onDidChangeTrackingInstance.fire(this.trackingInstance);
+	}
+
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -41,6 +69,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IPreferencesService preferencesService: IPreferencesService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(toolInvocation);
 
@@ -108,7 +138,52 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			Codicon.error :
 			toolInvocation.isComplete ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
-		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, this.markdownPart.domNode, icon);
+		this.container = $('div');
+		this.container.append(this.markdownPart.domNode);
+
+
+		this._register(ChatTerminalToolProgressPart._onDidChangeTrackingInstance.event(async ({ instance, executeStrategy }) => {
+			const xtermCtor = await TerminalInstance.getXtermConstructor(keybindingService, contextKeyService);
+			const xterm = instantiationService.createInstance(XtermTerminal, xtermCtor, {
+				rows: 10,
+				cols: instance.cols,
+				// TODO: Should this support passing in undefined?
+				capabilities: new TerminalCapabilityStore(),
+				// TODO: Colors should be based on side bar
+				xtermColorProvider: instantiationService.createInstance(TerminalInstanceColorProvider, instance.targetRef)
+			}, undefined);
+			const xtermElement = $('div');
+			xterm.attachToElement(xtermElement);
+
+			// Instead of writing data events directly, mirror from the marker
+			this._register(executeStrategy.onUpdate(async () => {
+				console.log('start marker set!');
+			}));
+
+			// TODO: Add class that mirrors a section of xterm.js?
+			// TODO: Debounce?
+			// TODO: More efficiently only write diffed lines?
+			this._register(instance.onData(async () => {
+				const startMarker = executeStrategy.startMarker;
+				if (startMarker === undefined) {
+					return;
+				}
+				const data = await instance.xterm?.getRangeAsVT(startMarker!, executeStrategy.endMarker);
+				if (data === undefined) {
+					return;
+				}
+				xterm.raw.clear();
+				xterm.write('\x1b[H\x1b[K');
+				xterm.write(data);
+			}));
+
+			this.container.append(xtermElement);
+			this._onDidChangeHeight.fire();
+		}));
+
+
+
+		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, this.container, icon);
 		this.domNode = progressPart.domNode;
 	}
 }

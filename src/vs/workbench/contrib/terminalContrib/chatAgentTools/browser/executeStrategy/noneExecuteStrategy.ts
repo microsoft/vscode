@@ -5,10 +5,12 @@
 
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -16,13 +18,20 @@ import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStra
  * with `sendText` instead of `shellIntegration.executeCommand` and relying on idle events instead
  * of execution events.
  */
-export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
+export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'none';
+
+	startMarker?: IXtermMarker | undefined;
+	endMarker?: IXtermMarker | undefined;
+
+	private readonly _onUpdate = this._register(new Emitter<void>());
+	get onUpdate() { return this._onUpdate.event; }
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		super();
 	}
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {

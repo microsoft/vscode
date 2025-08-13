@@ -5,13 +5,14 @@
 
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -35,14 +36,21 @@ import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITe
  * output. We lean on the LLM to be able to differentiate the actual output from prompts and bad
  * output when it's not ideal.
  */
-export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
+export class BasicExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'basic';
+
+	startMarker?: IXtermMarker | undefined;
+	endMarker?: IXtermMarker | undefined;
+
+	private readonly _onUpdate = this._register(new Emitter<void>());
+	get onUpdate() { return this._onUpdate.event; }
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		super();
 	}
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {

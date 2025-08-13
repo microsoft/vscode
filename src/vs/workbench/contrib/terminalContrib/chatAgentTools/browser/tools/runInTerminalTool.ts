@@ -43,6 +43,7 @@ import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/
 import { basename } from '../../../../../../base/common/path.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
+import { ChatTerminalToolProgressPart } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -521,6 +522,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						break;
 					}
 				}
+				ChatTerminalToolProgressPart.setTrackingInstance(toolTerminal.instance, strategy);
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				const executeResult = await strategy.execute(command, token);
 				if (token.isCancellationRequested) {

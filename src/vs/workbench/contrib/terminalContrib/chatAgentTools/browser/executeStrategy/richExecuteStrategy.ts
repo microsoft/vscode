@@ -5,13 +5,14 @@
 
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -20,14 +21,21 @@ import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecute
  * wrong in this state, minimal verification is done in this mode since rich command detection is a
  * strong signal that it's behaving correctly.
  */
-export class RichExecuteStrategy implements ITerminalExecuteStrategy {
+export class RichExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'rich';
+
+	startMarker?: IXtermMarker | undefined;
+	endMarker?: IXtermMarker | undefined;
+
+	private readonly _onUpdate = this._register(new Emitter<void>());
+	get onUpdate() { return this._onUpdate.event; }
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		super();
 	}
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
@@ -56,10 +64,12 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			// Record where the command started. If the marker gets disposed, re-created it where
 			// the cursor is. This can happen in prompts where they clear the line and rerender it
 			// like powerlevel10k's transient prompt
-			let startMarker = store.add(xterm.raw.registerMarker());
+			let startMarker = this.startMarker = store.add(xterm.raw.registerMarker());
+			this._onUpdate.fire();
 			store.add(startMarker.onDispose(() => {
 				this._log(`Start marker was disposed, recreating`);
-				startMarker = xterm.raw.registerMarker();
+				startMarker = this.startMarker = xterm.raw.registerMarker();
+				this._onUpdate.fire();
 			}));
 
 			// Execute the command

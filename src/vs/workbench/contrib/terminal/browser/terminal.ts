@@ -1245,6 +1245,8 @@ export interface IXtermTerminal extends IDisposable {
 	 */
 	getContentsAsHtml(): Promise<string>;
 
+	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker): Promise<string>;
+
 	/**
 	 * Refreshes the terminal after it has been moved.
 	 */
