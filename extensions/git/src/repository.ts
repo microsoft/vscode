@@ -512,26 +512,35 @@ class ResourceCommandResolver {
 	}
 
 	resolveChangeCommand(resource: Resource): Command {
-		return this.resolveComparisonCommand(resource, false);
+		return this.resolveComparisonCommand(resource);
 	}
 
 	resolveCompareWithWorkspaceCommand(resource: Resource): Command {
-		if (this.repository.kind !== 'worktree' || !this.repository.dotGit.commonPath) {
+		if (!this.repository.dotGit.commonPath) {
 			return this.resolveChangeCommand(resource);
 		}
 
 		return this.resolveComparisonCommand(resource, true);
 	}
 
-	private resolveComparisonCommand(resource: Resource, useWorktreeComparison: boolean): Command {
+	private resolveComparisonCommand(resource: Resource, compareWithWorkspace?: boolean): Command {
 		const title = this.getTitle(resource);
 
-		const leftUri = useWorktreeComparison && this.repository.dotGit.commonPath
-			? Uri.file(path.join(
-				path.dirname(this.repository.dotGit.commonPath),
-				path.relative(this.repository.root, resource.resourceUri.fsPath)
-			))
-			: resource.leftUri;
+		let leftUri: Uri | undefined;
+
+		if (compareWithWorkspace && this.repository.dotGit.commonPath) {
+			const parentRepoRoot = path.dirname(this.repository.dotGit.commonPath);
+			const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
+			const candidateFsPath = path.join(parentRepoRoot, relPath);
+
+			if (fs.existsSync(candidateFsPath)) {
+				leftUri = Uri.file(candidateFsPath);
+			} else {
+				leftUri = undefined;
+			}
+		} else {
+			leftUri = resource.leftUri;
+		}
 
 		if (!leftUri) {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
