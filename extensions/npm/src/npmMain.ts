@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
@@ -11,6 +10,7 @@ import { NpmScriptsTreeDataProvider } from './npmView';
 import { getScriptRunner, getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { NpmScriptLensProvider } from './npmScriptLens';
+import { xhr } from './fetch';
 import which from 'which';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
@@ -24,15 +24,8 @@ function invalidateScriptCaches() {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	configureHttpRequest();
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.proxyStrictSSL')) {
-			configureHttpRequest();
-		}
-	}));
-
 	const npmCommandPath = await getNPMCommandPath();
-	context.subscriptions.push(addJSONProviders(httpRequest.xhr, npmCommandPath));
+	context.subscriptions.push(addJSONProviders(xhr, npmCommandPath));
 	registerTaskProvider(context);
 
 	treeDataProvider = registerExplorer(context);
@@ -162,11 +155,6 @@ function registerHoverProvider(context: vscode.ExtensionContext): NpmScriptHover
 		return provider;
 	}
 	return undefined;
-}
-
-function configureHttpRequest() {
-	const httpSettings = vscode.workspace.getConfiguration('http');
-	httpRequest.configure(httpSettings.get<string>('proxy', ''), httpSettings.get<boolean>('proxyStrictSSL', true));
 }
 
 export function deactivate(): void {

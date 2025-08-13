@@ -5,7 +5,7 @@
 
 import { Location, getLocation, createScanner, SyntaxKind, ScanError, JSONScanner } from 'jsonc-parser';
 import { PackageJSONContribution } from './packageJSONContribution';
-import { XHRRequest } from 'request-light';
+import { XHRRequest } from '../fetch';
 
 import {
 	CompletionItem, CompletionItemProvider, CompletionList, TextDocument, Position, Hover, HoverProvider,

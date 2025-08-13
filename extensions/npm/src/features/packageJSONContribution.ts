@@ -5,7 +5,7 @@
 
 import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri, l10n } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
-import { XHRRequest } from 'request-light';
+import { XHRRequest } from '../fetch';
 import { Location } from 'jsonc-parser';
 
 import * as cp from 'child_process';
