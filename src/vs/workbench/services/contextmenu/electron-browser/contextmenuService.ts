@@ -157,7 +157,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 				// Position according to the axis alignment and the anchor alignment:
 				// `HORIZONTAL` aligns at the top left or right of the anchor and
-				// `VERTICAL` aligns at the bottom left or right of the anchor.
+				//  `VERTICAL` aligns at the bottom left of the anchor.
 				if (delegate.anchorAxisAlignment === AnchorAxisAlignment.HORIZONTAL) {
 					if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
 						x = elementPosition.left;
@@ -171,7 +171,11 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 						const window = dom.getWindow(anchor);
 						const availableHeightForMenu = window.screen.height - y;
 						if (availableHeightForMenu < actions.length * (isWindows ? 45 : 32) /* guess of 1 menu item height */) {
-							// Align to bottom if the native menu will open upward (Windows/Linux heuristic)
+							// this is a guess to detect whether the context menu would
+							// open to the bottom from this point or to the top. If the
+							// menu opens to the top, make sure to align it to the bottom
+							// of the anchor and not to the top.
+							// this seems to be only necessary for Windows and Linux.
 							y += elementPosition.height;
 						}
 					}
@@ -185,7 +189,9 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					}
 				}
 
-				// macOS: maintain a constant ~4 DIP padding below the element (issue #84231)
+				// Shift macOS menus by a few pixels below elements
+				// to account for extra padding on top of native menu
+				// https://github.com/microsoft/vscode/issues/84231
 				if (isMacintosh) {
 					y += 4 / effectiveZoom;
 				}

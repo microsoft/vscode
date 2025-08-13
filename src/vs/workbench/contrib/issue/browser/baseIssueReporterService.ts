@@ -109,6 +109,7 @@ export class BaseIssueReporterService extends Disposable {
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 
+			// Secondary action for dropdown
 			const createAction = new Action('issueReporter.create', localize('create', "Create on GitHub"), undefined, true, async () => {
 				this.delayedSubmit.trigger(async () => {
 					this.createIssue();
@@ -122,6 +123,7 @@ export class BaseIssueReporterService extends Disposable {
 				...unthemedButtonStyles
 			}));
 
+			// primary button action, Preview is the default now
 			this._register(this.previewButton.onDidClick(async () => {
 				this.delayedSubmit.trigger(async () => {
 					await this.createIssue(true);
