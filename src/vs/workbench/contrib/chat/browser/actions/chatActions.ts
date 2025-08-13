@@ -1577,7 +1577,7 @@ const menuContext = ContextKeyExpr.and(
 	ChatContextKeys.Setup.disabled.negate()
 );
 
-const title = localize('ai actions', "Generate Code");
+const title = localize('generate code', "Generate Code");
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	submenu: MenuId.ChatTextEditorMenu,
