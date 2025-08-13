@@ -6,7 +6,7 @@
 import './media/chatSessions.css';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -22,7 +22,18 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
-import { Extensions, IViewContainersRegistry, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewDescriptor } from '../../../common/views.js';
+import { Extensions, IViewContainersRegistry, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewDescriptor, IEditableData } from '../../../common/views.js';
+import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+
+import { Severity } from '../../../../platform/notification/common/notification.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { timeout } from '../../../../base/common/async.js';
+import { localize } from '../../../../nls.js';
+
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
@@ -33,7 +44,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { ResourceLabels, IResourceLabel } from '../../../browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { append, $, getActiveWindow, clearNode } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorGroupsService, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -49,6 +60,7 @@ import { MenuId, MenuRegistry } from '../../../../platform/actions/common/action
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatSessionUri } from '../common/chatUri.js';
@@ -181,10 +193,12 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	private registerModelTitleListener(widget: IChatWidget): void {
 		const model = widget.viewModel?.model;
 		if (model) {
-			// Listen for model changes to detect title changes
-			// Since setCustomTitle doesn't fire an event, we listen to general model changes
-			this._register(model.onDidChange(() => {
-				this._onDidChange.fire();
+			// Listen for model changes, specifically for title changes via setCustomTitle
+			this._register(model.onDidChange((e) => {
+				// Fire change events for all title-related changes to refresh the tree
+				if (!e || e.kind === 'setCustomTitle') {
+					this._onDidChange.fire();
+				}
 			}));
 		}
 	}
@@ -547,6 +561,7 @@ interface ISessionTemplateData {
 	container: HTMLElement;
 	resourceLabel: IResourceLabel;
 	actionBar: ActionBar;
+	elementDisposables?: IDisposable;
 }
 
 // Renderer for session items in the tree
@@ -558,6 +573,9 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		private readonly labels: ResourceLabels,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -609,6 +627,10 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		}
 	}
 
+	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
+		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
+	}
+
 	get templateId(): string {
 		return SessionsRenderer.TEMPLATE_ID;
 	}
@@ -627,6 +649,35 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
 		const session = element.element;
+
+		// Clear any previous element disposables
+		if (templateData.elementDisposables) {
+			templateData.elementDisposables.dispose();
+			templateData.elementDisposables = undefined;
+		}
+
+		// Get the actual session ID for editable data lookup
+		let actualSessionId: string | undefined;
+		if (this.isLocalChatSessionItem(session)) {
+			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			}
+		}
+
+		// Check if this session is being edited using the actual session ID
+		const editableData = actualSessionId ? this.chatSessionsService.getEditableData(actualSessionId) : undefined;
+		if (editableData) {
+			// Render input box for editing
+			templateData.actionBar.clear();
+			const editDisposable = this.renderInputBox(templateData.container, session, editableData);
+			templateData.elementDisposables = editDisposable;
+			return;
+		}
+
+		// Normal rendering - clear the action bar in case it was used for editing
+		templateData.actionBar.clear();
 
 		// Handle different icon types
 		let iconResource: URI | undefined;
@@ -661,6 +712,148 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		}, {
 			fileKind: undefined,
 			icon: iconTheme || iconUri
+		});
+	}
+
+	private renderInputBox(container: HTMLElement, session: IChatSessionItem, editableData: IEditableData): IDisposable {
+		// Find the resource label element and hide it
+		const resourceLabelElement = container.querySelector('.monaco-icon-label') as HTMLElement;
+		if (resourceLabelElement) {
+			resourceLabelElement.style.display = 'none';
+		}
+
+		// Create a container div for the input box that matches the resource label layout
+		const inputContainer = DOM.append(container, DOM.$('.session-input-container'));
+		inputContainer.style.display = 'flex';
+		inputContainer.style.alignItems = 'center';
+		inputContainer.style.width = '100%';
+
+		// Create icon element matching the original session icon
+		let iconElement: HTMLElement | undefined;
+		if (session.iconPath) {
+			iconElement = DOM.append(inputContainer, DOM.$('.session-input-icon.codicon'));
+
+			if (ThemeIcon.isThemeIcon(session.iconPath)) {
+				iconElement.classList.add(`codicon-${session.iconPath.id}`);
+				if (session.iconPath.color?.id) {
+					iconElement.style.color = `var(--vscode-${session.iconPath.color.id})`;
+				}
+			} else if (session.iconPath instanceof URI) {
+				if (session.iconPath.scheme === 'data') {
+					iconElement.style.backgroundImage = `url(${session.iconPath.toString()})`;
+					iconElement.style.backgroundSize = '16px 16px';
+					iconElement.style.backgroundRepeat = 'no-repeat';
+					iconElement.style.backgroundPosition = 'center';
+					iconElement.style.width = '16px';
+					iconElement.style.height = '16px';
+				}
+			}
+
+			iconElement.style.marginRight = '6px';
+			iconElement.style.flexShrink = '0';
+		}
+
+		// Create the input box
+		const inputBox = new InputBox(inputContainer, this.contextViewService, {
+			validationOptions: {
+				validation: (value) => {
+					const message = editableData.validationMessage(value);
+					if (!message || message.severity !== Severity.Error) {
+						return null;
+					}
+					return {
+						content: message.content,
+						formatContent: true,
+						type: MessageType.ERROR
+					};
+				}
+			},
+			ariaLabel: localize('chatSessionInputAriaLabel', "Type session name. Press Enter to confirm or Escape to cancel."),
+			inputBoxStyles: defaultInputBoxStyles,
+		});
+
+		// Style the input to match inline editing
+		inputBox.inputElement.style.flex = '1';
+		inputBox.inputElement.style.minWidth = '0';
+		inputBox.inputElement.style.fontFamily = 'inherit';
+		inputBox.inputElement.style.fontSize = 'inherit';
+
+		inputBox.value = session.label;
+		inputBox.focus();
+		inputBox.select({ start: 0, end: session.label.length });
+
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
+			const value = inputBox.value;
+
+			// Clean up our input container
+			if (inputContainer && inputContainer.parentNode) {
+				inputContainer.parentNode.removeChild(inputContainer);
+			}
+
+			// Restore the original resource label
+			if (resourceLabelElement) {
+				resourceLabelElement.style.display = '';
+			}
+
+			if (finishEditing) {
+				editableData.onFinish(value, success);
+			}
+		});
+
+		const showInputBoxNotification = () => {
+			if (inputBox.isInputValid()) {
+				const message = editableData.validationMessage(inputBox.value);
+				if (message) {
+					inputBox.showMessage({
+						content: message.content,
+						formatContent: true,
+						type: message.severity === Severity.Info ? MessageType.INFO : message.severity === Severity.Warning ? MessageType.WARNING : MessageType.ERROR
+					});
+				} else {
+					inputBox.hideMessage();
+				}
+			}
+		};
+		showInputBoxNotification();
+
+		const disposables: IDisposable[] = [
+			inputBox,
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
+				if (e.equals(KeyCode.Enter)) {
+					if (!inputBox.validate()) {
+						done(true, true);
+					}
+				} else if (e.equals(KeyCode.Escape)) {
+					done(false, true);
+				}
+			}),
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, () => {
+				showInputBoxNotification();
+			}),
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
+				while (true) {
+					await timeout(0);
+
+					const ownerDocument = inputBox.inputElement.ownerDocument;
+					if (!ownerDocument.hasFocus()) {
+						break;
+					}
+					if (DOM.isActiveElement(inputBox.inputElement)) {
+						return;
+					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
+						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
+					} else {
+						break;
+					}
+				}
+
+				done(inputBox.isInputValid(), true);
+			})
+		];
+
+		return toDisposable(() => {
+			disposables.forEach(d => d.dispose());
+			done(false, false);
 		});
 	}
 
@@ -868,7 +1061,7 @@ class SessionsViewPane extends ViewPane {
 		this.dataSource = new SessionsDataSource(this.provider);
 
 		const delegate = new SessionsDelegate();
-		const renderer = new SessionsRenderer(this.labels, this.themeService, this.logService);
+		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.labels);
 		this._register(renderer);
 
 		this.tree = this.instantiationService.createInstance(

@@ -40,3 +40,40 @@
 .chat-sessions-message .no-sessions-message .codicon {
 	opacity: 0.7;
 }
+
+/* Styling for chat session items being edited */
+.chat-sessions-view .session-input-container {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	padding: 2px 8px;
+}
+
+.chat-sessions-view .session-input-container .session-input-icon {
+	margin-right: 6px;
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-sessions-view .session-input-container .monaco-inputbox {
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-sessions-view .session-input-container .monaco-inputbox .input {
+	background: transparent !important;
+	border: 1px solid var(--vscode-focusBorder) !important;
+	color: var(--vscode-input-foreground) !important;
+	font-family: inherit !important;
+	font-size: inherit !important;
+	padding: 2px 4px !important;
+}
+
+.chat-sessions-view .session-input-container .monaco-inputbox .input:focus {
+	border-color: var(--vscode-focusBorder) !important;
+	outline: none !important;
+}

@@ -109,7 +109,29 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override getName(): string {
-		return this.model?.title || nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		// If we have a resolved model, use its title
+		if (this.model?.title) {
+			return this.model.title;
+		}
+
+		// If we have a sessionId but no resolved model, try to get the title from persisted sessions
+		if (this.sessionId) {
+			// First try the active session registry
+			const existingSession = this.chatService.getSession(this.sessionId);
+			if (existingSession?.title) {
+				return existingSession.title;
+			}
+
+			// If not in active registry, try persisted session data
+			const persistedTitle = this.chatService.getPersistedSessionTitle(this.sessionId);
+			if (persistedTitle) {
+				return persistedTitle;
+			}
+		}
+
+		// Fall back to default naming pattern
+		const defaultName = nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		return defaultName;
 	}
 
 	override getIcon(): ThemeIcon {
@@ -212,7 +234,8 @@ interface ISerializedChatEditorInput {
 
 export class ChatEditorInputSerializer implements IEditorSerializer {
 	canSerialize(input: EditorInput): input is ChatEditorInput & { readonly sessionId: string } {
-		return input instanceof ChatEditorInput && typeof input.sessionId === 'string';
+		const canSerialize = input instanceof ChatEditorInput && typeof input.sessionId === 'string';
+		return canSerialize;
 	}
 
 	serialize(input: EditorInput): string | undefined {

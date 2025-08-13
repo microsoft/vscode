@@ -12,6 +12,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatProgress } from './chatService.js';
 import { IChatAgentRequest } from './chatAgents.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IEditableData } from '../../../common/views.js';
 
 export interface IChatSessionsExtensionPoint {
 	readonly id: string;
@@ -78,6 +79,11 @@ export interface IChatSessionsService {
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
 	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
+
+	// Editable session support
+	setEditableSession(sessionId: string, data: IEditableData | null): Promise<void>;
+	getEditableData(sessionId: string): IEditableData | undefined;
+	isEditable(sessionId: string): boolean;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
