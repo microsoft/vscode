@@ -273,7 +273,7 @@ export interface IChatElicitationRequest {
 
 export interface IChatThinkingPart {
 	kind: 'thinking';
-	value: string;
+	value?: string;
 	id?: string;
 	metadata?: string;
 }
