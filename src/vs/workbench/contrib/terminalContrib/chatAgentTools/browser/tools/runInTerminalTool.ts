@@ -1002,6 +1002,6 @@ class BackgroundTerminalExecution extends Disposable {
 		this.instance.runCommand(this._commandLine, true);
 	}
 	getOutput(): string {
-		return getOutput(this.instance, this._startMarker);
+		return getOutput(this._xterm?.raw, this._startMarker);
 	}
 }
