@@ -169,11 +169,12 @@ export async function pollForOutputAndIdle(
 					}
 				}
 				if (problemList.length === 0) {
-					return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.' };
+					return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 				}
 				return {
 					terminalExecutionIdleBeforeTimeout,
-					output: problemList.join('\n')
+					output: problemList.join('\n'),
+					pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
 				};
 			}
 		}
