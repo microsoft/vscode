@@ -20,7 +20,7 @@ import { inputPlaceholderForeground } from '../../../../../platform/theme/common
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../common/chatColors.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTerminalCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
@@ -165,6 +165,7 @@ class InputEditorDecorations extends Disposable {
 		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
 		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
 		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
+		const terminalCommandPart = parsedRequest.find((p): p is ChatRequestTerminalCommandPart => p instanceof ChatRequestTerminalCommandPart);
 
 		const exactlyOneSpaceAfterPart = (part: IParsedChatRequestPart): boolean => {
 			const partIdx = parsedRequest.indexOf(part);
@@ -251,6 +252,10 @@ class InputEditorDecorations extends Disposable {
 
 		if (slashPromptPart) {
 			textDecorations.push({ range: slashPromptPart.editorRange });
+		}
+
+		if (terminalCommandPart) {
+			textDecorations.push({ range: terminalCommandPart.editorRange });
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);

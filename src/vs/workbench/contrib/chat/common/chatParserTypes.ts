@@ -52,6 +52,7 @@ export class ChatRequestTextPart implements IParsedChatRequestPart {
 export const chatVariableLeader = '#';
 export const chatAgentLeader = '@';
 export const chatSubcommandLeader = '/';
+export const chatTerminalCommandLeader = '!';
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
@@ -189,14 +190,14 @@ export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 export class ChatRequestTerminalCommandPart implements IParsedChatRequestPart {
 	static readonly Kind = 'terminalCommand';
 	readonly kind = ChatRequestTerminalCommandPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: string) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange) { }
 
 	get text(): string {
-		return `!${this.command}`;
+		return chatTerminalCommandLeader;
 	}
 
 	get promptText(): string {
-		return '';
+		return 'Run shell command';
 	}
 }
 
@@ -291,8 +292,7 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 			} else if (part.kind === ChatRequestTerminalCommandPart.Kind) {
 				return new ChatRequestTerminalCommandPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
-					part.editorRange,
-					(part as ChatRequestTerminalCommandPart).command
+					part.editorRange
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				return new ChatRequestDynamicVariablePart(
