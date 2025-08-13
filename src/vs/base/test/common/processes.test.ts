@@ -42,7 +42,6 @@ suite('Processes', () => {
 		assert.strictEqual(env['VSCODE_PYTHON_ZSH_ACTIVATE'], undefined);
 		assert.strictEqual(env['VSCODE_PYTHON_PWSH_ACTIVATE'], undefined);
 		assert.strictEqual(env['VSCODE_PYTHON_FISH_ACTIVATE'], undefined);
-
 		assert.strictEqual(Object.keys(env).length, 3);
 	});
 });
