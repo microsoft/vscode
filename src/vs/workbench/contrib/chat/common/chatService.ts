@@ -268,12 +268,12 @@ export interface IChatElicitationRequest {
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
 	reject(): Promise<void>;
-	onDidRequestHide: Event<void>;
+	onDidRequestHide?: Event<void>;
 }
 
 export interface IChatThinkingPart {
 	kind: 'thinking';
-	value: string;
+	value?: string;
 	id?: string;
 	metadata?: string;
 }

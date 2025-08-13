@@ -10,6 +10,7 @@ import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import type { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMarkdownRenderResult, MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -106,7 +107,7 @@ export class ChatQueryTitlePart extends Disposable {
 	}
 }
 
-abstract class BaseChatConfirmationWidget extends Disposable {
+abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
 	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
 
@@ -269,7 +270,9 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		}
 	}
 }
-export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
+
+/** @deprecated Use ChatConfirmationWidget instead */
+export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidget {
 	private _renderedMessage: HTMLElement | undefined;
 
 	constructor(
@@ -297,10 +300,233 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 	}
 }
 
+export interface IChatConfirmationWidget2Options {
+	title: string | IMarkdownString;
+	icon?: ThemeIcon;
+	subtitle?: string | IMarkdownString;
+	buttons: IChatConfirmationButton[];
+	toolbarData?: { arg: any; partType: string; partSource?: string };
+}
+
+abstract class BaseChatConfirmationWidget extends Disposable {
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
+	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
+
+	protected _onDidChangeHeight = this._register(new Emitter<void>());
+	get onDidChangeHeight(): Event<void> { return this._onDidChangeHeight.event; }
+
+	private _domNode: HTMLElement;
+	get domNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	private get showingButtons() {
+		return !this.domNode.classList.contains('hideButtons');
+	}
+
+	setShowButtons(showButton: boolean): void {
+		this.domNode.classList.toggle('hideButtons', !showButton);
+	}
+
+	private readonly messageElement: HTMLElement;
+	protected readonly markdownRenderer: MarkdownRenderer;
+	private readonly title: string | IMarkdownString;
+
+	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
+
+	constructor(
+		options: IChatConfirmationWidget2Options,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IHostService private readonly _hostService: IHostService,
+		@IViewsService private readonly _viewsService: IViewsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		const { title, subtitle, buttons, icon } = options;
+		this.title = title;
+
+		const elements = dom.h('.chat-confirmation-widget2@root', [
+			dom.h('.chat-confirmation-widget-title', [
+				dom.h('.chat-title@title'),
+				dom.h('.chat-toolbar-container@buttonsContainer', [
+					dom.h('.chat-toolbar@toolbar'),
+				]),
+			]),
+			dom.h('.chat-confirmation-widget-message@message'),
+			dom.h('.chat-confirmation-widget-buttons', [
+				dom.h('.chat-buttons@buttons'),
+			]),
+		]);
+		this._domNode = elements.root;
+		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+
+		const titlePart = this._register(instantiationService.createInstance(
+			ChatQueryTitlePart,
+			elements.title,
+			new MarkdownString(icon ? `$(${icon.id}) ${typeof title === 'string' ? title : title.value}` : typeof title === 'string' ? title : title.value),
+			subtitle,
+			this.markdownRenderer,
+		));
+
+		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
+		this.messageElement = elements.message;
+
+		for (const buttonData of buttons) {
+			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
+
+			let button: IButton;
+			if (buttonData.moreActions) {
+				button = new ButtonWithDropdown(elements.buttons, {
+					...buttonOptions,
+					contextMenuProvider: contextMenuService,
+					addPrimaryActionToDropdown: false,
+					actions: buttonData.moreActions.map(action => {
+						if (action instanceof Separator) {
+							return action;
+						}
+						return this._register(new Action(
+							action.label,
+							action.label,
+							undefined,
+							!action.disabled,
+							() => {
+								this._onDidClick.fire(action);
+								return Promise.resolve();
+							},
+						));
+					}),
+				});
+			} else {
+				button = new Button(elements.buttons, buttonOptions);
+			}
+
+			this._register(button);
+			button.label = buttonData.label;
+			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
+			if (buttonData.onDidChangeDisablement) {
+				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
+			}
+		}
+
+		// Create toolbar if actions are provided
+		if (options?.toolbarData) {
+			const overlay = contextKeyService.createOverlay([
+				['chatConfirmationPartType', options.toolbarData.partType],
+				['chatConfirmationPartSource', options.toolbarData.partSource],
+			]);
+			const nestedInsta = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, overlay])));
+			this._register(nestedInsta.createInstance(
+				MenuWorkbenchToolBar,
+				elements.toolbar,
+				MenuId.ChatConfirmationMenu,
+				{
+					// buttonConfigProvider: () => ({ showLabel: false, showIcon: true }),
+					menuOptions: {
+						arg: options.toolbarData.arg,
+						shouldForwardArgs: true,
+					}
+				}
+			));
+		}
+	}
+
+
+	// protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
+	// 	this.messageElement.append(element);
+
+	// 	if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
+	// 		const targetWindow = dom.getWindow(listContainer);
+	// 		if (!targetWindow.document.hasFocus()) {
+	// 			this.notifyConfirmationNeeded(targetWindow);
+	// 		}
+	// 	}
+	// }
+	protected renderMessage(element: HTMLElement | IMarkdownString | string, listContainer: HTMLElement): void {
+		if (!dom.isHTMLElement(element)) {
+			const messageElement = this._register(this.markdownRenderer.render(
+				typeof element === 'string' ? new MarkdownString(element) : element,
+				{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
+			));
+			element = messageElement.element;
+		}
+
+		for (const child of this.messageElement.children) {
+			child.remove();
+		}
+		this.messageElement.append(element);
+
+		if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
+			const targetWindow = dom.getWindow(listContainer);
+			if (!targetWindow.document.hasFocus()) {
+				this.notifyConfirmationNeeded(targetWindow);
+			}
+		}
+	}
+
+	private async notifyConfirmationNeeded(targetWindow: Window): Promise<void> {
+
+		// Focus Window
+		this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
+
+		// Notify
+		const title = renderAsPlaintext(this.title);
+		const notification = await dom.triggerNotification(title ? localize('notificationTitle', "Chat: {0}", title) : localize('defaultTitle', "Chat: Confirmation Required"),
+			{
+				detail: localize('notificationDetail', "The current chat session requires your confirmation to proceed.")
+			}
+		);
+		if (notification) {
+			const disposables = this.notification.value = new DisposableStore();
+			disposables.add(notification);
+
+			disposables.add(Event.once(notification.onClick)(() => {
+				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
+				showChatView(this._viewsService);
+			}));
+
+			disposables.add(this._hostService.onDidChangeFocus(focus => {
+				if (focus) {
+					disposables.dispose();
+				}
+			}));
+		}
+	}
+}
+export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
+	private _renderedMessage: HTMLElement | undefined;
+
+	constructor(
+		private readonly _container: HTMLElement,
+		options: IChatConfirmationWidget2Options & { message: HTMLElement | IMarkdownString | string },
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHostService hostService: IHostService,
+		@IViewsService viewsService: IViewsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
+		this.renderMessage(options.message, this._container);
+	}
+
+	public updateMessage(message: string | IMarkdownString): void {
+		this._renderedMessage?.remove();
+		const renderedMessage = this._register(this.markdownRenderer.render(
+			typeof message === 'string' ? new MarkdownString(message) : message,
+			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
+		));
+		this.renderMessage(renderedMessage.element, this._container);
+		this._renderedMessage = renderedMessage.element;
+	}
+}
 export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
 		container: HTMLElement,
-		options: IChatConfirmationWidgetOptions & { message: HTMLElement },
+		options: IChatConfirmationWidget2Options & { message: HTMLElement | IMarkdownString | string },
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,

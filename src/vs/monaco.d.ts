@@ -4769,6 +4769,7 @@ declare namespace monaco.editor {
 		showToolbar?: 'always' | 'onHover' | 'never';
 		syntaxHighlightingEnabled?: boolean;
 		suppressSuggestions?: boolean;
+		minimalDelay?: number;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
@@ -7469,6 +7470,7 @@ declare namespace monaco.languages {
 		readonly includeInlineEdits: boolean;
 		readonly includeInlineCompletions: boolean;
 		readonly requestIssuedDateTime: number;
+		readonly earliestShownDateTime: number;
 	}
 
 	export class SelectedSuggestionInfo {
