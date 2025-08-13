@@ -21,6 +21,7 @@ import { localize } from '../../../../../../nls.js';
 import { ChatModeKind } from '../../constants.js';
 import { IChatMode, IChatModeService } from '../../chatModes.js';
 import { PromptModeMetadata } from '../parsers/promptHeader/metadata/mode.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
 
 /**
  * Unique ID of the markers provider class.
@@ -169,24 +170,15 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 
 		const modeValue = modeNode.value;
 		const modes = this.chatModeService.getModes();
+		const availableModes = [];
 
-		// Check if mode exists in builtin modes
-		const builtinMode = modes.builtin.find(mode => mode.kind === modeValue);
-		if (builtinMode) {
-			return builtinMode;
+		// Check if mode exists in builtin or custom modes
+		for (const mode of Iterable.concat(modes.builtin, modes.custom)) {
+			if (mode.name === modeValue) {
+				return mode;
+			}
+			availableModes.push(mode.name); // collect all available mode names
 		}
-
-		// Check if mode exists in custom modes (by id)
-		const customMode = modes.custom.find(mode => mode.name === modeValue);
-		if (customMode) {
-			return customMode;
-		}
-
-		// Use mode IDs for display (for custom modes)
-		const availableModes = [
-			...modes.builtin.map(mode => mode.id),
-			...modes.custom.map(mode => mode.name)
-		];
 
 		markers.push({
 			message: localize('promptHeaderDiagnosticsProvider.modeNotFound', "Unknown mode '{0}'. Available modes: {1}", modeValue, availableModes.join(', ')),

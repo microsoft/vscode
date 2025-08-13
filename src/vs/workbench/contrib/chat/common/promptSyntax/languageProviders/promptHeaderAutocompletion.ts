@@ -20,6 +20,7 @@ import { ModeHeader } from '../parsers/promptHeader/modeHeader.js';
 import { PromptHeader } from '../parsers/promptHeader/promptHeader.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
 
 export class PromptHeaderAutocompletion extends Disposable implements CompletionItemProvider {
 	/**
@@ -216,13 +217,9 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			// Get all available modes (builtin + custom)
 			const modes = this.chatModeService.getModes();
 			const suggestions: string[] = [];
-
-			// Add builtin mode kinds
-			suggestions.push(...modes.builtin.map(mode => mode.kind));
-
-			// Add custom mode IDs
-			suggestions.push(...modes.custom.map(mode => mode.name));
-
+			for (const mode of Iterable.concat(modes.builtin, modes.custom)) {
+				suggestions.push(mode.name);
+			}
 			return suggestions;
 		}
 		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {

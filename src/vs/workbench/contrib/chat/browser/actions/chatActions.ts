@@ -274,7 +274,7 @@ abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
-			title: localize2('openChatMode', "Open Chat ({0})", mode.name),
+			title: localize2('openChatMode', "Open Chat ({0})", mode.label),
 			keybinding
 		}, mode);
 	}

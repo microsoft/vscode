@@ -184,7 +184,7 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 		// Built-in modes
 		lines.push(localize('promptHeader.prompt.mode.builtin', '**Built-in modes:**'));
 		for (const mode of modes.builtin) {
-			lines.push(`- \`${mode.id}\`: ${mode.description.get() || mode.name}`);
+			lines.push(`- \`${mode.name}\`: ${mode.description.get() || mode.label}`);
 		}
 
 		// Custom modes
@@ -193,7 +193,7 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 			lines.push(localize('promptHeader.prompt.mode.custom', '**Custom modes:**'));
 			for (const mode of modes.custom) {
 				const description = mode.description.get();
-				lines.push(`- \`${mode.id}\`: ${description || localize('promptHeader.prompt.mode.customNoDesc', 'Custom chat mode')}`);
+				lines.push(`- \`${mode.name}\`: ${description || localize('promptHeader.prompt.mode.customNoDesc', 'Custom chat mode')}`);
 			}
 		}
 
