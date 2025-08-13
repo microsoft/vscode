@@ -595,6 +595,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				parsedRequest,
 				{ variables: [] },
 				0,
+				undefined,
 				defaultAgent,
 			);
 
