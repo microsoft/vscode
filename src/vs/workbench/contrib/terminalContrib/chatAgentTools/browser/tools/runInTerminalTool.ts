@@ -43,6 +43,7 @@ import type { TerminalNewAutoApproveButtonData } from '../../../../chat/browser/
 import { basename } from '../../../../../../base/common/path.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -155,6 +156,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -263,7 +265,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					return `[\`${e.rule!.sourceText}\`](settings_${e.rule!.sourceTarget} "${localize('ruleTooltip', 'View rule in settings')}")`;
 				}).join(', ');
 			}
-			if (isAutoApproved) {
+
+			const config = this._configurationService.inspect<boolean | Record<string, boolean>>('chat.tools.autoApprove');
+			const isGlobalAutoApproved = config?.value ?? config.defaultValue;
+			if (isGlobalAutoApproved) {
+				autoApproveInfo = new MarkdownString(`_${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`chat.tools.autoApprove\`](settings_global "${localize('ruleTooltip.global', 'View settings')}")`)}_`);
+			} else if (isAutoApproved) {
 				switch (autoApproveReason) {
 					case 'commandLine': {
 						if (commandLineResult.rule) {
@@ -583,7 +590,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 
 			return {
-				toolResultMessage: new MarkdownString(toolResultMessage),
+				toolResultMessage: toolResultMessage ? new MarkdownString(toolResultMessage) : undefined,
 				content: [{
 					kind: 'text',
 					value: resultText.join(''),
