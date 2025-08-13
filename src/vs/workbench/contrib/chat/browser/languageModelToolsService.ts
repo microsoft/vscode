@@ -12,14 +12,12 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { IObservable, ObservableSet } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import * as nls from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -276,16 +274,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
 				trackedCall.invocation = toolInvocation;
-				const { autoConfirmed, isGlobalAutoApprove } = this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
+				const autoConfirmed = this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
 				if (autoConfirmed) {
 					toolInvocation.confirmed.complete(true);
-				}
-
-				// If this is a globally auto-approved terminal tool and it doesn't already have auto-approval info,
-				// add a message indicating that it was auto-approved by the global setting
-				if (isGlobalAutoApprove && prepared?.toolSpecificData?.kind === 'terminal' && !prepared.toolSpecificData.autoApproveInfo) {
-					const autoApproveMessage = nls.localize('globalAutoApprove', 'Auto approved by global tools setting');
-					prepared.toolSpecificData.autoApproveInfo = new MarkdownString(`_${autoApproveMessage}_`);
 				}
 
 				model.acceptResponseProgress(request, toolInvocation);
@@ -308,7 +299,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			} else {
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
-				if (prepared?.confirmationMessages && !this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace).autoConfirmed) {
+				if (prepared?.confirmationMessages && !this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
 					if (!result.confirmed) {
 						throw new CancellationError();
@@ -437,9 +428,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
-	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): { autoConfirmed: boolean; isGlobalAutoApprove: boolean } {
+	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): boolean {
 		if (this._workspaceToolConfirmStore.value.getAutoConfirm(toolId) || this._profileToolConfirmStore.value.getAutoConfirm(toolId) || this._memoryToolConfirmStore.has(toolId)) {
-			return { autoConfirmed: true, isGlobalAutoApprove: false };
+			return true;
 		}
 
 		const config = this._configurationService.inspect<boolean | Record<string, boolean>>('chat.tools.autoApprove');
@@ -454,8 +445,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		const isGlobalAutoApprove = value === true || (typeof value === 'object' && value.hasOwnProperty(toolId) && value[toolId] === true);
-		return { autoConfirmed: isGlobalAutoApprove, isGlobalAutoApprove };
+		return value === true || (typeof value === 'object' && value.hasOwnProperty(toolId) && value[toolId] === true);
 	}
 
 	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {
