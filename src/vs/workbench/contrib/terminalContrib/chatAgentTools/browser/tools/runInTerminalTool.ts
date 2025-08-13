@@ -35,7 +35,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from '../runInTerminalHelpers.js';
-import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
+import { extractInlineSubCommands, splitCommandLineIntoSubCommands, stripSubShellWrappers } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { OutputMonitor } from '../outputMonitor.js';
@@ -217,11 +217,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationMessages = undefined;
 		} else {
 			const actualCommand = toolEditedCommand ?? args.command;
-			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
+			const actualCommandForAutoApproval = stripSubShellWrappers(actualCommand, shell, os);
+			const subCommands = splitCommandLineIntoSubCommands(actualCommandForAutoApproval, shell, os);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
 			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
-			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
+			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommandForAutoApproval);
 			const autoApproveReasons: string[] = [
 				...subCommandResults.map(e => e.reason),
 				commandLineResult.reason,
@@ -337,7 +338,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			let customActions: ToolConfirmationAction[] | undefined;
 			if (!isAutoApproved) {
-				customActions = this._generateAutoApproveActions(actualCommand, subCommands, { subCommandResults, commandLineResult });
+				customActions = this._generateAutoApproveActions(actualCommandForAutoApproval, subCommands, { subCommandResults, commandLineResult });
 			}
 
 			let shellType = basename(shell, '.exe');

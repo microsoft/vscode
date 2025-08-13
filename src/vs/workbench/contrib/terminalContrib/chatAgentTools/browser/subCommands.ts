@@ -3,8 +3,63 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { OperatingSystem } from '../../../../../base/common/platform.js';
+import { OperatingSystem, type OperatingSystem as OperatingSystemType } from '../../../../../base/common/platform.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
+
+/**
+ * Strips sub-shell wrappers from a command line to get the inner command for auto-approval.
+ * For example, "powershell -command 'git status'" becomes "git status".
+ */
+export function stripSubShellWrappers(commandLine: string, shell: string, os: OperatingSystemType): string {
+	const trimmed = commandLine.trim();
+
+	// Handle PowerShell sub-shell wrappers
+	if (isPowerShell(shell, os)) {
+		// Match patterns like: powershell -command "..." or pwsh -c "..."
+		const pwshMatch = trimmed.match(/^(?:powershell(?:\.exe)?|pwsh(?:\.exe)?)\s+(?:-command|-c)\s+['"](.+)['"]$/i);
+		if (pwshMatch && pwshMatch[1]) {
+			return stripSubShellWrappers(pwshMatch[1], shell, os);
+		}
+
+		// Match patterns like: powershell -command ... (without quotes)
+		const pwshNoQuotesMatch = trimmed.match(/^(?:powershell(?:\.exe)?|pwsh(?:\.exe)?)\s+(?:-command|-c)\s+(.+)$/i);
+		if (pwshNoQuotesMatch && pwshNoQuotesMatch[1]) {
+			return stripSubShellWrappers(pwshNoQuotesMatch[1], shell, os);
+		}
+	}
+
+	// Handle bash/sh sub-shell wrappers
+	if (!isPowerShell(shell, os)) {
+		// Match patterns like: bash -c "..." or sh -c "..."
+		const bashMatch = trimmed.match(/^(?:bash|sh|zsh)\s+(?:-c|--command)\s+['"](.+)['"]$/i);
+		if (bashMatch && bashMatch[1]) {
+			return stripSubShellWrappers(bashMatch[1], shell, os);
+		}
+
+		// Match patterns like: bash -c ... (without quotes)
+		const bashNoQuotesMatch = trimmed.match(/^(?:bash|sh|zsh)\s+(?:-c|--command)\s+(.+)$/i);
+		if (bashNoQuotesMatch && bashNoQuotesMatch[1]) {
+			return stripSubShellWrappers(bashNoQuotesMatch[1], shell, os);
+		}
+	}
+
+	// Handle cmd.exe sub-shell wrappers (Windows)
+	if (os === OperatingSystem.Windows) {
+		// Match patterns like: cmd /c "..." or cmd.exe /c "..."
+		const cmdMatch = trimmed.match(/^cmd(?:\.exe)?\s+\/c\s+['"](.+)['"]$/i);
+		if (cmdMatch && cmdMatch[1]) {
+			return stripSubShellWrappers(cmdMatch[1], shell, os);
+		}
+
+		// Match patterns like: cmd /c ... (without quotes)
+		const cmdNoQuotesMatch = trimmed.match(/^cmd(?:\.exe)?\s+\/c\s+(.+)$/i);
+		if (cmdNoQuotesMatch && cmdNoQuotesMatch[1]) {
+			return stripSubShellWrappers(cmdNoQuotesMatch[1], shell, os);
+		}
+	}
+
+	return trimmed;
+}
 
 function createNumberRange(start: number, end: number): string[] {
 	return Array.from({ length: end - start + 1 }, (_, i) => (start + i).toString());
@@ -47,7 +102,7 @@ const shellTypeResetChars = new Map<'sh' | 'zsh' | 'pwsh', string[]>([
 	])],
 ]);
 
-export function splitCommandLineIntoSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
+export function splitCommandLineIntoSubCommands(commandLine: string, envShell: string, envOS: OperatingSystemType): string[] {
 	let shellType: 'sh' | 'zsh' | 'pwsh';
 	const envShellWithoutExe = envShell.replace(/\.exe$/, '');
 	if (isPowerShell(envShell, envOS)) {
@@ -74,7 +129,7 @@ export function splitCommandLineIntoSubCommands(commandLine: string, envShell: s
 	return subCommands.filter(e => e.length > 0);
 }
 
-export function extractInlineSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): Set<string> {
+export function extractInlineSubCommands(commandLine: string, envShell: string, envOS: OperatingSystemType): Set<string> {
 	const inlineCommands: string[] = [];
 	const shellType = isPowerShell(envShell, envOS) ? 'pwsh' : 'sh';
 
