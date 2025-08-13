@@ -65,7 +65,7 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 import { ChatErrorConfirmationContentPart } from './chatContentParts/chatErrorConfirmationPart.js';
 import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsContentPart.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
-import { ChatProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
+import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
@@ -698,6 +698,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
+
+		if (!element.isComplete && this.shouldShowWorkingProgress(element, content)) {
+			content.push({ kind: 'working' });
+		}
 		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
 		if (fileChangesSummaryPart) {
 			content.push(fileChangesSummaryPart);
@@ -707,6 +711,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 
 		this.updateItemHeightOnRender(element, templateData);
+	}
+
+	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[]): boolean {
+		if (!isResponseVM(element) || element.isComplete) {
+			return false;
+		}
+
+		if (!partsToRender.length) {
+			return true;
+		}
+
+		const lastPart = partsToRender.at(-1)!;
+		return !(
+			lastPart.kind === 'markdownContent' ||
+			lastPart.kind === 'references' ||
+			lastPart.kind === 'codeCitations'
+		);
 	}
 
 	private getChatFileChangesSummaryPart(element: IChatResponseViewModel): IChatChangesSummaryPart | undefined {
@@ -1087,6 +1108,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderMultiDiffData(content, templateData, context);
 			} else if (content.kind === 'progressMessage') {
 				return this.instantiationService.createInstance(ChatProgressContentPart, content, this.renderer, context, undefined, undefined, undefined);
+			} else if (content.kind === 'working') {
+				return this.instantiationService.createInstance(ChatWorkingProgressContentPart, content, this.renderer, context);
 			} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
 				return this.renderProgressTask(content, templateData, context);
 			} else if (content.kind === 'command') {

@@ -6,10 +6,12 @@
 import { $, append } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
@@ -93,5 +95,21 @@ export class ChatCustomProgressPart {
 
 		messageElement.classList.add('progress-step');
 		append(this.domNode, messageElement);
+	}
+}
+
+export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
+	constructor(
+		_workingProgress: { kind: 'working' },
+		renderer: MarkdownRenderer,
+		context: IChatContentPartRenderContext,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
+	) {
+		const progressMessage: IChatProgressMessage = {
+			kind: 'progressMessage',
+			content: new MarkdownString().appendText(localize('workingMessage', "Working..."))
+		};
+		super(progressMessage, renderer, context, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService);
 	}
 }

@@ -153,6 +153,9 @@ export interface IChatReferences {
 /**
  * Content type for the "Working" progress message
  */
+export interface IChatWorkingProgress {
+	kind: 'working';
+}
 
 
 /**
@@ -177,7 +180,7 @@ export interface IChatChangesSummaryPart {
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress;
 
 export interface IChatLiveUpdateData {
 	totalTime: number;
