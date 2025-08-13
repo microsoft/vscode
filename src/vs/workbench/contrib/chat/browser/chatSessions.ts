@@ -764,7 +764,6 @@ class SessionsViewPane extends ViewPane {
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -788,39 +787,20 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
-	private getProviderDisplayName(): string {
-		const contributions = this.chatSessionsService.getAllChatSessionContributions();
-		const contribution = contributions.find(c => c.type === this.provider.chatSessionType);
-		if (contribution) {
-			return contribution.displayName;
-		}
-		return '';
-	}
-
 	private showEmptyMessage(): void {
 		if (!this.messageElement) {
 			return;
 		}
 
-		// Only show message for non-local providers
-		if (this.provider.chatSessionType === 'local') {
-			this.hideMessage();
-			return;
-		}
-
-		const providerName = this.getProviderDisplayName();
-		if (!providerName) {
-			return;
-		}
-
-		const messageText = nls.localize('chatSessions.noResults', "No sessions found from {0}", providerName);
+		const messageText = this.provider.chatSessionType === 'local'
+			? nls.localize('chatSessions.noChatSessions', "No chat sessions")
+			: nls.localize('chatSessions.noAgentSessions', "No agent sessions found");
 
 		// Clear the message element using DOM utility
 		clearNode(this.messageElement);
 
 		const messageContainer = append(this.messageElement, $('.no-sessions-message'));
 
-		append(messageContainer, $('.codicon.codicon-info'));
 		const textElement = append(messageContainer, $('span'));
 		textElement.textContent = messageText;
 
