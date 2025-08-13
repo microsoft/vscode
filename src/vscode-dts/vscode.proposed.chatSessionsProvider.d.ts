@@ -70,7 +70,7 @@ declare module 'vscode' {
 		/**
 		 * An optional description that provides additional context about the chat session.
 		 */
-		description?: string;
+		description?: string | MarkdownString;
 
 		/**
 		 * An optional status indicating the current state of the session.
@@ -80,7 +80,7 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over this item.
 		 */
-		tooltip?: string | MarkdownString | undefined;
+		tooltip?: string | MarkdownString;
 	}
 
 	export interface ChatSession {
