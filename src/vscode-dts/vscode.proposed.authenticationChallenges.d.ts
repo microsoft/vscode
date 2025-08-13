@@ -97,10 +97,10 @@ declare module 'vscode' {
 	 * This extends the base AuthenticationProvider with methods to handle authentication
 	 * challenges from WWW-Authenticate headers.
 	 */
-	export interface AuthenticationProviderWithChallenges extends AuthenticationProvider {
+	export interface AuthenticationProvider {
 		/**
 		 * Get existing sessions that match the given authentication constraints.
-		 * 
+		 *
 		 * @param constraint The authentication constraint containing challenges and optional scopes
 		 * @param options Options for the session request
 		 * @returns A thenable that resolves to an array of existing authentication sessions
@@ -110,7 +110,7 @@ declare module 'vscode' {
 		/**
 		 * Create a new session based on authentication constraints.
 		 * This is called when no existing session matches the constraint requirements.
-		 * 
+		 *
 		 * @param constraint The authentication constraint containing challenges and optional scopes
 		 * @param options Options for the session creation
 		 * @returns A thenable that resolves to a new authentication session

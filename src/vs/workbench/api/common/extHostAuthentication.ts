@@ -185,16 +185,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return this._providerOperations.queue(providerId, async () => {
 			const providerData = this._authenticationProviders.get(providerId);
 			if (providerData) {
-				const provider = providerData.provider as any;
+				const provider = providerData.provider;
 				// Check if provider supports challenges
 				if (typeof provider.getSessionsFromChallenges === 'function') {
 					options.authorizationServer = URI.revive(options.authorizationServer);
 					return await provider.getSessionsFromChallenges(constraint, options);
 				}
-				// Fallback to regular getSessions if provider doesn't support challenges
-				// Use scopes from the constraint if available, otherwise extract from challenges
-				const scopes = constraint.scopes || this._extractScopesFromChallenges(constraint.challenges);
-				return await providerData.provider.getSessions(scopes, options);
+				throw new Error(`Authentication provider with handle: ${providerId} does not support getSessionsFromChallenges`);
 			}
 
 			throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
