@@ -138,6 +138,7 @@ const promptInjectionWarningCommandsLowerPwshOnly = [
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
+	private readonly _terminalToolCreator: ToolTerminalCreator;
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
 
@@ -167,6 +168,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	) {
 		super();
 
+		this._terminalToolCreator = _instantiationService.createInstance(ToolTerminalCreator);
 		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 		this._osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
@@ -594,7 +596,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-		const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
+		const toolTerminal = await this._terminalToolCreator.createTerminal(token);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
 			toolTerminal.instance.dispose();
@@ -608,9 +610,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionId);
 		if (cachedTerminal) {
 			this._logService.debug(`RunInTerminalTool: Using cached foreground terminal with session ID \`${chatSessionId}\``);
+			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 			return cachedTerminal;
 		}
-		const toolTerminal = await this._instantiationService.createInstance(ToolTerminalCreator).createTerminal(token);
+		const toolTerminal = await this._terminalToolCreator.createTerminal(token);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
 			toolTerminal.instance.dispose();
