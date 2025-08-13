@@ -15,6 +15,7 @@ import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -717,9 +718,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
-		if (!element.isComplete && this.shouldShowWorkingProgress(element, content)) {
-			content.push({ kind: 'working' });
-		}
 		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
 		if (fileChangesSummaryPart) {
 			content.push(fileChangesSummaryPart);
@@ -732,20 +730,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[]): boolean {
-		if (!isResponseVM(element) || element.isComplete) {
+		if (element.agentOrSlashCommandDetected || this.rendererOptions.renderStyle === 'minimal' || element.isComplete || !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
 			return false;
 		}
 
-		if (!partsToRender.length) {
+		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
+		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
+		if (
+			!lastPart ||
+			lastPart.kind === 'references' ||
+			(lastPart.kind === 'toolInvocation' && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
+			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete)) ||
+			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
+			lastPart.kind === 'prepareToolInvocation'
+		) {
 			return true;
 		}
 
-		const lastPart = partsToRender.at(-1)!;
-		return !(
-			lastPart.kind === 'markdownContent' ||
-			lastPart.kind === 'references' ||
-			lastPart.kind === 'codeCitations'
-		);
+		return false;
 	}
 
 	private getChatFileChangesSummaryPart(element: IChatResponseViewModel): IChatChangesSummaryPart | undefined {
@@ -1070,6 +1072,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (newRenderedWordCount > 0 && newRenderedWordCount !== element.renderData?.renderedWordCount) {
 			// Only update lastRenderTime when we actually render new content
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
+		}
+
+		if (this.shouldShowWorkingProgress(element, partsToRender)) {
+			partsToRender.push({ kind: 'working' });
 		}
 
 		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
