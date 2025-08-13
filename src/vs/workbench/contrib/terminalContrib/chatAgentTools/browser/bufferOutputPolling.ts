@@ -169,7 +169,7 @@ export async function pollForOutputAndIdle(
 					}
 				}
 				if (problemList.length === 0) {
-					return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems detected.' };
+					return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.' };
 				}
 				return {
 					terminalExecutionIdleBeforeTimeout,
