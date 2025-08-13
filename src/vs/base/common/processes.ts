@@ -109,7 +109,7 @@ export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve
 	const keysToRemove = [
 		/^ELECTRON_.+$/,
 		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).+$/,
-		/^VSCODE_PYTHON_(PWSH|ZSH|BASH)_ACTIVATE/,
+		/^VSCODE_PYTHON_(PWSH|ZSH|BASH|FISH)_ACTIVATE/,
 		/^SNAP(|_.*)$/,
 		/^GDK_PIXBUF_.+$/,
 	];
