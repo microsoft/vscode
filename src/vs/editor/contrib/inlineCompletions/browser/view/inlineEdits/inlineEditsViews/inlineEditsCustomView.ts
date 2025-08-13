@@ -255,6 +255,9 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				justifyContent: 'center',
 				whiteSpace: 'nowrap',
 			},
+			onmousedown: e => {
+				e.preventDefault(); // This prevents that the editor loses focus
+			},
 			onclick: (e) => { this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)); }
 		}, [
 			line

@@ -101,6 +101,7 @@ export interface IChatEntitlementService {
 	readonly onDidChangeEntitlement: Event<void>;
 
 	readonly entitlement: ChatEntitlement;
+	readonly isInternal: boolean;
 
 	readonly onDidChangeQuotaExceeded: Event<void>;
 	readonly onDidChangeQuotaRemaining: Event<void>;
@@ -237,6 +238,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		}
 
 		return ChatEntitlement.Unresolved;
+	}
+
+	get isInternal(): boolean {
+		return this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.internal.key) === true;
 	}
 
 	//#endregion
@@ -384,6 +389,7 @@ interface IEntitlementsResponse extends ILegacyQuotaSnapshotResponse {
 	readonly can_signup_for_limited: boolean;
 	readonly chat_enabled: boolean;
 	readonly copilot_plan: string;
+	readonly organization_login_list: string[];
 	readonly analytics_tracking_id: string;
 	readonly limited_user_reset_date?: string; 	// for Copilot Free
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
@@ -396,6 +402,7 @@ interface IEntitlementsResponse extends ILegacyQuotaSnapshotResponse {
 
 interface IEntitlements {
 	readonly entitlement: ChatEntitlement;
+	readonly isInternal?: boolean;
 	readonly quotas?: IQuotas;
 }
 
@@ -644,6 +651,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 		const entitlements: IEntitlements = {
 			entitlement,
+			isInternal: this.containsInternalOrgs(entitlementsResponse.organization_login_list),
 			quotas: this.toQuotas(entitlementsResponse)
 		};
 
@@ -718,6 +726,11 @@ export class ChatEntitlementRequests extends Disposable {
 		return quotas;
 	}
 
+	private containsInternalOrgs(organizationLogins: string[]): boolean {
+		const internalOrgs = ['github', 'microsoft'];
+		return organizationLogins.some(org => internalOrgs.includes(org));
+	}
+
 	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
 	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
 	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined> {
@@ -759,7 +772,7 @@ export class ChatEntitlementRequests extends Disposable {
 	private update(state: IEntitlements): void {
 		this.state = state;
 
-		this.context.update({ entitlement: this.state.entitlement });
+		this.context.update({ entitlement: this.state.entitlement, isInternal: this.state.isInternal });
 
 		if (state.quotas) {
 			this.chatQuotasAccessor.acceptQuotas(state.quotas);
@@ -907,6 +920,11 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 	entitlement: ChatEntitlement;
 
 	/**
+	 * User is an internal chat user.
+	 */
+	isInternal: boolean;
+
+	/**
 	 * User is or was a registered Chat user.
 	 */
 	registered?: boolean;
@@ -924,6 +942,8 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly proPlusContextKey: IContextKey<boolean>;
 	private readonly businessContextKey: IContextKey<boolean>;
 	private readonly enterpriseContextKey: IContextKey<boolean>;
+
+	private readonly internalContextKey: IContextKey<boolean>;
 
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly laterContext: IContextKey<boolean>;
@@ -956,13 +976,14 @@ export class ChatEntitlementContext extends Disposable {
 		this.proPlusContextKey = ChatContextKeys.Entitlement.proPlus.bindTo(contextKeyService);
 		this.businessContextKey = ChatContextKeys.Entitlement.business.bindTo(contextKeyService);
 		this.enterpriseContextKey = ChatContextKeys.Entitlement.enterprise.bindTo(contextKeyService);
+		this.internalContextKey = ChatContextKeys.Entitlement.internal.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.laterContext = ChatContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
 		this.disabledContext = ChatContextKeys.Setup.disabled.bindTo(contextKeyService);
 		this.untrustedContext = ChatContextKeys.Setup.untrusted.bindTo(contextKeyService);
 
-		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
+		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown, isInternal: false };
 
 		this.checkExtensionInstallation();
 		this.updateContextSync();
@@ -1004,9 +1025,10 @@ export class ChatEntitlementContext extends Disposable {
 	update(context: { installed: boolean; disabled: boolean; untrusted: boolean }): Promise<void>;
 	update(context: { hidden: boolean }): Promise<void>;
 	update(context: { later: boolean }): Promise<void>;
-	update(context: { entitlement: ChatEntitlement }): Promise<void>;
-	update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+	update(context: { entitlement: ChatEntitlement; isInternal?: boolean }): Promise<void>;
+	update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement; isInternal?: boolean }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
+		this.state.isInternal = !!context.isInternal;
 
 		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean' && typeof context.untrusted === 'boolean') {
 			this._state.installed = context.installed;
@@ -1060,6 +1082,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.proPlusContextKey.set(this._state.entitlement === ChatEntitlement.ProPlus);
 		this.businessContextKey.set(this._state.entitlement === ChatEntitlement.Business);
 		this.enterpriseContextKey.set(this._state.entitlement === ChatEntitlement.Enterprise);
+		this.internalContextKey.set(this._state.isInternal);
 		this.hiddenContext.set(!!this._state.hidden);
 		this.laterContext.set(!!this._state.later);
 		this.installedContext.set(!!this._state.installed);

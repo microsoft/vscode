@@ -10,7 +10,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithIcon } from '../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
@@ -139,6 +139,9 @@ const GlobalLastChatModeKey = 'chat.lastChatMode';
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	private static _counter = 0;
+
+	private _workingSetCollapsed = true;
+	private _lastEditingSessionId: string | undefined;
 
 	private _onDidLoadInputState: Emitter<IChatInputState | undefined>;
 	readonly onDidLoadInputState: Event<IChatInputState | undefined>;
@@ -314,6 +317,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _chatEditsActionsDisposables: DisposableStore;
 	private readonly _chatEditsDisposables: DisposableStore;
+	private _chatEditsContainer?: HTMLElement;
+	private _chatEditsApprovalContainer?: HTMLElement;
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
 	get selectedElements(): URI[] {
@@ -1494,8 +1499,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
+		if (chatEditingSession) {
+			if (chatEditingSession.chatSessionId !== this._lastEditingSessionId) {
+				this._workingSetCollapsed = true;
+			}
+			this._lastEditingSessionId = chatEditingSession.chatSessionId;
+		}
+
 		const seenEntries = new ResourceSet();
 		const entries: IChatCollapsibleListItem[] = [];
+		let manualApprovalNeeded = false;
 		if (chatEditingSession) {
 			for (const entry of chatEditingSession.entries.get()) {
 				if (entry.state.get() !== ModifiedFileEntryState.Modified) {
@@ -1504,11 +1517,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				if (!seenEntries.has(entry.modifiedURI)) {
 					seenEntries.add(entry.modifiedURI);
-					entries.push({
+					const item: IChatCollapsibleListItem = {
 						reference: entry.modifiedURI,
 						state: entry.state.get(),
 						kind: 'reference',
-					});
+					};
+
+					if (entry.editsRequireManualApproval.get()) {
+						item.iconPath = Codicon.warning;
+						item.description = localize('chatEditingSession.fileRequiresManualApproval', 'Edits requires manual approval');
+						manualApprovalNeeded = true;
+					}
+
+					entries.push(item);
 				}
 			}
 		}
@@ -1517,11 +1538,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
+			this._chatEditsContainer = undefined;
+			this._chatEditsApprovalContainer = undefined;
 			return;
 		}
 
 		// Summary of number of files changed
-		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
+		const approvalNotice = (this._chatEditsApprovalContainer ??= dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-approval-notice')));
+		const innerContainer = (this._chatEditsContainer ??= dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons')));
+
+		if (manualApprovalNeeded) {
+			approvalNotice.style.display = 'block';
+			approvalNotice.textContent = localize('chatEditingSession.manualApprovalNeeded', 'One or more file edits require manual approval');
+		} else {
+			approvalNotice.style.display = 'none';
+		}
 
 		entries.sort((a, b) => {
 			if (a.kind === 'reference' && b.kind === 'reference') {
@@ -1535,12 +1566,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
 		const overviewTitle = overviewRegion.querySelector('.working-set-title') as HTMLElement ?? dom.append(overviewRegion, $('.working-set-title'));
-		const overviewFileCount = overviewTitle.querySelector('span.working-set-count') ?? dom.append(overviewTitle, $('span.working-set-count'));
-
-		overviewFileCount.textContent = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
-
-		overviewTitle.ariaLabel = overviewFileCount.textContent;
-		overviewTitle.tabIndex = 0;
 
 		// Clear out the previous actions (if any)
 		this._chatEditsActionsDisposables.clear();
@@ -1567,6 +1592,28 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Working set
 		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-list'));
+
+		const button = this._chatEditsActionsDisposables.add(new ButtonWithIcon(overviewTitle, {
+			supportIcons: true,
+			secondary: true,
+			ariaLabel: localize('chatEditingSession.toggleWorkingSet', 'Toggle changed files.'),
+		}));
+		button.label = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
+
+		const applyCollapseState = () => {
+			button.icon = this._workingSetCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			workingSetContainer.classList.toggle('collapsed', this._workingSetCollapsed);
+			this._onDidChangeHeight.fire();
+		};
+
+		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
+			this._workingSetCollapsed = !this._workingSetCollapsed;
+			applyCollapseState();
+
+		}));
+
+		applyCollapseState();
+
 		if (!this._chatEditList) {
 			this._chatEditList = this._chatEditsListPool.get();
 			const list = this._chatEditList.object;

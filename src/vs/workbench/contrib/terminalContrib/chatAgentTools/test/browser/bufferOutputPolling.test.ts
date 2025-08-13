@@ -5,10 +5,12 @@
 
 import { strict as assert } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { PollingConsts, racePollingOrPrompt } from '../../browser/bufferOutputPolling.js';
+import { getOutput, PollingConsts, racePollingOrPrompt } from '../../browser/bufferOutputPolling.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatElicitationRequestPart } from '../../../../chat/browser/chatElicitationRequestPart.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+// eslint-disable-next-line local/code-amd-node-module
+import { Terminal as RawXtermTerminal } from '@xterm/xterm';
 
 suite('racePollingOrPrompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -17,6 +19,20 @@ suite('racePollingOrPrompt', () => {
 	const defaultToken = CancellationToken.None;
 	const defaultLanguageModelsService = {} as any;
 	const defaultExecution = { getOutput: () => 'output' };
+
+	function write(data: string, terminal: RawXtermTerminal): Promise<void> {
+		return new Promise<void>((resolve) => {
+			terminal.write(data, resolve);
+		});
+	}
+
+	test('getOutput enforces 16000 character limit', async () => {
+		const terminal = new RawXtermTerminal();
+		const longString = 'A'.repeat(17000);
+		await write(longString, terminal);
+		const output = getOutput(terminal);
+		assert.strictEqual(output.length, longString.slice(-16000).length);
+	});
 
 	/**
 	 * Returns a set of arguments for racePollingOrPrompt, allowing overrides for testing.
