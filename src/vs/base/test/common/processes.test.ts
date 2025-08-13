@@ -28,44 +28,21 @@ suite('Processes', () => {
 			VSCODE_CODE_CACHE_PATH: 'x',
 			VSCODE_NEW_VAR: 'x',
 			GDK_PIXBUF_MODULE_FILE: 'x',
-			GDK_PIXBUF_MODULEDIR: 'x'
+			GDK_PIXBUF_MODULEDIR: 'x',
+			VSCODE_PYTHON_BASH_ACTIVATE: 'source /path/to/venv/bin/activate',
+			VSCODE_PYTHON_ZSH_ACTIVATE: 'source /path/to/venv/bin/activate',
+			VSCODE_PYTHON_PWSH_ACTIVATE: '. /path/to/venv/Scripts/Activate.ps1',
+			VSCODE_PYTHON_FISH_ACTIVATE: 'source /path/to/venv/bin/activate.fish',
 		};
 		processes.sanitizeProcessEnvironment(env);
 		assert.strictEqual(env['FOO'], 'bar');
 		assert.strictEqual(env['VSCODE_SHELL_LOGIN'], '1');
 		assert.strictEqual(env['VSCODE_PORTABLE'], '3');
+		assert.strictEqual(env['VSCODE_PYTHON_BASH_ACTIVATE'], undefined);
+		assert.strictEqual(env['VSCODE_PYTHON_ZSH_ACTIVATE'], undefined);
+		assert.strictEqual(env['VSCODE_PYTHON_PWSH_ACTIVATE'], undefined);
+		assert.strictEqual(env['VSCODE_PYTHON_FISH_ACTIVATE'], undefined);
+
 		assert.strictEqual(Object.keys(env).length, 3);
 	});
-});
-
-
-test('sanitizeProcessEnvironment removes Python activation variables', () => {
-	const env = {
-		FOO: 'bar',
-		VSCODE_PYTHON_BASH_ACTIVATE: 'source /path/to/venv/bin/activate',
-		VSCODE_PYTHON_ZSH_ACTIVATE: 'source /path/to/venv/bin/activate',
-		VSCODE_PYTHON_PWSH_ACTIVATE: '. /path/to/venv/Scripts/Activate.ps1',
-		VSCODE_PYTHON_FISH_ACTIVATE: 'source /path/to/venv/bin/activate.fish',
-		VSCODE_SHELL_LOGIN: '1',
-		VSCODE_PORTABLE: '2',
-		VSCODE_ENV_REPLACE: 'replace',
-		VSCODE_ENV_APPEND: 'append',
-		VSCODE_ENV_PREPEND: 'prepend'
-	};
-	processes.sanitizeProcessEnvironment(env);
-
-	assert.strictEqual(env['FOO'], 'bar');
-
-	assert.strictEqual(env['VSCODE_SHELL_LOGIN'], '1');
-	assert.strictEqual(env['VSCODE_PORTABLE'], '2');
-	assert.strictEqual(env['VSCODE_ENV_REPLACE'], 'replace');
-	assert.strictEqual(env['VSCODE_ENV_APPEND'], 'append');
-	assert.strictEqual(env['VSCODE_ENV_PREPEND'], 'prepend');
-
-	assert.strictEqual(env['VSCODE_PYTHON_BASH_ACTIVATE'], undefined);
-	assert.strictEqual(env['VSCODE_PYTHON_ZSH_ACTIVATE'], undefined);
-	assert.strictEqual(env['VSCODE_PYTHON_PWSH_ACTIVATE'], undefined);
-	assert.strictEqual(env['VSCODE_PYTHON_FISH_ACTIVATE'], undefined);
-
-	assert.strictEqual(Object.keys(env).length, 6);
 });
