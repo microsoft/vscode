@@ -99,9 +99,9 @@ export class RunTaskTool implements IToolImpl {
 		if (result?.exitCode) {
 			output = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
 		} else {
-			output += `Task \`${taskLabel}\` `;
+			output += `\`${taskLabel}\` task `;
 			output += terminalResults.every(r => r.idle)
-				? 'finished.'
+				? 'finished'
 				: 'started and will continue to run in the background.';
 		}
 
