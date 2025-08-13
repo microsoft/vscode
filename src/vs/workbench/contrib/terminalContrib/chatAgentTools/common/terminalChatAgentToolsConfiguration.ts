@@ -6,7 +6,7 @@
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
-import { ConfigurationScope, type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 
 export const enum TerminalChatAgentToolsSettingId {
 	AutoApprove = 'chat.tools.terminal.autoApprove',
@@ -48,6 +48,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				'|---|---|',
 				'| `\"mkdir\": true` | ' + localize('autoApprove.description.examples.mkdir', "Allow all commands starting with {0}", '`mkdir`'),
 				'| `\"npm run build\": true` | ' + localize('autoApprove.description.examples.npmRunBuild', "Allow all commands starting with {0}", '`npm run build`'),
+				'| `\"bin/test.sh\": true` | ' + localize('autoApprove.description.examples.binTest', "Allow all commands that match the path {0} ({1}, {2}, etc.)", '`bin/test.sh`', '`bin\\test.sh`', '`./bin/test.sh`'),
 				'| `\"/^git (status\\|show\\b.*)$/\": true` | ' + localize('autoApprove.description.examples.regexGit', "Allow {0} and all commands starting with {1}", '`git status`', '`git show`'),
 				'| `\"/^Get-ChildItem\\b/i\": true` | ' + localize('autoApprove.description.examples.regexCase', "will allow {0} commands regardless of casing", '`Get-ChildItem`'),
 				'| `\"/.*/\": true` | ' + localize('autoApprove.description.examples.regexAll', "Allow all commands (denied commands still require approval)"),
@@ -57,7 +58,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			].join('\n')
 		].join('\n\n'),
 		type: 'object',
-		scope: ConfigurationScope.APPLICATION_MACHINE,
 		additionalProperties: {
 			anyOf: [
 				autoApproveBoolean,
@@ -88,14 +88,15 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		default: {
 			// Safe and common readonly commands (automatically approved)
+			cd: true,
 			echo: true,
 			ls: true,
-			find: true,
 			pwd: true,
 			cat: true,
 			head: true,
 			tail: true,
 			grep: true,
+			findstr: true,
 			wc: true,
 			sort: true,
 			uniq: true,
@@ -122,6 +123,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			du: true,
 			df: true,
 			jq: true,
+			sleep: true,
+			'Start-Sleep': true,
 			// While these PowerShell verbs can have side effects, they are generally innocuous (eg.
 			// updating OS-level file access info) and and often have prompts if they're more
 			// involved (eg. Get-Credential)
@@ -136,14 +139,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Split-Path': true,
 			'Join-Path': true,
 
+			// Commands that are generally allowed with special cases we block
+			find: true,
+			'/find\\b.*-exec(dir)?\\b/': false, // Execute on results
+			top: true,
+			'/top\\b.*-(k|r)\\b/': false, // Kill or renice processes
+
 			// There are countless dangerous commands available on the command line, the defaults here
 			// include common ones that the user is likely to want to explicitly approve first. This is
 			// not intended to be a catch all as the user needs to opt-in to auto-approve commands, it
 			// provides additional safety when the commands get approved by broad rules or via LLM-based
 			// approval
-
-			// Overwriting allowed by default commands with special cases
-			'/find\\b.*-exec\\b/': false,
 
 			// Deleting files
 			rm: false,

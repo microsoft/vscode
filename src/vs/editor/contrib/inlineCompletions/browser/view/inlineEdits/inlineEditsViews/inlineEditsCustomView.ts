@@ -41,6 +41,8 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 	private readonly _editorObs: ObservableCodeEditor;
 
+	readonly minEditorScrollHeight: IObservable<number>;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		displayLocation: IObservable<InlineCompletionDisplayLocation | undefined>,
@@ -68,6 +70,14 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		const state = displayLocation.map(dl => dl ? this.getState(dl) : undefined);
 
 		const view = state.map(s => s ? this.getRendering(s, styles) : undefined);
+
+		this.minEditorScrollHeight = derived(reader => {
+			const s = state.read(reader);
+			if (!s) {
+				return 0;
+			}
+			return s.rect.read(reader).bottom + this._editor.getScrollTop();
+		});
 
 		const overlay = n.div({
 			class: 'inline-edits-custom-view',

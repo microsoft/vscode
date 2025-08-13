@@ -14,6 +14,7 @@ import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRe
 import { ChatModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { IMcpElicitationService, IMcpServer, IMcpToolCallContext } from '../common/mcpTypes.js';
+import { mcpServerToSourceData } from '../common/mcpTypesUtils.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
 const noneItem: IQuickPickItem = { id: undefined, label: localize('mcp.elicit.enum.none', 'None'), description: localize('mcp.elicit.enum.none.description', 'No selection'), alwaysShow: true };
@@ -52,7 +53,7 @@ export class McpElicitationService implements IMcpElicitationService {
 							part.state = 'rejected';
 							return Promise.resolve();
 						},
-						{ type: 'mcp', definitionId: server.definition.id },
+						mcpServerToSourceData(server),
 					);
 					chatModel.acceptResponseProgress(request, part);
 				}

@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
-import { Action } from '../../../../../base/common/actions.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -34,14 +34,14 @@ export interface IChatConfirmationButton {
 	data: any;
 	disabled?: boolean;
 	onDidChangeDisablement?: Event<boolean>;
-	moreActions?: IChatConfirmationButton[];
+	moreActions?: (IChatConfirmationButton | Separator)[];
 }
 
 export interface IChatConfirmationWidgetOptions {
 	title: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton[];
-	toolbarData?: { arg: any; partType: string };
+	toolbarData?: { arg: any; partType: string; partSource?: string };
 }
 
 export class ChatQueryTitlePart extends Disposable {
@@ -179,16 +179,21 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 					...buttonOptions,
 					contextMenuProvider: contextMenuService,
 					addPrimaryActionToDropdown: false,
-					actions: buttonData.moreActions.map(action => this._register(new Action(
-						action.label,
-						action.label,
-						undefined,
-						!action.disabled,
-						() => {
-							this._onDidClick.fire(action);
-							return Promise.resolve();
-						},
-					))),
+					actions: buttonData.moreActions.map(action => {
+						if (action instanceof Separator) {
+							return action;
+						}
+						return this._register(new Action(
+							action.label,
+							action.label,
+							undefined,
+							!action.disabled,
+							() => {
+								this._onDidClick.fire(action);
+								return Promise.resolve();
+							},
+						));
+					}),
 				});
 			} else {
 				button = new Button(elements.buttons, buttonOptions);
@@ -204,7 +209,10 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 		// Create toolbar if actions are provided
 		if (options?.toolbarData) {
-			const overlay = contextKeyService.createOverlay([['chatConfirmationPartType', options.toolbarData.partType]]);
+			const overlay = contextKeyService.createOverlay([
+				['chatConfirmationPartType', options.toolbarData.partType],
+				['chatConfirmationPartSource', options.toolbarData.partSource],
+			]);
 			const nestedInsta = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, overlay])));
 			this._register(nestedInsta.createInstance(
 				MenuWorkbenchToolBar,

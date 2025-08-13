@@ -15,6 +15,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -69,6 +70,7 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ITextModelService textModelService: ITextModelService,
 	) {
 		super(toolInvocation);
 
@@ -115,12 +117,19 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 			}
 		};
 		const langId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
-		const model = this.modelService.createModel(
+		const model = this._register(this.modelService.createModel(
 			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
 			this.languageService.createById(langId),
 			this._getUniqueCodeBlockUri(),
 			true
-		);
+		));
+		textModelService.createModelReference(model.uri).then(ref => {
+			if (this._store.isDisposed) {
+				ref.dispose();
+			} else {
+				this._register(ref);
+			}
+		});
 		const editor = this._register(this.editorPool.get());
 		const renderPromise = editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
@@ -190,11 +199,15 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 							throw new ErrorNoTelemetry(`Cannot add new rule, existing setting is unexpected format`);
 						}
 						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue);
+						if (newRules.length === 1) {
+							terminalData.autoApproveInfo = new MarkdownString(localize('newRule', 'Auto approve rule {0} added', `[\`${newRules[0].key}\`](settings_a)`));
+						} else if (newRules.length > 1) {
+							terminalData.autoApproveInfo = new MarkdownString(localize('newRule.plural', 'Auto approve rules {0} added', newRules.map(r => `[\`${r.key}\`](settings_a)`).join(', ')));
+						}
 						break;
 					}
 					case 'configure': {
 						this.preferencesService.openSettings({
-							jsonEditor: false,
 							target: ConfigurationTarget.USER,
 							query: `@id:${TerminalContribSettingId.AutoApprove}`,
 						});
@@ -224,15 +237,17 @@ export class TerminalConfirmationWidgetSubPart extends BaseChatToolInvocationSub
 	}
 
 	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {
-		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart, {
-			kind: 'markdownContent',
-			content: typeof message === 'string' ? new MarkdownString().appendText(message) : message
-		},
+		const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
+			{
+				kind: 'markdownContent',
+				content: typeof message === 'string' ? new MarkdownString().appendMarkdown(message) : message
+			},
 			this.context,
 			this.editorPool,
 			false,
 			this.codeBlockStartIndex,
 			this.renderer,
+			undefined,
 			this.currentWidthDelegate(),
 			this.codeBlockModelCollection,
 			{ codeBlockRenderOptions }
