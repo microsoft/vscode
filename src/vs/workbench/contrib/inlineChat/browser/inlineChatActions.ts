@@ -69,13 +69,21 @@ export class StartSessionAction extends Action2 {
 			},
 			icon: START_INLINE_CHAT,
 			menu: [{
+				id: MenuId.EditorContext,
+				// Place below "Add Selection to Chat" (order 1) and "Add File to Chat" (order 2)
+				// which both use the '1_chat' group in the editor context menu
+				group: '1_chat',
+				order: 3,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2),
+					CTX_INLINE_CHAT_POSSIBLE,
+					EditorContextKeys.writable,
+					EditorContextKeys.editorSimpleInput.negate()
+				)
+			}, {
 				id: MenuId.ChatTitleBarMenu,
 				group: 'a_open',
 				order: 3,
-			}, {
-				id: MenuId.ChatTextEditorMenu,
-				group: 'a_open',
-				order: 1
 			}]
 		});
 	}
