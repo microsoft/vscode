@@ -520,8 +520,7 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 	}, {});
 	const keysToRemove = [
 		/^ELECTRON_.$/,
-		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).$/,
-		/^VSCODE_PYTHON_(PWSH|ZSH|BASH|FISH)_ACTIVATE/,
+		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).+$/,
 		/^SNAP(|_.*)$/,
 		/^GDK_PIXBUF_.$/,
 	];
