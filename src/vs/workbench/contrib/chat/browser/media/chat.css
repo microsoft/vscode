@@ -757,6 +757,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.monaco-button {
 		padding: 4px 6px 4px 0px;
 		border-radius: 2px;
+		border: none;
 		background-color: unset;
 		color: var(--vscode-foreground)
 	}
@@ -1074,9 +1075,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.chat-execute-toolbar .codicon.codicon-debug-pause {
-	color: var(--vscode-icon-foreground) !important;
-}
+
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
 	height: 16px;
