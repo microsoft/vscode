@@ -2608,7 +2608,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 8px;
 	scroll-snap-align: start;
 	min-height: 22px;
-	font-size: var(--vscode-chat-font-size-body-m);
+	font-size: var(--vscode-chat-font-size-body-m);;
+	border-radius: 4px;
+	padding: 2px 4px;
+	cursor: pointer;
+}
+
+.chat-todo-list-widget .todo-item:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	background-color: var(--vscode-list-focusBackground);
+}
+
+.chat-todo-list-widget .todo-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
 }
 
 .chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
