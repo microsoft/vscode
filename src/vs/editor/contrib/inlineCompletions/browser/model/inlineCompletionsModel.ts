@@ -96,7 +96,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _inlineEditsEnabled;
 	private readonly _inlineEditsShowCollapsedEnabled;
 	private readonly _triggerCommandOnProviderChange;
-	private readonly _minimalDelay;
+	private readonly _minShowDelay;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -126,7 +126,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
-		this._minimalDelay = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.minimalDelay);
+		this._minShowDelay = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.minShowDelay);
 		this._typing = this._register(new TypingInterval(this.textModel));
 
 		this._register(this._inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {

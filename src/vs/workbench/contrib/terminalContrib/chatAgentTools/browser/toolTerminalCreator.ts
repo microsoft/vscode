@@ -79,6 +79,25 @@ export class ToolTerminalCreator {
 		return toolTerminal;
 	}
 
+	/**
+	 * Synchronously update shell integration quality based on the terminal instance's current
+	 * capabilities. This is a defensive change to avoid no shell integration being sticky
+	 * https://github.com/microsoft/vscode/issues/260880
+	 *
+	 * Only upgrade quality just in case.
+	 */
+	refreshShellIntegrationQuality(toolTerminal: IToolTerminal) {
+		const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
+		if (commandDetection) {
+			if (
+				toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None ||
+				toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.Basic
+			) {
+				toolTerminal.shellIntegrationQuality = commandDetection.hasRichCommandDetection ? ShellIntegrationQuality.Rich : ShellIntegrationQuality.Basic;
+			}
+		}
+	}
+
 	private _createCopilotTerminal() {
 		return this._terminalService.createTerminal({
 			config: {
