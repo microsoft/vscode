@@ -163,9 +163,11 @@ export async function pollForOutputAndIdle(
 				// Problem matchers exist for this task
 				const problemList: string[] = [];
 				for (const [owner, problemArray] of problems.entries()) {
-					problemList.push(`Problems for task "${owner ?? 'unknown'}":`);
-					for (const p of problemArray) {
-						problemList.push(`Problem: ${p.message} (Code: ${p.code}, Severity: ${p.severity}, Range: [${p.startLineNumber},${p.startColumn}]-[${p.endLineNumber},${p.endColumn}], Target: ${typeof p.code === 'string' ? p.code : p.code?.value ?? 'unknown'})`);
+					if (problemArray.length) {
+						problemList.push(`Problems for task "${owner ?? 'unknown'}":`);
+						for (const p of problemArray) {
+							problemList.push(`Problem: ${p.message} (Code: ${p.code}, Severity: ${p.severity}, Range: [${p.startLineNumber},${p.startColumn}]-[${p.endLineNumber},${p.endColumn}], Target: ${typeof p.code === 'string' ? p.code : p.code?.value ?? 'unknown'})`);
+						}
 					}
 				}
 				if (problemList.length === 0) {
