@@ -625,16 +625,31 @@ export abstract class AbstractScrollableElement extends Widget {
 			return;
 		}
 
+		const posX = e.posx;
 		const posY = e.posy;
 		const node = this.getDomNode();
 		const rect = node.getBoundingClientRect();
 
 		const currentScrollTop = this._scrollable.getCurrentScrollPosition().scrollTop;
+		const currentScrollLeft = this._scrollable.getCurrentScrollPosition().scrollLeft;
 		const maxScrollTop = this._scrollable.getScrollDimensions().scrollHeight - this._scrollable.getScrollDimensions().height;
+		const maxScrollLeft = this._scrollable.getScrollDimensions().scrollWidth - this._scrollable.getScrollDimensions().width;
 
 		const topTriggerZone = rect.top + DRAG_SCROLL_TRIGGER_OFFSET;
 		const bottomTriggerZone = rect.bottom - DRAG_SCROLL_TRIGGER_OFFSET;
 
+		const leftTriggerZone = rect.left + DRAG_SCROLL_TRIGGER_OFFSET;
+		const rightTriggerZone = rect.right - DRAG_SCROLL_TRIGGER_OFFSET;
+
+		// Set scrolling position on X axis
+		if (posX <= leftTriggerZone && currentScrollLeft > 0) {
+			this._scrollable.setScrollPositionNow({ scrollLeft: currentScrollLeft - DRAG_SCROLL_STEP });
+		}
+		else if (posX >= rightTriggerZone && currentScrollLeft < maxScrollLeft) {
+			this._scrollable.setScrollPositionNow({ scrollLeft: currentScrollLeft + DRAG_SCROLL_STEP });
+		}
+
+		// Set scrolling position on Y axis
 		if (posY <= topTriggerZone && currentScrollTop > 0) {
 			this._scrollable.setScrollPositionNow({ scrollTop: currentScrollTop - DRAG_SCROLL_STEP });
 		}
