@@ -159,7 +159,7 @@ export async function pollForOutputAndIdle(
 		terminalExecutionIdleBeforeTimeout = true;
 		if (execution.task) {
 			const problems = await getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
-			if (problems.size) {
+			if (problems) {
 				// Problem matchers exist for this task
 				const problemList: string[] = [];
 				for (const [owner, problemArray] of problems.entries()) {
@@ -253,8 +253,9 @@ export async function assessOutputForErrors(buffer: string, token: CancellationT
 	}
 }
 
-export function getProblemsForTasks(task: Pick<Task, 'configurationProperties'>, markerService: Pick<IMarkerService, 'read'>, dependencyTasks?: Task[], knownMatchers?: ProblemMatcher[]): Map<string, IMarkerData[]> {
+export function getProblemsForTasks(task: Pick<Task, 'configurationProperties'>, markerService: Pick<IMarkerService, 'read'>, dependencyTasks?: Task[], knownMatchers?: ProblemMatcher[]): Map<string, IMarkerData[]> | undefined {
 	const problemsMap = new Map<string, IMarkerData[]>();
+	let hadDefinedMatcher = false;
 
 	const collectProblems = (t: Pick<Task, 'configurationProperties'>) => {
 		const matchers = Array.isArray(t.configurationProperties.problemMatchers)
@@ -266,6 +267,7 @@ export function getProblemsForTasks(task: Pick<Task, 'configurationProperties'>,
 				: matcherRef;
 			if (matcher?.owner) {
 				const markers = markerService.read({ owner: matcher.owner });
+				hadDefinedMatcher = true;
 				if (markers.length) {
 					problemsMap.set(matcher.owner, markers);
 				}
@@ -281,6 +283,6 @@ export function getProblemsForTasks(task: Pick<Task, 'configurationProperties'>,
 		}
 	}
 
-	return problemsMap;
+	return hadDefinedMatcher ? problemsMap : undefined;
 }
 
