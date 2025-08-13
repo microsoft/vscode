@@ -78,8 +78,7 @@ if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
 	}
 	catch {
 		$activationError = $_
-		# TODO: Figure out how to add 'star' icon similar to terminal restored.
-		Write-Host "VS Code Python PowerShell activation failed: $($activationError.Exception.Message)"
+		Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
 	}
 }
 

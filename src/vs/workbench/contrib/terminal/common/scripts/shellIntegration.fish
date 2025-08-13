@@ -82,8 +82,7 @@ if test -n "$VSCODE_PYTHON_FISH_ACTIVATE"; and test "$TERM_PROGRAM" = "vscode"
 	set __vsc_activation_status $status
 
 	if test $__vsc_activation_status -ne 0
-		# TODO: Figure out how to add 'star' icon similar to terminal restored.
-		builtin printf "VS Code Python fish activation failed with exit code %d\n" "$__vsc_activation_status"
+		builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python fish activation failed with exit code %d \x1b[0m \n' "$__vsc_activation_status"
 	end
 end
 

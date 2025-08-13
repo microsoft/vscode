@@ -73,8 +73,7 @@ if [ -n "$VSCODE_PYTHON_ZSH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
 	# Prevent crashing by negating exit code
 	if ! builtin eval "$VSCODE_PYTHON_ZSH_ACTIVATE"; then
 		__vsc_activation_status=$?
-		# TODO: Figure out how to add 'star' icon similar to terminal restored.
-		builtin printf 'VS Code Python zsh activation failed with exit code %d\n' "$__vsc_activation_status"
+		builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python zsh activation failed with exit code %d \x1b[0m' "$__vsc_activation_status"
 	fi
 fi
 
