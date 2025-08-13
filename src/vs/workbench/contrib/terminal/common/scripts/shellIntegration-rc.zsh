@@ -68,6 +68,15 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	unset VSCODE_ENV_APPEND
 fi
 
+# Register Python shell activate hooks
+if [ -n "$VSCODE_PYTHON_ZSH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
+	# Prevent crashing by negating exit code
+	if ! builtin eval "$VSCODE_PYTHON_ZSH_ACTIVATE"; then
+		__vsc_activation_status=$?
+		builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python zsh activation failed with exit code %d \x1b[0m' "$__vsc_activation_status"
+	fi
+fi
+
 # Report prompt type
 if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
 	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
