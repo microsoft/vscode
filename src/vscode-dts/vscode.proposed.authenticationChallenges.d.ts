@@ -105,7 +105,7 @@ declare module 'vscode' {
 		 * @param options Options for the session request
 		 * @returns A thenable that resolves to an array of existing authentication sessions
 		 */
-		getSessionsFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Thenable<readonly AuthenticationSession[]>;
+		getSessionsFromChallenges?(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Thenable<readonly AuthenticationSession[]>;
 
 		/**
 		 * Create a new session based on authentication constraints.
@@ -115,6 +115,6 @@ declare module 'vscode' {
 		 * @param options Options for the session creation
 		 * @returns A thenable that resolves to a new authentication session
 		 */
-		createSessionFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Thenable<AuthenticationSession>;
+		createSessionFromChallenges?(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Thenable<AuthenticationSession>;
 	}
 }
