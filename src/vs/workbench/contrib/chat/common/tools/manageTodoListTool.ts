@@ -152,7 +152,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 			// Regular mode: check operation parameter
 			const operation = args.operation;
-			if (!operation) {
+			if (operation === undefined) {
 				return {
 					content: [{
 						kind: 'text',
