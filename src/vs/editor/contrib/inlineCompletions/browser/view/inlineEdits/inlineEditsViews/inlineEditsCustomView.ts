@@ -46,6 +46,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 	constructor(
 		private readonly _editor: ICodeEditor,
 		displayLocation: IObservable<InlineCompletionDisplayLocation | undefined>,
+		labelContainsCode: IObservable<boolean>,
 		tabAction: IObservable<InlineEditTabAction>,
 		@IThemeService themeService: IThemeService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -69,7 +70,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 		const state = displayLocation.map(dl => dl ? this.getState(dl) : undefined);
 
-		const view = state.map(s => s ? this.getRendering(s, styles) : undefined);
+		const view = state.map(s => s ? this.getRendering(s, styles, labelContainsCode.get()) : undefined);
 
 		this.minEditorScrollHeight = derived(reader => {
 			const s = state.read(reader);
@@ -221,12 +222,12 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		};
 	}
 
-	private getRendering(state: { rect: IObservable<Rect>; label: string }, styles: IObservable<{ background: string; border: string }>) {
+	private getRendering(state: { rect: IObservable<Rect>; label: string }, styles: IObservable<{ background: string; border: string }>, labelContainsCode: boolean) {
 
 		const line = document.createElement('div');
 		const t = this._editor.getModel()!.tokenization.tokenizeLinesAt(1, [state.label])?.[0];
 		let tokens: LineTokens;
-		if (t) {
+		if (t && labelContainsCode) {
 			tokens = TokenArray.fromLineTokens(t).toLineTokens(state.label, this._languageService.languageIdCodec);
 		} else {
 			tokens = LineTokens.createEmpty(state.label, this._languageService.languageIdCodec);
