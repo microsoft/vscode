@@ -41,10 +41,9 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	}
 
 	private parseContent(content: string): string {
-		// Remove <|im_sep|>**** and similar markers
+		// Remove <|im_sep|>****
 		return content
 			.replace(/<\|im_sep\|>\*{4,}/g, '')
-			.replace(/<\|lim_sep\|>\*{4,}/g, '')
 			.trim();
 	}
 

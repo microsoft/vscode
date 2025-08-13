@@ -68,6 +68,24 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	unset VSCODE_ENV_APPEND
 fi
 
+# Register Python shell activate hooks
+if [ -n "$VSCODE_PYTHON_ZSH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
+	# Prevent crashing by negating exit code
+	if ! builtin eval "$VSCODE_PYTHON_ZSH_ACTIVATE"; then
+		__vsc_activation_status=$?
+		builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python zsh activation failed with exit code %d \x1b[0m' "$__vsc_activation_status"
+	fi
+fi
+
+# Report prompt type
+if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
+	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
+elif [ -n "$STARSHIP_SESSION_KEY" ]; then
+	builtin printf '\e]633;P;PromptType=starship\a'
+elif [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
+	builtin printf '\e]633;P;PromptType=p10k\a'
+fi
+
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
@@ -117,15 +135,6 @@ envVarsToReport=()
 IFS=',' read -rA envVarsToReport <<< "$__vscode_shell_env_reporting"
 
 builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
-
-# Report prompt type
-if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
-	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
-elif [ -n "$STARSHIP_SESSION_KEY" ]; then
-	builtin printf '\e]633;P;PromptType=starship\a'
-elif [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
-	builtin printf '\e]633;P;PromptType=p10k\a'
-fi
 
 # Report this shell supports rich command detection
 builtin printf '\e]633;P;HasRichCommandDetection=True\a'

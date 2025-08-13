@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
+import * as domSanitize from '../../../../base/browser/domSanitize.js';
 import { MarkdownSanitizerConfig } from '../../../../base/browser/markdownRenderer.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Lazy } from '../../../../base/common/lazy.js';
@@ -13,7 +14,7 @@ export class MarkedKatexSupport {
 
 	public static getSanitizerOptions(baseConfig: {
 		readonly allowedTags: readonly string[];
-		readonly allowedAttributes: readonly string[];
+		readonly allowedAttributes: ReadonlyArray<string | domSanitize.SanitizeAttributeRule>;
 	}): MarkdownSanitizerConfig {
 		return {
 			allowedTags: {
@@ -22,14 +23,29 @@ export class MarkedKatexSupport {
 					...trustedMathMlTags,
 				]
 			},
-			customAttrSanitizer: (attrName, attrValue) => {
-				if (attrName === 'class') {
-					return true; // TODO: allows all classes for now since we don't have a list of possible katex classes
-				} else if (attrName === 'style') {
-					return this.sanitizeKatexStyles(attrValue);
-				}
+			allowedAttributes: {
+				override: [
+					...baseConfig.allowedAttributes,
 
-				return baseConfig.allowedAttributes.includes(attrName);
+					// Math
+					'stretchy',
+					'encoding',
+					'accent',
+
+					// SVG
+					'd',
+					'viewBox',
+					'preserveAspectRatio',
+
+					// Allow all classes since we don't have a list of allowed katex classes
+					'class',
+
+					// Sanitize allowed styles for katex
+					{
+						attributeName: 'style',
+						shouldKeep: (_el, data) => this.sanitizeKatexStyles(data.attrValue),
+					},
+				]
 			},
 		};
 	}
@@ -113,7 +129,7 @@ export class MarkedKatexSupport {
 
 	private static _katex?: typeof import('katex').default;
 	private static _katexPromise = new Lazy(async () => {
-		this._katex = await importAMDNodeModule('katex', 'dist/katex.min.js');
+		this._katex = await importAMDNodeModule<typeof import('katex').default>('katex', 'dist/katex.min.js');
 		return this._katex;
 	});
 

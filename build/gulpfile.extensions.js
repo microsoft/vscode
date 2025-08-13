@@ -92,16 +92,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const out = path.join(srcRoot, 'out');
 	const baseUrl = getBaseUrl(out);
 
-	let headerId, headerOut;
-	const index = relativeDirname.indexOf('/');
-	if (index < 0) {
-		headerId = 'vscode.' + relativeDirname;
-		headerOut = 'out';
-	} else {
-		headerId = 'vscode.' + relativeDirname.substr(0, index);
-		headerOut = relativeDirname.substr(index + 1) + '/out';
-	}
-
 	function createPipeline(build, emitError, transpileOnly) {
 		const tsb = require('./lib/tsb');
 		const sourcemaps = require('gulp-sourcemaps');
@@ -248,7 +238,7 @@ const bundleMarketplaceExtensionsBuildTask = task.define('bundle-marketplace-ext
  */
 const compileNonNativeExtensionsBuildTask = task.define('compile-non-native-extensions-build', task.series(
 	bundleMarketplaceExtensionsBuildTask,
-	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream().pipe(gulp.dest('.build')))
+	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')))
 ));
 gulp.task(compileNonNativeExtensionsBuildTask);
 exports.compileNonNativeExtensionsBuildTask = compileNonNativeExtensionsBuildTask;
@@ -257,7 +247,7 @@ exports.compileNonNativeExtensionsBuildTask = compileNonNativeExtensionsBuildTas
  * Compiles the native extensions for the build
  * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
  */
-const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream().pipe(gulp.dest('.build')));
+const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')));
 gulp.task(compileNativeExtensionsBuildTask);
 exports.compileNativeExtensionsBuildTask = compileNativeExtensionsBuildTask;
 

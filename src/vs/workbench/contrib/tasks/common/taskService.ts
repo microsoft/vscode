@@ -88,7 +88,7 @@ export interface ITaskService {
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, IWorkspaceFolderTaskResult>>;
 	getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]>;
 	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
-	getTerminalForTask(task: Task): URI | undefined;
+	getTerminalsForTasks(tasks: Task | Task[]): URI[] | undefined;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */

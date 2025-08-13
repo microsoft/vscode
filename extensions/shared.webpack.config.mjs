@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
+import path from 'node:path';
+import fs from 'node:fs';
+import merge from 'merge-options';
+import CopyWebpackPlugin from 'copy-webpack-plugin';
+import webpack from 'webpack';
+import { createRequire } from 'node:module';
 
-//@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
-'use strict';
-
-const path = require('path');
-const fs = require('fs');
-const merge = require('merge-options');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
-const { DefinePlugin, optimize } = require('webpack');
+const require = createRequire(import.meta.url);
 
 const tsLoaderOptions = {
 	compilerOptions: {
@@ -48,7 +48,7 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 					loader: 'ts-loader',
 					options: tsLoaderOptions
 				}, {
-					loader: path.resolve(__dirname, 'mangle-loader.js'),
+					loader: path.resolve(import.meta.dirname, 'mangle-loader.js'),
 					options: {
 						configFile: path.join(extConfig.context, 'tsconfig.json')
 					},
@@ -85,8 +85,8 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
  */
 function nodePlugins(context) {
 	// Need to find the top-most `package.json` file
-	const folderName = path.relative(__dirname, context).split(/[\\\/]/)[0];
-	const pkgPath = path.join(__dirname, folderName, 'package.json');
+	const folderName = path.relative(import.meta.dirname, context).split(/[\\\/]/)[0];
+	const pkgPath = path.join(import.meta.dirname, folderName, 'package.json');
 	const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 	const id = `${pkg.publisher}.${pkg.name}`;
 	return [
@@ -136,7 +136,7 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 						}
 					},
 					{
-						loader: path.resolve(__dirname, 'mangle-loader.js'),
+						loader: path.resolve(import.meta.dirname, 'mangle-loader.js'),
 						options: {
 							configFile: path.join(extConfig.context, additionalOptions?.configFile ?? 'tsconfig.json')
 						},
@@ -184,7 +184,7 @@ function browserPlugins(context) {
 	// const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 	// const id = `${pkg.publisher}.${pkg.name}`;
 	return [
-		new optimize.LimitChunkCountPlugin({
+		new webpack.optimize.LimitChunkCountPlugin({
 			maxChunks: 1
 		}),
 		new CopyWebpackPlugin({
@@ -192,7 +192,7 @@ function browserPlugins(context) {
 				{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
 			]
 		}),
-		new DefinePlugin({
+		new webpack.DefinePlugin({
 			'process.platform': JSON.stringify('web'),
 			'process.env': JSON.stringify({}),
 			'process.env.BROWSER_ENV': JSON.stringify('true')
@@ -200,8 +200,5 @@ function browserPlugins(context) {
 	];
 }
 
-module.exports = withNodeDefaults;
-module.exports.node = withNodeDefaults;
-module.exports.browser = withBrowserDefaults;
-module.exports.nodePlugins = nodePlugins;
-module.exports.browserPlugins = browserPlugins;
+export default withNodeDefaults;
+export { withNodeDefaults as node, withBrowserDefaults as browser, nodePlugins, browserPlugins };
