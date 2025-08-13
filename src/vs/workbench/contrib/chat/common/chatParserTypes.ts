@@ -192,14 +192,14 @@ export class ChatRequestTerminalCommandPart implements IParsedChatRequestPart {
 	readonly kind = ChatRequestTerminalCommandPart.Kind;
 	readonly description = ' Run a command in the terminal';
 
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: string) { }
 
 	get text(): string {
-		return chatTerminalCommandLeader;
+		return `${chatTerminalCommandLeader}${this.command}`;
 	}
 
 	get promptText(): string {
-		return 'Run shell command';
+		return this.text;
 	}
 }
 
@@ -294,7 +294,8 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 			} else if (part.kind === ChatRequestTerminalCommandPart.Kind) {
 				return new ChatRequestTerminalCommandPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
-					part.editorRange
+					part.editorRange,
+					(part as ChatRequestTerminalCommandPart).command
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				return new ChatRequestDynamicVariablePart(

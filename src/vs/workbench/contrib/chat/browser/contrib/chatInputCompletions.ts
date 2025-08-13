@@ -47,7 +47,7 @@ import { searchFilesAndFolders } from '../../../search/browser/chatContributions
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { getAttachableImageExtension } from '../../common/chatModel.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTerminalCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatTerminalCommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
@@ -58,6 +58,8 @@ import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { resizeImage } from '../imageUtils.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
+import { ITerminalCompletionService, TerminalCompletionItemKind } from '../../../terminal/terminalContribChatExports.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -1166,5 +1168,105 @@ class ToolCompletions extends Disposable {
 		}));
 	}
 }
+
+class TerminalCompletions extends Disposable {
+	constructor(
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ITerminalCompletionService private readonly terminalCompletionService: ITerminalCompletionService,
+		@ITerminalService private readonly terminalService: ITerminalService
+	) {
+		super();
+
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'terminalCommands',
+			triggerCharacters: [chatTerminalCommandLeader],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget || !widget.viewModel) {
+					return null;
+				}
+
+				const range = computeCompletionRanges(model, position, /![^\s]*/g);
+				if (!range) {
+					return null;
+				}
+
+				const parsedRequest = widget.parsedInput.parts;
+				const terminalCommandPart = parsedRequest.find((p): p is ChatRequestTerminalCommandPart => p instanceof ChatRequestTerminalCommandPart);
+
+				if (!terminalCommandPart) {
+					return null;
+				}
+
+				// Get the terminal command input (everything after "!")
+				const fullText = model.getValue();
+				const commandText = fullText.startsWith('!') ? fullText.slice(1) : '';
+
+				try {
+					// Get completions from the terminal completion service
+					// For now, we'll pass minimal parameters and let the service handle defaults
+					const terminalCompletions = await this.terminalCompletionService.provideCompletions(
+						commandText,
+						commandText.length, // cursor at end of command
+						true, // allowFallbackCompletions
+						undefined, // shellType - let it be detected
+						this.terminalService.activeInstance?.capabilities!, // capabilities - empty for now since we don't have access to terminal
+						token,
+						false, // triggerCharacter
+						false, // skipExtensionCompletions
+						true   // explicitlyInvoked
+					);
+
+					if (!terminalCompletions?.length) {
+						return null;
+					}
+
+					// Convert terminal completions to editor completions
+					const suggestions: CompletionItem[] = terminalCompletions.map((completion, i) => {
+						let kind = CompletionItemKind.Text;
+						switch (completion.kind) {
+							case TerminalCompletionItemKind.File:
+								kind = CompletionItemKind.File;
+								break;
+							case TerminalCompletionItemKind.Folder:
+								kind = CompletionItemKind.Folder;
+								break;
+							case TerminalCompletionItemKind.Method:
+								kind = CompletionItemKind.Function;
+								break;
+							case TerminalCompletionItemKind.Argument:
+								kind = CompletionItemKind.Variable;
+								break;
+							default:
+								kind = CompletionItemKind.Text;
+								break;
+						}
+
+						const label = typeof completion.label === 'string' ? completion.label : completion.label.label;
+
+						return {
+							label,
+							insertText: completion.inputData || label,
+							range,
+							kind,
+							detail: completion.detail,
+							documentation: completion.documentation,
+							sortText: String(i).padStart(3, '0'), // Maintain order from terminal service
+							filterText: label,
+						};
+					});
+
+					return { suggestions };
+				} catch (error) {
+					// Silently handle errors from terminal completion service
+					return null;
+				}
+			}
+		}));
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TerminalCompletions, LifecyclePhase.Eventually);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ToolCompletions, LifecyclePhase.Eventually);
