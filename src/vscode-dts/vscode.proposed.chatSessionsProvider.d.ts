@@ -76,6 +76,11 @@ declare module 'vscode' {
 		 * An optional status indicating the current state of the session.
 		 */
 		status?: ChatSessionStatus;
+
+		/**
+		 * The tooltip text when you hover over this item.
+		 */
+		tooltip?: string | MarkdownString | undefined;
 	}
 
 	export interface ChatSession {

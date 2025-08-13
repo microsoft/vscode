@@ -41,6 +41,22 @@
 	opacity: 0.7;
 }
 
+/* Position session content and actions inline */
+.chat-sessions-tree .chat-session-item .session-content {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	width: 100%;
+	min-height: 22px;
+}
+
+.chat-sessions-tree .chat-session-item .actions {
+	margin-left: 8px;
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
 /* Hide action bar actions by default */
 .chat-sessions-tree .chat-session-item .actions .action-label {
 	display: none;
@@ -50,28 +66,42 @@
 .chat-sessions-tree .chat-session-item:hover .actions .action-label,
 .chat-sessions-tree .monaco-list-row.focused .chat-session-item .actions .action-label,
 .chat-sessions-tree .monaco-list-row.selected .chat-session-item .actions .action-label {
-	display: block;
+	display: flex;
+	align-items: center;
 }
 
-/* Multi-line description support - make it look like VS Code's built-in tree items */
-.chat-sessions-tree .chat-session-item .monaco-icon-label-container {
+/* For items with descriptions, keep the structure but adjust alignment */
+.chat-sessions-tree .chat-session-item:not(.local-session) .session-content {
+	align-items: flex-start;
+	padding-top: 2px;
+	padding-bottom: 2px;
+}
+
+/* Ensure resource label takes up available space */
+.chat-sessions-tree .chat-session-item .monaco-icon-label {
+	flex: 1;
+	min-width: 0; /* Allow text to truncate */
+}
+
+/* Multi-line description support */
+.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-label-container {
 	flex-direction: column !important;
 	align-items: flex-start !important;
 	gap: 1px;
 }
 
-.chat-sessions-tree .chat-session-item .monaco-icon-name-container {
+.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-name-container {
 	display: flex;
 	align-items: center;
 	width: 100%;
 }
 
-.chat-sessions-tree .chat-session-item .monaco-icon-description-container {
+.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-description-container {
 	width: 100%;
 	padding-left: 0;
 }
 
-.chat-sessions-tree .chat-session-item .monaco-icon-description-container > .label-description {
+.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-description-container > .label-description {
 	margin-left: 0 !important;
 	margin-top: 0;
 	opacity: 0.6;

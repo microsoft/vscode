@@ -168,7 +168,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 					label: sessionContent.label,
 					iconPath: sessionContent.iconPath,
 					description: sessionContent.description,
-					status: this.convertChatSessionStatus(sessionContent.status)
+					status: this.convertChatSessionStatus(sessionContent.status),
+					tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip)
 				});
 			}
 		}

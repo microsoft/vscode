@@ -6,6 +6,7 @@
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -87,7 +88,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			return sessions.map(session => ({
 				...session,
 				id: session.id,
-				iconPath: session.iconPath ? this._reviveIconPath(session.iconPath) : undefined
+				iconPath: session.iconPath ? this._reviveIconPath(session.iconPath) : undefined,
+				tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined
 			}));
 		} catch (error) {
 			this._logService.error('Error providing chat sessions:', error);
@@ -304,6 +306,24 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				dark: URI.revive(iconPath.dark)
 			};
 		}
+		return undefined;
+	}
+
+	private _reviveTooltip(tooltip: string | IMarkdownString | undefined): string | MarkdownString | undefined {
+		if (!tooltip) {
+			return undefined;
+		}
+
+		// If it's already a string, return as-is
+		if (typeof tooltip === 'string') {
+			return tooltip;
+		}
+
+		// If it's a serialized IMarkdownString, revive it to MarkdownString
+		if (typeof tooltip === 'object' && 'value' in tooltip) {
+			return MarkdownString.lift(tooltip);
+		}
+
 		return undefined;
 	}
 
