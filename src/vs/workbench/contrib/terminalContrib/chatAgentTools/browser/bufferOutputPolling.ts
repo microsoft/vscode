@@ -158,9 +158,9 @@ export async function pollForOutputAndIdle(
 		}
 		terminalExecutionIdleBeforeTimeout = true;
 		if (execution.task) {
-			// const patterns = getTaskBeginEndPatternMap(execution.task, execution.dependencyTasks);
 			const problems = await getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
-			if (problems) {
+			if (problems.size) {
+				// Problem matchers exist for this task
 				const problemList: string[] = [];
 				for (const [owner, problemArray] of problems.entries()) {
 					problemList.push(`Problems for task "${owner ?? 'unknown'}":`);
@@ -168,24 +168,14 @@ export async function pollForOutputAndIdle(
 						problemList.push(`Problem: ${p.message} (Code: ${p.code}, Severity: ${p.severity}, Range: [${p.startLineNumber},${p.startColumn}]-[${p.endLineNumber},${p.endColumn}], Target: ${typeof p.code === 'string' ? p.code : p.code?.value ?? 'unknown'})`);
 					}
 				}
+				if (problemList.length === 0) {
+					return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems detected.' };
+				}
 				return {
 					terminalExecutionIdleBeforeTimeout,
 					output: problemList.join('\n')
 				};
 			}
-			// else if (patterns.size) {
-			// 	for (const p of patterns.values()) {
-			// 		const beginsMatches = Array.from(buffer.matchAll(p.beginsPattern));
-			// 		const endsMatches = Array.from(buffer.matchAll(p.endsPattern));
-			// 		if (beginsMatches.length && endsMatches.length) {
-			// 			const lastBegin = beginsMatches[beginsMatches.length - 1];
-			// 			const lastEnd = endsMatches.filter(e => e.index! > lastBegin.index!).pop();
-			// 			if (lastBegin && lastEnd) {
-			// 				buffer = buffer.slice(lastBegin.index! + lastBegin[0].length, lastEnd.index);
-			// 			}
-			// 		}
-			// 	}
-			// }
 		}
 		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
 		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };

@@ -12,7 +12,6 @@ import { IMarkerService } from '../../../../../platform/markers/common/markers.j
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ToolProgress } from '../../../chat/common/languageModelToolsService.js';
-import { ProblemMatcherRegistry } from '../../../tasks/common/problemMatcher.js';
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
@@ -168,78 +167,3 @@ export async function collectTerminalResults(
 	return results;
 }
 
-
-export function resolveTaskProblemMatcherPatterns(task: Task): { beginsPattern?: RegExp; endsPattern?: RegExp } | undefined {
-	const matchers = Array.isArray(task.configurationProperties.problemMatchers) ? task.configurationProperties.problemMatchers : (task.configurationProperties.problemMatchers ? [task.configurationProperties.problemMatchers] : []);
-	for (const matcherRef of matchers) {
-		const matcher = typeof matcherRef === 'string'
-			? ProblemMatcherRegistry.get(matcherRef)
-			: matcherRef;
-		if (matcher?.watching?.beginsPattern && matcher?.watching?.endsPattern) {
-			return {
-				beginsPattern: matcher.watching.beginsPattern.regexp,
-				endsPattern: matcher.watching.endsPattern.regexp
-			};
-		}
-	}
-	return undefined;
-}
-
-// /**
-//  * Returns a map from each task (including dependencies) to its beginsPattern and endsPattern.
-//  * If the main task does not have patterns, dependencyTasks are checked.
-//  *
-//  * @param task The main Task to parse patterns for.
-//  * @param dependencyTasks Optional array of dependency Tasks to check for patterns.
-//  * @returns A map of Task to its { beginsPattern, endsPattern }.
-//  */
-// export function getTaskBeginEndPatternMap(task: Task, dependencyTasks?: Task[]): Map<Task, { beginsPattern: RegExp; endsPattern: RegExp }> {
-// 	const result = new Map<Task, { beginsPattern: RegExp; endsPattern: RegExp }>();
-
-// 	const extractPatterns = (t: Task): { beginsPattern: RegExp; endsPattern: RegExp } | undefined => {
-// 		const matchers = Array.isArray(t.configurationProperties.problemMatchers)
-// 			? t.configurationProperties.problemMatchers
-// 			: (t.configurationProperties.problemMatchers ? [t.configurationProperties.problemMatchers] : []);
-// 		for (const matcherRef of matchers) {
-// 			const matcher = typeof matcherRef === 'string'
-// 				? ProblemMatcherRegistry.get(matcherRef)
-// 				: matcherRef;
-// 			if (matcher?.watching?.beginsPattern && matcher?.watching?.endsPattern) {
-// 				return {
-// 					beginsPattern: matcher.watching.beginsPattern.regexp,
-// 					endsPattern: matcher.watching.endsPattern.regexp
-// 				};
-// 			}
-// 		}
-// 		return undefined;
-// 	};
-
-// 	// Main task
-// 	const mainPatterns = extractPatterns(task);
-// 	if (mainPatterns) {
-// 		result.set(task, mainPatterns);
-// 	}
-
-// 	// Dependencies
-// 	if (dependencyTasks) {
-// 		for (const depTask of dependencyTasks) {
-// 			const depPatterns = extractPatterns(depTask);
-// 			if (depPatterns) {
-// 				result.set(depTask, depPatterns);
-// 			}
-// 		}
-// 	}
-
-// 	// If main task has no patterns, but dependencies do, add main task with first dependency's patterns
-// 	if (!mainPatterns && dependencyTasks && dependencyTasks.length > 0) {
-// 		for (const depTask of dependencyTasks) {
-// 			const depPatterns = extractPatterns(depTask);
-// 			if (depPatterns) {
-// 				result.set(task, depPatterns);
-// 				break;
-// 			}
-// 		}
-// 	}
-
-// 	return result;
-// }
