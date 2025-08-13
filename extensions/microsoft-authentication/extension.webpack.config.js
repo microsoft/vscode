@@ -12,6 +12,8 @@ const windowsArches = ['x64'];
 const isMacOS = process.platform === 'darwin';
 const macOSArches = ['arm64'];
 
+console.log(`Building Microsoft Authentication Extension for ${process.platform} (${process.arch})`);
+
 const plugins = [...nodePlugins(import.meta.dirname)];
 if ((isWindows && windowsArches.includes(process.arch)) || (isMacOS && macOSArches.includes(process.arch))) {
 	plugins.push(new CopyWebpackPlugin({
