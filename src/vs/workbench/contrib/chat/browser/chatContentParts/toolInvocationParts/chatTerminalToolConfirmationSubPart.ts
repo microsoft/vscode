@@ -160,8 +160,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		dom.append(messageElement, editor.object.element);
 		this._register(hoverService.setupDelayedHover(messageElement, {
 			content: message,
-			position: { hoverPosition: HoverPosition.BELOW },
-			appearance: { showPointer: true }
+			position: { hoverPosition: HoverPosition.LEFT },
+			appearance: { showPointer: true },
 		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget,
