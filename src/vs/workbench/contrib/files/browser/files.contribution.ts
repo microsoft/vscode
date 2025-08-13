@@ -275,7 +275,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 1000,
 			'minimum': 0,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in milliseconds after which an editor with unsaved changes is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY),
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in milliseconds after which an editor with unsaved changes is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", '`afterDelay`'),
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.autoSaveWorkspaceFilesOnly': {
