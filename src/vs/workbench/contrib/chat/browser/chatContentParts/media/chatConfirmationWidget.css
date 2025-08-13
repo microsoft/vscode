@@ -173,3 +173,87 @@
 		}
 	}
 }
+
+.chat-confirmation-widget2 {
+	margin-bottom: 8px;
+}
+
+.chat-confirmation-widget2 .chat-confirmation-widget-title {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-bottom: none;
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	padding: 5px 9px;
+	display: flex;
+	justify-content: space-between;
+	column-gap: 10px;
+
+	.rendered-markdown {
+		line-height: 24px !important;
+		p {
+			margin: 0 !important;
+		}
+	}
+
+	p,
+	.rendered-markdown {
+		display: inline;
+	}
+}
+
+.chat-confirmation-widget2 .disclaimer {
+	margin-bottom: 0 !important;
+	font-style: italic;
+	opacity: 0.7 !important;
+
+	.chat-markdown-part > p {
+		margin-bottom: 6px !important;
+	}
+}
+
+.chat-confirmation-widget2 .chat-confirmation-widget-message:not(:has(.chat-confirmation-message-terminal)) {
+	background: var(--vscode-chat-requestBackground);
+	border: 1px solid var(--vscode-chat-requestBorder);
+	padding: 6px 9px 0 9px;
+
+	p {
+		margin-top: 0;
+		margin-bottom: 9px;
+	}
+}
+
+
+.chat-confirmation-widget2 .chat-confirmation-message-terminal .interactive-result-code-block {
+	border-radius: 0px;
+}
+.chat-confirmation-widget2.hideButtons .chat-confirmation-widget-message,
+.chat-confirmation-widget2.hideButtons .chat-confirmation-message-terminal .interactive-result-code-block,
+.chat-confirmation-widget2.hideButtons .chat-confirmation-message-terminal:not(:has(.interactive-result-code-block)) {
+	border-bottom-left-radius: 4px !important;
+	border-bottom-right-radius: 4px !important;
+}
+
+.chat-confirmation-widget2.hideButtons .chat-confirmation-widget-buttons,
+.chat-confirmation-widget2.hideButtons .chat-toolbar-container {
+	display: none;
+}
+
+.chat-confirmation-widget2 .chat-confirmation-widget-buttons {
+	display: flex;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-top: none;
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	padding: 5px 9px;
+
+	.chat-buttons {
+		display: flex;
+		column-gap: 10px;
+		align-items: center;
+
+		.monaco-button {
+			overflow-wrap: break-word;
+			padding: 2px 4px;
+		}
+	}
+}

@@ -23,6 +23,7 @@ import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../.
 import { Iterable } from '../../../../base/common/iterator.js';
 import { localize } from '../../../../nls.js';
 import { LanguageModelPartAudience } from './languageModels.js';
+import { Separator } from '../../../../base/common/actions.js';
 
 export interface IToolData {
 	id: string;
@@ -209,7 +210,7 @@ export interface IToolConfirmationMessages {
 	message: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
-	terminalCustomActions?: IToolConfirmationAction[];
+	terminalCustomActions?: ToolConfirmationAction[];
 }
 
 export interface IToolConfirmationAction {
@@ -217,6 +218,8 @@ export interface IToolConfirmationAction {
 	tooltip?: string;
 	data: any;
 }
+
+export type ToolConfirmationAction = IToolConfirmationAction | Separator;
 
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;

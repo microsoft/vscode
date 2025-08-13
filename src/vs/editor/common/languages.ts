@@ -758,6 +758,7 @@ export interface InlineCompletionContext {
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
 	readonly requestIssuedDateTime: number;
+	readonly earliestShownDateTime: number;
 }
 
 export class SelectedSuggestionInfo {

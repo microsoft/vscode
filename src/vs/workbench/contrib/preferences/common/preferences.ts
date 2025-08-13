@@ -60,6 +60,7 @@ export const CONTEXT_PREFERENCES_SEARCH_FOCUS = new RawContextKey<boolean>('inPr
 
 export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
 export const SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS = 'settings.action.showAIResults';
+export const SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH = 'settings.action.toggleAiSearch';
 export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
 export const SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS = 'settings.action.suggestFilters';
 
@@ -72,6 +73,7 @@ export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindi
 export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 export const CONTEXT_WHEN_FOCUS = new RawContextKey<boolean>('whenFocus', false);
+export const CONTEXT_AI_SETTING_RESULTS_AVAILABLE = new RawContextKey<boolean>('aiSettingResultsAvailable', false);
 
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';

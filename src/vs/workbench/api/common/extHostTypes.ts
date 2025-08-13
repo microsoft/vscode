@@ -4853,6 +4853,12 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export enum ChatSessionStatus {
+	Failed = 0,
+	Completed = 1,
+	InProgress = 2
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,

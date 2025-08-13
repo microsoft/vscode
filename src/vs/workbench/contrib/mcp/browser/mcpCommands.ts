@@ -174,9 +174,12 @@ export class McpConfirmationServerOptionsCommand extends Action2 {
 			f1: false,
 			menu: [{
 				id: MenuId.ChatConfirmationMenu,
-				when: ContextKeyExpr.or(
-					ContextKeyExpr.equals('chatConfirmationPartType', 'chatToolConfirmation'),
-					ContextKeyExpr.equals('chatConfirmationPartType', 'mcpElicitation'),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('chatConfirmationPartSource', 'mcp'),
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals('chatConfirmationPartType', 'chatToolConfirmation'),
+						ContextKeyExpr.equals('chatConfirmationPartType', 'elicitation'),
+					),
 				),
 				group: 'navigation'
 			}],
@@ -191,7 +194,7 @@ export class McpConfirmationServerOptionsCommand extends Action2 {
 				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, tool.source.definitionId);
 			}
 		} else if (arg.kind === 'elicitation') {
-			if (arg.source) {
+			if (arg.source?.type === 'mcp') {
 				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, arg.source.definitionId);
 			}
 		} else {

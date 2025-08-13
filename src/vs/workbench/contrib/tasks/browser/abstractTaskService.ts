@@ -2438,8 +2438,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return folder;
 	}
 
-	getTerminalForTask(task: Task): URI | undefined {
-		return this._taskSystem?.getTerminalForTask(task);
+	getTerminalsForTasks(task: (Task | Task[])): URI[] | undefined {
+		return this._taskSystem?.getTerminalsForTasks(task);
 	}
 
 	protected async _computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {

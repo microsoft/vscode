@@ -432,8 +432,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const result: vscode.LanguageModelChat[] = [];
 
-		for (const identifier of models) {
-			const model = await this.getLanguageModelByIdentifier(extension, identifier);
+		const modelPromises = models.map(identifier => this.getLanguageModelByIdentifier(extension, identifier));
+		const modelResults = await Promise.all(modelPromises);
+		for (const model of modelResults) {
 			if (model) {
 				result.push(model);
 			}
