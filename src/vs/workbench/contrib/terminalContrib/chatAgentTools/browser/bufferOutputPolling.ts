@@ -13,8 +13,7 @@ import { ChatModel } from '../../../chat/common/chatModel.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../chat/common/languageModelToolsService.js';
-import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import type { Terminal as RawXtermTerminal, IMarker as IXtermMarker } from '@xterm/xterm';
 
 export const enum PollingConsts {
 	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
@@ -74,19 +73,25 @@ export async function racePollingOrPrompt(
 }
 
 
-export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarker): string {
-	if (!instance.xterm || !instance.xterm.raw) {
+export function getOutput(terminal?: Pick<RawXtermTerminal, 'buffer'>, startMarker?: IXtermMarker): string {
+	if (!terminal) {
 		return '';
 	}
-	const lines: string[] = [];
-	for (let y = Math.min(startMarker?.line ?? 0, 0); y < instance.xterm!.raw.buffer.active.length; y++) {
-		const line = instance.xterm!.raw.buffer.active.getLine(y);
-		if (!line) {
-			continue;
-		}
-		lines.push(line.translateToString(true));
+	const buffer = terminal.buffer.active;
+	const startLine = Math.max(startMarker?.line ?? 0, 0);
+	const endLine = buffer.length;
+	const lines: string[] = new Array(endLine - startLine);
+
+	for (let y = startLine; y < endLine; y++) {
+		const line = buffer.getLine(y);
+		lines[y - startLine] = line ? line.translateToString(true) : '';
 	}
-	return lines.join('\n');
+
+	let output = lines.join('\n');
+	if (output.length > 16000) {
+		output = output.slice(-16000);
+	}
+	return output;
 }
 
 export async function pollForOutputAndIdle(
@@ -163,8 +168,8 @@ export function promptForMorePolling(command: string, token: CancellationToken, 
 			let part: ChatElicitationRequestPart | undefined = undefined;
 			const promise = new Promise<boolean>(resolve => {
 				const thePart = part = new ChatElicitationRequestPart(
-					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
-					new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
+					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting?")),
+					new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
 					'',
 					localize('poll.terminal.accept', 'Yes'),
 					localize('poll.terminal.reject', 'No'),

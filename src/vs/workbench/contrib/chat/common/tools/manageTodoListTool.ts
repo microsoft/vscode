@@ -18,6 +18,7 @@ import {
 	IPreparedToolInvocation
 } from '../languageModelToolsService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatTodo, IChatTodoListService, IChatTodoListStorage } from '../chatTodoListService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
@@ -90,7 +91,8 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -110,6 +112,17 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			switch (args.operation) {
 				case 'read': {
 					const readResult = this.handleRead(storage, chatSessionId);
+					const currentTodos = storage.getTodoList(chatSessionId);
+
+					this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
+						'todoListToolInvoked',
+						{
+							operation: 'read',
+							todoItemCount: currentTodos.length,
+							chatSessionId: chatSessionId
+						}
+					);
+
 					return {
 						content: [{
 							kind: 'text',
@@ -125,6 +138,16 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 						status: parsedTodo.status
 					}));
 					storage.setTodoList(chatSessionId, todoList);
+
+					this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
+						'todoListToolInvoked',
+						{
+							operation: 'write',
+							todoItemCount: todoList.length,
+							chatSessionId: chatSessionId
+						}
+					);
+
 					return {
 						content: [{
 							kind: 'text',
@@ -285,3 +308,17 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		}).join('\n');
 	}
 }
+
+type TodoListToolInvokedEvent = {
+	operation: 'read' | 'write';
+	todoItemCount: number;
+	chatSessionId: string | undefined;
+};
+
+type TodoListToolInvokedClassification = {
+	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operation performed on the todo list (read or write).' };
+	todoItemCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of items in the todo list operation.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
+	owner: 'bhavyaus';
+	comment: 'Provides insight into the usage of the todo list tool.';
+};

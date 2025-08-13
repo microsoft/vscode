@@ -44,7 +44,7 @@ import { ChatTodoListService, IChatTodoListService } from '../common/chatTodoLis
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, chatAutoApproveEditsDefaultConfiguration, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -233,6 +233,14 @@ configurationRegistry.registerConfiguration({
 				minimumVersion: '1.99',
 				defaultValue: false,
 				tags: [PolicyTag.Account, PolicyTag.Preview]
+			}
+		},
+		[ChatConfiguration.AutoApproveEdits]: {
+			default: chatAutoApproveEditsDefaultConfiguration,
+			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintened side-effects, such as `**/.vscode/*.json`.\n\nFiles are matched against the glob patterns in the order they are specified."),
+			type: 'object',
+			additionalProperties: {
+				type: 'boolean',
 			}
 		},
 		'chat.sendElementsToChat.enabled': {
@@ -532,7 +540,7 @@ configurationRegistry.registerConfiguration({
 		'chat.todoListTool.enabled': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat. This tool allows you to use todo lists in chat."),
+			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat, which the agent uses as a tool for planning, progress tracking, and context management for complex development workflows."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'startup'

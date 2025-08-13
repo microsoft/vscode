@@ -53,17 +53,24 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 function getModelPickerActionBarActions(menuService: IMenuService, contextKeyService: IContextKeyService, commandService: ICommandService, chatEntitlementService: IChatEntitlementService): IAction[] {
 	const additionalActions: IAction[] = [];
 
-	additionalActions.push({
-		id: 'manageModels',
-		label: localize('chat.manageModels', "Manage Models..."),
-		enabled: true,
-		tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
-		class: undefined,
-		run: () => {
-			const commandId = ManageModelsAction.ID;
-			commandService.executeCommand(commandId);
-		}
-	});
+	if (
+		chatEntitlementService.entitlement === ChatEntitlement.Free ||
+		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
+		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+		chatEntitlementService.isInternal
+	) {
+		additionalActions.push({
+			id: 'manageModels',
+			label: localize('chat.manageModels', "Manage Models..."),
+			enabled: true,
+			tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
+			class: undefined,
+			run: () => {
+				const commandId = ManageModelsAction.ID;
+				commandService.executeCommand(commandId);
+			}
+		});
+	}
 
 	// Add upgrade option if entitlement is free
 	if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
