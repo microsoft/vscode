@@ -12,6 +12,13 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatProgress } from './chatService.js';
 import { IChatAgentRequest } from './chatAgents.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+
+export const enum ChatSessionStatus {
+	Failed = 0,
+	Completed = 1,
+	InProgress = 2
+}
 
 export interface IChatSessionsExtensionPoint {
 	readonly id: string;
@@ -23,13 +30,15 @@ export interface IChatSessionsExtensionPoint {
 	readonly when?: string;
 }
 export interface IChatSessionItem {
-
 	id: string;
 	label: string;
 	iconPath?: URI | {
 		light: URI;
 		dark: URI;
 	} | ThemeIcon;
+	description?: string | IMarkdownString;
+	status?: ChatSessionStatus;
+	tooltip?: string | IMarkdownString;
 }
 
 export interface ChatSession extends IDisposable {
