@@ -17,6 +17,7 @@ import { ArcTracker } from './arcTracker.js';
 import { IDocumentWithAnnotatedEdits, EditSourceData, createDocWithJustReason } from '../helpers/documentWithAnnotatedEdits.js';
 import type { ScmRepoBridge } from './editSourceTrackingImpl.js';
 import { ITextModelEditSourceMetadata } from '../../../../../editor/common/textModelEditSource.js';
+import { IObservableDocument } from '../helpers/observableWorkspace.js';
 
 export class InlineEditArcTelemetrySender extends Disposable {
 	constructor(
@@ -100,6 +101,7 @@ export class ChatArcTelemetrySender extends Disposable {
 	constructor(
 		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
 		scmRepoBridge: ScmRepoBridge | undefined,
+		private readonly _document: IObservableDocument,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -174,7 +176,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					editSessionId: data.props.$$sessionId,
 					requestId: data.props.$$requestId,
 					modelId: data.props.$modelId,
-					languageId: data.props.$$languageId,
+					languageId: this._document.languageId.get(),
 
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
