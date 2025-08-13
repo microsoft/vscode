@@ -148,6 +148,9 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					x = Math.min(Math.max(clientRect.right, 0), vw);
 					y = Math.min(Math.max(clientRect.bottom, 0), vh);
 				} else {
+					// Position according to the axis alignment and the anchor alignment:
+					// `HORIZONTAL` aligns at the top left or right of the anchor and
+					//  `VERTICAL` aligns at the bottom left of the anchor.
 					if (delegate.anchorAxisAlignment === AnchorAxisAlignment.HORIZONTAL) {
 						if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
 							x = elementPosition.left;
