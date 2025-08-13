@@ -34,7 +34,7 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 
