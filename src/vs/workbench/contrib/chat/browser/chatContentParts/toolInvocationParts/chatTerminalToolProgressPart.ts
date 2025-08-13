@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../../../base/browser/dom.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { TerminalInstance, TerminalInstanceColorProvider } from '../../../../terminal/browser/terminalInstance.js';
@@ -28,7 +27,6 @@ import { IChatCodeBlockInfo } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
-import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
@@ -134,10 +132,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			},
 		}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		const icon = !toolInvocation.isConfirmed ?
-			Codicon.error :
-			toolInvocation.isComplete ?
-				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
+		// const icon = !toolInvocation.isConfirmed ?
+		// 	Codicon.error :
+		// 	toolInvocation.isComplete ?
+		// 		Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
 		const elements = h('.chat-terminal-content-part@container', [
 			h('div@xtermElement')
 		]);
@@ -150,10 +148,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const xterm = instantiationService.createInstance(XtermTerminal, xtermCtor, {
 				rows: 10,
 				cols: instance.cols,
-				// TODO: Should this support passing in undefined?
 				capabilities: new TerminalCapabilityStore(),
-				// TODO: Colors should be based on side bar
-				xtermColorProvider: instantiationService.createInstance(TerminalInstanceColorProvider, instance.targetRef)
+				xtermColorProvider: instantiationService.createInstance(TerminalInstanceColorProvider, TerminalLocation.Panel)
 			}, undefined);
 			xterm.attachToElement(elements.xtermElement);
 
@@ -164,7 +160,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 			// TODO: Add class that mirrors a section of xterm.js?
 			// TODO: Debounce?
-			// TODO: More efficiently only write diffed lines?
 			this._register(instance.onData(async () => {
 				const startMarker = executeStrategy.startMarker;
 				if (startMarker === undefined) {
@@ -174,6 +169,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				if (data === undefined) {
 					return;
 				}
+				// TODO: More efficiently only write either diffed lines or just the viewport (and any new lines outside the viewport)
 				xterm.raw.clear();
 				xterm.write('\x1b[H\x1b[K');
 				xterm.write(data);
@@ -183,9 +179,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._onDidChangeHeight.fire();
 		}));
 
-
-
-		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, this.container, icon);
-		this.domNode = progressPart.domNode;
+		this.domNode = this.container;
 	}
 }

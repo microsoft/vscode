@@ -2728,7 +2728,7 @@ export function parseExitResult(
 
 export class TerminalInstanceColorProvider implements IXtermColorProvider {
 	constructor(
-		private readonly _target: IReference<TerminalLocation | undefined>,
+		private readonly _target: TerminalLocation | IReference<TerminalLocation | undefined>,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 	}
@@ -2738,7 +2738,7 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 		if (terminalBackground) {
 			return terminalBackground;
 		}
-		if (this._target.object === TerminalLocation.Editor) {
+		if ((typeof this._target === 'object' && 'object' in this._target ? this._target.object : this._target) === TerminalLocation.Editor) {
 			return theme.getColor(editorBackground);
 		}
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
