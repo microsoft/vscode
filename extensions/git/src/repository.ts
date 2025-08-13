@@ -511,38 +511,14 @@ class ResourceCommandResolver {
 		};
 	}
 
-	resolveChangeCommand(resource: Resource): Command {
-		return this.resolveComparisonCommand(resource);
-	}
-
-	resolveCompareWithWorkspaceCommand(resource: Resource): Command {
-		if (!this.repository.dotGit.commonPath) {
-			return this.resolveChangeCommand(resource);
-		}
-
-		return this.resolveComparisonCommand(resource, true);
-	}
-
-	private resolveComparisonCommand(resource: Resource, compareWithWorkspace?: boolean): Command {
-		const title = this.getTitle(resource);
-
-		let leftUri: Uri | undefined;
-
-		if (compareWithWorkspace && this.repository.dotGit.commonPath) {
-			const parentRepoRoot = path.dirname(this.repository.dotGit.commonPath);
-			const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
-			const candidateFsPath = path.join(parentRepoRoot, relPath);
-
-			if (fs.existsSync(candidateFsPath)) {
-				leftUri = Uri.file(candidateFsPath);
-			} else {
-				leftUri = undefined;
-			}
-		} else {
+	resolveChangeCommand(resource: Resource, compareWithWorkspace?: boolean, leftUri?: Uri): Command {
+		if (!compareWithWorkspace) {
 			leftUri = resource.leftUri;
 		}
 
-		if (!leftUri) {
+		const title = this.getTitle(resource);
+
+		if (!resource.leftUri) {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
 			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
 				return {
@@ -564,6 +540,22 @@ class ResourceCommandResolver {
 				arguments: [leftUri, resource.rightUri, title]
 			};
 		}
+	}
+
+	resolveCompareWithWorkspaceCommand(resource: Resource): Command {
+		// Resource is not a worktree
+		if (!this.repository.dotGit.commonPath) {
+			return this.resolveChangeCommand(resource);
+		}
+
+		const parentRepoRoot = path.dirname(this.repository.dotGit.commonPath);
+		const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
+		const candidateFsPath = path.join(parentRepoRoot, relPath);
+
+		const leftUri = fs.existsSync(candidateFsPath) ? Uri.file(candidateFsPath) : undefined;
+
+		return this.resolveChangeCommand(resource, true, leftUri);
+
 	}
 
 	getResources(resource: Resource): { left: Uri | undefined; right: Uri | undefined; original: Uri | undefined; modified: Uri | undefined } {
