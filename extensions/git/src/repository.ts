@@ -327,6 +327,11 @@ export class Resource implements SourceControlResourceState {
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
 
+	async compareWithWorkspace(): Promise<void> {
+		const command = this._commandResolver.resolveCompareWithWorkspaceCommand(this);
+		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+	}
+
 	clone(resourceGroupType?: ResourceGroupType) {
 		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
 	}
@@ -507,9 +512,28 @@ class ResourceCommandResolver {
 	}
 
 	resolveChangeCommand(resource: Resource): Command {
+		return this.resolveComparisonCommand(resource, false);
+	}
+
+	resolveCompareWithWorkspaceCommand(resource: Resource): Command {
+		if (this.repository.kind !== 'worktree' || !this.repository.dotGit.commonPath) {
+			return this.resolveChangeCommand(resource);
+		}
+
+		return this.resolveComparisonCommand(resource, true);
+	}
+
+	private resolveComparisonCommand(resource: Resource, useWorktreeComparison: boolean): Command {
 		const title = this.getTitle(resource);
 
-		if (!resource.leftUri) {
+		const leftUri = useWorktreeComparison && this.repository.dotGit.commonPath
+			? Uri.file(path.join(
+				path.dirname(this.repository.dotGit.commonPath),
+				path.relative(this.repository.root, resource.resourceUri.fsPath)
+			))
+			: resource.leftUri;
+
+		if (!leftUri) {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
 			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
 				return {
@@ -528,7 +552,7 @@ class ResourceCommandResolver {
 			return {
 				command: 'vscode.diff',
 				title: l10n.t('Open'),
-				arguments: [resource.leftUri, resource.rightUri, title]
+				arguments: [leftUri, resource.rightUri, title]
 			};
 		}
 	}
