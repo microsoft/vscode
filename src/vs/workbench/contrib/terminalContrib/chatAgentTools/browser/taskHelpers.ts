@@ -141,8 +141,8 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 export async function collectTerminalResults(
 	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>): Promise<Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }>> {
 	const results: Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }> = [];
-	progress.report({ message: `Checking output for task` });
 	for (const terminal of terminals) {
+		progress.report({ message: `Checking output for ${terminal.shellLaunchConfig.name ?? 'unknown'}` });
 		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive }, false, token, languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
