@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../../base/browser/dom.js';
+import { h } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -138,7 +138,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			Codicon.error :
 			toolInvocation.isComplete ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
-		this.container = $('div');
+		const elements = h('.chat-terminal-content-part@container', [
+			h('div@xtermElement')
+		]);
+		this.container = elements.container;
 		this.container.append(this.markdownPart.domNode);
 
 
@@ -152,8 +155,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				// TODO: Colors should be based on side bar
 				xtermColorProvider: instantiationService.createInstance(TerminalInstanceColorProvider, instance.targetRef)
 			}, undefined);
-			const xtermElement = $('div');
-			xterm.attachToElement(xtermElement);
+			xterm.attachToElement(elements.xtermElement);
 
 			// Instead of writing data events directly, mirror from the marker
 			this._register(executeStrategy.onUpdate(async () => {
@@ -177,7 +179,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				xterm.write(data);
 			}));
 
-			this.container.append(xtermElement);
+			this.container.append(elements.xtermElement);
 			this._onDidChangeHeight.fire();
 		}));
 
