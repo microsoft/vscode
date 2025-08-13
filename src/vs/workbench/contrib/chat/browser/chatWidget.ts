@@ -42,7 +42,7 @@ import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { ChatPauseState, IChatModel, IChatResponseModel } from '../common/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
@@ -192,8 +192,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
-	private isRequestPaused: IContextKey<boolean>;
-	private canRequestBePaused: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
 	private currentRequest: Promise<void> | undefined;
 
@@ -327,8 +325,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
-		this.isRequestPaused = ChatContextKeys.isRequestPaused.bindTo(contextKeyService);
-		this.canRequestBePaused = ChatContextKeys.canRequestBePaused.bindTo(contextKeyService);
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -755,8 +751,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							`_setting${this.settingChangeCounter || '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
-							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '') +
-							(isResponseVM(element) && element.model.isPaused.get() ? '_paused' : '');
+							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
 					},
 				}
 			});
@@ -1488,10 +1483,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.style.setProperty('--vscode-chat-list-background', this.themeService.getColorTheme().getColor(this.styles.listBackground)?.toString() ?? '');
 	}
 
-	togglePaused() {
-		this.viewModel?.model.toggleLastRequestPaused();
-		this.onDidChangeItems();
-	}
 
 	setModel(model: IChatModel, viewState: IChatViewState): void {
 		if (!this.container) {
@@ -1523,8 +1514,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.requestInProgress.set(this.viewModel.requestInProgress);
-			this.isRequestPaused.set(this.viewModel.requestPausibility === ChatPauseState.Paused);
-			this.canRequestBePaused.set(this.viewModel.requestPausibility !== ChatPauseState.NotPausable);
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
@@ -1742,7 +1731,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this.viewModel?.requestInProgress && this.viewModel.requestPausibility !== ChatPauseState.Paused) {
+		if (this.viewModel?.requestInProgress) {
 			return;
 		}
 
