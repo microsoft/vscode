@@ -45,5 +45,25 @@ suite('Markdown Katex Support Test', () => {
 		].join('\n'));
 		await assertSnapshot(rendered.element.innerHTML);
 	});
+
+	test('Should not render math when dollar sign is preceded by word character', async () => {
+		const rendered = await renderMarkdownWithKatex('for ($i = 1; $i -le 20; $i++) { echo "hello world"; Start-Sleep 1 }');
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should not render math when dollar sign is followed by word character', async () => {
+		const rendered = await renderMarkdownWithKatex('The cost is $10dollars for this item');
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should still render math with special characters around dollars', async () => {
+		const rendered = await renderMarkdownWithKatex('Hello ($\\frac{1}{2}$) and [$x^2$] work fine');
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should still render math at start and end of line', async () => {
+		const rendered = await renderMarkdownWithKatex('$\\frac{1}{2}$ at start, and at end $x^2$');
+		await assertSnapshot(rendered.element.innerHTML);
+	});
 });
 
