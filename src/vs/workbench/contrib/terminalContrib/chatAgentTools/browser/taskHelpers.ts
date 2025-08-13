@@ -143,15 +143,15 @@ export async function collectTerminalResults(
 	const results: Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }> = [];
 	progress.report({ message: `Checking output for task` });
 	for (const terminal of terminals) {
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive }, false, token, languageModelsService);
+		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive }, false, token, languageModelsService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive }, true, token, languageModelsService),
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive }, true, token, languageModelsService),
 				() => promptForMorePolling(task._label, token, invocationContext, chatService),
 				outputAndIdle,
 				token,
 				languageModelsService,
-				{ getOutput: () => getOutput(terminal), isActive }
+				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive }
 			);
 		}
 		results.push({
