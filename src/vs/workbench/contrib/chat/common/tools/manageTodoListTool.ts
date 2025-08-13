@@ -31,7 +31,9 @@ export function createManageTodoListToolData(writeOnly: boolean): IToolData {
 	const baseProperties: any = {
 		todoList: {
 			type: 'array',
-			description: 'Complete array of all todo items (required for write operation, ignored for read). Must include ALL items - both existing and new.',
+			description: writeOnly
+				? 'Complete array of all todo items. Must include ALL items - both existing and new.'
+				: 'Complete array of all todo items (required for write operation, ignored for read). Must include ALL items - both existing and new.',
 			items: {
 				type: 'object',
 				properties: {
