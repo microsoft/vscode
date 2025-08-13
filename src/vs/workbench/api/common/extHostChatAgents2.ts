@@ -191,10 +191,10 @@ export class ChatAgentResponseStream {
 					_report(dto, task);
 					return this;
 				},
-				thinkingProgress(value, id?, metadata?) {
+				thinkingProgress(thinkingDelta: vscode.ThinkingDelta) {
 					throwIfDone(this.thinkingProgress);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
-					const part = new extHostTypes.ChatResponseThinkingProgressPart(value, id, metadata);
+					const part = new extHostTypes.ChatResponseThinkingProgressPart(thinkingDelta.text ?? '', thinkingDelta.id, thinkingDelta.metadata);
 					const dto = typeConvert.ChatResponseThinkingProgressPart.from(part);
 					_report(dto);
 					return this;

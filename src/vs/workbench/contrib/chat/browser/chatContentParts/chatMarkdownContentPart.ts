@@ -280,12 +280,15 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
 			// Need to load async
-			MarkedKatexSupport.loadExtension(dom.getWindow(context.container)).then(() => {
-				doRenderMarkdown();
-				if (!this._isDisposed) {
-					this._onDidChangeHeight.fire();
-				}
-			});
+			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
+				.catch(e => {
+					console.error('Failed to load MarkedKatexSupport extension:', e);
+				}).finally(() => {
+					doRenderMarkdown();
+					if (!this._isDisposed) {
+						this._onDidChangeHeight.fire();
+					}
+				});
 		} else {
 			doRenderMarkdown();
 		}
