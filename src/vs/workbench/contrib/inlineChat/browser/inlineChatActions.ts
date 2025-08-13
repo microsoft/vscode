@@ -53,7 +53,7 @@ export class StartSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: ACTION_START,
-			title: localize2('run', 'Editor Inline Chat'),
+			title: localize2('run', 'Open Inline Chat'),
 			category: AbstractInline1ChatAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(
