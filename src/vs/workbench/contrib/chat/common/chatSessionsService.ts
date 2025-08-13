@@ -36,9 +36,9 @@ export interface IChatSessionItem {
 		light: URI;
 		dark: URI;
 	} | ThemeIcon;
-	description?: string;
+	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
-	tooltip?: string | IMarkdownString | undefined;
+	tooltip?: string | IMarkdownString;
 }
 
 export interface ChatSession extends IDisposable {
