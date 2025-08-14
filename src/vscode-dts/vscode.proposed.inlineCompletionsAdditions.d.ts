@@ -46,6 +46,10 @@ declare module 'vscode' {
 		action?: Command;
 
 		displayLocation?: InlineCompletionDisplayLocation;
+		/**
+		 * The Uri of the document this completion item is associated with.
+		 */
+		uri?: Uri;
 	}
 
 	export interface InlineCompletionDisplayLocation {

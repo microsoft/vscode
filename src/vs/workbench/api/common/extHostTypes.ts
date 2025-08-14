@@ -1793,6 +1793,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
 	command?: vscode.Command;
+	uri?: vscode.Uri;
 
 	constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind) {
 		this.label = label;
