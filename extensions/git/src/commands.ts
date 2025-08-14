@@ -2076,11 +2076,7 @@ export class CommandCenter {
 
 		// Not a worktree
 		if (!repository.dotGit.commonPath) {
-			if (resource.type === Status.DELETED || resource.type === Status.INDEX_DELETED) {
-				await repository.rm([resource.resourceUri]);
-			} else {
-				await repository.add([resource.resourceUri]);
-			}
+			await this.stage(resource);
 			return;
 		}
 
