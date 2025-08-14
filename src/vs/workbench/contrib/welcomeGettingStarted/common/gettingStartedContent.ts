@@ -111,6 +111,16 @@ type GettingStartedStartEntryContent = BuiltinGettingStartedStartEntry[];
 
 export const startEntries: GettingStartedStartEntryContent = [
 	{
+		id: 'claude.openChat',
+		title: localize('gettingStarted.claude.title', "Chat with Claude"),
+		description: localize('gettingStarted.claude.description', "Start a conversation with Claude AI to get help with your code."),
+		icon: Codicon.commentDiscussion,
+		content: {
+			type: 'startEntry',
+			command: 'command:workbench.panel.chat.view.open',
+		}
+	},
+	{
 		id: 'welcome.showNewFileEntries',
 		title: localize('gettingStarted.newFile.title', "New File..."),
 		description: localize('gettingStarted.newFile.description', "Open a new untitled text file, notebook, or custom editor."),
@@ -679,12 +689,12 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 	},
 	{
 		id: `${NEW_WELCOME_EXPERIENCE}`,
-		title: localize('gettingStarted.new.title', "Get started with VS Code"),
-		description: localize('gettingStarted.new.description', "Supercharge coding with AI"),
+		title: localize('gettingStarted.new.title', "Get started with Zaelot Developer Studio"),
+		description: localize('gettingStarted.new.description', "Supercharge coding with Claude AI"),
 		isFeatured: false,
 		icon: setupIcon,
 		when: '!isWeb',
-		walkthroughPageTitle: localize('gettingStarted.new.walkthroughPageTitle', 'Set up VS Code'),
+		walkthroughPageTitle: localize('gettingStarted.new.walkthroughPageTitle', 'Set up Zaelot Developer Studio'),
 		content: {
 			type: 'steps',
 			steps: [
@@ -697,19 +707,27 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					},
 				},
 				{
-					id: 'copilotSetup.inline',
-					title: localize('gettingStarted.nes.title', "Next edit suggestions"),
-					description: localize('gettingStarted.nes.description', "Get code suggestions that predict your next edit."),
+					id: 'claudeSetup.configure',
+					title: localize('gettingStarted.claude.setup.title', "Configure Claude AI"),
+					description: localize('gettingStarted.claude.setup.description', "Set up your Claude API key to unlock powerful AI assistance for coding.\n{0}", Button(localize('configureClaude', "Configure Claude"), 'command:claude.configureApiKey')),
 					media: {
-						type: 'svg', altText: 'Next edit suggestions', path: 'ai-powered-suggestions.svg'
+						type: 'svg', altText: 'Claude AI Setup', path: 'ai-powered-suggestions.svg'
 					},
 				},
 				{
-					id: 'copilotSetup.customize',
-					title: localize('gettingStarted.customize.title', "Personalized to how you work"),
-					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Enable AI features"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
+					id: 'claudeSetup.chat',
+					title: localize('gettingStarted.claude.chat.title', "Start chatting with Claude"),
+					description: localize('gettingStarted.claude.chat.description', "Open the chat panel and start getting help with your code from Claude AI.\n{0}", Button(localize('openChat', "Open Chat"), 'command:workbench.panel.chat.view.open')),
 					media: {
-						type: 'svg', altText: 'Personalize', path: 'customize-ai.svg'
+						type: 'svg', altText: 'Claude Chat', path: 'customize-ai.svg'
+					},
+				},
+				{
+					id: 'claudeSetup.test',
+					title: localize('gettingStarted.claude.test.title', "Test your connection"),
+					description: localize('gettingStarted.claude.test.description', "Verify that Claude is working correctly with a quick connection test.\n{0}", Button(localize('testClaude', "Test Connection"), 'command:claude.testConnection')),
+					media: {
+						type: 'svg', altText: 'Test Claude Connection', path: 'ai-powered-suggestions.svg'
 					},
 				},
 				{

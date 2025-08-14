@@ -1,24 +1,43 @@
-# Visual Studio Code - Open Source ("Code - OSS")
+# Zaelot Developer Studio 🚀
 
-[![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+[![Powered by Claude](https://img.shields.io/badge/Powered%20by-Claude%20AI-blue.svg)](https://anthropic.com)
+[![Built on VSCode](https://img.shields.io/badge/Built%20on-VS%20Code-blue.svg)](https://github.com/microsoft/vscode)
+[![Internal Use](https://img.shields.io/badge/Use-Internal%20Only-orange.svg)]()
 
-## The Repository
+## The Studio
 
-This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
+**Zaelot Developer Studio** is our internal development environment built on Visual Studio Code and enhanced with Claude AI integration. This powerful combination provides our development team with intelligent coding assistance, automated code reviews, and AI-powered debugging capabilities.
 
-## Visual Studio Code
+## Key Features
 
-<p align="center">
-  <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
-</p>
+### 🤖 **Claude AI Integration**
+- **Intelligent Code Assistance**: Get context-aware suggestions and explanations from Claude
+- **Code Review Assistant**: Automated code analysis and improvement suggestions
+- **Natural Language Queries**: Ask questions about your codebase in plain English
+- **Multi-file Code Changes**: Claude can suggest changes across multiple files
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
+### 💻 **Enhanced Development Experience**
+- **All VSCode Features**: Complete compatibility with the VSCode ecosystem
+- **Custom Zaelot Branding**: Tailored interface for our internal workflows
+- **Secure & Private**: Your code never leaves our environment
+- **Easy Setup**: One-click configuration with your Claude API key
 
-[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
+### 🛠 **Built for Developers**
+- **Language Support**: Works with all programming languages we use
+- **Extension Compatibility**: Full support for VSCode extensions
+- **Integrated Terminal**: Enhanced with AI assistance
+- **Version Control**: Git integration with intelligent commit message generation
 
-Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
+## Quick Start
+
+1. **Configure Claude**: Set your API key via Command Palette → "Configure Claude API Key"
+2. **Open Chat**: Use `Ctrl+Shift+I` or click the chat icon to start conversations
+3. **Code with AI**: Select code and ask Claude for explanations or improvements
+4. **Get Help**: Use the built-in getting started guide
+
+## For Internal Use Only
+
+This tool is exclusively for Zaelot team members. All AI interactions are processed through our secure Claude API integration.
 
 ## Contributing
 

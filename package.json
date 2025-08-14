@@ -1,9 +1,9 @@
 {
-  "name": "code-oss-dev",
+  "name": "zaelot-developer-studio",
   "version": "1.104.0",
   "distro": "1dc7c0e96002d6354d0d6e2a90cfd7d23c6ba6f3",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "Zaelot Inc."
   },
   "license": "MIT",
   "main": "./out/main.js",
@@ -229,10 +229,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/Zaelot-Inc/vscode.git"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "url": "https://github.com/Zaelot-Inc/vscode/issues"
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
