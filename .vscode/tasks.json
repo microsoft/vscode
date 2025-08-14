@@ -30,12 +30,6 @@
 			}
 		},
 		{
-    "label": "Ask to Continue",
-    "type": "shell",
-    "command": "read-host 'Do you want to continue? (yes/no)'",
-    "problemMatcher": []
-},
-		{
 			"type": "npm",
 			"script": "watch-extensionsd",
 			"label": "Ext - Build",
