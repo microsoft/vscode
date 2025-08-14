@@ -185,7 +185,7 @@ export async function pollForOutputAndIdle(
 							if (uri) {
 								location = `[${label}](${uri})`;
 							}
-							problemList.push(`Problem with severity ${p.severity.toString()}: ${p.message} at ${location ? ` (${location})` : 'unknown'}`);
+							problemList.push(`Problem: ${p.message} at ${location ? ` ${location}` : 'unknown'}`);
 						}
 					}
 				}
