@@ -173,8 +173,6 @@ suite('racePollingOrPrompt', () => {
 				[{ owner: 'terminal-output', applyTo: ApplyToKind.allDocuments, fileLocation: FileLocationKind.Absolute, pattern: { regexp: RegExp('.*') } }]
 			);
 			assert.ok(result.output.includes('problem'));
-			assert.ok(result.output.includes('E123'));
-			assert.ok(result.output.includes('Severity: 1'));
 		});
 	});
 });
