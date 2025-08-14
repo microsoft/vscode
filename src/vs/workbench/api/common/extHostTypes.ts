@@ -1872,6 +1872,11 @@ export enum InlineCompletionEndOfLifeReasonKind {
 	Ignored = 2,
 }
 
+export enum InlineCompletionDisplayLocationKind {
+	Code = 1,
+	Label = 2
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
