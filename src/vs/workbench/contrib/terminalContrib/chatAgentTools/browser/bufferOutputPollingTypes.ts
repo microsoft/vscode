@@ -28,7 +28,6 @@ export interface IPollingResult {
 	resources?: ILinkLocation[];
 	pollDurationMs?: number;
 	modelOutputEvalResponse?: string;
-	confirmationPrompt?: IConfirmationPrompt;
 }
 
 export interface IRacePollingOrPromptResult {

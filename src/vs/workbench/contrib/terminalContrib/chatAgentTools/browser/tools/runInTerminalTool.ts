@@ -436,7 +436,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			inputUserSigint ||= data === '\x03';
 		}));
 		if (args.isBackground) {
-			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string; confirmationPrompt?: { prompt: string; options: string[] } } | undefined = undefined;
+			let outputAndIdle: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string } | undefined = undefined;
 			let outputMonitor: OutputMonitor | undefined = undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
@@ -465,12 +465,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					resultText += `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
 				}
 
-				let confirmationPromptText: string | undefined;
-				if (outputAndIdle && outputAndIdle.confirmationPrompt) {
-					const { prompt, options } = outputAndIdle.confirmationPrompt;
-					confirmationPromptText = `\n\n**Confirmation Prompt Detected:**\n${prompt}\nOptions: ${(options as string[]).map((o: string) => `\`${o}\``).join(', ')}`;
-				}
-
 				let toolResultMessage: string | undefined;
 				if (toolSpecificData.autoApproveInfo) {
 					toolResultMessage = toolSpecificData.autoApproveInfo.value;
@@ -480,7 +474,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					toolResultMessage: toolResultMessage ? new MarkdownString(toolResultMessage) : undefined,
 					content: [{
 						kind: 'text',
-						value: resultText + (confirmationPromptText ?? ''),
+						value: resultText
 					}]
 				};
 			} catch (e) {
