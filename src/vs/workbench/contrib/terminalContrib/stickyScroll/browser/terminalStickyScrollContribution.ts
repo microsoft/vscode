@@ -92,34 +92,33 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 				});
 			}
 		}
-
-		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
-		if (capability && !this._richCommandDetectionListeners.value) {
-			this._richCommandDetectionListeners.value = capability.onSetRichCommandDetection(() => {
-				this._refreshState();
-			});
-		} else if (!capability) {
-			this._richCommandDetectionListeners.clear();
-		}
 	}
 
 	private _tryEnable(): void {
 		if (this._shouldBeEnabled()) {
 			const xtermCtorEventually = TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
+			const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection)!;
 			this._overlay.value = this._instantiationService.createInstance(
 				TerminalStickyScrollOverlay,
 				this._ctx.instance,
 				this._xterm!,
 				this._instantiationService.createInstance(TerminalInstanceColorProvider, this._ctx.instance.targetRef),
-				this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection)!,
+				capability,
 				xtermCtorEventually
 			);
+
+			if (!this._richCommandDetectionListeners.value) {
+				this._richCommandDetectionListeners.value = capability!.onSetRichCommandDetection(() => {
+					this._refreshState();
+				});
+			}
 		}
 	}
 
 	private _tryDisable(): void {
 		if (!this._shouldBeEnabled()) {
 			this._overlay.clear();
+			this._richCommandDetectionListeners.clear();
 		}
 	}
 
