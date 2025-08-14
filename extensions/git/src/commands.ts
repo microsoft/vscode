@@ -2041,6 +2041,102 @@ export class CommandCenter {
 		textEditor.revealRange(visibleRangesBeforeRevert[0]);
 	}
 
+	@command('git.stageToWorkspace')
+	async stageToWorkspace(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
+		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
+			const resource = this.getSCMResource();
+
+			if (!resource) {
+				return;
+			}
+
+			resourceStates = [resource];
+		}
+
+		const scmResources = resourceStates
+			.filter(s => s instanceof Resource && s.resourceGroupType === ResourceGroupType.WorkingTree) as Resource[];
+
+		if (!scmResources.length) {
+			return;
+		}
+
+		for (const resource of scmResources) {
+			await this._stageToWorkspace(resource);
+		}
+	}
+
+	private async _stageToWorkspace(resource: Resource): Promise<void> {
+		const repository = this.model.getRepository(resource.resourceUri);
+
+		if (!repository) {
+			return;
+		}
+
+		// Not a worktree
+		if (!repository.dotGit.commonPath) {
+			if (resource.type === Status.DELETED || resource.type === Status.INDEX_DELETED) {
+				await repository.rm([resource.resourceUri]);
+			} else {
+				await repository.add([resource.resourceUri]);
+			}
+			return;
+		}
+
+		const parentRepoRoot = path.dirname(repository.dotGit.commonPath);
+		const relPath = path.relative(repository.root, resource.resourceUri.fsPath);
+		const parentFileUri = Uri.file(path.join(parentRepoRoot, relPath));
+
+		// Copy changes from worktree to current workspace
+		enum OperationType { Written, Deleted }
+		let operation: OperationType = OperationType.Written;
+		if (resource.type === Status.DELETED || resource.type === Status.INDEX_DELETED) {
+			try {
+				await workspace.fs.delete(parentFileUri, { recursive: false, useTrash: false });
+			} catch {
+				// File does not exist, ignore
+			}
+			operation = OperationType.Deleted;
+		} else {
+			// Written operation
+			const parentDir = path.dirname(parentFileUri.fsPath);
+			await workspace.fs.createDirectory(Uri.file(parentDir));
+			const data = await workspace.fs.readFile(resource.resourceUri);
+			await workspace.fs.writeFile(parentFileUri, data);
+			operation = OperationType.Written;
+		}
+
+		const parentRepository = this.model.getRepository(parentFileUri);
+		if (parentRepository) {
+			if (operation === OperationType.Deleted) {
+				await parentRepository.rm([parentFileUri]);
+			} else {
+				await parentRepository.add([parentFileUri]);
+			}
+		}
+	}
+
+	@command('git.stageAllToWorkspace', { repository: true })
+	async stageAllToWorkspace(repository: Repository): Promise<void> {
+		// Not a worktree
+		if (!repository.dotGit.commonPath) {
+			await this.stageAll(repository);
+			return;
+		}
+
+		const resources = repository.workingTreeGroup.resourceStates
+			.filter(s => s instanceof Resource) as Resource[];
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		for (const resource of resources) {
+			await this._stageToWorkspace(resource);
+		}
+	}
+
 	@command('git.unstage')
 	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		resourceStates = resourceStates.filter(s => !!s);
