@@ -255,7 +255,10 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');
+		let stdinArgPosition = -1;
 		if (hasReadStdinArg) {
+			// capture the position of the "-" argument before filtering it out
+			stdinArgPosition = argv.findIndex(arg => arg === '-');
 			// remove the "-" argument when we read from stdin
 			args._ = args._.filter(a => a !== '-');
 			argv = argv.filter(a => a !== '-');
@@ -299,7 +302,13 @@ export async function main(argv: string[]): Promise<any> {
 					} else {
 						// Make sure to open tmp file as editor but ignore
 						// it in the "recently open" list
-						addArg(argv, stdinFilePath);
+						if (stdinArgPosition >= 0) {
+							// Insert the stdin file at the original position of the "-" argument
+							argv.splice(stdinArgPosition, 0, stdinFilePath);
+						} else {
+							// Fallback to appending if position was not found
+							addArg(argv, stdinFilePath);
+						}
 						addArg(argv, '--skip-add-to-recently-opened');
 					}
 
