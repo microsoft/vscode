@@ -82,7 +82,7 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		this._register(toolsService.registerToolImplementation(CreateAndRunTaskToolData.id, createAndRunTaskTool));
 
 		const runTasksToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runTasks', 'runTasks', {
-			description: localize('toolset.runTasks', 'Runs tasks and gets their output for your workspace')
+			description: localize('toolset.runTasks', 'Runs tasks and gets their output for your workspace'),
 		}));
 		runTasksToolSet.addTool(RunTaskToolData);
 		runTasksToolSet.addTool(GetTaskOutputToolData);

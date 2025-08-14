@@ -10,7 +10,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { IChatService } from '../../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
+import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -163,6 +163,7 @@ export const RunTaskToolData: IToolData = {
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running tasks in the workspace'),
 	icon: Codicon.tools,
 	source: ToolDataSource.Internal,
+	when: TasksAvailableContext,
 	inputSchema: {
 		'type': 'object',
 		'properties': {
