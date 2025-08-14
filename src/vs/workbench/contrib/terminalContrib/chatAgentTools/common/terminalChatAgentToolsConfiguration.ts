@@ -135,12 +135,12 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// While these PowerShell verbs can have side effects, they are generally innocuous (eg.
 			// updating OS-level file access info) and and often have prompts if they're more
 			// involved (eg. Get-Credential)
-			'/Get-[a-z0-9]/i': true,
-			'/Select-[a-z0-9]/i': true,
-			'/Measure-[a-z0-9]/i': true,
-			'/Compare-[a-z0-9]/i': true,
-			'/Format-[a-z0-9]/i': true,
-			'/Sort-[a-z0-9]/i': true,
+			'/^Get-[a-z0-9]/i': true,
+			'/^Select-[a-z0-9]/i': true,
+			'/^Measure-[a-z0-9]/i': true,
+			'/^Compare-[a-z0-9]/i': true,
+			'/^Format-[a-z0-9]/i': true,
+			'/^Sort-[a-z0-9]/i': true,
 			'Write-Host': true,
 			'Write-Output': true,
 			'Split-Path': true,
@@ -148,9 +148,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// Commands that are generally allowed with special cases we block
 			find: true,
-			'/find\\b.*-exec(dir)?\\b/': false, // Execute on results
+			'/^find\\b.*-exec(dir)?\\b/': false, // Execute on results
 			top: true,
-			'/top\\b.*-(k|r)\\b/': false, // Kill or renice processes
+			'/^top\\b.*-(k|r)\\b/': false, // Kill or renice processes
 
 			// There are countless dangerous commands available on the command line, the defaults here
 			// include common ones that the user is likely to want to explicitly approve first. This is

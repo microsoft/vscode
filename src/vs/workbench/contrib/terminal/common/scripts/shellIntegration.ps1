@@ -68,6 +68,20 @@ if ($env:VSCODE_ENV_APPEND) {
 	$env:VSCODE_ENV_APPEND = $null
 }
 
+# Register Python shell activate hooks
+if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
+	$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
+	Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
+
+	try {
+		Invoke-Expression $activateScript
+	}
+	catch {
+		$activationError = $_
+		Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
+	}
+}
+
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.

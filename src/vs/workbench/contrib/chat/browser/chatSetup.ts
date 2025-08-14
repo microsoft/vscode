@@ -274,14 +274,14 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 	private async doForwardRequestToCopilotWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		const widget = chatWidgetService.getWidgetBySessionId(requestModel.session.sessionId);
-		const mode = widget?.input.currentModeKind;
+		const modeInfo = widget?.input.currentModeInfo;
 		const languageModel = widget?.input.currentLanguageModel;
 
 		// We need a signal to know when we can resend the request to
 		// Copilot. Waiting for the registration of the agent is not
 		// enough, we also need a language/tools model to be available.
 
-		const whenAgentReady = this.whenAgentReady(chatAgentService, mode);
+		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind);
 		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService);
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel);
 
@@ -325,7 +325,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
-			mode,
+			modeInfo,
 			userSelectedModelId: languageModel,
 		});
 	}
@@ -479,6 +479,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			variableData: requestModel.variableData,
 			timestamp: Date.now(),
 			attempt: requestModel.attempt,
+			modeInfo: requestModel.modeInfo,
 			confirmation: requestModel.confirmation,
 			locationData: requestModel.locationData,
 			attachedContext: requestModel.attachedContext,
@@ -528,6 +529,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			variableData: variableData,
 			timestamp: Date.now(),
 			attempt: requestModel.attempt,
+			modeInfo: requestModel.modeInfo,
 			confirmation: requestModel.confirmation,
 			locationData: requestModel.locationData,
 			attachedContext: [chatRequestToolEntry],

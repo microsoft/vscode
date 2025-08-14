@@ -9,6 +9,8 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { racePollingOrPrompt, promptForMorePolling, pollForOutputAndIdle } from './bufferOutputPolling.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { Task } from '../../../tasks/common/taskService.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly isIdle: boolean;
@@ -40,8 +42,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	constructor(
-		private readonly _execution: { getOutput: () => string; isActive?: () => Promise<boolean> },
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService
+		private readonly _execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Task; beginsPattern?: string; endsPattern?: string; dependencyTasks?: Task[] },
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IMarkerService private readonly _markerService: IMarkerService
 	) {
 		super();
 	}
@@ -52,15 +55,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		invocationContext: any,
 		token: CancellationToken
 	): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
-		let result = await pollForOutputAndIdle(this._execution, false, token, this._languageModelsService);
+		let result = await pollForOutputAndIdle(this._execution, false, token, this._languageModelsService, this._markerService);
 
 		if (!result.terminalExecutionIdleBeforeTimeout) {
 			result = await racePollingOrPrompt(
-				() => pollForOutputAndIdle(this._execution, true, token, this._languageModelsService),
+				() => pollForOutputAndIdle(this._execution, true, token, this._languageModelsService, this._markerService),
 				() => promptForMorePolling(command, token, invocationContext, chatService),
 				result,
 				token,
 				this._languageModelsService,
+				this._markerService,
 				this._execution
 			);
 		}
