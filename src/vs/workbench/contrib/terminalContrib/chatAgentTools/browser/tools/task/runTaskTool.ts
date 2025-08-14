@@ -99,20 +99,20 @@ export class RunTaskTool implements IToolImpl {
 			});
 		}
 
-		let output = '';
+		let resultSummary = '';
 		if (result?.exitCode) {
-			output = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
+			resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
 		} else {
-			output += `\`${taskLabel}\` task `;
-			output += terminalResults.every(r => r.idle)
+			resultSummary += `\`${taskLabel}\` task `;
+			resultSummary += terminalResults.every(r => r.idle)
 				? 'finished'
 				: 'started and will continue to run in the background.';
 		}
 
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`).join('\n\n');
 		return {
-			content: [{ kind: 'text', value: `Task output summary:\n${details}` }],
-			toolResultMessage: new MarkdownString(output)
+			content: [{ kind: 'text', value: details }],
+			toolResultMessage: new MarkdownString(resultSummary)
 		};
 	}
 
