@@ -12,7 +12,7 @@ import { IMarkerService } from '../../../../../../../platform/markers/common/mar
 import { IChatService } from '../../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
-import { ITaskService } from '../../../../../tasks/common/taskService.js';
+import { ITaskService, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 
@@ -22,6 +22,7 @@ export const GetTaskOutputToolData: IToolData = {
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
 	modelDescription: 'Get the output of a task',
 	source: ToolDataSource.Internal,
+	when: TasksAvailableContext,
 	inputSchema: {
 		type: 'object',
 		properties: {
