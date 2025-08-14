@@ -320,8 +320,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					case 'panel':
 						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
 						break;
-					case 'auxiliarybar':
-						checkProposedApiEnabled(description, 'contribAuxiliaryBar');
+					case 'secondarySideBar':
+						checkProposedApiEnabled(description, 'contribSecondarySideBar');
 						auxiliaryBarOrder = this.registerCustomViewContainers(value, description, auxiliaryBarOrder, existingViewContainers, ViewContainerLocation.AuxiliaryBar);
 						break;
 				}

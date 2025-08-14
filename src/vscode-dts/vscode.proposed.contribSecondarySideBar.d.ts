@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// empty placeholder declaration for the `auxiliarybar`-contribution point
+// empty placeholder declaration for the `secondarySideBar`-contribution point
