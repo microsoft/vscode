@@ -173,11 +173,15 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 
 	const inputPaths = parsedArgs['_'];
 	let hasReadStdinArg = false;
+	let stdinFilePosition = -1;
+	let processedFileCount = 0;
 	for (const input of inputPaths) {
 		if (input === '-') {
 			hasReadStdinArg = true;
+			stdinFilePosition = processedFileCount; // Track position among processed files
 		} else {
 			translatePath(input, mapFileUri, folderURIs, fileURIs);
+			processedFileCount++;
 		}
 	}
 
@@ -202,7 +206,16 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			}
 
 			// Make sure to open tmp file
-			translatePath(stdinFilePath, mapFileUri, folderURIs, fileURIs);
+			// Insert stdin file at the correct position instead of always appending
+			const url = pathToURI(stdinFilePath);
+			const mappedUri = mapFileUri(url.href);
+			if (stdinFilePosition >= 0 && stdinFilePosition < fileURIs.length) {
+				// Insert at the original position of the "-" argument
+				fileURIs.splice(stdinFilePosition, 0, mappedUri);
+			} else {
+				// Fallback to appending if position is invalid or at the end
+				fileURIs.push(mappedUri);
+			}
 
 			// Ignore adding this to history
 			parsedArgs['skip-add-to-recently-opened'] = true;
