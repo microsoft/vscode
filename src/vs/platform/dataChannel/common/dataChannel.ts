@@ -24,3 +24,15 @@ export interface IDataChannelEvent<T = unknown> {
 	channelId: string;
 	data: T;
 }
+
+export class NullDataChannelService implements IDataChannelService {
+	_serviceBrand: undefined;
+	get onDidSendData(): Event<IDataChannelEvent<unknown>> {
+		return Event.None;
+	}
+	getDataChannel<T>(_channelId: string): CoreDataChannel<T> {
+		return {
+			sendData: () => { },
+		};
+	}
+}
