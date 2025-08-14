@@ -21,6 +21,37 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ILinkLocation } from './taskHelpers.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 
+export interface IConfirmationPrompt {
+	prompt: string;
+	options: string[];
+}
+
+export interface IExecution {
+	getOutput: () => string;
+	isActive?: () => Promise<boolean>;
+	task?: Task | Pick<Task, 'configurationProperties'>;
+	beginsPattern?: string;
+	endsPattern?: string;
+	dependencyTasks?: Task[];
+	terminal: Pick<ITerminalInstance, 'runCommand'>;
+}
+
+export interface IPollingResult {
+	terminalExecutionIdleBeforeTimeout: boolean;
+	output: string;
+	resources?: ILinkLocation[];
+	pollDurationMs?: number;
+	modelOutputEvalResponse?: string;
+	confirmationPrompt?: IConfirmationPrompt;
+}
+
+export interface IRacePollingOrPromptResult {
+	terminalExecutionIdleBeforeTimeout: boolean;
+	output: string;
+	pollDurationMs?: number;
+	modelOutputEvalResponse?: string;
+}
+
 export const enum PollingConsts {
 	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
 	MinPollingDuration = 500,
@@ -35,21 +66,20 @@ export const enum PollingConsts {
  * If polling completes first, the prompt is removed. If the prompt completes first and is accepted, polling continues.
  */
 export async function racePollingOrPrompt(
-	pollFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
+	pollFn: () => Promise<IRacePollingOrPromptResult>,
 	promptFn: () => { promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide'> },
-	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string },
+	originalResult: IPollingResult,
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService,
 	markerService: IMarkerService,
-	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Task; beginsPattern?: string; endsPattern?: string; dependencyTasks?: Task[]; terminal: Pick<ITerminalInstance, 'runCommand'> }
-): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+	execution: IExecution
+): Promise<IRacePollingOrPromptResult> {
 	const pollPromise = pollFn();
 	const { promise: promptPromise, part } = promptFn();
 	let promptResolved = false;
 
 	const pollPromiseWrapped = pollPromise.then(async result => {
 		if (!promptResolved && part) {
-			// The terminal polling is finished, no need to show the prompt
 			part.hide();
 		}
 		return { type: 'poll', result };
@@ -64,17 +94,15 @@ export async function racePollingOrPrompt(
 		promptPromiseWrapped
 	]);
 	if (raceResult.type === 'poll') {
-		return raceResult.result as { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string };
+		return raceResult.result as IRacePollingOrPromptResult;
 	} else if (raceResult.type === 'prompt') {
 		const promptResult = raceResult.result as boolean;
 		if (promptResult) {
-			// User accepted, poll again (extended)
 			return await pollForOutputAndIdle(execution, true, token, languageModelsService, markerService);
 		} else {
-			return originalResult; // User rejected, return the original result
+			return originalResult;
 		}
 	}
-	// If prompt was rejected or something else, return the result of the first poll
 	return await pollFn();
 }
 
@@ -101,13 +129,13 @@ export function getOutput(terminal?: Pick<RawXtermTerminal, 'buffer'>, startMark
 }
 
 export async function pollForOutputAndIdle(
-	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Pick<Task, 'configurationProperties'>; dependencyTasks?: Task[]; terminal: Pick<ITerminalInstance, 'runCommand'> },
+	execution: IExecution,
 	extendedPolling: boolean,
 	token: CancellationToken,
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 	markerService: Pick<IMarkerService, 'read'>,
 	knownMatchers?: ProblemMatcher[]
-): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string; confirmationPrompt?: { prompt: string; options: string[] } }> {
+): Promise<IPollingResult> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 	let currentInterval = PollingConsts.MinPollingDuration;
@@ -204,13 +232,13 @@ export async function pollForOutputAndIdle(
 }
 
 async function handleConfirmationPrompt(
-	confirmationPrompt: { prompt: string; options: string[] } | undefined,
-	execution: { terminal: Pick<ITerminalInstance, 'runCommand'>; getOutput: () => string; isActive?: () => Promise<boolean>; task?: Pick<Task, 'configurationProperties'>; dependencyTasks?: Task[] },
+	confirmationPrompt: IConfirmationPrompt | undefined,
+	execution: IExecution,
 	token: CancellationToken,
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 	markerService: Pick<IMarkerService, 'read'>,
 	knownMatchers?: ProblemMatcher[]
-): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string; confirmationPrompt?: { prompt: string; options: string[] } } | undefined> {
+): Promise<IPollingResult | undefined> {
 	if (confirmationPrompt && confirmationPrompt.options.length > 0) {
 		const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot' });
 		if (models.length > 0) {
@@ -245,7 +273,7 @@ async function handleConfirmationPrompt(
 	return undefined;
 }
 
-async function detectConfirmationPromptWithLLM(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<{ prompt: string; options: string[] } | undefined> {
+async function detectConfirmationPromptWithLLM(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<IConfirmationPrompt | undefined> {
 	if (!buffer) {
 		return undefined;
 	}
