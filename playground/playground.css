@@ -1,0 +1,28 @@
+html,
+body {
+	font-family: system-ui;
+	margin: 0;
+	height: 100%;
+}
+
+main {
+	display: flex;
+	flex-flow: column;
+	height: 100%;
+}
+
+h1 {
+	background: #00a7da;
+	color: #111111;
+	flex: 0 1 auto;
+	margin: 0;
+	overflow: hidden;
+	padding: 0.5rem 1rem;
+	text-overflow: ellipsis;
+	text-wrap: nowrap;
+}
+
+#editor {
+	margin: 1rem;
+	flex: 1 1 auto;
+}

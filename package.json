@@ -214,6 +214,7 @@
     "typescript": "^6.0.0-dev.20250812",
     "typescript-eslint": "^8.39.0",
     "util": "^0.12.4",
+    "vite": "^7.0.0",
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",
     "webpack-stream": "^7.0.0",
