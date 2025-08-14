@@ -71,7 +71,7 @@ if ($env:VSCODE_ENV_APPEND) {
 # Register Python shell activate hooks
 # Prevent multiple activation with guard
 if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
-	$env:VSCODE_PYTHON_AUTOACTIVATE_GUARD = "1"
+	$env:VSCODE_PYTHON_AUTOACTIVATE_GUARD = '1'
 	if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
 		$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
 		Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
