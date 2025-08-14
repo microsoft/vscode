@@ -188,7 +188,7 @@ export interface AuthenticationChallenge {
 	params: Record<string, string>;
 }
 
-export interface AuthenticationSessionChallenge {
+export interface AuthenticationSessionRequest {
 	challenge: string;
 	scopes?: readonly string[];
 }
@@ -199,12 +199,11 @@ export interface AuthenticationConstraint {
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {
-	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedAuthorizationServers?: UriComponents[]): Promise<void>;
+	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedAuthorizationServers?: UriComponents[], supportsChallenges?: boolean): Promise<void>;
 	$unregisterAuthenticationProvider(id: string): Promise<void>;
 	$ensureProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): Promise<void>;
-	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
-	$getSessionFromChallenge(providerId: string, challenge: AuthenticationSessionChallenge, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
+	$getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
 	$getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents>;

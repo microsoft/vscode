@@ -775,9 +775,13 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 	throw new Error(`Invalid authorization dynamic client registration response: ${JSON.stringify(registration)}`);
 }
 
+export interface IAuthenticationChallenge {
+	scheme: string;
+	params: Record<string, string>;
+}
 
-export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): { scheme: string; params: Record<string, string> }[] {
-	const challenges: { scheme: string; params: Record<string, string> }[] = [];
+export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): IAuthenticationChallenge[] {
+	const challenges: IAuthenticationChallenge[] = [];
 
 	// According to RFC 7235, multiple challenges are separated by commas
 	// But parameters within a challenge can also be separated by commas

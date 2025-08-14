@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from './extHost.protocol.js';
 import { Disposable, ProgressLocation } from './extHostTypes.js';
 import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
-import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
+import { INTERNAL_AUTH_PROVIDER_PREFIX, isAuthenticationSessionRequest } from '../../services/authentication/common/authentication.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -79,37 +79,31 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		);
 	}
 
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: vscode.AuthenticationForceNewSessionOptions })): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: true }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: vscode.AuthenticationForceNewSessionOptions }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, challenge: vscode.AuthenticationSessionChallenge, options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, challenge: vscode.AuthenticationSessionChallenge, options?: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationSessionChallenge, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: vscode.AuthenticationForceNewSessionOptions })): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions & { forceNewSession: true }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions & { forceNewSession: vscode.AuthenticationForceNewSessionOptions }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const extensionName = requestingExtension.displayName || requestingExtension.name;
 
-		// Handle challenge-based authentication
-		if ('challenge' in scopesOrChallenge) {
-			const challenge = scopesOrChallenge as vscode.AuthenticationSessionChallenge;
-			const challengeStr = challenge.challenge;
-			const scopesStr = challenge.scopes ? [...challenge.scopes].sort().join(' ') : '';
-			const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
-			const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
-			return await this._getSessionTaskSingler.getOrCreate(`${extensionId} ${providerId} challenge:${challengeStr} ${scopesStr} ${optionsStr}`, async () => {
-				await this._proxy.$ensureProvider(providerId);
-				return this._proxy.$getSessionFromChallenge(providerId, challenge, extensionId, extensionName, options);
-			});
-		}
-
-		// Handle traditional scope-based authentication
-		const scopes = scopesOrChallenge as readonly string[];
-		const sortedScopes = [...scopes].sort().join(' ');
 		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
 		const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
-		return await this._getSessionTaskSingler.getOrCreate(`${extensionId} ${providerId} ${sortedScopes} ${optionsStr}`, async () => {
+
+		let singlerKey: string;
+		if (isAuthenticationSessionRequest(scopesOrRequest)) {
+			const challenge = scopesOrRequest as vscode.AuthenticationSessionRequest;
+			const challengeStr = challenge.challenge;
+			const scopesStr = challenge.scopes ? [...challenge.scopes].sort().join(' ') : '';
+			singlerKey = `${extensionId} ${providerId} challenge:${challengeStr} ${scopesStr} ${optionsStr}`;
+		} else {
+			const sortedScopes = [...scopesOrRequest].sort().join(' ');
+			singlerKey = `${extensionId} ${providerId} ${sortedScopes} ${optionsStr}`;
+		}
+
+		return await this._getSessionTaskSingler.getOrCreate(singlerKey, async () => {
 			await this._proxy.$ensureProvider(providerId);
-			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
+			return this._proxy.$getSession(providerId, scopesOrRequest, extensionId, extensionName, options);
 		});
 	}
 
@@ -130,7 +124,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			}
 			const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
 			this._authenticationProviders.set(id, { label, provider, disposable: listener, options: options ?? { supportsMultipleAccounts: false } });
-			await this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false, options?.supportedAuthorizationServers);
+			await this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false, options?.supportedAuthorizationServers, options?.supportsChallenges);
 		});
 
 		// unregister

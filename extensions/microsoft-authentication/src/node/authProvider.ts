@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccountInfo, AuthenticationResult, ClientAuthError, ClientAuthErrorCodes, ServerError, SilentFlowRequest } from '@azure/msal-node';
-import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
+import { AuthenticationChallenge, AuthenticationConstraint, AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriEventHandler } from '../UriEventHandler';
@@ -15,16 +15,6 @@ import { BetterTokenStorage } from '../betterSecretStorage';
 import { IStoredSession } from '../AADHelper';
 import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
-
-interface AuthenticationChallenge {
-	scheme: string;
-	params: Record<string, string>;
-}
-
-interface AuthenticationConstraint {
-	challenges: readonly AuthenticationChallenge[];
-	scopes?: readonly string[];
-}
 
 const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
@@ -164,7 +154,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	async getSessions(scopes: string[] | undefined, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession[]> {
 		const askingForAll = scopes === undefined;
-		const scopeData = new ScopeData(scopes, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
@@ -194,7 +184,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	}
 
 	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		const scopeData = new ScopeData(scopes, options.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
@@ -304,11 +294,11 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		if (!claims) {
 			throw new Error('No claims found in authentication challenges');
 		}
-		const scopeData = new ScopeData(scopes, options?.authorizationServer);
-		this._logger.info('[getSessionsFromChallenges]', `[${scopeData.scopeStr}]`, 'with claims:', claims);
+		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer);
+		this._logger.info('[getSessionsFromChallenges]', `[${scopeData.scopeStr}]`, 'with claims:', scopeData.claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
-		const sessions = await this.getAllSessionsForPcaWithClaims(cachedPca, scopeData, claims, options?.account);
+		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account);
 
 		this._logger.info('[getSessionsFromChallenges]', 'returning', sessions.length, 'sessions');
 		return sessions;
@@ -324,7 +314,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		// Use scopes if available, otherwise fall back to default scopes
 		const effectiveScopes = scopes.length > 0 ? scopes : ['https://graph.microsoft.com/User.Read'];
 
-		const scopeData = new ScopeData(effectiveScopes, options.authorizationServer);
+		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer);
 		this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'starting with claims:', claims);
 
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
@@ -374,7 +364,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					windowHandle: window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
-					claims: claims ? base64Decode(claims) : undefined
+					claims: scopeData.claims
 				};
 
 				const result = await flow.trigger(authRequest);
@@ -412,7 +402,17 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	private extractClaimsFromChallenges(challenges: readonly AuthenticationChallenge[]): string | undefined {
 		for (const challenge of challenges) {
 			if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.claims) {
-				return challenge.params.claims;
+				try {
+					return base64Decode(challenge.params.claims);
+				} catch (e) {
+					this._logger.warn('[extractClaimsFromChallenges]', 'failed to decode claims... checking if it is already JSON', e);
+					try {
+						JSON.parse(challenge.params.claims);
+						return challenge.params.claims;
+					} catch (e) {
+						this._logger.error('[extractClaimsFromChallenges]', 'failed to parse claims as JSON... returning undefined', e);
+					}
+				}
 			}
 		}
 		return undefined;
@@ -475,97 +475,20 @@ export class MsalAuthProvider implements AuthenticationProvider {
 							forceRefresh = true;
 						}
 					}
+					// When claims are present, force refresh to ensure we get a token that satisfies the claims
+					let claims: string | undefined;
+					if (scopeData.claims) {
+						forceRefresh = true;
+						claims = scopeData.claims;
+					}
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,
 						scopes: scopeData.scopesToSend,
 						redirectUri,
+						claims,
 						forceRefresh
 					});
-					sessions.push(this.sessionFromAuthenticationResult(result, scopeData.originalScopes));
-				} catch (e) {
-					// If we can't get a token silently, the account is probably in a bad state so we should skip it
-					// MSAL will log this already, so we don't need to log it again
-					this._telemetryReporter.sendTelemetryErrorEvent(e);
-					continue;
-				}
-			}
-			return sessions;
-		});
-	}
-
-	private async getAllSessionsForPcaWithClaims(
-		cachedPca: ICachedPublicClientApplication,
-		scopeData: ScopeData,
-		claims: string,
-		accountFilter?: AuthenticationSessionAccountInformation
-	): Promise<AuthenticationSession[]> {
-		let filteredAccounts = accountFilter
-			? cachedPca.accounts.filter(a => a.homeAccountId === accountFilter.id)
-			: cachedPca.accounts;
-
-		// Group accounts by homeAccountId
-		const accountGroups = new Map<string, AccountInfo[]>();
-		for (const account of filteredAccounts) {
-			const existing = accountGroups.get(account.homeAccountId) || [];
-			existing.push(account);
-			accountGroups.set(account.homeAccountId, existing);
-		}
-
-		// Filter to one account per homeAccountId
-		filteredAccounts = Array.from(accountGroups.values()).map(accounts => {
-			if (accounts.length === 1) {
-				return accounts[0];
-			}
-
-			// If we have a specific tenant to target, prefer that one
-			if (scopeData.tenantId) {
-				const matchingTenant = accounts.find(a => a.tenantId === scopeData.tenantId);
-				if (matchingTenant) {
-					return matchingTenant;
-				}
-			}
-
-			// Otherwise prefer the home tenant
-			return accounts.find(a => a.tenantId === a.idTokenClaims?.tid) || accounts[0];
-		});
-
-		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
-		const sessions: AuthenticationSession[] = [];
-		return this._eventBufferer.bufferEventsAsync(async () => {
-			for (const account of filteredAccounts) {
-				try {
-					let forceRefresh: true | undefined;
-					if (scopeData.tenantId) {
-						// If the tenants do not match, then we need to skip the cache
-						// to get a new token for the new tenant
-						if (account.tenantId !== scopeData.tenantId) {
-							forceRefresh = true;
-						}
-					} else {
-						// If we are requesting the home tenant and we don't yet have
-						// a token for the home tenant, we need to skip the cache
-						// to get a new token for the home tenant
-						if (account.tenantId !== account.idTokenClaims?.tid) {
-							forceRefresh = true;
-						}
-					}
-
-					// When claims are present, force refresh to ensure we get a token that satisfies the claims
-					if (claims) {
-						forceRefresh = true;
-					}
-
-					const tokenRequest: SilentFlowRequest = {
-						account,
-						authority,
-						scopes: scopeData.scopesToSend,
-						redirectUri,
-						forceRefresh,
-						claims: base64Decode(claims)
-					};
-
-					const result = await cachedPca.acquireTokenSilent(tokenRequest);
 					sessions.push(this.sessionFromAuthenticationResult(result, scopeData.originalScopes));
 				} catch (e) {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
