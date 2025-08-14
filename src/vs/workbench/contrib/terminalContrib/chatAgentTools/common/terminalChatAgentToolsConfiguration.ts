@@ -107,8 +107,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			column: true,
 			which: true,
 			date: true,
-			time: true,
-			env: true,
 			printenv: true,
 			uname: true,
 			hostname: true,
