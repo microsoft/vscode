@@ -193,6 +193,7 @@ export interface AuthenticationSessionRequest {
 	scopes?: readonly string[];
 }
 
+//TODO: I don't love the name of this interface...
 export interface AuthenticationConstraint {
 	challenges: readonly AuthenticationChallenge[];
 	scopes?: readonly string[];

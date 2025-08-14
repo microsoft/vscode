@@ -44,21 +44,6 @@ export interface AuthenticationGetSessionOptions {
 	authorizationServer?: UriComponents;
 }
 
-export interface AuthenticationChallenge {
-	scheme: string;
-	params: Record<string, string>;
-}
-
-export interface AuthenticationSessionChallenge {
-	challenge: string;
-	scopes?: readonly string[];
-}
-
-export interface AuthenticationConstraint {
-	challenges: readonly AuthenticationChallenge[];
-	scopes?: readonly string[];
-}
-
 class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
 
 	readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
@@ -477,7 +462,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
-		// TODO?: should I do this wild fallback of parsing the challenges? I'm thinking no
 		const scopes = isAuthenticationSessionRequest(scopeListOrRequest) ? scopeListOrRequest.scopes : scopeListOrRequest;
 		if (scopes) {
 			this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
