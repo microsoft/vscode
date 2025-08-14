@@ -2109,20 +2109,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const { mode, tools, model } = metadata;
 
-		// switch to appropriate chat mode if needed
-		if (mode && mode !== this.input.currentModeKind) {
-			// Find the mode object to get its kind
-			const modeObject = this.chatModeService.findModeByName(mode);
-			const modeKind = modeObject?.kind ?? ChatModeKind.Agent; // Default to Agent for custom modes
+		const currentMode = this.input.currentModeObs.get();
 
-			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, this.input.currentModeKind, modeKind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
-			if (!chatModeCheck) {
-				return undefined;
-			} else if (chatModeCheck.needToClearSession) {
-				this.clear();
-				await this.waitForReady();
+		// switch to appropriate chat mode if needed
+		if (mode && mode !== currentMode.name) {
+			// Find the mode object to get its kind
+			const chatMode = this.chatModeService.findModeByName(mode);
+			if (chatMode) {
+				if (currentMode.kind !== chatMode.kind) {
+					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentMode.kind, chatMode.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+					if (!chatModeCheck) {
+						return undefined;
+					} else if (chatModeCheck.needToClearSession) {
+						this.clear();
+						await this.waitForReady();
+					}
+				}
+				this.input.setChatMode(chatMode.id);
 			}
-			this.input.setChatMode(mode);
 		}
 
 		// if not tools to enable are present, we are done
