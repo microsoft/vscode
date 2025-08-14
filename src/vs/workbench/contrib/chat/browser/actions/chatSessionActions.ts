@@ -9,9 +9,10 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import Severity from '../../../../../base/common/severity.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -45,7 +46,7 @@ export class RenameChatSessionAction extends Action2 {
 		}
 
 		const chatSessionsService = accessor.get(IChatSessionsService);
-		const notificationService = accessor.get(INotificationService);
+		const logService = accessor.get(ILogService);
 		const chatService = accessor.get(IChatService);
 
 		try {
@@ -54,10 +55,10 @@ export class RenameChatSessionAction extends Action2 {
 			await chatSessionsService.setEditableSession(context.sessionId, {
 				validationMessage: (value: string) => {
 					if (!value || value.trim().length === 0) {
-						return { content: localize('renameSession.emptyName', "Name cannot be empty"), severity: 1 /* Error */ };
+						return { content: localize('renameSession.emptyName', "Name cannot be empty"), severity: Severity.Error };
 					}
 					if (value.length > 100) {
-						return { content: localize('renameSession.nameTooLong', "Name is too long (maximum 100 characters)"), severity: 1 /* Error */ };
+						return { content: localize('renameSession.nameTooLong', "Name is too long (maximum 100 characters)"), severity: Severity.Error };
 					}
 					return null;
 				},
@@ -67,13 +68,9 @@ export class RenameChatSessionAction extends Action2 {
 					if (success && value && value.trim() !== context.currentTitle) {
 						try {
 							const newTitle = value.trim();
-							await chatService.setChatSessionTitle(context.sessionId, newTitle);
-
-							notificationService.info(
-								localize('renameSession.success', "Chat session renamed to '{0}'", newTitle)
-							);
+							chatService.setChatSessionTitle(context.sessionId, newTitle);
 						} catch (error) {
-							notificationService.error(
+							logService.error(
 								localize('renameSession.error', "Failed to rename chat session: {0}",
 									(error instanceof Error ? error.message : String(error)))
 							);
@@ -83,10 +80,7 @@ export class RenameChatSessionAction extends Action2 {
 				}
 			});
 		} catch (error) {
-			notificationService.error(
-				localize('renameSession.error', "Failed to rename chat session: {0}",
-					(error instanceof Error ? error.message : String(error)))
-			);
+			logService.error('Failed to rename chat session', error instanceof Error ? error.message : String(error));
 		}
 	}
 }

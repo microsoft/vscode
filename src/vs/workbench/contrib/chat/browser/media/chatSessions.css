@@ -41,15 +41,17 @@
 	opacity: 0.7;
 }
 
-/* Styling for chat session items being edited */
-.chat-sessions-view .session-input-container {
+/* Styling for chat session items being edited - exactly matching Explorer's approach */
+.chat-sessions-tree .session-input-container {
 	display: flex;
 	align-items: center;
 	width: 100%;
-	padding: 2px 8px;
+	padding: 0;
+	/* Override the input border variable to be transparent */
+	--vscode-input-border: transparent;
 }
 
-.chat-sessions-view .session-input-container .session-input-icon {
+.chat-sessions-tree .session-input-container .session-input-icon {
 	margin-right: 6px;
 	flex-shrink: 0;
 	width: 16px;
@@ -59,21 +61,19 @@
 	justify-content: center;
 }
 
-.chat-sessions-view .session-input-container .monaco-inputbox {
+/* Override inline styles to match Explorer's exact inputbox styling */
+.chat-sessions-tree .session-input-container .monaco-inputbox {
 	flex: 1;
 	min-width: 0;
+	height: 22px !important;
 }
 
-.chat-sessions-view .session-input-container .monaco-inputbox .input {
-	background: transparent !important;
-	border: 1px solid var(--vscode-focusBorder) !important;
-	color: var(--vscode-input-foreground) !important;
-	font-family: inherit !important;
-	font-size: inherit !important;
-	padding: 2px 4px !important;
+.chat-sessions-tree .session-input-container .monaco-inputbox > .ibwrapper > .input {
+	padding: 0 !important;
+	height: 20px !important;
+	line-height: 20px !important;
 }
 
-.chat-sessions-view .session-input-container .monaco-inputbox .input:focus {
-	border-color: var(--vscode-focusBorder) !important;
-	outline: none !important;
+.chat-sessions-tree .session-input-container .monaco-inputbox:focus-within {
+	--vscode-input-border: var(--vscode-focusBorder) !important;
 }
