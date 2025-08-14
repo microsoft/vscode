@@ -1005,7 +1005,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 class BackgroundTerminalExecution extends Disposable {
 	private _startMarker?: IXtermMarker;
-
+	get terminal(): ITerminalInstance {
+		return this.instance;
+	}
 	constructor(
 		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,

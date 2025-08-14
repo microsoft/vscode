@@ -146,16 +146,16 @@ export async function collectTerminalResults(
 	const results: Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }> = [];
 	for (const terminal of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, false, token, languageModelsService, markerService);
+		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, false, token, languageModelsService, markerService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, true, token, languageModelsService, markerService),
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, true, token, languageModelsService, markerService),
 				() => promptForMorePolling(task._label, token, invocationContext, chatService),
 				outputAndIdle,
 				token,
 				languageModelsService,
 				markerService,
-				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive, dependencyTasks },
+				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive, dependencyTasks, terminal },
 			);
 		}
 		results.push({
