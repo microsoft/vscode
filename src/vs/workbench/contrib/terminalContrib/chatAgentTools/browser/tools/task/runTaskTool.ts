@@ -10,7 +10,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { IChatService } from '../../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
+import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -109,10 +109,16 @@ export class RunTaskTool implements IToolImpl {
 				: 'started and will continue to run in the background.';
 		}
 
-		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`).join('\n\n');
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
+		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		return {
-			content: [{ kind: 'text', value: details }],
-			toolResultMessage: new MarkdownString(resultSummary)
+			content: [{ kind: 'text', value: uniqueDetails }],
+			toolResultMessage: new MarkdownString(resultSummary),
+			toolResultDetails: Array.from(new Map(
+				terminalResults
+					.flatMap(r => r.resources?.filter(res => res.uri && res.range).map(res => ({ uri: res.uri, range: res.range })) ?? [])
+					.map(item => [`${item.uri.toString()}-${item.range.toString()}`, item])
+			).values())
 		};
 	}
 
@@ -163,6 +169,7 @@ export const RunTaskToolData: IToolData = {
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running tasks in the workspace'),
 	icon: Codicon.tools,
 	source: ToolDataSource.Internal,
+	when: TasksAvailableContext,
 	inputSchema: {
 		'type': 'object',
 		'properties': {
