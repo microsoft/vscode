@@ -15,7 +15,7 @@ import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/la
 import { IToolInvocationContext } from '../../../chat/common/languageModelToolsService.js';
 import type { Terminal as RawXtermTerminal, IMarker as IXtermMarker } from '@xterm/xterm';
 import { Task } from '../../../tasks/common/taskService.js';
-import { IMarkerData, IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { IMarker, IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { ProblemMatcher, ProblemMatcherRegistry } from '../../../tasks/common/problemMatcher.js';
 
 export const enum PollingConsts {
@@ -165,7 +165,27 @@ export async function pollForOutputAndIdle(
 				for (const [, problemArray] of problems.entries()) {
 					if (problemArray.length) {
 						for (const p of problemArray) {
-							problemList.push(`${p.severity}: ${p.message}`);
+							let location = '';
+							let label = p.resource ? p.resource.path.split('/').pop() ?? p.resource.toString() : '';
+							let uri = p.resource ? p.resource.toString() : '';
+							if (typeof p.startLineNumber === 'number' && typeof p.startColumn === 'number') {
+								uri += `:${p.startLineNumber}:${p.startColumn}`;
+								label += `:${p.startLineNumber}:${p.startColumn}`;
+								if (typeof p.endLineNumber === 'number' && typeof p.endColumn === 'number') {
+									uri += `-${p.endLineNumber}:${p.endColumn}`;
+									label += `-${p.endLineNumber}:${p.endColumn}`;
+								}
+							} else if (typeof p.startLineNumber === 'number') {
+								uri += `:${p.startLineNumber}`;
+								label += `:${p.startLineNumber}`;
+							} else if (typeof p.startColumn === 'number') {
+								uri += `:${p.startColumn}`;
+								label += `:${p.startColumn}`;
+							}
+							if (uri) {
+								location = `[${label}](${uri})`;
+							}
+							problemList.push(`Problem with severity ${p.severity.toString()}: ${p.message} at ${location ? ` (${location})` : 'unknown'}`);
 						}
 					}
 				}
@@ -252,8 +272,8 @@ export async function assessOutputForErrors(buffer: string, token: CancellationT
 	}
 }
 
-export function getProblemsForTasks(task: Pick<Task, 'configurationProperties'>, markerService: Pick<IMarkerService, 'read'>, dependencyTasks?: Task[], knownMatchers?: ProblemMatcher[]): Map<string, IMarkerData[]> | undefined {
-	const problemsMap = new Map<string, IMarkerData[]>();
+export function getProblemsForTasks(task: Pick<Task, 'configurationProperties'>, markerService: Pick<IMarkerService, 'read'>, dependencyTasks?: Task[], knownMatchers?: ProblemMatcher[]): Map<string, IMarker[]> | undefined {
+	const problemsMap = new Map<string, IMarker[]>();
 	let hadDefinedMatcher = false;
 
 	const collectProblems = (t: Pick<Task, 'configurationProperties'>) => {
