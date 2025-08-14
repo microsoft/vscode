@@ -25,6 +25,7 @@ import { hotClassGetOriginalInstance } from '../../../../../platform/observable/
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { ICodeEditorService } from '../../../../browser/services/codeEditorService.js';
 import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
@@ -99,6 +100,7 @@ export class InlineCompletionsController extends Disposable {
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
 		this._editorObs = observableCodeEditor(this.editor);
@@ -163,10 +165,17 @@ export class InlineCompletionsController extends Disposable {
 			// Cancel all other inline completions when a new one starts
 			const model = this.model.read(reader);
 			if (!model) { return; }
-			if (model.state.read(reader) !== undefined) {
+			const state = model.state.read(reader);
+			const activeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
+
+			if (state && activeEditor === this.editor) {
 				for (const ctrl of InlineCompletionsController._instances) {
 					if (ctrl !== this) {
-						ctrl.reject();
+						if (state.kind === 'inlineEdit' && state.inlineCompletion.uri && isEqual(state.inlineCompletion.uri, ctrl.editor.getModel()?.uri)) {
+							ctrl.model.get()?.triggerExplicitly(undefined, { evenIfNotActiveEditor: true });
+						} else {
+							ctrl.reject();
+						}
 					}
 				}
 			}
@@ -175,6 +184,7 @@ export class InlineCompletionsController extends Disposable {
 		this._register(runOnChange(this._editorObs.onDidType, (_value, _changes) => {
 			if (this._enabled.get()) {
 				this.model.get()?.trigger();
+				this.model.get()!.isFirstCell = true;
 				InlineCompletionsController._lastEditedModelUri = this.editor.getModel()?.uri;
 			}
 		}));
@@ -260,6 +270,8 @@ export class InlineCompletionsController extends Disposable {
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidBlurEditorWidget */
 				model.stop('automatic', tx);
+
+				this.stopOtherControllers();
 			});
 		}));
 
@@ -381,6 +393,17 @@ export class InlineCompletionsController extends Disposable {
 		alert(hint ? content + ', ' + hint : content);
 	}
 
+	private stopOtherControllers(){
+		// Reject others as well
+		const activeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
+		if (activeEditor === this.editor) {
+			for (const ctrl of InlineCompletionsController._instances) {
+				if (ctrl !== this) {
+					ctrl.model.get()?.stop('automatic');
+				}
+			}
+		}
+	}
 	public shouldShowHoverAt(range: Range) {
 		const ghostText = this.model.get()?.primaryGhostText.get();
 		if (!ghostText) {
@@ -398,6 +421,7 @@ export class InlineCompletionsController extends Disposable {
 			const m = this.model.get();
 			if (m) {
 				m.stop('explicitCancel', tx);
+				this.stopOtherControllers();
 			}
 		});
 	}

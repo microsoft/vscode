@@ -55,6 +55,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
 	private readonly _isActive = observableValue<boolean>(this, false);
+	private readonly _evenIfNotActiveEditor = observableValue<boolean>(this, false);
 	private readonly _onlyRequestInlineEditsSignal = observableSignal(this);
 	private readonly _forceUpdateExplicitlySignal = observableSignal(this);
 	private readonly _noDelaySignal = observableSignal(this);
@@ -98,6 +99,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _inlineEditsShowCollapsedEnabled;
 	private readonly _triggerCommandOnProviderChange;
 	private readonly _minimalDelay;
+	public isFirstCell: boolean = false;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -189,13 +191,16 @@ export class InlineCompletionsModel extends Disposable {
 			}
 
 			store.add(provider.onDidChangeInlineCompletions(() => {
+				if (this._editor.getValue().indexOf('import sys') > 0){
+					console.log(1);
+				}
 				if (!this._enabled.get()) {
 					return;
 				}
 
-				// Only update the active editor
+				// // Only update the active editor
 				const activeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
-				if (activeEditor !== this._editor) {
+				if (!this._evenIfNotActiveEditor.get() && activeEditor !== this._editor) {
 					return;
 				}
 
@@ -433,13 +438,14 @@ export class InlineCompletionsModel extends Disposable {
 		await this._fetchInlineCompletionsPromise.get();
 	}
 
-	public async triggerExplicitly(tx?: ITransaction, onlyFetchInlineEdits: boolean = false): Promise<void> {
+	public async triggerExplicitly(tx?: ITransaction, options: { onlyFetchInlineEdits?: boolean; evenIfNotActiveEditor?: boolean } = { onlyFetchInlineEdits: false }): Promise<void> {
 		subtransaction(tx, tx => {
-			if (onlyFetchInlineEdits) {
+			if (options?.onlyFetchInlineEdits) {
 				this._onlyRequestInlineEditsSignal.trigger(tx);
 			}
 			this._isActive.set(true, tx);
 			this._inAcceptFlow.set(true, tx);
+			this._evenIfNotActiveEditor.set(!!options?.evenIfNotActiveEditor, tx);
 			this._forceUpdateExplicitlySignal.trigger(tx);
 		});
 		await this._fetchInlineCompletionsPromise.get();
@@ -455,6 +461,7 @@ export class InlineCompletionsModel extends Disposable {
 			}
 
 			this._isActive.set(false, tx);
+			this._evenIfNotActiveEditor.set(false, tx);
 			this._source.clear(tx);
 		});
 	}

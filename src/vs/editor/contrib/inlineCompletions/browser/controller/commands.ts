@@ -94,7 +94,7 @@ export class ExplicitTriggerInlineEditAction extends EditorAction {
 		const notificationService = accessor.get(INotificationService);
 		const controller = InlineCompletionsController.get(editor);
 
-		await controller?.model.get()?.triggerExplicitly(undefined, true);
+		await controller?.model.get()?.triggerExplicitly(undefined, { onlyFetchInlineEdits: true });
 		if (!controller?.model.get()?.inlineEditAvailable.get()) {
 			notificationService.notify({
 				severity: Severity.Info,
