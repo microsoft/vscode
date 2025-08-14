@@ -78,7 +78,7 @@ end
 # Register Python shell activate hooks
 if test -n "$VSCODE_PYTHON_FISH_ACTIVATE"; and test "$TERM_PROGRAM" = "vscode"
 	# Prevent multiple activation with guard
-	if test -z "$VSCODE_PYTHON_AUTOACTIVATE_GUARD"
+	if not set -q VSCODE_PYTHON_AUTOACTIVATE_GUARD
 		set -gx VSCODE_PYTHON_AUTOACTIVATE_GUARD 1
 		# Fish does not crash on eval failure, so don't need negation.
 		eval $VSCODE_PYTHON_FISH_ACTIVATE
