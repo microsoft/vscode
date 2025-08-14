@@ -17,8 +17,8 @@ import type { Terminal as RawXtermTerminal, IMarker as IXtermMarker } from '@xte
 import { Task } from '../../../tasks/common/taskService.js';
 import { IMarker, IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { ProblemMatcher, ProblemMatcherRegistry } from '../../../tasks/common/problemMatcher.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { ILinkLocation } from './taskHelpers.js';
 
 export const enum PollingConsts {
 	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
@@ -36,7 +36,7 @@ export const enum PollingConsts {
 export async function racePollingOrPrompt(
 	pollFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
 	promptFn: () => { promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide'> },
-	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: { uri: URI; range: Range }[]; pollDurationMs?: number; modelOutputEvalResponse?: string },
+	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string },
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService,
 	markerService: IMarkerService,
@@ -106,7 +106,7 @@ export async function pollForOutputAndIdle(
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 	markerService: Pick<IMarkerService, 'read'>,
 	knownMatchers?: ProblemMatcher[]
-): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: { uri: URI; range: Range }[]; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 	let currentInterval = PollingConsts.MinPollingDuration;
@@ -158,7 +158,7 @@ export async function pollForOutputAndIdle(
 			}
 		}
 		terminalExecutionIdleBeforeTimeout = true;
-		let resources: { uri: URI; range: Range }[] | undefined;
+		let resources: ILinkLocation[] | undefined;
 		if (execution.task) {
 			const problems = getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
 			if (problems) {
