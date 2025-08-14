@@ -14,13 +14,14 @@ import { ILanguageFeaturesService } from '../../../../../../editor/common/servic
 import { localize } from '../../../../../../nls.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../../languageModelToolsService.js';
-import { IChatModeService } from '../../chatModes.js';
+import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { InstructionsHeader } from '../parsers/promptHeader/instructionsHeader.js';
 import { PromptModelMetadata } from '../parsers/promptHeader/metadata/model.js';
 import { PromptToolsMetadata } from '../parsers/promptHeader/metadata/tools.js';
 import { ModeHeader } from '../parsers/promptHeader/modeHeader.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
+import { PromptModeMetadata } from '../parsers/promptHeader/metadata/mode.js';
 
 export class PromptHeaderHoverProvider extends Disposable implements HoverProvider {
 	/**
@@ -97,7 +98,7 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 				return this.getModelHover(model, model.range, localize('promptHeader.mode.model', 'The model to use in this mode.'));
 			}
 			const tools = header.metadataUtility.tools;
-			if (tools?.range?.containsPosition(position)) {
+			if (tools?.range.containsPosition(position)) {
 				return this.getToolHover(tools, position, localize('promptHeader.mode.tools', 'The tools to use in this mode.'));
 			}
 		} else {
@@ -110,12 +111,12 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 				return this.getModelHover(model, model.range, localize('promptHeader.prompt.model', 'The model to use in this prompt.'));
 			}
 			const tools = header.metadataUtility.tools;
-			if (tools?.range?.containsPosition(position)) {
+			if (tools?.range.containsPosition(position)) {
 				return this.getToolHover(tools, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'));
 			}
-			const modeRange = header.metadataUtility.mode?.range;
-			if (modeRange?.containsPosition(position)) {
-				return this.getModeHover(modeRange);
+			const mode = header.metadataUtility.mode;
+			if (mode?.range.containsPosition(position)) {
+				return this.getModeHover(mode, position, localize('promptHeader.prompt.mode', 'The mode to use in this prompt.'));
 			}
 		}
 		return undefined;
@@ -174,30 +175,39 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 		return this.createHover(baseMessage, range);
 	}
 
-	private getModeHover(range: Range): Hover {
-		const modes = this.chatModeService.getModes();
-
+	private getModeHover(mode: PromptModeMetadata, position: Position, baseMessage: string): Hover | undefined {
 		const lines: string[] = [];
-		lines.push(localize('promptHeader.prompt.mode.description', 'The chat mode to use when running this prompt.'));
-		lines.push('');
 
-		// Built-in modes
-		lines.push(localize('promptHeader.prompt.mode.builtin', '**Built-in modes:**'));
-		for (const mode of modes.builtin) {
-			lines.push(`- \`${mode.name}\`: ${mode.description.get() || mode.label}`);
-		}
 
-		// Custom modes
-		if (modes.custom.length > 0) {
+		const value = mode.value;
+		if (value && mode.valueRange?.containsPosition(position)) {
+			const mode = this.chatModeService.findModeByName(value);
+			if (mode) {
+				const description = mode.description.get() || (isBuiltinChatMode(mode) ? localize('promptHeader.prompt.mode.builtInDesc', 'Built-in chat mode') : localize('promptHeader.prompt.mode.customDesc', 'Custom chat mode'));
+				lines.push(`\`${mode.name}\`: ${description}`);
+			}
+		} else {
+			const modes = this.chatModeService.getModes();
+			lines.push(localize('promptHeader.prompt.mode.description', 'The chat mode to use when running this prompt.'));
 			lines.push('');
-			lines.push(localize('promptHeader.prompt.mode.custom', '**Custom modes:**'));
-			for (const mode of modes.custom) {
-				const description = mode.description.get();
-				lines.push(`- \`${mode.name}\`: ${description || localize('promptHeader.prompt.mode.customNoDesc', 'Custom chat mode')}`);
+
+			// Built-in modes
+			lines.push(localize('promptHeader.prompt.mode.builtin', '**Built-in modes:**'));
+			for (const mode of modes.builtin) {
+				lines.push(`- \`${mode.name}\`: ${mode.description.get() || mode.label}`);
+			}
+
+			// Custom modes
+			if (modes.custom.length > 0) {
+				lines.push('');
+				lines.push(localize('promptHeader.prompt.mode.custom', '**Custom modes:**'));
+				for (const mode of modes.custom) {
+					const description = mode.description.get();
+					lines.push(`- \`${mode.name}\`: ${description || localize('promptHeader.prompt.mode.customDesc', 'Custom chat mode')}`);
+				}
 			}
 		}
-
-		return this.createHover(lines.join('\n'), range);
+		return this.createHover(lines.join('\n'), mode.range);
 	}
 
 }
