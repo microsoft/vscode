@@ -107,11 +107,11 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._isExpanded.set(value, undefined);
 	}
 
-	protected setTitle(title: IMarkdownString | string): void {
+	protected setTitle(title: string): void {
 		this.title = title;
 		if (this._collapseButton) {
 			this._collapseButton.label = title;
-			this.updateAriaLabel(this._collapseButton.element, typeof title === 'string' ? title : title.value, this.isExpanded());
+			this.updateAriaLabel(this._collapseButton.element, title, this.isExpanded());
 		}
 	}
 }
