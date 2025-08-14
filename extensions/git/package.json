@@ -184,8 +184,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.stageAllToWorkspace",
-        "title": "%command.stageAllToWorkspace%",
+        "command": "git.applyAllToWorkspace",
+        "title": "%command.applyAllToWorkspace%",
         "category": "Git",
         "icon": "$(arrow-up)",
         "enablement": "!operationInProgress"
@@ -236,8 +236,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.stageToWorkspace",
-        "title": "%command.stageToWorkspace%",
+        "command": "git.applyToWorkspace",
+        "title": "%command.applyToWorkspace%",
         "category": "Git",
         "icon": "$(arrow-up)",
         "enablement": "!operationInProgress"
@@ -1768,7 +1768,7 @@
           "group": "1_modification"
         },
         {
-          "command": "git.stageAllToWorkspace",
+          "command": "git.applyAllToWorkspace",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
           "group": "1_modification"
         },
@@ -1783,7 +1783,7 @@
           "group": "inline@2"
         },
         {
-          "command": "git.stageAllToWorkspace",
+          "command": "git.applyAllToWorkspace",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
           "group": "inline@2"
         },
@@ -2037,7 +2037,7 @@
           "group": "1_modification"
         },
         {
-          "command": "git.stageToWorkspace",
+          "command": "git.applyToWorkspace",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification"
         },
@@ -2057,7 +2057,7 @@
           "group": "inline@2"
         },
         {
-          "command": "git.stageToWorkspace",
+          "command": "git.applyToWorkspace",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline@3"
         },

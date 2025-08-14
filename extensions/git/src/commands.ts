@@ -2041,8 +2041,8 @@ export class CommandCenter {
 		textEditor.revealRange(visibleRangesBeforeRevert[0]);
 	}
 
-	@command('git.stageToWorkspace')
-	async stageToWorkspace(...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.applyToWorkspace')
+	async applyToWorkspace(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
@@ -2063,11 +2063,11 @@ export class CommandCenter {
 		}
 
 		for (const resource of scmResources) {
-			await this._stageToWorkspace(resource);
+			await this._applyToWorkspace(resource);
 		}
 	}
 
-	private async _stageToWorkspace(resource: Resource): Promise<void> {
+	private async _applyToWorkspace(resource: Resource): Promise<void> {
 		const repository = this.model.getRepository(resource.resourceUri);
 
 		if (!repository) {
@@ -2076,7 +2076,6 @@ export class CommandCenter {
 
 		// Not a worktree
 		if (!repository.dotGit.commonPath) {
-			await this.stage(resource);
 			return;
 		}
 
@@ -2085,39 +2084,24 @@ export class CommandCenter {
 		const parentFileUri = Uri.file(path.join(parentRepoRoot, relPath));
 
 		// Copy changes from worktree to current workspace
-		enum OperationType { Written, Deleted }
-		let operation: OperationType = OperationType.Written;
 		if (resource.type === Status.DELETED || resource.type === Status.INDEX_DELETED) {
 			try {
 				await workspace.fs.delete(parentFileUri, { recursive: false, useTrash: false });
 			} catch {
 				// File does not exist, ignore
 			}
-			operation = OperationType.Deleted;
 		} else {
-			// Written operation
 			const parentDir = path.dirname(parentFileUri.fsPath);
 			await workspace.fs.createDirectory(Uri.file(parentDir));
 			const data = await workspace.fs.readFile(resource.resourceUri);
 			await workspace.fs.writeFile(parentFileUri, data);
-			operation = OperationType.Written;
-		}
-
-		const parentRepository = this.model.getRepository(parentFileUri);
-		if (parentRepository) {
-			if (operation === OperationType.Deleted) {
-				await parentRepository.rm([parentFileUri]);
-			} else {
-				await parentRepository.add([parentFileUri]);
-			}
 		}
 	}
 
-	@command('git.stageAllToWorkspace', { repository: true })
-	async stageAllToWorkspace(repository: Repository): Promise<void> {
+	@command('git.applyAllToWorkspace', { repository: true })
+	async applyAllToWorkspace(repository: Repository): Promise<void> {
 		// Not a worktree
 		if (!repository.dotGit.commonPath) {
-			await this.stageAll(repository);
 			return;
 		}
 
@@ -2129,7 +2113,7 @@ export class CommandCenter {
 		}
 
 		for (const resource of resources) {
-			await this._stageToWorkspace(resource);
+			await this._applyToWorkspace(resource);
 		}
 	}
 
