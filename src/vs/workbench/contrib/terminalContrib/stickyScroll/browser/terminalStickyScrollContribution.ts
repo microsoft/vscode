@@ -93,7 +93,6 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 			}
 		}
 
-		// Always listen for rich command detection changes
 		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (capability && !this._richCommandDetectionListeners.value) {
 			this._richCommandDetectionListeners.value = capability.onSetRichCommandDetection(() => {
