@@ -169,7 +169,7 @@ export namespace MarkedKatexExtension {
 	export interface MarkedKatexOptions extends KatexOptions { }
 
 	const inlineRule = /^(\${1,2})(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\1(?=[\s?!\.,:'\uff1f\uff01\u3002\uff0c\uff1a']|$)/;
-	const inlineRuleNonStandard = /^(\${1,2})(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\1(?![a-zA-Z0-9])/; // Non-standard, but ensure closing $ is not followed by word/number characters
+	const inlineRuleNonStandard = /^(?<![a-zA-Z0-9])(\${1,2})(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\1(?![a-zA-Z0-9])/; // Non-standard, but ensure opening $ is not preceded and closing $ is not followed by word/number characters
 
 	const blockRule = /^(\${1,2})\n((?:\\[^]|[^\\])+?)\n\1(?:\n|$)/;
 
@@ -214,16 +214,10 @@ export namespace MarkedKatexExtension {
 					if (index === -1) {
 						return;
 					}
-					// Check that the opening $ is not immediately preceded by a word or number character
-					const prevChar = index > 0 ? indexSrc.charAt(index - 1) : '';
-					const isValidStart = index === 0 || !/[a-zA-Z0-9]/.test(prevChar);
-					
-					if (isValidStart) {
-						const possibleKatex = indexSrc.substring(index);
 
-						if (possibleKatex.match(ruleReg)) {
-							return index;
-						}
+					const possibleKatex = indexSrc.substring(index);
+					if (possibleKatex.match(ruleReg)) {
+						return index;
 					}
 
 					indexSrc = indexSrc.substring(index + 1).replace(/^\$+/, '');
