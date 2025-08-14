@@ -25,6 +25,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		this._register(toolsService.registerToolImplementation(EditToolData.id, editTool));
 
 		const manageTodoListTool = instantiationService.createInstance(ManageTodoListTool);
+		this._register(manageTodoListTool);
 		this._register(toolsService.registerToolData(ManageTodoListToolData));
 		this._register(toolsService.registerToolImplementation(ManageTodoListToolData.id, manageTodoListTool));
 	}
