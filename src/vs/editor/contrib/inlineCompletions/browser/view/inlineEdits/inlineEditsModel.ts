@@ -16,7 +16,6 @@ import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineCompletionItem } from '../../model/inlineSuggestionItem.js';
 import { IInlineEditHost, IInlineEditModel, InlineCompletionViewData, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-import { URI } from '../../../../../../base/common/uri.js';
 
 export class InlineEditModel implements IInlineEditModel {
 
@@ -26,7 +25,6 @@ export class InlineEditModel implements IInlineEditModel {
 	readonly isInDiffEditor: boolean;
 
 	readonly displayLocation: InlineCompletionDisplayLocation | undefined;
-	readonly uri: URI | undefined;
 	readonly showCollapsed: IObservable<boolean>;
 
 	constructor(
@@ -41,7 +39,6 @@ export class InlineEditModel implements IInlineEditModel {
 
 		this.displayLocation = this.inlineEdit.inlineCompletion.displayLocation;
 		this.showCollapsed = this._model.showCollapsed;
-		this.uri = this.inlineEdit.inlineCompletion.uri;
 	}
 
 	accept() {

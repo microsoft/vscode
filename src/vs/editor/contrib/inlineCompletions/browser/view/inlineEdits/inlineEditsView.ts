@@ -36,7 +36,6 @@ import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils/utils.js';
 import './view.css';
 import { $ } from '../../../../../../base/browser/dom.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
 
 
 export class InlineEditsView extends Disposable {
@@ -394,7 +393,7 @@ export class InlineEditsView extends Disposable {
 			return this._previousView!.view;
 		}
 
-		if (model.displayLocation || (model.uri && !isEqual(model.uri, this._editor.getModel()?.uri))) {
+		if (model.displayLocation) {
 			return InlineCompletionViewKind.Custom;
 		}
 
