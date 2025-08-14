@@ -5,14 +5,6 @@
 
 declare module 'vscode' {
 
-
-	// @API extension ship a d.ts files for their options
-
-	// @API the LanguageModelChatProvider2 is an alternative that combines a source, like ollama etc, with
-	// concrete models. The `provideLanguageModelChatData` would do the discovery and auth dances and later
-	// the model data is passed to the concrete function for making a requested or counting token
-
-
 	// TODO@API name scheme
 	export interface LanguageModelChatRequestHandleOptions {
 
@@ -44,7 +36,6 @@ declare module 'vscode' {
 		toolMode?: LanguageModelChatToolMode;
 	}
 
-	// TODO@API names: LanguageModelChatMetadata, LanguageModelChatItem
 	export interface LanguageModelChatInformation {
 
 		readonly id: string;
@@ -119,7 +110,7 @@ declare module 'vscode' {
 		// NOT cacheable (between reloads)
 		prepareLanguageModelChatInformation(options: PrepareLMChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 
-		provideLanguageModelChatResponse(model: T, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestHandleOptions, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelChatResponse(model: T, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, token: CancellationToken): Thenable<any>;
 
 		provideTokenCount(model: T, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
 	}
@@ -131,12 +122,5 @@ declare module 'vscode' {
 
 	export interface PrepareLMChatModelOptions {
 		silent: boolean;
-	}
-
-
-
-	export interface ChatResponseFragment2 {
-		index: number;
-		part: LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart;
 	}
 }

@@ -180,14 +180,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._onDidChangeProviders.dispose();
 	}
 
-	registerLanguageModelProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
+	registerLanguageModelChatProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
 
 		this._languageModelProviders.set(vendor, { extension: extension.identifier, extensionName: extension.displayName || extension.name, provider });
 		this._proxy.$registerLanguageModelProvider(vendor);
 
 		let providerChangeEventDisposable: IDisposable | undefined;
-		if (provider.onDidChange) {
-			providerChangeEventDisposable = provider.onDidChange(() => {
+		if (provider.onDidChangeLanguageModelInformation) {
+			providerChangeEventDisposable = provider.onDidChangeLanguageModelInformation(() => {
 				this._proxy.$onLMProviderChange(vendor);
 			});
 		}
@@ -215,7 +215,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return [];
 		}
 		this._clearModelCache(vendor);
-		const modelInformation = await data.provider.prepareLanguageModelChat(options, token) ?? [];
+		const modelInformation = await data.provider.prepareLanguageModelChatInformation(options, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map(m => {
 			let auth;
 			if (m.auth) {
@@ -231,8 +231,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					vendor,
 					name: m.name ?? '',
 					family: m.family ?? '',
-					cost: m.cost,
-					description: m.description,
+					detail: m.detail,
+					tooltip: m.tooltip,
 					version: m.version,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,

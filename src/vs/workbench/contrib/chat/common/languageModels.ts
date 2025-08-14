@@ -155,8 +155,8 @@ export interface ILanguageModelChatMetadata {
 	readonly id: string;
 	readonly vendor: string;
 	readonly version: string;
-	readonly description?: string;
-	readonly cost?: string;
+	readonly tooltip?: string;
+	readonly detail?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
