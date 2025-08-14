@@ -560,6 +560,10 @@ export class ChatService extends Disposable implements IChatService {
 		let lastRequest: ChatRequestModel | undefined;
 		for (const message of content.history) {
 			if (message.type === 'request') {
+				if (lastRequest) {
+					model.completeResponse(lastRequest);
+				}
+
 				const requestText = message.prompt;
 
 				const parsedRequest: IParsedChatRequest = {
@@ -591,7 +595,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (content.progressEvent && lastRequest) {
+		if (content.progressObs && lastRequest && content.interruptActiveResponseCallback) {
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 			this._pendingRequests.set(model.sessionId, initialCancellationRequest);
 			const cancellationListener = new MutableDisposable();
@@ -612,14 +616,24 @@ export class ChatService extends Disposable implements IChatService {
 			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
 			disposables.add(cancellationListener);
 
-			disposables.add(content.progressEvent(e => {
-				for (const progress of e) {
-					if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
-						model?.completeResponse(lastRequest);
-						cancellationListener.clear();
-					} else {
+			let lastProgressLength = 0;
+			disposables.add(autorun(reader => {
+				const progressArray = content.progressObs?.read(reader) ?? [];
+				const isComplete = content.isCompleteObs?.read(reader) ?? false;
+
+				// Process only new progress items
+				if (progressArray.length > lastProgressLength) {
+					const newProgress = progressArray.slice(lastProgressLength);
+					for (const progress of newProgress) {
 						model?.acceptResponseProgress(lastRequest, progress);
 					}
+					lastProgressLength = progressArray.length;
+				}
+
+				// Handle completion
+				if (isComplete) {
+					model?.completeResponse(lastRequest);
+					cancellationListener.clear();
 				}
 			}));
 		} else {
