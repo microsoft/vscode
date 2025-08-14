@@ -69,10 +69,10 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 fi
 
 # Register Python shell activate hooks
-if [ -n "$VSCODE_PYTHON_ZSH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
-	# Prevent multiple activation with guard
-	if [ -z "$VSCODE_PYTHON_AUTOACTIVATE_GUARD" ]; then
-		export VSCODE_PYTHON_AUTOACTIVATE_GUARD=1
+# Prevent multiple activation with guard
+if [ -z "$VSCODE_PYTHON_AUTOACTIVATE_GUARD" ]; then
+	export VSCODE_PYTHON_AUTOACTIVATE_GUARD=1
+	if [ -n "$VSCODE_PYTHON_ZSH_ACTIVATE" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
 		# Prevent crashing by negating exit code
 		if ! builtin eval "$VSCODE_PYTHON_ZSH_ACTIVATE"; then
 			__vsc_activation_status=$?

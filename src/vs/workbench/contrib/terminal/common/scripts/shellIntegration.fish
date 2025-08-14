@@ -76,10 +76,10 @@ function __vsc_apply_env_vars
 end
 
 # Register Python shell activate hooks
-if test -n "$VSCODE_PYTHON_FISH_ACTIVATE"; and test "$TERM_PROGRAM" = "vscode"
-	# Prevent multiple activation with guard
-	if not set -q VSCODE_PYTHON_AUTOACTIVATE_GUARD
-		set -gx VSCODE_PYTHON_AUTOACTIVATE_GUARD 1
+# Prevent multiple activation with guard
+if not set -q VSCODE_PYTHON_AUTOACTIVATE_GUARD
+	set -gx VSCODE_PYTHON_AUTOACTIVATE_GUARD 1
+	if test -n "$VSCODE_PYTHON_FISH_ACTIVATE"; and test "$TERM_PROGRAM" = "vscode"
 		# Fish does not crash on eval failure, so don't need negation.
 		eval $VSCODE_PYTHON_FISH_ACTIVATE
 		set __vsc_activation_status $status
