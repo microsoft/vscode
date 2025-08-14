@@ -53,7 +53,7 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord<string> 
 				valueToken.range,
 				localize(
 					'prompt.header.metadata.string.diagnostics.invalid-value-type',
-					"The '{0}' metadata must be a '{1}', got '{2}'.",
+					"The property '{0}' must be of type '{1}', got '{2}'.",
 					this.recordName,
 					'string',
 					valueToken.valueTypeName.toString(),

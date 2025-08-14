@@ -104,8 +104,8 @@ class TextModelPromptParserTest extends Disposable {
 		}
 
 		assert.strictEqual(
-			expectedReferences.length,
 			references.length,
+			expectedReferences.length,
 			`[${this.model.uri}] Unexpected number of references.`,
 		);
 	}
@@ -143,9 +143,9 @@ class TextModelPromptParserTest extends Disposable {
 		}
 
 		assert.strictEqual(
-			expectedDiagnostics.length,
 			diagnostics.length,
-			`Expected '${expectedDiagnostics.length}' diagnostic objects, got '${diagnostics.length}'.`,
+			expectedDiagnostics.length,
+			`Expected '${expectedDiagnostics.length}' diagnostic objects, got '${diagnostics.length}: ${diagnostics.map(d => d.message).join(', ')}'.`,
 		);
 	}
 }
@@ -665,7 +665,7 @@ suite('TextModelPromptParser', () => {
 				await test.validateHeaderDiagnostics([
 					new ExpectedDiagnosticError(
 						new Range(2, 15, 2, 15 + 4),
-						'The \'description\' metadata must be a \'string\', got \'boolean\'.',
+						'The property \'description\' must be of type \'string\', got \'boolean\'.',
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(4, 2, 4, 2 + 15),
@@ -693,7 +693,7 @@ suite('TextModelPromptParser', () => {
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(5, 1, 5, 84),
-						`Tools can only be used when in 'agent' mode, but the mode is set to 'ask'. The tools will be ignored.`,
+						`Tools can not be used in 'ask' mode and will be ignored.`,
 					),
 					new ExpectedDiagnosticWarning(
 						new Range(6, 3, 6, 3 + 37),
@@ -1175,7 +1175,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 38),
-								'Tools can only be used when in \'agent\' mode, but the mode is set to \'ask\'. The tools will be ignored.',
+								`Tools can not be used in 'ask' mode and will be ignored.`,
 							),
 						]);
 					});
@@ -1222,7 +1222,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticWarning(
 								new Range(2, 1, 2, 38),
-								'Tools can only be used when in \'agent\' mode, but the mode is set to \'edit\'. The tools will be ignored.',
+								`Tools can not be used in 'edit' mode and will be ignored.`,
 							),
 						]);
 					});
@@ -1531,7 +1531,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(3, 7, 3, 11),
-								"The 'mode' metadata must be a 'string', got 'boolean'.",
+								"The property 'mode' must be of type 'string', got 'boolean'.",
 							),
 						]);
 					});
@@ -1577,8 +1577,8 @@ suite('TextModelPromptParser', () => {
 						// Array mode value should trigger validation error
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
-								new Range(3, 7, 3, 23),
-								"The 'mode' metadata must be a 'string', got 'array'.",
+								new Range(3, 7, 3, 24),
+								"The property 'mode' must be of type 'string', got 'array'.",
 							),
 						]);
 					});
@@ -1759,7 +1759,7 @@ suite('TextModelPromptParser', () => {
 						await test.validateHeaderDiagnostics([
 							new ExpectedDiagnosticError(
 								new Range(2, 14, 2, 14 + 29),
-								`The 'description' metadata must be a 'string', got 'array'.`,
+								`The property 'description' must be of type 'string', got 'array'.`,
 							),
 						]);
 					});
