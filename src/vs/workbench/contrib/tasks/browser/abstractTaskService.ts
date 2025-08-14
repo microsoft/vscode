@@ -2471,7 +2471,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		// Update tasks available context key
-		const hasAnyTasks = Array.from(result.values()).some(folderResult => 
+		const hasAnyTasks = Array.from(result.values()).some(folderResult =>
 			(folderResult.set?.tasks && folderResult.set.tasks.length > 0) ||
 			(folderResult.configurations?.byIdentifier && Object.keys(folderResult.configurations.byIdentifier).length > 0)
 		);
