@@ -201,7 +201,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
 		const tabsScrollbar = this._register(new ScrollableElement(scrollable, {
-			horizontal: ScrollbarVisibility.Auto,
+			horizontal: this.getTabsScrollbarVisibility(),
 			horizontalScrollbarSize: this.getTabsScrollbarSizing(),
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
@@ -220,6 +220,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private updateTabsScrollbarSizing(): void {
 		this.tabsScrollbar?.updateOptions({
 			horizontalScrollbarSize: this.getTabsScrollbarSizing()
+		});
+	}
+
+	private updateTabsScrollbarVisibility(): void {
+		this.tabsScrollbar?.updateOptions({
+			horizontal: this.getTabsScrollbarVisibility()
 		});
 	}
 
@@ -269,6 +275,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		return MultiEditorTabsControl.SCROLLBAR_SIZES.large;
+	}
+
+	private getTabsScrollbarVisibility(): ScrollbarVisibility {
+		switch (this.groupsView.partOptions.titleScrollbarVisibility) {
+			case 'visible': return ScrollbarVisibility.Visible;
+			case 'hidden': return ScrollbarVisibility.Hidden;
+			default: return ScrollbarVisibility.Auto;
+		}
 	}
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
@@ -731,6 +745,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Update tabs scrollbar sizing
 		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
 			this.updateTabsScrollbarSizing();
+		}
+
+		// Update tabs scrollbar visibility
+		if (oldOptions.titleScrollbarVisibility !== newOptions.titleScrollbarVisibility) {
+			this.updateTabsScrollbarVisibility();
 		}
 
 		// Update editor actions

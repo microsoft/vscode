@@ -103,7 +103,12 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		}));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectLines(action => {
-			this._notifyAction({ kind: 'chatEditingHunkAction', uri: this.modifiedURI, outcome: action.state, lineCount: action.lineCount, hasRemainingEdits: action.hasRemainingEdits });
+			this._notifyAction({
+				kind: 'chatEditingHunkAction',
+				uri: this.modifiedURI,
+				outcome: action.state,
+				...action
+			});
 		}));
 
 		// Create a reference to this model to avoid it being disposed from under our nose
@@ -199,7 +204,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				this._rewriteRatioObs.set(1, tx);
 			}
 		});
-		if (isLastEdits) {
+
+		if (isLastEdits && !this.editsRequireManualApproval.get()) {
 			await this._textFileService.save(this.modifiedModel.uri, {
 				reason: SaveReason.AUTO,
 				skipSaveParticipants: true,

@@ -45,6 +45,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
 			},
+			'workbench.editor.titleScrollbarVisibility': {
+				type: 'string',
+				enum: ['auto', 'visible', 'hidden'],
+				enumDescriptions: [
+					localize('workbench.editor.titleScrollbarVisibility.auto', "The horizontal scrollbar will be visible only when necessary."),
+					localize('workbench.editor.titleScrollbarVisibility.visible', "The horizontal scrollbar will always be visible."),
+					localize('workbench.editor.titleScrollbarVisibility.hidden', "The horizontal scrollbar will always be hidden.")
+				],
+				description: localize('titleScrollbarVisibility', "Controls the visibility of the scrollbars used for tabs and breadcrumbs in the editor title area."),
+				default: 'auto',
+			},
 			[LayoutSettings.EDITOR_TABS_MODE]: {
 				'type': 'string',
 				'enum': [EditorTabsMode.MULTIPLE, EditorTabsMode.SINGLE, EditorTabsMode.NONE],

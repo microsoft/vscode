@@ -363,12 +363,12 @@ interface ScmCommand {
 const Commands: ScmCommand[] = [];
 
 function command(commandId: string, options: ScmCommandOptions = {}): Function {
-	return (_target: any, key: string, descriptor: any) => {
-		if (!(typeof descriptor.value === 'function')) {
+	return (value: any, context: ClassMethodDecoratorContext) => {
+		if (context.kind !== 'method') {
 			throw new Error('not supported');
 		}
-
-		Commands.push({ commandId, key, method: descriptor.value, options });
+		const key = context.name.toString();
+		Commands.push({ commandId, key, method: value, options });
 	};
 }
 
@@ -3457,7 +3457,7 @@ export class CommandCenter {
 			return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
 		};
 
-		const placeHolder = l10n.t('Select a branch to create the new worktree from');
+		const placeHolder = l10n.t('Select a branch or tag to create the new worktree from');
 		const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
 		if (!choice) {

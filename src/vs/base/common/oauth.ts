@@ -736,14 +736,14 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost',
-				'http://127.0.0.1',
+				'http://localhost/',
+				'http://127.0.0.1/',
 				// Added these for any server that might do
 				// only exact match on the redirect URI even
 				// though the spec says it should not care
 				// about the port.
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}`,
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			],
 			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
 			token_endpoint_auth_method: 'none',
@@ -818,4 +818,30 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 		}
 		throw new Error('Failed to parse JWT token');
 	}
+}
+
+/**
+ * Checks if two scope lists are equivalent, regardless of order.
+ * This is useful for comparing OAuth scopes where the order should not matter.
+ *
+ * @param scopes1 First list of scopes to compare
+ * @param scopes2 Second list of scopes to compare
+ * @returns true if the scope lists contain the same scopes (order-independent), false otherwise
+ *
+ * @example
+ * ```typescript
+ * scopesMatch(['read', 'write'], ['write', 'read']) // Returns: true
+ * scopesMatch(['read'], ['write']) // Returns: false
+ * ```
+ */
+export function scopesMatch(scopes1: readonly string[], scopes2: readonly string[]): boolean {
+	if (scopes1.length !== scopes2.length) {
+		return false;
+	}
+
+	// Sort both arrays for comparison to handle different orderings
+	const sortedScopes1 = [...scopes1].sort();
+	const sortedScopes2 = [...scopes2].sort();
+
+	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
 }

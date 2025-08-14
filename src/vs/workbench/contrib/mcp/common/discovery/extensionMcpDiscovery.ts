@@ -93,7 +93,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 						id,
 						label: coll.label,
 						remoteAuthority: null,
-						trustBehavior: McpServerTrust.Kind.TrustedOnNonce,
+						trustBehavior: McpServerTrust.Kind.Trusted,
 						scope: StorageScope.WORKSPACE,
 						configTarget: ConfigurationTarget.USER,
 						serverDefinitions: observableValue<McpServerDefinition[]>(this, serverDefs?.map(McpServerDefinition.fromSerialized) || []),

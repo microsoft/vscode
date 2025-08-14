@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
-import { ITaskService } from '../../../../tasks/common/taskService.js';
-import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { getOutput } from '../bufferOutputPolling.js';
-import { getTaskDefinition, getTaskForTool } from './taskHelpers.js';
+import type { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
+import { IChatService } from '../../../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
+import { ITaskService } from '../../../../../tasks/common/taskService.js';
+import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
@@ -49,6 +51,9 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		@ITaskService private readonly _tasksService: ITaskService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IChatService private readonly _chatService: IChatService,
+		@IMarkerService private readonly _markerService: IMarkerService
 	) {
 		super();
 	}
@@ -56,7 +61,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		const args = context.parameters as IGetTaskOutputInputParams;
 
 		const taskDefinition = getTaskDefinition(args.id);
-		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService, true);
 		if (!task) {
 			return { invocationMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
@@ -75,20 +80,35 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTaskOutputInputParams;
 		const taskDefinition = getTaskDefinition(args.id);
-		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService);
+		const task = await getTaskForTool(args.id, taskDefinition, args.workspaceFolder, this._configurationService, this._tasksService, true);
 		if (!task) {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
-		const resource = this._tasksService.getTerminalForTask(task);
+
+		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
+		const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
 		const taskLabel = task._label;
-		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
-		if (!terminal) {
+		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(t => !!t);
+		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskLabel)) };
 		}
+		const terminalResults = await collectTerminalResults(
+			terminals,
+			task,
+			this._languageModelsService,
+			this._markerService,
+			this._chatService,
+			invocation.context!,
+			_progress,
+			token,
+			undefined,
+			dependencyTasks
+		);
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`).join('\n\n');
 		return {
 			content: [{
 				kind: 'text',
-				value: `Output of task \`${taskLabel}\`: ${getOutput(terminal)}`
+				value: `Output of task \`${taskLabel}\`: ${details}`
 			}]
 		};
 	}

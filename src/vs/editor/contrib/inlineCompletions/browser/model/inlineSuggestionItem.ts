@@ -21,7 +21,7 @@ import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.j
 import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
-import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
+import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, PartialAcceptance, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { getPositionOffsetTransformerFromTextModel } from '../../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
@@ -75,6 +75,8 @@ abstract class InlineSuggestionItemBase {
 
 	public get requestUuid(): string { return this._data.context.requestUuid; }
 
+	public get partialAccepts(): PartialAcceptance { return this._data.partialAccepts; }
+
 	/**
 	 * A reference to the original inline completion this inline completion has been constructed from.
 	 * Used for event data to ensure referential equality.
@@ -104,8 +106,8 @@ abstract class InlineSuggestionItemBase {
 		this._data.reportInlineEditShown(commandService, this.insertText, viewKind, viewData);
 	}
 
-	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo) {
-		this._data.reportPartialAccept(acceptedCharacters, info);
+	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo, partialAcceptance: PartialAcceptance) {
+		this._data.reportPartialAccept(acceptedCharacters, info, partialAcceptance);
 	}
 
 	public reportEndOfLife(reason: InlineCompletionEndOfLifeReason): void {
@@ -120,8 +122,8 @@ abstract class InlineSuggestionItemBase {
 		this._data.reportInlineEditError(reason);
 	}
 
-	public setIsPreceeded(): void {
-		this._data.setIsPreceeded();
+	public setIsPreceeded(item: InlineSuggestionItem): void {
+		this._data.setIsPreceeded(item.partialAccepts);
 	}
 
 	/**

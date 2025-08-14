@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { scopesMatch } from '../../../../base/common/oauth.js';
 import * as nls from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -67,14 +68,13 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	}
 
 	private registerListeners() {
-		this._register(this._authenticationService.onDidChangeSessions(async e => {
+		this._register(this._authenticationService.onDidChangeSessions(e => {
 			if (e.event.added?.length) {
-				await this.updateNewSessionRequests(e.providerId, e.event.added);
+				this.updateNewSessionRequests(e.providerId, e.event.added);
 			}
 			if (e.event.removed?.length) {
-				await this.updateAccessRequests(e.providerId, e.event.removed);
+				this.updateAccessRequests(e.providerId, e.event.removed);
 			}
-			this.updateBadgeCount();
 		}));
 
 		this._register(this._authenticationService.onDidUnregisterAuthenticationProvider(e => {
@@ -85,14 +85,18 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}));
 	}
 
-	private async updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): Promise<void> {
+	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): void {
 		const existingRequestsForProvider = this._signInRequestItems.get(providerId);
 		if (!existingRequestsForProvider) {
 			return;
 		}
 
 		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
-			if (addedSessions.some(session => session.scopes.slice().join(SCOPESLIST_SEPARATOR) === requestedScopes)) {
+			// Parse the requested scopes from the stored key
+			const requestedScopesArray = requestedScopes.split(SCOPESLIST_SEPARATOR);
+
+			// Check if any added session has matching scopes (order-independent)
+			if (addedSessions.some(session => scopesMatch(session.scopes, requestedScopesArray))) {
 				const sessionRequest = existingRequestsForProvider[requestedScopes];
 				sessionRequest?.disposables.forEach(item => item.dispose());
 
@@ -102,11 +106,12 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 				} else {
 					this._signInRequestItems.set(providerId, existingRequestsForProvider);
 				}
+				this.updateBadgeCount();
 			}
 		});
 	}
 
-	private async updateAccessRequests(providerId: string, removedSessions: readonly AuthenticationSession[]) {
+	private updateAccessRequests(providerId: string, removedSessions: readonly AuthenticationSession[]): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId);
 		if (providerRequests) {
 			Object.keys(providerRequests).forEach(extensionId => {

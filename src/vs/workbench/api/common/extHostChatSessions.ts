@@ -11,7 +11,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
-import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionItem, ChatSessionStatus } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
@@ -46,14 +46,22 @@ class ExtHostChatSession {
 }
 
 export class ExtHostChatSessions extends Disposable implements ExtHostChatSessionsShape {
+	private static _sessionHandlePool = 0;
 
 	private readonly _proxy: Proxied<MainThreadChatSessionsShape>;
-	private readonly _chatSessionItemProviders = new Map<number, { provider: vscode.ChatSessionItemProvider; extension: IExtensionDescription; disposable: DisposableStore }>();
-	private readonly _chatSessionContentProviders = new Map<number, { provider: vscode.ChatSessionContentProvider; extension: IExtensionDescription; disposable: DisposableStore }>();
+	private readonly _chatSessionItemProviders = new Map<number, {
+		readonly provider: vscode.ChatSessionItemProvider;
+		readonly extension: IExtensionDescription;
+		readonly disposable: DisposableStore;
+	}>();
+	private readonly _chatSessionContentProviders = new Map<number, {
+		readonly provider: vscode.ChatSessionContentProvider;
+		readonly extension: IExtensionDescription;
+		readonly disposable: DisposableStore;
+	}>();
 	private _nextChatSessionItemProviderHandle = 0;
 	private _nextChatSessionContentProviderHandle = 0;
-	private _sessionMap: Map<string, vscode.ChatSessionItem> = new Map();
-	private static _sessionHandlePool = 0;
+	private readonly _sessionMap: Map<string, vscode.ChatSessionItem> = new Map();
 
 	constructor(
 		private readonly commands: ExtHostCommands,
@@ -67,7 +75,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		commands.registerArgumentProcessor({
 			processArgument: (arg) => {
 				if (arg && arg.$mid === MarshalledId.ChatSessionContext) {
-					const id = arg.id;
+					const id = arg.session.id;
 					const sessionContent = this._sessionMap.get(id);
 					if (sessionContent) {
 						return sessionContent;
@@ -90,7 +98,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		this._proxy.$registerChatSessionItemProvider(handle, chatSessionType);
 		if (provider.onDidChangeChatSessionItems) {
 			disposables.add(provider.onDidChangeChatSessionItems(() => {
-				this._proxy.$onDidChangeChatSessionItems(chatSessionType);
+				this._proxy.$onDidChangeChatSessionItems(handle);
 			}));
 		}
 		return {
@@ -120,6 +128,22 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		await this._proxy.$showChatSession(chatSessionType, sessionId, typeConvert.ViewColumn.from(options?.viewColumn));
 	}
 
+	private convertChatSessionStatus(status: vscode.ChatSessionStatus | undefined): ChatSessionStatus | undefined {
+		if (status === undefined) {
+			return undefined;
+		}
+		switch (status) {
+			case 0: // vscode.ChatSessionStatus.Failed
+				return ChatSessionStatus.Failed;
+			case 1: // vscode.ChatSessionStatus.Completed
+				return ChatSessionStatus.Completed;
+			case 2: // vscode.ChatSessionStatus.InProgress
+				return ChatSessionStatus.InProgress;
+			default:
+				return undefined;
+		}
+	}
+
 	async $provideChatSessionItems(handle: number, token: vscode.CancellationToken): Promise<IChatSessionItem[]> {
 		const entry = this._chatSessionItemProviders.get(handle);
 		if (!entry) {
@@ -142,7 +166,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				response.push({
 					id: sessionContent.id,
 					label: sessionContent.label,
-					iconPath: sessionContent.iconPath
+					iconPath: sessionContent.iconPath,
+					description: sessionContent.description,
+					status: this.convertChatSessionStatus(sessionContent.status),
+					tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip)
 				});
 			}
 		}

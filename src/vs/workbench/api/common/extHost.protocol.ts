@@ -563,6 +563,7 @@ export interface TerminalLaunchConfig {
 	useShellEnvironment?: boolean;
 	location?: TerminalLocation | { viewColumn: number; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
 	isTransient?: boolean;
+	shellIntegrationNonce?: string;
 }
 
 
@@ -1364,7 +1365,6 @@ export type IChatAgentHistoryEntryDto = {
 
 export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
-	$setRequestPaused(handle: number, requestId: string, isPaused: boolean): void;
 	$provideFollowups(request: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
@@ -3118,17 +3118,11 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
-export interface IChatRequestTurnDto {
-
-}
+export type IChatSessionHistoryItemDto = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgressDto[] };
 
 export interface ChatSessionDto {
 	id: string;
-
-	history: Array<
-		| { type: 'request'; prompt: string }
-		| { type: 'response'; parts: IChatProgressDto[] }>;
-
+	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
 }
@@ -3137,7 +3131,7 @@ export interface ChatSessionDto {
 export interface MainThreadChatSessionsShape extends IDisposable {
 	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionItemProvider(handle: number): void;
-	$onDidChangeChatSessionItems(chatSessionType: string): void;
+	$onDidChangeChatSessionItems(handle: number): void;
 
 	$registerChatSessionContentProvider(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;

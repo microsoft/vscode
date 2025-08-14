@@ -8,7 +8,6 @@ import { Action } from '../../../../base/common/actions.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-
 import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from './tasks.js';
 import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from './taskSystem.js';
@@ -88,7 +87,7 @@ export interface ITaskService {
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, IWorkspaceFolderTaskResult>>;
 	getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]>;
 	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
-	getTerminalForTask(task: Task): URI | undefined;
+	getTerminalsForTasks(tasks: Task | Task[]): URI[] | undefined;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
