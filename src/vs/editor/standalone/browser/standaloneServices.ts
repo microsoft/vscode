@@ -100,7 +100,7 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
 import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
 import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibraryService.js';
-import { CoreDataChannel, IDataChannelEvent, IDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
+import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1127,18 +1127,6 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	}
 }
 
-class StandaloneDataChannelService implements IDataChannelService {
-	_serviceBrand: undefined;
-	get onDidSendData(): Event<IDataChannelEvent<unknown>> {
-		return Event.None;
-	}
-	getDataChannel<T>(_channelId: string): CoreDataChannel<T> {
-		return {
-			sendData: () => { },
-		};
-	}
-}
-
 export interface IEditorOverrideServices {
 	[index: string]: any;
 }
@@ -1180,7 +1168,7 @@ registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalService, InstantiationType.Eager);
 registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService, InstantiationType.Eager);
 registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
-registerSingleton(IDataChannelService, StandaloneDataChannelService, InstantiationType.Eager);
+registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance
