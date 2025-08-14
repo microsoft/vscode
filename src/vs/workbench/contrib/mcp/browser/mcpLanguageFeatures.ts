@@ -285,9 +285,9 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					lenses.push({
 						range,
 						command: {
-							id: McpCommandIds.ShowToolsForServer,
+							id: 'workbench.action.chat.configureTools',
 							title: localize('server.toolCount', '{0} tools', toolCount),
-							arguments: [server],
+							arguments: [server.definition.label],
 						}
 					});
 				}

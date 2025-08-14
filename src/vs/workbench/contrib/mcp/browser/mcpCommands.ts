@@ -1108,36 +1108,3 @@ export class McpStartPromptingServerCommand extends Action2 {
 		SuggestController.get(editor)?.triggerSuggest();
 	}
 }
-
-export class McpShowToolsForServerCommand extends Action2 {
-	constructor() {
-		super({
-			id: McpCommandIds.ShowToolsForServer,
-			title: localize2('mcp.showToolsForServer', "Show Tools for Server"),
-			category,
-			f1: false,
-		});
-	}
-
-	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-
-		const tools = server.tools.get();
-		if (!tools.length) {
-			return;
-		}
-
-		const items: IQuickPickItem[] = tools.map(tool => ({
-			id: tool.id,
-			label: tool.definition.name,
-			description: tool.definition.description,
-			detail: tool.definition.inputSchema ? `Schema: ${JSON.stringify(tool.definition.inputSchema, null, 2)}` : undefined,
-		}));
-
-		await quickInputService.pick(items, {
-			placeHolder: localize('mcp.showTools.placeholder', 'Tools available from {0}', server.definition.label),
-			matchOnDescription: true,
-			matchOnDetail: true,
-		});
-	}
-}
