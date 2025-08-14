@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-kvB8+4EUtyEDThMIgb61H4fMe04EqjRhttNuYd028mo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-TkmhJj+GlsPgI0K3xlZ+vm4vIqYKx0bJ8mN1rV8JWfA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -88,6 +88,7 @@
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = `
+		@layer vscode-default {
 			html {
 				scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
 			}
@@ -181,7 +182,8 @@
 			}
 			::highlight(current-find-highlight) {
 				background-color: var(--vscode-editor-findMatchBackground);
-			}`;
+			}
+		}`;
 
 		/**
 		 * @param {boolean} allowMultipleAPIAcquire
@@ -1127,8 +1129,8 @@
 						if (docEl) {
 							const postSize = () => {
 								hostMessaging.postMessage('updated-intrinsic-content-size', {
-									width: docEl.scrollWidth,
-									height: docEl.scrollHeight
+									width: docEl.offsetWidth,
+									height: docEl.offsetHeight
 								});
 							};
 

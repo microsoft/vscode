@@ -84,8 +84,72 @@ declare module 'vscode' {
 		constructor(toolName: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatPrepareToolInvocationPart;
+	export interface ChatTerminalToolInvocationData {
+		commandLine: {
+			original: string;
+			userEdited?: string;
+			toolEdited?: string;
+		};
+		language: string;
+	}
 
+	export class ChatToolInvocationPart {
+		toolName: string;
+		toolCallId: string;
+		isError?: boolean;
+		invocationMessage?: string | MarkdownString;
+		originMessage?: string | MarkdownString;
+		pastTenseMessage?: string | MarkdownString;
+		isConfirmed?: boolean;
+		isComplete?: boolean;
+		toolSpecificData?: ChatTerminalToolInvocationData;
+
+		constructor(toolName: string, toolCallId: string, isError?: boolean);
+	}
+
+	/**
+	 * Represents a single file diff entry in a multi diff view.
+	 */
+	export interface ChatResponseDiffEntry {
+		/**
+		 * The original file URI (undefined for new files).
+		 */
+		originalUri?: Uri;
+
+		/**
+		 * The modified file URI (undefined for deleted files).
+		 */
+		modifiedUri?: Uri;
+
+		/**
+		 * Optional URI to navigate to when clicking on the file.
+		 */
+		goToFileUri?: Uri;
+	}
+
+	/**
+	 * Represents a part of a chat response that shows multiple file diffs.
+	 */
+	export class ChatResponseMultiDiffPart {
+		/**
+		 * Array of file diff entries to display.
+		 */
+		value: ChatResponseDiffEntry[];
+
+		/**
+		 * The title for the multi diff editor.
+		 */
+		title: string;
+
+		/**
+		 * Create a new ChatResponseMultiDiffPart.
+		 * @param value Array of file diff entries.
+		 * @param title The title for the multi diff editor.
+		 */
+		constructor(value: ChatResponseDiffEntry[], title: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -95,6 +159,23 @@ declare module 'vscode' {
 		value: string;
 		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
 		constructor(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>);
+	}
+
+	/**
+	 * A specialized progress part for displaying thinking/reasoning steps.
+	 */
+	export class ChatResponseThinkingProgressPart extends ChatResponseProgressPart {
+		value: string;
+		id?: string;
+		metadata?: string;
+		task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>;
+
+		/**
+		 * Creates a new thinking progress part.
+		 * @param value An initial progress message
+		 * @param task A task that will emit thinking parts during its execution
+		 */
+		constructor(value: string, id?: string, metadata?: string, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>);
 	}
 
 	export class ChatResponseReferencePart2 {
@@ -171,6 +252,15 @@ declare module 'vscode' {
 		constructor(extensions: string[]);
 	}
 
+	export class ChatResponsePullRequestPart {
+		readonly uri: Uri;
+		readonly linkTag: string;
+		readonly title: string;
+		readonly description: string;
+		readonly author: string;
+		constructor(uri: Uri, title: string, description: string, author: string, linkTag: string);
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -182,6 +272,8 @@ declare module 'vscode' {
 		* @returns This stream.
 		*/
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
+
+		thinkingProgress(thinkingDelta: ThinkingDelta): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
@@ -225,6 +317,8 @@ declare module 'vscode' {
 		prepareToolInvocation(toolName: string): void;
 
 		push(part: ExtendedChatResponsePart): void;
+
+		clearToPreviousToolInvocation(reason: ChatResponseClearToPreviousToolInvocationReason): void;
 	}
 
 	export enum ChatResponseReferencePartStatusKind {
@@ -233,6 +327,26 @@ declare module 'vscode' {
 		Omitted = 3
 	}
 
+	export type ThinkingDelta = {
+		text?: string;
+		id: string;
+		metadata?: string;
+	} | {
+		text?: string;
+		id?: string;
+		metadata: string;
+	} |
+	{
+		text: string;
+		id?: string;
+		metadata?: string;
+	};
+
+	export enum ChatResponseClearToPreviousToolInvocationReason {
+		NoReason = 0,
+		FilteredContentRetry = 1,
+		CopyrightContentRetry = 2,
+	}
 
 	/**
 	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
@@ -351,6 +465,10 @@ declare module 'vscode' {
 			participant?: string;
 			command?: string;
 		};
+		/**
+		 * An optional detail string that will be rendered at the end of the response in certain UI contexts.
+		 */
+		details?: string;
 	}
 
 	export namespace chat {
@@ -445,6 +563,17 @@ declare module 'vscode' {
 		outcome: ChatEditingSessionActionOutcome;
 	}
 
+	export interface ChatEditingHunkAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'chatEditingHunkAction';
+		uri: Uri;
+		lineCount: number;
+		linesAdded: number;
+		linesRemoved: number;
+		outcome: ChatEditingSessionActionOutcome;
+		hasRemainingEdits: boolean;
+	}
+
 	export enum ChatEditingSessionActionOutcome {
 		Accepted = 1,
 		Rejected = 2,
@@ -453,7 +582,7 @@ declare module 'vscode' {
 
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction | ChatEditingHunkAction;
 	}
 
 	export interface ChatPromptReference {

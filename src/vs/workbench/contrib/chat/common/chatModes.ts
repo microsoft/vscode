@@ -160,7 +160,12 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
-		return { builtin: this.getBuiltinModes(), custom: Array.from(this._customModeInstances.values()) };
+		return {
+			builtin: this.getBuiltinModes(),
+			custom: this.chatAgentService.hasToolsAgent ?
+				Array.from(this._customModeInstances.values()) :
+				[]
+		};
 	}
 
 	private getFlatModes(): IChatMode[] {
@@ -206,6 +211,7 @@ export interface IChatMode {
 	readonly id: string;
 	readonly name: string;
 	readonly description: IObservable<string | undefined>;
+	readonly isBuiltin: boolean;
 	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly model?: IObservable<string | undefined>;
@@ -242,6 +248,10 @@ export class CustomChatMode implements IChatMode {
 
 	get description(): IObservable<string | undefined> {
 		return this._descriptionObservable;
+	}
+
+	public get isBuiltin(): boolean {
+		return isBuiltinChatMode(this);
 	}
 
 	get customTools(): IObservable<readonly string[] | undefined> {
@@ -313,6 +323,10 @@ export class BuiltinChatMode implements IChatMode {
 		this.description = observableValue('description', description);
 	}
 
+	public get isBuiltin(): boolean {
+		return isBuiltinChatMode(this);
+	}
+
 	get id(): string {
 		// Need a differentiator?
 		return this.kind;
@@ -334,7 +348,7 @@ export class BuiltinChatMode implements IChatMode {
 export namespace ChatMode {
 	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Ask a question."));
 	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit files."));
-	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Build autonomously."));
+	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Provide instructions."));
 }
 
 export function isBuiltinChatMode(mode: IChatMode): boolean {

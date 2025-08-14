@@ -46,6 +46,10 @@ declare module 'vscode' {
 		action?: Command;
 
 		displayLocation?: InlineCompletionDisplayLocation;
+		/**
+		 * The Uri of the document this completion item is associated with.
+		 */
+		uri?: Uri;
 	}
 
 	export interface InlineCompletionDisplayLocation {
@@ -156,6 +160,8 @@ declare module 'vscode' {
 		readonly requestUuid: string;
 
 		readonly requestIssuedDateTime: number;
+
+		readonly earliestShownDateTime: number;
 	}
 
 	export interface PartialAcceptInfo {

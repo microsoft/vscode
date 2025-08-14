@@ -201,7 +201,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
 		const tabsScrollbar = this._register(new ScrollableElement(scrollable, {
-			horizontal: ScrollbarVisibility.Auto,
+			horizontal: this.getTabsScrollbarVisibility(),
 			horizontalScrollbarSize: this.getTabsScrollbarSizing(),
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
@@ -220,6 +220,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private updateTabsScrollbarSizing(): void {
 		this.tabsScrollbar?.updateOptions({
 			horizontalScrollbarSize: this.getTabsScrollbarSizing()
+		});
+	}
+
+	private updateTabsScrollbarVisibility(): void {
+		this.tabsScrollbar?.updateOptions({
+			horizontal: this.getTabsScrollbarVisibility()
 		});
 	}
 
@@ -269,6 +275,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		return MultiEditorTabsControl.SCROLLBAR_SIZES.large;
+	}
+
+	private getTabsScrollbarVisibility(): ScrollbarVisibility {
+		switch (this.groupsView.partOptions.titleScrollbarVisibility) {
+			case 'visible': return ScrollbarVisibility.Visible;
+			case 'hidden': return ScrollbarVisibility.Hidden;
+			default: return ScrollbarVisibility.Auto;
+		}
 	}
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
@@ -733,6 +747,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.updateTabsScrollbarSizing();
 		}
 
+		// Update tabs scrollbar visibility
+		if (oldOptions.titleScrollbarVisibility !== newOptions.titleScrollbarVisibility) {
+			this.updateTabsScrollbarVisibility();
+		}
+
 		// Update editor actions
 		if (oldOptions.alwaysShowEditorActions !== newOptions.alwaysShowEditorActions) {
 			this.updateEditorActionsToolbar();
@@ -759,6 +778,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
 			oldOptions.wrapTabs !== newOptions.wrapTabs ||
+			oldOptions.showTabIndex !== newOptions.showTabIndex ||
 			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
@@ -1585,6 +1605,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Sticky compact tabs will only show an icon if icons are enabled
 		// or their first character of the name otherwise
 		let name: string | undefined;
+		let namePrefix: string | undefined;
 		let forceLabel = false;
 		let fileDecorationBadges = Boolean(options.decorations?.badges);
 		const fileDecorationColors = Boolean(options.decorations?.colors);
@@ -1597,6 +1618,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			fileDecorationBadges = false; // not enough space when sticky tabs are compact
 		} else {
 			name = tabLabel.name;
+			namePrefix = options.showTabIndex ? `${this.toEditorIndex(tabIndex) + 1}: ` : undefined;
 			description = tabLabel.description || '';
 		}
 
@@ -1621,6 +1643,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				},
 				icon: editor.getIcon(),
 				hideIcon: options.showIcons === false,
+				namePrefix,
 			}
 		);
 

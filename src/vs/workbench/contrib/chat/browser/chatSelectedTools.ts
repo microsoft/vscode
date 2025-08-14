@@ -68,9 +68,9 @@ export class ChatSelectedTools extends Disposable {
 			key: 'chat/selectedTools',
 		});
 
-
 		this._selectedTools = this._store.add(storedTools(StorageScope.WORKSPACE, StorageTarget.MACHINE, _storageService));
 		this._allTools = observableFromEvent(_toolsService.onDidChangeTools, () => Array.from(_toolsService.getTools()));
+
 	}
 
 	/**

@@ -219,7 +219,7 @@ class ViewWelcomeController {
 
 	private render(): void {
 		this.renderDisposables.clear();
-		this.element!.innerText = '';
+		this.element!.textContent = '';
 
 		const contents = this.getContentDescriptors();
 

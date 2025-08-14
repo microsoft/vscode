@@ -21,10 +21,11 @@ import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.j
 import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
-import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, SnippetInfo } from './provideInlineCompletions.js';
+import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, PartialAcceptance, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { getPositionOffsetTransformerFromTextModel } from '../../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
 
@@ -45,7 +46,8 @@ abstract class InlineSuggestionItemBase {
 	constructor(
 		protected readonly _data: InlineSuggestData,
 		public readonly identity: InlineSuggestionIdentity,
-		public readonly displayLocation: InlineSuggestDisplayLocation | undefined
+		public readonly displayLocation: InlineSuggestDisplayLocation | undefined,
+		public readonly uri: URI | undefined
 	) { }
 
 	/**
@@ -74,6 +76,8 @@ abstract class InlineSuggestionItemBase {
 	public get shownCommand(): Command | undefined { return this._sourceInlineCompletion.shownCommand; }
 
 	public get requestUuid(): string { return this._data.context.requestUuid; }
+
+	public get partialAccepts(): PartialAcceptance { return this._data.partialAccepts; }
 
 	/**
 	 * A reference to the original inline completion this inline completion has been constructed from.
@@ -104,8 +108,8 @@ abstract class InlineSuggestionItemBase {
 		this._data.reportInlineEditShown(commandService, this.insertText, viewKind, viewData);
 	}
 
-	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo) {
-		this._data.reportPartialAccept(acceptedCharacters, info);
+	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo, partialAcceptance: PartialAcceptance) {
+		this._data.reportPartialAccept(acceptedCharacters, info, partialAcceptance);
 	}
 
 	public reportEndOfLife(reason: InlineCompletionEndOfLifeReason): void {
@@ -120,8 +124,8 @@ abstract class InlineSuggestionItemBase {
 		this._data.reportInlineEditError(reason);
 	}
 
-	public setIsPreceeded(): void {
-		this._data.setIsPreceeded();
+	public setIsPreceeded(item: InlineSuggestionItem): void {
+		this._data.setIsPreceeded(item.partialAccepts);
 	}
 
 	/**
@@ -199,7 +203,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 
 		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation) : undefined;
 
-		return new InlineCompletionItem(edit, trimmedEdit, textEdit, textEdit.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation);
+		return new InlineCompletionItem(edit, trimmedEdit, textEdit, textEdit.range, data.snippetInfo, data.additionalTextEdits, data, identity, displayLocation, data.uri);
 	}
 
 	public readonly isInlineEdit = false;
@@ -215,8 +219,9 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		data: InlineSuggestData,
 		identity: InlineSuggestionIdentity,
 		displayLocation: InlineSuggestDisplayLocation | undefined,
+		uri: URI | undefined
 	) {
-		super(data, identity, displayLocation);
+		super(data, identity, displayLocation, uri);
 	}
 
 	override get hash(): string {
@@ -235,7 +240,8 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this.additionalTextEdits,
 			this._data,
 			identity,
-			this.displayLocation
+			this.displayLocation,
+			this.uri
 		);
 	}
 
@@ -267,7 +273,8 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			this.additionalTextEdits,
 			this._data,
 			this.identity,
-			newDisplayLocation
+			newDisplayLocation,
+			this.uri
 		);
 	}
 
@@ -344,7 +351,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			return SingleUpdatedNextEdit.create(edit, replacedText);
 		});
 		const displayLocation = data.displayLocation ? InlineSuggestDisplayLocation.create(data.displayLocation) : undefined;
-		return new InlineEditItem(offsetEdit, singleTextEdit, data, identity, edits, displayLocation, false, textModel.getVersionId());
+		return new InlineEditItem(offsetEdit, singleTextEdit, data, identity, edits, displayLocation, false, textModel.getVersionId(), data.uri);
 	}
 
 	public readonly snippetInfo: SnippetInfo | undefined = undefined;
@@ -362,8 +369,9 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		displayLocation: InlineSuggestDisplayLocation | undefined,
 		private readonly _lastChangePartOfInlineEdit = false,
 		private readonly _inlineEditModelVersion: number,
+		uri: URI | undefined
 	) {
-		super(data, identity, displayLocation);
+		super(data, identity, displayLocation, uri);
 	}
 
 	public get updatedEditModelVersion(): number { return this._inlineEditModelVersion; }
@@ -383,6 +391,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			this.displayLocation,
 			this._lastChangePartOfInlineEdit,
 			this._inlineEditModelVersion,
+			this.uri
 		);
 	}
 
@@ -441,6 +450,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			newDisplayLocation,
 			lastChangePartOfInlineEdit,
 			inlineEditModelVersion,
+			this.uri
 		);
 	}
 }

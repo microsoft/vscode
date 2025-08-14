@@ -1376,6 +1376,7 @@ class InlineCompletionAdapter {
 			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
 			requestUuid: context.requestUuid,
 			requestIssuedDateTime: context.requestIssuedDateTime,
+			earliestShownDateTime: context.earliestShownDateTime,
 		}, token);
 
 		if (!result) {
@@ -1427,6 +1428,7 @@ class InlineCompletionAdapter {
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 					isInlineEdit: this._isAdditionsProposedApiEnabled ? item.isInlineEdit : false,
 					showInlineEditMenu: this._isAdditionsProposedApiEnabled ? item.showInlineEditMenu : false,
+					uri: item.uri ? URI.revive(item.uri) : undefined,
 					displayLocation: (item.displayLocation && this._isAdditionsProposedApiEnabled) ? {
 						range: typeConvert.Range.from(item.displayLocation.range),
 						label: item.displayLocation.label,

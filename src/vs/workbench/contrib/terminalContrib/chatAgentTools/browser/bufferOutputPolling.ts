@@ -13,10 +13,12 @@ import { ChatModel } from '../../../chat/common/chatModel.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../chat/common/languageModelToolsService.js';
-import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import type { Terminal as RawXtermTerminal, IMarker as IXtermMarker } from '@xterm/xterm';
+import { Task } from '../../../tasks/common/taskService.js';
+import { IMarkerData, IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { ProblemMatcher, ProblemMatcherRegistry } from '../../../tasks/common/problemMatcher.js';
 
-const enum PollingConsts {
+export const enum PollingConsts {
 	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
 	MinPollingDuration = 500,
 	FirstPollingMaxDuration = 20000, // 20 seconds
@@ -24,27 +26,86 @@ const enum PollingConsts {
 	MaxPollingIntervalDuration = 2000, // 2 seconds
 }
 
-export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarker): string {
-	if (!instance.xterm || !instance.xterm.raw) {
+
+/**
+ * Waits for either polling to complete (terminal idle or timeout) or for the user to respond to a prompt.
+ * If polling completes first, the prompt is removed. If the prompt completes first and is accepted, polling continues.
+ */
+export async function racePollingOrPrompt(
+	pollFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
+	promptFn: () => { promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide'> },
+	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string },
+	token: CancellationToken,
+	languageModelsService: ILanguageModelsService,
+	markerService: IMarkerService,
+	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Task; beginsPattern?: string; endsPattern?: string; dependencyTasks?: Task[] }
+): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+	const pollPromise = pollFn();
+	const { promise: promptPromise, part } = promptFn();
+	let promptResolved = false;
+
+	const pollPromiseWrapped = pollPromise.then(async result => {
+		if (!promptResolved && part) {
+			// The terminal polling is finished, no need to show the prompt
+			part.hide();
+		}
+		return { type: 'poll', result };
+	});
+
+	const promptPromiseWrapped = promptPromise.then(result => {
+		promptResolved = true;
+		return { type: 'prompt', result };
+	});
+
+	const raceResult = await Promise.race([
+		pollPromiseWrapped,
+		promptPromiseWrapped
+	]);
+	if (raceResult.type === 'poll') {
+		return raceResult.result as { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string };
+	} else if (raceResult.type === 'prompt') {
+		const promptResult = raceResult.result as boolean;
+		if (promptResult) {
+			// User accepted, poll again (extended)
+			return await pollForOutputAndIdle(execution, true, token, languageModelsService, markerService);
+		} else {
+			return originalResult; // User rejected, return the original result
+		}
+	}
+	// If prompt was rejected or something else, return the result of the first poll
+	return await pollFn();
+}
+
+
+export function getOutput(terminal?: Pick<RawXtermTerminal, 'buffer'>, startMarker?: IXtermMarker): string {
+	if (!terminal) {
 		return '';
 	}
-	const lines: string[] = [];
-	for (let y = Math.min(startMarker?.line ?? 0, 0); y < instance.xterm!.raw.buffer.active.length; y++) {
-		const line = instance.xterm!.raw.buffer.active.getLine(y);
-		if (!line) {
-			continue;
-		}
-		lines.push(line.translateToString(true));
+	const buffer = terminal.buffer.active;
+	const startLine = Math.max(startMarker?.line ?? 0, 0);
+	const endLine = buffer.length;
+	const lines: string[] = new Array(endLine - startLine);
+
+	for (let y = startLine; y < endLine; y++) {
+		const line = buffer.getLine(y);
+		lines[y - startLine] = line ? line.translateToString(true) : '';
 	}
-	return lines.join('\n');
+
+	let output = lines.join('\n');
+	if (output.length > 16000) {
+		output = output.slice(-16000);
+	}
+	return output;
 }
 
 export async function pollForOutputAndIdle(
-	execution: { getOutput: () => string; isActive?: () => Promise<boolean> },
+	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Pick<Task, 'configurationProperties'>; dependencyTasks?: Task[] },
 	extendedPolling: boolean,
 	token: CancellationToken,
-	languageModelsService: ILanguageModelsService,
-): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number }> {
+	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
+	markerService: Pick<IMarkerService, 'read'>,
+	knownMatchers?: ProblemMatcher[]
+): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 	let currentInterval = PollingConsts.MinPollingDuration;
@@ -89,52 +150,83 @@ export async function pollForOutputAndIdle(
 		}
 
 		if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
-			terminalExecutionIdleBeforeTimeout = await assessOutputForFinishedState(buffer, execution, token, languageModelsService);
-			if (terminalExecutionIdleBeforeTimeout) {
-				return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+			if (execution.isActive && ((await execution.isActive()) === true)) {
+				noNewDataCount = 0;
+				lastBufferLength = currentBufferLength;
+				continue;
 			}
 		}
+		terminalExecutionIdleBeforeTimeout = true;
+		if (execution.task) {
+			const problems = await getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
+			if (problems) {
+				// Problem matchers exist for this task
+				const problemList: string[] = [];
+				for (const [, problemArray] of problems.entries()) {
+					if (problemArray.length) {
+						for (const p of problemArray) {
+							problemList.push(`${p.severity}: ${p.message}`);
+						}
+					}
+				}
+				if (problemList.length === 0) {
+					return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+				}
+				return {
+					terminalExecutionIdleBeforeTimeout,
+					output: problemList.join('\n'),
+					pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
+				};
+			}
+		}
+		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
+		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
-	return { terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
-export async function promptForMorePolling(command: string, context: IToolInvocationContext, chatService: IChatService): Promise<boolean> {
+export function promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
+	if (token.isCancellationRequested) {
+		return { promise: Promise.resolve(false) };
+	}
 	const chatModel = chatService.getSession(context.sessionId);
 	if (chatModel instanceof ChatModel) {
 		const request = chatModel.getRequests().at(-1);
 		if (request) {
-			const waitPromise = new Promise<boolean>(resolve => {
-				const part = new ChatElicitationRequestPart(
-					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}` to finish?", command)),
-					new MarkdownString(localize('poll.terminal.polling', "Copilot will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
+			let part: ChatElicitationRequestPart | undefined = undefined;
+			const promise = new Promise<boolean>(resolve => {
+				const thePart = part = new ChatElicitationRequestPart(
+					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for \`{0}\`?", command)),
+					new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
 					'',
 					localize('poll.terminal.accept', 'Yes'),
 					localize('poll.terminal.reject', 'No'),
 					async () => {
+						thePart.state = 'accepted';
+						thePart.hide();
 						resolve(true);
 					},
 					async () => {
+						thePart.state = 'rejected';
+						thePart.hide();
 						resolve(false);
 					}
 				);
-				chatModel.acceptResponseProgress(request, part);
+				chatModel.acceptResponseProgress(request, thePart);
 			});
-			return waitPromise;
+			return { promise, part };
 		}
 	}
-	return false; // Fallback to not waiting if we can't prompt the user
+	return { promise: Promise.resolve(false) };
 }
 
-export async function assessOutputForFinishedState(buffer: string, execution: { getOutput: () => string; isActive?: () => Promise<boolean> }, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<boolean> {
-	if (execution.isActive && ((await execution.isActive()) === false)) {
-		return true;
-	}
+export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<string> {
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
-		return false;
+		return 'No models available';
 	}
 
-	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if the command is finished or still in process: ${buffer}. Return the word true if finished and false if still in process.` }] }], {}, token);
+	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
 
 	let responseText = '';
 
@@ -154,8 +246,42 @@ export async function assessOutputForFinishedState(buffer: string, execution: { 
 
 	try {
 		await Promise.all([response.result, streaming]);
-		return responseText.includes('true');
+		return response.result;
 	} catch (err) {
-		return false;
+		return 'Error occurred ' + err;
 	}
 }
+
+export function getProblemsForTasks(task: Pick<Task, 'configurationProperties'>, markerService: Pick<IMarkerService, 'read'>, dependencyTasks?: Task[], knownMatchers?: ProblemMatcher[]): Map<string, IMarkerData[]> | undefined {
+	const problemsMap = new Map<string, IMarkerData[]>();
+	let hadDefinedMatcher = false;
+
+	const collectProblems = (t: Pick<Task, 'configurationProperties'>) => {
+		const matchers = Array.isArray(t.configurationProperties.problemMatchers)
+			? t.configurationProperties.problemMatchers
+			: (t.configurationProperties.problemMatchers ? [t.configurationProperties.problemMatchers] : []);
+		for (const matcherRef of matchers) {
+			const matcher = typeof matcherRef === 'string'
+				? ProblemMatcherRegistry.get(matcherRef) ?? knownMatchers?.find(m => m.owner === matcherRef)
+				: matcherRef;
+			if (matcher?.owner) {
+				const markers = markerService.read({ owner: matcher.owner });
+				hadDefinedMatcher = true;
+				if (markers.length) {
+					problemsMap.set(matcher.owner, markers);
+				}
+			}
+		}
+	};
+
+	collectProblems(task);
+
+	if (problemsMap.size === 0 && dependencyTasks) {
+		for (const depTask of dependencyTasks) {
+			collectProblems(depTask);
+		}
+	}
+
+	return hadDefinedMatcher ? problemsMap : undefined;
+}
+

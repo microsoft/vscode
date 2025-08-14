@@ -405,6 +405,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			}
 
 			this.authenticationAccessService.updateAllowedExtensions(providerId, session.account.label, [{ id: extensionId, name: extensionName, allowed: true }]);
+			this.authenticationExtensionsService.updateNewSessionRequests(providerId, [session]);
 			this._updateAccountPreference(extensionId, providerId, session);
 			return session;
 		}

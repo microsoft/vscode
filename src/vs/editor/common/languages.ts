@@ -758,6 +758,7 @@ export interface InlineCompletionContext {
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
 	readonly requestIssuedDateTime: number;
+	readonly earliestShownDateTime: number;
 }
 
 export class SelectedSuggestionInfo {
@@ -831,6 +832,10 @@ export interface InlineCompletion {
 	readonly warning?: InlineCompletionWarning;
 
 	readonly displayLocation?: InlineCompletionDisplayLocation;
+	/**
+	 * The Uri of the document this completion item is associated with.
+	 */
+	readonly uri?: UriComponents;
 }
 
 export interface InlineCompletionWarning {
@@ -986,10 +991,15 @@ export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion
 export type LifetimeSummary = {
 	requestUuid: string;
 	partiallyAccepted: number;
+	partiallyAcceptedCountSinceOriginal: number;
+	partiallyAcceptedRatioSinceOriginal: number;
+	partiallyAcceptedCharactersSinceOriginal: number;
 	shown: boolean;
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilProviderRequest: number;
+	timeUntilProviderResponse: number;
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;
@@ -2284,7 +2294,7 @@ export interface CodeLens {
 }
 
 export interface CodeLensList {
-	lenses: CodeLens[];
+	readonly lenses: readonly CodeLens[];
 	dispose?(): void;
 }
 

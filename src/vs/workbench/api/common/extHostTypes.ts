@@ -1793,6 +1793,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
 	command?: vscode.Command;
+	uri?: vscode.Uri;
 
 	constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind) {
 		this.label = label;
@@ -4609,6 +4610,15 @@ export class ChatResponseFileTreePart {
 	}
 }
 
+export class ChatResponseMultiDiffPart {
+	value: vscode.ChatResponseDiffEntry[];
+	title: string;
+	constructor(value: vscode.ChatResponseDiffEntry[], title: string) {
+		this.value = value;
+		this.title = title;
+	}
+}
+
 export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location;
 	title?: string;
@@ -4636,6 +4646,17 @@ export class ChatResponseProgressPart2 {
 	constructor(value: string, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart>) => Thenable<string | void>) {
 		this.value = value;
 		this.task = task;
+	}
+}
+
+export class ChatResponseThinkingProgressPart {
+	value: string;
+	id?: string;
+	metadata?: string;
+	constructor(value: string, id?: string, metadata?: string) {
+		this.value = value;
+		this.id = id;
+		this.metadata = metadata;
 	}
 }
 
@@ -4703,6 +4724,27 @@ export class ChatResponseExtensionsPart {
 	}
 }
 
+export class ChatResponsePullRequestPart {
+	constructor(
+		public readonly uri: vscode.Uri,
+		public readonly title: string,
+		public readonly description: string,
+		public readonly author: string,
+		public readonly linkTag: string
+	) {
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.ChatResponsePullRequestPart,
+			uri: this.uri,
+			title: this.title,
+			description: this.description,
+			author: this.author
+		};
+	}
+}
+
 export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
@@ -4744,6 +4786,36 @@ export class ChatPrepareToolInvocationPart {
 	}
 }
 
+
+export interface ChatTerminalToolInvocationData2 {
+	commandLine: {
+		original: string;
+		userEdited?: string;
+		toolEdited?: string;
+	};
+	language: string;
+}
+
+export class ChatToolInvocationPart {
+	toolName: string;
+	toolCallId: string;
+	isError?: boolean;
+	invocationMessage?: string | vscode.MarkdownString;
+	originMessage?: string | vscode.MarkdownString;
+	pastTenseMessage?: string | vscode.MarkdownString;
+	isConfirmed?: boolean;
+	isComplete?: boolean;
+	toolSpecificData?: ChatTerminalToolInvocationData2;
+
+	constructor(toolName: string,
+		toolCallId: string,
+		isError?: boolean) {
+		this.toolName = toolName;
+		this.toolCallId = toolCallId;
+		this.isError = isError;
+	}
+}
+
 export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 	constructor(
 		readonly prompt: string,
@@ -4765,6 +4837,16 @@ export class ChatResponseTurn implements vscode.ChatResponseTurn {
 	) { }
 }
 
+export class ChatResponseTurn2 implements vscode.ChatResponseTurn2 {
+
+	constructor(
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ChatResponseExtensionsPart | ChatToolInvocationPart>,
+		readonly result: vscode.ChatResult,
+		readonly participant: string,
+		readonly command?: string
+	) { }
+}
+
 export enum ChatLocation {
 	Panel = 1,
 	Terminal = 2,
@@ -4772,10 +4854,22 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export enum ChatSessionStatus {
+	Failed = 0,
+	Completed = 1,
+	InProgress = 2
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
 	Omitted = 3
+}
+
+export enum ChatResponseClearToPreviousToolInvocationReason {
+	NoReason = 0,
+	FilteredContentRetry = 1,
+	CopyrightContentRetry = 2,
 }
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
@@ -4837,15 +4931,6 @@ export class LanguageModelToolResultPart2 implements vscode.LanguageModelToolRes
 		this.content = content;
 		this.isError = isError ?? false;
 	}
-}
-
-export class PreparedTerminalToolInvocation {
-	constructor(
-		public readonly command: string,
-		public readonly language: string,
-		public readonly confirmationMessages?: vscode.LanguageModelToolConfirmationMessages,
-		public readonly presentation?: 'hidden'
-	) { }
 }
 
 export enum ChatErrorLevel {
@@ -4963,28 +5048,39 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	}
 }
 
-export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
-	value: string;
+export enum LanguageModelPartAudience {
+	Assistant = 0,
+	User = 1,
+	Extension = 2,
+}
 
-	constructor(value: string) {
+export class LanguageModelTextPart implements vscode.LanguageModelTextPart2 {
+	value: string;
+	audience: vscode.LanguageModelPartAudience[] | undefined;
+
+	constructor(value: string, audience?: vscode.LanguageModelPartAudience[]) {
 		this.value = value;
+		audience = audience;
 	}
 
 	toJSON() {
 		return {
 			$mid: MarshalledId.LanguageModelTextPart,
 			value: this.value,
+			audience: this.audience,
 		};
 	}
 }
 
-export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
+export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 	mimeType: string;
 	data: Uint8Array<ArrayBufferLike>;
+	audience: vscode.LanguageModelPartAudience[] | undefined;
 
-	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string) {
+	constructor(data: Uint8Array<ArrayBufferLike>, mimeType: string, audience?: vscode.LanguageModelPartAudience[]) {
 		this.mimeType = mimeType;
 		this.data = data;
+		this.audience = audience;
 	}
 
 	static image(data: Uint8Array<ArrayBufferLike>, mimeType: ChatImageMimeType): vscode.LanguageModelDataPart {
@@ -5005,6 +5101,7 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 			$mid: MarshalledId.LanguageModelDataPart,
 			mimeType: this.mimeType,
 			data: this.data,
+			audience: this.audience
 		};
 	}
 }
@@ -5016,6 +5113,28 @@ export enum ChatImageMimeType {
 	WEBP = 'image/webp',
 	BMP = 'image/bmp',
 }
+
+export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPart {
+	value: string;
+	id?: string;
+	metadata?: string;
+
+	constructor(value: string, id?: string, metadata?: string) {
+		this.value = value;
+		this.id = id;
+		this.metadata = metadata;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelThinkingPart,
+			value: this.value,
+			id: this.id,
+			metadata: this.metadata,
+		};
+	}
+}
+
 
 
 export class LanguageModelPromptTsxPart {

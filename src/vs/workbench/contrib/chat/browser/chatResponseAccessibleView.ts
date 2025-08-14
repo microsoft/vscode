@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
@@ -66,7 +67,20 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			responseContent = item.errorDetails.message;
 		}
 		if (isResponseVM(item)) {
-
+			item.response.value.filter(item => item.kind === 'elicitation').forEach(elicitation => {
+				const title = elicitation.title;
+				if (typeof title === 'string') {
+					responseContent += `${title}\n`;
+				} else if (isMarkdownString(title)) {
+					responseContent += renderAsPlaintext(title, { includeCodeBlocksFences: true }) + '\n';
+				}
+				const message = elicitation.message;
+				if (isMarkdownString(message)) {
+					responseContent += renderAsPlaintext(message, { includeCodeBlocksFences: true });
+				} else {
+					responseContent += message;
+				}
+			});
 			const toolInvocations = item.response.value.filter(item => item.kind === 'toolInvocation');
 			for (const toolInvocation of toolInvocations) {
 				if (toolInvocation.confirmationMessages) {
@@ -74,15 +88,18 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message));
 					let input = '';
 					if (toolInvocation.toolSpecificData) {
-						input = toolInvocation.toolSpecificData?.kind === 'terminal'
-							? toolInvocation.toolSpecificData.command
-							: toolInvocation.toolSpecificData?.kind === 'terminal2'
-								? toolInvocation.toolSpecificData.commandLine.userEdited ?? toolInvocation.toolSpecificData.commandLine.toolEdited ?? toolInvocation.toolSpecificData.commandLine.original
-								: toolInvocation.toolSpecificData?.kind === 'extensions'
-									? JSON.stringify(toolInvocation.toolSpecificData.extensions)
-									: toolInvocation.toolSpecificData?.kind === 'tasks'
-										? JSON.stringify(toolInvocation.toolSpecificData.tasks)
+						if (toolInvocation.toolSpecificData?.kind === 'terminal') {
+							const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
+							input = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+						} else {
+							input = toolInvocation.toolSpecificData?.kind === 'extensions'
+								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
+								: toolInvocation.toolSpecificData?.kind === 'todoList'
+									? JSON.stringify(toolInvocation.toolSpecificData.todoList)
+									: toolInvocation.toolSpecificData?.kind === 'pullRequest'
+										? JSON.stringify(toolInvocation.toolSpecificData)
 										: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
+						}
 					}
 					responseContent += `${title}`;
 					if (input) {

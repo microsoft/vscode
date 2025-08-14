@@ -106,6 +106,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugVariablesContext', "The debug variables view context menu")
 	},
 	{
+		key: 'debug/watch/context',
+		id: MenuId.DebugWatchContext,
+		description: localize('menus.debugWatchContext', "The debug watch view context menu")
+	},
+	{
 		key: 'debug/toolBar',
 		id: MenuId.DebugToolBar,
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
@@ -448,13 +453,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'editor/context/chat',
 		id: MenuId.ChatTextEditorMenu,
 		description: localize('menus.chatTextEditor', "The Chat submenu in the text editor context menu."),
-		supportsSubmenus: false,
-		proposed: 'chatParticipantPrivate'
-	},
-	{
-		key: 'terminal/context/chat',
-		id: MenuId.ChatTerminalMenu,
-		description: localize('menus.chatTerminal', "The Chat submenu in the terminal context menu."),
 		supportsSubmenus: false,
 		proposed: 'chatParticipantPrivate'
 	},

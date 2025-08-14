@@ -807,7 +807,7 @@ export class Repository implements Disposable {
 		return this._cherryPickInProgress;
 	}
 
-	private _operations = new OperationManager(this.logger);
+	private readonly _operations: OperationManager;
 	get operations(): OperationManager { return this._operations; }
 
 	private _state = RepositoryState.Idle;
@@ -866,6 +866,8 @@ export class Repository implements Disposable {
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
+		this._operations = new OperationManager(this.logger);
+
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
 		this.disposables.push(repositoryWatcher);
 
@@ -1728,8 +1730,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async worktree(options: { path: string; name: string }): Promise<void> {
-		await this.run(Operation.Worktree, () => this.repository.worktree(options));
+	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
+		await this.run(Operation.Worktree, () => this.repository.addWorktree(options));
 	}
 
 	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {

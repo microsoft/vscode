@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import * as glob from '../../../../../base/common/glob.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
@@ -23,7 +24,8 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { ChatUserAction, IChatService } from '../../common/chatService.js';
+import { chatAutoApproveEditsDefaultConfiguration, ChatConfiguration } from '../../common/constants.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -74,6 +76,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	private readonly _autoAcceptCtrl = observableValue<AutoAcceptControl | undefined>(this, undefined);
 	readonly autoAcceptController: IObservable<AutoAcceptControl | undefined> = this._autoAcceptCtrl;
 
+	readonly editsRequireManualApproval: IObservable<boolean>;
+
 	protected readonly _autoAcceptTimeout: IObservable<number>;
 
 	get telemetryInfo(): IModifiedEntryTelemetryInfo {
@@ -90,7 +94,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	readonly abstract originalURI: URI;
 
-	protected readonly _userEditScheduler = this._register(new RunOnceScheduler(() => this._notifyAction('userModified'), 1000));
+	protected readonly _userEditScheduler = this._register(new RunOnceScheduler(() => this._notifySessionAction('userModified'), 1000));
 
 	constructor(
 		readonly modifiedURI: URI,
@@ -118,6 +122,20 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			}));
 		}
 
+		const autoApproveConfig = observableConfigValue(ChatConfiguration.AutoApproveEdits, chatAutoApproveEditsDefaultConfiguration, configService);
+		this.editsRequireManualApproval = autoApproveConfig.map(config => {
+			let autoApprove = true;
+			for (const [pattern, value] of Object.entries(config)) {
+				if (value === autoApprove) {
+					continue; // would not change match anyway
+				}
+				if (glob.match(pattern, this.modifiedURI.fsPath)) {
+					autoApprove = value;
+				}
+			}
+			return !autoApprove;
+		});
+
 		// review mode depends on setting and temporary override
 		const autoAcceptRaw = observableConfigValue('chat.editing.autoAcceptDelay', 0, configService);
 		this._autoAcceptTimeout = derived(r => {
@@ -134,7 +152,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 		const autoSaveOff = this._store.add(new MutableDisposable());
 		this._store.add(autorun(r => {
-			if (this._waitsForLastEdits.read(r)) {
+			if (this._waitsForLastEdits.read(r) || (this.state.read(r) === ModifiedFileEntryState.Modified && this.editsRequireManualApproval.read(r))) {
 				autoSaveOff.value = _fileConfigService.disableAutoSave(this.modifiedURI);
 			} else {
 				autoSaveOff.clear();
@@ -216,7 +234,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			this._autoAcceptCtrl.set(undefined, tx);
 		});
 
-		this._notifyAction('accepted');
+		this._notifySessionAction('accepted');
 	}
 
 	protected abstract _doAccept(): Promise<void>;
@@ -227,7 +245,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			return;
 		}
 
-		this._notifyAction('rejected');
+		this._notifySessionAction('rejected');
 		await this._doReject();
 		transaction(tx => {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
@@ -237,9 +255,13 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected abstract _doReject(): Promise<void>;
 
-	protected _notifyAction(outcome: 'accepted' | 'rejected' | 'userModified') {
+	protected _notifySessionAction(outcome: 'accepted' | 'rejected' | 'userModified') {
+		this._notifyAction({ kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome });
+	}
+
+	protected _notifyAction(action: ChatUserAction) {
 		this._chatService.notifyUserAction({
-			action: { kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome },
+			action,
 			agentId: this._telemetryInfo.agentId,
 			command: this._telemetryInfo.command,
 			sessionId: this._telemetryInfo.sessionId,

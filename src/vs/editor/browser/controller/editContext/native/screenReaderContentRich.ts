@@ -235,14 +235,13 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 		if (!startRenderedLine || !endRenderedLine) {
 			return;
 		}
-		const range = new globalThis.Range();
 		const viewModel = context.viewModel;
 		const model = viewModel.model;
 		const coordinatesConverter = viewModel.coordinatesConverter;
-		const startRange = new Range(startLineNumber, 1, startLineNumber, viewSelection.startColumn);
+		const startRange = new Range(startLineNumber, 1, startLineNumber, viewSelection.selectionStartColumn);
 		const modelStartRange = coordinatesConverter.convertViewRangeToModelRange(startRange);
 		const characterCountForStart = model.getCharacterCountInRange(modelStartRange);
-		const endRange = new Range(endLineNumber, 1, endLineNumber, viewSelection.endColumn);
+		const endRange = new Range(endLineNumber, 1, endLineNumber, viewSelection.positionColumn);
 		const modelEndRange = coordinatesConverter.convertViewRangeToModelRange(endRange);
 		const characterCountForEnd = model.getCharacterCountInRange(modelEndRange);
 		const startDomPosition = startRenderedLine.characterMapping.getDomPosition(characterCountForStart);
@@ -256,10 +255,13 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 		if (!startNode.firstChild || !endNode.firstChild) {
 			return;
 		}
-		range.setStart(startNode.firstChild, viewSelection.startColumn === 1 ? 0 : startDomPosition.charIndex + 1);
-		range.setEnd(endNode.firstChild, viewSelection.endColumn === 1 ? 0 : endDomPosition.charIndex + 1);
 		this._setIgnoreSelectionChangeTime('setRange');
-		activeDocumentSelection.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
+		activeDocumentSelection.setBaseAndExtent(
+			startNode.firstChild,
+			viewSelection.startColumn === 1 ? 0 : startDomPosition.charIndex + 1,
+			endNode.firstChild,
+			viewSelection.endColumn === 1 ? 0 : endDomPosition.charIndex + 1
+		);
 	}
 
 	private _getScreenReaderContentLineIntervals(primarySelection: Selection): RichScreenReaderState {
@@ -305,12 +307,21 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 		}
 		const startColumn = getColumnOfNodeOffset(startMapping, startSpanElement, range.startOffset);
 		const endColumn = getColumnOfNodeOffset(endMapping, endSpanElement, range.endOffset);
-		return new Selection(
-			startLineNumber,
-			startColumn,
-			endLineNumber,
-			endColumn
-		);
+		if (selection.direction === 'forward') {
+			return new Selection(
+				startLineNumber,
+				startColumn,
+				endLineNumber,
+				endColumn
+			);
+		} else {
+			return new Selection(
+				endLineNumber,
+				endColumn,
+				startLineNumber,
+				startColumn
+			);
+		}
 	}
 }
 

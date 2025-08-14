@@ -75,6 +75,17 @@ function __vsc_apply_env_vars
 	end
 end
 
+# Register Python shell activate hooks
+if test -n "$VSCODE_PYTHON_FISH_ACTIVATE"; and test "$TERM_PROGRAM" = "vscode"
+	# Fish does not crash on eval failure, so don't need negation.
+	eval $VSCODE_PYTHON_FISH_ACTIVATE
+	set __vsc_activation_status $status
+
+	if test $__vsc_activation_status -ne 0
+		builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python fish activation failed with exit code %d \x1b[0m \n' "$__vsc_activation_status"
+	end
+end
+
 # Handle the shell integration nonce
 if set -q VSCODE_NONCE
 	set -l __vsc_nonce $VSCODE_NONCE

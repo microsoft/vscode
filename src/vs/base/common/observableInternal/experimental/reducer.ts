@@ -9,6 +9,7 @@ import { subtransaction } from '../transaction.js';
 import { IChangeTracker } from '../changeTracker.js';
 import { DebugNameData, DebugOwner } from '../debugName.js';
 import { DerivedWithSetter, IDerivedReader } from '../observables/derivedImpl.js';
+import { DebugLocation } from '../debugLocation.js';
 
 export interface IReducerOptions<T, TChangeSummary = void, TOutChange = void> {
 	/**
@@ -73,7 +74,8 @@ export function observableReducerSettable<T, TInChanges, TOutChange = void>(owne
 				prevValue = value;
 				d.setValue(value, tx, change);
 			});
-		}
+		},
+		DebugLocation.ofCaller()
 	);
 
 	return d;

@@ -2648,7 +2648,7 @@ class RefreshTreeController extends Disposable {
 	private queuedIChangeEvents: IChangeEvent[] = [];
 
 	public clearAllPending(): void {
-		this.searchView.getControl().cancelAllRefreshPromises();
+		this.searchView.getControl().cancelAllRefreshPromises(true);
 	}
 
 	public async queue(e?: IChangeEvent): Promise<void> {
