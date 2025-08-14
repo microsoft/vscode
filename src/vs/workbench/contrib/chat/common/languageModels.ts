@@ -143,11 +143,6 @@ export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart
 
 export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
-export interface IChatResponseFragment {
-	index: number;
-	part: IChatResponsePart;
-}
-
 export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
 

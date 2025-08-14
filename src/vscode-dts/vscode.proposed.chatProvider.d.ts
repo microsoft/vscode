@@ -102,6 +102,27 @@ declare module 'vscode' {
 		readonly category?: { label: string; order: number };
 	}
 
+	/**
+	 * The provider version of @link {LanguageModelChatMessage}.
+	 */
+	export interface LanguageModelChatRequestMessage {
+		/**
+			* The role of this message.
+			*/
+		role: LanguageModelChatMessageRole;
+
+		/**
+		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
+		 * specific for some models.
+		 */
+		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | unknown>;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
+		name: string | undefined;
+	}
+
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
 
 		// signals a change from the provider to the editor so that prepareLanguageModelChat is called again
@@ -110,9 +131,9 @@ declare module 'vscode' {
 		// NOT cacheable (between reloads)
 		prepareLanguageModelChatInformation(options: PrepareLMChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 
-		provideLanguageModelChatResponse(model: T, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelChatResponse(model: T, messages: Array<LanguageModelChatRequestMessage>, options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, token: CancellationToken): Thenable<any>;
 
-		provideTokenCount(model: T, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
+		provideTokenCount(model: T, text: string | LanguageModelChatRequestMessage, token: CancellationToken): Thenable<number>;
 	}
 
 	export namespace lm {
