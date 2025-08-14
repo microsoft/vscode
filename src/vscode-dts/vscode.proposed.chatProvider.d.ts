@@ -109,18 +109,18 @@ declare module 'vscode' {
 		/**
 			* The role of this message.
 			*/
-		role: LanguageModelChatMessageRole;
+		readonly role: LanguageModelChatMessageRole;
 
 		/**
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | unknown>;
+		readonly content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | unknown>;
 
 		/**
 		 * The optional name of a user for this message.
 		 */
-		name: string | undefined;
+		readonly name: string | undefined;
 	}
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
