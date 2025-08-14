@@ -83,7 +83,6 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 			$activationError = $_
 			Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
 		}
-		Remove-Item Env:VSCODE_PYTHON_AUTOACTIVATE_GUARD
 	}
 }
 
