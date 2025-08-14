@@ -106,7 +106,7 @@ export async function pollForOutputAndIdle(
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 	markerService: Pick<IMarkerService, 'read'>,
 	knownMatchers?: ProblemMatcher[]
-): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string; confirmationPrompt?: { prompt: string; options: string[] } }> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 	let currentInterval = PollingConsts.MinPollingDuration;
@@ -186,9 +186,57 @@ export async function pollForOutputAndIdle(
 			}
 		}
 		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
-		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+		const confirmationPrompt = await detectConfirmationPromptWithLLM(buffer, token, languageModelsService);
+		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0), confirmationPrompt };
 	}
-	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+
+	const confirmationPrompt = await detectConfirmationPromptWithLLM(buffer, token, languageModelsService);
+	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0), confirmationPrompt };
+
+	async function detectConfirmationPromptWithLLM(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<{ prompt: string; options: string[] } | undefined> {
+		if (!buffer) {
+			return undefined;
+		}
+		const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
+		if (!models.length) {
+			return undefined;
+		}
+		const promptText = `Does the following terminal output contain a confirmation prompt (for example: 'y/n', '[Y]es/[N]o/[A]ll', '[Y]es/[N]o/[S]uspend/[C]ancel', 'Press Enter to continue', 'Type Yes to proceed', 'Do you want to overwrite?', 'Continue [y/N]', 'Accept license terms? (yes/no)', etc)? If so, extract the prompt text and the available options as a JSON object with keys 'prompt' and 'options'. If not, return null.\n\nOutput:\n${buffer}`;
+		const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
+			{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: promptText }] }
+		], {}, token);
+
+		let responseText = '';
+		const streaming = (async () => {
+			for await (const part of response.stream) {
+				if (Array.isArray(part)) {
+					for (const p of part) {
+						if (p.part.type === 'text') {
+							responseText += p.part.value;
+						}
+					}
+				} else if (part.part.type === 'text') {
+					responseText += part.part.value;
+				}
+			}
+		})();
+
+		try {
+			await Promise.all([response.result, streaming]);
+			const match = responseText.match(/\{[\s\S]*\}/);
+			if (match) {
+				try {
+					const obj = JSON.parse(match[0]);
+					if (obj && typeof obj.prompt === 'string' && Array.isArray(obj.options)) {
+						return obj;
+					}
+				} catch {
+				}
+			}
+		} catch {
+		}
+		return undefined;
+	}
 }
 
 export function promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
@@ -232,7 +280,7 @@ export async function assessOutputForErrors(buffer: string, token: CancellationT
 		return 'No models available';
 	}
 
-	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
+	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
 
 	let responseText = '';
 
