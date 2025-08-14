@@ -12,10 +12,11 @@ const windowsArches = ['x64'];
 const isMacOS = process.platform === 'darwin';
 const macOSArches = ['arm64'];
 
-console.log(`Building Microsoft Authentication Extension for ${process.platform} (${process.arch})`);
+const arch = process.env['VSCODE_ARCH'] || process.arch;
+console.log(`Building Microsoft Authentication Extension for ${process.platform} (${arch})`);
 
 const plugins = [...nodePlugins(import.meta.dirname)];
-if ((isWindows && windowsArches.includes(process.arch)) || (isMacOS && macOSArches.includes(process.arch))) {
+if ((isWindows && windowsArches.includes(arch)) || (isMacOS && macOSArches.includes(arch))) {
 	plugins.push(new CopyWebpackPlugin({
 		patterns: [
 			{
