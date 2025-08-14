@@ -1533,9 +1533,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
-			registerChatModelProvider: (vendor, provider) => {
+			registerLanguageModelChatProvider: (vendor, provider) => {
 				checkProposedApiEnabled(extension, 'chatProvider');
-				return extHostLanguageModels.registerLanguageModelProvider(extension, vendor, provider);
+				return extHostLanguageModels.registerLanguageModelChatProvider(extension, vendor, provider);
 			},
 			// --- embeddings
 			get embeddingModels() {

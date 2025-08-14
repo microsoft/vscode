@@ -15,8 +15,8 @@ suite('chat', () => {
 		disposables = [];
 
 		// Register a dummy default model which is required for a participant request to go through
-		disposables.push(lm.registerChatModelProvider('test-lm-vendor', {
-			async prepareLanguageModelChat(_options, _token) {
+		disposables.push(lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async prepareLanguageModelChatInformation(_options, _token) {
 				return [{
 					id: 'test-lm',
 					name: 'test-lm',
