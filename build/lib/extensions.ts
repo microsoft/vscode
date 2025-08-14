@@ -63,11 +63,9 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 
 function fromLocal(extensionPath: string, forWeb: boolean, disableMangle: boolean): Stream {
 
-	const esm = JSON.parse(fs.readFileSync(path.join(extensionPath, 'package.json'), 'utf8')).type === 'module';
-
 	const webpackConfigFileName = forWeb
-		? `extension-browser.webpack.config.${!esm ? 'js' : 'cjs'}`
-		: `extension.webpack.config.${!esm ? 'js' : 'cjs'}`;
+		? `extension-browser.webpack.config.js`
+		: `extension.webpack.config.js`;
 
 	const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFileName));
 	let input = isWebPacked

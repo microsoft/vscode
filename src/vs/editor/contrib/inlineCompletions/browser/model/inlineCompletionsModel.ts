@@ -50,6 +50,7 @@ import { IInlineCompletionsService } from '../../../../browser/services/inlineCo
 import { TypingInterval } from './typingSpeed.js';
 import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -390,7 +391,7 @@ export class InlineCompletionsModel extends Disposable {
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 			requestIssuedDateTime: requestInfo.startTime,
-			earliestShownDateTime: requestInfo.startTime + this._minShowDelay.get(),
+			earliestShownDateTime: requestInfo.startTime + changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit ? 0 : this._minShowDelay.get(),
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
@@ -837,7 +838,10 @@ export class InlineCompletionsModel extends Disposable {
 
 		try {
 			editor.pushUndoStop();
-			if (completion.snippetInfo) {
+			const isCompletionInAnotherDocument = completion.uri && !isEqual(completion.uri, editor.getModel()?.uri);
+			if (isCompletionInAnotherDocument) {
+				// Do not apply the edits if they belong to another document.
+			} else if (completion.snippetInfo) {
 				const mainEdit = TextReplacement.delete(completion.editRange);
 				const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 				const edit = TextEdit.fromParallelReplacementsUnsorted([mainEdit, ...additionalEdits]);

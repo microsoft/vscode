@@ -11,7 +11,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
-import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionItem, ChatSessionStatus } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
@@ -128,6 +128,22 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		await this._proxy.$showChatSession(chatSessionType, sessionId, typeConvert.ViewColumn.from(options?.viewColumn));
 	}
 
+	private convertChatSessionStatus(status: vscode.ChatSessionStatus | undefined): ChatSessionStatus | undefined {
+		if (status === undefined) {
+			return undefined;
+		}
+		switch (status) {
+			case 0: // vscode.ChatSessionStatus.Failed
+				return ChatSessionStatus.Failed;
+			case 1: // vscode.ChatSessionStatus.Completed
+				return ChatSessionStatus.Completed;
+			case 2: // vscode.ChatSessionStatus.InProgress
+				return ChatSessionStatus.InProgress;
+			default:
+				return undefined;
+		}
+	}
+
 	async $provideChatSessionItems(handle: number, token: vscode.CancellationToken): Promise<IChatSessionItem[]> {
 		const entry = this._chatSessionItemProviders.get(handle);
 		if (!entry) {
@@ -150,7 +166,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				response.push({
 					id: sessionContent.id,
 					label: sessionContent.label,
-					iconPath: sessionContent.iconPath
+					iconPath: sessionContent.iconPath,
+					description: sessionContent.description,
+					status: this.convertChatSessionStatus(sessionContent.status),
+					tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip)
 				});
 			}
 		}

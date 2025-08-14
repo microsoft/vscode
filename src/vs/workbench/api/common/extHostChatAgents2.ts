@@ -527,19 +527,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return model;
 	}
 
-	async $setRequestPaused(handle: number, requestId: string, isPaused: boolean) {
-		const agent = this._agents.get(handle);
-		if (!agent) {
-			return;
-		}
-
-		const inFlight = Iterable.find(this._inFlightRequests, r => r.requestId === requestId);
-		if (!inFlight) {
-			return;
-		}
-
-		agent.setChatRequestPauseState({ request: inFlight.extRequest, isPaused });
-	}
 
 	async $setRequestTools(requestId: string, tools: Pick<IChatAgentRequest, 'userSelectedTools'>) {
 		const request = [...this._inFlightRequests].find(r => r.requestId === requestId);

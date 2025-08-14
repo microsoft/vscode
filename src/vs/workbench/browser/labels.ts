@@ -64,6 +64,11 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	readonly forceLabel?: boolean;
 
 	/**
+	 * A prefix to be added to the name of the label.
+	 */
+	readonly namePrefix?: string;
+
+	/**
 	 * Uses the provided icon instead of deriving a resource icon.
 	 */
 	readonly icon?: ThemeIcon | URI;
@@ -519,6 +524,14 @@ class ResourceLabelWidget extends IconLabel {
 						`${cellIndex + 1}`
 					);
 				}
+			}
+		}
+
+		if (options.namePrefix) {
+			if (typeof label.name === 'string') {
+				label.name = options.namePrefix + label.name;
+			} else if (Array.isArray(label.name) && label.name.length > 0) {
+				label.name = [options.namePrefix + label.name[0], ...label.name.slice(1)];
 			}
 		}
 

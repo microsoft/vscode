@@ -757,6 +757,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.monaco-button {
 		padding: 4px 6px 4px 0px;
 		border-radius: 2px;
+		border: none;
 		background-color: unset;
 		color: var(--vscode-foreground)
 	}
@@ -1074,9 +1075,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.chat-execute-toolbar .codicon.codicon-debug-pause {
-	color: var(--vscode-icon-foreground) !important;
-}
+
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
 	height: 16px;
@@ -2547,17 +2546,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .interactive-response .chat-thinking-box {
-	border: 1px solid var(--vscode-panel-border);
-	border-radius: 4px;
-	padding: 0px 8px;
-	margin: 4px 0;
-	background-color: var(--vscode-editor-background);
+.interactive-session .interactive-response .value .chat-thinking-box {
+	outline: none;
 
 	.chat-thinking-text {
-		font-size: inherit;
+		font-size: 12px;
+		padding: 3px 10px;
 		line-height: inherit;
 		display: flex;
 		align-items: flex-start;
+	}
+
+	.rendered-markdown > p {
+		margin: 0;
 	}
 }

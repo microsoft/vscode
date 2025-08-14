@@ -1793,6 +1793,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
 	command?: vscode.Command;
+	uri?: vscode.Uri;
 
 	constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind) {
 		this.label = label;
@@ -4851,6 +4852,12 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
+}
+
+export enum ChatSessionStatus {
+	Failed = 0,
+	Completed = 1,
+	InProgress = 2
 }
 
 export enum ChatResponseReferencePartStatusKind {

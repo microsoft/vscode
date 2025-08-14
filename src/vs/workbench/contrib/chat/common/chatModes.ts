@@ -207,6 +207,7 @@ export interface IChatMode {
 	readonly name: string;
 	readonly label: string;
 	readonly description: IObservable<string | undefined>;
+	readonly isBuiltin: boolean;
 	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly model?: IObservable<string | undefined>;
@@ -243,6 +244,10 @@ export class CustomChatMode implements IChatMode {
 
 	get description(): IObservable<string | undefined> {
 		return this._descriptionObservable;
+	}
+
+	public get isBuiltin(): boolean {
+		return isBuiltinChatMode(this);
 	}
 
 	get customTools(): IObservable<readonly string[] | undefined> {
@@ -316,6 +321,10 @@ export class BuiltinChatMode implements IChatMode {
 		description: string
 	) {
 		this.description = observableValue('description', description);
+	}
+
+	public get isBuiltin(): boolean {
+		return isBuiltinChatMode(this);
 	}
 
 	get id(): string {

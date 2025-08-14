@@ -16,6 +16,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 import * as nls from '../../../../nls.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -48,9 +49,9 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, ChatSessionStatus } from '../common/chatSessionsService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { IChatWidget, IChatWidgetService } from './chat.js';
@@ -81,6 +82,7 @@ interface ILocalChatSessionItem extends IChatSessionItem {
 	widget?: IChatWidget;
 	sessionType: 'editor' | 'widget';
 	description?: string;
+	status?: ChatSessionStatus;
 }
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
@@ -548,14 +550,23 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 }
 
 // Tree delegate for session items
-class SessionsDelegate implements IListVirtualDelegate<IChatSessionItem> {
+class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvider> {
 	static readonly ITEM_HEIGHT = 22;
+	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 38; // Slightly smaller for cleaner look
 
-	getHeight(element: IChatSessionItem): number {
-		return SessionsDelegate.ITEM_HEIGHT;
+	getHeight(element: ChatSessionItemWithProvider): number {
+		// Check if element has a non-empty description
+		const hasDescription = 'description' in element &&
+			typeof element.description === 'string' &&
+			element.description.trim().length > 0;
+
+		// Only give taller height to non-local sessions with descriptions
+		const isLocalSession = element.provider.chatSessionType === 'local';
+
+		return hasDescription && !isLocalSession ? SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION : SessionsDelegate.ITEM_HEIGHT;
 	}
 
-	getTemplateId(element: IChatSessionItem): string {
+	getTemplateId(element: ChatSessionItemWithProvider): string {
 		return SessionsRenderer.TEMPLATE_ID;
 	}
 }
@@ -636,8 +647,11 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
 		const element = append(container, $('.chat-session-item'));
-		const resourceLabel = this.labels.create(element, { supportHighlights: true });
-		const actionsContainer = append(resourceLabel.element, $('.actions'));
+
+		// Create a container that holds both the label and actions
+		const contentContainer = append(element, $('.session-content'));
+		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
+		const actionsContainer = append(contentContainer, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer);
 		const elementDisposable = new DisposableStore();
 
@@ -655,6 +669,13 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 		// Clear previous element disposables
 		templateData.elementDisposable.clear();
+
+		// Add CSS class for local sessions
+		if (sessionWithProvider.provider.chatSessionType === 'local') {
+			templateData.container.classList.add('local-session');
+		} else {
+			templateData.container.classList.remove('local-session');
+		}
 
 		// Handle different icon types
 		let iconResource: URI | undefined;
@@ -688,7 +709,14 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			resource: iconResource
 		}, {
 			fileKind: undefined,
-			icon: iconTheme || iconUri
+			icon: iconTheme || iconUri,
+			title: 'tooltip' in session && session.tooltip ?
+				(typeof session.tooltip === 'string' ? session.tooltip :
+					isMarkdownString(session.tooltip) ? {
+						markdown: session.tooltip,
+						markdownNotSupportedFallback: session.tooltip.value
+					} : undefined) :
+				undefined
 		});
 
 		// Create context overlay for this specific session item
