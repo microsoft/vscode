@@ -28,7 +28,6 @@ import { CachedFunction } from '../../../../../base/common/cache.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
-import { URI } from '../../../../../base/common/uri.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -242,7 +241,6 @@ function toInlineSuggestData(
 		inlineCompletion.isInlineEdit ?? false,
 		requestInfo,
 		providerRequestInfo,
-		URI.revive(inlineCompletion.uri)
 	);
 }
 
@@ -302,7 +300,6 @@ export class InlineSuggestData {
 
 		private readonly _requestInfo: InlineSuggestRequestInfo,
 		private readonly _providerRequestInfo: InlineSuggestProviderRequestInfo,
-		public readonly uri: URI | undefined
 	) {
 		this._viewData = { editorType: _requestInfo.editorType };
 	}

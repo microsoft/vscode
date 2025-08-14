@@ -7527,10 +7527,6 @@ declare namespace monaco.languages {
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
 		readonly displayLocation?: InlineCompletionDisplayLocation;
-		/**
-		 * The Uri of the document this completion item is associated with.
-		 */
-		readonly uri?: UriComponents;
 	}
 
 	export interface InlineCompletionWarning {

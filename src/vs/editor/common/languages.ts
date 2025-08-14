@@ -832,10 +832,6 @@ export interface InlineCompletion {
 	readonly warning?: InlineCompletionWarning;
 
 	readonly displayLocation?: InlineCompletionDisplayLocation;
-	/**
-	 * The Uri of the document this completion item is associated with.
-	 */
-	readonly uri?: UriComponents;
 }
 
 export interface InlineCompletionWarning {
