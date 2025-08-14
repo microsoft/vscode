@@ -17,6 +17,8 @@ import type { Terminal as RawXtermTerminal, IMarker as IXtermMarker } from '@xte
 import { Task } from '../../../tasks/common/taskService.js';
 import { IMarker, IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { ProblemMatcher, ProblemMatcherRegistry } from '../../../tasks/common/problemMatcher.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ILinkLocation } from './taskHelpers.js';
 
 export const enum PollingConsts {
 	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
@@ -34,7 +36,7 @@ export const enum PollingConsts {
 export async function racePollingOrPrompt(
 	pollFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
 	promptFn: () => { promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide'> },
-	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string },
+	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string },
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService,
 	markerService: IMarkerService,
@@ -56,7 +58,6 @@ export async function racePollingOrPrompt(
 		promptResolved = true;
 		return { type: 'prompt', result };
 	});
-
 	const raceResult = await Promise.race([
 		pollPromiseWrapped,
 		promptPromiseWrapped
@@ -105,7 +106,7 @@ export async function pollForOutputAndIdle(
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 	markerService: Pick<IMarkerService, 'read'>,
 	knownMatchers?: ProblemMatcher[]
-): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 	let currentInterval = PollingConsts.MinPollingDuration;
@@ -157,35 +158,19 @@ export async function pollForOutputAndIdle(
 			}
 		}
 		terminalExecutionIdleBeforeTimeout = true;
+		let resources: ILinkLocation[] | undefined;
 		if (execution.task) {
-			const problems = await getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
+			const problems = getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
 			if (problems) {
 				// Problem matchers exist for this task
 				const problemList: string[] = [];
 				for (const [, problemArray] of problems.entries()) {
+					resources = [];
 					if (problemArray.length) {
 						for (const p of problemArray) {
-							let location = '';
-							let label = p.resource ? p.resource.path.split('/').pop() ?? p.resource.toString() : '';
-							let uri = p.resource ? p.resource.toString() : '';
-							if (typeof p.startLineNumber === 'number' && typeof p.startColumn === 'number') {
-								uri += `:${p.startLineNumber}:${p.startColumn}`;
-								label += `:${p.startLineNumber}:${p.startColumn}`;
-								if (typeof p.endLineNumber === 'number' && typeof p.endColumn === 'number') {
-									uri += `-${p.endLineNumber}:${p.endColumn}`;
-									label += `-${p.endLineNumber}:${p.endColumn}`;
-								}
-							} else if (typeof p.startLineNumber === 'number') {
-								uri += `:${p.startLineNumber}`;
-								label += `:${p.startLineNumber}`;
-							} else if (typeof p.startColumn === 'number') {
-								uri += `:${p.startColumn}`;
-								label += `:${p.startColumn}`;
-							}
-							if (uri) {
-								location = `[${label}](${uri})`;
-							}
-							problemList.push(`Problem: ${p.message} at ${location ? ` ${location}` : 'unknown'}`);
+							resources.push({ uri: p.resource, range: new Range(p.startLineNumber ?? 1, p.startColumn ?? 1, p.endLineNumber ?? (p.startLineNumber ?? 1), p.endColumn ?? (p.startColumn ?? 1)) });
+							const label = p.resource ? p.resource.path.split('/').pop() ?? p.resource.toString() : '';
+							problemList.push(`Problem: ${p.message} in ${label}`);
 						}
 					}
 				}
@@ -195,6 +180,7 @@ export async function pollForOutputAndIdle(
 				return {
 					terminalExecutionIdleBeforeTimeout,
 					output: problemList.join('\n'),
+					resources,
 					pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
 				};
 			}

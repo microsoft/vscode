@@ -104,12 +104,16 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			undefined,
 			dependencyTasks
 		);
-		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`).join('\n\n');
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
+		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		return {
-			content: [{
-				kind: 'text',
-				value: `Output of task \`${taskLabel}\`: ${details}`
-			}]
+			content: [{ kind: 'text', value: uniqueDetails }],
+			toolResultMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskLabel)),
+			toolResultDetails: Array.from(new Map(
+				terminalResults
+					.flatMap(r => r.resources?.filter(res => res.uri && res.range).map(res => ({ uri: res.uri, range: res.range })) ?? [])
+					.map(item => [`${item.uri.toString()}-${item.range.toString()}`, item])
+			).values())
 		};
 	}
 }
