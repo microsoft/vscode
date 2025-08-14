@@ -728,6 +728,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 	private containsInternalOrgs(organizationLogins: string[]): boolean {
 		const internalOrgs = ['github', 'microsoft'];
+
 		return organizationLogins.some(org => internalOrgs.includes(org));
 	}
 
@@ -772,7 +773,7 @@ export class ChatEntitlementRequests extends Disposable {
 	private update(state: IEntitlements): void {
 		this.state = state;
 
-		this.context.update({ entitlement: this.state.entitlement, isInternal: this.state.isInternal });
+		this.context.update({ entitlement: this.state.entitlement, isInternal: !!this.state.isInternal });
 
 		if (state.quotas) {
 			this.chatQuotasAccessor.acceptQuotas(state.quotas);
@@ -943,7 +944,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly businessContextKey: IContextKey<boolean>;
 	private readonly enterpriseContextKey: IContextKey<boolean>;
 
-	private readonly internalContextKey: IContextKey<boolean>;
+	private readonly isInternalContextKey: IContextKey<boolean>;
 
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly laterContext: IContextKey<boolean>;
@@ -976,7 +977,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.proPlusContextKey = ChatContextKeys.Entitlement.proPlus.bindTo(contextKeyService);
 		this.businessContextKey = ChatContextKeys.Entitlement.business.bindTo(contextKeyService);
 		this.enterpriseContextKey = ChatContextKeys.Entitlement.enterprise.bindTo(contextKeyService);
-		this.internalContextKey = ChatContextKeys.Entitlement.internal.bindTo(contextKeyService);
+		this.isInternalContextKey = ChatContextKeys.Entitlement.internal.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.laterContext = ChatContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
@@ -1025,10 +1026,9 @@ export class ChatEntitlementContext extends Disposable {
 	update(context: { installed: boolean; disabled: boolean; untrusted: boolean }): Promise<void>;
 	update(context: { hidden: boolean }): Promise<void>;
 	update(context: { later: boolean }): Promise<void>;
-	update(context: { entitlement: ChatEntitlement; isInternal?: boolean }): Promise<void>;
+	update(context: { entitlement: ChatEntitlement; isInternal: boolean }): Promise<void>;
 	update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement; isInternal?: boolean }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
-		this.state.isInternal = !!context.isInternal;
 
 		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean' && typeof context.untrusted === 'boolean') {
 			this._state.installed = context.installed;
@@ -1050,6 +1050,7 @@ export class ChatEntitlementContext extends Disposable {
 
 		if (typeof context.entitlement === 'number') {
 			this._state.entitlement = context.entitlement;
+			this._state.isInternal = !!context.isInternal;
 
 			if (this._state.entitlement === ChatEntitlement.Free || isProUser(this._state.entitlement)) {
 				this._state.registered = true;
@@ -1082,7 +1083,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.proPlusContextKey.set(this._state.entitlement === ChatEntitlement.ProPlus);
 		this.businessContextKey.set(this._state.entitlement === ChatEntitlement.Business);
 		this.enterpriseContextKey.set(this._state.entitlement === ChatEntitlement.Enterprise);
-		this.internalContextKey.set(this._state.isInternal);
+		this.isInternalContextKey.set(this._state.isInternal);
 		this.hiddenContext.set(!!this._state.hidden);
 		this.laterContext.set(!!this._state.later);
 		this.installedContext.set(!!this._state.installed);
