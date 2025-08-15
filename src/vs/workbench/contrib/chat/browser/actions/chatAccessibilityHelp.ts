@@ -159,6 +159,11 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 				const ctrl = <{ focus(): void } | undefined>editor?.getContribution(INLINE_CHAT_ID);
 				ctrl?.focus();
 
+			} else if (type === 'quickChat' || type === 'editsView' || type === 'agentView') {
+				// For quickChat, editsView, and agentView, restore focus to the chat widget input
+				if (widgetService.lastFocusedWidget) {
+					widgetService.lastFocusedWidget.focusInput();
+				}
 			}
 		},
 		type === 'panelChat' ? AccessibilityVerbositySettingId.Chat : AccessibilityVerbositySettingId.InlineChat,
