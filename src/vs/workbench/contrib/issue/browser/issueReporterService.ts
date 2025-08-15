@@ -7,6 +7,7 @@ import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { BaseIssueReporterService } from './baseIssueReporterService.js';
 
@@ -27,9 +28,11 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		@IIssueFormService issueFormService: IIssueFormService,
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
-		@IFileDialogService fileDialogService: IFileDialogService
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService);
+		this.setContextKeyService(contextKeyService);
 
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 

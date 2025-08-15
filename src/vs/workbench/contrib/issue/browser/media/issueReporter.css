@@ -548,3 +548,37 @@ body.issue-reporter-body  {
 	top: 0;
 	z-index: 1000;
 }
+
+.issue-reporter-body .internal-actions {
+	display: flex;
+	flex-direction: row; /* horizontal layout: message + button */
+	align-items: center;
+	gap: 12px;
+	margin-top: 8px;
+	padding-top: 4px;
+	justify-content: flex-end;
+	align-self: flex-end;
+}
+
+.issue-reporter-body .internal-actions .internal-preview-message {
+	font-size: 11px;
+	opacity: 0.8;
+	text-align: right;
+	white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	line-height: 15px; /* approximate button height for vertical centering */
+}
+
+.issue-reporter-body .internal-actions #internal-preview-btn.internal-preview-subtle {
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: 1px solid var(--vscode-button-secondaryHoverBackground);
+	font-size: 11px;
+	padding: 2px 8px;
+	margin: 0;
+}
+
+.issue-reporter-body .internal-actions #internal-preview-btn.internal-preview-subtle:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}

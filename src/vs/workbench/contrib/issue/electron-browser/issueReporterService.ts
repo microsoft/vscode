@@ -17,6 +17,7 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { applyZoom } from '../../../../platform/window/electron-browser/window.js';
 import { BaseIssueReporterService } from '../browser/baseIssueReporterService.js';
 import { IssueReporterData as IssueReporterModelData } from '../browser/issueReporterModel.js';
@@ -49,9 +50,11 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IUpdateService private readonly updateService: IUpdateService
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService);
+		this.setContextKeyService(contextKeyService);
 		this.processService = processService;
 		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });

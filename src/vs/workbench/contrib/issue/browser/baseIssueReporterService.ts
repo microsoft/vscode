@@ -29,6 +29,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -64,9 +65,11 @@ export class BaseIssueReporterService extends Disposable {
 	public selectedExtension = '';
 	public delayedSubmit = new Delayer<void>(300);
 	public previewButton!: Button;
+	private internalPreviewButton: Button | undefined;
 	public nonGitHubIssueUrl = false;
 	public needsUpdate = false;
 	public acknowledged = false;
+	private hasChosenExtension = false;
 
 	constructor(
 		public disableExtensions: boolean,
@@ -153,6 +156,30 @@ export class BaseIssueReporterService extends Disposable {
 		if ((data.data || data.uri) && targetExtension) {
 			this.updateExtensionStatus(targetExtension);
 		}
+
+		// Move & initialize internal actions container and button (always hidden initially)
+		const internalActions = this.getElementById('internal-actions');
+		if (internalActions && issueReporterElement) {
+			issueReporterElement.appendChild(internalActions);
+			internalActions.classList.add('hidden');
+			internalActions.style.display = 'none'; // force hidden regardless of early visibility checks
+			this.internalPreviewButton = this._register(new Button(internalActions, unthemedButtonStyles));
+			this.internalPreviewButton.label = localize('previewInternally', 'Preview Internally');
+			this.internalPreviewButton.element.id = 'internal-preview-btn';
+			this.internalPreviewButton.element.classList.add('internal-preview-subtle');
+			// Reuse normal createIssue flow for now
+			this._register(this.internalPreviewButton.onDidClick(async () => {
+				this.delayedSubmit.trigger(async () => {
+					this.createIssue();
+				});
+			}));
+		}
+		// Do not evaluate visibility until an extension has been selected.
+	}
+
+	// Placeholder for future context key service injection when entitlement check reinstated
+	public setContextKeyService(_: IContextKeyService | undefined): void {
+		// No-op for now
 	}
 
 	render(): void {
@@ -246,6 +273,7 @@ export class BaseIssueReporterService extends Disposable {
 				this.clearExtensionData();
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
 				this.selectedExtension = selectedExtensionId;
+				this.hasChosenExtension = !!selectedExtensionId;
 				const extensions = this.issueReporterModel.getData().allExtensions;
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
@@ -290,6 +318,9 @@ export class BaseIssueReporterService extends Disposable {
 						this.updateExtensionStatus(matches[0]);
 					}
 				}
+
+				// Update internal action visibility after explicit selection
+				this.updateInternalActionsVisibility();
 			});
 		}
 
@@ -547,6 +578,27 @@ export class BaseIssueReporterService extends Disposable {
 
 		// Initial check when first opened.
 		this.getExtensionGitHubUrl();
+		this.updateInternalActionsVisibility();
+	}
+
+	private updateInternalActionsVisibility(): void {
+		const container = this.getElementById('internal-actions');
+		if (!container) { return; }
+		const { selectedExtension, fileOnExtension } = this.issueReporterModel.getData();
+		const matchesExtension = selectedExtension && selectedExtension.id.toLowerCase() === 'github.copilot-chat';
+		// Temporarily ignore entitlement; only gate on explicit selection + extension match
+		if (this.hasChosenExtension && fileOnExtension && matchesExtension) {
+			show(container);
+			container.style.display = '';
+			if (this.internalPreviewButton) {
+				this.internalPreviewButton.enabled = this.previewButton?.enabled ?? false;
+			}
+			console.debug('[IssueReporter] Internal actions visible (extension match).');
+		} else {
+			hide(container);
+			container.style.display = 'none';
+			console.debug('[IssueReporter] Internal actions hidden', { hasChosenExtension: this.hasChosenExtension, fileOnExtension, matchesExtension });
+		}
 	}
 
 	private isPreviewEnabled() {
