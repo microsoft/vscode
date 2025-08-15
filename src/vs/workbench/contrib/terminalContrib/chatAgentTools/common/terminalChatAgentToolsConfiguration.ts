@@ -280,7 +280,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			iex: false,
 
 			// #endregion
-		},
+		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
 	}
 };
 

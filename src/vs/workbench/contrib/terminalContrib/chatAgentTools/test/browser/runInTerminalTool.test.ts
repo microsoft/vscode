@@ -13,7 +13,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
-import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -138,6 +138,40 @@ suite('RunInTerminalTool', () => {
 			strictEqual(preparedInvocation.confirmationMessages!.title, expectedTitle);
 		}
 	}
+
+	suite('default auto-approve rules', () => {
+		const defaults = terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.AutoApprove].default as Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>;
+
+		suiteSetup(() => {
+			// Sanity check on entries to make sure that the defaults are actually pulled in
+			ok(Object.keys(defaults).length > 50);
+		});
+		setup(() => {
+			setAutoApprove(defaults);
+		});
+
+		const autoApprovedTestCases = [
+			'echo abc'
+		];
+		const confirmationRequiredTestCases = [
+			'rm README.md'
+		];
+
+		suite('auto approved', () => {
+			for (const command of autoApprovedTestCases) {
+				test(command, async () => {
+					assertAutoApproved(await executeToolTest({ command: command }));
+				});
+			}
+		});
+		suite('confirmation required', () => {
+			for (const command of confirmationRequiredTestCases) {
+				test(command, async () => {
+					assertConfirmationRequired(await executeToolTest({ command: command }));
+				});
+			}
+		});
+	});
 
 	suite('prepareToolInvocation - auto approval behavior', () => {
 
