@@ -69,7 +69,7 @@ suite('racePollingOrPrompt', () => {
 				return { terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 0 };
 			}
 		});
-		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined);
+		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined, undefined);
 		assert.ok(pollResolved);
 		assert.deepEqual(result, { terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 0 });
 	});
@@ -80,7 +80,7 @@ suite('racePollingOrPrompt', () => {
 			promptFn: () => ({ promise: Promise.resolve(false), part: undefined }),
 			originalResult: { terminalExecutionIdleBeforeTimeout: false, output: 'original', pollDurationMs: PollingConsts.FirstPollingMaxDuration }
 		});
-		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined);
+		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined, undefined);
 		assert.deepEqual(result, args.originalResult);
 	});
 
@@ -101,7 +101,7 @@ suite('racePollingOrPrompt', () => {
 				})
 			}
 		});
-		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined);
+		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined, undefined);
 		assert.ok(extraPollCount === 1);
 		assert(result?.pollDurationMs && args.originalResult.pollDurationMs && result.pollDurationMs > args.originalResult.pollDurationMs);
 	});
@@ -116,7 +116,7 @@ suite('racePollingOrPrompt', () => {
 				part
 			})
 		});
-		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined);
+		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined, undefined);
 		assert.strictEqual(hideCalled, true);
 		assert.deepEqual(result, { terminalExecutionIdleBeforeTimeout: true, output: 'output', pollDurationMs: 0 });
 	});
@@ -135,7 +135,7 @@ suite('racePollingOrPrompt', () => {
 			originalResult: { terminalExecutionIdleBeforeTimeout: false, output: 'original', pollDurationMs: PollingConsts.FirstPollingMaxDuration },
 			token: { isCancellationRequested: true } as CancellationToken
 		});
-		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined);
+		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution, undefined, undefined);
 		assert.ok(pollCalled);
 		assert.deepEqual(result, await args.pollFn());
 	});
@@ -171,7 +171,8 @@ suite('racePollingOrPrompt', () => {
 				fakeLanguageModelsService,
 				fakeMarkerService,
 				[{ owner: 'terminal-output', applyTo: ApplyToKind.allDocuments, fileLocation: FileLocationKind.Absolute, pattern: { regexp: RegExp('.*') } }],
-				undefined // taskService is optional
+				undefined, // taskService is optional
+				undefined  // taskProblemMonitor is optional
 			);
 			assert.ok(result.output.includes('problem'));
 		});
