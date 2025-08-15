@@ -188,6 +188,16 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoElement.setAttribute('aria-expanded', this._isExpanded.toString());
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
+		// Update the title to reflect the new collapsed state
+		if (this._currentSessionId) {
+			const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
+			const todoList = todoListStorage.getTodoList(this._currentSessionId);
+			const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
+			if (titleElement) {
+				titleElement.textContent = this.getProgressText(todoList);
+			}
+		}
+
 		this._onDidChangeHeight.fire();
 	}
 
@@ -238,6 +248,13 @@ export class ChatTodoListWidget extends Disposable {
 	private getProgressText(todoList: IChatTodo[]): string {
 		if (todoList.length === 0) {
 			return localize('chat.todoList.title', 'Todos');
+		}
+
+		if (!this._isExpanded) {
+			const inProgressTodo = todoList.find(todo => todo.status === 'in-progress');
+			if (inProgressTodo) {
+				return localize('chat.todoList.inProgress', '{0}', inProgressTodo.title);
+			}
 		}
 
 		const completedCount = todoList.filter(todo => todo.status === 'completed').length;
