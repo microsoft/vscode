@@ -724,33 +724,14 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 		// Create a container div for the input box that matches the resource label layout
 		const inputContainer = DOM.append(container, DOM.$('.session-input-container'));
-		inputContainer.style.display = 'flex';
-		inputContainer.style.alignItems = 'center';
-		inputContainer.style.width = '100%';
 
 		// Create icon element matching the original session icon
 		let iconElement: HTMLElement | undefined;
 		if (session.iconPath) {
 			iconElement = DOM.append(inputContainer, DOM.$('.session-input-icon.codicon'));
-
 			if (ThemeIcon.isThemeIcon(session.iconPath)) {
 				iconElement.classList.add(`codicon-${session.iconPath.id}`);
-				if (session.iconPath.color?.id) {
-					iconElement.style.color = `var(--vscode-${session.iconPath.color.id})`;
-				}
-			} else if (session.iconPath instanceof URI) {
-				if (session.iconPath.scheme === 'data') {
-					iconElement.style.backgroundImage = `url(${session.iconPath.toString()})`;
-					iconElement.style.backgroundSize = '16px 16px';
-					iconElement.style.backgroundRepeat = 'no-repeat';
-					iconElement.style.backgroundPosition = 'center';
-					iconElement.style.width = '16px';
-					iconElement.style.height = '16px';
-				}
 			}
-
-			iconElement.style.marginRight = '6px';
-			iconElement.style.flexShrink = '0';
 		}
 
 		// Create the input box
@@ -771,12 +752,6 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			ariaLabel: localize('chatSessionInputAriaLabel', "Type session name. Press Enter to confirm or Escape to cancel."),
 			inputBoxStyles: defaultInputBoxStyles,
 		});
-
-		// Style the input to match inline editing
-		inputBox.inputElement.style.flex = '1';
-		inputBox.inputElement.style.minWidth = '0';
-		inputBox.inputElement.style.fontFamily = 'inherit';
-		inputBox.inputElement.style.fontSize = 'inherit';
 
 		inputBox.value = session.label;
 		inputBox.focus();

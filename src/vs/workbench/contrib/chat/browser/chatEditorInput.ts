@@ -124,7 +124,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 			// If not in active registry, try persisted session data
 			const persistedTitle = this.chatService.getPersistedSessionTitle(this.sessionId);
-			if (persistedTitle) {
+			if (persistedTitle && persistedTitle.trim()) { // Only use non-empty persisted titles
 				return persistedTitle;
 			}
 		}
