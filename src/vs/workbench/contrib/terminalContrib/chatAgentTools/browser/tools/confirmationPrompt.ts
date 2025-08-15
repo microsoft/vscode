@@ -34,11 +34,11 @@ export async function handleConfirmationPrompt(
 				for await (const part of response.stream) {
 					if (Array.isArray(part)) {
 						for (const p of part) {
-							if (p.part.type === 'text') {
+							if (p && 'part' in p && p.part?.type === 'text') {
 								selectedOption += p.part.value;
 							}
 						}
-					} else if (part.part.type === 'text') {
+					} else if (part && 'part' in part && part.part?.type === 'text') {
 						selectedOption += part.part.value;
 					}
 				}
@@ -78,11 +78,11 @@ export async function detectConfirmationPromptWithLLM(buffer: string, token: Can
 		for await (const part of response.stream) {
 			if (Array.isArray(part)) {
 				for (const p of part) {
-					if (p.part.type === 'text') {
+					if (p && 'part' in p && p.part?.type === 'text') {
 						responseText += p.part.value;
 					}
 				}
-			} else if (part.part.type === 'text') {
+			} else if (part && 'part' in part && part.part?.type === 'text') {
 				responseText += part.part.value;
 			}
 		}
