@@ -87,6 +87,8 @@ import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRender
 import { ChatMarkdownRenderer } from './chatMarkdownRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
+import { ILanguageModelsService } from '../common/languageModels.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 const $ = dom.$;
 
@@ -203,6 +205,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		private viewModel: IChatViewModel | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
+		@ILanguageModelsService private readonly lmService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -544,9 +547,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.footerToolbar.context = element;
 
 		// Render result details in footer if available
-		if (isResponseVM(element) && element.result?.details) {
-			templateData.footerDetailsContainer.textContent = element.result.details;
-			templateData.footerDetailsContainer.classList.remove('hidden');
+		if (isResponseVM(element)) {
+			this.renderFooterDetailsWithTokens(element, index, templateData);
 		} else {
 			templateData.footerDetailsContainer.classList.add('hidden');
 		}
@@ -647,6 +649,111 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (isRequestVM(element)) {
 				this.renderChatRequest(element, index, templateData);
 			}
+		}
+	}
+
+	private async renderFooterDetailsWithTokens(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate): Promise<void> {
+		// Only compute context for the last response in the conversation
+		const isLast = element.session.getItems().at(-1)?.id === element.id;
+		const existingDetails = element.result?.details;
+
+		// Resolve model label fast (no token counting yet)
+		let modelLabel: string | undefined;
+		let maxInputTokens: number | undefined;
+		let totalModelTokens: number | undefined;
+		const items = element.session.getItems();
+		const currentRequest = items.find(it => isRequestVM(it) && it.id === element.requestId) as IChatRequestViewModel | undefined;
+		const currentModelId = currentRequest?.modelId;
+		const metadata = currentModelId ? this.lmService.lookupLanguageModel(currentModelId) : undefined;
+		if (metadata) {
+			modelLabel = metadata.detail ? `${metadata.name} (${metadata.detail})` : metadata.name;
+			maxInputTokens = metadata.maxInputTokens;
+			// Total tokens for display should be max input tokens only
+			totalModelTokens = metadata.maxInputTokens;
+		}
+
+		const labelParts: string[] = [];
+		if (modelLabel) {
+			labelParts.push(modelLabel);
+		} else if (existingDetails) {
+			// Fallback to whatever details the agent returned
+			labelParts.push(existingDetails);
+		}
+
+		// If not last, render label only and skip token/context computation
+		if (!isLast) {
+			if (labelParts.length > 0) {
+				templateData.footerDetailsContainer.textContent = labelParts.join(' • ');
+				templateData.footerDetailsContainer.classList.remove('hidden');
+				templateData.footerDetailsContainer.removeAttribute('title');
+			} else {
+				templateData.footerDetailsContainer.classList.add('hidden');
+				templateData.footerDetailsContainer.removeAttribute('title');
+			}
+
+			return;
+		}
+
+		let usedTokens: number | undefined;
+		let contextPct: number | undefined;
+		try {
+			let sum = 0;
+			for (const it of items) {
+				if (isRequestVM(it)) {
+					const modelIdForCount = it.modelId ?? currentModelId;
+					if (modelIdForCount && it.messageText) {
+						sum += await this.lmService.computeTokenLength(modelIdForCount, it.messageText, CancellationToken.None);
+					}
+				} else if (isResponseVM(it)) {
+					// Count response tokens by concatenating markdown content
+					const respModelId = (it as any).modelId ?? currentModelId;
+					let respText = '';
+					try {
+						for (const part of it.response.value) {
+							if ((part as any).kind === 'markdownContent' && (part as any).content?.value) {
+								respText += (part as any).content.value + '\n';
+							}
+						}
+					} catch { /* ignore */ }
+					if (respModelId && respText) {
+						sum += await this.lmService.computeTokenLength(respModelId, respText, CancellationToken.None);
+					}
+					// Stop once we've included the current response element
+					if (it.id === element.id) {
+						break;
+					}
+				}
+			}
+			usedTokens = sum;
+			if (typeof usedTokens === 'number' && typeof maxInputTokens === 'number' && maxInputTokens > 0) {
+				contextPct = Math.round((usedTokens / maxInputTokens) * 100);
+			}
+		} catch (err) {
+			this.logService.trace('ChatListItemRenderer#renderFooterDetailsWithTokens: token computation error', err);
+		}
+
+		if (typeof contextPct === 'number') {
+			labelParts.push(localize("chat.footer.contextPct", "Context {0}%", String(contextPct)));
+		}
+
+		if (labelParts.length > 0) {
+			templateData.footerDetailsContainer.textContent = labelParts.join(' • ');
+			// Tooltip with full token counts in k-units
+			if (typeof usedTokens === 'number' && typeof totalModelTokens === 'number') {
+				const fmtK = (n: number) => {
+					if (n <= 0) { return '0'; }
+					const k = n / 1000;
+					return k >= 100 ? `${Math.round(k)}k` : `${Math.round(k * 10) / 10}k`;
+				};
+				const title = localize("chat.footer.tokensK", "{0} / {1} tokens used", fmtK(usedTokens), fmtK(totalModelTokens));
+				templateData.footerDetailsContainer.setAttribute('title', title);
+			} else {
+				templateData.footerDetailsContainer.removeAttribute('title');
+			}
+			templateData.footerDetailsContainer.classList.remove('hidden');
+		} else {
+			templateData.footerDetailsContainer.classList.add('hidden');
+			templateData.footerDetailsContainer.removeAttribute('title');
 		}
 	}
 
@@ -1487,6 +1594,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.titleToolbar.context = undefined;
 		}
 		templateData.footerToolbar.context = undefined;
+		// Clear footer details container to avoid stale content on recycle
+		templateData.footerDetailsContainer.textContent = '';
+		templateData.footerDetailsContainer.classList.add('hidden');
+		templateData.footerDetailsContainer.removeAttribute('title');
 	}
 
 	disposeTemplate(templateData: IChatListItemTemplate): void {
