@@ -343,6 +343,24 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.updateWindowControls(options);
 	}
 
+	async updateWindowAccentColor(windowId: number | undefined, color: string | undefined, options?: INativeHostOptions): Promise<void> {
+		if (!isWindows) {
+			return; // windows only
+		}
+
+		let windowAccentColor: string | boolean = color || 'default';
+		if (windowAccentColor !== 'default') {
+			if (windowAccentColor === 'off') {
+				windowAccentColor = false;
+			} else if (typeof windowAccentColor === 'string') {
+				windowAccentColor = windowAccentColor;
+			}
+		}
+
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.setAccentColor(windowAccentColor);
+	}
+
 	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { mode?: FocusMode }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.focus({ mode: options?.mode ?? FocusMode.Transfer });

@@ -356,12 +356,14 @@ export class NativeWindow extends BaseWindow {
 			this.configurationService.updateValue(setting, false);
 		});
 
-		// Window Zoom
+		// Window Settings
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel') || (e.affectsConfiguration('window.zoomPerWindow') && this.configurationService.getValue('window.zoomPerWindow') === false)) {
 				this.onDidChangeConfiguredWindowZoomLevel();
 			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
 				this.updateTouchbarMenu();
+			} else if (e.affectsConfiguration('window.border')) {
+				this.updateWindowBorder();
 			}
 		}));
 
@@ -680,6 +682,9 @@ export class NativeWindow extends BaseWindow {
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
 
+		// Window border
+		this.updateWindowBorder();
+
 		// Smoke Test Driver
 		if (this.environmentService.enableSmokeTestDriver) {
 			registerWindowDriver(this.instantiationService);
@@ -912,6 +917,18 @@ export class NativeWindow extends BaseWindow {
 			this.lastInstalledTouchedBar = items;
 			this.nativeHostService.updateTouchBar(items);
 		}
+	}
+
+	//#endregion
+
+	//#region Window Border
+
+	private updateWindowBorder(): void {
+		if (!isWindows) {
+			return; // windows only
+		}
+
+		this.nativeHostService.updateWindowAccentColor(this.configurationService.getValue<string>('window.border'));
 	}
 
 	//#endregion
