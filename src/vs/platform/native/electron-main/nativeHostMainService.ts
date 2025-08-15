@@ -343,7 +343,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.updateWindowControls(options);
 	}
 
-	async updateWindowAccentColor(windowId: number | undefined, color: string | undefined): Promise<void> {
+	async updateWindowAccentColor(windowId: number | undefined, color: 'default' | 'off' | string | undefined): Promise<void> {
 		if (!isWindows) {
 			return; // windows only
 		}

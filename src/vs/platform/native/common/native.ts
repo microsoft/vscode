@@ -126,7 +126,7 @@ export interface ICommonNativeHostService {
 	 */
 	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
-	updateWindowAccentColor(color: string | undefined): Promise<void>;
+	updateWindowAccentColor(color: 'default' | 'off' | string | undefined): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
