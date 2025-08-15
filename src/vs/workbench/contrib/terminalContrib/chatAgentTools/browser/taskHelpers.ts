@@ -17,6 +17,7 @@ import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/ta
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle, getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
+import { TaskProblemMonitor } from './tools/task/taskUtils.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -142,21 +143,22 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, markerService: IMarkerService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[], taskService?: Pick<ITaskService, 'onDidStateChange'>): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }>> {
+	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, markerService: IMarkerService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[], taskService?: Pick<ITaskService, 'onDidStateChange'>, taskProblemMonitor?: TaskProblemMonitor): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }>> {
 	const results: Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }> = [];
 	for (const terminal of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, false, token, languageModelsService, markerService, undefined, taskService);
+		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, false, token, languageModelsService, markerService, undefined, taskService, taskProblemMonitor);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, true, token, languageModelsService, markerService, undefined, taskService),
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, true, token, languageModelsService, markerService, undefined, taskService, taskProblemMonitor),
 				() => promptForMorePolling(task._label, token, invocationContext, chatService),
 				outputAndIdle,
 				token,
 				languageModelsService,
 				markerService,
 				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive, dependencyTasks },
-				taskService
+				taskService,
+				taskProblemMonitor
 			);
 		}
 		results.push({
