@@ -51,6 +51,7 @@ import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequest
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { IChatModeService } from '../common/chatModes.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { IPromptParserResult, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -305,7 +306,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IChatModeService private readonly chatModeService: IChatModeService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -2095,16 +2097,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const { mode, tools, model } = metadata;
 
+		const currentMode = this.input.currentModeObs.get();
+
 		// switch to appropriate chat mode if needed
-		if (mode && mode !== this.input.currentModeKind) {
-			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, this.input.currentModeKind, mode, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
-			if (!chatModeCheck) {
-				return undefined;
-			} else if (chatModeCheck.needToClearSession) {
-				this.clear();
-				await this.waitForReady();
+		if (mode && mode !== currentMode.name) {
+			// Find the mode object to get its kind
+			const chatMode = this.chatModeService.findModeByName(mode);
+			if (chatMode) {
+				if (currentMode.kind !== chatMode.kind) {
+					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentMode.kind, chatMode.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+					if (!chatModeCheck) {
+						return undefined;
+					} else if (chatModeCheck.needToClearSession) {
+						this.clear();
+						await this.waitForReady();
+					}
+				}
+				this.input.setChatMode(chatMode.id);
 			}
-			this.input.setChatMode(mode);
 		}
 
 		// if not tools to enable are present, we are done
