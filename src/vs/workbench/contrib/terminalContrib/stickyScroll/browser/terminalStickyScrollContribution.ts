@@ -128,7 +128,6 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 	private _shouldBeEnabled(): boolean {
 		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
 		const result = !!(this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled) && capability && capability.hasRichCommandDetection && this._xterm?.raw?.element);
-		console.log(result);
 		return result;
 	}
 }
