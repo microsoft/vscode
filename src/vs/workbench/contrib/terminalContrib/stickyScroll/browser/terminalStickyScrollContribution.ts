@@ -95,20 +95,21 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 	}
 
 	private _tryEnable(): void {
+		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (this._shouldBeEnabled()) {
 			const xtermCtorEventually = TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-			const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection)!;
 			this._overlay.value = this._instantiationService.createInstance(
 				TerminalStickyScrollOverlay,
 				this._ctx.instance,
 				this._xterm!,
 				this._instantiationService.createInstance(TerminalInstanceColorProvider, this._ctx.instance.targetRef),
-				capability,
+				capability!,
 				xtermCtorEventually
 			);
 			this._richCommandDetectionListeners.clear();
+		} else if (capability?.hasRichCommandDetection) {
+			this._richCommandDetectionListeners.clear();
 		} else {
-			const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
 			if (capability?.onSetRichCommandDetection) {
 				this._richCommandDetectionListeners.value = capability.onSetRichCommandDetection(() => {
 					this._refreshState();
