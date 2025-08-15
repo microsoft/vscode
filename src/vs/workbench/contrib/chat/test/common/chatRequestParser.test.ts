@@ -19,7 +19,7 @@ import { IChatService } from '../../common/chatService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatModeKind, ChatAgentLocation } from '../../common/constants.js';
-import { IToolData, ToolDataSource } from '../../common/languageModelToolsService.js';
+import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from './mockChatService.js';
 import { MockPromptsService } from './mockPromptsService.js';
@@ -43,8 +43,7 @@ suite('ChatRequestParser', () => {
 
 		variableService = mockObject<IChatVariablesService>()();
 		variableService.getDynamicVariables.returns([]);
-		variableService.getSelectedTools.returns([]);
-		variableService.getSelectedToolSets.returns([]);
+		variableService.getSelectedToolAndToolSets.returns([]);
 
 		instantiationService.stub(IChatVariablesService, variableService as any);
 	});
@@ -293,10 +292,10 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		variableService.getSelectedTools.returns([
-			{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal },
-			{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }
-		] satisfies IToolData[]);
+		variableService.getSelectedToolAndToolSets.returns(new Map([
+			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
+			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
+		] satisfies [IToolData | ToolSet, boolean][]));
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
@@ -308,10 +307,10 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
-		variableService.getSelectedTools.returns([
-			{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal },
-			{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }
-		] satisfies IToolData[]);
+		variableService.getSelectedToolAndToolSets.returns(new Map([
+			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
+			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
+		] satisfies [IToolData | ToolSet, boolean][]));
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
