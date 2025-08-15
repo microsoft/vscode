@@ -103,8 +103,18 @@ export class RunTaskTool implements IToolImpl {
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = Array.from(new Map(
 			terminalResults
-				.flatMap(r => r.resources?.filter(res => res.uri && res.range).map(res => ({ uri: res.uri, range: res.range })) ?? [])
-				.map(item => [`${item.uri.toString()}-${item.range.toString()}`, item])
+				.flatMap(r =>
+					r.resources?.filter(res => res.uri).map(res => ({
+						uri: res.uri,
+						range: res.range
+					})) ?? []
+				)
+				.map(item => {
+					const key = item.range
+						? `${item.uri.toString()}-${item.range.toString()}`
+						: `${item.uri.toString()}`;
+					return [key, item];
+				})
 		).values());
 
 		let resultSummary = '';
