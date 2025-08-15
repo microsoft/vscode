@@ -33,6 +33,7 @@ suite('Processes', () => {
 			VSCODE_PYTHON_ZSH_ACTIVATE: 'source /path/to/venv/bin/activate',
 			VSCODE_PYTHON_PWSH_ACTIVATE: '. /path/to/venv/Scripts/Activate.ps1',
 			VSCODE_PYTHON_FISH_ACTIVATE: 'source /path/to/venv/bin/activate.fish',
+			VSCODE_PYTHON_AUTOACTIVATE_GUARD: '1'
 		};
 		processes.sanitizeProcessEnvironment(env);
 		assert.strictEqual(env['FOO'], 'bar');
@@ -42,6 +43,7 @@ suite('Processes', () => {
 		assert.strictEqual(env['VSCODE_PYTHON_ZSH_ACTIVATE'], undefined);
 		assert.strictEqual(env['VSCODE_PYTHON_PWSH_ACTIVATE'], undefined);
 		assert.strictEqual(env['VSCODE_PYTHON_FISH_ACTIVATE'], undefined);
+		assert.strictEqual(env['VSCODE_PYTHON_AUTOACTIVATE_GUARD'], undefined);
 		assert.strictEqual(Object.keys(env).length, 3);
 	});
 });
