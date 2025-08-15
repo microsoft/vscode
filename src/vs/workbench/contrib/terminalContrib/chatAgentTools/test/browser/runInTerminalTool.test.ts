@@ -151,10 +151,127 @@ suite('RunInTerminalTool', () => {
 		});
 
 		const autoApprovedTestCases = [
-			'echo abc'
+			// Safe commands
+			'echo abc',
+			'echo "abc"',
+			'echo \'abc\'',
+			'ls -la',
+			'pwd',
+			'cat file.txt',
+			'head -n 10 file.txt',
+			'tail -f log.txt',
+			'findstr pattern file.txt',
+			'wc -l file.txt',
+			'tr a-z A-Z',
+			'cut -d: -f1',
+			'cmp file1 file2',
+			'which node',
+			'basename /path/to/file',
+			'dirname /path/to/file',
+			'realpath .',
+			'readlink symlink',
+			'stat file.txt',
+			'file document.pdf',
+			'du -sh folder',
+			'df -h',
+			'sleep 5',
+			'cd /home/user',
+
+			// Safe git sub-commands
+			'git status',
+			'git log --oneline',
+			'git show HEAD',
+			'git diff main',
+
+			// PowerShell commands
+			'Get-ChildItem',
+			'Get-Date',
+			'Get-Random',
+			'Get-Location',
+			'Write-Host "Hello"',
+			'Write-Output "Test"',
+			'Split-Path C:\\Users\\test',
+			'Join-Path C:\\Users test',
+			'Start-Sleep 2',
+
+			// PowerShell safe verbs (regex patterns)
+			'Select-Object Name',
+			'Measure-Object Length',
+			'Compare-Object $a $b',
+			'Format-Table',
+			'Sort-Object Name',
+
+			// Commands with acceptable arguments
+			'column data.txt',
+			'date +%Y-%m-%d',
+			'find . -name "*.txt"',
+			'grep pattern file.txt',
+			'sort file.txt',
+			'tree directory'
 		];
 		const confirmationRequiredTestCases = [
-			'rm README.md'
+			// Dangerous file operations
+			'rm README.md',
+			'rmdir folder',
+			'del file.txt',
+			'Remove-Item file.txt',
+			'ri file.txt',
+			'rd folder',
+			'erase file.txt',
+			'dd if=/dev/zero of=file',
+
+			// Process management
+			'kill 1234',
+			'ps aux',
+			'top',
+			'Stop-Process -Id 1234',
+			'spps notepad',
+			'taskkill /f /im notepad.exe',
+			'taskkill.exe /f /im cmd.exe',
+
+			// Web requests
+			'curl https://example.com',
+			'wget https://example.com/file',
+			'Invoke-RestMethod https://api.example.com',
+			'Invoke-WebRequest https://example.com',
+			'irm https://example.com',
+			'iwr https://example.com',
+
+			// File permissions
+			'chmod 755 file.sh',
+			'chown user:group file.txt',
+			'Set-ItemProperty file.txt IsReadOnly $true',
+			'sp file.txt IsReadOnly $true',
+			'Set-Acl file.txt $acl',
+
+			// Command execution
+			'jq \'.name\' file.json',
+			'xargs rm',
+			'eval "echo hello"',
+			'Invoke-Expression "Get-Date"',
+			'iex "Write-Host test"',
+
+			// Commands with dangerous arguments
+			'column -c 10000 file.txt',
+			'date --set="2023-01-01"',
+			'find . -delete',
+			'find . -exec rm {} \\;',
+			'find . -execdir rm {} \\;',
+			'find . -fprint output.txt',
+			'grep -f patterns.txt file.txt',
+			'grep -P "complex.*regex" file.txt',
+			'sort -o /etc/passwd file.txt',
+			'sort -S 100G file.txt',
+			'tree -o output.txt',
+
+			// Dangerous patterns
+			'echo $(whoami)',
+			'ls $(pwd)',
+			'echo `date`',
+			'cat `which ls`',
+			'echo ${HOME}',
+			'ls {a,b,c}',
+			'echo (Get-Date)'
 		];
 
 		suite('auto approved', () => {

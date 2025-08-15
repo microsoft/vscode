@@ -226,7 +226,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'/\\{.+\\}/': { approve: false, matchCommandLine: true },
 
 			// `\`command\`` many shells support execution inside backticks
-			'`.+`': { approve: false, matchCommandLine: true },
+			'/`.+`/': { approve: false, matchCommandLine: true },
 
 			// endregion
 
