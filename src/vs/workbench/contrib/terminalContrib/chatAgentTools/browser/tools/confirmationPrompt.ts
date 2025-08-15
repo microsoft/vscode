@@ -22,7 +22,9 @@ export async function handleConfirmationPrompt(
 	if (confirmationPrompt && confirmationPrompt.options.length > 0) {
 		const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot' });
 		if (models.length > 0) {
-			const promptText = `Given the following confirmation prompt and options from a terminal output, which option should be selected to proceed safely and correctly?\nPrompt: "${confirmationPrompt.prompt}"\nOptions: ${JSON.stringify(confirmationPrompt.options)}\nRespond with only the option string.`;
+			const sanitizedPrompt = sanitizeForPrompt(confirmationPrompt.prompt);
+			const sanitizedOptions = confirmationPrompt.options.map(opt => sanitizeForPrompt(opt));
+			const promptText = `Given the following confirmation prompt and options from a terminal output, which option should be selected to proceed safely and correctly?\nPrompt: "${sanitizedPrompt}"\nOptions: ${JSON.stringify(sanitizedOptions)}\nRespond with only the option string.`;
 			const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
 				{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: promptText }] }
 			], {}, token);
@@ -63,10 +65,10 @@ export async function detectConfirmationPromptWithLLM(buffer: string, token: Can
 	}
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
-		return undefined;
 	}
 	const lastLine = buffer.trimEnd().split('\n').pop() ?? '';
-	const promptText = `Does the following terminal output line contain a confirmation prompt (for example: 'y/n', '[Y]es/[N]o/[A]ll', '[Y]es/[N]o/[S]uspend/[C]ancel', 'Press Enter to continue', 'Type Yes to proceed', 'Do you want to overwrite?', 'Continue [y/N]', 'Accept license terms? (yes/no)', etc)? If so, extract the prompt text and the available options as a JSON object with keys 'prompt' and 'options'. If not, return null.\n\nOutput:\n${lastLine}`;
+	const sanitizedLastLine = sanitizeForPrompt(lastLine);
+	const promptText = `Does the following terminal output line contain a confirmation prompt (for example: 'y/n', '[Y]es/[N]o/[A]ll', '[Y]es/[N]o/[S]uspend/[C]ancel', 'Press Enter to continue', 'Type Yes to proceed', 'Do you want to overwrite?', 'Continue [y/N]', 'Accept license terms? (yes/no)', etc)? If so, extract the prompt text and the available options as a JSON object with keys 'prompt' and 'options'. If not, return null.\n\nOutput:\n${sanitizedLastLine}`;
 	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
 		{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: promptText }] }
 	], {}, token);
@@ -101,4 +103,8 @@ export async function detectConfirmationPromptWithLLM(buffer: string, token: Can
 	} catch {
 	}
 	return undefined;
+}
+
+function sanitizeForPrompt(text: string): string {
+	return text.replace(/[`"'\\]/g, '');
 }
