@@ -102,7 +102,7 @@ registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsCont
 registerActiveInstanceAction({
 	id: TerminalChatAgentToolsCommandId.ChatAddTerminalSelection,
 	title: localize('addTerminalSelection', 'Add Terminal Selection to Chat'),
-	precondition: ContextKeyExpr.and(sharedWhenClause.terminalAvailable, ChatContextKeys.enabled, TerminalContextKeys.textSelected),
+	precondition: ContextKeyExpr.and(ChatContextKeys.enabled, sharedWhenClause.terminalAvailable),
 	menu: [
 		{
 			id: MenuId.TerminalInstanceContext,

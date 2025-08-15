@@ -551,7 +551,19 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.agent.showThinking', "Controls whether to show the thinking process of the model in chat responses."),
 			tags: ['experimental'],
-		}
+		},
+		'chat.hideAIFeatures': {
+			type: 'boolean',
+			description: nls.localize('chat.hideAIFeatures', "Hide and disables the getting started UI elements for setting up AI features and Chat. This setting has no effect when Copilot extensions are installed."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			policy: {
+				name: 'ChatHideAIFeatures',
+				minimumVersion: '1.104',
+
+			},
+			tags: ['experimental']
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
