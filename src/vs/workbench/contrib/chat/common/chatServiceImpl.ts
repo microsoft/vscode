@@ -855,7 +855,7 @@ export class ChatService extends Disposable implements IChatService {
 							}
 
 							if (tools) {
-								this.chatAgentService.setRequestTools(agent.id, request.id, { userSelectedTools: tools });
+								this.chatAgentService.setRequestTools(agent.id, request.id, tools);
 							}
 						}));
 
