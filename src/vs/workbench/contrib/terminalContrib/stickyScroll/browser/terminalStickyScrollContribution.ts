@@ -106,8 +106,9 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 				capability,
 				xtermCtorEventually
 			);
-
-			if (!this._richCommandDetectionListeners.value) {
+		} else {
+			const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
+			if (capability?.onSetRichCommandDetection) {
 				this._richCommandDetectionListeners.value = capability.onSetRichCommandDetection(() => {
 					this._refreshState();
 				});
@@ -124,6 +125,8 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	private _shouldBeEnabled(): boolean {
 		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
-		return !!(this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled) && capability && capability.hasRichCommandDetection && this._xterm?.raw?.element);
+		const result = !!(this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled) && capability && capability.hasRichCommandDetection && this._xterm?.raw?.element);
+		console.log(result);
+		return result;
 	}
 }
