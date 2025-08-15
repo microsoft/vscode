@@ -57,6 +57,7 @@ class RefItemSeparator implements QuickPickItem {
 	constructor(private readonly refType: RefType) { }
 }
 
+// heyyy, worktree
 class WorktreeItem implements QuickPickItem {
 
 	get label(): string {
@@ -1491,16 +1492,43 @@ export class CommandCenter {
 	}
 
 	@command('git.compareWithWorkspace')
-	async compareWithWorkspace(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const resources = this.collectResources(arg, resourceStates);
-
-		if (!resources) {
+	async compareWithWorkspace(resource?: Resource): Promise<void> {
+		if (!resource) {
 			return;
 		}
 
-		for (const resource of resources) {
-			await resource.compareWithWorkspace();
+		const repository = this.model.getRepository(resource.resourceUri);
+
+		if (!repository) {
+			return;
 		}
+
+		if (!repository.dotGit.commonPath) {
+			return;
+		}
+
+		const parentRepoRoot = path.dirname(repository.dotGit.commonPath);
+		const relPath = path.relative(repository.root, resource.resourceUri.fsPath);
+		const parentFileUri = Uri.file(path.join(parentRepoRoot, relPath));
+
+		const worktreeUri = resource.resourceUri;
+
+		const baseUri = toGitUri(parentFileUri, 'HEAD');
+
+		await commands.executeCommand('_open.mergeEditor', {
+			base: baseUri,
+			input1: {
+				uri: parentFileUri,
+				title: l10n.t('Workspace'),
+				description: path.basename(parentRepoRoot)
+			},
+			input2: {
+				uri: worktreeUri,
+				title: l10n.t('Worktree'),
+				description: path.basename(repository.root)
+			},
+			output: parentFileUri
+		});
 	}
 
 	@command('git.rename', { repository: true })
@@ -2039,82 +2067,6 @@ export class CommandCenter {
 		await modifiedDocument.save();
 
 		textEditor.revealRange(visibleRangesBeforeRevert[0]);
-	}
-
-	@command('git.applyToWorkspace')
-	async applyToWorkspace(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		resourceStates = resourceStates.filter(s => !!s);
-
-		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
-
-			if (!resource) {
-				return;
-			}
-
-			resourceStates = [resource];
-		}
-
-		const scmResources = resourceStates
-			.filter(s => s instanceof Resource && s.resourceGroupType === ResourceGroupType.WorkingTree) as Resource[];
-
-		if (!scmResources.length) {
-			return;
-		}
-
-		for (const resource of scmResources) {
-			await this._applyToWorkspace(resource);
-		}
-	}
-
-	private async _applyToWorkspace(resource: Resource): Promise<void> {
-		const repository = this.model.getRepository(resource.resourceUri);
-
-		if (!repository) {
-			return;
-		}
-
-		// Not a worktree
-		if (!repository.dotGit.commonPath) {
-			return;
-		}
-
-		const parentRepoRoot = path.dirname(repository.dotGit.commonPath);
-		const relPath = path.relative(repository.root, resource.resourceUri.fsPath);
-		const parentFileUri = Uri.file(path.join(parentRepoRoot, relPath));
-
-		// Copy changes from worktree to current workspace
-		if (resource.type === Status.DELETED || resource.type === Status.INDEX_DELETED) {
-			try {
-				await workspace.fs.delete(parentFileUri, { recursive: false, useTrash: false });
-			} catch {
-				// File does not exist, ignore
-			}
-		} else {
-			const parentDir = path.dirname(parentFileUri.fsPath);
-			await workspace.fs.createDirectory(Uri.file(parentDir));
-			const data = await workspace.fs.readFile(resource.resourceUri);
-			await workspace.fs.writeFile(parentFileUri, data);
-		}
-	}
-
-	@command('git.applyAllToWorkspace', { repository: true })
-	async applyAllToWorkspace(repository: Repository): Promise<void> {
-		// Not a worktree
-		if (!repository.dotGit.commonPath) {
-			return;
-		}
-
-		const resources = repository.workingTreeGroup.resourceStates
-			.filter(s => s instanceof Resource) as Resource[];
-
-		if (resources.length === 0) {
-			return;
-		}
-
-		for (const resource of resources) {
-			await this._applyToWorkspace(resource);
-		}
 	}
 
 	@command('git.unstage')
