@@ -8,10 +8,11 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IChatService } from '../../../chat/common/chatService.js';
-import { racePollingOrPrompt, promptForMorePolling, pollForOutputAndIdle } from './bufferOutputPolling.js';
+import { racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { Task } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { pollForOutputAndIdle } from './tools/pollingUtils.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly isIdle: boolean;

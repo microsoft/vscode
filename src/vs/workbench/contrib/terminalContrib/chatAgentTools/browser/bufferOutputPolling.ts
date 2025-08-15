@@ -3,24 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatElicitationRequestPart } from '../../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../chat/common/chatModel.js';
 import { IChatService } from '../../../chat/common/chatService.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../chat/common/languageModelToolsService.js';
 import type { Terminal as RawXtermTerminal, IMarker as IXtermMarker } from '@xterm/xterm';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
-import { ProblemMatcher } from '../../../tasks/common/problemMatcher.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { ILinkLocation } from './taskHelpers.js';
-import { IRacePollingOrPromptResult, IPollingResult, IExecution, PollingConsts } from './bufferOutputPollingTypes.js';
-import { detectConfirmationPromptWithLLM, handleConfirmationPrompt } from './tools/confirmationPrompt.js';
-import { getProblemsForTasks } from './tools/task/taskUtils.js';
+import { IRacePollingOrPromptResult, IPollingResult, IExecution } from './bufferOutputPollingTypes.js';
+import { pollForOutputAndIdle } from './tools/pollingUtils.js';
 
 /**
  * Waits for either polling to complete (terminal idle or timeout) or for the user to respond to a prompt.
@@ -89,109 +83,6 @@ export function getOutput(terminal?: Pick<RawXtermTerminal, 'buffer'>, startMark
 	return output;
 }
 
-export async function pollForOutputAndIdle(
-	execution: IExecution,
-	extendedPolling: boolean,
-	token: CancellationToken,
-	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
-	markerService: Pick<IMarkerService, 'read'>,
-	knownMatchers?: ProblemMatcher[]
-): Promise<IPollingResult> {
-	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
-	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
-	let currentInterval = PollingConsts.MinPollingDuration;
-	const pollStartTime = Date.now();
-
-	let lastBufferLength = 0;
-	let noNewDataCount = 0;
-	let buffer = '';
-	let terminalExecutionIdleBeforeTimeout = false;
-
-	while (true) {
-		if (token.isCancellationRequested) {
-			break;
-		}
-		const now = Date.now();
-		const elapsed = now - pollStartTime;
-		const timeLeft = maxWaitMs - elapsed;
-
-		if (timeLeft <= 0) {
-			break;
-		}
-
-		// Cap the wait so we never overshoot timeLeft
-		const waitTime = Math.min(currentInterval, timeLeft);
-		await timeout(waitTime);
-
-		// Check again immediately after waking
-		if (Date.now() - pollStartTime >= maxWaitMs) {
-			break;
-		}
-
-		currentInterval = Math.min(currentInterval * 2, maxInterval);
-
-		buffer = execution.getOutput();
-		const currentBufferLength = buffer.length;
-
-		if (currentBufferLength === lastBufferLength) {
-			noNewDataCount++;
-		} else {
-			noNewDataCount = 0;
-			lastBufferLength = currentBufferLength;
-		}
-
-		if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
-			if (execution.isActive && ((await execution.isActive()) === true)) {
-				noNewDataCount = 0;
-				lastBufferLength = currentBufferLength;
-				continue;
-			}
-		}
-		terminalExecutionIdleBeforeTimeout = true;
-		let resources: ILinkLocation[] | undefined;
-		if (execution.task) {
-			const problems = getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
-			if (problems) {
-				// Problem matchers exist for this task
-				const problemList: string[] = [];
-				for (const [, problemArray] of problems.entries()) {
-					resources = [];
-					if (problemArray.length) {
-						for (const p of problemArray) {
-							resources.push({ uri: p.resource, range: new Range(p.startLineNumber ?? 1, p.startColumn ?? 1, p.endLineNumber ?? (p.startLineNumber ?? 1), p.endColumn ?? (p.startColumn ?? 1)) });
-							const label = p.resource ? p.resource.path.split('/').pop() ?? p.resource.toString() : '';
-							problemList.push(`Problem: ${p.message} in ${label}`);
-						}
-					}
-				}
-				if (problemList.length === 0) {
-					return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
-				}
-				return {
-					terminalExecutionIdleBeforeTimeout,
-					output: problemList.join('\n'),
-					resources,
-					pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
-				};
-			}
-		}
-		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
-		const confirmationPrompt = await detectConfirmationPromptWithLLM(buffer, token, languageModelsService);
-		const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService, knownMatchers);
-		if (handled) {
-			return handled;
-		}
-		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
-	}
-
-	const confirmationPrompt = await detectConfirmationPromptWithLLM(buffer, token, languageModelsService);
-	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService, knownMatchers);
-	if (handled) {
-		return handled;
-	}
-	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
-}
-
 export function promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext, chatService: IChatService): { promise: Promise<boolean>; part?: ChatElicitationRequestPart } {
 	if (token.isCancellationRequested) {
 		return { promise: Promise.resolve(false) };
@@ -225,36 +116,4 @@ export function promptForMorePolling(command: string, token: CancellationToken, 
 		}
 	}
 	return { promise: Promise.resolve(false) };
-}
-
-export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<string> {
-	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
-	if (!models.length) {
-		return 'No models available';
-	}
-
-	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
-
-	let responseText = '';
-
-	const streaming = (async () => {
-		for await (const part of response.stream) {
-			if (Array.isArray(part)) {
-				for (const p of part) {
-					if (p.part.type === 'text') {
-						responseText += p.part.value;
-					}
-				}
-			} else if (part.part.type === 'text') {
-				responseText += part.part.value;
-			}
-		}
-	})();
-
-	try {
-		await Promise.all([response.result, streaming]);
-		return response.result;
-	} catch (err) {
-		return 'Error occurred ' + err;
-	}
 }

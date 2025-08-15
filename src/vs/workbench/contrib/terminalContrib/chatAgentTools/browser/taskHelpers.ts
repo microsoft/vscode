@@ -16,7 +16,8 @@ import { ToolProgress } from '../../../chat/common/languageModelToolsService.js'
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
+import { getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
+import { pollForOutputAndIdle } from './tools/pollingUtils.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -169,4 +170,4 @@ export async function collectTerminalResults(
 	return results;
 }
 
-export interface ILinkLocation { uri: URI; range: Range }
+export interface ILinkLocation { uri: URI; range?: Range }

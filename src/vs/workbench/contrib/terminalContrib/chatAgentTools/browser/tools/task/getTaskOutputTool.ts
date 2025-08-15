@@ -112,8 +112,16 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			toolResultMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskLabel)),
 			toolResultDetails: Array.from(new Map(
 				terminalResults
-					.flatMap(r => r.resources?.filter(res => res.uri && res.range).map(res => ({ uri: res.uri, range: res.range })) ?? [])
-					.map(item => [`${item.uri.toString()}-${item.range.toString()}`, item])
+					.flatMap(r =>
+						r.resources?.filter(res => res.uri).map(res => {
+							const range = res.range;
+							const item = range !== undefined ? { uri: res.uri, range } : res.uri;
+							const key = range !== undefined
+								? `${res.uri.toString()}-${range.toString()}`
+								: `${res.uri.toString()}`;
+							return [key, item] as [string, typeof item];
+						}) ?? []
+					)
 			).values())
 		};
 	}

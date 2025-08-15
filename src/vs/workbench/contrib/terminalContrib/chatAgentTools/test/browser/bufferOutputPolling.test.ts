@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { strict as assert } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { getOutput, pollForOutputAndIdle, racePollingOrPrompt } from '../../browser/bufferOutputPolling.js';
+import { getOutput, racePollingOrPrompt } from '../../browser/bufferOutputPolling.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatElicitationRequestPart } from '../../../../chat/browser/chatElicitationRequestPart.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -15,6 +15,7 @@ import { ILanguageModelsService } from '../../../../chat/common/languageModels.j
 import { URI } from '../../../../../../base/common/uri.js';
 import { ApplyToKind, FileLocationKind } from '../../../../tasks/common/problemMatcher.js';
 import { PollingConsts } from '../../browser/bufferOutputPollingTypes.js';
+import { pollForOutputAndIdle } from '../../browser/tools/pollingUtils.js';
 
 suite('racePollingOrPrompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
