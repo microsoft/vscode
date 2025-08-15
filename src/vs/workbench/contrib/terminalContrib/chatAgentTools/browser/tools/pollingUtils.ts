@@ -6,7 +6,7 @@
 import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IMarkerService } from '../../../../../../platform/markers/common/markers.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { ChatMessageRole, ILanguageModelChatResponse, ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { ProblemMatcher } from '../../../../tasks/common/problemMatcher.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, PollingConsts } from '../bufferOutputPollingTypes.js';
 import { ILinkLocation } from '../taskHelpers.js';
@@ -142,19 +142,7 @@ export async function handleConfirmationPrompt(
 			], {}, token);
 
 			let selectedOption = '';
-			const streaming = (async () => {
-				for await (const part of response.stream) {
-					if (Array.isArray(part)) {
-						for (const p of part) {
-							if (isTextPart(p)) {
-								selectedOption += p.part.value;
-							}
-						}
-					} else if (isTextPart(part)) {
-						selectedOption += part.part.value;
-					}
-				}
-			})();
+			const streaming = getResponseFromStream(response);
 			await Promise.all([response.result, streaming]);
 			selectedOption = selectedOption.trim();
 
@@ -243,4 +231,31 @@ function isTextPart(obj: unknown): obj is { part: { type: 'text'; value: string 
 		'type' in (obj as any).part && (obj as any).part.type === 'text' &&
 		'value' in (obj as any).part && typeof (obj as any).part.value === 'string'
 	);
+}
+
+export async function getResponseFromStream(response: ILanguageModelChatResponse): Promise<string> {
+	let responseText = '';
+	const streaming = (async () => {
+		if (!response || !response.stream) {
+			return;
+		}
+		for await (const part of response.stream) {
+			if (Array.isArray(part)) {
+				for (const p of part) {
+					if (isTextPart(p)) {
+						responseText += p.part.value;
+					}
+				}
+			} else if (isTextPart(part)) {
+				responseText += part.part.value;
+			}
+		}
+	})();
+
+	try {
+		await Promise.all([response.result, streaming]);
+		return responseText;
+	} catch (err) {
+		return 'Error occurred ' + err;
+	}
 }
