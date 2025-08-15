@@ -201,21 +201,6 @@ steps:
         APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.js $(VSCODE_ARCH)
       displayName: Verify arch of Mach-O objects
 
-    # Setting hardened entitlements is a requirement for:
-    # * Apple notarization
-    # * Running tests on Big Sur (because Big Sur has additional security precautions)
-    - script: |
-        set -e
-        security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-        security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
-        security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-        echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
-        security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
-        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
-        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-        DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
-      displayName: Set Hardened Entitlements
-
     - script: |
         set -e
         ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
@@ -239,6 +224,24 @@ steps:
         sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
       displayName: Publish client archive (unsigned)
+
+    # Hardened entitlements should be set after publishing unsigned client artifacts
+    # to ensure entitlement signing doesn't modify sha that would affect universal build.
+    #
+    # Setting hardened entitlements is a requirement for:
+    # * Apple notarization
+    # * Running tests on Big Sur (because Big Sur has additional security precautions)
+    - script: |
+        set -e
+        security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+        security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
+        security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+        DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
+      displayName: Set Hardened Entitlements
 
     - task: UseDotNet@2
       inputs:
