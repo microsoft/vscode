@@ -3091,6 +3091,7 @@ ThemeIcon.Folder = new ThemeIcon('folder');
 @es5ClassCompat
 export class ThemeColor {
 	id: string;
+
 	constructor(id: string) {
 		this.id = id;
 	}
@@ -3829,7 +3830,28 @@ export class FileDecoration {
 
 @es5ClassCompat
 export class ColorTheme implements vscode.ColorTheme {
+	private _themingService: { getColorAsHex(colorId: string): Promise<string | undefined> } | undefined;
+
 	constructor(public readonly kind: ColorThemeKind) {
+	}
+
+	/**
+	 * Returns the hexadecimal representation of the given theme color when resolved
+	 * against this color theme.
+	 * 
+	 * @param themeColor The theme color to resolve
+	 * @returns The hexadecimal color string (e.g., '#FF0000' for red), or undefined
+	 * if the color cannot be resolved in this theme.
+	 */
+	getHexFromThemeColor(themeColor: ThemeColor): Promise<string | undefined> {
+		if (!this._themingService) {
+			throw new Error('ColorTheme.getHexFromThemeColor() is not available. This proposal API requires an active extension host.');
+		}
+		return this._themingService.getColorAsHex(themeColor.id);
+	}
+
+	_setThemingService(service: { getColorAsHex(colorId: string): Promise<string | undefined> }) {
+		this._themingService = service;
 	}
 }
 
