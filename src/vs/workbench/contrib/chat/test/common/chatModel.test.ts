@@ -146,6 +146,23 @@ suite('Response', () => {
 		assert.ok(!responseString.includes('Made changes.'), 'Should not include "Made changes." when no edits present');
 		assert.strictEqual(responseString, 'Some contentMore content');
 	});
+
+	test('consolidated edit summary with clear operation', async () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Initial content'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined });
+		response.updateContent({ kind: 'clearToPreviousToolInvocation', reason: 1 });
+		response.updateContent({ content: new MarkdownString('Content after clear'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file2.ts'), edits: [], state: undefined });
+
+		// Should only show "Made changes." for edits after the clear operation
+		const responseString = response.toString();
+		const madeChangesCount = (responseString.match(/Made changes\./g) || []).length;
+		assert.strictEqual(madeChangesCount, 1, 'Should have exactly one "Made changes." message after clear');
+		assert.ok(responseString.includes('Content after clear'), 'Should include content after clear');
+		assert.ok(!responseString.includes('Initial content'), 'Should not include content before clear');
+		assert.ok(responseString.endsWith('Made changes.'), 'Should end with "Made changes."');
+	});
 });
 
 suite('normalizeSerializableChatData', () => {

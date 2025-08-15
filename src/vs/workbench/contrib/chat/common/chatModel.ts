@@ -355,15 +355,7 @@ class AbstractResponse implements IResponse {
 	private partsToRepr(parts: readonly IChatProgressResponseContent[]): string {
 		const blocks: string[] = [];
 		let currentBlockSegments: string[] = [];
-		let hasEditGroups = false;
-
-		// First pass: check if there are any edit groups
-		for (const part of parts) {
-			if (part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup') {
-				hasEditGroups = true;
-				break;
-			}
-		}
+		let hasEditGroupsAfterLastClear = false;
 
 		for (const part of parts) {
 			let segment: { text: string; isBlock?: boolean } | undefined;
@@ -371,6 +363,7 @@ class AbstractResponse implements IResponse {
 				case 'clearToPreviousToolInvocation':
 					currentBlockSegments = [];
 					blocks.length = 0;
+					hasEditGroupsAfterLastClear = false; // Reset edit groups flag when clearing
 					continue;
 				case 'treeData':
 				case 'progressMessage':
@@ -394,7 +387,9 @@ class AbstractResponse implements IResponse {
 					break;
 				case 'textEditGroup':
 				case 'notebookEditGroup':
-					// Skip individual edit groups if we're consolidating
+					// Mark that we have edit groups after the last clear
+					hasEditGroupsAfterLastClear = true;
+					// Skip individual edit groups to avoid duplication
 					continue;
 				case 'confirmation':
 					if (part.message instanceof MarkdownString) {
@@ -423,8 +418,8 @@ class AbstractResponse implements IResponse {
 			blocks.push(currentBlockSegments.join(''));
 		}
 
-		// Add consolidated edit summary at the end if there were any edit groups
-		if (hasEditGroups) {
+		// Add consolidated edit summary at the end if there were any edit groups after the last clear
+		if (hasEditGroupsAfterLastClear) {
 			blocks.push(localize('editsSummary', "Made changes."));
 		}
 
