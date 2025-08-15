@@ -17,8 +17,8 @@ import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './chatAgents.js';
+import { ChatModel, IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
@@ -268,12 +268,12 @@ export interface IChatElicitationRequest {
 	acceptedResult?: Record<string, unknown>;
 	accept(): Promise<void>;
 	reject(): Promise<void>;
-	onDidRequestHide: Event<void>;
+	onDidRequestHide?: Event<void>;
 }
 
 export interface IChatThinkingPart {
 	kind: 'thinking';
-	value: string;
+	value?: string;
 	id?: string;
 	metadata?: string;
 }
@@ -610,10 +610,9 @@ export interface IChatTerminalLocationData {
 export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
 
 export interface IChatSendRequestOptions {
-	mode?: ChatModeKind;
+	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
-	userSelectedTools?: IObservable<Record<string, boolean>>;
-	modeInstructions?: string;
+	userSelectedTools?: IObservable<UserSelectedTools>;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;

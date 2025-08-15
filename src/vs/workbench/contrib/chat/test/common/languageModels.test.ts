@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, LanguageModelsService, IChatMessage } from '../../common/languageModels.js';
+import { ChatMessageRole, languageModelExtensionPoint, LanguageModelsService, IChatMessage, IChatResponsePart } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
@@ -152,11 +152,11 @@ suite('LanguageModels', function () {
 				// const message = messages.at(-1);
 
 				const defer = new DeferredPromise();
-				const stream = new AsyncIterableSource<IChatResponseFragment>();
+				const stream = new AsyncIterableSource<IChatResponsePart>();
 
 				(async () => {
 					while (!token.isCancellationRequested) {
-						stream.emitOne({ index: 0, part: { type: 'text', value: Date.now().toString() } });
+						stream.emitOne({ type: 'text', value: Date.now().toString() });
 						await timeout(10);
 					}
 					defer.complete(undefined);

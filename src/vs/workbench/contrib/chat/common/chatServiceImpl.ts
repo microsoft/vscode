@@ -560,6 +560,10 @@ export class ChatService extends Disposable implements IChatService {
 		let lastRequest: ChatRequestModel | undefined;
 		for (const message of content.history) {
 			if (message.type === 'request') {
+				if (lastRequest) {
+					model.completeResponse(lastRequest);
+				}
+
 				const requestText = message.prompt;
 
 				const parsedRequest: IParsedChatRequest = {
@@ -573,6 +577,7 @@ export class ChatService extends Disposable implements IChatService {
 				lastRequest = model.addRequest(parsedRequest,
 					{ variables: [] }, // variableData
 					0, // attempt
+					undefined,
 					undefined, // chatAgent - will use default
 					undefined, // slashCommand
 					undefined, // confirmation
@@ -590,7 +595,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (content.progressEvent && lastRequest) {
+		if (content.progressObs && lastRequest && content.interruptActiveResponseCallback) {
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 			this._pendingRequests.set(model.sessionId, initialCancellationRequest);
 			const cancellationListener = new MutableDisposable();
@@ -611,14 +616,24 @@ export class ChatService extends Disposable implements IChatService {
 			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
 			disposables.add(cancellationListener);
 
-			disposables.add(content.progressEvent(e => {
-				for (const progress of e) {
-					if (progress.kind === 'progressMessage' && progress.content.value === 'Session completed') {
-						model?.completeResponse(lastRequest);
-						cancellationListener.clear();
-					} else {
+			let lastProgressLength = 0;
+			disposables.add(autorun(reader => {
+				const progressArray = content.progressObs?.read(reader) ?? [];
+				const isComplete = content.isCompleteObs?.read(reader) ?? false;
+
+				// Process only new progress items
+				if (progressArray.length > lastProgressLength) {
+					const newProgress = progressArray.slice(lastProgressLength);
+					for (const progress of newProgress) {
 						model?.acceptResponseProgress(lastRequest, progress);
 					}
+					lastProgressLength = progressArray.length;
+				}
+
+				// Handle completion
+				if (isComplete) {
+					model?.completeResponse(lastRequest);
+					cancellationListener.clear();
 				}
 			}));
 		} else {
@@ -645,7 +660,7 @@ export class ChatService extends Disposable implements IChatService {
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.mode)!;
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
 
 		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
@@ -690,7 +705,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.mode)!;
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
 
 		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
 		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
@@ -711,7 +726,7 @@ export class ChatService extends Disposable implements IChatService {
 			if (!agent) {
 				throw new Error(`Unknown agent: ${options.agentId}`);
 			}
-			parserContext = { selectedAgent: agent, mode: options.mode };
+			parserContext = { selectedAgent: agent, mode: options.modeInfo?.kind };
 			const commandPart = options.slashCommand ? ` ${chatSubcommandLeader}${options.slashCommand}` : '';
 			request = `${chatAgentLeader}${agent.name}${commandPart} ${request}`;
 		}
@@ -814,7 +829,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId);
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId);
 
 						let variableData: IChatRequestVariableData;
 						let message: string;
@@ -840,7 +855,7 @@ export class ChatService extends Disposable implements IChatService {
 							}
 
 							if (tools) {
-								this.chatAgentService.setRequestTools(agent.id, request.id, { userSelectedTools: tools });
+								this.chatAgentService.setRequestTools(agent.id, request.id, tools);
 							}
 						}));
 
@@ -860,12 +875,12 @@ export class ChatService extends Disposable implements IChatService {
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools?.get(),
-							modeInstructions: options?.modeInstructions,
+							modeInstructions: options?.modeInfo?.instructions,
 							editedFileEvents: request.editedFileEvents
 						} satisfies IChatAgentRequest;
 					};
 
-					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection && options?.mode !== ChatModeKind.Agent && options?.mode !== ChatModeKind.Edit) {
+					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection && options?.modeInfo?.kind !== ChatModeKind.Agent && options?.modeInfo?.kind !== ChatModeKind.Edit) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
 
@@ -902,7 +917,7 @@ export class ChatService extends Disposable implements IChatService {
 					chatTitlePromise = model.getRequests().length === 1 && !model.customTitle ? this.chatAgentService.getChatTitle(defaultAgent.id, this.getHistoryEntriesFromModel(model.getRequests(), model.sessionId, location, agent.id), CancellationToken.None) : undefined;
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					if (commandPart.slashCommand.silent !== true) {
-						request = model.addRequest(parsedRequest, { variables: [] }, attempt);
+						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
 						completeResponseCreated();
 					}
 					// contributed slash commands
@@ -1098,7 +1113,7 @@ export class ChatService extends Disposable implements IChatService {
 		const parsedRequest = typeof message === 'string' ?
 			this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) :
 			message;
-		const request = model.addRequest(parsedRequest, variableData || { variables: [] }, attempt ?? 0, undefined, undefined, undefined, undefined, undefined, true);
+		const request = model.addRequest(parsedRequest, variableData || { variables: [] }, attempt ?? 0, undefined, undefined, undefined, undefined, undefined, undefined, true);
 		if (typeof response.message === 'string') {
 			// TODO is this possible?
 			model.acceptResponseProgress(request, { content: new MarkdownString(response.message), kind: 'markdownContent' });

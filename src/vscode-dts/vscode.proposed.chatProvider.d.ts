@@ -3,15 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 1
+
 declare module 'vscode' {
-
-
-	// @API extension ship a d.ts files for their options
-
-	// @API the LanguageModelChatProvider2 is an alternative that combines a source, like ollama etc, with
-	// concrete models. The `provideLanguageModelChatData` would do the discovery and auth dances and later
-	// the model data is passed to the concrete function for making a requested or counting token
-
 
 	// TODO@API name scheme
 	export interface LanguageModelChatRequestHandleOptions {
@@ -44,7 +38,6 @@ declare module 'vscode' {
 		toolMode?: LanguageModelChatToolMode;
 	}
 
-	// TODO@API names: LanguageModelChatMetadata, LanguageModelChatItem
 	export interface LanguageModelChatInformation {
 
 		readonly id: string;
@@ -60,14 +53,14 @@ declare module 'vscode' {
 		readonly family: string;
 
 		/**
-		 * An optional, human-readable description of the language model.
+		 * The tooltip to render when hovering the model
 		 */
-		readonly description?: string;
+		readonly tooltip?: string;
 
 		/**
-		 * An optional, human-readable string representing the cost of using the language model.
+		 * An optional, human-readable string which will be rendered alongside the model.
 		 */
-		readonly cost?: string;
+		readonly detail?: string;
 
 		/**
 		 * Opaque version string of the model. This is defined by the extension contributing the language model
@@ -101,44 +94,56 @@ declare module 'vscode' {
 			// TODO@API should be `boolean | number` so extensions can express how many tools they support
 			readonly toolCalling?: boolean | number;
 
-			// TODO@API DO NOT SUPPORT THIS
-			// readonly agentMode?: boolean;
-
-			// TODO@API support prompt TSX style messages, MAYBE leave it out for now
-			readonly promptTsx?: boolean;
 		};
 
 		/**
 		 * Optional category to group models by in the model picker.
 		 * The lower the order, the higher the category appears in the list.
 		 * Has no effect if `isUserSelectable` is `false`.
-		 * If not specified, the model will appear in the "Other Models" category.
 		 */
 		readonly category?: { label: string; order: number };
 	}
 
-	export interface LanguageModelChatProvider2<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+	/**
+	 * The provider version of @link {LanguageModelChatMessage}.
+	 */
+	export interface LanguageModelChatRequestMessage {
+		/**
+			* The role of this message.
+			*/
+		readonly role: LanguageModelChatMessageRole;
+
+		/**
+		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
+		 * specific for some models.
+		 */
+		readonly content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | unknown>;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
+		readonly name: string | undefined;
+	}
+
+	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
 
 		// signals a change from the provider to the editor so that prepareLanguageModelChat is called again
-		onDidChange?: Event<void>;
+		onDidChangeLanguageModelInformation?: Event<void>;
 
 		// NOT cacheable (between reloads)
-		prepareLanguageModelChat(options: { silent: boolean }, token: CancellationToken): ProviderResult<T[]>;
+		prepareLanguageModelChatInformation(options: PrepareLMChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 
-		provideLanguageModelChatResponse(model: T, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: LanguageModelChatRequestHandleOptions, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelChatResponse(model: T, messages: Array<LanguageModelChatRequestMessage>, options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, token: CancellationToken): Thenable<any>;
 
-		provideTokenCount(model: T, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Thenable<number>;
+		provideTokenCount(model: T, text: string | LanguageModelChatRequestMessage, token: CancellationToken): Thenable<number>;
 	}
 
 	export namespace lm {
 
-		export function registerChatModelProvider(vendor: string, provider: LanguageModelChatProvider2): Disposable;
+		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
 	}
 
-
-
-	export interface ChatResponseFragment2 {
-		index: number;
-		part: LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart;
+	export interface PrepareLMChatModelOptions {
+		silent: boolean;
 	}
 }

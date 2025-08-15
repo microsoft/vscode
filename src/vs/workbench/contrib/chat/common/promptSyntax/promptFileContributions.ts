@@ -14,6 +14,7 @@ import { isWindows } from '../../../../../base/common/platform.js';
 import { PromptPathAutocompletion } from './languageProviders/promptPathAutocompletion.js';
 import { PromptHeaderAutocompletion } from './languageProviders/promptHeaderAutocompletion.js';
 import { PromptHeaderHoverProvider } from './languageProviders/promptHeaderHovers.js';
+import { PromptHeaderDefinitionProvider } from './languageProviders/PromptHeaderDefinitionProvider.js';
 
 
 /**
@@ -47,6 +48,7 @@ export function registerPromptFileContributions(): void {
 	}
 	registerContribution(PromptHeaderAutocompletion);
 	registerContribution(PromptHeaderHoverProvider);
+	registerContribution(PromptHeaderDefinitionProvider);
 	registerContribution(ConfigMigration);
 }
 

@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-qzQMf4WjRXHohkk4Hg1T0LJIElTDtjITLXbR/RuGA/Q=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-TkmhJj+GlsPgI0K3xlZ+vm4vIqYKx0bJ8mN1rV8JWfA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -88,6 +88,7 @@
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = `
+		@layer vscode-default {
 			html {
 				scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
 			}
@@ -181,7 +182,8 @@
 			}
 			::highlight(current-find-highlight) {
 				background-color: var(--vscode-editor-findMatchBackground);
-			}`;
+			}
+		}`;
 
 		/**
 		 * @param {boolean} allowMultipleAPIAcquire
