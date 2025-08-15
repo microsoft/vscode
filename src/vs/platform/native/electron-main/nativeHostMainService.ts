@@ -355,6 +355,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			} else if (typeof windowAccentColor === 'string') {
 				windowAccentColor = windowAccentColor;
 			}
+		} else {
+			windowAccentColor = true;
 		}
 
 		const windows = [this.windowById(windowId)];
