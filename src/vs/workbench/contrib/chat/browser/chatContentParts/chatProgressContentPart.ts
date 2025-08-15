@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
-import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -80,35 +80,6 @@ function shouldShowSpinner(followingContent: IChatRendererContent[], element: Ch
 	return isResponseVM(element) && !element.isComplete && followingContent.length === 0;
 }
 
-export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
-	constructor(
-		private readonly workingProgress: IChatWorkingProgress,
-		renderer: MarkdownRenderer,
-		context: IChatContentPartRenderContext,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
-	) {
-		const progressMessage: IChatProgressMessage = {
-			kind: 'progressMessage',
-			content: workingProgress.isPaused ?
-				new MarkdownString().appendText(localize('pausedMessage', "Paused")) :
-				new MarkdownString().appendText(localize('workingMessage', "Working..."))
-		};
-		super(progressMessage, renderer, context, undefined, undefined, workingProgress.isPaused ? Codicon.debugPause : undefined, instantiationService, chatMarkdownAnchorService);
-
-		if (workingProgress.isPaused) {
-			this.domNode.style.cursor = 'pointer';
-			this.domNode.title = localize('resume', "Click to resume");
-			this._register(addDisposableListener(this.domNode, EventType.CLICK, () => {
-				workingProgress.setPaused(false);
-			}));
-		}
-	}
-
-	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'working' && this.workingProgress.isPaused === other.isPaused;
-	}
-}
 
 export class ChatCustomProgressPart {
 	public readonly domNode: HTMLElement;
@@ -124,5 +95,25 @@ export class ChatCustomProgressPart {
 
 		messageElement.classList.add('progress-step');
 		append(this.domNode, messageElement);
+	}
+}
+
+export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
+	constructor(
+		_workingProgress: { kind: 'working' },
+		renderer: MarkdownRenderer,
+		context: IChatContentPartRenderContext,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
+	) {
+		const progressMessage: IChatProgressMessage = {
+			kind: 'progressMessage',
+			content: new MarkdownString().appendText(localize('workingMessage', "Working..."))
+		};
+		super(progressMessage, renderer, context, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService);
+	}
+
+	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		return other.kind === 'working';
 	}
 }

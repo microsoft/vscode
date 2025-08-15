@@ -320,9 +320,12 @@ class McpHTTPHandle extends Disposable {
 		let resourceMetadataChallenge: string | undefined;
 		if (originalResponse.headers.has('WWW-Authenticate')) {
 			const authHeader = originalResponse.headers.get('WWW-Authenticate')!;
-			const { scheme, params } = parseWWWAuthenticateHeader(authHeader);
-			if (scheme === 'Bearer' && params['resource_metadata']) {
-				resourceMetadataChallenge = params['resource_metadata'];
+			const challenges = parseWWWAuthenticateHeader(authHeader);
+			for (const challenge of challenges) {
+				if (challenge.scheme === 'Bearer' && challenge.params['resource_metadata']) {
+					resourceMetadataChallenge = challenge.params['resource_metadata'];
+					break;
+				}
 			}
 		}
 		// Second, fetch that url's well-known server metadata

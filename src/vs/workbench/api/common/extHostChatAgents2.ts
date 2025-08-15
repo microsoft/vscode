@@ -191,10 +191,10 @@ export class ChatAgentResponseStream {
 					_report(dto, task);
 					return this;
 				},
-				thinkingProgress(value, id?, metadata?) {
+				thinkingProgress(thinkingDelta: vscode.ThinkingDelta) {
 					throwIfDone(this.thinkingProgress);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
-					const part = new extHostTypes.ChatResponseThinkingProgressPart(value, id, metadata);
+					const part = new extHostTypes.ChatResponseThinkingProgressPart(thinkingDelta.text ?? '', thinkingDelta.id, thinkingDelta.metadata);
 					const dto = typeConvert.ChatResponseThinkingProgressPart.from(part);
 					_report(dto);
 					return this;
@@ -527,19 +527,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return model;
 	}
 
-	async $setRequestPaused(handle: number, requestId: string, isPaused: boolean) {
-		const agent = this._agents.get(handle);
-		if (!agent) {
-			return;
-		}
-
-		const inFlight = Iterable.find(this._inFlightRequests, r => r.requestId === requestId);
-		if (!inFlight) {
-			return;
-		}
-
-		agent.setChatRequestPauseState({ request: inFlight.extRequest, isPaused });
-	}
 
 	async $setRequestTools(requestId: string, tools: Pick<IChatAgentRequest, 'userSelectedTools'>) {
 		const request = [...this._inFlightRequests].find(r => r.requestId === requestId);

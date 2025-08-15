@@ -87,18 +87,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		const { title, message, disclaimer, terminalCustomActions } = toolInvocation.confirmationMessages;
-		const runLabel = localize('run', "Run");
-		const runKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const runTooltip = runKeybinding ? `${runLabel} (${runKeybinding})` : runLabel;
+		const continueLabel = localize('continue', "Continue");
+		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
 		const cancelLabel = localize('cancel', "Cancel");
 		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
 		const buttons: IChatConfirmationButton[] = [
 			{
-				label: runLabel,
+				label: continueLabel,
 				data: true,
-				tooltip: runTooltip,
+				tooltip: continueTooltip,
 				moreActions: terminalCustomActions,
 			},
 			{
@@ -160,8 +160,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		dom.append(messageElement, editor.object.element);
 		this._register(hoverService.setupDelayedHover(messageElement, {
 			content: message,
-			position: { hoverPosition: HoverPosition.BELOW },
-			appearance: { showPointer: true }
+			position: { hoverPosition: HoverPosition.LEFT },
+			appearance: { showPointer: true },
 		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget,
@@ -205,10 +205,15 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							throw new ErrorNoTelemetry(`Cannot add new rule, existing setting is unexpected format`);
 						}
 						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue);
+						function formatRuleLinks(newRules: ITerminalNewAutoApproveRule[]): string {
+							return newRules.map(e => {
+								return `[\`${e.key}\`](settings_${ConfigurationTarget.USER} "${localize('ruleTooltip', 'View rule in settings')}")`;
+							}).join(', ');
+						}
 						if (newRules.length === 1) {
-							terminalData.autoApproveInfo = new MarkdownString(localize('newRule', 'Auto approve rule {0} added', `[\`${newRules[0].key}\`](settings_a)`));
+							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule', 'Auto approve rule {0} added', formatRuleLinks(newRules))}_`);
 						} else if (newRules.length > 1) {
-							terminalData.autoApproveInfo = new MarkdownString(localize('newRule.plural', 'Auto approve rules {0} added', newRules.map(r => `[\`${r.key}\`](settings_a)`).join(', ')));
+							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule.plural', 'Auto approve rules {0} added', formatRuleLinks(newRules))}_`);
 						}
 						break;
 					}

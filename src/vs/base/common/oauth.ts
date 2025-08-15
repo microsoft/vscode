@@ -775,21 +775,99 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 	throw new Error(`Invalid authorization dynamic client registration response: ${JSON.stringify(registration)}`);
 }
 
+export interface IAuthenticationChallenge {
+	scheme: string;
+	params: Record<string, string>;
+}
 
-export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string) {
-	const parts = wwwAuthenticateHeaderValue.split(' ');
-	const scheme = parts[0];
-	const params: Record<string, string> = {};
+export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): IAuthenticationChallenge[] {
+	const challenges: IAuthenticationChallenge[] = [];
 
-	if (parts.length > 1) {
-		const attributes = parts.slice(1).join(' ').split(',');
-		attributes.forEach(attr => {
-			const [key, value] = attr.split('=').map(s => s.trim().replace(/"/g, ''));
-			params[key] = value;
-		});
+	// According to RFC 7235, multiple challenges are separated by commas
+	// But parameters within a challenge can also be separated by commas
+	// We need to identify scheme names to know where challenges start
+
+	// First, split by commas while respecting quoted strings
+	const tokens: string[] = [];
+	let current = '';
+	let inQuotes = false;
+
+	for (let i = 0; i < wwwAuthenticateHeaderValue.length; i++) {
+		const char = wwwAuthenticateHeaderValue[i];
+
+		if (char === '"') {
+			inQuotes = !inQuotes;
+			current += char;
+		} else if (char === ',' && !inQuotes) {
+			if (current.trim()) {
+				tokens.push(current.trim());
+			}
+			current = '';
+		} else {
+			current += char;
+		}
 	}
 
-	return { scheme, params };
+	if (current.trim()) {
+		tokens.push(current.trim());
+	}
+
+	// Now process tokens to identify challenges
+	// A challenge starts with a scheme name (a token that doesn't contain '=' and is followed by parameters or is standalone)
+	let currentChallenge: { scheme: string; params: Record<string, string> } | undefined;
+
+	for (const token of tokens) {
+		const hasEquals = token.includes('=');
+
+		if (!hasEquals) {
+			// This token doesn't have '=', so it's likely a scheme name
+			if (currentChallenge) {
+				challenges.push(currentChallenge);
+			}
+			currentChallenge = { scheme: token.trim(), params: {} };
+		} else {
+			// This token has '=', it could be:
+			// 1. A parameter for the current challenge
+			// 2. A new challenge that starts with "Scheme param=value"
+
+			const spaceIndex = token.indexOf(' ');
+			if (spaceIndex > 0) {
+				const beforeSpace = token.substring(0, spaceIndex);
+				const afterSpace = token.substring(spaceIndex + 1);
+
+				// Check if what's before the space looks like a scheme name (no '=')
+				if (!beforeSpace.includes('=') && afterSpace.includes('=')) {
+					// This is a new challenge starting with "Scheme param=value"
+					if (currentChallenge) {
+						challenges.push(currentChallenge);
+					}
+					currentChallenge = { scheme: beforeSpace.trim(), params: {} };
+
+					// Parse the parameter part
+					const [key, value] = afterSpace.split('=').map(s => s.trim().replace(/"/g, ''));
+					if (key && value !== undefined) {
+						currentChallenge.params[key] = value;
+					}
+					continue;
+				}
+			}
+
+			// This is a parameter for the current challenge
+			if (currentChallenge) {
+				const [key, value] = token.split('=').map(s => s.trim().replace(/"/g, ''));
+				if (key && value !== undefined) {
+					currentChallenge.params[key] = value;
+				}
+			}
+		}
+	}
+
+	// Don't forget the last challenge
+	if (currentChallenge) {
+		challenges.push(currentChallenge);
+	}
+
+	return challenges;
 }
 
 export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {

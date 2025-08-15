@@ -11,7 +11,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, ITransaction, ObservablePromise, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ObservablePromise, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
@@ -50,6 +50,7 @@ export interface IChatRequestModel {
 	readonly id: string;
 	readonly timestamp: number;
 	readonly username: string;
+	readonly modeInfo?: IChatRequestModeInfo;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
 	readonly message: IParsedChatRequest;
@@ -169,7 +170,6 @@ export interface IChatResponseModel {
 	readonly entireResponse: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	readonly isPaused: IObservable<boolean>;
 	readonly isPendingConfirmation: IObservable<boolean>;
 	readonly isInProgress: IObservable<boolean>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
@@ -185,7 +185,6 @@ export interface IChatResponseModel {
 	setVote(vote: ChatAgentVoteDirection): void;
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
-	setPaused(isPause: boolean, tx?: ITransaction): void;
 	/**
 	 * Adopts any partially-undo {@link response} as the {@link entireResponse}.
 	 * Only valid when {@link isComplete}. This is needed because otherwise an
@@ -201,12 +200,19 @@ export type ChatResponseModelChangeReason =
 
 const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason = { reason: 'other' };
 
+export interface IChatRequestModeInfo {
+	kind: ChatModeKind;
+	isBuiltin: boolean;
+	instructions: string | undefined;
+}
+
 export interface IChatRequestModelParameters {
 	session: ChatModel;
 	message: IParsedChatRequest;
 	variableData: IChatRequestVariableData;
 	timestamp: number;
 	attempt?: number;
+	modeInfo?: IChatRequestModeInfo;
 	confirmation?: string;
 	locationData?: IChatLocationData;
 	attachedContext?: IChatRequestVariableEntry[];
@@ -224,6 +230,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly message: IParsedChatRequest;
 	public readonly isCompleteAddedRequest: boolean;
 	public readonly modelId?: string;
+	public readonly modeInfo?: IChatRequestModeInfo;
 
 	public shouldBeBlocked: boolean = false;
 
@@ -281,6 +288,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._variableData = params.variableData;
 		this.timestamp = params.timestamp;
 		this._attempt = params.attempt ?? 0;
+		this.modeInfo = params.modeInfo;
 		this._confirmation = params.confirmation;
 		this._locationData = params.locationData;
 		this._attachedContext = params.attachedContext;
@@ -747,10 +755,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._isStale;
 	}
 
-	private readonly _isPaused = observableValue('isPaused', false);
-	public get isPaused(): IObservable<boolean> {
-		return this._isPaused;
-	}
 
 	readonly isPendingConfirmation: IObservable<boolean>;
 
@@ -770,8 +774,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._responseView;
 	}
 
-	/** Functions run once the chat response is unpaused. */
-	private bufferedPauseContent?: (() => void)[];
 
 	constructor(params: IChatResponseModelParameters) {
 		super();
@@ -835,17 +837,15 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	 * Apply a progress update to the actual response content.
 	 */
 	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit, quiet?: boolean) {
-		this.bufferWhenPaused(() => this._response.updateContent(responsePart, quiet));
+		this._response.updateContent(responsePart, quiet);
 	}
 
 	/**
 	 * Adds an undo stop at the current position in the stream.
 	 */
 	addUndoStop(undoStop: IChatUndoStop) {
-		this.bufferWhenPaused(() => {
-			this._onDidChange.fire({ reason: 'undoStop', id: undoStop.id });
-			this._response.updateContent(undoStop, true);
-		});
+		this._onDidChange.fire({ reason: 'undoStop', id: undoStop.id });
+		this._response.updateContent(undoStop, true);
 	}
 
 	/**
@@ -925,13 +925,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
-	setPaused(isPause: boolean, tx?: ITransaction): void {
-		this._isPaused.set(isPause, tx);
-		this._onDidChange.fire(defaultChatResponseModelChangeReason);
-
-		this.bufferedPauseContent?.forEach(f => f());
-		this.bufferedPauseContent = undefined;
-	}
 
 	finalizeUndoState(): void {
 		this._finalizedResponse = this.response;
@@ -939,21 +932,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._shouldBeRemovedOnSend = undefined;
 	}
 
-	private bufferWhenPaused(apply: () => void) {
-		if (!this._isPaused.get()) {
-			apply();
-		} else {
-			this.bufferedPauseContent ??= [];
-			this.bufferedPauseContent.push(apply);
-		}
-	}
 }
 
-export const enum ChatPauseState {
-	NotPausable,
-	Paused,
-	Unpaused,
-}
 
 export interface IChatRequestDisablement {
 	requestId: string;
@@ -968,11 +948,9 @@ export interface IChatModel extends IDisposable {
 	readonly title: string;
 	readonly requestInProgress: boolean;
 	readonly requestInProgressObs: IObservable<boolean>;
-	readonly requestPausibility: ChatPauseState;
 	readonly inputPlaceholder?: string;
 	readonly editingSessionObs?: ObservablePromise<IChatEditingSession> | undefined;
 	readonly editingSession?: IChatEditingSession | undefined;
-	toggleLastRequestPaused(paused?: boolean): void;
 	/**
 	 * Sets requests as 'disabled', removing them from the UI. If a request ID
 	 * is given without undo stops, it's removed entirely. If an undo stop
@@ -982,7 +960,7 @@ export interface IChatModel extends IDisposable {
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 	readonly checkpoint: IChatRequestModel | undefined;
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string): IChatRequestModel;
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string): IChatRequestModel;
 	acceptResponseProgress(request: IChatRequestModel, progress: IChatProgress, quiet?: boolean): void;
 	setResponse(request: IChatRequestModel, result: IChatAgentResult): void;
 	completeResponse(request: IChatRequestModel): void;
@@ -1259,14 +1237,6 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
-	get requestPausibility(): ChatPauseState {
-		const lastRequest = this.lastRequest;
-		if (!lastRequest?.response?.agent || lastRequest.response.isComplete || lastRequest.response.isPendingConfirmation.get()) {
-			return ChatPauseState.NotPausable;
-		}
-
-		return lastRequest.response.isPaused.get() ? ChatPauseState.Paused : ChatPauseState.Unpaused;
-	}
 
 	get hasRequests(): boolean {
 		return this._requests.length > 0;
@@ -1495,14 +1465,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		};
 	}
 
-	toggleLastRequestPaused(isPaused?: boolean) {
-		if (this.requestPausibility !== ChatPauseState.NotPausable && this.lastRequest?.response?.agent) {
-			const pausedValue = isPaused ?? !this.lastRequest.response.isPaused.get();
-			this.lastRequest.response.setPaused(pausedValue);
-			this.chatAgentService.setRequestPaused(this.lastRequest.response.agent.id, this.lastRequest.id, pausedValue);
-			this._onDidChange.fire({ kind: 'changedRequest', request: this.lastRequest });
-		}
-	}
+
 
 	getRequests(): ChatRequestModel[] {
 		return this._requests;
@@ -1576,7 +1539,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string): ChatRequestModel {
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const request = new ChatRequestModel({
@@ -1585,6 +1548,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			variableData,
 			timestamp: Date.now(),
 			attempt,
+			modeInfo,
 			confirmation,
 			locationData,
 			attachedContext: attachments,

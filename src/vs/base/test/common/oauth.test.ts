@@ -240,20 +240,39 @@ suite('OAuth', () => {
 	suite('Parsing Functions', () => {
 		test('parseWWWAuthenticateHeader should correctly parse simple header', () => {
 			const result = parseWWWAuthenticateHeader('Bearer');
-			assert.strictEqual(result.scheme, 'Bearer');
-			assert.deepStrictEqual(result.params, {});
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {});
 		});
 
 		test('parseWWWAuthenticateHeader should correctly parse header with parameters', () => {
 			const result = parseWWWAuthenticateHeader('Bearer realm="api", error="invalid_token", error_description="The access token expired"');
 
-			assert.strictEqual(result.scheme, 'Bearer');
-			assert.deepStrictEqual(result.params, {
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
 				realm: 'api',
 				error: 'invalid_token',
 				error_description: 'The access token expired'
 			});
 		});
+
+		test('parseWWWAuthenticateHeader should correctly parse multiple', () => {
+			const result = parseWWWAuthenticateHeader('Bearer realm="api", error="invalid_token", error_description="The access token expired", Basic realm="hi"');
+
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
+				realm: 'api',
+				error: 'invalid_token',
+				error_description: 'The access token expired'
+			});
+			assert.strictEqual(result[1].scheme, 'Basic');
+			assert.deepStrictEqual(result[1].params, {
+				realm: 'hi'
+			});
+		});
+
 
 		test('getClaimsFromJWT should correctly parse a JWT token', () => {
 			// Create a sample JWT with known payload
