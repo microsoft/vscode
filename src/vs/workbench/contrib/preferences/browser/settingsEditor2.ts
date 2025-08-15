@@ -1638,13 +1638,11 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
-		try {
-			if (this.isVisible()) {
-				if (!element.setting.deprecationMessage || element.isConfigured) {
-					this.settingsTree.rerender(element);
-				}
+		if (this.isVisible()) {
+			if (!element.setting.deprecationMessage || element.isConfigured) {
+				this.settingsTree.rerender(element);
 			}
-		} catch (error) { }
+		}
 	}
 
 	private refreshTree(): void {
