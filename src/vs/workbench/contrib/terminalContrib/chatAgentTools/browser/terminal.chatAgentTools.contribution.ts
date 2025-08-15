@@ -108,7 +108,7 @@ registerActiveInstanceAction({
 			id: MenuId.TerminalInstanceContext,
 			group: TerminalContextMenuGroup.Chat,
 			order: 1,
-			when: TerminalContextKeys.textSelected,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, TerminalContextKeys.textSelected)
 		},
 	],
 	run: async (activeInstance, _c, accessor) => {
