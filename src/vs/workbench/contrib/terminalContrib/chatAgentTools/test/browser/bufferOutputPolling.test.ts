@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { strict as assert } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { getOutput, pollForOutputAndIdle, PollingConsts, racePollingOrPrompt } from '../../browser/bufferOutputPolling.js';
+import { getOutput, racePollingOrPrompt } from '../../browser/bufferOutputPolling.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatElicitationRequestPart } from '../../../../chat/browser/chatElicitationRequestPart.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -14,6 +14,8 @@ import { TestMarkerService } from '../../../../../test/common/workbenchTestServi
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ApplyToKind, FileLocationKind } from '../../../../tasks/common/problemMatcher.js';
+import { PollingConsts } from '../../browser/bufferOutputPollingTypes.js';
+import { pollForOutputAndIdle } from '../../browser/tools/pollingUtils.js';
 
 suite('racePollingOrPrompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -21,7 +23,7 @@ suite('racePollingOrPrompt', () => {
 	const defaultOriginalResult = { terminalExecutionIdleBeforeTimeout: false, output: '', pollDurationMs: PollingConsts.FirstPollingMaxDuration };
 	const defaultToken = CancellationToken.None;
 	const defaultLanguageModelsService = {} as any;
-	const defaultExecution = { getOutput: () => 'output' };
+	const defaultExecution = { getOutput: () => 'output', terminal: { runCommand: async () => { } } };
 	const testMarkerService = new TestMarkerService();
 
 	function write(data: string, terminal: RawXtermTerminal): Promise<void> {
@@ -161,7 +163,8 @@ suite('racePollingOrPrompt', () => {
 			};
 			const execution = {
 				getOutput: () => 'exited with code E123 in test.txt',
-				task: fakeTask
+				task: fakeTask,
+				terminal: { runCommand: async () => { } }
 			};
 			const token = { isCancellationRequested: false } as CancellationToken;
 			const result = await pollForOutputAndIdle(

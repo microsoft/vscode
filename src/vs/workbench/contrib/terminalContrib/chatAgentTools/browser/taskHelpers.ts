@@ -16,7 +16,8 @@ import { ToolProgress } from '../../../chat/common/languageModelToolsService.js'
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
+import { getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
+import { pollForOutputAndIdle } from './tools/pollingUtils.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -146,16 +147,16 @@ export async function collectTerminalResults(
 	const results: Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }> = [];
 	for (const terminal of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, false, token, languageModelsService, markerService);
+		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, false, token, languageModelsService, markerService);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, true, token, languageModelsService, markerService),
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, true, token, languageModelsService, markerService),
 				() => promptForMorePolling(task._label, token, invocationContext, chatService),
 				outputAndIdle,
 				token,
 				languageModelsService,
 				markerService,
-				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive, dependencyTasks },
+				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive, dependencyTasks, terminal },
 			);
 		}
 		results.push({
@@ -169,4 +170,4 @@ export async function collectTerminalResults(
 	return results;
 }
 
-export interface ILinkLocation { uri: URI; range: Range }
+export interface ILinkLocation { uri: URI; range?: Range }
