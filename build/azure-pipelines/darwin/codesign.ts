@@ -11,7 +11,7 @@ async function main() {
 	const esrpCliDLLPath = e('EsrpCliDllPath');
 	const pipelineWorkspace = e('PIPELINE_WORKSPACE');
 
-	const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
+	const folder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_archive`;
 	const glob = `VSCode-darwin-${arch}.zip`;
 
 	// Codesign
