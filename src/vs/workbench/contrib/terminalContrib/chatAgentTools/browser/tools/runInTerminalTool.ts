@@ -44,6 +44,7 @@ import { basename } from '../../../../../../base/common/path.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -167,6 +168,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService,
 	) {
 		super();
 
@@ -217,7 +219,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationMessages = undefined;
 		} else {
 			const actualCommand = toolEditedCommand ?? args.command;
-			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
+			const subCommands = await splitCommandLineIntoSubCommands(actualCommand, shell, os, this._treeSitterLibraryService);
 			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
 			const allSubCommands = [...subCommands, ...inlineSubCommands];
 			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));

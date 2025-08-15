@@ -19,7 +19,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
-export const TREESITTER_ALLOWED_SUPPORT = ['css', 'typescript', 'ini', 'regex'];
+export const TREESITTER_ALLOWED_SUPPORT = ['css', 'typescript', 'ini', 'regex', 'bash'];
 
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
 const FILENAME_TREESITTER_WASM = `tree-sitter.wasm`;

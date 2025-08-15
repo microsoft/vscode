@@ -156,6 +156,15 @@ const editorConfiguration: IConfigurationNode = {
 				mode: 'auto'
 			}
 		},
+		'editor.experimental.preferTreeSitter.bash': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter.bash', "Controls whether tree sitter parsing should be turned on for bash. This will take precedence over `#editor.experimental.treeSitterTelemetry#` for bash."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
 			default: null, // We want to distinguish the empty array from not configured.

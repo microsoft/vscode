@@ -6,6 +6,7 @@
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 import type * as TreeSitter from '@vscode/tree-sitter-wasm';
+import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 
 function createNumberRange(start: number, end: number): string[] {
 	const result: string[] = [];
@@ -131,13 +132,74 @@ function parseCommandWithQuotes(commandLine: string): string[] {
  * Parse command line using tree-sitter if available, falls back to quote-aware parsing.
  * This function attempts to use actual tree-sitter for proper shell syntax parsing.
  */
-function tryParseCommandWithTreeSitter(commandLine: string): string[] | null {
-	try {
-		// TODO: Implement proper tree-sitter parsing when bash grammar is available
-		// For now, we return null to indicate tree-sitter parsing is not yet implemented
+async function tryParseCommandWithTreeSitter(commandLine: string, treeSitterService?: ITreeSitterLibraryService): Promise<string[] | null> {
+	if (!treeSitterService) {
 		return null;
+	}
+
+	try {
+		// Check if bash language is supported and available
+		const language = treeSitterService.getLanguage('bash', undefined);
+		if (!language) {
+			return null;
+		}
+
+		// Get the parser class
+		const ParserClass = await treeSitterService.getParserClass();
+		const parser = new ParserClass();
+		parser.setLanguage(language);
+
+		// Parse the command line
+		const tree = parser.parse(commandLine);
+		const rootNode = tree.rootNode;
+
+		// Extract commands from the parse tree
+		const commands: string[] = [];
+		
+		// Walk the tree to find command nodes and operators that separate commands
+		function walkNode(node: TreeSitter.SyntaxNode): void {
+			// For bash, we're looking for command nodes that are separated by operators
+			if (node.type === 'command' || node.type === 'simple_command') {
+				const commandText = commandLine.substring(node.startIndex, node.endIndex).trim();
+				if (commandText) {
+					commands.push(commandText);
+				}
+			} else if (node.type === 'pipeline' || node.type === 'list') {
+				// These nodes contain multiple commands separated by operators
+				for (let i = 0; i < node.childCount; i++) {
+					const child = node.child(i);
+					if (child && (child.type === 'command' || child.type === 'simple_command')) {
+						const commandText = commandLine.substring(child.startIndex, child.endIndex).trim();
+						if (commandText) {
+							commands.push(commandText);
+						}
+					}
+				}
+			} else {
+				// Recursively walk child nodes
+				for (let i = 0; i < node.childCount; i++) {
+					const child = node.child(i);
+					if (child) {
+						walkNode(child);
+					}
+				}
+			}
+		}
+
+		walkNode(rootNode);
+		
+		// If we found commands, return them; otherwise fall back
+		if (commands.length > 0) {
+			return commands;
+		}
+
+		// If no specific commands found, but tree parsing succeeded, 
+		// return the original command as a single command
+		return [commandLine.trim()];
+		
 	} catch (error) {
-		// Tree-sitter not available or failed to load
+		// Tree-sitter parsing failed
+		console.warn('Tree-sitter parsing failed:', error);
 		return null;
 	}
 }
@@ -146,14 +208,14 @@ function tryParseCommandWithTreeSitter(commandLine: string): string[] | null {
  * Split command line into sub-commands using tree-sitter parsing when available.
  * Falls back to quote-aware parsing if tree-sitter is not available or fails.
  */
-function splitCommandLineIntoSubCommandsWithTreeSitter(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
+async function splitCommandLineIntoSubCommandsWithTreeSitter(commandLine: string, envShell: string, envOS: OperatingSystem, treeSitterService?: ITreeSitterLibraryService): Promise<string[]> {
 	if (!commandLine.trim()) {
 		return [];
 	}
 
 	try {
 		// First attempt: Use tree-sitter for proper shell syntax parsing
-		const treeSitterResult = tryParseCommandWithTreeSitter(commandLine);
+		const treeSitterResult = await tryParseCommandWithTreeSitter(commandLine, treeSitterService);
 		if (treeSitterResult !== null) {
 			return treeSitterResult;
 		}
@@ -197,8 +259,33 @@ function splitCommandLineIntoSubCommandsLegacy(commandLine: string, envShell: st
 	return subCommands.filter(e => e.length > 0);
 }
 
-export function splitCommandLineIntoSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
-	return splitCommandLineIntoSubCommandsWithTreeSitter(commandLine, envShell, envOS);
+/**
+ * Synchronous version without tree-sitter support.
+ * Falls back to quote-aware parsing.
+ */
+function splitCommandLineIntoSubCommandsSync(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
+	if (!commandLine.trim()) {
+		return [];
+	}
+
+	try {
+		// Use quote-aware parsing
+		return parseCommandWithQuotes(commandLine);
+	} catch (error) {
+		// If quote-aware parsing fails, fall back to the original implementation
+		console.warn('Quote-aware parsing failed, falling back to string splitting:', error);
+		return splitCommandLineIntoSubCommandsLegacy(commandLine, envShell, envOS);
+	}
+}
+
+export function splitCommandLineIntoSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): string[];
+export function splitCommandLineIntoSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem, treeSitterService: ITreeSitterLibraryService): Promise<string[]>;
+export function splitCommandLineIntoSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem, treeSitterService?: ITreeSitterLibraryService): string[] | Promise<string[]> {
+	if (treeSitterService) {
+		return splitCommandLineIntoSubCommandsWithTreeSitter(commandLine, envShell, envOS, treeSitterService);
+	} else {
+		return splitCommandLineIntoSubCommandsSync(commandLine, envShell, envOS);
+	}
 }
 
 export function extractInlineSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
