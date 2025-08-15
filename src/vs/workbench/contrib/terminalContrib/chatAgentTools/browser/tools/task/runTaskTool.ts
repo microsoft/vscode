@@ -139,7 +139,7 @@ export class RunTaskTool implements IToolImpl {
 							const key = range !== undefined
 								? `${res.uri.toString()}-${range.toString()}`
 								: `${res.uri.toString()}`;
-							return [key, item] as [string, typeof item];
+							return [key, item] as [string, URI | Location];
 						}) ?? []
 					)
 			).values())
