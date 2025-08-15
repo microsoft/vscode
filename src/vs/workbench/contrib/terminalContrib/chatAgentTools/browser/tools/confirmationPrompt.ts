@@ -45,11 +45,12 @@ export async function handleConfirmationPrompt(
 			selectedOption = selectedOption.trim();
 
 			if (selectedOption) {
-			// Validate that the selectedOption matches one of the original options
-			const validOption = confirmationPrompt.options.find(opt => selectedOption === opt.trim());
-			if (selectedOption && validOption) {
-				await execution.terminal.runCommand(validOption, true);
-				return pollForOutputAndIdle(execution, true, token, languageModelsService, markerService, knownMatchers);
+				// Validate that the selectedOption matches one of the original options
+				const validOption = confirmationPrompt.options.find(opt => selectedOption === opt.trim());
+				if (selectedOption && validOption) {
+					await execution.terminal.runCommand(validOption, true);
+					return pollForOutputAndIdle(execution, true, token, languageModelsService, markerService, knownMatchers);
+				}
 			}
 		}
 	}
