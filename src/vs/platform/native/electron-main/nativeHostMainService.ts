@@ -343,7 +343,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.updateWindowControls(options);
 	}
 
-	async updateWindowAccentColor(windowId: number | undefined, color: string | undefined, options?: INativeHostOptions): Promise<void> {
+	async updateWindowAccentColor(windowId: number | undefined, color: string | undefined): Promise<void> {
 		if (!isWindows) {
 			return; // windows only
 		}
@@ -357,8 +357,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 		}
 
-		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.setAccentColor(windowAccentColor);
+		const windows = [this.windowById(windowId)];
+		for (const auxiliaryWindow of this.auxiliaryWindowsMainService.getWindows()) {
+			if (auxiliaryWindow.id === windowId) {
+				windows.push(auxiliaryWindow);
+			}
+		}
+
+		for (const window of windows) {
+			window?.win?.setAccentColor(windowAccentColor);
+		}
 	}
 
 	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { mode?: FocusMode }): Promise<void> {
