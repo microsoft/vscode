@@ -31,9 +31,6 @@ async function main(buildDir?: string) {
 		'**/policies/{*.mobileconfig,**/*.plist}',
 		// TODO: Should we consider expanding this to other files in this area?
 		'**/node_modules/@parcel/node-addon-api/nothing.target.mk',
-		// MSAL runtime files are only present in ARM64 builds,
-		'**/extensions/microsoft-authentication/dist/libmsalruntime.dylib',
-		'**/extensions/microsoft-authentication/dist/msal-node-runtime.node'
 	];
 
 	await makeUniversalApp({
@@ -43,7 +40,7 @@ async function main(buildDir?: string) {
 		outAppPath,
 		force: true,
 		mergeASARs: true,
-		x64ArchFiles: '*/kerberos.node',
+		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node}',
 		filesToSkipComparison: (file: string) => {
 			for (const expected of filesToSkip) {
 				if (minimatch(file, expected)) {

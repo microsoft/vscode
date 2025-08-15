@@ -12,7 +12,7 @@ const windowsArches = ['x64'];
 const isMacOS = process.platform === 'darwin';
 const macOSArches = ['arm64'];
 
-const arch = process.env['VSCODE_ARCH'] || process.arch;
+const arch = process.arch;
 console.log(`Building Microsoft Authentication Extension for ${process.platform} (${arch})`);
 
 const plugins = [...nodePlugins(import.meta.dirname)];
