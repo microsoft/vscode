@@ -159,16 +159,18 @@ export async function handleConfirmationPrompt(
 	return undefined;
 }
 
-export async function detectConfirmationPromptWithLLM(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<IConfirmationPrompt | undefined> {
+export async function detectConfirmationPromptWithLLM(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, isRetry?: boolean): Promise<IConfirmationPrompt | undefined> {
 	if (!buffer) {
 		return undefined;
 	}
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
 	}
-	const lastLine = buffer.trimEnd().split('\n').pop() ?? '';
+	const lastLine = isRetry
+		? buffer.trimEnd().split('\n').slice(-5).join('\n')
+		: buffer.trimEnd().split('\n').pop() ?? '';
 	const sanitizedLastLine = sanitizeForPrompt(lastLine);
-	const promptText = `Does the following terminal output line contain a confirmation prompt (for example: 'y/n', '[Y]es/[N]o/[A]ll', '[Y]es/[N]o/[S]uspend/[C]ancel', 'Press Enter to continue', 'Type Yes to proceed', 'Do you want to overwrite?', 'Continue [y/N]', 'Accept license terms? (yes/no)', etc)? If so, extract the prompt text and the available options as a JSON object with keys 'prompt' and 'options'. If not, return null.\n\nOutput:\n${sanitizedLastLine}`;
+	const promptText = `Does the following terminal output ask the user for input? (for example: 'y/n', '[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel', '[Y]es/[N]o/[S]uspend/[C]ancel', 'Press Enter to continue', 'Type Yes to proceed', 'Do you want to overwrite?', 'Continue [y/N]', 'Accept license terms? (yes/no)', etc)? If so, extract the prompt text and the available options as a JSON object with keys 'prompt' and 'options'. If not, return null.\n\nOutput:\n${sanitizedLastLine}`;
 	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
 		{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: promptText }] }
 	], {}, token);
@@ -191,6 +193,12 @@ export async function detectConfirmationPromptWithLLM(buffer: string, token: Can
 	try {
 		await Promise.all([response.result, streaming]);
 		const match = responseText.match(/\{[\s\S]*\}/);
+		// Wait 1000 ms for buffer to come through then try again
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		if (!match && !isRetry) {
+			// Sometimes the last lines of the buffer aren't populated by the time we check
+			return detectConfirmationPromptWithLLM(buffer, token, languageModelsService, true);
+		}
 		if (match) {
 			try {
 				const obj = JSON.parse(match[0]);
@@ -209,7 +217,6 @@ export async function detectConfirmationPromptWithLLM(buffer: string, token: Can
  * Sanitizes text to reduce prompt injection risk and remove characters that could manipulate LLM responses.
  * - Removes backticks, quotes, and backslashes.
  * - Removes control characters.
- * - Collapses excessive whitespace.
  * - Removes common LLM prompt injection patterns.
  */
 function sanitizeForPrompt(text: string): string {
@@ -219,8 +226,6 @@ function sanitizeForPrompt(text: string): string {
 	sanitized = sanitized.replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '');
 	// Remove common LLM prompt injection patterns
 	sanitized = sanitized.replace(/(ignore previous instructions|as an ai language model|you are now|assistant:|system:|user:)/gi, '');
-	// Collapse multiple whitespace to single space
-	sanitized = sanitized.replace(/\s+/g, ' ').trim();
 	return sanitized;
 }
 
