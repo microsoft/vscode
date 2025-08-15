@@ -7,7 +7,19 @@ import type { OperatingSystem } from '../../../../../base/common/platform.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 
 function createNumberRange(start: number, end: number): string[] {
-	return Array.from({ length: end - start + 1 }, (_, i) => (start + i).toString());
+	const result: string[] = [];
+	for (let i = start; i <= end; i++) {
+		result.push(i.toString());
+	}
+	return result;
+}
+
+function flatMapRedirection(range: string[], mapper: (n: string) => string[]): string[] {
+	const result: string[] = [];
+	for (const item of range) {
+		result.push(...mapper(item));
+	}
+	return result;
 }
 
 function sortByStringLengthDesc(arr: string[]): string[] {
@@ -19,35 +31,124 @@ function sortByStringLengthDesc(arr: string[]): string[] {
 //
 // This isn't perfect, at some point it would be better off moving over to tree sitter for this
 // instead of simple string matching.
-const shellTypeResetChars = new Map<'sh' | 'zsh' | 'pwsh', string[]>([
-	['sh', sortByStringLengthDesc([
+const shellTypeResetChars: { [key: string]: string[] } = {
+	'sh': sortByStringLengthDesc([
 		// Redirection docs (bash) https://www.gnu.org/software/bash/manual/html_node/Redirections.html
 		...createNumberRange(1, 9).concat('').map(n => `${n}<<<`), // Here strings
-		...createNumberRange(1, 9).concat('').flatMap(n => createNumberRange(1, 9).map(m => `${n}>&${m}`)), // Redirect stream to stream
+		...flatMapRedirection(createNumberRange(1, 9).concat(''), n => createNumberRange(1, 9).map(m => `${n}>&${m}`)), // Redirect stream to stream
 		...createNumberRange(1, 9).concat('').map(n => `${n}<>`),  // Open file descriptor for reading and writing
 		...createNumberRange(1, 9).concat('&', '').map(n => `${n}>>`),
 		...createNumberRange(1, 9).concat('&', '').map(n => `${n}>`),
 		'0<', '||', '&&', '|&', '<<', '&', ';', '{', '>', '<', '|'
-	])],
-	['zsh', sortByStringLengthDesc([
+	]),
+	'zsh': sortByStringLengthDesc([
 		// Redirection docs https://zsh.sourceforge.io/Doc/Release/Redirection.html
 		...createNumberRange(1, 9).concat('').map(n => `${n}<<<`), // Here strings
-		...createNumberRange(1, 9).concat('').flatMap(n => createNumberRange(1, 9).map(m => `${n}>&${m}`)), // Redirect stream to stream
+		...flatMapRedirection(createNumberRange(1, 9).concat(''), n => createNumberRange(1, 9).map(m => `${n}>&${m}`)), // Redirect stream to stream
 		...createNumberRange(1, 9).concat('').map(n => `${n}<>`),  // Open file descriptor for reading and writing
 		...createNumberRange(1, 9).concat('&', '').map(n => `${n}>>`),
 		...createNumberRange(1, 9).concat('&', '').map(n => `${n}>`),
 		'<(', '||', '>|', '>!', '&&', '|&', '&', ';', '{', '<(', '<', '|'
-	])],
-	['pwsh', sortByStringLengthDesc([
+	]),
+	'pwsh': sortByStringLengthDesc([
 		// Redirection docs: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_redirection?view=powershell-7.5
-		...createNumberRange(1, 6).concat('*', '').flatMap(n => createNumberRange(1, 6).map(m => `${n}>&${m}`)), // Stream to stream redirection
+		...flatMapRedirection(createNumberRange(1, 6).concat('*', ''), n => createNumberRange(1, 6).map(m => `${n}>&${m}`)), // Stream to stream redirection
 		...createNumberRange(1, 6).concat('*', '').map(n => `${n}>>`),
 		...createNumberRange(1, 6).concat('*', '').map(n => `${n}>`),
 		'&&', '<', '|', ';', '!', '&'
-	])],
-]);
+	])
+};
 
-export function splitCommandLineIntoSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
+/**
+ * Simple quote-aware command parser that respects shell quoting rules.
+ * This is a minimal tree-sitter-like implementation focused on fixing the quoted string issue.
+ */
+function parseCommandWithQuotes(commandLine: string): string[] {
+	const commands: string[] = [];
+	let current = '';
+	let inQuote = false;
+	let quoteChar = '';
+	let i = 0;
+	
+	// Operators that separate commands (in order of length for proper matching)
+	const operators = ['&&', '||', '|&', '<<<', '>>', '>&', '<>', '|', '&', ';', '>', '<'];
+	
+	function isOperatorAt(pos: number): string | null {
+		for (const op of operators) {
+			if (commandLine.substring(pos, pos + op.length) === op) {
+				return op;
+			}
+		}
+		return null;
+	}
+	
+	while (i < commandLine.length) {
+		const char = commandLine[i];
+		
+		if (inQuote) {
+			// We're inside a quote, look for the closing quote
+			current += char;
+			if (char === quoteChar && (i === 0 || commandLine[i - 1] !== '\\')) {
+				// Found unescaped closing quote
+				inQuote = false;
+				quoteChar = '';
+			}
+		} else {
+			// We're not in a quote
+			if (char === '"' || char === "'") {
+				// Starting a quoted section
+				inQuote = true;
+				quoteChar = char;
+				current += char;
+			} else {
+				// Check if we hit an operator
+				const operator = isOperatorAt(i);
+				if (operator) {
+					// Found an operator, save current command and skip operator
+					if (current.trim()) {
+						commands.push(current.trim());
+					}
+					current = '';
+					i += operator.length - 1; // -1 because loop will increment
+				} else {
+					current += char;
+				}
+			}
+		}
+		i++;
+	}
+	
+	// Add the last command if any
+	if (current.trim()) {
+		commands.push(current.trim());
+	}
+	
+	return commands;
+}
+
+/**
+ * Split command line into sub-commands using quote-aware parsing.
+ * This properly handles shell syntax including quotes, unlike the naive string splitting.
+ */
+function splitCommandLineIntoSubCommandsWithQuoteAwareness(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
+	if (!commandLine.trim()) {
+		return [];
+	}
+
+	try {
+		// Use quote-aware parsing
+		return parseCommandWithQuotes(commandLine);
+	} catch (error) {
+		// If parsing fails, fall back to the original implementation
+		console.warn('Quote-aware parsing failed, falling back to string splitting:', error);
+		return splitCommandLineIntoSubCommandsLegacy(commandLine, envShell, envOS);
+	}
+}
+
+/**
+ * Legacy implementation using string splitting (kept as fallback).
+ */
+function splitCommandLineIntoSubCommandsLegacy(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
 	let shellType: 'sh' | 'zsh' | 'pwsh';
 	const envShellWithoutExe = envShell.replace(/\.exe$/, '');
 	if (isPowerShell(envShell, envOS)) {
@@ -59,12 +160,12 @@ export function splitCommandLineIntoSubCommands(commandLine: string, envShell: s
 		}
 	}
 	const subCommands = [commandLine];
-	const resetChars = shellTypeResetChars.get(shellType);
+	const resetChars = shellTypeResetChars[shellType];
 	if (resetChars) {
 		for (const chars of resetChars) {
 			for (let i = 0; i < subCommands.length; i++) {
 				const subCommand = subCommands[i];
-				if (subCommand.includes(chars)) {
+				if (subCommand.indexOf(chars) !== -1) {
 					subCommands.splice(i, 1, ...subCommand.split(chars).map(e => e.trim()));
 					i--;
 				}
@@ -74,7 +175,11 @@ export function splitCommandLineIntoSubCommands(commandLine: string, envShell: s
 	return subCommands.filter(e => e.length > 0);
 }
 
-export function extractInlineSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): Set<string> {
+export function splitCommandLineIntoSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
+	return splitCommandLineIntoSubCommandsWithQuoteAwareness(commandLine, envShell, envOS);
+}
+
+export function extractInlineSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
 	const inlineCommands: string[] = [];
 	const shellType = isPowerShell(envShell, envOS) ? 'pwsh' : 'sh';
 
@@ -171,5 +276,13 @@ export function extractInlineSubCommands(commandLine: string, envShell: string, 
 		inlineCommands.push(...extractBackticks(commandLine));        // `command`
 	}
 
-	return new Set(inlineCommands);
+	// Remove duplicates and return as array
+	const uniqueCommands: string[] = [];
+	for (const cmd of inlineCommands) {
+		if (uniqueCommands.indexOf(cmd) === -1) {
+			uniqueCommands.push(cmd);
+		}
+	}
+	
+	return uniqueCommands;
 }

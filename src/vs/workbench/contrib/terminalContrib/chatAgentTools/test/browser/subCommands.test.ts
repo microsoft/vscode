@@ -492,8 +492,8 @@ suite('splitCommandLineIntoSubCommands', () => {
 suite('extractInlineSubCommands', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function assertSubCommandsUnordered(result: Set<string>, expectedSubCommands: string[]) {
-		deepStrictEqual(Array.from(result).sort(), expectedSubCommands.sort());
+	function assertSubCommandsUnordered(result: string[], expectedSubCommands: string[]) {
+		deepStrictEqual(result.sort(), expectedSubCommands.sort());
 	}
 
 	suite('POSIX shells (bash, zsh, sh)', () => {
