@@ -123,6 +123,8 @@ export interface IChatAgentMetadata {
 	additionalWelcomeMessage?: string | IMarkdownString;
 }
 
+export type UserSelectedTools = Record<string, boolean>;
+
 
 export interface IChatAgentRequest {
 	sessionId: string;
@@ -139,7 +141,7 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
-	userSelectedTools?: Record<string, boolean>;
+	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 }
