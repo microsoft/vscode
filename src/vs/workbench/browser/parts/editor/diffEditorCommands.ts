@@ -59,13 +59,6 @@ export function registerDiffEditorCommands(): void {
 		}
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-		command: {
-			id: DIFF_OPEN_SIDE,
-			title: localize2('compare.openSide', 'Open File on Selected Side'),
-		}
-	});
-
 	function getActiveTextDiffEditor(accessor: ServicesAccessor, args: any[]): TextDiffEditor | undefined {
 		const editorService = accessor.get(IEditorService);
 		const resource = args.length > 0 && args[0] instanceof URI ? args[0] : undefined;
@@ -249,5 +242,12 @@ export function registerDiffEditorCommands(): void {
 			category: localize('compare', "Compare")
 		},
 		when: ContextKeyExpr.and(TextCompareEditorActiveContext, ActiveCompareEditorCanSwapContext)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id: DIFF_OPEN_SIDE,
+			title: localize2('compare.openSide', 'Open File on Selected Side'),
+		}
 	});
 }
