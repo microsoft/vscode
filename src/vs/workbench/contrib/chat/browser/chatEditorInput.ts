@@ -33,6 +33,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	private readonly inputCount: number;
 	public sessionId: string | undefined;
+	private hasCustomTitle: boolean = false;
 
 	private model: IChatModel | undefined;
 
@@ -70,9 +71,28 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		this.sessionId = (options.target && 'sessionId' in options.target) ?
 			options.target.sessionId :
 			undefined;
-		this.inputCount = ChatEditorInput.getNextCount();
-		ChatEditorInput.countsInUse.add(this.inputCount);
-		this._register(toDisposable(() => ChatEditorInput.countsInUse.delete(this.inputCount)));
+
+		// Check if we already have a custom title for this session
+		const hasExistingCustomTitle = this.sessionId && (
+			this.chatService.getSession(this.sessionId)?.title ||
+			this.chatService.getPersistedSessionTitle(this.sessionId)?.trim()
+		);
+
+		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
+
+		// Only allocate a count if we don't already have a custom title
+		if (!this.hasCustomTitle) {
+			this.inputCount = ChatEditorInput.getNextCount();
+			ChatEditorInput.countsInUse.add(this.inputCount);
+			this._register(toDisposable(() => {
+				// Only remove if we haven't already removed it due to custom title
+				if (!this.hasCustomTitle) {
+					ChatEditorInput.countsInUse.delete(this.inputCount);
+				}
+			}));
+		} else {
+			this.inputCount = 0; // Not used when we have a custom title
+		}
 	}
 
 	override closeHandler = this;
@@ -155,7 +175,14 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 
 		this.sessionId = this.model.sessionId;
-		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
+		this._register(this.model.onDidChange((e) => {
+			// When a custom title is set, we no longer need the numeric count
+			if (e && e.kind === 'setCustomTitle' && !this.hasCustomTitle) {
+				this.hasCustomTitle = true;
+				ChatEditorInput.countsInUse.delete(this.inputCount);
+			}
+			this._onDidChangeLabel.fire();
+		}));
 
 		return this._register(new ChatEditorModel(this.model));
 	}
