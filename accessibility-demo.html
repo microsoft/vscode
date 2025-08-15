@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Accessibility Headers Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #cccccc;
+        }
+        
+        .chat-container {
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .interactive-item-container {
+            padding: 12px 16px;
+            margin: 10px 0;
+            border-bottom: 1px solid #2d2d30;
+            position: relative;
+        }
+        
+        .interactive-item-container.interactive-request {
+            background-color: #252526;
+        }
+        
+        .interactive-item-container.interactive-response {
+            background-color: #1e1e1e;
+        }
+        
+        /* Our accessibility header styles */
+        .interactive-item-container .accessibility-header {
+            position: absolute !important;
+            left: -10000px !important;
+            width: 1px !important;
+            height: 1px !important;
+            overflow: hidden !important;
+            clip: rect(1px, 1px, 1px, 1px) !important;
+            clip-path: inset(50%) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+            padding: 0 !important;
+            margin: -1px !important;
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .header.header-disabled {
+            display: none;
+        }
+        
+        .username {
+            font-weight: 600;
+            margin-right: 8px;
+            color: #569cd6;
+        }
+        
+        .value {
+            margin-top: 8px;
+        }
+        
+        .demo-note {
+            background-color: #0e639c;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        
+        .screen-reader-info {
+            background-color: #2d4a22;
+            color: #b5cea8;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .visible-header-indicator {
+            background-color: #4a4a4a;
+            color: #ffffff;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-bottom: 8px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chat Accessibility Headers Demo</h1>
+    
+    <div class="demo-note">
+        <strong>🔍 What this demo shows:</strong><br>
+        This demonstrates the accessibility headers we've added to VS Code's chat interface. These headers are hidden visually but accessible to screen readers, allowing users to navigate between chat requests and responses using heading navigation (H key in screen readers).
+    </div>
+    
+    <div class="chat-container">
+        <h2>Chat Conversation with Accessibility Headers</h2>
+        
+        <!-- Request item -->
+        <div class="interactive-item-container interactive-request">
+            <h3 class="accessibility-header" aria-level="3">Chat Request</h3>
+            <div class="visible-header-indicator">📍 Hidden H3: "Chat Request" (for screen readers only)</div>
+            <div class="header header-disabled">
+                <span class="username">User</span>
+            </div>
+            <div class="value">
+                Can you help me debug this TypeScript error I'm getting?
+            </div>
+        </div>
+        
+        <!-- Response item -->
+        <div class="interactive-item-container interactive-response">
+            <h3 class="accessibility-header" aria-level="3">Chat Response from GitHub Copilot</h3>
+            <div class="visible-header-indicator">📍 Hidden H3: "Chat Response from GitHub Copilot" (for screen readers only)</div>
+            <div class="header">
+                <span class="username">GitHub Copilot</span>
+            </div>
+            <div class="value">
+                I'd be happy to help you debug that TypeScript error! Could you please share the specific error message you're seeing and the code that's causing it?
+            </div>
+        </div>
+        
+        <!-- Another request -->
+        <div class="interactive-item-container interactive-request">
+            <h3 class="accessibility-header" aria-level="3">Chat Request</h3>
+            <div class="visible-header-indicator">📍 Hidden H3: "Chat Request" (for screen readers only)</div>
+            <div class="header header-disabled">
+                <span class="username">User</span>
+            </div>
+            <div class="value">
+                Here's the error: "Property 'accessibilityHeader' does not exist on type 'IChatListItemTemplate'"
+            </div>
+        </div>
+        
+        <!-- Another response -->
+        <div class="interactive-item-container interactive-response">
+            <h3 class="accessibility-header" aria-level="3">Chat Response</h3>
+            <div class="visible-header-indicator">📍 Hidden H3: "Chat Response" (for screen readers only)</div>
+            <div class="header">
+                <span class="username">Assistant</span>
+            </div>
+            <div class="value">
+                This error suggests that you need to add the `accessibilityHeader` property to your interface definition. Here's how to fix it...
+            </div>
+        </div>
+    </div>
+    
+    <div class="screen-reader-info">
+        <strong>🎯 Accessibility Benefits:</strong><br>
+        • Screen reader users can now press "H" to jump between chat items<br>
+        • Each heading clearly identifies whether it's a request or response<br>
+        • Agent names are included when available for better context<br>
+        • Headers are completely hidden visually but fully accessible to assistive technology<br>
+        • Semantic structure is preserved with proper H3 elements and aria-level attributes
+    </div>
+    
+    <div class="demo-note">
+        <strong>🔧 Implementation Details:</strong><br>
+        • Added `accessibilityHeader: HTMLElement` to template interface<br>
+        • Headers use standard screen reader hiding techniques (absolute positioning + clipping)<br>
+        • Content updates dynamically: "Chat Request" vs "Chat Response from [Agent]"<br>
+        • No impact on visual design or existing functionality<br>
+        • Follows WCAG accessibility guidelines
+    </div>
+
+    <script>
+        // Simulate screen reader navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key.toLowerCase() === 'h') {
+                const headers = document.querySelectorAll('.accessibility-header');
+                console.log('Screen reader would navigate to these headers:', 
+                    Array.from(headers).map(h => h.textContent));
+                
+                // Visual indication
+                const indicators = document.querySelectorAll('.visible-header-indicator');
+                indicators.forEach(indicator => {
+                    indicator.style.backgroundColor = '#b5cea8';
+                    indicator.style.color = '#2d4a22';
+                    setTimeout(() => {
+                        indicator.style.backgroundColor = '#4a4a4a';
+                        indicator.style.color = '#ffffff';
+                    }, 1000);
+                });
+            }
+        });
+        
+        console.log('Press "H" key to simulate screen reader heading navigation!');
+    </script>
+</body>
+</html>
