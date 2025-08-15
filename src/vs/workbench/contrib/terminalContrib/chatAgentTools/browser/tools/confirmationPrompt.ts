@@ -105,6 +105,21 @@ export async function detectConfirmationPromptWithLLM(buffer: string, token: Can
 	return undefined;
 }
 
+/**
+ * Sanitizes text to reduce prompt injection risk and remove characters that could manipulate LLM responses.
+ * - Removes backticks, quotes, and backslashes.
+ * - Removes control characters.
+ * - Collapses excessive whitespace.
+ * - Removes common LLM prompt injection patterns.
+ */
 function sanitizeForPrompt(text: string): string {
-	return text.replace(/[`"'\\]/g, '');
+	// Remove backticks, quotes, and backslashes
+	let sanitized = text.replace(/[`"'\\]/g, '');
+	// Remove control characters except \n and \t
+	sanitized = sanitized.replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '');
+	// Remove common LLM prompt injection patterns
+	sanitized = sanitized.replace(/(ignore previous instructions|as an ai language model|you are now|assistant:|system:|user:)/gi, '');
+	// Collapse multiple whitespace to single space
+	sanitized = sanitized.replace(/\s+/g, ' ').trim();
+	return sanitized;
 }
