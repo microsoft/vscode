@@ -1097,9 +1097,9 @@ export class ChatEntitlementContext extends Disposable {
 	}
 
 	private updateContextSync(): void {
-		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(this._state)}`);
-
 		const state = this.withConfiguration(this._state);
+
+		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
 
 		this.signedOutContextKey.set(state.entitlement === ChatEntitlement.Unknown);
 		this.canSignUpContextKey.set(state.entitlement === ChatEntitlement.Available);
