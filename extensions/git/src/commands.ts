@@ -57,7 +57,6 @@ class RefItemSeparator implements QuickPickItem {
 	constructor(private readonly refType: RefType) { }
 }
 
-// heyyy, worktree
 class WorktreeItem implements QuickPickItem {
 
 	get label(): string {
@@ -1504,6 +1503,7 @@ export class CommandCenter {
 		}
 
 		if (!repository.dotGit.commonPath) {
+			await resource.openChange();
 			return;
 		}
 

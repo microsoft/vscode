@@ -327,11 +327,6 @@ export class Resource implements SourceControlResourceState {
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
 
-	async compareWithWorkspace(): Promise<void> {
-		const command = this._commandResolver.resolveCompareWithWorkspaceCommand(this);
-		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
-	}
-
 	clone(resourceGroupType?: ResourceGroupType) {
 		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
 	}
@@ -511,11 +506,7 @@ class ResourceCommandResolver {
 		};
 	}
 
-	resolveChangeCommand(resource: Resource, compareWithWorkspace?: boolean, leftUri?: Uri): Command {
-		if (!compareWithWorkspace) {
-			leftUri = resource.leftUri;
-		}
-
+	resolveChangeCommand(resource: Resource): Command {
 		const title = this.getTitle(resource);
 
 		if (!resource.leftUri) {
@@ -537,25 +528,9 @@ class ResourceCommandResolver {
 			return {
 				command: 'vscode.diff',
 				title: l10n.t('Open'),
-				arguments: [leftUri, resource.rightUri, title]
+				arguments: [resource.leftUri, resource.rightUri, title]
 			};
 		}
-	}
-
-	resolveCompareWithWorkspaceCommand(resource: Resource): Command {
-		// Resource is not a worktree
-		if (!this.repository.dotGit.commonPath) {
-			return this.resolveChangeCommand(resource);
-		}
-
-		const parentRepoRoot = path.dirname(this.repository.dotGit.commonPath);
-		const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
-		const candidateFsPath = path.join(parentRepoRoot, relPath);
-
-		const leftUri = fs.existsSync(candidateFsPath) ? Uri.file(candidateFsPath) : undefined;
-
-		return this.resolveChangeCommand(resource, true, leftUri);
-
 	}
 
 	getResources(resource: Resource): { left: Uri | undefined; right: Uri | undefined; original: Uri | undefined; modified: Uri | undefined } {
