@@ -6,7 +6,7 @@
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Codicon } from '../../base/common/codicons.js';
-import { Color } from '../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../base/common/color.js';
 import { IReadonlyVSDataTransfer } from '../../base/common/dataTransfer.js';
 import { Event } from '../../base/common/event.js';
 import { HierarchicalKind } from '../../base/common/hierarchicalKind.js';
@@ -2375,6 +2375,7 @@ export interface DocumentRangeSemanticTokensProvider {
 export interface ITokenizationSupportChangedEvent {
 	changedLanguages: string[];
 	changedColorMap: boolean;
+	changedHighlightingColorSpace: boolean;
 }
 
 /**
@@ -2464,6 +2465,16 @@ export interface ITokenizationRegistry<TSupport> {
 	getColorMap(): Color[] | null;
 
 	getDefaultBackground(): Color | null;
+
+	/**
+	 * Gets the color space used for syntax highlighting CSS. Defaults to 'srgb'.
+	 */
+	getHighlightingColorSpace(): RGBColorSpace;
+
+	/**
+	 * Sets the color space used for syntax highlighting CSS.
+	 */
+	setHighlightingColorSpace(space: RGBColorSpace): void;
 }
 
 /**

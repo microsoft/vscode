@@ -763,7 +763,8 @@ export class ExtensionEditor extends EditorPane {
 	private renderBody(body: string): string {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+		const highlightingColorSpace = TokenizationRegistry.getHighlightingColorSpace();
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap, highlightingColorSpace) : '';
 		return `<!DOCTYPE html>
 		<html>
 			<head>
