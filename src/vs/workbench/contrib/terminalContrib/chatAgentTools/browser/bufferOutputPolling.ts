@@ -19,6 +19,8 @@ import { IMarker, IMarkerService } from '../../../../../platform/markers/common/
 import { ProblemMatcher, ProblemMatcherRegistry } from '../../../tasks/common/problemMatcher.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILinkLocation } from './taskHelpers.js';
+import { ITaskService } from '../../../tasks/common/taskService.js';
+import { getTaskProblemsWithEvents } from './tools/task/taskUtils.js';
 
 export const enum PollingConsts {
 	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
@@ -40,7 +42,8 @@ export async function racePollingOrPrompt(
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService,
 	markerService: IMarkerService,
-	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Task; beginsPattern?: string; endsPattern?: string; dependencyTasks?: Task[] }
+	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Task; beginsPattern?: string; endsPattern?: string; dependencyTasks?: Task[] },
+	taskService?: Pick<ITaskService, 'onDidStateChange'>
 ): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
 	const pollPromise = pollFn();
 	const { promise: promptPromise, part } = promptFn();
@@ -68,7 +71,7 @@ export async function racePollingOrPrompt(
 		const promptResult = raceResult.result as boolean;
 		if (promptResult) {
 			// User accepted, poll again (extended)
-			return await pollForOutputAndIdle(execution, true, token, languageModelsService, markerService);
+			return await pollForOutputAndIdle(execution, true, token, languageModelsService, markerService, undefined, taskService);
 		} else {
 			return originalResult; // User rejected, return the original result
 		}
@@ -100,12 +103,13 @@ export function getOutput(terminal?: Pick<RawXtermTerminal, 'buffer'>, startMark
 }
 
 export async function pollForOutputAndIdle(
-	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Pick<Task, 'configurationProperties'>; dependencyTasks?: Task[] },
+	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Pick<Task, 'configurationProperties' | '_id'>; dependencyTasks?: Task[] },
 	extendedPolling: boolean,
 	token: CancellationToken,
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 	markerService: Pick<IMarkerService, 'read'>,
-	knownMatchers?: ProblemMatcher[]
+	knownMatchers?: ProblemMatcher[],
+	taskService?: Pick<ITaskService, 'onDidStateChange'>
 ): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
@@ -160,11 +164,15 @@ export async function pollForOutputAndIdle(
 		terminalExecutionIdleBeforeTimeout = true;
 		let resources: ILinkLocation[] | undefined;
 		if (execution.task) {
-			const problems = getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
-			if (problems) {
+			// Use the more direct approach to get problem information
+			const problemInfo = taskService 
+				? getTaskProblemsWithEvents(execution.task, taskService, markerService, execution.dependencyTasks, knownMatchers)
+				: { hasErrors: false, problems: getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers) };
+			
+			if (problemInfo.problems) {
 				// Problem matchers exist for this task
 				const problemList: string[] = [];
-				for (const [, problemArray] of problems.entries()) {
+				for (const [, problemArray] of problemInfo.problems.entries()) {
 					resources = [];
 					if (problemArray.length) {
 						for (const p of problemArray) {

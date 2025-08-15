@@ -130,7 +130,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			_progress,
 			token,
 			() => this._isTaskActive(task),
-			dependencyTasks
+			dependencyTasks,
+			this._tasksService
 		);
 		for (const r of terminalResults) {
 			this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
