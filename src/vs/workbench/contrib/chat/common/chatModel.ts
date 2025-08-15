@@ -355,6 +355,15 @@ class AbstractResponse implements IResponse {
 	private partsToRepr(parts: readonly IChatProgressResponseContent[]): string {
 		const blocks: string[] = [];
 		let currentBlockSegments: string[] = [];
+		let hasEditGroups = false;
+
+		// First pass: check if there are any edit groups
+		for (const part of parts) {
+			if (part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup') {
+				hasEditGroups = true;
+				break;
+			}
+		}
 
 		for (const part of parts) {
 			let segment: { text: string; isBlock?: boolean } | undefined;
@@ -385,8 +394,8 @@ class AbstractResponse implements IResponse {
 					break;
 				case 'textEditGroup':
 				case 'notebookEditGroup':
-					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
-					break;
+					// Skip individual edit groups if we're consolidating
+					continue;
 				case 'confirmation':
 					if (part.message instanceof MarkdownString) {
 						segment = { text: `${part.title}\n${part.message.value}`, isBlock: true };
@@ -412,6 +421,11 @@ class AbstractResponse implements IResponse {
 
 		if (currentBlockSegments.length) {
 			blocks.push(currentBlockSegments.join(''));
+		}
+
+		// Add consolidated edit summary at the end if there were any edit groups
+		if (hasEditGroups) {
+			blocks.push(localize('editsSummary', "Made changes."));
 		}
 
 		return blocks.join('\n\n');
