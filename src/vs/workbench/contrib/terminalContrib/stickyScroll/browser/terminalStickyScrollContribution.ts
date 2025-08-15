@@ -107,8 +107,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 				xtermCtorEventually
 			);
 			this._richCommandDetectionListeners.clear();
-		} else if (capability) {
-			// Basic shell integration
+		} else if (capability && !capability.hasRichCommandDetection) {
 			this._richCommandDetectionListeners.value = capability.onSetRichCommandDetection(() => {
 				this._refreshState();
 			});
