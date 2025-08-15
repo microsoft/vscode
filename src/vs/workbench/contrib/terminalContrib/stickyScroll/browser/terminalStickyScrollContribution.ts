@@ -108,7 +108,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 			);
 
 			if (!this._richCommandDetectionListeners.value) {
-				this._richCommandDetectionListeners.value = capability!.onSetRichCommandDetection(() => {
+				this._richCommandDetectionListeners.value = capability.onSetRichCommandDetection(() => {
 					this._refreshState();
 				});
 			}
