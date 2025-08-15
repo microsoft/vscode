@@ -359,7 +359,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const windows = [this.windowById(windowId)];
 		for (const auxiliaryWindow of this.auxiliaryWindowsMainService.getWindows()) {
-			if (auxiliaryWindow.id === windowId) {
+			if (auxiliaryWindow.parentId === windowId) {
 				windows.push(auxiliaryWindow);
 			}
 		}
