@@ -35,22 +35,6 @@ type RemoteTunnelEnablementEvent = {
 	service: boolean;
 };
 
-type RemoteTunnelModeChangeClassification = {
-	owner: 'aeschli';
-	comment: 'Reporting when Remote Tunnel mode is switched between active and inactive';
-	fromActive?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the previous mode was active' };
-	toActive?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the new mode is active' };
-	asService?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the new active mode is configured as a service' };
-	providerId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider ID for the new active mode session' };
-};
-
-type RemoteTunnelModeChangeEvent = {
-	fromActive: boolean;
-	toActive: boolean;
-	asService: boolean;
-	providerId: string | undefined;
-};
-
 const restartTunnelOnConfigurationChanges: readonly string[] = [
 	CONFIGURATION_KEY_HOST_NAME,
 	CONFIGURATION_KEY_PREVENT_SLEEP,
@@ -145,18 +129,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			return;
 		}
 
-		const previousMode = this._mode;
 		this._mode = mode;
 		this._storeMode(mode);
-		
-		// Send telemetry for mode change
-		this.telemetryService.publicLog2<RemoteTunnelModeChangeEvent, RemoteTunnelModeChangeClassification>('remoteTunnel.modeChange', {
-			fromActive: previousMode.active,
-			toActive: mode.active,
-			asService: mode.active ? mode.asService : false,
-			providerId: mode.active ? mode.session.providerId : undefined
-		});
-		
 		this._onDidChangeModeEmitter.fire(this._mode);
 		if (mode.active) {
 			this._logger.info(`Session updated: ${mode.session.accountLabel} (${mode.session.providerId}) (service=${mode.asService})`);
