@@ -19,6 +19,7 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
+import { Location } from '../../../../../../../editor/common/languages.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
@@ -157,8 +158,16 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			toolResultMessage: new MarkdownString(resultSummary),
 			toolResultDetails: Array.from(new Map(
 				terminalResults
-					.flatMap(r => r.resources?.filter(res => res.uri && res.range).map(res => ({ uri: res.uri, range: res.range })) ?? [])
-					.map(item => [`${item.uri.toString()}-${item.range.toString()}`, item])
+					.flatMap(r =>
+						r.resources?.filter(res => res.uri).map(res => {
+							const range = res.range;
+							const item = range !== undefined ? { uri: res.uri, range } : res.uri;
+							const key = range !== undefined
+								? `${res.uri.toString()}-${range.toString()}`
+								: `${res.uri.toString()}`;
+							return [key, item] as [string, URI | Location];
+						}) ?? []
+					)
 			).values())
 		};
 	}
