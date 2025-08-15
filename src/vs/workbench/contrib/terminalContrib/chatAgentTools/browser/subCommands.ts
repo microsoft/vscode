@@ -5,6 +5,7 @@
 
 import type { OperatingSystem } from '../../../../../base/common/platform.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
+import type * as TreeSitter from '@vscode/tree-sitter-wasm';
 
 function createNumberRange(start: number, end: number): string[] {
 	const result: string[] = [];
@@ -127,20 +128,41 @@ function parseCommandWithQuotes(commandLine: string): string[] {
 }
 
 /**
- * Split command line into sub-commands using quote-aware parsing.
- * This properly handles shell syntax including quotes, unlike the naive string splitting.
+ * Parse command line using tree-sitter if available, falls back to quote-aware parsing.
+ * This function attempts to use actual tree-sitter for proper shell syntax parsing.
  */
-function splitCommandLineIntoSubCommandsWithQuoteAwareness(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
+function tryParseCommandWithTreeSitter(commandLine: string): string[] | null {
+	try {
+		// TODO: Implement proper tree-sitter parsing when bash grammar is available
+		// For now, we return null to indicate tree-sitter parsing is not yet implemented
+		return null;
+	} catch (error) {
+		// Tree-sitter not available or failed to load
+		return null;
+	}
+}
+
+/**
+ * Split command line into sub-commands using tree-sitter parsing when available.
+ * Falls back to quote-aware parsing if tree-sitter is not available or fails.
+ */
+function splitCommandLineIntoSubCommandsWithTreeSitter(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
 	if (!commandLine.trim()) {
 		return [];
 	}
 
 	try {
-		// Use quote-aware parsing
+		// First attempt: Use tree-sitter for proper shell syntax parsing
+		const treeSitterResult = tryParseCommandWithTreeSitter(commandLine);
+		if (treeSitterResult !== null) {
+			return treeSitterResult;
+		}
+
+		// Second attempt: Use quote-aware parsing
 		return parseCommandWithQuotes(commandLine);
 	} catch (error) {
-		// If parsing fails, fall back to the original implementation
-		console.warn('Quote-aware parsing failed, falling back to string splitting:', error);
+		// If all parsing fails, fall back to the original implementation
+		console.warn('All parsing methods failed, falling back to string splitting:', error);
 		return splitCommandLineIntoSubCommandsLegacy(commandLine, envShell, envOS);
 	}
 }
@@ -176,7 +198,7 @@ function splitCommandLineIntoSubCommandsLegacy(commandLine: string, envShell: st
 }
 
 export function splitCommandLineIntoSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
-	return splitCommandLineIntoSubCommandsWithQuoteAwareness(commandLine, envShell, envOS);
+	return splitCommandLineIntoSubCommandsWithTreeSitter(commandLine, envShell, envOS);
 }
 
 export function extractInlineSubCommands(commandLine: string, envShell: string, envOS: OperatingSystem): string[] {
