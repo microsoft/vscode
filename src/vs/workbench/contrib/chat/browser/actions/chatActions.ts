@@ -935,8 +935,8 @@ export function registerChatActions() {
 	registerAction2(class NewChatInSideBarAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.newChatInWidget`,
-				title: localize2('chatSessions.newChatInWidget', 'Open New Chat in Widget'),
+				id: `workbench.action.chat.newChatInSideBar`,
+				title: localize2('chatSessions.newChatInSideBar', 'Open New Chat in Side Bar'),
 				f1: false,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -972,7 +972,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openNewChatToTheSide',
-				title: localize2('chat.openNewChatToTheSide.label', "Open New Chat to the Side"),
+				title: localize2('chat.openNewChatToTheSide.label', "Open New Chat Editor to the Side"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				f1: false,
