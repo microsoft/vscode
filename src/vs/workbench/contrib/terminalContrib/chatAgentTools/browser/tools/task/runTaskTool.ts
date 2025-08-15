@@ -17,6 +17,8 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { TaskProblemMonitor } from './taskUtils.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -45,7 +47,8 @@ export class RunTaskTool implements IToolImpl {
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IMarkerService private readonly _markerService: IMarkerService
+		@IMarkerService private readonly _markerService: IMarkerService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -91,7 +94,7 @@ export class RunTaskTool implements IToolImpl {
 			() => this._isTaskActive(task),
 			dependencyTasks,
 			this._tasksService,
-			undefined  // TaskProblemMonitor could be instantiated here in future
+			this._instantiationService.createInstance(TaskProblemMonitor)
 		);
 		for (const r of terminalResults) {
 			this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {

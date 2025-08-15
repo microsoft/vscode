@@ -7,18 +7,8 @@ import { IMarker, IMarkerService } from '../../../../../../../platform/markers/c
 import { ProblemMatcher, ProblemMatcherRegistry } from '../../../../../tasks/common/problemMatcher.js';
 import { Task, ITaskEvent, TaskEventKind } from '../../../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
-
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
-import { IMarker, IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
-import { ProblemMatcher, ProblemMatcherRegistry } from '../../../../../tasks/common/problemMatcher.js';
-import { Task, ITaskEvent, TaskEventKind } from '../../../../../tasks/common/tasks.js';
-import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { Event, Emitter } from '../../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 
 /**
  * A utility class that monitors task events to provide more direct access to problem matcher results.
@@ -45,13 +35,13 @@ export class TaskProblemMonitor extends Disposable {
 				this._taskProblemStates.set(event.taskId, event.hasErrors);
 				this._onTaskProblemInfo.fire({ taskId: event.taskId, hasErrors: event.hasErrors });
 				break;
-			
+
 			case TaskEventKind.ProblemMatcherFoundErrors:
 				// Mark task as having errors when problem matcher finds errors
 				this._taskProblemStates.set(event.taskId, true);
 				this._onTaskProblemInfo.fire({ taskId: event.taskId, hasErrors: true });
 				break;
-			
+
 			case TaskEventKind.Start:
 				// Clear previous error state when task starts
 				this._taskProblemStates.delete(event.taskId);
@@ -65,9 +55,9 @@ export class TaskProblemMonitor extends Disposable {
 	 */
 	public getTaskProblemState(taskId: string): { hasErrors: boolean; fromEvents: boolean } {
 		const hasErrors = this._taskProblemStates.get(taskId) ?? false;
-		return { 
-			hasErrors, 
-			fromEvents: this._taskProblemStates.has(taskId) 
+		return {
+			hasErrors,
+			fromEvents: this._taskProblemStates.has(taskId)
 		};
 	}
 }
@@ -75,9 +65,9 @@ export class TaskProblemMonitor extends Disposable {
 /**
  * Get problem information for a task using task events when available.
  * This is more direct than querying the marker service directly.
- * 
+ *
  * @param task The task to check for problems
- * @param taskService Service to check for recent task events 
+ * @param taskService Service to check for recent task events
  * @param markerService Fallback service to read markers directly
  * @param dependencyTasks Optional dependency tasks to check
  * @param knownMatchers Optional known problem matchers
@@ -85,37 +75,31 @@ export class TaskProblemMonitor extends Disposable {
  * @returns Object with hasErrors flag and detailed problems if available
  */
 export function getTaskProblemsWithEvents(
-	task: Pick<Task, 'configurationProperties' | '_id'>,
-	taskService: Pick<ITaskService, 'onDidStateChange'>,
-	markerService: Pick<IMarkerService, 'read'>,
-	dependencyTasks?: Task[],
-	knownMatchers?: ProblemMatcher[],
-	taskProblemMonitor?: TaskProblemMonitor
-): { hasErrors: boolean; problems?: Map<string, IMarker[]>; fromEvents?: boolean } {
-	
+	task: Pick<Task, 'configurationProperties' | '_id'>, taskService: Pick<ITaskService, 'onDidStateChange'>, markerService: Pick<IMarkerService, 'read'>, dependencyTasks?: Task[], knownMatchers?: ProblemMatcher[], taskProblemMonitor?: TaskProblemMonitor): { hasErrors: boolean; problems?: Map<string, IMarker[]>; fromEvents?: boolean } {
+
 	// Try to get problem state from task events first (more direct approach)
 	if (taskProblemMonitor) {
 		const eventState = taskProblemMonitor.getTaskProblemState(task._id);
 		if (eventState.fromEvents) {
 			// We have recent task event data - use it! This is the more direct approach.
 			const problems = getProblemsForTasks(task, markerService, dependencyTasks, knownMatchers);
-			return { 
-				hasErrors: eventState.hasErrors, 
+			return {
+				hasErrors: eventState.hasErrors,
 				problems,
-				fromEvents: true 
+				fromEvents: true
 			};
 		}
 	}
-	
+
 	// Fallback to marker service approach (less direct)
 	const problems = getProblemsForTasks(task, markerService, dependencyTasks, knownMatchers);
-	
+
 	if (problems) {
 		// If we have problem matchers defined, check if there are any problems
 		const hasErrors = Array.from(problems.values()).some(markers => markers.length > 0);
 		return { hasErrors, problems, fromEvents: false };
 	}
-	
+
 	// No problem matchers configured, assume no errors
 	return { hasErrors: false, fromEvents: false };
 }
