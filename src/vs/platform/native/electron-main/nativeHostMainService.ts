@@ -349,14 +349,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		let windowAccentColor: string | boolean = color || true;
-		if (windowAccentColor !== 'default') {
-			if (windowAccentColor === 'off') {
-				windowAccentColor = false;
-			} else if (typeof windowAccentColor === 'string') {
-				windowAccentColor = windowAccentColor;
-			}
-		} else {
+		if (windowAccentColor === 'default') {
 			windowAccentColor = true;
+		} else if (windowAccentColor === 'off') {
+			windowAccentColor = false;
+		} else if (typeof windowAccentColor === 'string') {
+			windowAccentColor = windowAccentColor;
 		}
 
 		const windows = [this.windowById(windowId)];
