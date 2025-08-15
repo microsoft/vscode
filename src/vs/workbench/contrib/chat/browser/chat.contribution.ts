@@ -118,6 +118,9 @@ import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './p
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 
+// Policy constants
+const CHAT_MCP_POLICY_NAME = 'ChatMCP';
+
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -298,7 +301,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
 			default: true,
 			policy: {
-				name: 'ChatMCP',
+				name: CHAT_MCP_POLICY_NAME,
 				minimumVersion: '1.99',
 				tags: [PolicyTag.Account, PolicyTag.MCP]
 			}
