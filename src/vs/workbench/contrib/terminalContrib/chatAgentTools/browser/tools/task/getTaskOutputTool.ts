@@ -105,7 +105,9 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			_progress,
 			token,
 			undefined,
-			dependencyTasks
+			dependencyTasks,
+			this._tasksService,
+			undefined  // TaskProblemMonitor could be instantiated here in future
 		);
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');

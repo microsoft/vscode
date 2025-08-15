@@ -91,7 +91,9 @@ export class RunTaskTool implements IToolImpl {
 			_progress,
 			token,
 			() => this._isTaskActive(task),
-			dependencyTasks
+			dependencyTasks,
+			this._tasksService,
+			undefined  // TaskProblemMonitor could be instantiated here in future
 		);
 		for (const r of terminalResults) {
 			this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
