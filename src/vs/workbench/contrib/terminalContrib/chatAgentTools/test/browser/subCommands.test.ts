@@ -130,6 +130,27 @@ suite('splitCommandLineIntoSubCommands', () => {
 			deepStrictEqual(actualSubCommands, expectedSubCommands);
 		});
 
+		test('should not split on pipes inside quotes', () => {
+			const commandLine = 'echo "a|b|c"';
+			const expectedSubCommands = ['echo "a|b|c"'];
+			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
+			deepStrictEqual(actualSubCommands, expectedSubCommands);
+		});
+
+		test('should not split on logical operators inside quotes', () => {
+			const commandLine = 'echo "hello && world"';
+			const expectedSubCommands = ['echo "hello && world"'];
+			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
+			deepStrictEqual(actualSubCommands, expectedSubCommands);
+		});
+
+		test('should not split on semicolons inside quotes', () => {
+			const commandLine = 'echo "test; more"';
+			const expectedSubCommands = ['echo "test; more"'];
+			const actualSubCommands = splitCommandLineIntoSubCommands(commandLine, 'bash', OperatingSystem.Linux);
+			deepStrictEqual(actualSubCommands, expectedSubCommands);
+		});
+
 		test('should handle empty command', () => {
 			const commandLine = '';
 			const expectedSubCommands: string[] = [];
