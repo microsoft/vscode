@@ -10,9 +10,5 @@
     <true/>
     <key>com.apple.security.automation.apple-events</key>
     <true/>
-	<key>keychain-access-groups</key>
-	<array>
-		<string>com.microsoft.identity.universalstorage</string>
-	</array>
 </dict>
 </plist>
