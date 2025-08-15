@@ -107,7 +107,7 @@ export async function pollForOutputAndIdle(
 			}
 		}
 		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
-		const confirmationPrompt = await detectConfirmationPromptWithLLM(buffer, token, languageModelsService);
+		const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
 		const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService, knownMatchers);
 		if (handled) {
 			return handled;
@@ -115,12 +115,12 @@ export async function pollForOutputAndIdle(
 		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
 
-	const confirmationPrompt = await detectConfirmationPromptWithLLM(buffer, token, languageModelsService);
+	const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
 	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService, knownMatchers);
 	if (handled) {
 		return handled;
 	}
-	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+	return { terminalExecutionIdleBeforeTimeout: false, output: execution.getOutput(), pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
 
 export async function handleConfirmationPrompt(
@@ -141,16 +141,12 @@ export async function handleConfirmationPrompt(
 				{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: promptText }] }
 			], {}, token);
 
-			let selectedOption = '';
-			const streaming = getResponseFromStream(response);
-			await Promise.all([response.result, streaming]);
-			selectedOption = selectedOption.trim();
-
+			const selectedOption = (await getResponseFromStream(response)).trim();
 			if (selectedOption) {
 				// Validate that the selectedOption matches one of the original options
-				const validOption = confirmationPrompt.options.find(opt => selectedOption === opt.trim());
+				const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
 				if (selectedOption && validOption) {
-					await execution.terminal.runCommand(validOption, true);
+					await execution.terminal.sendText(validOption, true);
 					return pollForOutputAndIdle(execution, true, token, languageModelsService, markerService, knownMatchers);
 				}
 			}
@@ -159,46 +155,44 @@ export async function handleConfirmationPrompt(
 	return undefined;
 }
 
-export async function detectConfirmationPromptWithLLM(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, isRetry?: boolean): Promise<IConfirmationPrompt | undefined> {
-	if (!buffer) {
-		return undefined;
-	}
+export async function detectConfirmationPromptWithLLM(execution: IExecution, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<IConfirmationPrompt | undefined> {
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
+		return undefined;
 	}
-	const lastLine = isRetry
-		? buffer.trimEnd().split('\n').slice(-5).join('\n')
-		: buffer.trimEnd().split('\n').pop() ?? '';
+	const lastLine = execution.getOutput().trimEnd().split('\n').slice(-5).join('\n');
 	const sanitizedLastLine = sanitizeForPrompt(lastLine);
-	const promptText = `Does the following terminal output ask the user for input? (for example: 'y/n', '[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel', '[Y]es/[N]o/[S]uspend/[C]ancel', 'Press Enter to continue', 'Type Yes to proceed', 'Do you want to overwrite?', 'Continue [y/N]', 'Accept license terms? (yes/no)', etc)? If so, extract the prompt text and the available options as a JSON object with keys 'prompt' and 'options'. If not, return null.\n\nOutput:\n${sanitizedLastLine}`;
+	const promptText =
+		`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text and the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings). If there is no such prompt, return null.
+			Examples:
+			1. Output: "Do you want to overwrite? (y/n)"
+				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"]}
+
+			2. Output: "Confirm: [Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel"
+				Response: {"prompt": "Confirm", "options": ["Y", "A", "N", "L", "C"]}
+
+			3. Output: "Accept license terms? (yes/no)"
+				Response: {"prompt": "Accept license terms?", "options": ["yes", "no"]}
+
+			4. Output: "Press Enter to continue"
+				Response: {"prompt": "Press Enter to continue", "options": ["Enter"]}
+
+			5. Output: "Type Yes to proceed"
+				Response: {"prompt": "Type Yes to proceed", "options": ["Yes"]}
+
+			6. Output: "Continue [y/N]"
+				Response: {"prompt": "Continue", "options": ["y", "N"]}
+
+			Now, analyze this output:
+			${sanitizedLastLine}
+			`;
 	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
 		{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: promptText }] }
 	], {}, token);
 
-	let responseText = '';
-	const streaming = (async () => {
-		for await (const part of response.stream) {
-			if (Array.isArray(part)) {
-				for (const p of part) {
-					if (isTextPart(p)) {
-						responseText += p.part.value;
-					}
-				}
-			} else if (isTextPart(part)) {
-				responseText += part.part.value;
-			}
-		}
-	})();
-
+	const responseText = await getResponseFromStream(response);
 	try {
-		await Promise.all([response.result, streaming]);
 		const match = responseText.match(/\{[\s\S]*\}/);
-		// Wait 1000 ms for buffer to come through then try again
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		if (!match && !isRetry) {
-			// Sometimes the last lines of the buffer aren't populated by the time we check
-			return detectConfirmationPromptWithLLM(buffer, token, languageModelsService, true);
-		}
 		if (match) {
 			try {
 				const obj = JSON.parse(match[0]);
@@ -229,15 +223,6 @@ function sanitizeForPrompt(text: string): string {
 	return sanitized;
 }
 
-function isTextPart(obj: unknown): obj is { part: { type: 'text'; value: string } } {
-	return !!(
-		obj && typeof obj === 'object' && 'part' in obj &&
-		(obj as any).part && typeof (obj as any).part === 'object' &&
-		'type' in (obj as any).part && (obj as any).part.type === 'text' &&
-		'value' in (obj as any).part && typeof (obj as any).part.value === 'string'
-	);
-}
-
 export async function getResponseFromStream(response: ILanguageModelChatResponse): Promise<string> {
 	let responseText = '';
 	const streaming = (async () => {
@@ -247,12 +232,12 @@ export async function getResponseFromStream(response: ILanguageModelChatResponse
 		for await (const part of response.stream) {
 			if (Array.isArray(part)) {
 				for (const p of part) {
-					if (isTextPart(p)) {
-						responseText += p.part.value;
+					if (p.type === 'text') {
+						responseText += p.value;
 					}
 				}
-			} else if (isTextPart(part)) {
-				responseText += part.part.value;
+			} else if (part.type === 'text') {
+				responseText += part.value;
 			}
 		}
 	})();

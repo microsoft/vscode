@@ -23,7 +23,7 @@ suite('racePollingOrPrompt', () => {
 	const defaultOriginalResult = { terminalExecutionIdleBeforeTimeout: false, output: '', pollDurationMs: PollingConsts.FirstPollingMaxDuration };
 	const defaultToken = CancellationToken.None;
 	const defaultLanguageModelsService = {} as any;
-	const defaultExecution = { getOutput: () => 'output', terminal: { runCommand: async () => { } } };
+	const defaultExecution = { getOutput: () => 'output', terminal: { sendText: async () => { } } };
 	const testMarkerService = new TestMarkerService();
 
 	function write(data: string, terminal: RawXtermTerminal): Promise<void> {
@@ -164,7 +164,7 @@ suite('racePollingOrPrompt', () => {
 			const execution = {
 				getOutput: () => 'exited with code E123 in test.txt',
 				task: fakeTask,
-				terminal: { runCommand: async () => { } }
+				terminal: { sendText: async () => { } }
 			};
 			const token = { isCancellationRequested: false } as CancellationToken;
 			const result = await pollForOutputAndIdle(
