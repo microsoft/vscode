@@ -99,26 +99,28 @@ export class RunTaskTool implements IToolImpl {
 			});
 		}
 
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
+		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
+		const toolResultDetails = Array.from(new Map(
+			terminalResults
+				.flatMap(r => r.resources?.filter(res => res.uri && res.range).map(res => ({ uri: res.uri, range: res.range })) ?? [])
+				.map(item => [`${item.uri.toString()}-${item.range.toString()}`, item])
+		).values());
+
 		let resultSummary = '';
 		if (result?.exitCode) {
 			resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
 		} else {
 			resultSummary += `\`${taskLabel}\` task `;
 			resultSummary += terminalResults.every(r => r.idle)
-				? 'finished'
-				: 'started and will continue to run in the background.';
+				? (toolResultDetails.length ? `finished with \`${toolResultDetails.length}\` problems` : 'finished')
+				: (toolResultDetails.length ? `started and will continue to run in the background with \`${toolResultDetails.length}\` problems` : 'started and will continue to run in the background');
 		}
 
-		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
-		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
 			toolResultMessage: new MarkdownString(resultSummary),
-			toolResultDetails: Array.from(new Map(
-				terminalResults
-					.flatMap(r => r.resources?.filter(res => res.uri && res.range).map(res => ({ uri: res.uri, range: res.range })) ?? [])
-					.map(item => [`${item.uri.toString()}-${item.range.toString()}`, item])
-			).values())
+			toolResultDetails
 		};
 	}
 

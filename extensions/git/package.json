@@ -1705,6 +1705,11 @@
           "command": "git.openWorktreeInNewWindow",
           "group": "1_worktree@2",
           "when": "scmProvider == git && scmProviderContext == worktree"
+        },
+        {
+          "command": "git.deleteWorktree",
+          "group": "1_worktree@3",
+          "when": "scmProvider == git && scmProviderContext == worktree"
         }
       ],
       "scm/resourceGroup/context": [

@@ -162,8 +162,8 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 					lines.push(localize('modelName', '- Name: {0}', meta.name));
 					lines.push(localize('modelFamily', '- Family: {0}', meta.family));
 					lines.push(localize('modelVendor', '- Vendor: {0}', meta.vendor));
-					if (meta.description) {
-						lines.push('', '', meta.description);
+					if (meta.tooltip) {
+						lines.push('', '', meta.tooltip);
 					}
 					return this.createHover(lines.join('\n'), range);
 				}

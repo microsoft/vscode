@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AccountInfo, AuthenticationResult, ClientAuthError, ClientAuthErrorCodes, ServerError } from '@azure/msal-node';
-import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
+import { AccountInfo, AuthenticationResult, ClientAuthError, ClientAuthErrorCodes, ServerError, SilentFlowRequest } from '@azure/msal-node';
+import { AuthenticationChallenge, AuthenticationConstraint, AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, EventEmitter, ExtensionContext, ExtensionKind, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriEventHandler } from '../UriEventHandler';
@@ -14,6 +14,7 @@ import { EventBufferer } from '../common/event';
 import { BetterTokenStorage } from '../betterSecretStorage';
 import { IStoredSession } from '../AADHelper';
 import { ExtensionHost, getMsalFlows } from './flows';
+import { base64Decode } from './buffer';
 
 const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
@@ -153,7 +154,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	async getSessions(scopes: string[] | undefined, options: AuthenticationGetSessionOptions = {}): Promise<AuthenticationSession[]> {
 		const askingForAll = scopes === undefined;
-		const scopeData = new ScopeData(scopes, options?.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options?.authorizationServer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
@@ -183,7 +184,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	}
 
 	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
-		const scopeData = new ScopeData(scopes, options.authorizationServer);
+		const scopeData = new ScopeData(scopes, undefined, options.authorizationServer);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
@@ -284,6 +285,139 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		this._logger.info('[removeSession]', sessionId, `attempted to remove ${promises.length} sessions`);
 	}
 
+	async getSessionsFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]> {
+		this._logger.info('[getSessionsFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
+
+		// Use scopes from constraint if provided, otherwise extract from challenges
+		const scopes = constraint.scopes?.length ? [...constraint.scopes] : this.extractScopesFromChallenges(constraint.challenges);
+		const claims = this.extractClaimsFromChallenges(constraint.challenges);
+		if (!claims) {
+			throw new Error('No claims found in authentication challenges');
+		}
+		const scopeData = new ScopeData(scopes, claims, options?.authorizationServer);
+		this._logger.info('[getSessionsFromChallenges]', `[${scopeData.scopeStr}]`, 'with claims:', scopeData.claims);
+
+		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
+		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account);
+
+		this._logger.info('[getSessionsFromChallenges]', 'returning', sessions.length, 'sessions');
+		return sessions;
+	}
+
+	async createSessionFromChallenges(constraint: AuthenticationConstraint, options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
+		this._logger.info('[createSessionFromChallenges]', 'starting with', constraint.challenges.length, 'challenges');
+
+		// Use scopes from constraint if provided, otherwise extract from challenges
+		const scopes = constraint.scopes?.length ? [...constraint.scopes] : this.extractScopesFromChallenges(constraint.challenges);
+		const claims = this.extractClaimsFromChallenges(constraint.challenges);
+
+		// Use scopes if available, otherwise fall back to default scopes
+		const effectiveScopes = scopes.length > 0 ? scopes : ['https://graph.microsoft.com/User.Read'];
+
+		const scopeData = new ScopeData(effectiveScopes, claims, options.authorizationServer);
+		this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'starting with claims:', claims);
+
+		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
+
+		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
+		let userCancelled: boolean | undefined;
+		const yes = l10n.t('Yes');
+		const no = l10n.t('No');
+		const promptToContinue = async (mode: string) => {
+			if (userCancelled === undefined) {
+				// We haven't had a failure yet so wait to prompt
+				return;
+			}
+			const message = userCancelled
+				? l10n.t('Having trouble logging in? Would you like to try a different way? ({0})', mode)
+				: l10n.t('You have not yet finished authorizing this extension to use your Microsoft Account. Would you like to try a different way? ({0})', mode);
+			const result = await window.showWarningMessage(message, yes, no);
+			if (result !== yes) {
+				throw new CancellationError();
+			}
+		};
+
+		const isNodeEnvironment = typeof process !== 'undefined' && typeof process?.versions?.node === 'string';
+		const flows = getMsalFlows({
+			extensionHost: isNodeEnvironment
+				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
+				: ExtensionHost.WebWorker,
+		});
+
+		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
+		let lastError: Error | undefined;
+		for (const flow of flows) {
+			if (flow !== flows[0]) {
+				try {
+					await promptToContinue(flow.label);
+				} finally {
+					this._telemetryReporter.sendLoginFailedEvent();
+				}
+			}
+			try {
+				// Create the authentication request with claims if provided
+				const authRequest = {
+					cachedPca,
+					authority,
+					scopes: scopeData.scopesToSend,
+					loginHint: options.account?.label,
+					windowHandle: window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined,
+					logger: this._logger,
+					uriHandler: this._uriHandler,
+					claims: scopeData.claims
+				};
+
+				const result = await flow.trigger(authRequest);
+
+				const session = this.sessionFromAuthenticationResult(result, scopeData.originalScopes);
+				this._telemetryReporter.sendLoginEvent(session.scopes);
+				this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'returned session');
+				return session;
+			} catch (e) {
+				lastError = e as Error;
+				if (e instanceof ClientAuthError && e.errorCode === ClientAuthErrorCodes.userCanceled) {
+					this._logger.info('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'user cancelled');
+					userCancelled = true;
+					continue;
+				}
+				this._logger.error('[createSessionFromChallenges]', `[${scopeData.scopeStr}]`, 'error', e);
+				throw e;
+			}
+		}
+
+		this._telemetryReporter.sendLoginFailedEvent();
+		throw lastError ?? new Error('No auth flow succeeded');
+	}
+
+	private extractScopesFromChallenges(challenges: readonly AuthenticationChallenge[]): string[] {
+		const scopes: string[] = [];
+		for (const challenge of challenges) {
+			if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.scope) {
+				scopes.push(...challenge.params.scope.split(' '));
+			}
+		}
+		return scopes;
+	}
+
+	private extractClaimsFromChallenges(challenges: readonly AuthenticationChallenge[]): string | undefined {
+		for (const challenge of challenges) {
+			if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.claims) {
+				try {
+					return base64Decode(challenge.params.claims);
+				} catch (e) {
+					this._logger.warn('[extractClaimsFromChallenges]', 'failed to decode claims... checking if it is already JSON', e);
+					try {
+						JSON.parse(challenge.params.claims);
+						return challenge.params.claims;
+					} catch (e) {
+						this._logger.error('[extractClaimsFromChallenges]', 'failed to parse claims as JSON... returning undefined', e);
+					}
+				}
+			}
+		}
+		return undefined;
+	}
+
 	//#endregion
 
 	private async getAllSessionsForPca(
@@ -341,11 +475,18 @@ export class MsalAuthProvider implements AuthenticationProvider {
 							forceRefresh = true;
 						}
 					}
+					// When claims are present, force refresh to ensure we get a token that satisfies the claims
+					let claims: string | undefined;
+					if (scopeData.claims) {
+						forceRefresh = true;
+						claims = scopeData.claims;
+					}
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,
 						scopes: scopeData.scopesToSend,
 						redirectUri,
+						claims,
 						forceRefresh
 					});
 					sessions.push(this.sessionFromAuthenticationResult(result, scopeData.originalScopes));
