@@ -10,6 +10,7 @@ import { type IConfigurationPropertySchema } from '../../../../../platform/confi
 
 export const enum TerminalChatAgentToolsSettingId {
 	AutoApprove = 'chat.tools.terminal.autoApprove',
+	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
@@ -20,6 +21,7 @@ export const enum TerminalChatAgentToolsSettingId {
 
 export interface ITerminalChatAgentToolsConfiguration {
 	autoApprove: { [key: string]: boolean };
+	shellIntegrationTimeout: number;
 }
 
 const autoApproveBoolean: IJSONSchema = {
@@ -190,6 +192,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Invoke-Expression': false,
 			iex: false,
 		},
+	},
+	[TerminalChatAgentToolsSettingId.ShellIntegrationTimeout]: {
+		markdownDescription: localize('shellIntegrationTimeout.description', "Configures the duration in milliseconds to wait for shell integration to be detected when using the run in terminal tool. Set to 0 to skip waiting for shell integration entirely. This can be useful for users with slow shell startup times or those who intentionally avoid shell integration."),
+		type: 'integer',
+		default: 5000,
+		minimum: 0,
+		maximum: 30000,
 	}
 };
 
