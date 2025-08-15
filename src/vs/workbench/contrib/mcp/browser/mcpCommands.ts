@@ -1055,7 +1055,7 @@ export class McpConfigureSamplingModels extends Action2 {
 			}
 			return {
 				label: model.name,
-				description: model.description,
+				description: model.tooltip,
 				id,
 				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
 			};

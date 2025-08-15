@@ -16,7 +16,8 @@
   "enabledApiProposals": [
     "idToken",
     "nativeWindowHandle",
-    "authIssuers"
+    "authIssuers",
+    "authenticationChallenges"
   ],
   "capabilities": {
     "virtualWorkspaces": true,

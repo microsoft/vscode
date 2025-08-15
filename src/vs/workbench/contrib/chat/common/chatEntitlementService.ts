@@ -934,6 +934,7 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 export class ChatEntitlementContext extends Disposable {
 
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY = 'chat.setupContext';
+	private static readonly CHAT_HIDDEN_CONFIGURATION_KEY = 'chat.hideAIFeatures';
 
 	private readonly canSignUpContextKey: IContextKey<boolean>;
 	private readonly signedOutContextKey: IContextKey<boolean>;
@@ -954,7 +955,7 @@ export class ChatEntitlementContext extends Disposable {
 
 	private _state: IChatEntitlementContextState;
 	private suspendedState: IChatEntitlementContextState | undefined = undefined;
-	get state(): IChatEntitlementContextState { return this.suspendedState ?? this._state; }
+	get state(): IChatEntitlementContextState { return this.withConfiguration(this.suspendedState ?? this._state); }
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -967,6 +968,7 @@ export class ChatEntitlementContext extends Disposable {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -988,6 +990,27 @@ export class ChatEntitlementContext extends Disposable {
 
 		this.checkExtensionInstallation();
 		this.updateContextSync();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY)) {
+				this.updateContext();
+			}
+		}));
+	}
+
+	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
+		if (
+			state.installed ||
+			this.configurationService.getValue(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY) !== true
+		) {
+			return state; // only applicable until extension is installed or when disabled via setting
+		}
+
+		return { ...state, hidden: true };
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
@@ -1074,21 +1097,23 @@ export class ChatEntitlementContext extends Disposable {
 	}
 
 	private updateContextSync(): void {
-		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(this._state)}`);
+		const state = this.withConfiguration(this._state);
 
-		this.signedOutContextKey.set(this._state.entitlement === ChatEntitlement.Unknown);
-		this.canSignUpContextKey.set(this._state.entitlement === ChatEntitlement.Available);
-		this.freeContextKey.set(this._state.entitlement === ChatEntitlement.Free);
-		this.proContextKey.set(this._state.entitlement === ChatEntitlement.Pro);
-		this.proPlusContextKey.set(this._state.entitlement === ChatEntitlement.ProPlus);
-		this.businessContextKey.set(this._state.entitlement === ChatEntitlement.Business);
-		this.enterpriseContextKey.set(this._state.entitlement === ChatEntitlement.Enterprise);
-		this.isInternalContextKey.set(this._state.isInternal);
-		this.hiddenContext.set(!!this._state.hidden);
-		this.laterContext.set(!!this._state.later);
-		this.installedContext.set(!!this._state.installed);
-		this.disabledContext.set(!!this._state.disabled);
-		this.untrustedContext.set(!!this._state.untrusted);
+		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
+
+		this.signedOutContextKey.set(state.entitlement === ChatEntitlement.Unknown);
+		this.canSignUpContextKey.set(state.entitlement === ChatEntitlement.Available);
+		this.freeContextKey.set(state.entitlement === ChatEntitlement.Free);
+		this.proContextKey.set(state.entitlement === ChatEntitlement.Pro);
+		this.proPlusContextKey.set(state.entitlement === ChatEntitlement.ProPlus);
+		this.businessContextKey.set(state.entitlement === ChatEntitlement.Business);
+		this.enterpriseContextKey.set(state.entitlement === ChatEntitlement.Enterprise);
+		this.isInternalContextKey.set(state.isInternal);
+		this.hiddenContext.set(!!state.hidden);
+		this.laterContext.set(!!state.later);
+		this.installedContext.set(!!state.installed);
+		this.disabledContext.set(!!state.disabled);
+		this.untrustedContext.set(!!state.untrusted);
 
 		this._onDidChange.fire();
 	}

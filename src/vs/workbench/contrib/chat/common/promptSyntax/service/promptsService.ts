@@ -80,7 +80,7 @@ export interface ICustomChatMode {
 	readonly uri: URI;
 
 	/**
-	 * Name of the custom chat mode.
+	 * Name of the custom chat mode as used in prompt files or contexts
 	 */
 	readonly name: string;
 

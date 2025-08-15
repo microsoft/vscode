@@ -69,16 +69,20 @@ if ($env:VSCODE_ENV_APPEND) {
 }
 
 # Register Python shell activate hooks
-if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
-	$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
-	Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
+# Prevent multiple activation with guard
+if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
+	$env:VSCODE_PYTHON_AUTOACTIVATE_GUARD = '1'
+	if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
+		$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
+		Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
 
-	try {
-		Invoke-Expression $activateScript
-	}
-	catch {
-		$activationError = $_
-		Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
+		try {
+			Invoke-Expression $activateScript
+		}
+		catch {
+			$activationError = $_
+			Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
+		}
 	}
 }
 

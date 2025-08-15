@@ -24,6 +24,8 @@ import { IChatWidgetService, showChatView } from '../../../chat/browser/chat.js'
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 
 // #region Workbench contributions
 
@@ -100,13 +102,13 @@ registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsCont
 registerActiveInstanceAction({
 	id: TerminalChatAgentToolsCommandId.ChatAddTerminalSelection,
 	title: localize('addTerminalSelection', 'Add Terminal Selection to Chat'),
-	precondition: sharedWhenClause.terminalAvailable,
+	precondition: ContextKeyExpr.and(ChatContextKeys.enabled, sharedWhenClause.terminalAvailable),
 	menu: [
 		{
 			id: MenuId.TerminalInstanceContext,
 			group: TerminalContextMenuGroup.Chat,
 			order: 1,
-			when: TerminalContextKeys.textSelected,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, TerminalContextKeys.textSelected)
 		},
 	],
 	run: async (activeInstance, _c, accessor) => {
