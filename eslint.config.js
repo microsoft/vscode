@@ -1303,6 +1303,18 @@ export default tseslint.config(
 						'@playwright/*',
 						'*' // node modules
 					]
+				},
+				{
+					'target': 'test/mcp/**',
+					'restrictions': [
+						'test/automation',
+						'test/mcp/**',
+						'@vscode/*',
+						'@parcel/*',
+						'@playwright/*',
+						'@modelcontextprotocol/sdk/**/*',
+						'*' // node modules
+					]
 				}
 			]
 		}
