@@ -25,6 +25,7 @@ import { ChatResponseResource, getAttachableImageExtension } from '../../chat/co
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpTool, LazyCollectionState, McpResourceURI, McpServerCacheState } from './mcpTypes.js';
+import { mcpServerToSourceData } from './mcpTypesUtils.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -65,15 +66,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 
 				const store = new DisposableStore();
 				const toolSet = new Lazy(() => {
-					const metadata = server.serverMetadata.get();
-					const source: ToolDataSource = {
-						type: 'mcp',
-						serverLabel: metadata?.serverName,
-						instructions: metadata?.serverInstructions,
-						label: server.definition.label,
-						collectionId: server.collection.id,
-						definitionId: server.definition.id
-					};
+					const source = mcpServerToSourceData(server);
 					const toolSet = store.add(this._toolsService.createToolSet(
 						source,
 						server.definition.id, server.definition.label,

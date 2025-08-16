@@ -112,7 +112,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
 				const newRequest = this._isBrokerAvailable
 					// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
-					? { ...request, claims: '{ "id_token": {}}' }
+					? { ...request, claims: request.claims ?? '{ "id_token": {}}' }
 					: { ...request, forceRefresh: true };
 				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result`);
@@ -130,7 +130,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 					// there has been a situation where both tokens are expired.
 					if (this._isBrokerAvailable) {
 						this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] forcing refresh with different claims...`);
-						const newRequest = { ...request, claims: '{ "access_token": {}}' };
+						const newRequest = { ...request, claims: request.claims ?? '{ "access_token": {}}' };
 						result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
 						this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result with different claims`);
 						const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;

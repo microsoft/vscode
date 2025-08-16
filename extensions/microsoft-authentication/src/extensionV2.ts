@@ -60,7 +60,7 @@ async function initMicrosoftSovereignCloudAuthProvider(
 		'microsoft-sovereign-cloud',
 		authProviderName,
 		authProvider,
-		{ supportsMultipleAccounts: true }
+		{ supportsMultipleAccounts: true, supportsChallenges: true }
 	);
 	context.subscriptions.push(disposable);
 	return disposable;
@@ -81,6 +81,7 @@ export async function activate(context: ExtensionContext, mainTelemetryReporter:
 		authProvider,
 		{
 			supportsMultipleAccounts: true,
+			supportsChallenges: true,
 			supportedAuthorizationServers: [
 				Uri.parse('https://login.microsoftonline.com/*/v2.0')
 			]

@@ -44,7 +44,7 @@ import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/t
 import { ActiveEditorContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -67,6 +67,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -121,7 +122,7 @@ export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 abstract class OpenChatGlobalAction extends Action2 {
-	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: ChatModeKind) {
+	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: IChatMode) {
 		super({
 			...overrides,
 			icon: Codicon.copilot,
@@ -159,8 +160,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			return;
 		}
 
-		const switchToModeInput = opts?.mode ?? this.mode;
-		const switchToMode = switchToModeInput && (chatModeService.findModeById(switchToModeInput) ?? chatModeService.findModeByName(switchToModeInput));
+		const switchToMode = (opts?.mode ? chatModeService.findModeByName(opts?.mode) : undefined) ?? this.mode;
 		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
 		}
@@ -274,9 +274,9 @@ abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
-			title: localize2('openChatMode', "Open Chat ({0})", mode.name),
+			title: localize2('openChatMode', "Open Chat ({0})", mode.label),
 			keybinding
-		}, mode.kind);
+		}, mode);
 	}
 }
 
@@ -580,7 +580,7 @@ export function registerChatActions() {
 
 								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
 								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
-								const menuActions = getContextMenuActions(actions, 'navigation');
+								const menuActions = getContextMenuActions(actions, 'inline');
 								ckey.reset();
 
 								// Use primary actions if available, otherwise fall back to secondary actions
@@ -756,7 +756,7 @@ export function registerChatActions() {
 						const contextItem = context.item as ICodingAgentPickerItem;
 						commandService.executeCommand(buttonItem.id, {
 							uri: contextItem.uri,
-							session: contextItem.session,
+							session: contextItem.session?.session,
 							$mid: MarshalledId.ChatSessionContext
 						});
 
@@ -908,32 +908,15 @@ export function registerChatActions() {
 			super({
 				id: `workbench.action.chat.newChatInNewWindow`,
 				title: localize2('chatSessions.openNewChatInNewWindow', 'Open New Chat in New Window'),
-				f1: true,
+				f1: false,
 				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled
-			});
-		}
-
-		async run(accessor: ServicesAccessor) {
-			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({
-				resource: ChatEditorInput.getNewEditorUri(),
-				options: {
-					pinned: true,
-					auxiliary: { compact: true, bounds: { width: 640, height: 640 } }
-				} satisfies IChatEditorOptions
-			}, AUX_WINDOW_GROUP);
-		}
-	});
-
-	registerAction2(class OpenChatEditorInNewMaximizedWindowAction extends Action2 {
-		constructor() {
-			super({
-				id: `workbench.action.chat.newChatInNewMaximizedWindow`,
-				title: localize2('chatSessions.openNewChatInNewMaximizedWindow', 'Open New Chat in Maximized Window'),
-				f1: true,
-				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
 			});
 		}
 
@@ -953,10 +936,16 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: `workbench.action.chat.newChatInSideBar`,
-				title: localize2('chatSessions.openNewChatInSideBar', 'Open New Chat in Side Bar'),
-				f1: true,
+				title: localize2('chatSessions.newChatInSideBar', 'Open New Chat in Side Bar'),
+				f1: false,
 				category: CHAT_CATEGORY,
-				precondition: ChatContextKeys.enabled
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
 			});
 		}
 
@@ -976,6 +965,39 @@ export function registerChatActions() {
 				// Focus the input area
 				chatWidget.focusInput();
 			}
+		}
+	});
+
+	registerAction2(class OpenChatInNewEditorGroupAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.openNewChatToTheSide',
+				title: localize2('chat.openNewChatToTheSide.label', "Open New Chat Editor to the Side"),
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				f1: false,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'submenu',
+					order: 1,
+					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const editorService = accessor.get(IEditorService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			// Create a new editor group to the right
+			const newGroup = editorGroupService.addGroup(editorGroupService.activeGroup, GroupDirection.RIGHT);
+			editorGroupService.activateGroup(newGroup);
+
+			// Open a new chat editor in the new group
+			await editorService.openEditor(
+				{ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } },
+				newGroup.id
+			);
 		}
 	});
 
@@ -1560,13 +1582,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	submenu: MenuId.ChatTextEditorMenu,
 	group: '1_chat',
 	order: 3,
-	title,
-	when: menuContext
-});
-
-MenuRegistry.appendMenuItem(MenuId.TerminalInstanceContext, {
-	submenu: MenuId.ChatTerminalMenu,
-	group: '2_copilot',
 	title,
 	when: menuContext
 });

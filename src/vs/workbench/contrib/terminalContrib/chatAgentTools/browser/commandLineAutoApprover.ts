@@ -12,7 +12,7 @@ import { ConfigurationTarget, IConfigurationService, type IConfigurationValue } 
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { isPowerShell } from './runInTerminalHelpers.js';
 
-interface IAutoApproveRule {
+export interface IAutoApproveRule {
 	regex: RegExp;
 	regexCaseInsensitive: RegExp;
 	sourceText: string;

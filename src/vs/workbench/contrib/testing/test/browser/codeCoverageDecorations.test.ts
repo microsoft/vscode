@@ -100,4 +100,5 @@ suite('Code Coverage Decorations', () => {
 		// Should have no ranges available for inline display
 		assert.strictEqual(emptyModel.ranges.length === 0, true, 'Model with no coverage details should have no ranges');
 	});
+
 });

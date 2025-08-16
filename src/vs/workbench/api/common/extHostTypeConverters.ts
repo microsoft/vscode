@@ -2709,7 +2709,7 @@ export namespace ChatResponseThinkingProgressPart {
 		};
 	}
 	export function to(part: Dto<IChatThinkingPart>): vscode.ChatResponseThinkingProgressPart {
-		return new types.ChatResponseThinkingProgressPart(part.value);
+		return new types.ChatResponseThinkingProgressPart(part.value ?? '', part.id, part.metadata);
 	}
 }
 

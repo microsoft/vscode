@@ -12,7 +12,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService } from '../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationSessionRequest, isAuthenticationSessionRequest } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -20,7 +20,7 @@ import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { match } from '../../../../base/common/glob.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../../base/common/oauth.js';
 import { raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
@@ -276,7 +276,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return accounts;
 	}
 
-	async getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationSessionRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		if (this._disposedSource.token.isCancellationRequested) {
 			return [];
 		}
@@ -291,20 +291,38 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					throw new Error(`The authorization server '${authServerStr}' is not supported by the authentication provider '${id}'.`);
 				}
 			}
-			return await authProvider.getSessions(scopes, { ...options });
+			if (isAuthenticationSessionRequest(scopeListOrRequest)) {
+				if (!authProvider.getSessionsFromChallenges) {
+					throw new Error(`The authentication provider '${id}' does not support getting sessions from challenges.`);
+				}
+				return await authProvider.getSessionsFromChallenges(
+					{ challenges: parseWWWAuthenticateHeader(scopeListOrRequest.challenge), scopes: scopeListOrRequest.scopes },
+					{ ...options }
+				);
+			}
+			return await authProvider.getSessions(scopeListOrRequest ? [...scopeListOrRequest] : undefined, { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
-	async createSession(id: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+	async createSession(id: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationSessionRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
 		if (this._disposedSource.token.isCancellationRequested) {
 			throw new Error('Authentication service is disposed.');
 		}
 
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
-			return await authProvider.createSession(scopes, { ...options });
+			if (isAuthenticationSessionRequest(scopeListOrRequest)) {
+				if (!authProvider.createSessionFromChallenges) {
+					throw new Error(`The authentication provider '${id}' does not support creating sessions from challenges.`);
+				}
+				return await authProvider.createSessionFromChallenges(
+					{ challenges: parseWWWAuthenticateHeader(scopeListOrRequest.challenge), scopes: scopeListOrRequest.scopes },
+					{ ...options }
+				);
+			}
+			return await authProvider.createSession([...scopeListOrRequest], { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

@@ -63,10 +63,11 @@ async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | u
 	const viewsService = accessor.get(IViewsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
-	if (chatWidgetService.lastFocusedWidget) {
-		return chatWidgetService.lastFocusedWidget;
+	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
+	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Panel) {
+		return showChatView(viewsService); // only show chat view if we either have no chat view or its located in view container
 	}
-	return showChatView(viewsService);
+	return lastFocusedWidget;
 }
 
 abstract class AttachResourceAction extends Action2 {

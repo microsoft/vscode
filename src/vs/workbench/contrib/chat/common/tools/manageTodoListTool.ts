@@ -18,7 +18,8 @@ import {
 	IPreparedToolInvocation
 } from '../languageModelToolsService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatTodo, IChatTodoListService, IChatTodoListStorage } from '../chatTodoListService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IChatTodo, IChatTodoListService } from '../chatTodoListService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
 export const TodoListToolSettingId = 'chat.todoListTool.enabled';
@@ -84,32 +85,41 @@ interface IManageTodoListToolInputParams {
 		description: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
+	chatSessionId?: string;
 }
 
 export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: any, _progress: any, _token: CancellationToken): Promise<IToolResult> {
-		const chatSessionId = invocation.context?.sessionId;
+		const args = invocation.parameters as IManageTodoListToolInputParams;
+		const chatSessionId = invocation.context?.sessionId ?? args.chatSessionId;
 		if (chatSessionId === undefined) {
 			throw new Error('A chat session ID is required for this tool');
 		}
 
-		const args = invocation.parameters as IManageTodoListToolInputParams;
 		this.logService.debug(`ManageTodoListTool: Invoking with options ${JSON.stringify(args)}`);
 
 		try {
-			const storage = this.chatTodoListService.getChatTodoListStorage();
-
 			switch (args.operation) {
 				case 'read': {
-					const readResult = this.handleRead(storage, chatSessionId);
+					const todoItems = this.chatTodoListService.getTodos(chatSessionId);
+					const readResult = this.handleRead(todoItems, chatSessionId);
+					this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
+						'todoListToolInvoked',
+						{
+							operation: 'read',
+							todoItemCount: todoItems.length,
+							chatSessionId: chatSessionId
+						}
+					);
 					return {
 						content: [{
 							kind: 'text',
@@ -124,7 +134,15 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 						description: parsedTodo.description,
 						status: parsedTodo.status
 					}));
-					storage.setTodoList(chatSessionId, todoList);
+					this.chatTodoListService.setTodos(chatSessionId, todoList);
+					this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
+						'todoListToolInvoked',
+						{
+							operation: 'write',
+							todoItemCount: todoList.length,
+							chatSessionId: chatSessionId
+						}
+					);
 					return {
 						content: [{
 							kind: 'text',
@@ -155,15 +173,13 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-
-		if (!context.chatSessionId) {
+		const args = context.parameters as IManageTodoListToolInputParams;
+		const chatSessionId = context.chatSessionId ?? args.chatSessionId;
+		if (!chatSessionId) {
 			throw new Error('chatSessionId undefined');
 		}
 
-		const storage = this.chatTodoListService.getChatTodoListStorage();
-		const currentTodoItems = storage.getTodoList(context.chatSessionId);
-
-		const args = context.parameters as IManageTodoListToolInputParams;
+		const currentTodoItems = this.chatTodoListService.getTodos(chatSessionId);
 		let message: string | undefined;
 
 		switch (args.operation) {
@@ -193,7 +209,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			pastTenseMessage: new MarkdownString(message ?? 'Updated todo list'),
 			toolSpecificData: {
 				kind: 'todoList',
-				sessionId: context.chatSessionId,
+				sessionId: chatSessionId,
 				todoList: todoList
 			}
 		};
@@ -244,15 +260,12 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		return 'Updated todo list';
 	}
 
-	private handleRead(storage: IChatTodoListStorage, sessionId: string): string {
-		const todoItems = storage.getTodoList(sessionId);
-
+	private handleRead(todoItems: IChatTodo[], sessionId: string): string {
 		if (todoItems.length === 0) {
 			return 'No todo list found.';
 		}
 
 		const markdownTaskList = this.formatTodoListAsMarkdownTaskList(todoItems);
-
 		return `# Task List\n\n${markdownTaskList}`;
 	}
 
@@ -285,3 +298,17 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		}).join('\n');
 	}
 }
+
+type TodoListToolInvokedEvent = {
+	operation: 'read' | 'write';
+	todoItemCount: number;
+	chatSessionId: string | undefined;
+};
+
+type TodoListToolInvokedClassification = {
+	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operation performed on the todo list (read or write).' };
+	todoItemCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of items in the todo list operation.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
+	owner: 'bhavyaus';
+	comment: 'Provides insight into the usage of the todo list tool.';
+};

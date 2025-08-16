@@ -111,8 +111,7 @@ export class ChatTodoListWidget extends Disposable {
 			return;
 		}
 
-		const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
-		const todoList = todoListStorage.getTodoList(this._currentSessionId);
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
 
 		if (todoList.length > 0) {
 			this.renderTodoList(todoList);
@@ -196,8 +195,7 @@ export class ChatTodoListWidget extends Disposable {
 			return;
 		}
 
-		const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
-		todoListStorage.setTodoList(this._currentSessionId, []);
+		this.chatTodoListService.setTodos(this._currentSessionId, []);
 		this.updateTodoDisplay();
 	}
 

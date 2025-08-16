@@ -65,7 +65,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 
 		const result = await this._getEditsForFileRename(renames, noopToken);
 
-		if (result && result.edit.size) {
+		if (result?.edit.size) {
 			if (await this._confirmActionWithUser(result.resourcesBeingRenamed)) {
 				await vscode.workspace.applyEdit(result.edit);
 			}
