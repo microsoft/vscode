@@ -396,6 +396,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.graph.badges', "Controls which badges are shown in the Source Control Graph view. The badges are shown on the right side of the graph indicating the names of history item groups."),
 			default: 'filter'
+		},
+		'scm.graph.historyItemFormat': {
+			type: 'string',
+			description: localize('scm.graph.historyItemFormat', "Controls the format of each history item in the Source Control Graph view. Variables like ${author}, ${message}, ${subject}, ${hash}, ${displayId}, ${date}, ${timestamp}, ${authorEmail} can be used. This provides customization similar to GitLens blame decorations."),
+			default: '${subject}',
+			examples: [
+				'${subject}',
+				'${displayId} - ${subject}',
+				'${author} • ${subject}',
+				'[${displayId}] ${subject} by ${author}',
+				'${subject} (${date})'
+			]
 		}
 	}
 });
