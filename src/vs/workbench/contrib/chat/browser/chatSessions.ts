@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -64,9 +64,9 @@ import Severity from '../../../../base/common/severity.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { KeyCode } from '../../../../editor/editor.api.js';
 import { timeout } from '../../../../base/common/async.js';
 import { IChatSessionContext } from './actions/chatSessionActions.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
