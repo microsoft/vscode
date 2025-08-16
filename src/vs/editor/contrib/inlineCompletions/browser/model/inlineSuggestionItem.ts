@@ -18,7 +18,7 @@ import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdi
 import { StringText } from '../../../../common/core/text/abstractText.js';
 import { TextLength } from '../../../../common/core/text/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason } from '../../../../common/languages.js';
+import { InlineCompletion, InlineCompletionTriggerKind, Command, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionEndOfLifeReason, InlineCompletionDisplayLocationKind } from '../../../../common/languages.js';
 import { ITextModel, EndOfLinePreference } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IDisplayLocation, InlineSuggestData, InlineSuggestionList, PartialAcceptance, SnippetInfo } from './provideInlineCompletions.js';
@@ -160,12 +160,14 @@ class InlineSuggestDisplayLocation implements IDisplayLocation {
 		return new InlineSuggestDisplayLocation(
 			displayLocation.range,
 			displayLocation.label,
+			displayLocation.kind
 		);
 	}
 
 	private constructor(
 		public readonly range: Range,
 		public readonly label: string,
+		public readonly kind: InlineCompletionDisplayLocationKind
 	) { }
 
 	public withEdit(edit: StringEdit, positionOffsetTransformer: PositionOffsetTransformerBase): InlineSuggestDisplayLocation | undefined {
@@ -181,7 +183,7 @@ class InlineSuggestDisplayLocation implements IDisplayLocation {
 
 		const newRange = positionOffsetTransformer.getRange(newOffsetRange);
 
-		return new InlineSuggestDisplayLocation(newRange, this.label);
+		return new InlineSuggestDisplayLocation(newRange, this.label, this.kind);
 	}
 }
 

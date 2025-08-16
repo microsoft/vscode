@@ -3435,6 +3435,25 @@ export namespace InlineCompletionEndOfLifeReason {
 	}
 }
 
+export namespace InlineCompletionDisplayLocationKind {
+	export function from(value: vscode.InlineCompletionDisplayLocationKind): types.InlineCompletionDisplayLocationKind {
+		if (value === types.InlineCompletionDisplayLocationKind.Label) {
+			return types.InlineCompletionDisplayLocationKind.Label;
+		} else {
+			return types.InlineCompletionDisplayLocationKind.Code;
+		}
+	}
+
+	export function to(kind: languages.InlineCompletionDisplayLocationKind): types.InlineCompletionDisplayLocationKind {
+		switch (kind) {
+			case languages.InlineCompletionDisplayLocationKind.Label:
+				return types.InlineCompletionDisplayLocationKind.Label;
+			default:
+				return types.InlineCompletionDisplayLocationKind.Code;
+		}
+	}
+}
+
 export namespace DebugTreeItem {
 	export function from(item: vscode.DebugTreeItem, id: number): IDebugVisualizationTreeItem {
 		return {

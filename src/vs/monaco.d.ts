@@ -7534,8 +7534,14 @@ declare namespace monaco.languages {
 		icon?: IconPath;
 	}
 
+	export enum InlineCompletionDisplayLocationKind {
+		Code = 1,
+		Label = 2
+	}
+
 	export interface InlineCompletionDisplayLocation {
 		range: IRange;
+		kind: InlineCompletionDisplayLocationKind;
 		label: string;
 	}
 
