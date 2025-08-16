@@ -10,7 +10,7 @@
 	<true/>
 	<key>keychain-access-groups</key>
 	<array>
-		<string>com.microsoft.identity.universalstorage</string>
+		<string>$(AppIdentifierPrefix)com.microsoft.identity.universalstorage</string>
 	</array>
 </dict>
 </plist>
