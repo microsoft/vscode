@@ -53,7 +53,7 @@ if (enableLogging) {
 	addLogger(new ConsoleObservableLogger());
 }
 
-if (env && env['VSCODE_DEV_DEBUG']) {
+if (env && env['VSCODE_DEV_DEBUG_OBSERVABLES']) {
 	// To debug observables you also need the extension "ms-vscode.debug-value-editor"
 	addLogger(DevToolsLogger.getInstance());
 }

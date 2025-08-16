@@ -450,8 +450,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._register(autorun(reader => {
 			let count = 0;
-			for (const enabled of this.selectedToolsModel.enablementMap.read(reader).values()) {
-				if (enabled) { count++; }
+			const userSelectedTools = this.selectedToolsModel.userSelectedTools.read(reader);
+			for (const key in userSelectedTools) {
+				if (userSelectedTools[key] === true) {
+					count++;
+				}
 			}
 
 			chatToolCount.set(count);
@@ -479,7 +482,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.initSelectedModel();
 
 		this._register(this.onDidChangeCurrentChatMode(() => {
-			this.accessibilityService.alert(this._currentModeObservable.get().name);
+			this.accessibilityService.alert(this._currentModeObservable.get().label);
 			if (this._inputEditor) {
 				this._inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}

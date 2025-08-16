@@ -17,6 +17,8 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { Location } from '../../../../../../../editor/common/languages.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -103,9 +105,16 @@ export class RunTaskTool implements IToolImpl {
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = Array.from(new Map(
 			terminalResults
-				.flatMap(r => r.resources?.filter(res => res.uri && res.range).map(res => ({ uri: res.uri, range: res.range })) ?? [])
-				.map(item => [`${item.uri.toString()}-${item.range.toString()}`, item])
-		).values());
+				.flatMap(r =>
+					r.resources?.filter(res => res.uri).map(res => {
+						const range = res.range;
+						const item = range !== undefined ? { uri: res.uri, range } : res.uri;
+						const key = range !== undefined
+							? `${res.uri.toString()}-${range.toString()}`
+							: `${res.uri.toString()}`;
+						return [key, item] as [string, URI | Location];
+					}) ?? []
+				)).values());
 
 		let resultSummary = '';
 		if (result?.exitCode) {
