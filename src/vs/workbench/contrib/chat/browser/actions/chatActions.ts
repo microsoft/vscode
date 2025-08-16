@@ -1400,7 +1400,7 @@ const defaultChat = {
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatTitleBarMenu,
 	title: localize('title4', "Copilot"),
-	icon: Codicon.copilot,
+	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
 		ContextKeyExpr.and(
@@ -1417,7 +1417,7 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 	submenu: MenuId.ChatTitleBarMenu,
 	title: localize('title4', "Copilot"),
 	group: 'navigation',
-	icon: Codicon.copilot,
+	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
 		ContextKeyExpr.and(
@@ -1477,7 +1477,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 
 			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
-			let primaryActionIcon = Codicon.copilot;
+			let primaryActionIcon = Codicon.chatSparkle;
 			if (chatSentiment.installed && !chatSentiment.disabled) {
 				if (signedOut) {
 					primaryActionId = CHAT_SETUP_ACTION_ID;
