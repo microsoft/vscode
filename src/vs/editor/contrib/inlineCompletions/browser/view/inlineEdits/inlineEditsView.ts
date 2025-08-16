@@ -36,6 +36,7 @@ import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils/utils.js';
 import './view.css';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 
 
 export class InlineEditsView extends Disposable {
@@ -254,6 +255,7 @@ export class InlineEditsView extends Disposable {
 		this._customView = this._register(this._instantiationService.createInstance(InlineEditsCustomView,
 			this._editor,
 			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === 'custom' ? m?.displayLocation : undefined),
+			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind !== 'custom' || !m?.uri || isEqual(m.uri, this._editor.getModel()?.uri)),
 			this._tabAction,
 		));
 		this._inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
