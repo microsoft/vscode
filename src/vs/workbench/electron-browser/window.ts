@@ -943,8 +943,11 @@ export class NativeWindow extends BaseWindow {
 		if (borderSetting === 'off') {
 			activeBorder = 'off'; // respect setting to turn off window border
 			inactiveBorder = undefined;
-		} else {
+		} else if (borderSetting === 'default') {
 			activeBorder = activeBorder ?? borderSetting;
+		} else {
+			activeBorder = borderSetting;
+			inactiveBorder = undefined;
 		}
 
 		this.nativeHostService.updateWindowAccentColor(activeBorder, inactiveBorder);

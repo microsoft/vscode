@@ -293,7 +293,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'type': 'boolean',
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
+				'description': localize('window.nativeTabs', "Enables macOS native window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 				'included': isMacintosh,
 			},
 			'window.nativeFullScreen': {
@@ -313,7 +313,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			'window.border': {
 				'type': 'string',
 				'default': 'default',
-				'markdownDescription': localize('window.border', "Controls the border color of the window. Set to `default` to respect Windows settings, `off` to disable or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. This setting is ignored when {0} is set to {1}.", '`#window.titleBarStyle#`', '`native`'),
+				'markdownDescription': localize('window.border', "Controls the border color of the window. Set to `default` to respect Windows or color theme settings, `off` to disable, or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. Use to {0} set different colors for active and inactive windows. This setting is ignored when {1} is set to {2}.", '`#workbench.colorCustomizations#`', '`#window.titleBarStyle#`', '`native`'),
 				'included': isWindows
 			}
 		}
