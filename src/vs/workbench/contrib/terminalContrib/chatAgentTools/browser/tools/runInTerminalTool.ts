@@ -922,9 +922,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const baseCommand = parts[0].toLowerCase();
 				const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
 
-				if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3) {
+				if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3 && !parts[2].startsWith('-')) {
 					return `${parts[0]} ${parts[1]} ${parts[2]}`;
-				} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2) {
+				} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2 && !parts[1].startsWith('-')) {
 					return `${parts[0]} ${parts[1]}`;
 				} else {
 					return parts[0];
