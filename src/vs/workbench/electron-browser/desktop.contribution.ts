@@ -313,7 +313,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			'window.border': {
 				'type': 'string',
 				'default': 'default',
-				'markdownDescription': localize('window.border', "Controls the border color of the window. Set to `default` to respect Windows or color theme settings, `off` to disable, or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. Use to {0} set different colors for active and inactive windows. This setting is ignored when {1} is set to {2}.", '`#workbench.colorCustomizations#`', '`#window.titleBarStyle#`', '`native`'),
+				'markdownDescription': localize('window.border', "Controls the border color of the window. Set to `default` to respect Windows or color theme settings, `off` to disable, or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. Use {0} to set different colors for active and inactive windows. This setting is ignored when {1} is set to {2}.", '`#workbench.colorCustomizations#`', '`#window.titleBarStyle#`', '`native`'),
 				'included': isWindows
 			}
 		}
