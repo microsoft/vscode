@@ -73,7 +73,7 @@ export interface IChatWelcomeMessageContent {
 
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
-	setRequestTools?(requestId: string, tools: Pick<IChatAgentRequest, 'userSelectedTools'>): void;
+	setRequestTools?(requestId: string, tools: UserSelectedTools): void;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
 	provideChatSummary?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
@@ -123,6 +123,8 @@ export interface IChatAgentMetadata {
 	additionalWelcomeMessage?: string | IMarkdownString;
 }
 
+export type UserSelectedTools = Record<string, boolean>;
+
 
 export interface IChatAgentRequest {
 	sessionId: string;
@@ -139,7 +141,7 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
-	userSelectedTools?: Record<string, boolean>;
+	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 }
@@ -196,7 +198,7 @@ export interface IChatAgentService {
 	detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined>;
 	hasChatParticipantDetectionProviders(): boolean;
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
-	setRequestTools(agent: string, requestId: string, tools: Pick<IChatAgentRequest, 'userSelectedTools'>): void;
+	setRequestTools(agent: string, requestId: string, tools: UserSelectedTools): void;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
 	getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
@@ -477,7 +479,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return await data.impl.invoke(request, progress, history, token);
 	}
 
-	setRequestTools(id: string, requestId: string, tools: Pick<IChatAgentRequest, 'userSelectedTools'>): void {
+	setRequestTools(id: string, requestId: string, tools: UserSelectedTools): void {
 		const data = this._agents.get(id);
 		if (!data?.impl) {
 			throw new Error(`No activated agent with id "${id}"`);
@@ -595,7 +597,7 @@ export class MergedChatAgent implements IChatAgent {
 		return this.impl.invoke(request, progress, history, token);
 	}
 
-	setRequestTools(requestId: string, tools: Pick<IChatAgentRequest, 'userSelectedTools'>): void {
+	setRequestTools(requestId: string, tools: UserSelectedTools): void {
 		this.impl.setRequestTools?.(requestId, tools);
 	}
 
