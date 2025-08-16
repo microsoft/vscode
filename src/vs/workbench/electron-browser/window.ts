@@ -941,7 +941,7 @@ export class NativeWindow extends BaseWindow {
 
 		const borderSetting = this.configurationService.getValue<string>('window.border');
 		if (borderSetting === 'off') {
-			activeBorder = 'off'; // respect setting to turn off window border
+			activeBorder = 'off';
 			inactiveBorder = undefined;
 		} else if (borderSetting === 'default') {
 			activeBorder = activeBorder ?? borderSetting;
