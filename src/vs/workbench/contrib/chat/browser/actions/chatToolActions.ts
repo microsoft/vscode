@@ -103,13 +103,20 @@ class ConfigureToolsAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const telemetryService = accessor.get(ITelemetryService);
 
+		// Extract filter from arguments if provided
+		let filter: string | undefined;
+		if (args.length > 0 && typeof args[0] === 'string') {
+			filter = args[0];
+		}
+
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
 			type ChatActionContext = { widget: IChatWidget };
 			function isChatActionContext(obj: any): obj is ChatActionContext {
 				return obj && typeof obj === 'object' && (obj as ChatActionContext).widget;
 			}
-			const context = args[0];
+			// Check args[1] if args[0] was the filter
+			const context = filter ? args[1] : args[0];
 			if (isChatActionContext(context)) {
 				widget = context.widget;
 			}
@@ -149,7 +156,7 @@ class ConfigureToolsAction extends Action2 {
 					}
 				}
 			}
-		});
+		}, filter);
 		if (result) {
 			widget.input.selectedToolsModel.set(result, false);
 		}

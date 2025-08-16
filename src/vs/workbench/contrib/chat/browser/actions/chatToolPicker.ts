@@ -159,7 +159,8 @@ export async function showToolsPicker(
 	placeHolder: string,
 	description?: string,
 	toolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>,
-	onUpdate?: (toolsEntries: ReadonlyMap<ToolSet | IToolData, boolean>) => void
+	onUpdate?: (toolsEntries: ReadonlyMap<ToolSet | IToolData, boolean>) => void,
+	filter?: string
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
@@ -236,13 +237,16 @@ export async function showToolsPicker(
 					});
 				}
 
+				// If filter is provided and matches this server, expand it; otherwise collapse
+				const shouldExpand = filter && toolSetOrTool.source.label.toLowerCase().includes(filter.toLowerCase());
+				
 				bucketItem = {
 					itemType: 'bucket',
 					ordinal: BucketOrdinal.Mcp,
 					id: key,
 					label: localize('mcplabel', "MCP Server: {0}", toolSetOrTool.source.label),
 					checked: false,
-					collapsed: true,
+					collapsed: !shouldExpand,
 					children: [],
 					buttons,
 					iconClass: ThemeIcon.asClassName(Codicon.mcp)
@@ -271,17 +275,22 @@ export async function showToolsPicker(
 				label = localize('ext', 'Extension: {0}', toolSetOrTool.source.label);
 				// Create separate buckets per extension, similar to MCP servers
 				key = ToolDataSource.toKey(toolSetOrTool.source);
-				collapsed = true;
+				// If filter is provided, collapse unless this extension matches
+				collapsed = filter ? !toolSetOrTool.source.label.toLowerCase().includes(filter.toLowerCase()) : true;
 			} else if (toolSetOrTool.source.type === 'internal') {
 				ordinal = BucketOrdinal.BuiltIn;
 				label = localize('defaultBucketLabel', "Built-In");
 				// Group all internal tools under one bucket
 				key = ordinal.toString();
+				// If filter is provided, collapse built-in section
+				collapsed = filter ? true : undefined;
 			} else if (toolSetOrTool.source.type === 'user') {
 				ordinal = BucketOrdinal.User;
 				label = localize('userBucket', "User Defined Tool Sets");
 				// Group all user tools under one bucket
 				key = ordinal.toString();
+				// If filter is provided, collapse user section
+				collapsed = filter ? true : undefined;
 				buttons.push({
 					iconClass: ThemeIcon.asClassName(Codicon.edit),
 					tooltip: localize('editUserBucket', "Edit Tool Set"),
@@ -365,6 +374,11 @@ export async function showToolsPicker(
 	treePicker.description = description;
 	treePicker.matchOnDescription = true;
 	treePicker.matchOnLabel = true;
+	
+	// Set filter value if provided
+	if (filter) {
+		treePicker.value = filter;
+	}
 
 	if (treeItems.length === 0) {
 		treePicker.placeholder = localize('noTools', "Add tools to chat");
