@@ -338,9 +338,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: commands
 		const commands: typeof vscode.commands = {
 			registerCommand(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
+				if (id === 'editor.action.clipboardCopyAction') {
+					console.log('createApiFactoryAndRegisterActors#registerCommand for id : ', id);
+				}
 				return extHostCommands.registerCommand(true, id, command, thisArgs, undefined, extension);
 			},
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
+				if (id === 'editor.action.clipboardCopyAction') {
+					console.log('createApiFactoryAndRegisterActors#registerTextEditorCommand for id : ', id);
+				}
 				return extHostCommands.registerCommand(true, id, (...args: any[]): any => {
 					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
@@ -361,6 +367,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}, undefined, undefined, extension);
 			},
 			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
+				if (id === 'editor.action.clipboardCopyAction') {
+					console.log('createApiFactoryAndRegisterActors#registerDiffInformationCommand for id : ', id);
+				}
 				checkProposedApiEnabled(extension, 'diffCommand');
 				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
 					const activeTextEditor = extHostDocumentsAndEditors.activeEditor(true);
