@@ -243,4 +243,11 @@ export function registerDiffEditorCommands(): void {
 		},
 		when: ContextKeyExpr.and(TextCompareEditorActiveContext, ActiveCompareEditorCanSwapContext)
 	});
+
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id: DIFF_OPEN_SIDE,
+			title: localize2('compare.openSide', 'Open File on Selected Side'),
+		}
+	});
 }
