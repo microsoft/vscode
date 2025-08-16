@@ -52,6 +52,7 @@ export class ChatRequestTextPart implements IParsedChatRequestPart {
 export const chatVariableLeader = '#';
 export const chatAgentLeader = '@';
 export const chatSubcommandLeader = '/';
+export const chatTerminalCommandLeader = '!';
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
@@ -184,6 +185,25 @@ export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 }
 
 /**
+ * An invocation of a terminal command starting with '!'
+ */
+export class ChatRequestTerminalCommandPart implements IParsedChatRequestPart {
+	static readonly Kind = 'terminalCommand';
+	readonly kind = ChatRequestTerminalCommandPart.Kind;
+	readonly description = ' Run a command in the terminal';
+
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: string) { }
+
+	get text(): string {
+		return `${chatTerminalCommandLeader}${this.command}`;
+	}
+
+	get promptText(): string {
+		return this.text;
+	}
+}
+
+/**
  * An invocation of a dynamic reference like '#file:'
  */
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
@@ -270,6 +290,12 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestSlashPromptPart).slashPromptCommand
+				);
+			} else if (part.kind === ChatRequestTerminalCommandPart.Kind) {
+				return new ChatRequestTerminalCommandPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestTerminalCommandPart).command
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				return new ChatRequestDynamicVariablePart(

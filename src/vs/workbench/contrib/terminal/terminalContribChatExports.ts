@@ -8,3 +8,5 @@
 // startup
 export { TerminalChatContextKeys } from '../terminalContrib/chat/browser/terminalChat.js';
 export { TerminalChatController } from '../terminalContrib/chat/browser/terminalChatController.js';
+export { ITerminalCompletionService } from '../terminalContrib/suggest/browser/terminalCompletionService.js';
+export { TerminalCompletionItemKind, type ITerminalCompletion } from '../terminalContrib/suggest/browser/terminalCompletionItem.js';

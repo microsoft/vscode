@@ -7,7 +7,7 @@ import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.j
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IChatAgentData, IChatAgentService } from './chatAgents.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTerminalCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
@@ -17,6 +17,7 @@ import { IPromptsService } from './promptSyntax/service/promptsService.js';
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
 const slashReg = /^\/([\p{L}_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
+const terminalCommandReg = /^!(.*)$/; // A ! terminal command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -60,6 +61,9 @@ export class ChatRequestParser {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				} else if (char === chatSubcommandLeader) {
 					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
+				} else if (char === '!' && i === 0) {
+					// Terminal commands starting with ! must be at the beginning of the message
+					newPart = this.tryToParseTerminalCommand(message.slice(i), i, new Position(lineNumber, column));
 				}
 
 				if (!newPart) {
@@ -248,5 +252,19 @@ export class ChatRequestParser {
 		}
 
 		return;
+	}
+
+	private tryToParseTerminalCommand(message: string, offset: number, position: IPosition): ChatRequestTerminalCommandPart | undefined {
+		const terminalCommandMatch = message.match(terminalCommandReg);
+		if (!terminalCommandMatch) {
+			return;
+		}
+
+		const full = terminalCommandMatch[0];
+		const command = terminalCommandMatch[1] || '';
+		const terminalCommandRange = new OffsetRange(offset, offset + full.length);
+		const terminalCommandEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
+
+		return new ChatRequestTerminalCommandPart(terminalCommandRange, terminalCommandEditorRange, command);
 	}
 }
