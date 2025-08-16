@@ -343,18 +343,23 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.updateWindowControls(options);
 	}
 
-	async updateWindowAccentColor(windowId: number | undefined, color: 'default' | 'off' | string | undefined): Promise<void> {
+	async updateWindowAccentColor(windowId: number | undefined, color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void> {
 		if (!isWindows) {
 			return; // windows only
 		}
 
-		let windowAccentColor: string | boolean = color || true;
-		if (windowAccentColor === 'default') {
-			windowAccentColor = true;
-		} else if (windowAccentColor === 'off') {
-			windowAccentColor = false;
-		} else if (typeof windowAccentColor === 'string') {
-			windowAccentColor = windowAccentColor;
+		let activeWindowAccentColor: string | boolean;
+		let inactiveWindowAccentColor: string | boolean;
+
+		if (color === 'default') {
+			activeWindowAccentColor = true;
+			inactiveWindowAccentColor = true;
+		} else if (color === 'off') {
+			activeWindowAccentColor = false;
+			inactiveWindowAccentColor = false;
+		} else {
+			activeWindowAccentColor = color;
+			inactiveWindowAccentColor = inactiveColor ?? color;
 		}
 
 		const windows = [this.windowById(windowId)];
@@ -365,7 +370,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		for (const window of windows) {
-			window?.win?.setAccentColor(windowAccentColor);
+			window?.win?.setAccentColor(window?.win.isFocused() ? activeWindowAccentColor : inactiveWindowAccentColor);
 		}
 	}
 
