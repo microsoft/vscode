@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { $, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
-import { Button, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
+import { ButtonWithDropdown, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
@@ -21,11 +21,13 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { escape } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Action } from '../../../../base/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
@@ -63,7 +65,7 @@ export class BaseIssueReporterService extends Disposable {
 	public loadingExtensionData = false;
 	public selectedExtension = '';
 	public delayedSubmit = new Delayer<void>(300);
-	public previewButton!: Button;
+	public previewButton!: ButtonWithDropdown;
 	public nonGitHubIssueUrl = false;
 	public needsUpdate = false;
 	public acknowledged = false;
@@ -83,6 +85,7 @@ export class BaseIssueReporterService extends Disposable {
 		@IThemeService public readonly themeService: IThemeService,
 		@IFileService public readonly fileService: IFileService,
 		@IFileDialogService public readonly fileDialogService: IFileDialogService,
+		@IContextMenuService public readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -105,7 +108,28 @@ export class BaseIssueReporterService extends Disposable {
 		//TODO: Handle case where extension is not activated
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
-			this.previewButton = this._register(new Button(issueReporterElement, unthemedButtonStyles));
+
+			// Secondary action for dropdown
+			const createAction = new Action('issueReporter.create', localize('create', "Create on GitHub"), undefined, true, async () => {
+				this.delayedSubmit.trigger(async () => {
+					this.createIssue();
+				});
+			});
+
+			this.previewButton = this._register(new ButtonWithDropdown(issueReporterElement, {
+				contextMenuProvider: this.contextMenuService,
+				addPrimaryActionToDropdown: true,
+				actions: [createAction],
+				...unthemedButtonStyles
+			}));
+
+			// primary button action, Preview is the default now
+			this._register(this.previewButton.onDidClick(async () => {
+				this.delayedSubmit.trigger(async () => {
+					await this.createIssue(true);
+				});
+			}));
+
 			const issueRepoName = document.createElement('a');
 			issueReporterElement.appendChild(issueRepoName);
 			issueRepoName.id = 'show-repo-name';
@@ -433,11 +457,7 @@ export class BaseIssueReporterService extends Disposable {
 			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
-		this._register(this.previewButton.onDidClick(async () => {
-			this.delayedSubmit.trigger(async () => {
-				this.createIssue();
-			});
-		}));
+		// We handle clicks in the dropdown actions now
 
 		this.addEventListener('disableExtensions', 'click', () => {
 			this.issueFormService.reloadWithExtensionsDisabled();
@@ -509,11 +529,7 @@ export class BaseIssueReporterService extends Disposable {
 			this.previewButton.label = localize('acknowledge', "Confirm Version Acknowledgement");
 			this.previewButton.enabled = false;
 		} else if (this.isPreviewEnabled()) {
-			if (this.data.githubAccessToken) {
-				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
-			} else {
-				this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
-			}
+			this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
 			this.previewButton.enabled = true;
 		} else {
 			this.previewButton.enabled = false;
@@ -997,7 +1013,7 @@ export class BaseIssueReporterService extends Disposable {
 		return true;
 	}
 
-	public async createIssue(): Promise<boolean> {
+	public async createIssue(preview?: boolean): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 		const hasUri = this.nonGitHubIssueUrl;
 		// Short circuit if the extension provides a custom issue handler
@@ -1055,7 +1071,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
-		if (this.data.githubAccessToken && gitHubDetails) {
+		if (this.data.githubAccessToken && gitHubDetails && !preview) {
 			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 

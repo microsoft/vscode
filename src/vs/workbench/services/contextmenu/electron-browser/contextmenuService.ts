@@ -128,7 +128,14 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 			let zoom = getZoomFactor(dom.isHTMLElement(anchor) ? dom.getWindow(anchor) : dom.getActiveWindow());
 			if (dom.isHTMLElement(anchor)) {
-				const elementPosition = dom.getDomNodePagePosition(anchor);
+				const clientRect = anchor.getBoundingClientRect();
+				const elementPosition = { left: clientRect.left, top: clientRect.top, width: clientRect.width, height: clientRect.height };
+
+				// Determine if element is clipped by viewport; if so we'll use the bottom-right of the visible portion
+				const win = dom.getWindow(anchor);
+				const vw = win.innerWidth;
+				const vh = win.innerHeight;
+				const isClipped = clientRect.left < 0 || clientRect.top < 0 || clientRect.right > vw || clientRect.bottom > vh;
 
 				// When drawing context menus, we adjust the pixel position for native menus using zoom level
 				// In areas where zoom is applied to the element or its ancestors, we need to adjust accordingly
@@ -136,37 +143,43 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Coordinate Multiplier: 1.5 * 1.0 / 1.5 = 1.0
 				zoom *= dom.getDomNodeZoomLevel(anchor);
 
-				// Position according to the axis alignment and the anchor alignment:
-				// `HORIZONTAL` aligns at the top left or right of the anchor and
-				//  `VERTICAL` aligns at the bottom left of the anchor.
-				if (delegate.anchorAxisAlignment === AnchorAxisAlignment.HORIZONTAL) {
-					if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
-						x = elementPosition.left;
-						y = elementPosition.top;
-					} else {
-						x = elementPosition.left + elementPosition.width;
-						y = elementPosition.top;
-					}
-
-					if (!isMacintosh) {
-						const window = dom.getWindow(anchor);
-						const availableHeightForMenu = window.screen.height - y;
-						if (availableHeightForMenu < actions.length * (isWindows ? 45 : 32) /* guess of 1 menu item height */) {
-							// this is a guess to detect whether the context menu would
-							// open to the bottom from this point or to the top. If the
-							// menu opens to the top, make sure to align it to the bottom
-							// of the anchor and not to the top.
-							// this seems to be only necessary for Windows and Linux.
-							y += elementPosition.height;
-						}
-					}
+				if (isClipped) {
+					// Element is partially out of viewport: always place at bottom-right visible corner
+					x = Math.min(Math.max(clientRect.right, 0), vw);
+					y = Math.min(Math.max(clientRect.bottom, 0), vh);
 				} else {
-					if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
-						x = elementPosition.left;
-						y = elementPosition.top + elementPosition.height;
+					// Position according to the axis alignment and the anchor alignment:
+					// `HORIZONTAL` aligns at the top left or right of the anchor and
+					//  `VERTICAL` aligns at the bottom left of the anchor.
+					if (delegate.anchorAxisAlignment === AnchorAxisAlignment.HORIZONTAL) {
+						if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
+							x = elementPosition.left;
+							y = elementPosition.top;
+						} else {
+							x = elementPosition.left + elementPosition.width;
+							y = elementPosition.top;
+						}
+
+						if (!isMacintosh) {
+							const window = dom.getWindow(anchor);
+							const availableHeightForMenu = window.screen.height - y;
+							if (availableHeightForMenu < actions.length * (isWindows ? 45 : 32) /* guess of 1 menu item height */) {
+								// this is a guess to detect whether the context menu would
+								// open to the bottom from this point or to the top. If the
+								// menu opens to the top, make sure to align it to the bottom
+								// of the anchor and not to the top.
+								// this seems to be only necessary for Windows and Linux.
+								y += elementPosition.height;
+							}
+						}
 					} else {
-						x = elementPosition.left + elementPosition.width;
-						y = elementPosition.top + elementPosition.height;
+						if (delegate.anchorAlignment === AnchorAlignment.LEFT) {
+							x = elementPosition.left;
+							y = elementPosition.top + elementPosition.height;
+						} else {
+							x = elementPosition.left + elementPosition.width;
+							y = elementPosition.top + elementPosition.height;
+						}
 					}
 				}
 
