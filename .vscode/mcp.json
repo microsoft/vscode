@@ -1,0 +1,9 @@
+{
+	"servers": {
+		"vscode-playwright-mcp": {
+			"url": "http://localhost:33418/mcp",
+			"type": "http"
+		}
+	},
+	"inputs": []
+}

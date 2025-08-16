@@ -10,7 +10,7 @@ async function main() {
     const arch = (0, publish_1.e)('VSCODE_ARCH');
     const esrpCliDLLPath = (0, publish_1.e)('EsrpCliDllPath');
     const pipelineWorkspace = (0, publish_1.e)('PIPELINE_WORKSPACE');
-    const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
+    const folder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_archive`;
     const glob = `VSCode-darwin-${arch}.zip`;
     // Codesign
     (0, codesign_1.printBanner)('Codesign');
