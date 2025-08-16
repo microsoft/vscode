@@ -50,6 +50,8 @@ import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
+import { LineEditTracker } from './lineEditTracker.js';
+import { LineEditSource, ILineEditSourcesChangedEvent } from '../lineEditSource.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -303,6 +305,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private readonly _attachedViews = new AttachedViews();
 
+	//#region Line Edit Tracking
+	private readonly _lineEditTracker: LineEditTracker = this._register(new LineEditTracker());
+	public readonly onDidChangeLineEditSources: Event<ILineEditSourcesChangedEvent> = this._lineEditTracker.onDidChangeLineEditSources;
+	//#endregion
+
 	constructor(
 		source: string | model.ITextBufferFactory,
 		languageIdOrSelection: string | ILanguageSelection,
@@ -329,6 +336,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const { textBuffer, disposable } = createTextBuffer(source, creationOptions.defaultEOL);
 		this._buffer = textBuffer;
 		this._bufferDisposable = disposable;
+
+		// Clear line edit tracker for initial content setup
+		this._lineEditTracker.clear();
 
 		const bufferLineCount = this._buffer.getLineCount();
 		const bufferTextLength = this._buffer.getValueLengthInRange(new Range(1, 1, bufferLineCount, this._buffer.getLineLength(bufferLineCount) + 1), model.EndOfLinePreference.TextDefined);
@@ -1456,6 +1466,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean, reason: TextModelEditSource): void | model.IValidEditOperation[] {
 
+		// Convert operations to content changes format for line edit tracking
+		const lineEditChanges = rawOperations.map(op => ({
+			range: op.range,
+			rangeOffset: this.getOffsetAt(op.range.getStartPosition()),
+			rangeLength: this.getValueLengthInRange(op.range),
+			text: op.text || ''
+		}));
+
+		// Process edits and track line changes
+		const editSources = Array(rawOperations.length).fill(reason);
+		this._lineEditTracker.handleContentChanges(lineEditChanges, editSources);
+
 		const oldLineCount = this._buffer.getLineCount();
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
 		const newLineCount = this._buffer.getLineCount();
@@ -2074,6 +2096,26 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public override toString(): string {
 		return `TextModel(${this.uri.toString()})`;
 	}
+
+	//#region Line Edit Source Tracking
+
+	/**
+	 * Get the edit source for a specific line
+	 */
+	public getLineEditSource(lineNumber: number): LineEditSource {
+		this._assertNotDisposed();
+		return this._lineEditTracker.getLineEditSource(lineNumber);
+	}
+
+	/**
+	 * Get edit sources for all lines that have been edited
+	 */
+	public getAllLineEditSources(): Map<number, LineEditSource> {
+		this._assertNotDisposed();
+		return this._lineEditTracker.getAllLineEditSources();
+	}
+
+	//#endregion
 }
 
 export function indentOfLine(line: string): number {

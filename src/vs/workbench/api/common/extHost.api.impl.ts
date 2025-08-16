@@ -114,6 +114,7 @@ import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostAiSettingsSearch } from './extHostAiSettingsSearch.js';
 import { ExtHostChatSessions } from './extHostChatSessions.js';
 import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
+import { ExtHostLineEditTracker } from './extHostLineEditTracker.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -232,6 +233,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
 	const extHostChatSessions = rpcProtocol.set(ExtHostContext.ExtHostChatSessions, new ExtHostChatSessions(extHostCommands, extHostLanguageModels, rpcProtocol, extHostLogService));
+	const extHostLineEditTracker = rpcProtocol.set(ExtHostContext.ExtHostLineEditTracker, new ExtHostLineEditTracker(rpcProtocol, extHostDocumentsAndEditors));
 
 	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
 
@@ -953,6 +955,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'nativeWindowHandle');
 				return extHostWindow.nativeHandle;
 			},
+			['lineEditTracker']: (() => {
+				checkProposedApiEnabled(extension, 'lineEditTracker');
+				return extHostLineEditTracker;
+			})(),
 			createChatStatusItem: (id: string) => {
 				checkProposedApiEnabled(extension, 'chatStatusItem');
 				return extHostChatStatus.createChatStatusItem(extension, id);
@@ -1907,7 +1913,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
 			McpHttpServerDefinition: extHostTypes.McpHttpServerDefinition,
 			McpStdioServerDefinition: extHostTypes.McpStdioServerDefinition,
-			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind
+			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind,
+			LineEditSource: extHostTypes.LineEditSource
 		};
 	};
 }
