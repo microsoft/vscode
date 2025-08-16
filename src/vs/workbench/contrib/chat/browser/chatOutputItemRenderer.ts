@@ -178,9 +178,9 @@ interface IChatOutputRendererContribution {
 
 const chatOutputRenderContributionPoint = ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
 	extensionPoint: 'chatOutputRenderers',
-	activationEventsGenerator: (contributions: IChatOutputRendererContribution[], result) => {
+	activationEventsGenerator: function* (contributions: readonly IChatOutputRendererContribution[]) {
 		for (const contrib of contributions) {
-			result.push(`onChatOutputRenderer:${contrib.viewType}`);
+			yield `onChatOutputRenderer:${contrib.viewType}`;
 		}
 	},
 	jsonSchema: {
