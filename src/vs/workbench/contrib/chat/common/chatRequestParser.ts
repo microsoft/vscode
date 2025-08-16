@@ -16,7 +16,7 @@ import { IPromptsService } from './promptSyntax/service/promptsService.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /^\/([\p{L}_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
+const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
