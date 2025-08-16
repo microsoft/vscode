@@ -848,4 +848,8 @@ registerPromptFileContributions();
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerAction2(ConfigureToolSets);
 
+// Register chat session actions
+import { RenameChatSessionAction } from './actions/chatSessionActions.js';
+registerAction2(RenameChatSessionAction);
+
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

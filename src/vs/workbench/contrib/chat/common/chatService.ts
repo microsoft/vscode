@@ -645,6 +645,7 @@ export interface IChatService {
 	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
+	getPersistedSessionTitle(sessionId: string): string | undefined;
 	isPersistedSessionEmpty(sessionId: string): boolean;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModel | undefined;
 	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;
