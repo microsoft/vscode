@@ -1452,8 +1452,7 @@ export class CommandCenter {
 		return await commands.executeCommand<void>('vscode.open', HEAD, opts, title);
 	}
 
-	@command('git.openChange')
-	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	private collectResources(arg?: Resource | Uri, resourceStates: SourceControlResourceState[] = []): Resource[] | undefined {
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -1475,6 +1474,13 @@ export class CommandCenter {
 			}
 		}
 
+		return resources;
+	}
+
+	@command('git.openChange')
+	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const resources = this.collectResources(arg, resourceStates);
+
 		if (!resources) {
 			return;
 		}
@@ -1482,6 +1488,47 @@ export class CommandCenter {
 		for (const resource of resources) {
 			await resource.openChange();
 		}
+	}
+
+	@command('git.compareWithWorkspace')
+	async compareWithWorkspace(resource?: Resource): Promise<void> {
+		if (!resource) {
+			return;
+		}
+
+		const repository = this.model.getRepository(resource.resourceUri);
+
+		if (!repository) {
+			return;
+		}
+
+		if (!repository.dotGit.commonPath) {
+			await resource.openChange();
+			return;
+		}
+
+		const parentRepoRoot = path.dirname(repository.dotGit.commonPath);
+		const relPath = path.relative(repository.root, resource.resourceUri.fsPath);
+		const parentFileUri = Uri.file(path.join(parentRepoRoot, relPath));
+
+		const worktreeUri = resource.resourceUri;
+
+		const baseUri = toGitUri(parentFileUri, 'HEAD');
+
+		await commands.executeCommand('_open.mergeEditor', {
+			base: baseUri,
+			input1: {
+				uri: parentFileUri,
+				title: l10n.t('Workspace'),
+				description: path.basename(parentRepoRoot)
+			},
+			input2: {
+				uri: worktreeUri,
+				title: l10n.t('Worktree'),
+				description: path.basename(repository.root)
+			},
+			output: parentFileUri
+		});
 	}
 
 	@command('git.rename', { repository: true })
