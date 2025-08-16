@@ -388,6 +388,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
 		},
+		'search.useFileTypeFilter': {
+			type: 'boolean',
+			description: nls.localize('search.useFileTypeFilter', "Enable the file type filter dropdown in the search view. This provides quick access to filter search results by file extension (e.g., .ts, .js, .md) and supports shortcuts like ':ts' for TypeScript files."),
+			default: true
+		},
 		'search.searchView.semanticSearchBehavior': {
 			type: 'string',
 			description: nls.localize('search.searchView.semanticSearchBehavior', "Controls the behavior of the semantic search results displayed in the Search view."),
