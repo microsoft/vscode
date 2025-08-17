@@ -128,6 +128,12 @@ async function fetchAndCacheShellGlobals(
 ): Promise<ICompletionResource[] | undefined> {
 	const cacheKey = getCacheKey(machineId ?? 'no-machine-id', remoteAuthority, shellType);
 
+	// Check if there's a cached entry
+	const cached = cachedGlobals.get(cacheKey);
+	if (cached) {
+		return cached.commands;
+	}
+
 	// Check if there's already an in-flight request for this cache key
 	const existingRequest = inflightRequests.get(cacheKey);
 	if (existingRequest) {
