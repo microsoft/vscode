@@ -83,6 +83,7 @@
 
 .chat-sessions-tree .session-input-container .monaco-inputbox:focus-within {
 	--vscode-input-border: var(--vscode-focusBorder) !important;
+}
 
 /* Position session content and actions inline */
 .chat-sessions-tree .chat-session-item .session-content {
