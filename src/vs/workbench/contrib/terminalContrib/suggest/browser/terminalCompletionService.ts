@@ -396,7 +396,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: this._labelService.getUriLabel(lastWordFolderResource),
+				detail: getFriendlyPath(this._labelService, lastWordFolderResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -454,7 +454,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				try {
 					const realpath = await this._fileService.realpath(child.resource);
 					if (realpath && !isEqual(child.resource, realpath)) {
-						detail = `${this._labelService.getUriLabel(child.resource)} -> ${this._labelService.getUriLabel(realpath)}`;
+						detail = `${getFriendlyPath(this._labelService, child.resource, resourceRequestConfig.pathSeparator, kind, shellType)} -> ${getFriendlyPath(this._labelService, realpath, resourceRequestConfig.pathSeparator, kind, shellType)}`;
 					}
 				} catch (error) {
 					// Ignore errors resolving symlink targets - they may be dangling links
@@ -465,7 +465,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind,
-				detail: detail ?? this._labelService.getUriLabel(child.resource),
+				detail: detail ?? getFriendlyPath(this._labelService, child.resource, resourceRequestConfig.pathSeparator, kind, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -492,8 +492,12 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 										}
 										const useRelative = config === 'relative';
 										const kind = TerminalCompletionItemKind.Folder;
-										const label = useRelative ? basename(child.resource.fsPath) : this._labelService.getUriLabel(child.resource);
-										const detail = useRelative ? `CDPATH ${this._labelService.getUriLabel(child.resource)}` : `CDPATH`;
+										const label = useRelative
+											? basename(child.resource.fsPath)
+											: getFriendlyPath(this._labelService, child.resource, resourceRequestConfig.pathSeparator, kind, shellType);
+										const detail = useRelative
+											? `CDPATH ${getFriendlyPath(this._labelService, child.resource, resourceRequestConfig.pathSeparator, kind, shellType)}`
+											: `CDPATH`;
 										resourceCompletions.push({
 											label,
 											provider,
@@ -526,7 +530,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label,
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: this._labelService.getUriLabel(parentDir),
+				detail: getFriendlyPath(this._labelService, parentDir, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -552,7 +556,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label: '~',
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: typeof homeResource === 'string' ? homeResource : this._labelService.getUriLabel(homeResource),
+				detail: typeof homeResource === 'string' ? homeResource : getFriendlyPath(this._labelService, homeResource, resourceRequestConfig.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
 				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: lastWord.length
 			});
@@ -573,6 +577,16 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	private _getHomeDir(useWindowsStylePath: boolean, capabilities: ITerminalCapabilityStore): string | undefined {
 		return useWindowsStylePath ? this._getEnvVar('USERPROFILE', capabilities) : this._getEnvVar('HOME', capabilities);
 	}
+}
+
+function getFriendlyPath(labelService: ILabelService, uri: URI, pathSeparator: string, kind: TerminalCompletionItemKind, shellType?: TerminalShellType): string {
+	let path = labelService.getUriLabel(uri);
+	// Normalize line endings for folders
+	const sep = shellType === WindowsShellType.GitBash ? '\\' : pathSeparator;
+	if (kind === TerminalCompletionItemKind.Folder && !path.endsWith(sep)) {
+		path += sep;
+	}
+	return path;
 }
 
 /**
