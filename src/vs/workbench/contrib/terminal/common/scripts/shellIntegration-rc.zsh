@@ -82,12 +82,12 @@ if [ -z "$VSCODE_PYTHON_AUTOACTIVATE_GUARD" ]; then
 fi
 
 # Report prompt type
-if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
+if [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
+	builtin printf '\e]633;P;PromptType=p10k\a'
+elif [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )); then
 	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
 elif [ -n "$STARSHIP_SESSION_KEY" ]; then
 	builtin printf '\e]633;P;PromptType=starship\a'
-elif [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
-	builtin printf '\e]633;P;PromptType=p10k\a'
 fi
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
