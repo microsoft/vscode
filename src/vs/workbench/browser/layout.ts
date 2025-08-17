@@ -2852,7 +2852,6 @@ class LayoutStateModel extends Disposable {
 
 			// TODO@bpasero: lots of hacks here to not force open the auxiliary sidebar
 			// when no Chat view is present within:
-			// - revisit this when/if the default value of workbench.secondarySideBar.defaultVisibility changes
 			// - revisit this when Chat is available in serverless web
 			// - drop the need to probe for chat.setupContext
 			// - drop the need to probe for view location of workbench.panel.chat.view.copilot
