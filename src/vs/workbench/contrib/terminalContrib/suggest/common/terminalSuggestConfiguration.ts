@@ -74,9 +74,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
 		type: 'object',
 		properties: {},
-		default: {
-			'pwsh-shell-integration': false,
-		},
 		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
@@ -200,18 +197,9 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 
 	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
 
-	const corePwshProviderId = 'core:pwsh-shell-integration';
 	const lspProviderId = 'lsp';
 	const defaultValue: IStringDictionary<boolean> = {
-		[corePwshProviderId]: false,
 		[lspProviderId]: product.quality !== 'stable',
-	};
-	providersProperties[corePwshProviderId] ??= {
-		type: 'boolean',
-		description: localize('suggest.provider.pwsh.description', "Enable or disable the PowerShell script-based provider. This enables PowerShell-specific argument completion."),
-		deprecated: true,
-		deprecationMessage: localize('suggest.provider.pwsh.deprecation', "This is deprecated as it has performance problems, the upcoming LSP provider will supersede this."),
-		default: false
 	};
 	providersProperties[lspProviderId] ??= {
 		type: 'boolean',
