@@ -61,6 +61,11 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	private readonly commandManager: CommandManager;
 
+	private readonly onCaseInsensitiveFileSystem: boolean;
+	private _lastCaseOnlyReloadTs = 0;
+	private _caseOnlyReloadsInWindow = 0;
+	private _lastCaseOnlyRestartTs = 0;
+
 	constructor(
 		descriptions: LanguageDescription[],
 		context: vscode.ExtensionContext,
@@ -82,6 +87,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		super();
 
 		this.commandManager = services.commandManager;
+		this.onCaseInsensitiveFileSystem = onCaseInsensitiveFileSystem;
 
 		const allModeIds = this.getAllModeIds(descriptions, services.pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
@@ -247,6 +253,36 @@ export default class TypeScriptServiceClientHost extends Disposable {
 				this.createMarkerDatas(diagnostics, language.diagnosticSource),
 				spans?.map(span => typeConverters.Range.fromTextSpan(span)));
 		}
+
+		if (this.onCaseInsensitiveFileSystem && this.containsCaseOnlyCasingDiagnostic(diagnostics)) {
+			const now = Date.now();
+			if (now - this._lastCaseOnlyReloadTs > 2000) {
+				this._lastCaseOnlyReloadTs = now;
+				this._caseOnlyReloadsInWindow = 1;
+				this.reloadProjects();
+			} else {
+				this._caseOnlyReloadsInWindow++;
+				if (this._caseOnlyReloadsInWindow >= 2 && (now - this._lastCaseOnlyRestartTs) > 15000) {
+					this._lastCaseOnlyRestartTs = now;
+					this.client.restartTsServer();
+					this._caseOnlyReloadsInWindow = 0;
+				}
+			}
+		}
+	}
+
+	private containsCaseOnlyCasingDiagnostic(diags: readonly Proto.Diagnostic[]): boolean {
+		for (const d of diags) {
+			const code = typeof d.code === 'number' ? d.code : undefined;
+			if (code === 1261 || code === 1149) {
+				return true;
+			}
+			const text = d.text?.toLowerCase() || '';
+			if (text.includes('differs') && text.includes('only in casing')) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
