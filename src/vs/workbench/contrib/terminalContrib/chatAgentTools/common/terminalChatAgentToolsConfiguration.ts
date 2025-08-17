@@ -7,9 +7,11 @@ import type { IStringDictionary } from '../../../../../base/common/collections.j
 import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalChatAgentToolsSettingId {
 	AutoApprove = 'chat.tools.terminal.autoApprove',
+	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
@@ -20,6 +22,7 @@ export const enum TerminalChatAgentToolsSettingId {
 
 export interface ITerminalChatAgentToolsConfiguration {
 	autoApprove: { [key: string]: boolean };
+	shellIntegrationTimeout: number;
 }
 
 const autoApproveBoolean: IJSONSchema = {
@@ -278,9 +281,25 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			eval: false,
 			'Invoke-Expression': false,
 			iex: false,
-
 			// #endregion
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
+	},
+	[TerminalChatAgentToolsSettingId.ShellIntegrationTimeout]: {
+		markdownDescription: localize('shellIntegrationTimeout.description', "Configures the duration in milliseconds to wait for shell integration to be detected when the run in terminal tool launches a new terminal. Set to `0` to wait the minimum time, the default value `-1` means the wait time is variable based on the value of {0} and whether it's a remote window. A large value can be useful if your shell starts very slowly and a low value if you're intentionally not using shell integration.", `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
+		type: 'object',
+		default: -1,
+		additionalProperties: {
+			anyOf: [
+				{
+					type: 'integer',
+					minimum: -1,
+					maximum: 60000,
+				},
+				{
+					type: 'null'
+				}
+			]
+		}
 	}
 };
 
