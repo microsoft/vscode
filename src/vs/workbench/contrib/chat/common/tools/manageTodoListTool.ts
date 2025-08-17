@@ -125,7 +125,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		try {
 
 			// In write-only mode, we always perform a write operation
-			if (this.writeOnly) {
+			if (this.writeOnly && !args.chatSessionId) {
 				if (!args.todoList) {
 					return {
 						content: [{
@@ -236,7 +236,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		let message: string | undefined;
 
 		// In write-only mode, we always treat it as a write operation
-		if (this.writeOnly) {
+		if (this.writeOnly && !args.chatSessionId) {
 			if (args.todoList) {
 				message = this.generatePastTenseMessage(currentTodoItems, args.todoList);
 			}
@@ -327,7 +327,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		}
 
 		const markdownTaskList = this.formatTodoListAsMarkdownTaskList(todoItems);
-		return `# Task List\n\n${markdownTaskList}`;
+		return `# Todo List\n\n${markdownTaskList}`;
 	}
 
 	private formatTodoListAsMarkdownTaskList(todoList: IChatTodo[]): string {
