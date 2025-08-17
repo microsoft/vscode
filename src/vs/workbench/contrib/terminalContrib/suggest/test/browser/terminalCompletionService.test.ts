@@ -22,7 +22,7 @@ import { ITerminalLogService, WindowsShellType } from '../../../../../../platfor
 import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TerminalSuggestSettingId } from '../../common/terminalSuggestConfiguration.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestPathService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -106,7 +106,9 @@ suite('TerminalCompletionService', () => {
 	const provider = 'testProvider';
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService({}, store);
+		instantiationService = workbenchInstantiationService({
+			pathService: () => new TestPathService(URI.file(homeDir ?? '/')),
+		}, store);
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
