@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import { $, append, clearNode, getActiveWindow } from '../../../../base/browser/dom.js';
+import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
@@ -511,6 +511,13 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 					viewDescriptorsToRegister.push(viewDescriptor);
 					this.registeredViewDescriptors.set(provider.chatSessionType, viewDescriptor);
+
+					if (provider.chatSessionType === 'local') {
+						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
+							content: nls.localize('chatSessions.noResults', "No local chat sessions"),
+						}));
+					}
 				}
 			});
 
@@ -937,6 +944,7 @@ class SessionsViewPane extends ViewPane {
 	private dataSource?: SessionsDataSource;
 	private labels?: ResourceLabels;
 	private messageElement?: HTMLElement;
+	private _isEmpty: boolean = true;
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
@@ -967,6 +975,10 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
+	override shouldShowWelcome(): boolean {
+		return this._isEmpty;
+	}
+
 	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
 		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
 	}
@@ -977,59 +989,27 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
-	private showEmptyMessage(): void {
-		if (!this.messageElement) {
-			return;
+	private isEmpty() {
+		// Check if the tree has the provider node and get its children count
+		if (!this.tree?.hasNode(this.provider)) {
+			return true;
 		}
+		const providerNode = this.tree.getNode(this.provider);
+		const childCount = providerNode.children?.length || 0;
 
-		const messageText = this.provider.chatSessionType === 'local'
-			? nls.localize('chatSessions.noChatSessions', "No chat sessions")
-			: nls.localize('chatSessions.noAgentSessions', "No agent sessions found");
-
-		// Clear the message element using DOM utility
-		clearNode(this.messageElement);
-
-		const messageContainer = append(this.messageElement, $('.no-sessions-message'));
-
-		const textElement = append(messageContainer, $('span'));
-		textElement.textContent = messageText;
-
-		// Show the message element
-		this.messageElement.style.display = 'block';
-
-		// Hide the tree
-		if (this.treeContainer) {
-			this.treeContainer.style.display = 'none';
-		}
-	}
-
-	private hideMessage(): void {
-		if (this.messageElement) {
-			this.messageElement.style.display = 'none';
-		}
-
-		// Show the tree
-		if (this.treeContainer) {
-			this.treeContainer.style.display = 'block';
-		}
+		return childCount === 0;
 	}
 
 	/**
 	 * Updates the empty state message based on current tree data.
 	 * Uses the tree's existing data to avoid redundant provider calls.
 	 */
-	private updateEmptyStateMessage(): void {
+	private updateEmptyState(): void {
 		try {
-			// Check if the tree has the provider node and get its children count
-			if (this.tree?.hasNode(this.provider)) {
-				const providerNode = this.tree.getNode(this.provider);
-				const childCount = providerNode.children?.length || 0;
-
-				if (childCount === 0) {
-					this.showEmptyMessage();
-				} else {
-					this.hideMessage();
-				}
+			const newEmptyState = this.isEmpty();
+			if (newEmptyState !== this._isEmpty) {
+				this._isEmpty = newEmptyState;
+				this._onDidChangeViewWelcomeState.fire();
 			}
 		} catch (error) {
 			this.logService.error('Error checking tree data for empty state:', error);
@@ -1057,7 +1037,7 @@ class SessionsViewPane extends ViewPane {
 			);
 
 			// Check for empty state after refresh using tree data
-			this.updateEmptyStateMessage();
+			this.updateEmptyState();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error refreshing chat sessions tree:', error);
@@ -1085,7 +1065,7 @@ class SessionsViewPane extends ViewPane {
 			);
 
 			// Check for empty state after loading using tree data
-			this.updateEmptyStateMessage();
+			this.updateEmptyState();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error loading chat sessions data:', error);
