@@ -20,7 +20,7 @@ import * as nls from '../../../../nls.js';
 
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Markers } from '../../markers/common/markers.js';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from '../common/problemMatcher.js';
@@ -240,6 +240,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	public reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult {
 		this._reconnectToTerminals();
 		return this.run(task, resolver, Triggers.reconnect);
+	}
+
+	public getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined {
+		return this._terminalStatusManager.getTaskProblems(instanceId);
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {

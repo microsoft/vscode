@@ -14,9 +14,11 @@ import { ToolProgress } from '../../../chat/common/languageModelToolsService.js'
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { IExecution, IPollingResult } from './bufferOutputPollingTypes.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
+import { IExecution, IPollingResult, PollingConsts } from './bufferOutputPollingTypes.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { OutputMonitor } from './outputMonitor.js';
+import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
+import { detectConfirmationPromptWithLLM, handleConfirmationPrompt } from './tools/pollingUtils.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -177,54 +179,43 @@ export async function collectTerminalResults(
 }
 
 export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService): Promise<IPollingResult | boolean | undefined> {
-	// let resources: ILinkLocation[] | undefined;
-	// if (execution.task) {
-	// const data = taskService.getTaskData(execution.terminal.instanceId);
-	// 	if (data) {
-	// 		// Problem matchers exist for this task
-	// 		const problemList: string[] = [];
-	// 		// [resource] -> [markerkey] -> markerData
-	// 		for (const value of data.problemMatcher.markers.values()) {
-	// 			const map: Map<string, Map<string, IMarkerData>> = value;
-	// 			resources = [];
-	// 			if (map.size) {
-	// 				for (const [resource, markerData] of map.entries()) {
-	// 					const uri = resource ? URI.parse(resource) : undefined;
-	// 					if (!uri) {
-	// 						continue;
-	// 					}
-	// 					const markerDataValue: IMarkerData[] = Array.from(markerData.values());
-	// 					for (const marker of markerDataValue) {
-	// 						resources.push({
-	// 							uri,
-	// 							range: marker.startLineNumber !== undefined && marker.startColumn !== undefined && marker.endLineNumber !== undefined && marker.endColumn !== undefined
-	// 								? new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)
-	// 								: undefined
-	// 						});
-	// 						const label: string = resource ? (typeof resource === 'string' ? resource.split('/').pop() ?? resource.toString() : '') : '';
-	// 						const message = marker.message ?? '';
-	// 						problemList.push(`Problem: ${message} in ${label}`);
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 		if (problemList.length === 0) {
-	// 			return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
-	// 		}
-	// 		return {
-	// 			terminalExecutionIdleBeforeTimeout,
-	// 			output: problemList.join('\n'),
-	// 			resources,
-	// 			pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
-	// 		};
-	// 	}
-	// }
-	// const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
-	// const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService);
-	// if (handled) {
-	// 	return true;
-	// }
-	// return false;
+	if (execution.task) {
+		const data: Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined = taskService.getTaskProblems(execution.terminal.instanceId);
+		if (data) {
+			// Problem matchers exist for this task
+			const problemList: string[] = [];
+			const resultResources: ILinkLocation[] = [];
+			for (const [owner, { resources, markers }] of data.entries()) {
+				for (let i = 0; i < markers.length; i++) {
+					const uri: URI | undefined = resources[i];
+					const marker = markers[i];
+					resultResources.push({
+						uri,
+						range: marker.startLineNumber !== undefined && marker.startColumn !== undefined && marker.endLineNumber !== undefined && marker.endColumn !== undefined
+							? new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)
+							: undefined
+					});
+					const label: string = uri ? uri.path.split('/').pop() ?? uri.toString() : '';
+					const message = marker.message ?? '';
+					problemList.push(`Problem: ${message} in ${label} coming from ${owner}`);
+				}
+			}
+			if (problemList.length === 0) {
+				return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+			}
+			return {
+				terminalExecutionIdleBeforeTimeout,
+				output: problemList.join('\n'),
+				resources: resultResources,
+				pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
+			};
+		}
+	}
+	const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
+	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService);
+	if (handled) {
+		return true;
+	}
 	return false;
 }
 
