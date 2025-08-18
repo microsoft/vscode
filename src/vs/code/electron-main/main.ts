@@ -117,15 +117,9 @@ class CodeMain {
 
 			// Handle dump-configuration flag
 			if (environmentMainService.args['dump-configuration']) {
-				// Wait for the Ready phase to ensure all configuration sources are loaded
-				await instantiationService.invokeFunction(async accessor => {
-					const lifecycleMainService = accessor.get(ILifecycleMainService);
-					await lifecycleMainService.when(LifecycleMainPhase.Ready);
-					
-					const configurationData = configurationService.getConfigurationData();
-					console.log(JSON.stringify(configurationData, null, 2));
-					app.exit(0);
-				});
+				const configurationData = configurationService.getConfigurationData();
+				console.log(JSON.stringify(configurationData, null, 2));
+				app.exit(0);
 				return;
 			}
 
