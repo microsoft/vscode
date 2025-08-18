@@ -20,13 +20,13 @@ steps:
 
   - template: ../cli/cli-apply-patches.yml@self
 
-    - script: |
-        set -e
-        npm ci
-      workingDirectory: build
-      env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Install build dependencies
+  - script: |
+      set -e
+      npm ci
+    workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Install build dependencies
 
   - task: Npm@1
     displayName: Download openssl prebuilt
