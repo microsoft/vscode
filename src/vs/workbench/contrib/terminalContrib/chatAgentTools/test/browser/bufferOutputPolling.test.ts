@@ -11,11 +11,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 // eslint-disable-next-line local/code-amd-node-module
 import { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { TestMarkerService } from '../../../../../test/common/workbenchTestServices.js';
-import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { PollingConsts } from '../../browser/bufferOutputPollingTypes.js';
-import { pollForOutputAndIdle } from '../../browser/tools/pollingUtils.js';
-import { taskProblemPollFn } from '../../browser/taskHelpers.js';
 
 suite('racePollingOrPrompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
