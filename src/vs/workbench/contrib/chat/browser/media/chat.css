@@ -203,10 +203,14 @@
 	height: 22px;
 }
 
-/* Show toolbar on hover and last response */
+/* Show toolbar on hover and last response. Also show when the item has keyboard focus (focus-within) or when the surrounding list row is marked focused (monaco list keyboard navigation). */
 .interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar,
 .interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar,
-.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details {
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details,
+.interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar .chat-footer-details,
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
 	visibility: visible;
 }
