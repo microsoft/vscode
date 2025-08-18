@@ -115,16 +115,18 @@ class CodeMain {
 				throw error;
 			}
 
-			// Handle dump-configuration flag
-			if (environmentMainService.args['dump-configuration']) {
-				const configurationData = configurationService.getConfigurationData();
-				console.log(JSON.stringify(configurationData, null, 2));
-				app.exit(0);
-				return;
-			}
-
 			// Startup
 			await instantiationService.invokeFunction(async accessor => {
+				// Handle dump-configuration flag after services are ready
+				if (environmentMainService.args['dump-configuration']) {
+					// Wait a moment for any async configuration loading to complete
+					await new Promise(resolve => setTimeout(resolve, 100));
+					const configurationData = configurationService.getConfigurationData();
+					console.log(JSON.stringify(configurationData, null, 2));
+					app.exit(0);
+					return;
+				}
+
 				const logService = accessor.get(ILogService);
 				const lifecycleMainService = accessor.get(ILifecycleMainService);
 				const fileService = accessor.get(IFileService);
