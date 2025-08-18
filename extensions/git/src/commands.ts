@@ -3505,7 +3505,7 @@ export class CommandCenter {
 					return;
 				}
 				if (choice.refRemote) {
-					branch = choice.refName.replace(/^origin\//, '');
+					branch = choice.refName.replace(`${choice.refRemote}/`, '');
 				}
 				commitish = choice.refName;
 			}
