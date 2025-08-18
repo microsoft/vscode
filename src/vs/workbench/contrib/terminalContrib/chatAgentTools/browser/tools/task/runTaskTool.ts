@@ -16,7 +16,6 @@ import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDepen
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
 import { toolResultDetailsFromResponse } from './taskUtils.js';
 
 type RunTaskToolClassification = {
@@ -45,8 +44,7 @@ export class RunTaskTool implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatService private readonly _chatService: IChatService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IMarkerService private readonly _markerService: IMarkerService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -84,7 +82,7 @@ export class RunTaskTool implements IToolImpl {
 			terminals,
 			task,
 			this._languageModelsService,
-			this._markerService,
+			this._tasksService,
 			this._chatService,
 			invocation.context!,
 			_progress,

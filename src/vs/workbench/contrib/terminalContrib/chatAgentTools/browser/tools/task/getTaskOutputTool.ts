@@ -8,7 +8,6 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
 import { IChatService } from '../../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
@@ -54,8 +53,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IChatService private readonly _chatService: IChatService,
-		@IMarkerService private readonly _markerService: IMarkerService
+		@IChatService private readonly _chatService: IChatService
 	) {
 		super();
 	}
@@ -98,7 +96,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			terminals,
 			task,
 			this._languageModelsService,
-			this._markerService,
+			this._tasksService,
 			this._chatService,
 			invocation.context!,
 			_progress,

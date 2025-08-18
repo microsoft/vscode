@@ -17,7 +17,6 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { toolResultDetailsFromResponse } from './taskUtils.js';
 
@@ -57,7 +56,6 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		@IChatService private readonly _chatService: IChatService,
 		@IFileService private readonly _fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IMarkerService private readonly _markerService: IMarkerService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -125,7 +123,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			terminals,
 			task,
 			this._languageModelsService,
-			this._markerService,
+			this._tasksService,
 			this._chatService,
 			invocation.context!,
 			_progress,

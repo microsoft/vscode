@@ -5,18 +5,18 @@
 
 import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { ChatMessageRole, ILanguageModelChatResponse, ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, PollingConsts } from '../bufferOutputPollingTypes.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { ITaskService } from '../../../../tasks/common/taskService.js';
 
 export async function pollForOutputAndIdle(
 	execution: IExecution,
 	extendedPolling: boolean,
 	token: CancellationToken,
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
-	markerService: Pick<IMarkerService, 'read'>,
-	pollFn?: (execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, markerService: Pick<IMarkerService, 'read'>) => Promise<IPollingResult | undefined>
+	taskService: ITaskService,
+	pollFn?: (execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService) => Promise<IPollingResult | boolean | undefined> | undefined
 ): Promise<IPollingResult> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
@@ -70,17 +70,28 @@ export async function pollForOutputAndIdle(
 		}
 		terminalExecutionIdleBeforeTimeout = true;
 		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
-		const handled = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, markerService);
-		if (handled) {
-			return handled;
+		const terminalReceivedInputResult = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, taskService);
+		if (terminalReceivedInputResult) {
+			if (typeof terminalReceivedInputResult === 'boolean' && terminalReceivedInputResult) {
+				// input was sent to the terminal, poll more
+				pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn);
+			} else {
+				// problems were discovered, return the result
+				return terminalReceivedInputResult;
+			}
 		}
 		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
 
 	const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
-	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService);
+	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService);
 	if (handled) {
-		return handled;
+		if (typeof handled === 'boolean' && handled) {
+			// Something was sent to the terminal, poll again
+			return pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn);
+		} else {
+			return handled;
+		}
 	}
 	return { terminalExecutionIdleBeforeTimeout: false, output: execution.getOutput(), pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
@@ -90,8 +101,7 @@ export async function handleConfirmationPrompt(
 	execution: IExecution,
 	token: CancellationToken,
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
-	markerService: Pick<IMarkerService, 'read'>,
-): Promise<IPollingResult | undefined> {
+): Promise<boolean> {
 	if (confirmationPrompt && confirmationPrompt.options.length > 0) {
 		const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot' });
 		if (models.length > 0) {
@@ -108,12 +118,12 @@ export async function handleConfirmationPrompt(
 				const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
 				if (selectedOption && validOption) {
 					await execution.terminal.sendText(validOption, true);
-					return pollForOutputAndIdle(execution, true, token, languageModelsService, markerService);
+					return true;
 				}
 			}
 		}
 	}
-	return undefined;
+	return false;
 }
 
 export async function detectConfirmationPromptWithLLM(execution: IExecution, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<IConfirmationPrompt | undefined> {

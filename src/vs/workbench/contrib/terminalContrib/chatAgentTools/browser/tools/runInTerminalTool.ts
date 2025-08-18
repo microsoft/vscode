@@ -44,6 +44,8 @@ import { basename } from '../../../../../../base/common/path.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { ITaskService } from '../../../../tasks/common/taskService.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -167,6 +169,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@ITaskService private readonly _taskService: ITaskService
 	) {
 		super();
 
@@ -442,7 +446,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution);
+				outputMonitor = new OutputMonitor(execution, this._languageModelsService, this._taskService, undefined);
 				store.add(outputMonitor);
 
 				outputAndIdle = await outputMonitor.startMonitoring(this._chatService, command, invocation.context!, token);

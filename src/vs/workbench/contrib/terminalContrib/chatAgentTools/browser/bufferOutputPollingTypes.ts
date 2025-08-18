@@ -19,7 +19,7 @@ export interface IExecution {
 	beginsPattern?: string;
 	endsPattern?: string;
 	dependencyTasks?: Task[];
-	terminal: Pick<ITerminalInstance, 'sendText'>;
+	terminal: Pick<ITerminalInstance, 'sendText' | 'instanceId'>;
 }
 
 export interface IPollingResult {

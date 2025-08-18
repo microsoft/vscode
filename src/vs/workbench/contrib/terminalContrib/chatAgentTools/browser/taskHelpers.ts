@@ -8,17 +8,14 @@ import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ToolProgress } from '../../../chat/common/languageModelToolsService.js';
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { IExecution, IPollingResult, PollingConsts } from './bufferOutputPollingTypes.js';
-import { detectConfirmationPromptWithLLM, handleConfirmationPrompt } from './tools/pollingUtils.js';
-import { getProblemsForTasks } from './tools/task/taskUtils.js';
-import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { IExecution, IPollingResult } from './bufferOutputPollingTypes.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { OutputMonitor } from './outputMonitor.js';
 
 export function getTaskDefinition(id: string) {
@@ -145,7 +142,7 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, markerService: IMarkerService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }>> {
+	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, taskService: ITaskService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }>> {
 	const results: Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }> = [];
 	for (const terminal of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
@@ -159,7 +156,8 @@ export async function collectTerminalResults(
 		const outputMonitor = new OutputMonitor(
 			execution,
 			languageModelsService,
-			markerService
+			taskService,
+			taskProblemPollFn
 		);
 		const outputAndIdle = await outputMonitor.startMonitoring(
 			chatService,
@@ -178,46 +176,56 @@ export async function collectTerminalResults(
 	return results;
 }
 
-
-export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, markerService: Pick<IMarkerService, 'read'>): Promise<IPollingResult | undefined> {
-	let resources: ILinkLocation[] | undefined;
-	if (execution.task) {
-		const problems = getProblemsForTasks(execution.task, markerService, execution.dependencyTasks);
-		if (problems) {
-			// Problem matchers exist for this task
-			const problemList: string[] = [];
-			for (const [, problemArray] of problems.entries()) {
-				resources = [];
-				if (problemArray.length) {
-					for (const p of problemArray) {
-						resources.push({
-							uri: p.resource,
-							range: p.startLineNumber !== undefined && p.startColumn !== undefined && p.endLineNumber !== undefined && p.endColumn !== undefined
-								? new Range(p.startLineNumber, p.startColumn, p.endLineNumber, p.endColumn)
-								: undefined
-						});
-						const label = p.resource ? p.resource.path.split('/').pop() ?? p.resource.toString() : '';
-						problemList.push(`Problem: ${p.message} in ${label}`);
-					}
-				}
-			}
-			if (problemList.length === 0) {
-				return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
-			}
-			return {
-				terminalExecutionIdleBeforeTimeout,
-				output: problemList.join('\n'),
-				resources,
-				pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
-			};
-		}
-	}
-	const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
-	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService);
-	if (handled) {
-		return handled;
-	}
-	return undefined;
+export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService): Promise<IPollingResult | boolean | undefined> {
+	// let resources: ILinkLocation[] | undefined;
+	// if (execution.task) {
+	// const data = taskService.getTaskData(execution.terminal.instanceId);
+	// 	if (data) {
+	// 		// Problem matchers exist for this task
+	// 		const problemList: string[] = [];
+	// 		// [resource] -> [markerkey] -> markerData
+	// 		for (const value of data.problemMatcher.markers.values()) {
+	// 			const map: Map<string, Map<string, IMarkerData>> = value;
+	// 			resources = [];
+	// 			if (map.size) {
+	// 				for (const [resource, markerData] of map.entries()) {
+	// 					const uri = resource ? URI.parse(resource) : undefined;
+	// 					if (!uri) {
+	// 						continue;
+	// 					}
+	// 					const markerDataValue: IMarkerData[] = Array.from(markerData.values());
+	// 					for (const marker of markerDataValue) {
+	// 						resources.push({
+	// 							uri,
+	// 							range: marker.startLineNumber !== undefined && marker.startColumn !== undefined && marker.endLineNumber !== undefined && marker.endColumn !== undefined
+	// 								? new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)
+	// 								: undefined
+	// 						});
+	// 						const label: string = resource ? (typeof resource === 'string' ? resource.split('/').pop() ?? resource.toString() : '') : '';
+	// 						const message = marker.message ?? '';
+	// 						problemList.push(`Problem: ${message} in ${label}`);
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 		if (problemList.length === 0) {
+	// 			return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+	// 		}
+	// 		return {
+	// 			terminalExecutionIdleBeforeTimeout,
+	// 			output: problemList.join('\n'),
+	// 			resources,
+	// 			pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
+	// 		};
+	// 	}
+	// }
+	// const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
+	// const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService);
+	// if (handled) {
+	// 	return true;
+	// }
+	// return false;
+	return false;
 }
 
 
