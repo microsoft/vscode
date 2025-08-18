@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createConnection } from '@playwright/mcp';
-import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger } from '../../automation';
+import { getDevElectronPath, Quality, FileLogger, Logger, MultiLogger } from '../../automation';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as os from 'os';
 import { createApp, parseVersion } from './utils';
 import * as minimist from 'minimist';
+import { McpLogger } from './mcpLogger';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -95,14 +96,12 @@ const crashesRootPath = (() => {
 })();
 
 const logger = createLogger();
+const mcpLogger = new McpLogger();
 
 function createLogger(): Logger {
 	const loggers: Logger[] = [];
 
-	// Log to console if verbose
-	if (opts.verbose) {
-		loggers.push(new ConsoleLogger());
-	}
+	loggers.push(mcpLogger);
 
 	// Prepare logs rot path
 	fs.rmSync(logsRootPath, { recursive: true, force: true, maxRetries: 3 });
@@ -138,9 +137,9 @@ export async function getServer() {
 	process.env.VSCODE_REPOSITORY = rootPath;
 	process.env.VSCODE_DEV = '1';
 	process.env.VSCODE_CLI = '1';
+	delete process.env.ELECTRON_RUN_AS_NODE;
 	const quality = Quality.Dev;
 	const userDataDir = path.join(testDataPath, 'd');
-
 	await setupRepository();
 	const application = createApp({
 		quality,
@@ -162,6 +161,7 @@ export async function getServer() {
 	}, opts => ({ ...opts, userDataDir: path.join(opts.userDataDir, 'ø') }));
 	await application.start();
 	const connection = await createConnection(undefined, () => Promise.resolve(application.code.driver.browserContext));
+	mcpLogger.server = connection;
 	application.code.driver.browserContext.on('close', () => {
 		connection.close();
 	});

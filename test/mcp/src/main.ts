@@ -62,12 +62,7 @@ const mcpPostHandler = async (req: Request, res: Response) => {
 				}
 			};
 
-			// Connect the transport to the MCP server BEFORE handling the request
-			// so responses can flow back through the same transport
-			// NOTE: the shape of this is very similar to a Server but not quite
-			// I think it's because it's electron while playwright expects browser.
-			// TODO: Fix that.
-			const server = await getServer() as any;
+			const server = await getServer();
 			server.onclose = () => {
 				const sid = transport.sessionId;
 				if (sid && transports[sid]) {
