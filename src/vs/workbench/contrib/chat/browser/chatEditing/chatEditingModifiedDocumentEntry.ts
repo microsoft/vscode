@@ -204,8 +204,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				this._rewriteRatioObs.set(1, tx);
 			}
 		});
-
-		if (isLastEdits && !this.editsRequireManualApproval.get()) {
+		if (isLastEdits) {
 			await this._textFileService.save(this.modifiedModel.uri, {
 				reason: SaveReason.AUTO,
 				skipSaveParticipants: true,

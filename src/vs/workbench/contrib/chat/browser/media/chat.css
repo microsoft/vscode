@@ -724,13 +724,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inherit;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-approval-notice {
-	font-size: 12px;
-	padding: 4px 8px;
-	color: var(--vscode-list-warningForeground);
-	text-align: center;
-}
-
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
 	border-radius: 2px;
 }
@@ -1759,10 +1752,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-icon-label {
 		padding: 0px 3px;
-	}
-
-	.monaco-icon-label.codicon-warning::before {
-		color: var(--vscode-list-warningForeground);
 	}
 
 	.monaco-icon-label.excluded {
