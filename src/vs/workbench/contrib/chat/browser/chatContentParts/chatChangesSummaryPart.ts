@@ -30,6 +30,7 @@ import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffS
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { localize2 } from '../../../../../nls.js';
 
 export class ChatCheckpointFileChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -133,9 +134,10 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	private renderViewAllFileChangesButton(container: HTMLElement): IDisposable {
 		const button = container.appendChild($('.chat-view-changes-icon'));
 		this.hoverService.setupDelayedHover(button, () => ({
-			content: `View All File Changes`
+			content: localize2('chat.viewFileChangesSummary', 'View All File Changes')
 		}));
 		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
+		button.setAttribute('role', 'button');
 		button.tabIndex = 0;
 
 		return dom.addDisposableListener(button, 'click', (e) => {
