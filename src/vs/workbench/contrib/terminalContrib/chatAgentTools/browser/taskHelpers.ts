@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { IChatService } from '../../../chat/common/chatService.js';
@@ -17,7 +16,10 @@ import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/ta
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
-import { pollForOutputAndIdle } from './tools/pollingUtils.js';
+import { IExecution, IPollingResult, PollingConsts } from './bufferOutputPollingTypes.js';
+import { detectConfirmationPromptWithLLM, handleConfirmationPrompt, pollForOutputAndIdle } from './tools/pollingUtils.js';
+import { getProblemsForTasks } from './tools/task/taskUtils.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -147,10 +149,10 @@ export async function collectTerminalResults(
 	const results: Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }> = [];
 	for (const terminal of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, false, token, languageModelsService, markerService);
+		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, false, token, languageModelsService, markerService, taskProblemPollFn);
 		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
 			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, true, token, languageModelsService, markerService),
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, true, token, languageModelsService, markerService, taskProblemPollFn),
 				() => promptForMorePolling(task._label, token, invocationContext, chatService),
 				outputAndIdle,
 				token,
@@ -170,4 +172,47 @@ export async function collectTerminalResults(
 	return results;
 }
 
-export interface ILinkLocation { uri: URI; range?: Range }
+
+export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, markerService: Pick<IMarkerService, 'read'>): Promise<IPollingResult | undefined> {
+	let resources: ILinkLocation[] | undefined;
+	if (execution.task) {
+		const problems = getProblemsForTasks(execution.task, markerService, execution.dependencyTasks);
+		if (problems) {
+			// Problem matchers exist for this task
+			const problemList: string[] = [];
+			for (const [, problemArray] of problems.entries()) {
+				resources = [];
+				if (problemArray.length) {
+					for (const p of problemArray) {
+						resources.push({
+							uri: p.resource,
+							range: p.startLineNumber !== undefined && p.startColumn !== undefined && p.endLineNumber !== undefined && p.endColumn !== undefined
+								? new Range(p.startLineNumber, p.startColumn, p.endLineNumber, p.endColumn)
+								: undefined
+						});
+						const label = p.resource ? p.resource.path.split('/').pop() ?? p.resource.toString() : '';
+						problemList.push(`Problem: ${p.message} in ${label}`);
+					}
+				}
+			}
+			if (problemList.length === 0) {
+				return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+			}
+			return {
+				terminalExecutionIdleBeforeTimeout,
+				output: problemList.join('\n'),
+				resources,
+				pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
+			};
+		}
+	}
+	const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
+	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService);
+	if (handled) {
+		return handled;
+	}
+	return undefined;
+}
+
+
+export interface ILinkLocation { uri: URI; range?: IRange }

@@ -9,9 +9,6 @@ import { IMarkerService } from '../../../../../../platform/markers/common/marker
 import { ChatMessageRole, ILanguageModelChatResponse, ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { ProblemMatcher } from '../../../../tasks/common/problemMatcher.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, PollingConsts } from '../bufferOutputPollingTypes.js';
-import { ILinkLocation } from '../taskHelpers.js';
-import { getProblemsForTasks } from './task/taskUtils.js';
-import { Range } from '../../../../../../editor/common/core/range.js';
 import { assessOutputForErrors } from '../assessOutputForErrors.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 
@@ -21,7 +18,7 @@ export async function pollForOutputAndIdle(
 	token: CancellationToken,
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 	markerService: Pick<IMarkerService, 'read'>,
-	knownMatchers?: ProblemMatcher[]
+	pollFn?: (execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, markerService: Pick<IMarkerService, 'read'>) => Promise<IPollingResult | undefined>
 ): Promise<IPollingResult> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
@@ -74,41 +71,8 @@ export async function pollForOutputAndIdle(
 			}
 		}
 		terminalExecutionIdleBeforeTimeout = true;
-		let resources: ILinkLocation[] | undefined;
-		if (execution.task) {
-			const problems = getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
-			if (problems) {
-				// Problem matchers exist for this task
-				const problemList: string[] = [];
-				for (const [, problemArray] of problems.entries()) {
-					resources = [];
-					if (problemArray.length) {
-						for (const p of problemArray) {
-							resources.push({
-								uri: p.resource,
-								range: p.startLineNumber !== undefined && p.startColumn !== undefined && p.endLineNumber !== undefined && p.endColumn !== undefined
-									? new Range(p.startLineNumber, p.startColumn, p.endLineNumber, p.endColumn)
-									: undefined
-							});
-							const label = p.resource ? p.resource.path.split('/').pop() ?? p.resource.toString() : '';
-							problemList.push(`Problem: ${p.message} in ${label}`);
-						}
-					}
-				}
-				if (problemList.length === 0) {
-					return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
-				}
-				return {
-					terminalExecutionIdleBeforeTimeout,
-					output: problemList.join('\n'),
-					resources,
-					pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
-				};
-			}
-		}
 		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
-		const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
-		const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService, knownMatchers);
+		const handled = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, markerService);
 		if (handled) {
 			return handled;
 		}
@@ -116,7 +80,7 @@ export async function pollForOutputAndIdle(
 	}
 
 	const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
-	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService, knownMatchers);
+	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService, markerService);
 	if (handled) {
 		return handled;
 	}
@@ -147,7 +111,7 @@ export async function handleConfirmationPrompt(
 				const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
 				if (selectedOption && validOption) {
 					await execution.terminal.sendText(validOption, true);
-					return pollForOutputAndIdle(execution, true, token, languageModelsService, markerService, knownMatchers);
+					return pollForOutputAndIdle(execution, true, token, languageModelsService, markerService);
 				}
 			}
 		}

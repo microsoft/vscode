@@ -13,9 +13,9 @@ import { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { TestMarkerService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ApplyToKind, FileLocationKind } from '../../../../tasks/common/problemMatcher.js';
 import { PollingConsts } from '../../browser/bufferOutputPollingTypes.js';
 import { pollForOutputAndIdle } from '../../browser/tools/pollingUtils.js';
+import { taskProblemPollFn } from '../../browser/taskHelpers.js';
 
 suite('racePollingOrPrompt', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -140,42 +140,5 @@ suite('racePollingOrPrompt', () => {
 		const result = await racePollingOrPrompt(args.pollFn, args.promptFn, args.originalResult, args.token, args.languageModelsService, args.markerService, args.execution);
 		assert.ok(pollCalled);
 		assert.deepEqual(result, await args.pollFn());
-	});
-
-	suite('pollForOutputAndIdle with task', () => {
-		test('should return problems for a given task', async () => {
-			const fakeTask = {
-				configurationProperties: {
-					problemMatchers: ['terminal-output']
-				}
-			};
-			const fakeMarkerService = {
-				changeOne: () => { },
-				remove: () => { },
-				read: ({ owner }: { owner: string }) => owner === 'terminal-output' ? [{ message: 'problem', code: 'E123', severity: 1, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10, owner: 'terminal-output', resource: URI.file('test.txt') }] : []
-			};
-			const fakeLanguageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'> = {
-				selectLanguageModels: async () => [],
-				sendChatRequest: async () => ({
-					result: Promise.resolve(''),
-					stream: (async function* () { })()
-				})
-			};
-			const execution = {
-				getOutput: () => 'exited with code E123 in test.txt',
-				task: fakeTask,
-				terminal: { sendText: async () => { } }
-			};
-			const token = { isCancellationRequested: false } as CancellationToken;
-			const result = await pollForOutputAndIdle(
-				execution,
-				false,
-				token,
-				fakeLanguageModelsService,
-				fakeMarkerService,
-				[{ owner: 'terminal-output', applyTo: ApplyToKind.allDocuments, fileLocation: FileLocationKind.Absolute, pattern: { regexp: RegExp('.*') } }]
-			);
-			assert.ok(result.output.includes('problem'));
-		});
 	});
 });

@@ -11,7 +11,6 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Location } from '../../../../editor/common/languages.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,6 +23,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { localize } from '../../../../nls.js';
 import { LanguageModelPartAudience } from './languageModels.js';
 import { Separator } from '../../../../base/common/actions.js';
+import { Location } from '../../../../editor/common/languages.js';
 
 export interface IToolData {
 	id: string;
