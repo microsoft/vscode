@@ -3,141 +3,170 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual, ok } from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { OutputMonitor } from '../../browser/outputMonitor.js';
-import { ITaskService } from '../../../../tasks/common/taskService.js';
-import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import * as assert from 'assert';
 import { IChatService } from '../../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { ITaskService } from '../../../../tasks/common/taskService.js';
+import { OutputMonitor } from '../../browser/outputMonitor.js';
+import { CancellationTokenSource, CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-
+import { IExecution, IPollingResult } from '../../browser/bufferOutputPollingTypes.js';
+import { AsyncIterableObject } from '../../../../../../base/common/async.js';
 
 suite('OutputMonitor', () => {
-	let disposables: DisposableStore;
-
-	const mockLanguageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'> = {
-		selectLanguageModels: () => Promise.resolve(['test']),
-		sendChatRequest: () => Promise.resolve({
-			stream: (async function* () { yield { type: 'text', value: 'test' }; })(),
-			result: Promise.resolve('test')
-		})
-	};
-
-	const mockTaskService: Pick<ITaskService, 'getTask'> = {
-		getTask: () => Promise.resolve(undefined)
-	};
-
-	const mockChatService: Pick<IChatService, 'getSession'> = {
-		getSession: () => undefined
-	};
-
-	const mockTerminalInstance: Pick<ITerminalInstance, 'instanceId' | 'sendText'> = {
-		instanceId: 1,
-		sendText: () => Promise.resolve()
-	};
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let monitor: OutputMonitor;
+	let languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>;
+	let taskService: Pick<ITaskService, 'getActiveTasks'>;
+	let chatService: Pick<IChatService, 'getSession'>;
+	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; terminal: Pick<ITerminalInstance, 'instanceId' | 'sendText'> };
+	let cts: CancellationTokenSource;
 
 	setup(() => {
-		disposables = new DisposableStore();
+		languageModelsService = {
+			selectLanguageModels: async () => ['model1'],
+			sendChatRequest: async () => ({
+				stream: new AsyncIterableObject<any>((emitter) => {
+					// No stream items for test
+					emitter.emitOne(undefined);
+					return () => { };
+				}),
+				result: Promise.resolve('')
+			})
+		};
+
+		taskService = {
+			getActiveTasks: async () => []
+		};
+
+		chatService = {
+			getSession: () => undefined
+		};
+
+		execution = {
+			getOutput: () => 'test output',
+			isActive: async () => true,
+			terminal: {
+				instanceId: 1,
+				sendText: async () => { }
+			}
+		};
+
+
+		cts = new CancellationTokenSource();
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		cts.dispose();
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	test('startMonitoring returns immediately when polling succeeds', async () => {
+		const pollFn = async () => ({
+			terminalExecutionIdleBeforeTimeout: true,
+			output: 'success output'
+		});
 
-	test('OutputMonitor should be created and disposed correctly', () => {
-		const monitor = new OutputMonitor(
-			{ getOutput: () => '', terminal: mockTerminalInstance },
-			mockLanguageModelsService,
-			mockTaskService as ITaskService
-		);
-		ok(monitor);
-		monitor.dispose();
-	});
-
-	test('isIdle should be false initially', () => {
-		const monitor = disposables.add(new OutputMonitor(
-			{ getOutput: () => '', terminal: mockTerminalInstance },
-			mockLanguageModelsService,
-			mockTaskService as ITaskService
-		));
-		strictEqual(monitor.isIdle, false);
-	});
-
-	test('startMonitoring should handle simple terminal output', async () => {
-		const testOutput = 'test output';
-		const monitor = disposables.add(new OutputMonitor(
-			{
-				getOutput: () => testOutput,
-				isActive: () => Promise.resolve(false),
-				terminal: mockTerminalInstance
-			},
-			mockLanguageModelsService,
-			mockTaskService as ITaskService
+		monitor = store.add(new OutputMonitor(
+			execution,
+			languageModelsService,
+			taskService as ITaskService,
+			pollFn
 		));
 
 		const result = await monitor.startMonitoring(
-			mockChatService as IChatService,
+			chatService as IChatService,
 			'test command',
-			{ sessionId: 'test' },
-			CancellationToken.None
+			{ sessionId: '1' },
+			cts.token
 		);
 
-		strictEqual(result.output, testOutput);
-		strictEqual(result.terminalExecutionIdleBeforeTimeout, true);
+		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, true);
+		assert.strictEqual(result.output, 'success output');
 	});
 
-	test('startMonitoring should handle cancellation', async () => {
-		const monitor = disposables.add(new OutputMonitor(
-			{
-				getOutput: () => 'test',
-				isActive: () => Promise.resolve(true),
-				terminal: mockTerminalInstance
-			},
-			mockLanguageModelsService,
-			mockTaskService as ITaskService
-		));
-
-		const token = CancellationToken.None;
-		const result = await monitor.startMonitoring(
-			mockChatService as IChatService,
-			'test command',
-			{ sessionId: 'test' },
-			token
-		);
-
-		ok(result, 'Result should be returned even when cancelled');
-	});
-
-	test('startMonitoring should handle custom polling function', async () => {
-		let pollFnCalled = false;
-		const customPollFn = async () => {
-			pollFnCalled = true;
-			return { terminalExecutionIdleBeforeTimeout: true, output: 'custom poll' };
+	test('startMonitoring shows prompt when initial polling times out', async () => {
+		let callCount = 0;
+		const pollFn = async (_execution: IExecution, _token: CancellationToken, _idle: boolean, _pollStartTime: number, _extendedPolling: boolean) => {
+			callCount++;
+			if (callCount === 1) {
+				return {
+					terminalExecutionIdleBeforeTimeout: false,
+					output: 'timeout output'
+				};
+			}
+			return {
+				terminalExecutionIdleBeforeTimeout: true,
+				output: 'success after prompt'
+			};
 		};
 
-		const monitor = disposables.add(new OutputMonitor(
-			{
-				getOutput: () => 'test',
-				isActive: () => Promise.resolve(false),
-				terminal: mockTerminalInstance
-			},
-			mockLanguageModelsService,
-			mockTaskService as ITaskService,
-			customPollFn
+		monitor = store.add(new OutputMonitor(
+			execution,
+			languageModelsService,
+			taskService as ITaskService,
+			pollFn
 		));
 
-		await monitor.startMonitoring(
-			mockChatService as IChatService,
+		const result = await monitor.startMonitoring(
+			chatService as IChatService,
 			'test command',
-			{ sessionId: 'test' },
-			CancellationToken.None
+			{ sessionId: '1' },
+			cts.token
 		);
 
-		ok(pollFnCalled, 'Custom poll function should have been called');
+		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, false);
+		assert.strictEqual(result.output, 'timeout output');
 	});
 
+	test('startMonitoring handles cancellation', async () => {
+		const pollFn = async (_execution: IExecution, _token: CancellationToken, _idle: boolean, _pollStartTime: number, _extendedPolling: boolean): Promise<IPollingResult> => {
+			return new Promise(() => {
+				// Never resolve to simulate long-running operation
+			});
+		};
+
+		monitor = store.add(new OutputMonitor(
+			execution,
+			languageModelsService,
+			taskService as ITaskService,
+			pollFn
+		));
+
+		const monitorPromise = monitor.startMonitoring(
+			chatService as IChatService,
+			'test command',
+			{ sessionId: '1' },
+			cts.token
+		);
+
+		cts.cancel();
+
+		const result = await monitorPromise;
+		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, false);
+	});
+
+	test('startMonitoring handles polling without prompt response', async () => {
+		const pollFn = async (_execution: IExecution, _token: CancellationToken, _idle: boolean, _pollStartTime: number, _extendedPolling: boolean) => ({
+			terminalExecutionIdleBeforeTimeout: false,
+			output: 'final output'
+		});
+
+		monitor = store.add(new OutputMonitor(
+			execution,
+			languageModelsService,
+			taskService as ITaskService,
+			pollFn
+		));
+
+		const result = await monitor.startMonitoring(
+			chatService as IChatService,
+			'test command',
+			{ sessionId: '1' },
+			cts.token
+		);
+
+		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, false);
+		assert.strictEqual(result.output, 'final output');
+	});
 });

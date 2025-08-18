@@ -86,7 +86,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 */
 	private async _racePollingOrPrompt(
 		pollFn: () => Promise<IRacePollingOrPromptResult>,
-		promptFn: () => Promise<{ promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide'> }>,
+		promptFn: () => Promise<{ promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide' | 'dispose'> }>,
 		originalResult: IPollingResult,
 		token: CancellationToken,
 		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
@@ -94,18 +94,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		execution: IExecution
 	): Promise<IRacePollingOrPromptResult> {
 		const pollPromise = pollFn();
-		const { promise: promptPromise, part } = await promptFn();
-		let promptResolved = false;
+		const { promise: promptPromise } = await promptFn();
 
 		const pollPromiseWrapped = pollPromise.then(async result => {
-			if (!promptResolved && part) {
-				part.hide();
-			}
 			return { type: 'poll', result };
 		});
 
 		const promptPromiseWrapped = promptPromise.then(result => {
-			promptResolved = true;
 			return { type: 'prompt', result };
 		});
 		const raceResult = await Promise.race([
@@ -145,16 +140,20 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						async () => {
 							thePart.state = 'accepted';
 							thePart.hide();
+							thePart.dispose();
 							resolve(true);
 						},
 						async () => {
 							thePart.state = 'rejected';
 							thePart.hide();
+							thePart.dispose();
 							resolve(false);
 						}
 					);
+					this._register(thePart);
 					chatModel.acceptResponseProgress(request, thePart);
 				});
+
 				return { promise, part };
 			}
 		}

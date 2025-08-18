@@ -42,7 +42,7 @@ export async function pollForOutputAndIdle(
 
 		// Cap the wait so we never overshoot timeLeft
 		const waitTime = Math.min(currentInterval, timeLeft);
-		await timeout(waitTime);
+		await timeout(waitTime, token);
 
 		// Check again immediately after waking
 		if (Date.now() - pollStartTime >= maxWaitMs) {

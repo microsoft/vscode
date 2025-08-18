@@ -146,6 +146,9 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 export async function collectTerminalResults(
 	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, taskService: ITaskService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }>> {
 	const results: Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }> = [];
+	if (token.isCancellationRequested) {
+		return results;
+	}
 	for (const terminal of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
 		const execution = {
