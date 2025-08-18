@@ -161,7 +161,7 @@ export async function getServer() {
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
 	}, opts => ({ ...opts, userDataDir: path.join(opts.userDataDir, 'ø') }));
 	await application.start();
-	const connection = await createConnection(undefined, () => Promise.resolve(application.code.driver.browserContext as any));
+	const connection = await createConnection(undefined, () => Promise.resolve(application.code.driver.browserContext));
 	application.code.driver.browserContext.on('close', () => {
 		connection.close();
 	});

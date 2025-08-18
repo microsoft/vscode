@@ -117,7 +117,8 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.53.2",
+    "@playwright/mcp": "0.0.34",
+    "@playwright/test": "1.55.0-alpha-2025-08-12",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
