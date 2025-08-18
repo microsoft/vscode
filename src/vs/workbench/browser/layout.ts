@@ -2846,15 +2846,16 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
-
-			// TODO@bpasero: lots of hacks here to not force open the auxiliary sidebar
-			// when no Chat view is present within:
-			// - revisit this when Chat is available in serverless web
-			// - drop the need to probe for chat.setupContext
-			// - drop the need to probe for chat.hideAIFeatures
-			// - drop the need to probe for view location of workbench.panel.chat.view.copilot
 			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 			if (configuration.defaultValue !== 'hidden' && !isConfigured(configuration)) {
+
+				// TODO@bpasero: lots of hacks here to not force open the auxiliary sidebar
+				// when no Chat view is present within:
+				// - revisit this when Chat is available in serverless web
+				// - drop the need to probe for chat.setupContext
+				// - drop the need to probe for chat.hideAIFeatures
+				// - drop the need to probe for view location of workbench.panel.chat.view.copilot
+
 				if (isWeb && !this.environmentService.remoteAuthority) {
 					return true; // Chat view is not enabled
 				}
@@ -2880,15 +2881,14 @@ class LayoutStateModel extends Disposable {
 			}
 
 			// Existing users: respect visibility setting
-			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
-				case 'maximized':
-				case 'visible':
-					return false;
+			switch (configuration.value) {
+				case 'hidden':
+					return true;
 				case 'visibleInWorkspace':
 				case 'maximizedInWorkspace':
 					return workbenchState === WorkbenchState.EMPTY;
 				default:
-					return true;
+					return false;
 			}
 		})();
 		LayoutStateKeys.PANEL_SIZE.defaultValue = (this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? isHorizontal(LayoutStateKeys.PANEL_POSITION.defaultValue)) ? mainContainerDimension.height / 3 : mainContainerDimension.width / 4;
