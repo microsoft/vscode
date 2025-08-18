@@ -20,7 +20,7 @@ export class QuickTreeAccessibilityProvider<T extends IQuickTreeItem> implements
 	}
 
 	getAriaLabel(element: T): string {
-		return element.ariaLabel || [element.label, element.description, element.detail]
+		return element.ariaLabel || [element.label, element.description]
 			.map(s => getCodiconAriaLabel(s))
 			.filter(s => !!s)
 			.join(', ');

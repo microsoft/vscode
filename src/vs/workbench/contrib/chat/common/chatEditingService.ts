@@ -79,8 +79,6 @@ export interface IStreamingEdits {
 	complete(): void;
 }
 
-export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
-
 export interface IModifiedEntryTelemetryInfo {
 	readonly agentId: string | undefined;
 	readonly command: string | undefined;
@@ -257,6 +255,16 @@ export interface IModifiedFileEntry {
 	 * Number of changes for this file
 	 */
 	readonly changesCount: IObservable<number>;
+
+	/**
+	 * Number of lines added in this entry.
+	 */
+	readonly linesAdded?: IObservable<number>;
+
+	/**
+	 * Number of lines removed in this entry
+	 */
+	readonly linesRemoved?: IObservable<number>;
 
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 }

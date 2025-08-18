@@ -13,12 +13,9 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IChatWidgetService } from '../browser/chat.js';
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
@@ -26,6 +23,7 @@ import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { IEditableData } from '../../../common/views.js';
 
 const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
 
@@ -67,42 +65,6 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 		}
 	}
 });
-
-export class ChatSessionsContribution extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-	) {
-		super();
-
-		extensionPoint.setHandler(extensions => {
-			for (const ext of extensions) {
-				if (!isProposedApiEnabled(ext.description, 'chatSessionsProvider')) {
-					continue;
-				}
-				if (!Array.isArray(ext.value)) {
-					continue;
-				}
-				for (const contribution of ext.value) {
-					const c: IChatSessionsExtensionPoint = {
-						id: contribution.id,
-						type: contribution.type,
-						name: contribution.name,
-						displayName: contribution.displayName,
-						description: contribution.description,
-						when: contribution.when,
-						extensionDescription: ext.description,
-					};
-					this.logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.type}' name='${c.name}')`);
-					this._register(this.chatSessionsService.registerContribution(c)); // TODO: Is it for contribution to own this? I think not
-				}
-			}
-		});
-	}
-}
-
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ChatSessionsContribution, LifecyclePhase.Restored);
 
 class ContributedChatSessionData implements IDisposable {
 	private readonly _disposableStore: DisposableStore;
@@ -148,13 +110,37 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._register(extensionPoint.setHandler(extensions => {
+			for (const ext of extensions) {
+				if (!isProposedApiEnabled(ext.description, 'chatSessionsProvider')) {
+					continue;
+				}
+				if (!Array.isArray(ext.value)) {
+					continue;
+				}
+				for (const contribution of ext.value) {
+					const c: IChatSessionsExtensionPoint = {
+						id: contribution.id,
+						type: contribution.type,
+						name: contribution.name,
+						displayName: contribution.displayName,
+						description: contribution.description,
+						when: contribution.when,
+						extensionDescription: ext.description,
+					};
+					this._logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.type}' name='${c.name}')`);
+					this._register(this.registerContribution(c));
+				}
+			}
+		}));
 
 		// Listen for context changes and re-evaluate contributions
 		this._register(Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(this._contextKeys))(() => {
 			this._evaluateAvailability();
 		}));
 	}
-	public registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
+
+	private registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
 		if (this._contributions.has(contribution.type)) {
 			this._logService.warn(`Chat session contribution with id '${contribution.type}' is already registered.`);
 			return { dispose: () => { } };
@@ -295,17 +281,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return disposable;
 	}
 
-	async getChatSessionContributions(waitForActivation?: string[]): Promise<IChatSessionsExtensionPoint[]> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
-		if (waitForActivation) {
-			await Promise.all(waitForActivation.map(id => this._extensionService.activateByEvent(`onChatSession:${id}`)));
-		}
+	getAllChatSessionContributions(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values()).filter(contribution =>
 			this._isContributionAvailable(contribution)
 		);
 	}
 
-	getChatSessionItemProviders(): IChatSessionItemProvider[] {
+	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
 		return [...this._itemsProviders.values()].filter(provider => {
 			// Check if the provider's corresponding contribution is available
 			const contribution = this._contributions.get(provider.chatSessionType);
@@ -314,7 +296,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	async canResolveItemProvider(chatViewType: string) {
-		// First check if the contribution is available based on its when clause
+		await this._extensionService.whenInstalledExtensionsRegistered();
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
@@ -324,18 +306,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return true;
 		}
 
-		await this._extensionService.whenInstalledExtensionsRegistered();
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
 
 		return this._itemsProviders.has(chatViewType);
 	}
 
-	public notifySessionItemsChange(chatSessionType: string): void {
-		this._onDidChangeSessionItems.fire(chatSessionType);
-	}
-
 	async canResolveContentProvider(chatViewType: string) {
-		// First check if the contribution is available based on its when clause
+		await this._extensionService.whenInstalledExtensionsRegistered();
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
@@ -345,7 +322,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			return true;
 		}
 
-		await this._extensionService.whenInstalledExtensionsRegistered();
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
 
 		return this._contentProviders.has(chatViewType);
@@ -371,8 +347,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._itemsProviders.set(chatSessionType, provider);
 		this._onDidChangeItemsProviders.fire(provider);
 
+		const disposables = new DisposableStore();
+		disposables.add(provider.onDidChangeChatSessionItems(() => {
+			this._onDidChangeSessionItems.fire(chatSessionType);
+		}));
+
 		return {
 			dispose: () => {
+				disposables.dispose();
+
 				const provider = this._itemsProviders.get(chatSessionType);
 				if (provider) {
 					this._itemsProviders.delete(chatSessionType);
@@ -382,15 +365,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	registerChatSessionContentProvider(provider: IChatSessionContentProvider): IDisposable {
-		this._contentProviders.set(provider.chatSessionType, provider);
+	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
+		this._contentProviders.set(chatSessionType, provider);
 		return {
 			dispose: () => {
-				this._contentProviders.delete(provider.chatSessionType);
+				this._contentProviders.delete(chatSessionType);
 
 				// Remove all sessions that were created by this provider
 				for (const [key, session] of this._sessions) {
-					if (session.chatSessionType === provider.chatSessionType) {
+					if (session.chatSessionType === chatSessionType) {
 						session.dispose();
 						this._sessions.delete(key);
 					}
@@ -400,6 +383,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private readonly _sessions = new Map<string, ContributedChatSessionData>();
+
+	// Editable session support
+	private readonly _editableSessions = new Map<string, IEditableData>();
 
 	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
@@ -430,8 +416,23 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._sessions.delete(sessionKey);
 	}
 
-	public get hasChatSessionItemProviders(): boolean {
-		return this._itemsProviders.size > 0;
+	// Implementation of editable session methods
+	public async setEditableSession(sessionId: string, data: IEditableData | null): Promise<void> {
+		if (!data) {
+			this._editableSessions.delete(sessionId);
+		} else {
+			this._editableSessions.set(sessionId, data);
+		}
+		// Trigger refresh of the session views that might need to update their rendering
+		this._onDidChangeSessionItems.fire('local');
+	}
+
+	public getEditableData(sessionId: string): IEditableData | undefined {
+		return this._editableSessions.get(sessionId);
+	}
+
+	public isEditable(sessionId: string): boolean {
+		return this._editableSessions.has(sessionId);
 	}
 }
 

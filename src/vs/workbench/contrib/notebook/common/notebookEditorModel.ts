@@ -13,7 +13,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWriteFileOptions, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { IWriteFileOptions, IFileStatWithMetadata, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
@@ -276,7 +276,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 						error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 					};
 					const isIPynb = this._notebookModel.viewType === 'jupyter-notebook' || this._notebookModel.viewType === 'interactive';
-					const errorMessage = error.name === 'NotebookSaveError' ? error.message : 'Unknown error';
+					const errorMessage = getSaveErrorMessage(error);
 					this._telemetryService.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
 						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
 						isIPyNbWorkerSerializer: isIPynb && this._configurationService.getValue<boolean>('ipynb.experimental.serialization'),
@@ -361,4 +361,36 @@ class NotebookSaveError extends Error {
 		super(message);
 		this.name = 'NotebookSaveError';
 	}
+}
+
+function getSaveErrorMessage(error: Error): string {
+	if (error.name === 'NotebookSaveError') {
+		return error.message;
+	} else if (error instanceof FileOperationError) {
+		switch (error.fileOperationResult) {
+			case FileOperationResult.FILE_IS_DIRECTORY:
+				return 'File is a directory';
+			case FileOperationResult.FILE_NOT_FOUND:
+				return 'File not found';
+			case FileOperationResult.FILE_NOT_MODIFIED_SINCE:
+				return 'File not modified since';
+			case FileOperationResult.FILE_MODIFIED_SINCE:
+				return 'File modified since';
+			case FileOperationResult.FILE_MOVE_CONFLICT:
+				return 'File move conflict';
+			case FileOperationResult.FILE_WRITE_LOCKED:
+				return 'File write locked';
+			case FileOperationResult.FILE_PERMISSION_DENIED:
+				return 'File permission denied';
+			case FileOperationResult.FILE_TOO_LARGE:
+				return 'File too large';
+			case FileOperationResult.FILE_INVALID_PATH:
+				return 'File invalid path';
+			case FileOperationResult.FILE_NOT_DIRECTORY:
+				return 'File not directory';
+			case FileOperationResult.FILE_OTHER_ERROR:
+				return 'File other error';
+		}
+	}
+	return 'Unknown error';
 }

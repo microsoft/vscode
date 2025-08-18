@@ -110,7 +110,7 @@ export async function getFigSuggestions(
 				result.foldersRequested ||= completionItemResult.foldersRequested;
 				result.fileExtensions ||= completionItemResult.fileExtensions;
 				if (completionItemResult.items) {
-					result.items.push(...completionItemResult.items);
+					result.items = result.items.concat(completionItemResult.items);
 				}
 			}
 		}

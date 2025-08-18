@@ -20,6 +20,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
@@ -149,7 +150,7 @@ abstract class SubmitAction extends Action2 {
 	}
 }
 
-const whenNotInProgressOrPaused = ContextKeyExpr.or(ChatContextKeys.isRequestPaused, ChatContextKeys.requestInProgress.negate());
+const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
 
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
@@ -184,7 +185,7 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						whenNotInProgressOrPaused,
+						whenNotInProgress,
 						menuCondition,
 					),
 					group: 'navigation',
@@ -273,45 +274,6 @@ class ToggleChatModeAction extends Action2 {
 		const curModeIndex = flat.findIndex(mode => mode.id === chatWidget.input.currentModeObs.get().id);
 		const newMode = flat[(curModeIndex + 1) % flat.length];
 		return newMode;
-	}
-}
-
-export const ToggleRequestPausedActionId = 'workbench.action.chat.toggleRequestPaused';
-export class ToggleRequestPausedAction extends Action2 {
-	static readonly ID = ToggleRequestPausedActionId;
-
-	constructor() {
-		super({
-			id: ToggleRequestPausedAction.ID,
-			title: localize2('interactive.toggleRequestPausd.label', "Toggle Request Paused"),
-			category: CHAT_CATEGORY,
-			icon: Codicon.debugPause,
-			toggled: {
-				condition: ChatContextKeys.isRequestPaused,
-				icon: Codicon.play,
-				tooltip: localize('requestIsPaused', "Resume Request"),
-			},
-			tooltip: localize('requestNotPaused', "Pause Request"),
-			menu: [
-				{
-					id: MenuId.ChatExecute,
-					order: 3.5,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.canRequestBePaused,
-						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-						ContextKeyExpr.or(ChatContextKeys.isRequestPaused.negate(), ChatContextKeys.inputHasText.negate()),
-					),
-					group: 'navigation',
-				}]
-		});
-	}
-
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
-		const context: IChatExecuteActionContext | undefined = args[0];
-		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		widget?.togglePaused();
 	}
 }
 
@@ -449,17 +411,14 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
-					when: ContextKeyExpr.and(whenNotInProgressOrPaused, menuCondition),
+					when: ContextKeyExpr.and(whenNotInProgress, menuCondition),
 					order: 1
 				},
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.or(
-							ContextKeyExpr.and(ChatContextKeys.isRequestPaused, ChatContextKeys.inputHasText),
-							ChatContextKeys.requestInProgress.negate(),
-						),
+						ChatContextKeys.requestInProgress.negate(),
 						menuCondition),
 					group: 'navigation',
 				}]
@@ -475,7 +434,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
+			whenNotInProgress,
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 		);
 
@@ -521,20 +480,20 @@ export class CreateRemoteAgentJobAction extends Action2 {
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
+			whenNotInProgress,
 			ChatContextKeys.remoteJobCreating.negate(),
 		);
 
 		super({
 			id: CreateRemoteAgentJobAction.ID,
 			// TODO(joshspicer): Generalize title, pull from contribution
-			title: localize2('actions.chat.createRemoteJob', "Delegate to coding agent"),
+			title: localize2('actions.chat.createRemoteJob', "Delegate to Coding Agent"),
 			icon: Codicon.sendToRemoteAgent,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.remoteJobCreating,
 				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Delegating to coding agent"),
+				tooltip: localize('remoteJobCreating', "Delegating to Coding Agent"),
 			},
 			menu: {
 				id: MenuId.ChatExecute,
@@ -594,13 +553,34 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				parsedRequest,
 				{ variables: [] },
 				0,
+				undefined,
 				defaultAgent,
 			);
 
 			const agents = remoteCodingAgent.getAvailableAgents();
-			const agent = agents[0]; // TODO: We just pick the first one for now
-			if (!agent) {
+			if (agents.length === 0) {
+				chatModel.completeResponse(addedRequest);
 				return;
+			}
+
+			let agent = agents[0];
+			if (agents.length > 1) {
+				const quickInputService = accessor.get(IQuickInputService);
+				const pick = await quickInputService.pick(
+					agents.map(a => ({
+						label: a.displayName,
+						description: a.description,
+						agent: a,
+					})),
+					{
+						title: localize('selectCodingAgent', "Select Coding Agent"),
+					}
+				);
+				if (!pick) {
+					chatModel.completeResponse(addedRequest);
+					return;
+				}
+				agent = pick.agent;
 			}
 
 			let summary: string | undefined;
@@ -703,7 +683,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
+			whenNotInProgress,
 		);
 
 		super({
@@ -760,7 +740,7 @@ class SendToNewChatAction extends Action2 {
 			// if the input has prompt instructions attached, allow submitting requests even
 			// without text present - having instructions is enough context for a request
 			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-			whenNotInProgressOrPaused,
+			whenNotInProgress,
 		);
 
 		super({
@@ -821,7 +801,6 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.isRequestPaused.negate(),
 					ChatContextKeys.requestInProgress,
 					ChatContextKeys.remoteJobCreating.negate()
 				),
@@ -904,7 +883,6 @@ export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitWithCodebaseAction);
 	registerAction2(CreateRemoteAgentJobAction);
 	registerAction2(ToggleChatModeAction);
-	registerAction2(ToggleRequestPausedAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);

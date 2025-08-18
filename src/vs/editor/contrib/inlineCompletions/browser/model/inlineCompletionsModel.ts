@@ -50,6 +50,7 @@ import { IInlineCompletionsService } from '../../../../browser/services/inlineCo
 import { TypingInterval } from './typingSpeed.js';
 import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -96,6 +97,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _inlineEditsEnabled;
 	private readonly _inlineEditsShowCollapsedEnabled;
 	private readonly _triggerCommandOnProviderChange;
+	private readonly _minShowDelay;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -125,6 +127,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
 		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
+		this._minShowDelay = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.minShowDelay);
 		this._typing = this._register(new TypingInterval(this.textModel));
 
 		this._register(this._inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {
@@ -145,6 +148,12 @@ export class InlineCompletionsModel extends Disposable {
 				: this.isInDiffEditor ? InlineCompletionEditorType.DiffEditor
 					: InlineCompletionEditorType.TextEditor;
 		}
+
+		this._register(recomputeInitiallyAndOnChange(this.state, (s) => {
+			if (s && s.inlineCompletion) {
+				this._inlineCompletionsService.reportNewCompletion(s.inlineCompletion.requestUuid);
+			}
+		}));
 
 		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
 
@@ -382,6 +391,7 @@ export class InlineCompletionsModel extends Disposable {
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 			requestIssuedDateTime: requestInfo.startTime,
+			earliestShownDateTime: requestInfo.startTime + (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit || this.inAcceptFlow.get() ? 0 : this._minShowDelay.get()),
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
@@ -529,6 +539,7 @@ export class InlineCompletionsModel extends Disposable {
 		inlineEdit: InlineEdit;
 		inlineCompletion: InlineEditItem;
 		cursorAtInlineEdit: IObservable<boolean>;
+		nextEditUri: URI | undefined;
 	} | undefined>({
 		owner: this,
 		equalsFn: (a, b) => {
@@ -562,8 +573,9 @@ export class InlineCompletionsModel extends Disposable {
 
 			const edits = inlineEditResult.updatedEdit;
 			const e = edits ? TextEdit.fromStringEdit(edits, new TextModelText(this.textModel)).replacements : [edit];
-
-			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: e, cursorAtInlineEdit };
+			const nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
+				item.inlineEdit?.command.arguments?.length ? URI.from(item.inlineEdit?.command.arguments[0]) : undefined;
+			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: inlineEditResult, edits: e, cursorAtInlineEdit, nextEditUri };
 		}
 
 		const suggestItem = this._selectedSuggestItem.read(reader);
@@ -785,12 +797,13 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
-	private _getMetadata(completion: InlineSuggestionItem, type: 'word' | 'line' | undefined = undefined): TextModelEditSource {
+	private _getMetadata(completion: InlineSuggestionItem, languageId: string, type: 'word' | 'line' | undefined = undefined): TextModelEditSource {
 		if (type) {
 			return EditSources.inlineCompletionPartialAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
 				providerId: completion.source.provider.providerId,
+				languageId,
 				type,
 			});
 		} else {
@@ -798,6 +811,7 @@ export class InlineCompletionsModel extends Disposable {
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
 				providerId: completion.source.provider.providerId,
+				languageId
 			});
 		}
 	}
@@ -808,7 +822,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		let completion: InlineSuggestionItem;
-
+		let isNextEditUri = false;
 		const state = this.state.get();
 		if (state?.kind === 'ghostText') {
 			if (!state || state.primaryGhostText.isEmpty() || !state.inlineCompletion) {
@@ -817,6 +831,7 @@ export class InlineCompletionsModel extends Disposable {
 			completion = state.inlineCompletion;
 		} else if (state?.kind === 'inlineEdit') {
 			completion = state.inlineCompletion;
+			isNextEditUri = !!state.nextEditUri;
 		} else {
 			return;
 		}
@@ -826,11 +841,13 @@ export class InlineCompletionsModel extends Disposable {
 
 		try {
 			editor.pushUndoStop();
-			if (completion.snippetInfo) {
+			if (isNextEditUri) {
+				// Do nothing
+			} else if (completion.snippetInfo) {
 				const mainEdit = TextReplacement.delete(completion.editRange);
 				const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 				const edit = TextEdit.fromParallelReplacementsUnsorted([mainEdit, ...additionalEdits]);
-				editor.edit(edit, this._getMetadata(completion));
+				editor.edit(edit, this._getMetadata(completion, this.textModel.getLanguageId()));
 
 				editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 				SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
@@ -849,7 +866,7 @@ export class InlineCompletionsModel extends Disposable {
 				const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 				const edit = TextEdit.fromParallelReplacementsUnsorted([...edits, ...additionalEdits]);
 
-				editor.edit(edit, this._getMetadata(completion));
+				editor.edit(edit, this._getMetadata(completion, this.textModel.getLanguageId()));
 
 				if (completion.displayLocation === undefined) {
 					// do not move the cursor when the completion is displayed in a different location
@@ -976,7 +993,11 @@ export class InlineCompletionsModel extends Disposable {
 			// This assumes that the inline completion and the model use the same EOL style.
 			const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
 			const acceptedLength = text.length;
-			completion.reportPartialAccept(acceptedLength, { kind, acceptedLength: acceptedLength });
+			completion.reportPartialAccept(
+				acceptedLength,
+				{ kind, acceptedLength: acceptedLength },
+				{ characters: acceptUntilIndexExclusive, ratio: acceptUntilIndexExclusive / ghostTextVal.length, count: 1 }
+			);
 
 		} finally {
 			completion.removeRef();
@@ -995,6 +1016,10 @@ export class InlineCompletionsModel extends Disposable {
 		augmentedCompletion.completion.reportPartialAccept(itemEdit.text.length, {
 			kind: PartialAcceptTriggerKind.Suggest,
 			acceptedLength,
+		}, {
+			characters: itemEdit.text.length,
+			count: 1,
+			ratio: 1
 		});
 	}
 

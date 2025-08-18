@@ -5,6 +5,26 @@
 
 declare module 'vscode' {
 	/**
+	 * Represents the status of a chat session.
+	 */
+	export enum ChatSessionStatus {
+		/**
+		 * The chat session failed to complete.
+		 */
+		Failed = 0,
+
+		/**
+		 * The chat session completed successfully.
+		 */
+		Completed = 1,
+
+		/**
+		 * The chat session is currently in progress.
+		 */
+		InProgress = 2
+	}
+
+	/**
 	 * Provides a list of information about chat sessions.
 	 */
 	export interface ChatSessionItemProvider {
@@ -46,6 +66,21 @@ declare module 'vscode' {
 		 * An icon for the participant shown in UI.
 		 */
 		iconPath?: IconPath;
+
+		/**
+		 * An optional description that provides additional context about the chat session.
+		 */
+		description?: string | MarkdownString;
+
+		/**
+		 * An optional status indicating the current state of the session.
+		 */
+		status?: ChatSessionStatus;
+
+		/**
+		 * The tooltip text when you hover over this item.
+		 */
+		tooltip?: string | MarkdownString;
 	}
 
 	export interface ChatSession {

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.104.0",
-  "distro": "b904906218b11808bcccad9ca29ac4f372a2ad96",
+  "distro": "69861287f4af04d36b926eb311cccb4b5680a018",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -18,6 +18,7 @@
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
     "compile": "node ./node_modules/gulp/bin/gulp.js compile",
+    "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "watch": "npm-run-all -lp watch-client watch-extensions",
     "watchd": "deemon npm run watch",
     "watch-webd": "deemon npm run watch-web",
@@ -43,8 +44,8 @@
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
-    "vscode-dts-compile-check": "tsc -p src/tsconfig.vscode-dts.json && tsc -p src/tsconfig.vscode-proposed-dts.json",
-    "valid-layers-check": "node build/checker/layersChecker.js && tsc -p build/checker/tsconfig.browser.json && tsc -p build/checker/tsconfig.worker.json && tsc -p build/checker/tsconfig.node.json && tsc -p build/checker/tsconfig.electron-browser.json && tsc -p build/checker/tsconfig.electron-main.json && tsc -p build/checker/tsconfig.electron-utility.json",
+    "vscode-dts-compile-check": "tsgo --project src/tsconfig.vscode-dts.json && tsgo --project src/tsconfig.vscode-proposed-dts.json",
+    "valid-layers-check": "node build/checker/layersChecker.js && tsgo --project build/checker/tsconfig.browser.json && tsgo --project build/checker/tsconfig.worker.json && tsgo --project build/checker/tsconfig.node.json && tsgo --project build/checker/tsconfig.electron-browser.json && tsgo --project build/checker/tsconfig.electron-main.json && tsgo --project build/checker/tsconfig.electron-utility.json",
     "define-class-fields-check": "node build/lib/propertyInitOrderChecker.js && tsc -p src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.mjs",
     "web": "echo 'npm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
@@ -66,7 +67,7 @@
     "extensions-ci": "node ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
-    "update-build-ts-version": "npm install typescript@next && tsc -p ./build/tsconfig.build.json"
+    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run compile)"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -125,7 +126,7 @@
     "@types/http-proxy-agent": "^2.0.1",
     "@types/kerberos": "^1.1.2",
     "@types/minimist": "^1.2.1",
-    "@types/mocha": "^9.1.1",
+    "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
@@ -138,6 +139,7 @@
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.36.0",
+    "@typescript/native-preview": "^7.0.0-dev.20250812.1",
     "@vscode/gulp-electron": "^1.38.1",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
@@ -209,8 +211,8 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^5.9.0-dev.20250728",
-    "typescript-eslint": "^8.8.0",
+    "typescript": "^6.0.0-dev.20250812",
+    "typescript-eslint": "^8.39.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",

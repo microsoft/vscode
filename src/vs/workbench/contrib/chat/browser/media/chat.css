@@ -193,7 +193,8 @@
 	min-height: var(--chat-current-response-min-height);
 }
 
-.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
 	/* Complete response only */
 	display: block;
 	opacity: 0;
@@ -202,9 +203,14 @@
 	height: 22px;
 }
 
-/* Show toolbar on hover and last response */
+/* Show toolbar on hover and last response. Also show when the item has keyboard focus (focus-within) or when the surrounding list row is marked focused (monaco list keyboard navigation). */
 .interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar,
-.interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar {
+.interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details,
+.interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar .chat-footer-details,
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
 	visibility: visible;
 }
@@ -224,11 +230,6 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
 	margin-left: auto;
-}
-
-/* Show details only on hover of the footer toolbar */
-.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar:hover .chat-footer-details {
-	display: block;
 }
 
 .interactive-item-container .chat-footer-details.hidden {
@@ -438,16 +439,27 @@
 
 	.message .see-more {
 		display: none;
-		color: var(--vscode-textLink-foreground);
-		text-decoration: underline;
-		cursor: pointer;
+		position: absolute;
+		right: 0;
+		top: 20px;
+
+		a {
+			color: var(--vscode-textLink-foreground);
+			text-decoration: underline;
+			cursor: pointer;
+		}
 	}
 
 	.message.can-see-more {
+		position: relative;
+
 		.message-wrapper {
-			mask-image: linear-gradient(#000 0%, transparent 100%);
+			/* This mask fades out the end of the second line of text so the "see more" message can be displayed over it. */
+			mask-image:
+				linear-gradient(to right, rgba(0,0,0,1) calc(100% - 95px), rgba(0,0,0,0) calc(100% - 72px)),    linear-gradient(to top, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 20px, rgba(0,0,0,1) 2px, rgba(0,0,0,1) 100%);
+			mask-repeat: no-repeat, no-repeat;
 			pointer-events: none;
-			max-height: 2.5em;
+			max-height: 40px;
 		}
 
 		.see-more {
@@ -727,16 +739,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 2px;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-container .monaco-list .monaco-list-row .monaco-icon-name-container.modified {
-	font-weight: bold;
-}
-
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview {
 	display: flex;
 	flex-direction: row;
 	justify-content: space-between;
 	gap: 6px;
-	padding: 0 4px;
+	padding-right: 4px;
+	cursor: pointer;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > .working-set-title {
@@ -751,6 +760,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > .working-set-title .working-set-count.file-limit-reached {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
+
+/* Inline added/removed line count styling */
+.interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts {
+	display: inline-flex;
+	gap: 4px;
+	margin-left: 6px;
+	font-weight: 500;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+.interactive-session .chat-editing-session .working-set-title {
+
+	.monaco-button {
+		padding: 4px 6px 4px 0px;
+		border-radius: 2px;
+		border: none;
+		background-color: unset;
+		color: var(--vscode-foreground)
+	}
+
+	.monaco-button:focus-visible {
+		outline-offset: -1px !important;
+	}
+}
+
 
 .interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
 	position: relative;
@@ -1055,9 +1096,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.chat-execute-toolbar .codicon.codicon-debug-pause {
-	color: var(--vscode-icon-foreground) !important;
-}
+
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
 	height: 16px;
@@ -1075,7 +1114,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
 	display: flex;
 	gap: 4px;
-	overflow: hidden;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
@@ -1745,6 +1783,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-session .chat-editing-session-list.collapsed {
+	display: none;
+}
+
 .interactive-item-container .chat-notification-widget {
 	padding: 8px 12px;
 }
@@ -2343,11 +2385,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: 100%;
 	background-color: var(--vscode-sideBar-background);
 	opacity: 0.6;
-	pointer-events: none;
 	display: flex;
-	cursor: default;
 	z-index: 101;
 	user-select: none;
+	cursor: default;
 }
 
 .interactive-session .focused-input-dom {
@@ -2370,17 +2411,68 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	top: 0;
 	z-index: 100;
 	background-color: var(--vscode-sideBar-background);
-	border-bottom: 1px solid var(--vscode-chat-requestBorder);
-	padding: 8px 16px;
-	margin-bottom: 8px;
+	padding: 4px 16px 6px 16px;
+	box-shadow: 0 2px 4px var(--vscode-scrollbar-shadow);
 }
 
 .chat-todo-list-widget .todo-list-expand {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 4px;
 	cursor: pointer;
-	padding: 4px 0;
+	padding: 2px 0;
+	justify-content: space-between;
+	width: 100%;
+}
+
+.chat-todo-list-widget .todo-list-expand .todo-list-title-section {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1;
+}
+
+.chat-todo-list-widget .todo-clear-button-container {
+	display: flex;
+	align-items: center;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+
+.chat-todo-list-widget .todo-list-expand:hover .todo-clear-button-container,
+.chat-todo-list-widget .todo-list-expand:focus-within .todo-clear-button-container,
+.chat-todo-list-widget .todo-clear-button-container:focus-within {
+	opacity: 1;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button {
+	padding: 2px;
+	margin-right: 2px;
+	min-width: unset;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	border: none;
+	border-radius: 3px;
+	height: 14px;
+	width: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-todo-list-widget .todo-clear-button-container .monaco-button .codicon {
+	font-size: 10px;
+	color: var(--vscode-foreground);
 }
 
 .chat-todo-list-widget .todo-list-expand:hover {
@@ -2396,33 +2488,64 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-todo-list-widget .expand-icon {
 	flex-shrink: 0;
+	font-size: 12px;
 }
 
 .chat-todo-list-widget .todo-list-title {
-	font-weight: 600;
-	color: var(--vscode-foreground);
+	font-weight: normal;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .chat-todo-list-widget .todo-list-container {
-	padding-left: 20px;
-	margin-top: 4px;
+	padding-left: 10px;
+	margin-top: 2px;
+	max-height: calc(6.5 * 21px);
+	/* 6.5 items to show half-line affordance */
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+	scroll-behavior: smooth;
+	scroll-padding-top: 24px;
+	/* Half item height to show partial next item */
+	scroll-padding-bottom: 24px;
+	/* Half item height to show partial previous item */
+}
+
+/* Modern scrollbar styling for WebKit browsers */
+.chat-todo-list-widget .todo-list-container::-webkit-scrollbar {
+	width: 8px;
+}
+
+.chat-todo-list-widget .todo-list-container::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.chat-todo-list-widget .todo-list-container::-webkit-scrollbar-thumb {
+	background-color: var(--vscode-scrollbarSlider-background);
+	border-radius: 4px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+.chat-todo-list-widget .todo-list-container::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
 .chat-todo-list-widget .todo-list {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
+	scroll-snap-type: y proximity;
 }
 
 .chat-todo-list-widget .todo-item {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 2px 0;
-}
-
-.chat-todo-list-widget .todo-item[title]:hover {
-	background-color: var(--vscode-list-hoverBackground);
+	scroll-snap-align: start;
+	min-height: 21px
 }
 
 .chat-todo-list-widget .todo-status-icon {
@@ -2433,4 +2556,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-todo-list-widget .todo-content {
 	color: var(--vscode-foreground);
 	flex-grow: 1;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+
+.interactive-session .interactive-response .value .chat-thinking-box {
+	outline: none;
+
+	.chat-thinking-text {
+		font-size: 12px;
+		padding: 3px 10px;
+		line-height: inherit;
+		display: flex;
+		align-items: flex-start;
+	}
+
+	.rendered-markdown > p {
+		margin: 0;
+	}
 }

@@ -12,10 +12,6 @@
 	margin-right: 4px;
 }
 
-.monaco-workbench .pane-composite-part > .title > .global-actions .monaco-action-bar .action-item .action-label.separator {
-	background-color: var(--vscode-disabledForeground);
-}
-
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item .action-label {
 	outline-offset: -2px;
 }

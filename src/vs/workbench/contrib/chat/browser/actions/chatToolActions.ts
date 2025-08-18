@@ -5,6 +5,7 @@
 
 import { $ } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -128,7 +129,7 @@ class ConfigureToolsAction extends Action2 {
 				break;
 			case ToolsScope.Mode:
 				placeholder = localize('chat.tools.placeholder.mode', "Select tools for this chat mode");
-				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode. Changes to the tools will be applied to the mode file as well.", widget.input.currentModeObs.get().name);
+				description = localize('chat.tools.description.mode', "The selected tools are configured by the '{0}' chat mode. Changes to the tools will be applied to the mode file as well.", widget.input.currentModeObs.get().label);
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
@@ -153,9 +154,10 @@ class ConfigureToolsAction extends Action2 {
 			widget.input.selectedToolsModel.set(result, false);
 		}
 
+		const tools = widget.input.selectedToolsModel.entriesMap.get();
 		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
-			total: widget.input.selectedToolsModel.entriesMap.get().size,
-			enabled: widget.input.selectedToolsModel.entries.get().size,
+			total: tools.size,
+			enabled: Iterable.reduce(tools, (prev, [_, enabled]) => enabled ? prev + 1 : prev, 0),
 		});
 	}
 }

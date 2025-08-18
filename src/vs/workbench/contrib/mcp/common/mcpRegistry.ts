@@ -10,7 +10,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, autorunSelfDisposable } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -259,26 +259,18 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		interaction.participants.set(definition.id, { s: 'waiting', definition, collection });
 
 		const trustedDefinitionIds = await new Promise<string[] | undefined>(resolve => {
-			let runner: IDisposable | undefined;
-			let didRun = false;
-			// eslint-disable-next-line prefer-const
-			runner = autorun(reader => {
+			autorunSelfDisposable(reader => {
 				const map = interaction.participants.observable.read(reader);
 				if (Iterable.some(map.values(), p => p.s === 'unknown')) {
 					return; // wait to gather all calls
 				}
 
-				runner?.dispose();
-				didRun = true;
+				reader.dispose();
 				interaction.choice ??= this._promptForTrustOpenDialog(
 					[...map.values()].map((v) => v.s === 'waiting' ? v : undefined).filter(isDefined),
 				);
 				resolve(interaction.choice);
 			});
-
-			if (didRun) { // work around sync disposal
-				runner.dispose();
-			}
 		});
 
 		this._logService.trace(`MCP trusted servers:`, trustedDefinitionIds);

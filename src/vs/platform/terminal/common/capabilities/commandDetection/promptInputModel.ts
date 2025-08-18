@@ -301,7 +301,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		let ghostTextIndex = -1;
 		if (cursorIndex === undefined) {
 			if (absoluteCursorY === commandStartY) {
-				cursorIndex = this._getRelativeCursorIndex(this._commandStartX, buffer, line);
+				cursorIndex = Math.min(this._getRelativeCursorIndex(this._commandStartX, buffer, line), commandLine.length);
 			} else {
 				cursorIndex = commandLine.trimEnd().length;
 			}
@@ -628,7 +628,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	}
 
 	private _getRelativeCursorIndex(startCellX: number, buffer: IBuffer, line: IBufferLine): number {
-		return line?.translateToString(true, startCellX, buffer.cursorX).length ?? 0;
+		return line?.translateToString(false, startCellX, buffer.cursorX).length ?? 0;
 	}
 
 	private _isCellStyledLikeGhostText(cell: IBufferCell): boolean {

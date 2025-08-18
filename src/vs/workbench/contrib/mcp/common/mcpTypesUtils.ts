@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
 import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState } from './mcpTypes.js';
 
 /**
@@ -71,4 +72,16 @@ export function startServerAndWaitForLiveTools(server: IMcpServer, opts?: IMcpSe
 			}));
 		});
 	}).finally(() => store.dispose());
+}
+
+export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
+	const metadata = server.serverMetadata.get();
+	return {
+		type: 'mcp',
+		serverLabel: metadata?.serverName,
+		instructions: metadata?.serverInstructions,
+		label: server.definition.label,
+		collectionId: server.collection.id,
+		definitionId: server.definition.id
+	};
 }

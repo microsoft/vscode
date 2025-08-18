@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions, TextFileEditorModelState } from '../common/textfiles.js';
+import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions, TextFileEditorModelState, IResolvedTextFileEditorModel } from '../common/textfiles.js';
 import { IRevertOptions, SaveSourceRegistry } from '../../../common/editor.js';
 import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from '../../../../platform/files/common/files.js';
@@ -13,7 +13,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { extname as pathExtname } from '../../../../base/common/path.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from '../../untitled/common/untitledTextEditorService.js';
-import { UntitledTextEditorModel } from '../../untitled/common/untitledTextEditorModel.js';
+import { IResolvedUntitledTextEditorModel, UntitledTextEditorModel } from '../../untitled/common/untitledTextEditorModel.js';
 import { TextFileEditorModelManager } from '../common/textFileEditorModelManager.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -436,11 +436,23 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private async doSaveAs(source: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 		let success = false;
 
-		// If the source is an existing text file model, we can directly
-		// use that model to copy the contents to the target destination
-		const textFileModel = this.files.get(source);
-		if (textFileModel?.isResolved()) {
-			success = await this.doSaveAsTextFile(textFileModel, source, target, options);
+		let resolvedTextModel: IResolvedTextFileEditorModel | IResolvedUntitledTextEditorModel | undefined;
+		if (source.scheme !== Schemas.untitled) {
+			const textFileModel = this.files.get(source);
+			if (textFileModel?.isResolved()) {
+				resolvedTextModel = textFileModel;
+			}
+		} else {
+			const untitledTextModel = this.untitled.get(source);
+			if (untitledTextModel?.isResolved()) {
+				resolvedTextModel = untitledTextModel;
+			}
+		}
+
+		// If the source is an existing resolved file or untitled text model, we can
+		// directly use that model to copy the contents to the target destination
+		if (resolvedTextModel) {
+			success = await this.doSaveAsTextFile(resolvedTextModel, source, target, options);
 		}
 
 		// Otherwise if the source can be handled by the file service
@@ -485,7 +497,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return target;
 	}
 
-	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | IResolvedUntitledTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
 
 		// Find source encoding if any
 		let sourceModelEncoding: string | undefined = undefined;

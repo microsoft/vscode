@@ -91,35 +91,38 @@ export const EditSources = {
 
 	rename: () => createEditSource({ source: 'rename' } as const),
 
-	chatApplyEdits(data: { modelId: string | undefined; sessionId: string | undefined; requestId: string | undefined; languageId: string }) {
+	chatApplyEdits(data: { modelId: string | undefined; sessionId: string | undefined; requestId: string | undefined; languageId: string; mode: string | undefined }) {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
 			$$languageId: data.languageId,
 			$$sessionId: data.sessionId,
 			$$requestId: data.requestId,
+			$$mode: data.mode,
 		} as const);
 	},
 
 	chatUndoEdits: () => createEditSource({ source: 'Chat.undoEdits' } as const),
 	chatReset: () => createEditSource({ source: 'Chat.reset' } as const),
 
-	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; providerId?: ProviderId }) {
+	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId }) {
 		return createEditSource({
 			source: 'inlineCompletionAccept',
 			$nes: data.nes,
 			...toProperties(data.providerId),
 			$$requestUuid: data.requestUuid,
+			$$languageId: data.languageId,
 		} as const);
 	},
 
-	inlineCompletionPartialAccept(data: { nes: boolean; requestUuid: string; providerId?: ProviderId; type: 'word' | 'line' }) {
+	inlineCompletionPartialAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; type: 'word' | 'line' }) {
 		return createEditSource({
 			source: 'inlineCompletionPartialAccept',
 			type: data.type,
 			$nes: data.nes,
 			...toProperties(data.providerId),
 			$$requestUuid: data.requestUuid,
+			$$languageId: data.languageId,
 		} as const);
 	},
 

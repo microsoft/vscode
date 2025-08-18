@@ -6,14 +6,15 @@
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IImageResizeService } from '../../../../platform/imageResize/common/imageResizeService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,9 +23,9 @@ import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
-import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, McpResourceURI } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, LazyCollectionState, McpResourceURI, McpServerCacheState } from './mcpTypes.js';
+import { mcpServerToSourceData } from './mcpTypesUtils.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -43,6 +44,15 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 	) {
 		super();
 
+		// 1. Auto-discover extensions with new MCP servers
+		const lazyCollectionState = mcpService.lazyCollectionState.map(s => s.state);
+		this._register(autorun(reader => {
+			if (lazyCollectionState.read(reader) === LazyCollectionState.HasUnknown) {
+				mcpService.activateCollections();
+			}
+		}));
+
+		// 2. Keep tools in sync with the tools service.
 		const previous = this._register(new DisposableMap<IMcpServer, DisposableStore>());
 		this._register(autorun(reader => {
 			const servers = mcpService.servers.read(reader);
@@ -56,15 +66,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 
 				const store = new DisposableStore();
 				const toolSet = new Lazy(() => {
-					const metadata = server.serverMetadata.get();
-					const source: ToolDataSource = {
-						type: 'mcp',
-						serverLabel: metadata?.serverName,
-						instructions: metadata?.serverInstructions,
-						label: server.definition.label,
-						collectionId: server.collection.id,
-						definitionId: server.definition.id
-					};
+					const source = mcpServerToSourceData(server);
 					const toolSet = store.add(this._toolsService.createToolSet(
 						source,
 						server.definition.id, server.definition.label,
@@ -90,6 +92,28 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 	private _syncTools(server: IMcpServer, collectionData: Lazy<{ toolSet: ToolSet; source: ToolDataSource }>, store: DisposableStore) {
 		const tools = new Map</* tool ID */string, ISyncedToolData>();
 
+		const collectionObservable = this._mcpRegistry.collections.map(collections =>
+			collections.find(c => c.id === server.collection.id));
+
+		// If the server is extension-provided and was marked outdated automatically start it
+		store.add(autorunSelfDisposable(reader => {
+			const collection = collectionObservable.read(reader);
+			if (!collection) {
+				return;
+			}
+
+			if (!(collection.source instanceof ExtensionIdentifier)) {
+				reader.dispose();
+				return;
+			}
+
+			const cacheState = server.cacheState.read(reader);
+			if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
+				reader.dispose();
+				server.start();
+			}
+		}));
+
 		store.add(autorun(reader => {
 			const toDelete = new Set(tools.keys());
 
@@ -102,9 +126,9 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 				store.add(collectionData.value.toolSet.addTool(toolData));
 			};
 
+			const collection = collectionObservable.read(reader);
 			for (const tool of server.tools.read(reader)) {
 				const existing = tools.get(tool.id);
-				const collection = this._mcpRegistry.collections.get().find(c => c.id === server.collection.id);
 				const toolData: IToolData = {
 					id: tool.id,
 					source: collectionData.value.source,
@@ -180,7 +204,6 @@ class McpToolImplementation implements IToolImpl {
 		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
 		// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 		const title = tool.definition.annotations?.title || tool.definition.title || ('`' + tool.definition.name + '`');
-		const subtitle = localize('msg.subtitle', "{0} (MCP Server)", server.definition.label);
 
 		return {
 			confirmationMessages: needsConfirmation ? {
@@ -191,11 +214,7 @@ class McpToolImplementation implements IToolImpl {
 			} : undefined,
 			invocationMessage: new MarkdownString(localize('msg.run', "Running {0}", title)),
 			pastTenseMessage: new MarkdownString(localize('msg.ran', "Ran {0} ", title)),
-			originMessage: new MarkdownString(markdownCommandLink({
-				id: McpCommandIds.ShowConfiguration,
-				title: subtitle,
-				arguments: [server.collection.id, server.definition.id],
-			}), { isTrusted: true }),
+			originMessage: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
 			toolSpecificData: {
 				kind: 'input',
 				rawInput: context.parameters

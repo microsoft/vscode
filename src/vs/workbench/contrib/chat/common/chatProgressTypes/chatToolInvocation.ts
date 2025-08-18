@@ -9,7 +9,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IChatExtensionsContent, IChatToolInputInvocationData, IChatTodoListContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData } from '../chatService.js';
-import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult } from '../languageModelToolsService.js';
+import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
@@ -45,6 +45,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	private _confirmationMessages: IToolConfirmationMessages | undefined;
 	public readonly presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
+	public readonly source: ToolDataSource;
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 
@@ -60,6 +61,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.presentation = preparedInvocation?.presentation;
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
 		this.toolId = toolData.id;
+		this.source = toolData.source;
 
 		if (!this._confirmationMessages) {
 			// No confirmation needed
@@ -107,6 +109,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			originMessage: this.originMessage,
 			isConfirmed: this._isConfirmed,
 			isComplete: this._isComplete,
+			source: this.source,
 			resultDetails: isToolResultOutputDetails(this._resultDetails)
 				? { output: { type: 'data', mimeType: this._resultDetails.output.mimeType, base64Data: encodeBase64(this._resultDetails.output.value) } }
 				: this._resultDetails,

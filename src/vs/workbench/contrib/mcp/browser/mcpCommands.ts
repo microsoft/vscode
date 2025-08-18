@@ -53,8 +53,10 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService.js';
 import { ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
@@ -160,6 +162,45 @@ interface ActionItem extends IQuickPickItem {
 interface AuthActionItem extends IQuickPickItem {
 	action: 'disconnect' | 'signout';
 	accountQuery: IAccountQuery;
+}
+
+export class McpConfirmationServerOptionsCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.ServerOptionsInConfirmation,
+			title: localize2('mcp.options', 'Server Options'),
+			category,
+			icon: Codicon.settingsGear,
+			f1: false,
+			menu: [{
+				id: MenuId.ChatConfirmationMenu,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('chatConfirmationPartSource', 'mcp'),
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals('chatConfirmationPartType', 'chatToolConfirmation'),
+						ContextKeyExpr.equals('chatConfirmationPartType', 'elicitation'),
+					),
+				),
+				group: 'navigation'
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, arg: IChatToolInvocation | IChatElicitationRequest): Promise<void> {
+		const toolsService = accessor.get(ILanguageModelToolsService);
+		if (arg.kind === 'toolInvocation') {
+			const tool = toolsService.getTool(arg.toolId);
+			if (tool?.source.type === 'mcp') {
+				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, tool.source.definitionId);
+			}
+		} else if (arg.kind === 'elicitation') {
+			if (arg.source?.type === 'mcp') {
+				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, arg.source.definitionId);
+			}
+		} else {
+			assertNever(arg);
+		}
+	}
 }
 
 export class McpServerOptionsCommand extends Action2 {
@@ -494,7 +535,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 					} else if (state === DisplayedState.Error) {
 						const server = findLast(servers, isServer);
 						if (server) {
-							server.showOutput();
+							await server.showOutput(true);
 							commandService.executeCommand(McpCommandIds.ServerOptions, server.definition.id);
 						}
 					} else {
@@ -1014,7 +1055,7 @@ export class McpConfigureSamplingModels extends Action2 {
 			}
 			return {
 				label: model.name,
-				description: model.description,
+				description: model.tooltip,
 				id,
 				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
 			};

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions } from '../../../../../base/browser/markdownRenderer.js';
+import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions, type MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -77,6 +77,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	private readonly mathLayoutParticipants = new Set<() => void>();
 
+	private _isDisposed = false;
+
 	constructor(
 		private readonly markdown: IChatMarkdownContent,
 		context: IChatContentPartRenderContext,
@@ -84,6 +86,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		fillInIncompleteTokens = false,
 		codeBlockStartIndex = 0,
 		renderer: MarkdownRenderer,
+		markdownRenderOptions: MarkdownRenderOptions | undefined,
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
@@ -110,6 +113,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
 		const doRenderMarkdown = () => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			// TODO: Move katex support into chatMarkdownRenderer
 			const markedExtensions = enableMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
@@ -238,6 +245,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 				markedOptions: markedOpts,
 				markedExtensions,
+				...markdownRenderOptions,
 			}, this.domNode));
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
@@ -272,12 +280,23 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
 			// Need to load async
-			MarkedKatexSupport.loadExtension(dom.getWindow(context.container)).then(() => {
-				doRenderMarkdown();
-			});
+			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
+				.catch(e => {
+					console.error('Failed to load MarkedKatexSupport extension:', e);
+				}).finally(() => {
+					doRenderMarkdown();
+					if (!this._isDisposed) {
+						this._onDidChangeHeight.fire();
+					}
+				});
 		} else {
 			doRenderMarkdown();
 		}
+	}
+
+	override dispose(): void {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {

@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 
 const enum ShellLaunchType {
 	Unknown = 0,
@@ -37,6 +40,7 @@ export class ToolTerminalCreator {
 	private static _lastSuccessfulShell: ShellLaunchType = ShellLaunchType.Unknown;
 
 	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 	}
@@ -48,9 +52,26 @@ export class ToolTerminalCreator {
 			shellIntegrationQuality: ShellIntegrationQuality.None,
 		};
 
-		// The default profile has shell integration
-		if (ToolTerminalCreator._lastSuccessfulShell <= ShellLaunchType.Default) {
-			const shellIntegrationQuality = await this._waitForShellIntegration(instance, 5000);
+		// Wait for shell integration when the fallback case has not been hit or when shell
+		// integration injection is enabled. Note that it's possible for the fallback case to happen
+		// and then for SI to activate again later in the session.
+		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
+
+		// Get the configurable timeout to wait for shell integration
+		const configuredTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout) as number | undefined;
+		let waitTime: number;
+		if (configuredTimeout === undefined || typeof configuredTimeout !== 'number' || configuredTimeout < 0) {
+			waitTime = siInjectionEnabled ? 5000 : (instance.isRemote ? 3000 : 2000);
+		} else {
+			// There's an absolute minimum is 500ms
+			waitTime = Math.max(configuredTimeout, 500);
+		}
+
+		if (
+			ToolTerminalCreator._lastSuccessfulShell !== ShellLaunchType.Fallback ||
+			siInjectionEnabled
+		) {
+			const shellIntegrationQuality = await this._waitForShellIntegration(instance, waitTime);
 			if (token.isCancellationRequested) {
 				instance.dispose();
 				throw new CancellationError();
@@ -66,6 +87,25 @@ export class ToolTerminalCreator {
 		// Fallback case: No shell integration in default profile
 		ToolTerminalCreator._lastSuccessfulShell = ShellLaunchType.Fallback;
 		return toolTerminal;
+	}
+
+	/**
+	 * Synchronously update shell integration quality based on the terminal instance's current
+	 * capabilities. This is a defensive change to avoid no shell integration being sticky
+	 * https://github.com/microsoft/vscode/issues/260880
+	 *
+	 * Only upgrade quality just in case.
+	 */
+	refreshShellIntegrationQuality(toolTerminal: IToolTerminal) {
+		const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
+		if (commandDetection) {
+			if (
+				toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None ||
+				toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.Basic
+			) {
+				toolTerminal.shellIntegrationQuality = commandDetection.hasRichCommandDetection ? ShellIntegrationQuality.Rich : ShellIntegrationQuality.Basic;
+			}
+		}
 	}
 
 	private _createCopilotTerminal() {
@@ -84,61 +124,52 @@ export class ToolTerminalCreator {
 		instance: ITerminalInstance,
 		timeoutMs: number
 	): Promise<ShellIntegrationQuality> {
-		const dataFinished = new DeferredPromise<void>();
+		const store = new DisposableStore();
+		const result = new DeferredPromise<ShellIntegrationQuality>();
 
-		const deferred = new DeferredPromise<ShellIntegrationQuality>();
-		const timer = disposableTimeout(() => deferred.complete(ShellIntegrationQuality.None), timeoutMs);
+		const siNoneTimer = store.add(new MutableDisposable());
+		siNoneTimer.value = disposableTimeout(() => result.complete(ShellIntegrationQuality.None), timeoutMs);
 
 		if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection) {
-			timer.dispose();
-			deferred.complete(ShellIntegrationQuality.Rich);
+			// Rich command detection is available immediately.
+			siNoneTimer.clear();
+			result.complete(ShellIntegrationQuality.Rich);
 		} else {
-			const onSetRichCommandDetection = this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection);
-
-			const richCommandDetectionListener = onSetRichCommandDetection.event((e) => {
+			const onSetRichCommandDetection = store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection));
+			store.add(onSetRichCommandDetection.event((e) => {
 				if (e.instance !== instance) {
 					return;
 				}
-				deferred.complete(ShellIntegrationQuality.Rich);
-			});
-
-			const store = new DisposableStore();
+				siNoneTimer.clear();
+				// Rich command detection becomes available some time after the terminal is created.
+				result.complete(ShellIntegrationQuality.Rich);
+			}));
 
 			const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
-				timer.dispose();
+				siNoneTimer.clear();
 				// When command detection lights up, allow up to 200ms for the rich command
 				// detection sequence to come in before declaring it as basic shell integration.
-				// up.
-				Promise.race([
-					dataFinished.p,
-					timeout(200)
-				]).then(() => {
-					if (!deferred.isResolved) {
-						deferred.complete(ShellIntegrationQuality.Basic);
-					}
-				});
+				store.add(disposableTimeout(() => {
+					result.complete(ShellIntegrationQuality.Basic);
+				}, 200));
 			} else {
 				store.add(instance.capabilities.onDidAddCapabilityType(e => {
 					if (e === TerminalCapability.CommandDetection) {
-						timer.dispose();
+						siNoneTimer.clear();
 						// When command detection lights up, allow up to 200ms for the rich command
-						// detection sequence to come in before declaring it as basic shell integration.
-						// up.
-						Promise.race([
-							dataFinished.p,
-							timeout(200)
-						]).then(() => deferred.complete(ShellIntegrationQuality.Basic));
+						// detection sequence to come in before declaring it as basic shell
+						// integration.
+						store.add(disposableTimeout(() => {
+							result.complete(ShellIntegrationQuality.Basic);
+						}, 200));
 					}
 				}));
 			}
-
-			deferred.p.finally(() => {
-				store.dispose();
-				richCommandDetectionListener.dispose();
-			});
 		}
 
-		return deferred.p;
+		result.p.finally(() => store.dispose());
+
+		return result.p;
 	}
 }

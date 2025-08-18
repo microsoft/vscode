@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basicMarkupHtmlTags, sanitizeHtml } from '../../../../base/browser/domSanitize.js';
-import { allowedMarkdownHtmlAttributes } from '../../../../base/browser/markdownRenderer.js';
+import { sanitizeHtml } from '../../../../base/browser/domSanitize.js';
+import { allowedMarkdownHtmlAttributes, allowedMarkdownHtmlTags } from '../../../../base/browser/markdownRenderer.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -156,48 +157,57 @@ pre code {
 }
 `;
 
-const allowedProtocols = [
+const defaultAllowedProtocols = Object.freeze([
 	Schemas.http,
 	Schemas.https,
 	Schemas.command,
-];
+]);
 
-function sanitize(documentContent: string, allowAllProtocols = false): TrustedHTML {
-	// TODO: Move most of these options to the callers
+function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSanitizerConfig | undefined): TrustedHTML {
 	return sanitizeHtml(documentContent, {
 		allowedLinkProtocols: {
-			override: allowAllProtocols ? '*' : allowedProtocols,
+			override: sanitizerConfig?.allowedProtocols?.override ?? defaultAllowedProtocols,
 		},
 		allowedTags: {
-			override: [
-				...basicMarkupHtmlTags,
-				'input',
-				'select',
-				'checkbox',
-				'checklist',
-			],
+			override: allowedMarkdownHtmlTags,
+			augment: sanitizerConfig?.allowedTags?.augment
 		},
 		allowedAttributes: {
 			override: [
 				...allowedMarkdownHtmlAttributes,
-				'data-command', 'name', 'id', 'role', 'tabindex',
-				'x-dispatch',
-				'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
+				'name',
+				'id',
+				'role',
+				'tabindex',
+				'placeholder',
 			],
+			augment: sanitizerConfig?.allowedAttributes?.augment ?? [],
 		}
 	});
 }
 
+interface MarkdownDocumentSanitizerConfig {
+	readonly allowedProtocols?: {
+		readonly override: readonly string[] | '*';
+	};
+	readonly allowedTags?: {
+		readonly augment: readonly string[];
+	};
+	readonly allowedAttributes?: {
+		readonly augment: readonly string[];
+	};
+}
+
 interface IRenderMarkdownDocumentOptions {
-	readonly shouldSanitize?: boolean;
-	readonly allowUnknownProtocols?: boolean;
-	readonly markedExtensions?: marked.MarkedExtension[];
+	readonly sanitizerConfig?: 'skipSanitization' | MarkdownDocumentSanitizerConfig;
+	readonly markedExtensions?: readonly marked.MarkedExtension[];
 }
 
 /**
- * Renders a string of markdown as a document.
+ * Renders a string of markdown for use in an external document context.
  *
- * Uses VS Code's syntax highlighting code blocks.
+ * Uses VS Code's syntax highlighting code blocks. Also does not attach all the hooks and customization that normal
+ * markdown renderer.
  */
 export async function renderMarkdownDocument(
 	text: string,
@@ -227,11 +237,11 @@ export async function renderMarkdownDocument(
 		...(options?.markedExtensions ?? []),
 	);
 
-	const raw = await m.parse(text, { async: true });
-	if (options?.shouldSanitize ?? true) {
-		return sanitize(raw, options?.allowUnknownProtocols ?? false) as any as string;
-	} else {
+	const raw = await raceCancellationError(m.parse(text, { async: true }), token ?? CancellationToken.None);
+	if (options?.sanitizerConfig === 'skipSanitization') {
 		return raw;
+	} else {
+		return sanitize(raw, options?.sanitizerConfig) as any as string;
 	}
 }
 

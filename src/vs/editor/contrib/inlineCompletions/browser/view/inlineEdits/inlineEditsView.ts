@@ -7,7 +7,7 @@ import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equal
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -35,6 +35,7 @@ import { InlineEditsWordReplacementView } from './inlineEditsViews/inlineEditsWo
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineEditsViews/originalEditorInlineDiffView.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils/utils.js';
 import './view.css';
+import { $ } from '../../../../../../base/browser/dom.js';
 
 
 export class InlineEditsView extends Disposable {
@@ -89,7 +90,7 @@ export class InlineEditsView extends Disposable {
 			}
 
 			if (state.kind === InlineCompletionViewKind.SideBySide) {
-				const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange);
+				const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange, textModel.getOptions().tabSize);
 				newText = indentationAdjustmentEdit.applyToString(newText);
 
 				mappings = applyEditToModifiedRangeMappings(mappings, indentationAdjustmentEdit);
@@ -304,6 +305,40 @@ export class InlineEditsView extends Disposable {
 		this._indicatorCyclicDependencyCircuitBreaker.set(true, undefined);
 
 		this._register(this._instantiationService.createInstance(InlineEditsOnboardingExperience, this._host, this._model, this._indicator, this._inlineCollapsedView));
+
+		const minEditorScrollHeight = derived(this, reader => {
+			return Math.max(
+				...this._wordReplacementViews.read(reader).map(v => v.minEditorScrollHeight.read(reader)),
+				this._lineReplacementView.minEditorScrollHeight.read(reader),
+				this._customView.minEditorScrollHeight.read(reader)
+			);
+		}).recomputeInitiallyAndOnChange(this._store);
+
+		const textModel = this._editor.getModel()!;
+
+		let viewZoneId: string | undefined;
+		this._register(autorun(reader => {
+			const minScrollHeight = minEditorScrollHeight.read(reader);
+			this._editor.changeViewZones(accessor => {
+				const scrollHeight = this._editor.getScrollHeight();
+				const viewZoneHeight = minScrollHeight - scrollHeight + 1 /* Add 1px so there is a small gap */;
+
+				if (viewZoneHeight !== 0 && viewZoneId) {
+					accessor.removeZone(viewZoneId);
+					viewZoneId = undefined;
+				}
+
+				if (viewZoneHeight <= 0) {
+					return;
+				}
+
+				viewZoneId = accessor.addZone({
+					afterLineNumber: textModel.getLineCount(),
+					heightInPx: viewZoneHeight,
+					domNode: $('div.minScrollHeightViewZone'),
+				});
+			});
+		}));
 
 		this._constructorDone.set(true, undefined); // TODO: remove and use correct initialization order
 	}

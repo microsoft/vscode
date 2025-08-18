@@ -3,27 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PolicyTag } from '../../../../base/common/policy.js';
-import './promptSyntax/promptToolsCodeLensProvider.js';
-import './promptSyntax/promptCodingAgentActionContribution.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { PolicyTag } from '../../../../base/common/policy.js';
 import { assertDefined } from '../../../../base/common/types.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { mcpAutoStartConfig, McpAutoStartValue, mcpEnabledConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
-import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
+import { McpAutoStartValue, mcpAutoStartConfig, mcpEnabledConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -31,16 +28,19 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { allDiscoverySources, discoverySourceLabel, mcpDiscoverySection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
+import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
+import { allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
 import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
-import { chatVariableLeader } from '../common/chatParserTypes.js';
+import { ChatModeService, IChatModeService } from '../common/chatModes.js';
+import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatService } from '../common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/chatSlashCommands.js';
+import { ChatTodoListService, IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
@@ -49,16 +49,17 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
+import { PromptsConfig } from '../common/promptSyntax/config/config.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, MODE_DEFAULT_SOURCE_FOLDER, MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { registerPromptFileContributions } from '../common/promptSyntax/promptFileContributions.js';
-import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
+import { INSTRUCTIONS_DOCUMENTATION_URL, MODE_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
-import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
-import { CopilotTitleBarMenuRendering, registerChatActions, ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
 import { registerNewChatActions } from './actions/chatClearActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { ChatContextContributions } from './actions/chatContext.js';
@@ -69,6 +70,7 @@ import { ChatSubmitAction, registerChatExecuteActions } from './actions/chatExec
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
+import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
@@ -77,6 +79,7 @@ import { ChatTransferContribution } from './actions/chatTransfer.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
+import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 import { ChatContextPickService, IChatContextPickService } from './chatContextPickService.js';
 import { ChatInputBoxContentProvider } from './chatEdinputInputContentProvider.js';
@@ -90,34 +93,30 @@ import { SimpleBrowserOverlay } from './chatEditing/simpleBrowserEditorOverlay.j
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDecorationsRenderer.js';
+import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
+import { ChatSessionsView } from './chatSessions.js';
 import { ChatSetupContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidget, ChatWidgetService } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
+import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.js';
 import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
-import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
-import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ChatModeService, IChatModeService } from '../common/chatModes.js';
-import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
-import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
-import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
-import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
-import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
+import './promptSyntax/promptCodingAgentActionContribution.js';
+import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
-import { ChatTodoListService, IChatTodoListService } from '../common/chatTodoListService.js';
-import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
-import { AssistedTypes, AddConfigurationType } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
-import { ChatSessionsView } from './chatSessions.js';
+import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
+import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
+import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -234,6 +233,17 @@ configurationRegistry.registerConfiguration({
 				minimumVersion: '1.99',
 				defaultValue: false,
 				tags: [PolicyTag.Account, PolicyTag.Preview]
+			}
+		},
+		[ChatConfiguration.AutoApproveEdits]: {
+			default: {
+				'**/*': true,
+				'**/.vscode/*.json': false,
+			},
+			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintened side-effects, such as `**/.vscode/*.json`.\n\nFiles are matched against the glob patterns in the order they are specified."),
+			type: 'object',
+			additionalProperties: {
+				type: 'boolean',
 			}
 		},
 		'chat.sendElementsToChat.enabled': {
@@ -357,10 +367,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.Edits2Enabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.edits2Enabled', "Enable the new Edits mode that is based on tool-calling. When this is enabled, models that don't support tool-calling are unavailable for Edits mode."),
-			default: true,
-			experiment: {
-				mode: 'startup'
-			}
+			default: false,
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
 			type: 'boolean',
@@ -376,9 +383,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, agent mode can be activated via the dropdown in the view.", 'Copilot Chat'),
 			default: true,
-			experiment: {
-				mode: 'startup'
-			},
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
@@ -387,8 +391,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
-			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using Katex."),
-			default: false,
+			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
+			default: true,
 			tags: ['preview'],
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
@@ -399,19 +403,11 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[mcpDiscoverySection]: {
-			oneOf: [
-				{ type: 'boolean' },
-				{
-					type: 'object',
-					default: Object.fromEntries(allDiscoverySources.map(k => [k, true])),
-					properties: Object.fromEntries(allDiscoverySources.map(k => [
-						k,
-						{ type: 'boolean', description: nls.localize('mcp.discovery.source', "Enables discovery of {0} servers", discoverySourceLabel[k]) }
-					])),
-				}
-			],
-			default: true,
-			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers on the machine. It may be set to `true` or `false` to disable or enable all sources, and an mapping sources you wish to enable."),
+			type: 'object',
+			properties: Object.fromEntries(allDiscoverySources.map(k => [k, { type: 'boolean', description: discoverySourceSettingsLabel[k] }])),
+			additionalProperties: false,
+			default: Object.fromEntries(allDiscoverySources.map(k => [k, false])),
+			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers from configuration from various other applications."),
 		},
 		[mcpGalleryServiceUrlConfig]: {
 			type: 'string',
@@ -541,22 +537,41 @@ configurationRegistry.registerConfiguration({
 			default: 'default',
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		'chat.todoListTool.enabled': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat. This tool allows you to use todo lists in chat."),
+			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat, which the agent uses as a tool for planning, progress tracking, and context management for complex development workflows."),
 			tags: ['experimental'],
-			included: false,
+			experiment: {
+				mode: 'startup'
+			}
 		},
-		'chat.tools.useTreePicker': {
+		'chat.todoListTool.writeOnly': {
 			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.tools.useTreePicker', "Use the new Quick Tree-based tools picker instead of the Quick Pick-based one. Provides better hierarchical organization of tools and tool sets with collapsible sections, improved visual hierarchy, and native tree interactions."),
+			default: false,
+			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
+			tags: ['experimental']
+		},
+		[ChatConfiguration.ShowThinking]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.agent.showThinking', "Controls whether to show the thinking process of the model in chat responses."),
 			tags: ['experimental'],
-		}
+		},
+		'chat.hideAIFeatures': {
+			type: 'boolean',
+			description: nls.localize('chat.hideAIFeatures', "Hide and disables the getting started UI elements for setting up AI features and Chat. This setting has no effect when Copilot extensions are installed."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			policy: {
+				name: 'ChatHideAIFeatures',
+				minimumVersion: '1.104',
+
+			}
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -576,7 +591,17 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			['chat.experimental.detectParticipant.enabled', { value: undefined }],
 			['chat.detectParticipant.enabled', { value: value !== false }]
 		])
-	}
+	},
+	{
+		key: mcpDiscoverySection,
+		migrateFn: (value: unknown) => {
+			if (typeof value === 'boolean') {
+				return { value: Object.fromEntries(allDiscoverySources.map(k => [k, value])) };
+			}
+
+			return { value };
+		}
+	},
 ]);
 
 class ChatResolverContribution extends Disposable {
@@ -718,7 +743,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 			// Report agent list
 			const agentText = (await Promise.all(agents
-				.filter(a => a.id !== defaultAgent?.id && !a.isCore)
+				.filter(a => !a.isDefault && !a.isCore)
 				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
 					const description = a.description ? `- ${a.description}` : '';
@@ -732,24 +757,6 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 					return (agentLine + '\n' + commandText).trim();
 				}))).join('\n');
 			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [ChatSubmitAction.ID] } }), kind: 'markdownContent' });
-
-			// Report variables
-			if (defaultAgent?.metadata.helpTextVariablesPrefix) {
-				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
-				if (isMarkdownString(defaultAgent.metadata.helpTextVariablesPrefix)) {
-					progress.report({ content: defaultAgent.metadata.helpTextVariablesPrefix, kind: 'markdownContent' });
-				} else {
-					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextVariablesPrefix), kind: 'markdownContent' });
-				}
-
-				const variables = [
-					{ name: 'file', description: nls.localize('file', "Choose a file in the workspace") }
-				];
-				const variableText = variables
-					.map(v => `* \`${chatVariableLeader}${v.name}\` - ${v.description}`)
-					.join('\n');
-				progress.report({ content: new MarkdownString('\n' + variableText), kind: 'markdownContent' });
-			}
 
 			// Report help text ending
 			if (defaultAgent?.metadata.helpTextPostfix) {
@@ -848,5 +855,9 @@ registerPromptFileContributions();
 
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerAction2(ConfigureToolSets);
+
+// Register chat session actions
+import { RenameChatSessionAction } from './actions/chatSessionActions.js';
+registerAction2(RenameChatSessionAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

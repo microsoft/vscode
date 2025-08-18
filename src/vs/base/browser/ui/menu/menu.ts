@@ -411,17 +411,12 @@ export class Menu extends ActionBar {
 
 			return menuActionViewItem;
 		} else {
-			const menuItemOptions: IMenuItemOptions = { enableMnemonics: options.enableMnemonics, useEventAsContext: options.useEventAsContext };
-			if (options.getKeyBinding) {
-				const keybinding = options.getKeyBinding(action);
-				if (keybinding) {
-					const keybindingLabel = keybinding.getLabel();
-
-					if (keybindingLabel) {
-						menuItemOptions.keybinding = keybindingLabel;
-					}
-				}
-			}
+			const keybindingLabel = options.getKeyBinding?.(action)?.getLabel();
+			const menuItemOptions: IMenuItemOptions = {
+				enableMnemonics: options.enableMnemonics,
+				useEventAsContext: options.useEventAsContext,
+				keybinding: keybindingLabel,
+			};
 
 			const menuActionViewItem = new BaseMenuActionViewItem(options.context, action, menuItemOptions, this.menuStyles);
 
@@ -445,7 +440,7 @@ export class Menu extends ActionBar {
 }
 
 interface IMenuItemOptions extends IActionViewItemOptions {
-	enableMnemonics?: boolean;
+	readonly enableMnemonics?: boolean;
 }
 
 class BaseMenuActionViewItem extends BaseActionViewItem {
@@ -462,12 +457,15 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	private cssClass: string;
 
 	constructor(ctx: unknown, action: IAction, options: IMenuItemOptions, protected readonly menuStyle: IMenuStyles) {
-		options.isMenu = true;
+		options = {
+			...options,
+			isMenu: true,
+			icon: options.icon !== undefined ? options.icon : false,
+			label: options.label !== undefined ? options.label : true,
+		};
 		super(action, action, options);
 
 		this.options = options;
-		this.options.icon = options.icon !== undefined ? options.icon : false;
-		this.options.label = options.label !== undefined ? options.label : true;
 		this.cssClass = '';
 
 		// Set mnemonic
@@ -632,12 +630,12 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 								escMatch[3]),
 							strings.rtrim(replaceDoubleEscapes(label.substr(escMatch.index + escMatch[0].length)), ' '));
 					} else {
-						this.label.innerText = replaceDoubleEscapes(label).trim();
+						this.label.textContent = replaceDoubleEscapes(label).trim();
 					}
 
 					this.item?.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
 				} else {
-					this.label.innerText = label.replace(/&&/g, '&').trim();
+					this.label.textContent = label.replace(/&&/g, '&').trim();
 				}
 			}
 		}

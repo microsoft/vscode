@@ -324,7 +324,7 @@ export class InlineCompletionsController extends Disposable {
 			const model = this.model.read(reader);
 			const state = model?.inlineCompletionState.read(reader);
 			const primaryGhostText = state?.primaryGhostText;
-			if (!primaryGhostText) {
+			if (!primaryGhostText || primaryGhostText.isEmpty()) {
 				return undefined;
 			}
 			const firstPartPos = new Position(primaryGhostText.lineNumber, primaryGhostText.parts[0].column);

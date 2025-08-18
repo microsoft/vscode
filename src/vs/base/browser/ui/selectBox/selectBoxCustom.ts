@@ -63,7 +63,7 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 		data.text.textContent = text;
 		data.detail.textContent = !!detail ? detail : '';
-		data.decoratorRight.innerText = !!decoratorRight ? decoratorRight : '';
+		data.decoratorRight.textContent = !!decoratorRight ? decoratorRight : '';
 
 		// pseudo-select disabled option
 		if (isDisabled) {
@@ -450,7 +450,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	// ContextView dropdown methods
 
 	private showSelectDropDown() {
-		this.selectionDetailsPane.innerText = '';
+		this.selectionDetailsPane.textContent = '';
 
 		if (!this.contextViewProvider || this._isVisible) {
 			return;
@@ -902,7 +902,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	private updateDetail(selectedIndex: number): void {
-		this.selectionDetailsPane.innerText = '';
+		this.selectionDetailsPane.textContent = '';
 		const option = this.options[selectedIndex];
 		const description = option?.description ?? '';
 		const descriptionIsMarkdown = option?.descriptionIsMarkdown ?? false;
@@ -912,7 +912,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				const actionHandler = option.descriptionMarkdownActionHandler;
 				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description, actionHandler));
 			} else {
-				this.selectionDetailsPane.innerText = description;
+				this.selectionDetailsPane.textContent = description;
 			}
 			this.selectionDetailsPane.style.display = 'block';
 		} else {

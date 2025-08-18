@@ -131,7 +131,7 @@ export function setExecutableBit(pattern?: string | string[]): NodeJS.ReadWriteS
 		if (!f.stat) {
 			f.stat = { isFile() { return true; } } as any;
 		}
-		f.stat.mode = /* 100755 */ 33261;
+		f.stat!.mode = /* 100755 */ 33261;
 		return f;
 	});
 
@@ -185,9 +185,7 @@ export function cleanNodeModules(rulePath: string): NodeJS.ReadWriteStream {
 	return es.duplex(input, output);
 }
 
-declare class FileSourceMap extends VinylFile {
-	public sourceMap: sm.RawSourceMap;
-}
+type FileSourceMap = VinylFile & { sourceMap: sm.RawSourceMap };
 
 export function loadSourcemaps(): NodeJS.ReadWriteStream {
 	const input = es.through();

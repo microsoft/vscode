@@ -478,7 +478,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.restoreLastCheckpoint',
-			title: localize2('chat.restoreLastCheckpoint.label', "Restore to last checkpoint"),
+			title: localize2('chat.restoreLastCheckpoint.label', "Restore to Last Checkpoint"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.discard,
@@ -728,7 +728,7 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 			tooltip: ViewPreviousEditsAction.Label,
 			f1: true,
 			icon: Codicon.diffMultiple,
-			precondition: hasUndecidedChatEditingResourceContextKey.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasUndecidedChatEditingResourceContextKey.negate()),
 			menu: [
 				{
 					id: MenuId.ChatEditingWidgetToolbar,

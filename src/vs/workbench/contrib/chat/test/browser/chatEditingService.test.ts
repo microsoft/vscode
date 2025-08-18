@@ -104,6 +104,8 @@ suite('ChatEditingService', function () {
 
 		chatService = insta.get(IChatService);
 
+		store.add(insta.get(IChatSessionsService) as ChatSessionsService); // Needs to be disposed in between test runs to clear extensionPoint contribution
+
 		const chatAgentService = insta.get(IChatAgentService);
 
 		const agent: IChatAgentImplementation = {

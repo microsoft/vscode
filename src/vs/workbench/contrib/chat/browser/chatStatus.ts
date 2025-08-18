@@ -44,19 +44,19 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInlineCompletionsService } from '../../../../editor/browser/services/inlineCompletionsService.js';
 
-const gaugeBackground = registerColor('gauge.background', {
+const gaugeForeground = registerColor('gauge.foreground', {
 	dark: inputValidationInfoBorder,
 	light: inputValidationInfoBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('gaugeBackground', "Gauge background color."));
+}, localize('gaugeForeground', "Gauge foreground color."));
 
-registerColor('gauge.foreground', {
-	dark: transparent(gaugeBackground, 0.3),
-	light: transparent(gaugeBackground, 0.3),
+registerColor('gauge.background', {
+	dark: transparent(gaugeForeground, 0.3),
+	light: transparent(gaugeForeground, 0.3),
 	hcDark: Color.white,
 	hcLight: Color.white
-}, localize('gaugeForeground', "Gauge foreground color."));
+}, localize('gaugeBackground', "Gauge background color."));
 
 registerColor('gauge.border', {
 	dark: null,
@@ -65,33 +65,33 @@ registerColor('gauge.border', {
 	hcLight: contrastBorder
 }, localize('gaugeBorder', "Gauge border color."));
 
-const gaugeWarningBackground = registerColor('gauge.warningBackground', {
+const gaugeWarningForeground = registerColor('gauge.warningForeground', {
 	dark: inputValidationWarningBorder,
 	light: inputValidationWarningBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('gaugeWarningBackground', "Gauge warning background color."));
-
-registerColor('gauge.warningForeground', {
-	dark: transparent(gaugeWarningBackground, 0.3),
-	light: transparent(gaugeWarningBackground, 0.3),
-	hcDark: Color.white,
-	hcLight: Color.white
 }, localize('gaugeWarningForeground', "Gauge warning foreground color."));
 
-const gaugeErrorBackground = registerColor('gauge.errorBackground', {
+registerColor('gauge.warningBackground', {
+	dark: transparent(gaugeWarningForeground, 0.3),
+	light: transparent(gaugeWarningForeground, 0.3),
+	hcDark: Color.white,
+	hcLight: Color.white
+}, localize('gaugeWarningBackground', "Gauge warning background color."));
+
+const gaugeErrorForeground = registerColor('gauge.errorForeground', {
 	dark: inputValidationErrorBorder,
 	light: inputValidationErrorBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
-}, localize('gaugeErrorBackground', "Gauge error background color."));
+}, localize('gaugeErrorForeground', "Gauge error foreground color."));
 
-registerColor('gauge.errorForeground', {
-	dark: transparent(gaugeErrorBackground, 0.3),
-	light: transparent(gaugeErrorBackground, 0.3),
+registerColor('gauge.errorBackground', {
+	dark: transparent(gaugeErrorForeground, 0.3),
+	light: transparent(gaugeErrorForeground, 0.3),
 	hcDark: Color.white,
 	hcLight: Color.white
-}, localize('gaugeErrorForeground', "Gauge error foreground color."));
+}, localize('gaugeErrorBackground', "Gauge error background color."));
 
 //#endregion
 

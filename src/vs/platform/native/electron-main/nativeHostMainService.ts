@@ -396,41 +396,34 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					return;
 				}
 			}
-
-			// Different source, delete it first
-			await fs.promises.unlink(source);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				throw error; // throw on any error but file not found
 			}
 		}
 
+		await this.installShellCommandWithPrivileges(windowId, source, target);
+	}
+
+	private async installShellCommandWithPrivileges(windowId: number | undefined, source: string, target: string): Promise<void> {
+		const { response } = await this.showMessageBox(windowId, {
+			type: 'info',
+			message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
+			buttons: [
+				localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+				localize('cancel', "Cancel")
+			]
+		});
+
+		if (response === 1 /* Cancel */) {
+			throw new CancellationError();
+		}
+
 		try {
-			await fs.promises.symlink(target, source);
+			const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
+			await promisify(exec)(command);
 		} catch (error) {
-			if (error.code !== 'EACCES' && error.code !== 'ENOENT') {
-				throw error;
-			}
-
-			const { response } = await this.showMessageBox(windowId, {
-				type: 'info',
-				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
-				buttons: [
-					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-					localize('cancel', "Cancel")
-				]
-			});
-
-			if (response === 1 /* Cancel */) {
-				throw new CancellationError();
-			}
-
-			try {
-				const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
-				await promisify(exec)(command);
-			} catch (error) {
-				throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
-			}
+			throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
 		}
 	}
 
@@ -1007,13 +1000,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (!parentWindow) {
 			return;
 		}
-		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true, hideBecauseShadowWindow: false });
-		options.backgroundColor = undefined;
 
-		const devToolsWindow = new BrowserWindow(options);
-		devToolsWindow.setMenuBarVisibility(false);
-		devToolsWindow.loadURL(url);
-		devToolsWindow.once('ready-to-show', () => devToolsWindow.show());
+		this.openChildWindow(parentWindow.win, url);
+	}
+
+	private openChildWindow(parentWindow: BrowserWindow | null, url: string): BrowserWindow {
+		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
+		options.parent = parentWindow ?? undefined;
+
+		const window = new BrowserWindow(options);
+		window.setMenuBarVisibility(false);
+		window.loadURL(url);
+
+		window.once('ready-to-show', () => window.show());
+
+		return window;
 	}
 
 	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
@@ -1023,22 +1024,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		if (typeof this.gpuInfoWindowId !== 'number') {
-			const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
-			options.backgroundColor = undefined;
-
-			const gpuInfoWindow = new BrowserWindow(options);
-			gpuInfoWindow.setMenuBarVisibility(false);
-			gpuInfoWindow.loadURL('chrome://gpu');
-
-			gpuInfoWindow.once('ready-to-show', () => gpuInfoWindow.show());
+			const gpuInfoWindow = this.openChildWindow(parentWindow.win, 'chrome://gpu');
 			gpuInfoWindow.once('close', () => this.gpuInfoWindowId = undefined);
-
-			parentWindow.win?.on('close', () => {
-				if (this.gpuInfoWindowId) {
-					BrowserWindow.fromId(this.gpuInfoWindowId)?.close();
-					this.gpuInfoWindowId = undefined;
-				}
-			});
 
 			this.gpuInfoWindowId = gpuInfoWindow.id;
 		}

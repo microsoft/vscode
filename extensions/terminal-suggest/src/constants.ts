@@ -38,7 +38,6 @@ export const upstreamSpecs = [
 	'grep',
 	'find',
 
-	'git',
 	'npm',
 	'yarn',
 	'python',

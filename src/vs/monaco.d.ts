@@ -4769,6 +4769,7 @@ declare namespace monaco.editor {
 		showToolbar?: 'always' | 'onHover' | 'never';
 		syntaxHighlightingEnabled?: boolean;
 		suppressSuggestions?: boolean;
+		minShowDelay?: number;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
@@ -7469,6 +7470,7 @@ declare namespace monaco.languages {
 		readonly includeInlineEdits: boolean;
 		readonly includeInlineCompletions: boolean;
 		readonly requestIssuedDateTime: number;
+		readonly earliestShownDateTime: number;
 	}
 
 	export class SelectedSuggestionInfo {
@@ -7532,8 +7534,14 @@ declare namespace monaco.languages {
 		icon?: IconPath;
 	}
 
+	export enum InlineCompletionDisplayLocationKind {
+		Code = 1,
+		Label = 2
+	}
+
 	export interface InlineCompletionDisplayLocation {
 		range: IRange;
+		kind: InlineCompletionDisplayLocationKind;
 		label: string;
 	}
 
@@ -7626,10 +7634,15 @@ declare namespace monaco.languages {
 	export type LifetimeSummary = {
 		requestUuid: string;
 		partiallyAccepted: number;
+		partiallyAcceptedCountSinceOriginal: number;
+		partiallyAcceptedRatioSinceOriginal: number;
+		partiallyAcceptedCharactersSinceOriginal: number;
 		shown: boolean;
 		shownDuration: number;
 		shownDurationUncollapsed: number;
 		timeUntilShown: number | undefined;
+		timeUntilProviderRequest: number;
+		timeUntilProviderResponse: number;
 		editorType: string;
 		viewKind: string | undefined;
 		error: string | undefined;
@@ -8385,7 +8398,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface CodeLensList {
-		lenses: CodeLens[];
+		readonly lenses: readonly CodeLens[];
 		dispose?(): void;
 	}
 

@@ -16,7 +16,7 @@ import { LineSource, renderLines, RenderOptions } from '../../../../../../browse
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
-import { InlineCompletionDisplayLocation } from '../../../../../../common/languages.js';
+import { InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind } from '../../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
@@ -40,6 +40,8 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 	private readonly _viewRef = n.ref<HTMLDivElement>();
 
 	private readonly _editorObs: ObservableCodeEditor;
+
+	readonly minEditorScrollHeight: IObservable<number>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -68,6 +70,14 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		const state = displayLocation.map(dl => dl ? this.getState(dl) : undefined);
 
 		const view = state.map(s => s ? this.getRendering(s, styles) : undefined);
+
+		this.minEditorScrollHeight = derived(reader => {
+			const s = state.read(reader);
+			if (!s) {
+				return 0;
+			}
+			return s.rect.read(reader).bottom + this._editor.getScrollTop();
+		});
 
 		const overlay = n.div({
 			class: 'inline-edits-custom-view',
@@ -117,7 +127,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		return maxOriginalContent + maxModifiedContent + padding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
 	}
 
-	private getState(displayLocation: InlineCompletionDisplayLocation): { rect: IObservable<Rect>; label: string } {
+	private getState(displayLocation: InlineCompletionDisplayLocation): { rect: IObservable<Rect>; label: string; kind: InlineCompletionDisplayLocationKind } {
 
 		const contentState = derived((reader) => {
 			const startLineNumber = displayLocation.range.startLineNumber;
@@ -207,16 +217,17 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 		return {
 			rect,
-			label: displayLocation.label
+			label: displayLocation.label,
+			kind: displayLocation.kind
 		};
 	}
 
-	private getRendering(state: { rect: IObservable<Rect>; label: string }, styles: IObservable<{ background: string; border: string }>) {
+	private getRendering(state: { rect: IObservable<Rect>; label: string; kind: InlineCompletionDisplayLocationKind }, styles: IObservable<{ background: string; border: string }>) {
 
 		const line = document.createElement('div');
 		const t = this._editor.getModel()!.tokenization.tokenizeLinesAt(1, [state.label])?.[0];
 		let tokens: LineTokens;
-		if (t) {
+		if (t && state.kind === InlineCompletionDisplayLocationKind.Code) {
 			tokens = TokenArray.fromLineTokens(t).toLineTokens(state.label, this._languageService.languageIdCodec);
 		} else {
 			tokens = LineTokens.createEmpty(state.label, this._languageService.languageIdCodec);
@@ -244,6 +255,9 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 				alignItems: 'center',
 				justifyContent: 'center',
 				whiteSpace: 'nowrap',
+			},
+			onmousedown: e => {
+				e.preventDefault(); // This prevents that the editor loses focus
 			},
 			onclick: (e) => { this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)); }
 		}, [

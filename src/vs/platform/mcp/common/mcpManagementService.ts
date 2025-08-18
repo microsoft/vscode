@@ -232,7 +232,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 		}
 	}
 
-	protected toScannedMcpServerAndInputs(manifest: IMcpServerManifest, packageType?: PackageType): { config: IMcpServerConfiguration; inputs?: IMcpServerVariable[] } {
+	static toScannedMcpServerAndInputs(manifest: IMcpServerManifest, packageType?: PackageType): { config: IMcpServerConfiguration; inputs?: IMcpServerVariable[] } {
 		if (packageType === undefined) {
 			packageType = manifest.packages?.[0]?.registry_name ?? PackageType.REMOTE;
 		}
@@ -246,7 +246,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 				const variables = input.variables ? this.getVariables(input.variables) : [];
 				let value = input.value;
 				for (const variable of variables) {
-					value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
 				}
 				headers[input.name] = value;
 				if (variables.length) {
@@ -279,7 +279,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 					let value = arg.value;
 					if (value) {
 						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
 						}
 					}
 					args.push(value ?? arg.value_hint);
@@ -288,7 +288,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 					if (arg.value) {
 						let value = arg.value;
 						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
 						}
 						args.push(value);
 					}
@@ -302,7 +302,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 				const variables = input.variables ? this.getVariables(input.variables) : [];
 				let value = input.value;
 				for (const variable of variables) {
-					value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
 				}
 				env[input.name] = value;
 				if (variables.length) {
@@ -325,10 +325,10 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 			}
 			else if (serverPackage.registry_name === PackageType.NUGET) {
 				args.push(serverPackage.version ? `${serverPackage.name}@${serverPackage.version}` : serverPackage.name);
-			}
-
-			if (serverPackage.package_arguments && serverPackage.registry_name === PackageType.NUGET) {
-				args.push('--');
+				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
+				if (serverPackage.package_arguments?.length) {
+					args.push('--');
+				}
 			}
 
 			for (const arg of serverPackage.package_arguments ?? []) {
@@ -337,7 +337,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 					let value = arg.value;
 					if (value) {
 						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
 						}
 					}
 					args.push(value ?? arg.value_hint);
@@ -346,7 +346,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 					if (arg.value) {
 						let value = arg.value;
 						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `{input:${variable.id}}`);
+							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
 						}
 						args.push(value);
 					}
@@ -370,7 +370,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 		};
 	}
 
-	private getCommandName(packageType: PackageType): string {
+	private static getCommandName(packageType: PackageType): string {
 		switch (packageType) {
 			case PackageType.NODE: return 'npx';
 			case PackageType.DOCKER: return 'docker';
@@ -380,7 +380,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 		return packageType;
 	}
 
-	private getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
+	private static getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
 		const variables: IMcpServerVariable[] = [];
 		for (const [key, value] of Object.entries(variableInputs)) {
 			variables.push({
@@ -425,7 +425,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 
 		try {
 			const manifest = await this.updateMetadataFromGallery(server);
-			const { config, inputs } = this.toScannedMcpServerAndInputs(manifest, options?.packageType);
+			const { config, inputs } = AbstractMcpResourceManagementService.toScannedMcpServerAndInputs(manifest, options?.packageType);
 			const installable: IInstallableMcpServer = {
 				name: server.name,
 				config: {

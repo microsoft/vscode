@@ -654,6 +654,12 @@ export interface IShellLaunchConfig {
 	 * Report terminal's shell environment variables to VS Code and extensions
 	 */
 	shellIntegrationEnvironmentReporting?: boolean;
+
+	/**
+	 * A custom nonce to use for shell integration when provided by an extension.
+	 * This allows extensions to control shell integration for terminals they create.
+	 */
+	shellIntegrationNonce?: string;
 }
 
 export interface ITerminalTabAction {

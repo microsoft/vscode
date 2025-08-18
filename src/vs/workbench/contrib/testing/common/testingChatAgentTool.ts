@@ -5,6 +5,7 @@
 
 import { disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -63,7 +64,7 @@ interface IRunTestToolParams {
 	testNames?: string[];
 }
 
-class RunTestTool extends Disposable implements IToolImpl {
+class RunTestTool implements IToolImpl {
 	public static readonly ID = 'runTests';
 	public static readonly DEFINITION: IToolData = {
 		id: this.ID,
@@ -71,7 +72,8 @@ class RunTestTool extends Disposable implements IToolImpl {
 		canBeReferencedInPrompt: true,
 		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
-		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs.',
+		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run.',
+		icon: Codicon.beaker,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -87,7 +89,7 @@ class RunTestTool extends Disposable implements IToolImpl {
 					items: {
 						type: 'string',
 					},
-					description: 'An array of test suites, test classes, or test cases to run. If not provided, all tests in the files will be run.',
+					description: 'An array of test names to run. Depending on the context, test names defined in code may be strings or the names of functions or classes containing the test cases. If not provided, all tests in the files will be run.',
 				}
 			},
 		},
@@ -107,9 +109,7 @@ class RunTestTool extends Disposable implements IToolImpl {
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ITestResultService private readonly _testResultService: ITestResultService,
-	) {
-		super();
-	}
+	) { }
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const params: IRunTestToolParams = invocation.parameters;

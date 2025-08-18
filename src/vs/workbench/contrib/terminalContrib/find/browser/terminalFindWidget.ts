@@ -160,7 +160,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onFocusTrackerFocus() {
-		if ('overrideCopyOnSelection' in this._instance) {
+		if (TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection) {
 			this._overrideCopyOnSelectionDisposable = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
 		}
 		this._findWidgetFocused.set(true);

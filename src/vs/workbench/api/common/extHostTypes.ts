@@ -1872,6 +1872,11 @@ export enum InlineCompletionEndOfLifeReasonKind {
 	Ignored = 2,
 }
 
+export enum InlineCompletionDisplayLocationKind {
+	Code = 1,
+	Label = 2
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -4648,6 +4653,17 @@ export class ChatResponseProgressPart2 {
 	}
 }
 
+export class ChatResponseThinkingProgressPart {
+	value: string;
+	id?: string;
+	metadata?: string;
+	constructor(value: string, id?: string, metadata?: string) {
+		this.value = value;
+		this.id = id;
+		this.metadata = metadata;
+	}
+}
+
 export class ChatResponseWarningPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
@@ -4840,6 +4856,12 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
+}
+
+export enum ChatSessionStatus {
+	Failed = 0,
+	Completed = 1,
+	InProgress = 2
 }
 
 export enum ChatResponseReferencePartStatusKind {
@@ -5095,6 +5117,28 @@ export enum ChatImageMimeType {
 	WEBP = 'image/webp',
 	BMP = 'image/bmp',
 }
+
+export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPart {
+	value: string;
+	id?: string;
+	metadata?: string;
+
+	constructor(value: string, id?: string, metadata?: string) {
+		this.value = value;
+		this.id = id;
+		this.metadata = metadata;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelThinkingPart,
+			value: this.value,
+			id: this.id,
+			metadata: this.metadata,
+		};
+	}
+}
+
 
 
 export class LanguageModelPromptTsxPart {
