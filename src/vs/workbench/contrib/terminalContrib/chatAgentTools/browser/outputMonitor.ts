@@ -13,6 +13,7 @@ import { IMarkerService } from '../../../../../platform/markers/common/markers.j
 import { Task } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { pollForOutputAndIdle } from './tools/pollingUtils.js';
+import { ILinkLocation } from './taskHelpers.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly isIdle: boolean;
@@ -56,7 +57,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
-	): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+	): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string; resources?: ILinkLocation[] }> {
 		let result = await pollForOutputAndIdle(this._execution, false, token, this._languageModelsService, this._markerService);
 
 		if (!result.terminalExecutionIdleBeforeTimeout) {

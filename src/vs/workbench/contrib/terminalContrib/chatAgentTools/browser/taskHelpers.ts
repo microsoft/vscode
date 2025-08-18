@@ -15,11 +15,11 @@ import { ToolProgress } from '../../../chat/common/languageModelToolsService.js'
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
 import { IExecution, IPollingResult, PollingConsts } from './bufferOutputPollingTypes.js';
-import { detectConfirmationPromptWithLLM, handleConfirmationPrompt, pollForOutputAndIdle } from './tools/pollingUtils.js';
+import { detectConfirmationPromptWithLLM, handleConfirmationPrompt } from './tools/pollingUtils.js';
 import { getProblemsForTasks } from './tools/task/taskUtils.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { OutputMonitor } from './outputMonitor.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -149,18 +149,24 @@ export async function collectTerminalResults(
 	const results: Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }> = [];
 	for (const terminal of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, false, token, languageModelsService, markerService, taskProblemPollFn);
-		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks, terminal }, true, token, languageModelsService, markerService, taskProblemPollFn),
-				() => promptForMorePolling(task._label, token, invocationContext, chatService),
-				outputAndIdle,
-				token,
-				languageModelsService,
-				markerService,
-				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive, dependencyTasks, terminal },
-			);
-		}
+		const execution = {
+			getOutput: () => terminal.xterm?.getContentsAsText() ?? '',
+			isActive,
+			task,
+			terminal,
+			dependencyTasks
+		};
+		const outputMonitor = new OutputMonitor(
+			execution,
+			languageModelsService,
+			markerService
+		);
+		const outputAndIdle = await outputMonitor.startMonitoring(
+			chatService,
+			task._label,
+			invocationContext,
+			token
+		);
 		results.push({
 			name: terminal.shellLaunchConfig.name ?? 'unknown',
 			output: outputAndIdle?.output ?? '',
