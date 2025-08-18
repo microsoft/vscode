@@ -115,7 +115,7 @@ export async function getSqmMachineId(errorLogger: (error: any) => void): Promis
 	return '';
 }
 
-export async function getdevDeviceId(errorLogger: (error: any) => void): Promise<string> {
+export async function getDevDeviceId(errorLogger: (error: any) => void): Promise<string> {
 	try {
 		const deviceIdPackage = await import('@vscode/deviceid');
 		const id = await deviceIdPackage.getDeviceId();

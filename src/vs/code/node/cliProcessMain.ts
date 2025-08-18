@@ -57,7 +57,7 @@ import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdenti
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfilesReadonlyService } from '../../platform/userDataProfile/node/userDataProfile.js';
-import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from '../../platform/telemetry/node/telemetryUtils.js';
+import { resolveMachineId, resolveSqmId, resolveDevDeviceId } from '../../platform/telemetry/node/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LogService } from '../../platform/log/common/logService.js';
 import { LoggerService } from '../../platform/log/node/loggerService.js';
@@ -202,7 +202,7 @@ class CliMain extends Disposable {
 			}
 		}
 		const sqmId = await resolveSqmId(stateService, logService);
-		const devDeviceId = await resolvedevDeviceId(stateService, logService);
+		const devDeviceId = await resolveDevDeviceId(stateService, logService);
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesService.init();
