@@ -3504,6 +3504,9 @@ export class CommandCenter {
 					await this.handleWorktreeConflict(worktree.path, message);
 					return;
 				}
+				if (choice.refRemote) {
+					branch = choice.refName.replace(/^origin\//, '');
+				}
 				commitish = choice.refName;
 			}
 		}
