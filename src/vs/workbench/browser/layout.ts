@@ -2871,7 +2871,11 @@ class LayoutStateModel extends Disposable {
 			}
 
 			// New users: Show auxiliary bar even in empty workspaces
-			if (this.storageService.isNew(StorageScope.APPLICATION)) {
+			// but not if the user explicitly hides it
+			if (
+				this.storageService.isNew(StorageScope.APPLICATION) &&
+				configuration.value !== 'hidden'
+			) {
 				return false;
 			}
 
