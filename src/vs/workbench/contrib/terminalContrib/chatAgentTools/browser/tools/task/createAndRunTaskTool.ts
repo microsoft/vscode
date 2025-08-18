@@ -19,6 +19,8 @@ import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { toolResultDetailsFromResponse } from './taskUtils.js';
+import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
+import { Location } from '../../../../../../../editor/common/languages.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };

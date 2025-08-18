@@ -15,6 +15,8 @@ import { ITaskService, TasksAvailableContext } from '../../../../../tasks/common
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 import { toolResultDetailsFromResponse } from './taskUtils.js';
+import { Location } from '../../../../../../../editor/common/languages.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',

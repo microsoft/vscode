@@ -809,8 +809,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
-			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto-approved' };
-			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The reason it was auto approved or denied' };
+			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
+			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
 			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
 		};
 
@@ -925,9 +925,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const baseCommand = parts[0].toLowerCase();
 				const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
 
-				if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3) {
+				if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3 && !parts[2].startsWith('-')) {
 					return `${parts[0]} ${parts[1]} ${parts[2]}`;
-				} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2) {
+				} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2 && !parts[1].startsWith('-')) {
 					return `${parts[0]} ${parts[1]}`;
 				} else {
 					return parts[0];

@@ -44,7 +44,7 @@ import { ChatTodoListService, IChatTodoListService } from '../common/chatTodoLis
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ChatAgentLocation, chatAutoApproveEditsDefaultConfiguration, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -236,7 +236,10 @@ configurationRegistry.registerConfiguration({
 			}
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
-			default: chatAutoApproveEditsDefaultConfiguration,
+			default: {
+				'**/*': true,
+				'**/.vscode/*.json': false,
+			},
 			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintened side-effects, such as `**/.vscode/*.json`.\n\nFiles are matched against the glob patterns in the order they are specified."),
 			type: 'object',
 			additionalProperties: {
@@ -546,6 +549,12 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
+		'chat.todoListTool.writeOnly': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
+			tags: ['experimental']
+		},
 		[ChatConfiguration.ShowThinking]: {
 			type: 'boolean',
 			default: false,
@@ -561,8 +570,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatHideAIFeatures',
 				minimumVersion: '1.104',
 
-			},
-			tags: ['experimental']
+			}
 		},
 	}
 });
@@ -847,5 +855,9 @@ registerPromptFileContributions();
 
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerAction2(ConfigureToolSets);
+
+// Register chat session actions
+import { RenameChatSessionAction } from './actions/chatSessionActions.js';
+registerAction2(RenameChatSessionAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

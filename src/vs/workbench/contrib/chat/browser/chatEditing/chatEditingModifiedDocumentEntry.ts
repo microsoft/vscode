@@ -47,6 +47,25 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return this._textModelChangeService.diffInfo.map(diff => diff.changes.length);
 	}
 
+	get linesAdded() {
+		return this._textModelChangeService.diffInfo.map(diff => {
+			let added = 0;
+			for (const c of diff.changes) {
+				added += Math.max(0, c.modified.endLineNumberExclusive - c.modified.startLineNumber);
+			}
+			return added;
+		});
+	}
+	get linesRemoved() {
+		return this._textModelChangeService.diffInfo.map(diff => {
+			let removed = 0;
+			for (const c of diff.changes) {
+				removed += Math.max(0, c.original.endLineNumberExclusive - c.original.startLineNumber);
+			}
+			return removed;
+		});
+	}
+
 	readonly originalURI: URI;
 	private readonly _textModelChangeService: ChatEditingTextModelChangeService;
 
@@ -204,8 +223,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				this._rewriteRatioObs.set(1, tx);
 			}
 		});
-
-		if (isLastEdits && !this.editsRequireManualApproval.get()) {
+		if (isLastEdits) {
 			await this._textFileService.save(this.modifiedModel.uri, {
 				reason: SaveReason.AUTO,
 				skipSaveParticipants: true,

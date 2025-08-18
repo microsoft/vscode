@@ -385,8 +385,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					range: 'range' in reference ? reference.range : undefined,
 					title: data.options?.status?.description ?? data.title,
 					strikethrough: data.excluded,
-					icon: ThemeIcon.isThemeIcon(data.iconPath) ? data.iconPath : undefined,
-					descriptionTitle: data.description,
 					extraClasses
 				});
 			}

@@ -726,6 +726,63 @@ suite('RunInTerminalTool', () => {
 			strictEqual((customActions[0].data.rule as any)[0].key, 'yarn run test');
 		});
 
+		test('should not suggest subcommand for commands with flags', async () => {
+			const result = await executeToolTest({
+				command: 'npm --foo --bar',
+				explanation: 'Run npm with flags'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: npm');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'npm');
+		});
+
+		test('should not suggest subcommand for git commands with flags', async () => {
+			const result = await executeToolTest({
+				command: 'git --version',
+				explanation: 'Check git version'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: git');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'git');
+		});
+
+		test('should not suggest subcommand for npm run with flags', async () => {
+			const result = await executeToolTest({
+				command: 'npm run --some-flag',
+				explanation: 'Run npm run with flags'
+			});
+
+			assertConfirmationRequired(result);
+			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const customActions = result!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(customActions.length, 4);
+
+			ok(!isSeparator(customActions[0]));
+			strictEqual(customActions[0].label, 'Always Allow Command: npm run');
+			strictEqual(customActions[0].data.type, 'newRule');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'npm run');
+		});
+
 		test('should handle mixed npm run and other commands', async () => {
 			const result = await executeToolTest({
 				command: 'npm run build && git status',

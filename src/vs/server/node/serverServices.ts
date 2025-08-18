@@ -9,7 +9,7 @@ import { DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import * as path from '../../base/common/path.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
-import { getMachineId, getSqmMachineId, getdevDeviceId } from '../../base/node/id.js';
+import { getMachineId, getSqmMachineId, getDevDeviceId } from '../../base/node/id.js';
 import { Promises } from '../../base/node/pfs.js';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer, StaticRouter } from '../../base/parts/ipc/common/ipc.js';
 import { ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
@@ -154,7 +154,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		userDataProfilesService.init(),
 		getMachineId(logService.error.bind(logService)),
 		getSqmMachineId(logService.error.bind(logService)),
-		getdevDeviceId(logService.error.bind(logService))
+		getDevDeviceId(logService.error.bind(logService))
 	]);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();

@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from '../../../../base/browser/dom.js';
 import { $, append, clearNode, getActiveWindow } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -22,7 +23,7 @@ import { getActionBarActions } from '../../../../platform/actions/browser/menuEn
 import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -44,7 +45,7 @@ import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContaine
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { Extensions, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { Extensions, IEditableData, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -58,6 +59,13 @@ import { IChatWidget, IChatWidgetService } from './chat.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import './media/chatSessions.css';
+import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import Severity from '../../../../base/common/severity.js';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { timeout } from '../../../../base/common/async.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -200,10 +208,12 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	private registerModelTitleListener(widget: IChatWidget): void {
 		const model = widget.viewModel?.model;
 		if (model) {
-			// Listen for model changes to detect title changes
-			// Since setCustomTitle doesn't fire an event, we listen to general model changes
-			this._register(model.onDidChange(() => {
-				this._onDidChange.fire();
+			// Listen for model changes, specifically for title changes via setCustomTitle
+			this._register(model.onDidChange((e) => {
+				// Fire change events for all title-related changes to refresh the tree
+				if (!e || e.kind === 'setCustomTitle') {
+					this._onDidChange.fire();
+				}
 			}));
 		}
 	}
@@ -588,6 +598,9 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		private readonly labels: ResourceLabels,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
@@ -641,6 +654,10 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		}
 	}
 
+	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
+		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
+	}
+
 	get templateId(): string {
 		return SessionsRenderer.TEMPLATE_ID;
 	}
@@ -676,6 +693,34 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		} else {
 			templateData.container.classList.remove('local-session');
 		}
+
+		// Clear any previous element disposables
+		if (templateData.elementDisposable) {
+			templateData.elementDisposable.dispose();
+		}
+
+		// Get the actual session ID for editable data lookup
+		let actualSessionId: string | undefined;
+		if (this.isLocalChatSessionItem(session)) {
+			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			}
+		}
+
+		// Check if this session is being edited using the actual session ID
+		const editableData = actualSessionId ? this.chatSessionsService.getEditableData(actualSessionId) : undefined;
+		if (editableData) {
+			// Render input box for editing
+			templateData.actionBar.clear();
+			const editDisposable = this.renderInputBox(templateData.container, session, editableData);
+			templateData.elementDisposable = editDisposable;
+			return;
+		}
+
+		// Normal rendering - clear the action bar in case it was used for editing
+		templateData.actionBar.clear();
 
 		// Handle different icon types
 		let iconResource: URI | undefined;
@@ -761,6 +806,122 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		templateData.elementDisposable.clear();
 	}
 
+	private renderInputBox(container: HTMLElement, session: IChatSessionItem, editableData: IEditableData): DisposableStore {
+		// Find the resource label element and hide it
+		const resourceLabelElement = container.querySelector('.monaco-icon-label') as HTMLElement;
+		if (resourceLabelElement) {
+			resourceLabelElement.style.display = 'none';
+		}
+
+		// Create a container div for the input box that matches the resource label layout
+		const inputContainer = DOM.append(container, DOM.$('.session-input-container'));
+
+		// Create icon element matching the original session icon
+		let iconElement: HTMLElement | undefined;
+		if (session.iconPath) {
+			iconElement = DOM.append(inputContainer, DOM.$('.session-input-icon.codicon'));
+			if (ThemeIcon.isThemeIcon(session.iconPath)) {
+				iconElement.classList.add(`codicon-${session.iconPath.id}`);
+			}
+		}
+
+		// Create the input box
+		const inputBox = new InputBox(inputContainer, this.contextViewService, {
+			validationOptions: {
+				validation: (value) => {
+					const message = editableData.validationMessage(value);
+					if (!message || message.severity !== Severity.Error) {
+						return null;
+					}
+					return {
+						content: message.content,
+						formatContent: true,
+						type: MessageType.ERROR
+					};
+				}
+			},
+			ariaLabel: nls.localize('chatSessionInputAriaLabel', "Type session name. Press Enter to confirm or Escape to cancel."),
+			inputBoxStyles: defaultInputBoxStyles,
+		});
+
+		inputBox.value = session.label;
+		inputBox.focus();
+		inputBox.select({ start: 0, end: session.label.length });
+
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
+			const value = inputBox.value;
+
+			// Clean up our input container
+			if (inputContainer && inputContainer.parentNode) {
+				inputContainer.parentNode.removeChild(inputContainer);
+			}
+
+			// Restore the original resource label
+			if (resourceLabelElement) {
+				resourceLabelElement.style.display = '';
+			}
+
+			if (finishEditing) {
+				editableData.onFinish(value, success);
+			}
+		});
+
+		const showInputBoxNotification = () => {
+			if (inputBox.isInputValid()) {
+				const message = editableData.validationMessage(inputBox.value);
+				if (message) {
+					inputBox.showMessage({
+						content: message.content,
+						formatContent: true,
+						type: message.severity === Severity.Info ? MessageType.INFO : message.severity === Severity.Warning ? MessageType.WARNING : MessageType.ERROR
+					});
+				} else {
+					inputBox.hideMessage();
+				}
+			}
+		};
+		showInputBoxNotification();
+
+		const disposables: IDisposable[] = [
+			inputBox,
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
+				if (e.equals(KeyCode.Enter)) {
+					if (!inputBox.validate()) {
+						done(true, true);
+					}
+				} else if (e.equals(KeyCode.Escape)) {
+					done(false, true);
+				}
+			}),
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, () => {
+				showInputBoxNotification();
+			}),
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
+				while (true) {
+					await timeout(0);
+
+					const ownerDocument = inputBox.inputElement.ownerDocument;
+					if (!ownerDocument.hasFocus()) {
+						break;
+					}
+					if (DOM.isActiveElement(inputBox.inputElement)) {
+						return;
+					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
+						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
+					} else {
+						break;
+					}
+				}
+
+				done(inputBox.isInputValid(), true);
+			})
+		];
+
+		const disposableStore = new DisposableStore();
+		disposables.forEach(d => disposableStore.add(d));
+		return disposableStore;
+	}
+
 	disposeTemplate(templateData: ISessionTemplateData): void {
 		templateData.elementDisposable.dispose();
 		templateData.resourceLabel.dispose();
@@ -792,6 +953,7 @@ class SessionsViewPane extends ViewPane {
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1002,6 +1164,9 @@ class SessionsViewPane extends ViewPane {
 		this.logService.debug('Tree created with hideTwistiesOfChildlessElements: true');
 		this._register(this.tree);
 
+		// Handle context menu for rename functionality
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
 		// Handle double-click and keyboard selection to open editors
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element as ChatSessionItemWithProvider;
@@ -1049,6 +1214,51 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
+	private onContextMenu(e: ITreeContextMenuEvent<IChatSessionItem | null>): void {
+		if (!e.element) {
+			return;
+		}
+
+		const session = e.element;
+		const sessionWithProvider = session as ChatSessionItemWithProvider;
+
+		e.browserEvent.preventDefault();
+		e.browserEvent.stopPropagation();
+
+		// Create context overlay for this specific session item
+		const contextOverlay = getSessionItemContextOverlay(session, sessionWithProvider.provider);
+		const contextKeyService = this.contextKeyService.createOverlay(contextOverlay);
+
+		// Create marshalled context for command execution (same approach as action bar)
+		const marshalledSession = {
+			session: session,
+			$mid: MarshalledId.ChatSessionContext
+		};
+
+		// Create menu and get all actions
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService);
+		const actions = menu.getActions({ arg: marshalledSession, shouldForwardArgs: true });
+
+		// Filter to only show actions from the 'context' group
+		const contextActions: any[] = [];
+		for (const [group, groupActions] of actions) {
+			if (group === 'context') {
+				contextActions.push(...groupActions);
+			}
+		}
+
+		menu.dispose();
+
+		// Only show context menu if there are context actions
+		if (contextActions.length > 0) {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => contextActions,
+				getActionsContext: () => marshalledSession,
+			});
+		}
+	}
+
 	override focus(): void {
 		super.focus();
 		if (this.tree) {
@@ -1067,4 +1277,3 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	order: 1,
 	when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
 });
-
