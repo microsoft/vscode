@@ -439,16 +439,27 @@
 
 	.message .see-more {
 		display: none;
-		color: var(--vscode-textLink-foreground);
-		text-decoration: underline;
-		cursor: pointer;
+		position: absolute;
+		right: 0;
+		top: 20px;
+
+		a {
+			color: var(--vscode-textLink-foreground);
+			text-decoration: underline;
+			cursor: pointer;
+		}
 	}
 
 	.message.can-see-more {
+		position: relative;
+
 		.message-wrapper {
-			mask-image: linear-gradient(#000 0%, transparent 100%);
+			/* This mask fades out the end of the second line of text so the "see more" message can be displayed over it. */
+			mask-image:
+				linear-gradient(to right, rgba(0,0,0,1) calc(100% - 95px), rgba(0,0,0,0) calc(100% - 72px)),    linear-gradient(to top, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 20px, rgba(0,0,0,1) 2px, rgba(0,0,0,1) 100%);
+			mask-repeat: no-repeat, no-repeat;
 			pointer-events: none;
-			max-height: 2.5em;
+			max-height: 40px;
 		}
 
 		.see-more {
