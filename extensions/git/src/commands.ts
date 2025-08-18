@@ -3498,15 +3498,25 @@ export class CommandCenter {
 				}
 			} else {
 				// Check whether the selected branch is checked out in an existing worktree
-				const worktree = repository.worktrees.find(worktree => worktree.ref === choice.refId);
+				let worktree: Worktree | undefined = repository.worktrees.find(w => w.ref === choice.refId);
+
+				// Check if a remote branch's corresponding local branch is already checked out in another worktree
+				if (!worktree && choice.refRemote) {
+					const localBranchName = choice.refName.replace(`${choice.refRemote}/`, '');
+					const localBranchRef = `refs/heads/${localBranchName}`;
+					worktree = repository.worktrees.find(w => w.ref === localBranchRef);
+				}
+
 				if (worktree) {
 					const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
 					await this.handleWorktreeConflict(worktree.path, message);
 					return;
 				}
+
 				if (choice.refRemote) {
 					branch = choice.refName.replace(`${choice.refRemote}/`, '');
 				}
+
 				commitish = choice.refName;
 			}
 		}
