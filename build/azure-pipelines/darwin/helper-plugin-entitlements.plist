@@ -12,7 +12,7 @@
 	<true/>
 	<key>keychain-access-groups</key>
 	<array>
-		<string>com.microsoft.identity.universalstorage</string>
+		<string>UBF8T346G9.com.microsoft.identity.universalstorage</string>
 	</array>
 </dict>
 </plist>
