@@ -29,14 +29,26 @@ suite('OAuth', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	suite('Type Guards', () => {
 		test('isAuthorizationProtectedResourceMetadata should correctly identify protected resource metadata', () => {
-			// Valid metadata
+			// Valid metadata with minimal required fields
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata({ resource: 'https://example.com' }), true);
 
-			// Invalid cases
+			// Valid metadata with scopes_supported as array
+			assert.strictEqual(isAuthorizationProtectedResourceMetadata({
+				resource: 'https://example.com',
+				scopes_supported: ['read', 'write']
+			}), true);
+
+			// Invalid cases - missing resource
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata(null), false);
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata(undefined), false);
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata({}), false);
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata('not an object'), false);
+
+			// Invalid cases - scopes_supported is not an array when provided
+			assert.strictEqual(isAuthorizationProtectedResourceMetadata({
+				resource: 'https://example.com',
+				scopes_supported: 'not an array'
+			}), false);
 		});
 
 		test('isAuthorizationServerMetadata should correctly identify server metadata', () => {
