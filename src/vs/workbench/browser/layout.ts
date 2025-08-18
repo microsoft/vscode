@@ -2915,7 +2915,7 @@ class LayoutStateModel extends Disposable {
 
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
-		// Auxiliary bar: With experimental treatment for new users
+		// Auxiliary bar: Showing for new users
 		if (
 			this.storageService.isNew(StorageScope.APPLICATION) &&
 			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY
