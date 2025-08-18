@@ -47,8 +47,6 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
-import { ICoreExperimentationService, StartupExperimentGroup } from '../services/coreExperimentation/common/coreExperimentationService.js';
-import { Lazy } from '../../base/common/lazy.js';
 
 //#region Layout Implementation
 
@@ -333,7 +331,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.registerLayoutListeners();
 
 		// State
-		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService), accessor.get(ICoreExperimentationService));
+		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService));
 	}
 
 	private registerLayoutListeners(): void {
@@ -627,10 +625,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService, coreExperimentationService: ICoreExperimentationService): void {
+	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
 		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService, this.environmentService, this.viewDescriptorService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.environmentService, this.viewDescriptorService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
@@ -2778,7 +2776,6 @@ class LayoutStateModel extends Disposable {
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
-		private readonly coreExperimentationService: ICoreExperimentationService,
 		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		private readonly viewDescriptorService: IViewDescriptorService
 	) {
@@ -2855,6 +2852,7 @@ class LayoutStateModel extends Disposable {
 			// - revisit this when/if the default value of workbench.secondarySideBar.defaultVisibility changes
 			// - revisit this when Chat is available in serverless web
 			// - drop the need to probe for chat.setupContext
+			// - drop the need to probe for chat.hideAIFeatures
 			// - drop the need to probe for view location of workbench.panel.chat.view.copilot
 			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 			if (configuration.defaultValue !== 'hidden' && !isConfigured(configuration)) {
@@ -2863,7 +2861,7 @@ class LayoutStateModel extends Disposable {
 				}
 
 				const context = this.storageService.getObject<{ hidden?: boolean; disabled?: boolean; installed?: boolean }>('chat.setupContext', StorageScope.PROFILE);
-				if (context && ((context.installed && context.disabled) || (!context.installed && context.hidden))) {
+				if (context && ((context.installed && context.disabled) || (!context.installed && context.hidden) || (!context.installed && this.configurationService.getValue('chat.hideAIFeatures') === true))) {
 					return true; // Chat view is hidden by user choice
 				}
 
@@ -2873,6 +2871,12 @@ class LayoutStateModel extends Disposable {
 				}
 			}
 
+			// New users: Show auxiliary bar even in empty workspaces
+			if (this.storageService.isNew(StorageScope.APPLICATION)) {
+				return false;
+			}
+
+			// Existing users: respect visibility setting
 			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
 				case 'maximized':
 				case 'visible':
@@ -2896,7 +2900,7 @@ class LayoutStateModel extends Disposable {
 		}
 
 		// Apply all overrides
-		this.applyOverrides(configuration);
+		this.applyOverrides();
 
 		// Register for runtime key changes
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(storageChangeEvent => {
@@ -2916,41 +2920,10 @@ class LayoutStateModel extends Disposable {
 		}));
 	}
 
-	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
+	private applyOverrides(): void {
 
-		// TODO@bpasero remove this startup experiment once settled
-		const experiment = new Lazy(() => {
-			try {
-				return this.coreExperimentationService.getExperiment();
-			} catch (error) {
-				return undefined;
-			}
-		});
-
-		// Auxiliary bar: With experimental treatment for new users
-		if (
-			this.storageService.isNew(StorageScope.APPLICATION) &&
-			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY &&
-			(
-				experiment.value?.experimentGroup === StartupExperimentGroup.MaximizedChat ||
-				experiment.value?.experimentGroup === StartupExperimentGroup.SplitEmptyEditorChat ||
-				experiment.value?.experimentGroup === StartupExperimentGroup.SplitWelcomeChat
-			)
-		) {
-			if (experiment.value.experimentGroup === StartupExperimentGroup.MaximizedChat) {
-				this.applyAuxiliaryBarMaximizedOverride();
-			} else if (
-				experiment.value.experimentGroup === StartupExperimentGroup.SplitEmptyEditorChat ||
-				experiment.value.experimentGroup === StartupExperimentGroup.SplitWelcomeChat
-			) {
-				const mainContainerDimension = configuration.mainContainerDimension;
-				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.ceil(mainContainerDimension.width / (1.618 * 1.618 /* golden ratio */)));
-			}
-		}
-
-		// Auxiliary bar: Based on setting for new workspaces
-		else if (this.isNew[StorageScope.WORKSPACE]) {
+		// Auxiliary bar: Maximized setting (new workspaces)
+		if (this.isNew[StorageScope.WORKSPACE]) {
 			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 			if (
 				defaultAuxiliaryBarVisibility === 'maximized' ||

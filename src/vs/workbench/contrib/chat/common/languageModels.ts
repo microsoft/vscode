@@ -143,11 +143,6 @@ export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart
 
 export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
-export interface IChatResponseFragment {
-	index: number;
-	part: IChatResponsePart;
-}
-
 export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
 
@@ -155,8 +150,8 @@ export interface ILanguageModelChatMetadata {
 	readonly id: string;
 	readonly vendor: string;
 	readonly version: string;
-	readonly description?: string;
-	readonly cost?: string;
+	readonly tooltip?: string;
+	readonly detail?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
@@ -191,7 +186,7 @@ export namespace ILanguageModelChatMetadata {
 }
 
 export interface ILanguageModelChatResponse {
-	stream: AsyncIterable<IChatResponseFragment | IChatResponseFragment[]>;
+	stream: AsyncIterable<IChatResponsePart | IChatResponsePart[]>;
 	result: Promise<any>;
 }
 
@@ -427,7 +422,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 				continue;
 			}
 			try {
-				const modelsAndIdentifiers = await provider.prepareLanguageModelChat({ silent }, CancellationToken.None);
+				let modelsAndIdentifiers = await provider.prepareLanguageModelChat({ silent }, CancellationToken.None);
+				// This is a bit of a hack, when prompting user if the provider returns any models that are user selectable then we only want to show those and not the entire model list
+				if (!silent && modelsAndIdentifiers.some(m => m.metadata.isUserSelectable)) {
+					modelsAndIdentifiers = modelsAndIdentifiers.filter(m => m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true);
+				}
 				for (const modelAndIdentifier of modelsAndIdentifiers) {
 					if (this._modelCache.has(modelAndIdentifier.identifier)) {
 						this._logService.warn(`[LM] Model ${modelAndIdentifier.identifier} is already registered. Skipping.`);

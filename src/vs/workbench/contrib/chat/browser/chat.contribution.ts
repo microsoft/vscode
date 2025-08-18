@@ -546,12 +546,29 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
+		'chat.todoListTool.writeOnly': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
+			tags: ['experimental']
+		},
 		[ChatConfiguration.ShowThinking]: {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('chat.agent.showThinking', "Controls whether to show the thinking process of the model in chat responses."),
 			tags: ['experimental'],
-		}
+		},
+		'chat.hideAIFeatures': {
+			type: 'boolean',
+			description: nls.localize('chat.hideAIFeatures', "Hide and disables the getting started UI elements for setting up AI features and Chat. This setting has no effect when Copilot extensions are installed."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			policy: {
+				name: 'ChatHideAIFeatures',
+				minimumVersion: '1.104',
+
+			}
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -835,5 +852,9 @@ registerPromptFileContributions();
 
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerAction2(ConfigureToolSets);
+
+// Register chat session actions
+import { RenameChatSessionAction } from './actions/chatSessionActions.js';
+registerAction2(RenameChatSessionAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

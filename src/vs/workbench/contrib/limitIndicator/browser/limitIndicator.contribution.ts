@@ -36,7 +36,7 @@ export class LimitIndicatorContribution extends Disposable implements IWorkbench
 		const statusEntries = accessors.map(indicator => new LanguageStatusEntry(languageStatusService, indicator));
 		statusEntries.forEach(entry => this._register(entry));
 
-		let control: any;
+		let control: unknown;
 
 		const onActiveEditorChanged = () => {
 			const activeControl = editorService.activeTextEditorControl;

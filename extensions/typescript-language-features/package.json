@@ -302,6 +302,12 @@
             "markdownDescription": "%configuration.implicitProjectConfig.strictFunctionTypes%",
             "scope": "window"
           },
+          "js/ts.implicitProjectConfig.strict": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.implicitProjectConfig.strict%",
+            "scope": "window"
+          },
           "typescript.tsc.autoDetect": {
             "type": "string",
             "default": "on",

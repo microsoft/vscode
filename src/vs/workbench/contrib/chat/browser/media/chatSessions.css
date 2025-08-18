@@ -41,6 +41,49 @@
 	opacity: 0.7;
 }
 
+/* Styling for chat session items being edited - exactly matching Explorer's approach */
+.chat-sessions-tree .session-input-container {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	padding: 0;
+	/* Override the input border variable to be transparent */
+	--vscode-input-border: transparent;
+}
+
+.chat-session-item.codicon {
+	margin-right: 6px;
+	flex-shrink: 0;
+}
+
+.chat-sessions-tree .session-input-container .session-input-icon {
+	margin-right: 6px;
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Override inline styles to match Explorer's exact inputbox styling */
+.chat-sessions-tree .session-input-container .monaco-inputbox {
+	flex: 1;
+	min-width: 0;
+	font-family: inherit;
+	font-size: inherit;
+	height: 22px !important;
+}
+
+.chat-sessions-tree .session-input-container .monaco-inputbox > .ibwrapper > .input {
+	padding: 0 !important;
+	height: 20px !important;
+	line-height: 20px !important;
+}
+
+.chat-sessions-tree .session-input-container .monaco-inputbox:focus-within {
+	--vscode-input-border: var(--vscode-focusBorder) !important;
+
 /* Position session content and actions inline */
 .chat-sessions-tree .chat-session-item .session-content {
 	display: flex;

@@ -203,10 +203,14 @@
 	height: 22px;
 }
 
-/* Show toolbar on hover and last response */
+/* Show toolbar on hover and last response. Also show when the item has keyboard focus (focus-within) or when the surrounding list row is marked focused (monaco list keyboard navigation). */
 .interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar,
 .interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar,
-.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details {
+.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details,
+.interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar .chat-footer-details,
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
 	visibility: visible;
 }
@@ -2546,17 +2550,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-.interactive-session .interactive-response .chat-thinking-box {
-	border: 1px solid var(--vscode-panel-border);
-	border-radius: 4px;
-	padding: 0px 8px;
-	margin: 4px 0;
-	background-color: var(--vscode-editor-background);
+.interactive-session .interactive-response .value .chat-thinking-box {
+	outline: none;
 
 	.chat-thinking-text {
-		font-size: inherit;
+		font-size: 12px;
+		padding: 3px 10px;
 		line-height: inherit;
 		display: flex;
 		align-items: flex-start;
+	}
+
+	.rendered-markdown > p {
+		margin: 0;
 	}
 }

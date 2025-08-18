@@ -69,16 +69,20 @@ if ($env:VSCODE_ENV_APPEND) {
 }
 
 # Register Python shell activate hooks
-if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
-	$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
-	Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
+# Prevent multiple activation with guard
+if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
+	$env:VSCODE_PYTHON_AUTOACTIVATE_GUARD = '1'
+	if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
+		$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
+		Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
 
-	try {
-		Invoke-Expression $activateScript
-	}
-	catch {
-		$activationError = $_
-		Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
+		try {
+			Invoke-Expression $activateScript
+		}
+		catch {
+			$activationError = $_
+			Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
+		}
 	}
 }
 
@@ -235,113 +239,4 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
-
-	# Enable suggestions if the environment variable is set and Windows PowerShell is not being used
-	# as APIs are not available to support this feature
-	if ($env:VSCODE_SUGGEST -eq '1' -and $PSVersionTable.PSVersion -ge "7.0") {
-		Remove-Item Env:VSCODE_SUGGEST
-
-		# VS Code send completions request (may override Ctrl+Spacebar)
-		Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
-			Send-Completions
-		}
-	}
-}
-
-function Send-Completions {
-	$commandLine = ""
-	$cursorIndex = 0
-	$prefixCursorDelta = 0
-	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
-	$completionPrefix = $commandLine
-
-	# Start completions sequence
-	$result = "$([char]0x1b)]633;Completions"
-
-	# Only provide completions for arguments and defer to TabExpansion2.
-	# `[` is included here as namespace commands are not included in CompleteCommand(''),
-	# additionally for some reason CompleteVariable('[') causes the prompt to clear and reprint
-	# multiple times
-	if ($completionPrefix.Contains(' ')) {
-
-		# Adjust the completion prefix and cursor index such that tab expansion will be requested
-		# immediately after the last whitespace. This allows the client to perform fuzzy filtering
-		# such that requesting completions in the middle of a word should show the same completions
-		# as at the start. This only happens when the last word does not include special characters:
-		# - `-`: Completion change when flags are used.
-		# - `/` and `\`: Completions change when navigating directories.
-		# - `$`: Completions change when variables.
-		$lastWhitespaceIndex = $completionPrefix.LastIndexOf(' ')
-		$lastWord = $completionPrefix.Substring($lastWhitespaceIndex + 1)
-		if ($lastWord -match '^-') {
-			$newCursorIndex = $lastWhitespaceIndex + 2
-			$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
-			$prefixCursorDelta = $cursorIndex - $newCursorIndex
-			$cursorIndex = $newCursorIndex
-		}
-		elseif ($lastWord -notmatch '[/\\$]') {
-			if ($lastWhitespaceIndex -ne -1 -and $lastWhitespaceIndex -lt $cursorIndex) {
-				$newCursorIndex = $lastWhitespaceIndex + 1
-				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
-				$prefixCursorDelta = $cursorIndex - $newCursorIndex
-				$cursorIndex = $newCursorIndex
-			}
-		}
-		# If it contains `/` or `\`, get completions from the nearest `/` or `\` such that file
-		# completions are consistent regardless of where it was requested
-		elseif ($lastWord -match '[/\\]') {
-			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
-			if ($lastSlashIndex -ne -1 -and $lastSlashIndex -lt $cursorIndex) {
-				$newCursorIndex = $lastSlashIndex + 1
-				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
-				$prefixCursorDelta = $cursorIndex - $newCursorIndex
-				$cursorIndex = $newCursorIndex
-			}
-		}
-
-		# Get completions using TabExpansion2
-		$completions = $null
-		$completionMatches = $null
-		try
-		{
-			$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
-			$completionMatches = $completions.CompletionMatches | Where-Object { $_.ResultType -ne [System.Management.Automation.CompletionResultType]::ProviderContainer -and $_.ResultType -ne [System.Management.Automation.CompletionResultType]::ProviderItem }
-		}
-		catch
-		{
-			# TabExpansion2 may throw when there are no completions, in this case return an empty
-			# list to prevent falling back to file path completions
-		}
-		if ($null -eq $completions -or $null -eq $completionMatches) {
-			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
-		} else {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
-			$json = [System.Collections.ArrayList]@($completionMatches)
-			$mappedCommands = Compress-Completions($json)
-			$result += $mappedCommands | ConvertTo-Json -Compress
-		}
-	}
-
-	# End completions sequence
-	$result += "`a"
-
-	Write-Host -NoNewLine $result
-}
-
-function Compress-Completions($completions) {
-	$completions | ForEach-Object {
-		if ($_.CustomIcon) {
-			,@($_.CompletionText, $_.ResultType, $_.ToolTip, $_.CustomIcon)
-		}
-		elseif ($_.CompletionText -eq $_.ToolTip) {
-			,@($_.CompletionText, $_.ResultType)
-		} else {
-			,@($_.CompletionText, $_.ResultType, $_.ToolTip)
-		}
-	}
-}
-
-# Register key handlers if PSReadLine is available
-if (Get-Module -Name PSReadLine) {
-	Set-MappedKeyHandlers
 }
