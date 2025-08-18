@@ -7,7 +7,6 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { ChatMessageRole, ILanguageModelChatResponse, ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { ProblemMatcher } from '../../../../tasks/common/problemMatcher.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, PollingConsts } from '../bufferOutputPollingTypes.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 
@@ -92,7 +91,6 @@ export async function handleConfirmationPrompt(
 	token: CancellationToken,
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 	markerService: Pick<IMarkerService, 'read'>,
-	knownMatchers?: ProblemMatcher[]
 ): Promise<IPollingResult | undefined> {
 	if (confirmationPrompt && confirmationPrompt.options.length > 0) {
 		const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot' });
