@@ -18,7 +18,7 @@ import { TerminalCompletionItemKind, type ITerminalCompletion } from './terminal
 import { env as processEnv } from '../../../../../base/common/process.js';
 import type { IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { gitBashToWindowsPath } from './terminalGitBashHelpers.js';
+import { gitBashToWindowsPath, windowsToGitBashPath } from './terminalGitBashHelpers.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 
@@ -494,7 +494,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 										const kind = TerminalCompletionItemKind.Folder;
 										const label = useRelative
 											? basename(child.resource.fsPath)
-											: getFriendlyPath(this._labelService, child.resource, resourceRequestConfig.pathSeparator, kind, shellType);
+											: shellType === WindowsShellType.GitBash
+												? windowsToGitBashPath(child.resource.fsPath)
+												: getFriendlyPath(this._labelService, child.resource, resourceRequestConfig.pathSeparator, kind, shellType);
 										const detail = useRelative
 											? `CDPATH ${getFriendlyPath(this._labelService, child.resource, resourceRequestConfig.pathSeparator, kind, shellType)}`
 											: `CDPATH`;
