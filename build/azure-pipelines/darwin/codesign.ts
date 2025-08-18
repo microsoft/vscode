@@ -20,9 +20,9 @@ async function main() {
 	await streamProcessOutputAndCheckResult('Codesign', codeSignTask);
 
 	// Notarize
-	printBanner('Notarize');
-	const notarizeTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob);
-	await streamProcessOutputAndCheckResult('Notarize', notarizeTask);
+	//printBanner('Notarize');
+	//const notarizeTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob);
+	//await streamProcessOutputAndCheckResult('Notarize', notarizeTask);
 }
 
 main().then(() => {

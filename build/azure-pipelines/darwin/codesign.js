@@ -17,9 +17,9 @@ async function main() {
     const codeSignTask = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'sign-darwin', folder, glob);
     await (0, codesign_1.streamProcessOutputAndCheckResult)('Codesign', codeSignTask);
     // Notarize
-    (0, codesign_1.printBanner)('Notarize');
-    const notarizeTask = (0, codesign_1.spawnCodesignProcess)(esrpCliDLLPath, 'notarize-darwin', folder, glob);
-    await (0, codesign_1.streamProcessOutputAndCheckResult)('Notarize', notarizeTask);
+    //printBanner('Notarize');
+    //const notarizeTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob);
+    //await streamProcessOutputAndCheckResult('Notarize', notarizeTask);
 }
 main().then(() => {
     process.exit(0);
