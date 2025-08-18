@@ -776,8 +776,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const numItems = this.viewModel?.getItems().length ?? 0;
 		if (!numItems) {
 			dom.clearNode(this.welcomeMessageContainer);
-			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
-			const expIsActive = configuration.defaultValue !== 'hidden';
 
 			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
 
@@ -789,7 +787,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
-			if (expIsActive && this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
+			if (this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
