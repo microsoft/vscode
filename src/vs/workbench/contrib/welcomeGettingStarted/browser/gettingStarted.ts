@@ -45,7 +45,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultButtonStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWindowOpenable } from '../../../../platform/window/common/window.js';
@@ -73,7 +73,6 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
-import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -149,7 +148,6 @@ export class GettingStartedPage extends EditorPane {
 
 	private contextService: IContextKeyService;
 
-	private hasScrolledToFirstCategory = false;
 	private recentlyOpenedList?: GettingStartedIndexList<RecentEntry>;
 	private startList?: GettingStartedIndexList<IWelcomePageStartEntry>;
 	private gettingStartedList?: GettingStartedIndexList<IResolvedWalkthrough>;
@@ -950,33 +948,10 @@ export class GettingStartedPage extends EditorPane {
 			}
 		}
 
-		const someStepsComplete = this.gettingStartedCategories.some(category => category.steps.find(s => s.done));
 		if (this.editorInput.showTelemetryNotice && this.productService.openToWelcomeMainPage) {
 			const telemetryNotice = $('p.telemetry-notice');
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
-		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory && this.showFeaturedWalkthrough) {
-			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
-			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
-			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
-			const startupExpValue = startupExpContext.getValue(this.contextService);
-
-			if (fistContentBehaviour === 'openToFirstCategory' && ((!startupExpValue || startupExpValue === '' || startupExpValue === StartupExperimentGroup.Control))) {
-				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
-				if (first) {
-					this.hasScrolledToFirstCategory = true;
-					this.currentWalkthrough = first;
-					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
-					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
-					if (first.id === NEW_WELCOME_EXPERIENCE) {
-						this.buildNewCategorySlide(this.editorInput.selectedCategory, undefined);
-					} else {
-						this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
-					}
-					this.setSlide('details', true /* firstLaunch */);
-					return;
-				}
-			}
 		}
 
 		this.setSlide('categories');

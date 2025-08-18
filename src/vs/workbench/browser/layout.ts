@@ -47,8 +47,6 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
-import { ICoreExperimentationService, StartupExperimentGroup } from '../services/coreExperimentation/common/coreExperimentationService.js';
-import { Lazy } from '../../base/common/lazy.js';
 
 //#region Layout Implementation
 
@@ -333,7 +331,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.registerLayoutListeners();
 
 		// State
-		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService), accessor.get(ICoreExperimentationService));
+		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService));
 	}
 
 	private registerLayoutListeners(): void {
@@ -627,10 +625,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService, coreExperimentationService: ICoreExperimentationService): void {
+	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
 		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, coreExperimentationService, this.environmentService, this.viewDescriptorService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.environmentService, this.viewDescriptorService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
@@ -2778,7 +2776,6 @@ class LayoutStateModel extends Disposable {
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
-		private readonly coreExperimentationService: ICoreExperimentationService,
 		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		private readonly viewDescriptorService: IViewDescriptorService
 	) {
@@ -2918,35 +2915,14 @@ class LayoutStateModel extends Disposable {
 
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
-		// TODO@bpasero remove this startup experiment once settled
-		const experiment = new Lazy(() => {
-			try {
-				return this.coreExperimentationService.getExperiment();
-			} catch (error) {
-				return undefined;
-			}
-		});
-
 		// Auxiliary bar: With experimental treatment for new users
 		if (
 			this.storageService.isNew(StorageScope.APPLICATION) &&
-			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY &&
-			(
-				experiment.value?.experimentGroup === StartupExperimentGroup.MaximizedChat ||
-				experiment.value?.experimentGroup === StartupExperimentGroup.SplitEmptyEditorChat ||
-				experiment.value?.experimentGroup === StartupExperimentGroup.SplitWelcomeChat
-			)
+			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY
 		) {
-			if (experiment.value.experimentGroup === StartupExperimentGroup.MaximizedChat) {
-				this.applyAuxiliaryBarMaximizedOverride();
-			} else if (
-				experiment.value.experimentGroup === StartupExperimentGroup.SplitEmptyEditorChat ||
-				experiment.value.experimentGroup === StartupExperimentGroup.SplitWelcomeChat
-			) {
-				const mainContainerDimension = configuration.mainContainerDimension;
-				this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-				this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.ceil(mainContainerDimension.width / (1.618 * 1.618 /* golden ratio */)));
-			}
+			const mainContainerDimension = configuration.mainContainerDimension;
+			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
+			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.ceil(mainContainerDimension.width / (1.618 * 1.618 /* golden ratio */)));
 		}
 
 		// Auxiliary bar: Based on setting for new workspaces
