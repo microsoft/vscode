@@ -43,7 +43,7 @@ import { IInstantiationService, ServicesAccessor } from '../../platform/instanti
 import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
-import { ILifecycleMainService, LifecycleMainService } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
+import { ILifecycleMainService, LifecycleMainService, LifecycleMainPhase } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
 import { BufferLogger } from '../../platform/log/common/bufferLog.js';
 import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import product from '../../platform/product/common/product.js';
@@ -117,9 +117,15 @@ class CodeMain {
 
 			// Handle dump-configuration flag
 			if (environmentMainService.args['dump-configuration']) {
-				const configurationData = configurationService.getConfigurationData();
-				console.log(JSON.stringify(configurationData, null, 2));
-				app.exit(0);
+				// Wait for the Ready phase to ensure all configuration sources are loaded
+				await instantiationService.invokeFunction(async accessor => {
+					const lifecycleMainService = accessor.get(ILifecycleMainService);
+					await lifecycleMainService.when(LifecycleMainPhase.Ready);
+					
+					const configurationData = configurationService.getConfigurationData();
+					console.log(JSON.stringify(configurationData, null, 2));
+					app.exit(0);
+				});
 				return;
 			}
 
