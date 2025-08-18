@@ -244,7 +244,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		// Enable experimental network inspection
 		// inspector agent is always setup hence add this flag
 		// unconditionally.
-		opts.execArgv.unshift('--dns-result-order=ipv4first', '--experimental-network-inspection');
+		opts.execArgv.unshift('--dns-result-order=ipv4first', '--experimental-network-inspection', '--utility-startup-dialog');
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
