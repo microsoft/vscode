@@ -2852,6 +2852,7 @@ class LayoutStateModel extends Disposable {
 			// - revisit this when/if the default value of workbench.secondarySideBar.defaultVisibility changes
 			// - revisit this when Chat is available in serverless web
 			// - drop the need to probe for chat.setupContext
+			// - drop the need to probe for chat.hideAIFeatures
 			// - drop the need to probe for view location of workbench.panel.chat.view.copilot
 			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 			if (configuration.defaultValue !== 'hidden' && !isConfigured(configuration)) {
@@ -2860,7 +2861,7 @@ class LayoutStateModel extends Disposable {
 				}
 
 				const context = this.storageService.getObject<{ hidden?: boolean; disabled?: boolean; installed?: boolean }>('chat.setupContext', StorageScope.PROFILE);
-				if (context && ((context.installed && context.disabled) || (!context.installed && context.hidden))) {
+				if (context && ((context.installed && context.disabled) || (!context.installed && context.hidden) || (!context.installed && this.configurationService.getValue('chat.hideAIFeatures') === true))) {
 					return true; // Chat view is hidden by user choice
 				}
 
@@ -2870,6 +2871,12 @@ class LayoutStateModel extends Disposable {
 				}
 			}
 
+			// New users: Show auxiliary bar even in empty workspaces
+			if (this.storageService.isNew(StorageScope.APPLICATION)) {
+				return false;
+			}
+
+			// Existing users: respect visibility setting
 			switch (this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY)) {
 				case 'maximized':
 				case 'visible':
@@ -2893,7 +2900,7 @@ class LayoutStateModel extends Disposable {
 		}
 
 		// Apply all overrides
-		this.applyOverrides(configuration);
+		this.applyOverrides();
 
 		// Register for runtime key changes
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(storageChangeEvent => {
@@ -2913,18 +2920,10 @@ class LayoutStateModel extends Disposable {
 		}));
 	}
 
-	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
+	private applyOverrides(): void {
 
-		// Auxiliary bar: Showing for new users
-		if (
-			this.storageService.isNew(StorageScope.APPLICATION) &&
-			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY
-		) {
-			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-		}
-
-		// Auxiliary bar: Based on setting for new workspaces
-		else if (this.isNew[StorageScope.WORKSPACE]) {
+		// Auxiliary bar: Maximized setting (new workspaces)
+		if (this.isNew[StorageScope.WORKSPACE]) {
 			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 			if (
 				defaultAuxiliaryBarVisibility === 'maximized' ||
