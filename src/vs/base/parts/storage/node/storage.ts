@@ -328,7 +328,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 						// - validate that the DB is not corrupt (the open() call does not throw otherwise)
 						return this.exec(connection, [
 							'PRAGMA user_version = 1;',
-							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE, value BLOB)'
+							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
 						].join('')).then(() => {
 							return resolve(connection);
 						}, error => {
