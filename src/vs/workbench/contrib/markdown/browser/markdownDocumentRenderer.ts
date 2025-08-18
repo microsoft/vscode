@@ -157,7 +157,7 @@ pre code {
 }
 `;
 
-const defaultAllowedProtocols = Object.freeze([
+const defaultAllowedLinkProtocols = Object.freeze([
 	Schemas.http,
 	Schemas.https,
 	Schemas.command,
@@ -166,7 +166,7 @@ const defaultAllowedProtocols = Object.freeze([
 function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSanitizerConfig | undefined): TrustedHTML {
 	return sanitizeHtml(documentContent, {
 		allowedLinkProtocols: {
-			override: sanitizerConfig?.allowedProtocols?.override ?? defaultAllowedProtocols,
+			override: sanitizerConfig?.allowedLinkProtocols?.override ?? defaultAllowedLinkProtocols,
 		},
 		allowedTags: {
 			override: allowedMarkdownHtmlTags,
@@ -187,7 +187,7 @@ function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSani
 }
 
 interface MarkdownDocumentSanitizerConfig {
-	readonly allowedProtocols?: {
+	readonly allowedLinkProtocols?: {
 		readonly override: readonly string[] | '*';
 	};
 	readonly allowedTags?: {
@@ -214,7 +214,7 @@ export async function renderMarkdownDocument(
 	extensionService: IExtensionService,
 	languageService: ILanguageService,
 	options?: IRenderMarkdownDocumentOptions,
-	token?: CancellationToken,
+	token: CancellationToken = CancellationToken.None,
 ): Promise<string> {
 	const m = new marked.Marked(
 		MarkedHighlight.markedHighlight({
