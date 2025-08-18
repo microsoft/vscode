@@ -24,6 +24,11 @@ import {
 	ToolDataSource
 } from '../languageModelToolsService.js';
 
+
+/*
+ * For details about this tools read the [documentation](./docs/ModeStepTool.md)
+ */
+
 export const ExecuteModeStepToolId = 'execute_mode_step';
 
 export const ExecuteModeStepToolData: IToolData = {
