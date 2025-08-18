@@ -58,6 +58,7 @@ import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { IChatWidget, IChatWidgetService } from './chat.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput } from './chatEditorInput.js';
+import { IChatDetail, IChatService } from '../common/chatService.js';
 import './media/chatSessions.css';
 import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import Severity from '../../../../base/common/severity.js';
@@ -91,6 +92,7 @@ interface ILocalChatSessionItem extends IChatSessionItem {
 	sessionType: 'editor' | 'widget';
 	description?: string;
 	status?: ChatSessionStatus;
+	historyItem?: IChatDetail;
 }
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
@@ -159,9 +161,13 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	// Maintain ordered list of editor keys to preserve consistent ordering
 	private editorOrder: string[] = [];
 
+	// Track history expansion state
+	private isHistoryExpanded: boolean = false;
+
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -261,6 +267,11 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		return editor.resource?.scheme === 'vscode-chat-editor';
 	}
 
+	toggleHistoryExpansion(): void {
+		this.isHistoryExpanded = !this.isHistoryExpanded;
+		this._onDidChange.fire();
+	}
+
 	private registerGroupListeners(group: IEditorGroup): void {
 		this._register(group.onDidModelChange(e => {
 			if (!this.isLocalChatSession(e.editor)) {
@@ -355,6 +366,65 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 				});
 			}
 		});
+
+		// Add history items
+		try {
+			const allHistory = await this.chatService.getHistory();
+			// Filter out active sessions to avoid duplicates
+			const activeSessionIds = new Set<string>();
+			
+			// Collect session IDs from current chat widget
+			if (chatWidget?.viewModel?.model.sessionId) {
+				activeSessionIds.add(chatWidget.viewModel.model.sessionId);
+			}
+			
+			// Collect session IDs from current editors
+			this.editorOrder.forEach((editorKey) => {
+				const editorInfo = editorMap.get(editorKey);
+				if (editorInfo?.editor instanceof ChatEditorInput && editorInfo.editor.sessionId) {
+					activeSessionIds.add(editorInfo.editor.sessionId);
+				}
+			});
+
+			// Filter out active sessions from history
+			const historyItems = allHistory.filter(item => !activeSessionIds.has(item.sessionId));
+			
+			if (historyItems.length > 0) {
+				// Add history expansion toggle item
+				const expandIcon = this.isHistoryExpanded ? Codicon.chevronDown : Codicon.chevronRight;
+				const expandLabel = this.isHistoryExpanded 
+					? nls.localize('chat.sessions.hidePreviousChats', "Hide Previous Chats ({0})", historyItems.length)
+					: nls.localize('chat.sessions.showPreviousChats', "Show Previous Chats ({0})", historyItems.length);
+
+				sessions.push({
+					id: 'history-toggle',
+					label: expandLabel,
+					description: nls.localize('chat.sessions.historyToggle.description', "Expand to view chat history"),
+					iconPath: expandIcon,
+					sessionType: 'widget'
+				});
+
+				// If expanded, add individual history items
+				if (this.isHistoryExpanded) {
+					// Sort history by last message date (most recent first)
+					historyItems.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
+					
+					historyItems.forEach(historyItem => {
+						sessions.push({
+							id: `history-${historyItem.sessionId}`,
+							label: historyItem.title,
+							description: nls.localize('chat.sessions.historicalSession', "Previous chat"),
+							iconPath: Codicon.history,
+							sessionType: 'widget',
+							historyItem: historyItem
+						});
+					});
+				}
+			}
+		} catch (error) {
+			// Log error but continue without history
+			console.error('Failed to load chat history:', error);
+		}
 
 		return sessions;
 	}
@@ -1152,6 +1222,30 @@ class SessionsViewPane extends ViewPane {
 			const element = e.element as ChatSessionItemWithProvider;
 
 			if (element && this.isLocalChatSessionItem(element)) {
+				// Handle history expansion toggle
+				if (element.id === 'history-toggle') {
+					const localProvider = this.provider as LocalChatSessionsProvider;
+					if (typeof localProvider.toggleHistoryExpansion === 'function') {
+						localProvider.toggleHistoryExpansion();
+					}
+					return;
+				}
+
+				// Handle historical chat sessions
+				if (element.id.startsWith('history-') && element.historyItem) {
+					const options: IChatEditorOptions = {
+						target: { sessionId: element.historyItem.sessionId },
+						pinned: true,
+						preferredTitle: element.historyItem.title
+					};
+					await this.editorService.openEditor({
+						resource: ChatEditorInput.getNewEditorUri(),
+						options,
+					});
+					return;
+				}
+
+				// Handle regular local sessions
 				if (element.sessionType === 'editor' && element.editor && element.group) {
 					// Open the chat editor
 					await this.editorService.openEditor(element.editor, element.group);
