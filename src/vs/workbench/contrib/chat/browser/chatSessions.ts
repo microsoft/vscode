@@ -65,7 +65,6 @@ import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaul
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { timeout } from '../../../../base/common/async.js';
-import { IChatSessionContext } from './actions/chatSessionActions.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
@@ -954,6 +953,7 @@ class SessionsViewPane extends ViewPane {
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1215,46 +1215,48 @@ class SessionsViewPane extends ViewPane {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IChatSessionItem | null>): void {
-		if (!e.element || !this.isLocalChatSessionItem(e.element)) {
+		if (!e.element) {
 			return;
 		}
 
-		const sessionItem = e.element as ILocalChatSessionItem;
-		let actualSessionId: string | undefined;
-
-		// Extract the actual chat session ID based on session type
-		if (sessionItem.sessionType === 'editor' && sessionItem.editor instanceof ChatEditorInput) {
-			// For editor sessions, use the ChatEditorInput's sessionId
-			actualSessionId = sessionItem.editor.sessionId;
-		} else if (sessionItem.sessionType === 'widget' && sessionItem.widget) {
-			// For widget sessions, get the session ID from the model
-			actualSessionId = sessionItem.widget.viewModel?.model.sessionId;
-		}
-
-		if (!actualSessionId) {
-			return; // Cannot rename without a valid session ID
-		}
-
-		// Create context for the rename action
-		const context: IChatSessionContext = {
-			sessionId: actualSessionId,
-			sessionType: sessionItem.sessionType,
-			currentTitle: sessionItem.label,
-			editorInput: sessionItem.editor,
-			editorGroup: sessionItem.group,
-			widget: sessionItem.widget
-		};
+		const session = e.element;
+		const sessionWithProvider = session as ChatSessionItemWithProvider;
 
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		this.contextMenuService.showContextMenu({
-			menuId: MenuId.ChatSessionsMenu,
-			menuActionOptions: { shouldForwardArgs: true },
-			contextKeyService: this.contextKeyService,
-			getAnchor: () => e.anchor,
-			getActionsContext: () => context,
-		});
+		// Create context overlay for this specific session item
+		const contextOverlay = getSessionItemContextOverlay(session, sessionWithProvider.provider);
+		const contextKeyService = this.contextKeyService.createOverlay(contextOverlay);
+
+		// Create marshalled context for command execution (same approach as action bar)
+		const marshalledSession = {
+			session: session,
+			$mid: MarshalledId.ChatSessionContext
+		};
+
+		// Create menu and get all actions
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService);
+		const actions = menu.getActions({ arg: marshalledSession, shouldForwardArgs: true });
+
+		// Filter to only show actions from the 'context' group
+		const contextActions: any[] = [];
+		for (const [group, groupActions] of actions) {
+			if (group === 'context') {
+				contextActions.push(...groupActions);
+			}
+		}
+
+		menu.dispose();
+
+		// Only show context menu if there are context actions
+		if (contextActions.length > 0) {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => contextActions,
+				getActionsContext: () => marshalledSession,
+			});
+		}
 	}
 
 	override focus(): void {
