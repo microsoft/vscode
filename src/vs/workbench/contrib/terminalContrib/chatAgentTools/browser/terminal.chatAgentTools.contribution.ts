@@ -11,10 +11,21 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../chat/common/languageModelToolsService.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
+import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
+import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { RunInTerminalTool, RunInTerminalToolData } from './tools/runInTerminalTool.js';
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
+import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
+import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IChatWidgetService, showChatView } from '../../../chat/browser/chat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 
 // #region Workbench contributions
 
@@ -45,6 +56,17 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		runCommandsToolSet.addTool(RunInTerminalToolData);
 		runCommandsToolSet.addTool(GetTerminalOutputToolData);
 
+		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
+		this._register(toolsService.registerToolData(GetTerminalSelectionToolData));
+		this._register(toolsService.registerToolImplementation(GetTerminalSelectionToolData.id, getTerminalSelectionTool));
+
+		const getTerminalLastCommandTool = instantiationService.createInstance(GetTerminalLastCommandTool);
+		this._register(toolsService.registerToolData(GetTerminalLastCommandToolData));
+		this._register(toolsService.registerToolImplementation(GetTerminalLastCommandToolData.id, getTerminalLastCommandTool));
+
+		runCommandsToolSet.addTool(GetTerminalSelectionToolData);
+		runCommandsToolSet.addTool(GetTerminalLastCommandToolData);
+
 		// #endregion
 
 		// #region Tasks
@@ -62,7 +84,7 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		this._register(toolsService.registerToolImplementation(CreateAndRunTaskToolData.id, createAndRunTaskTool));
 
 		const runTasksToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runTasks', 'runTasks', {
-			description: localize('toolset.runTasks', 'Runs tasks and gets their output for your workspace')
+			description: localize('toolset.runTasks', 'Runs tasks and gets their output for your workspace'),
 		}));
 		runTasksToolSet.addTool(RunTaskToolData);
 		runTasksToolSet.addTool(GetTaskOutputToolData);
@@ -74,3 +96,45 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 registerWorkbenchContribution2(ChatAgentToolsContribution.ID, ChatAgentToolsContribution, WorkbenchPhase.AfterRestored);
 
 // #endregion Contributions
+
+// #region Actions
+
+registerActiveInstanceAction({
+	id: TerminalChatAgentToolsCommandId.ChatAddTerminalSelection,
+	title: localize('addTerminalSelection', 'Add Terminal Selection to Chat'),
+	precondition: ContextKeyExpr.and(ChatContextKeys.enabled, sharedWhenClause.terminalAvailable),
+	menu: [
+		{
+			id: MenuId.TerminalInstanceContext,
+			group: TerminalContextMenuGroup.Chat,
+			order: 1,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, TerminalContextKeys.textSelected)
+		},
+	],
+	run: async (activeInstance, _c, accessor) => {
+		const viewsService = accessor.get(IViewsService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		const selection = activeInstance.selection;
+		if (!selection) {
+			return;
+		}
+
+		const chatView = chatWidgetService.lastFocusedWidget || await showChatView(viewsService);
+		if (!chatView) {
+			return;
+		}
+
+		chatView.attachmentModel.addContext({
+			id: `terminal-selection-${Date.now()}`,
+			kind: 'generic' as const,
+			name: localize('terminalSelection', 'Terminal Selection'),
+			fullName: localize('terminalSelection', 'Terminal Selection'),
+			value: selection,
+			icon: Codicon.terminal
+		});
+		chatView.focusInput();
+	}
+});
+
+// #endregion Actions

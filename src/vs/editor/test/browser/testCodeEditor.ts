@@ -63,6 +63,7 @@ import { ITreeSitterLibraryService } from '../../common/services/treeSitter/tree
 import { TestTreeSitterLibraryService } from '../common/services/testTreeSitterLibraryService.js';
 import { IInlineCompletionsService, InlineCompletionsService } from '../../browser/services/inlineCompletionsService.js';
 import { EditorCommand } from '../../browser/editorExtensions.js';
+import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
@@ -236,6 +237,7 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
 	define(ILoggerService, NullLoggerService);
+	define(IDataChannelService, NullDataChannelService);
 	define(IEnvironmentService, class extends mock<IEnvironmentService>() {
 		declare readonly _serviceBrand: undefined;
 		override isBuilt: boolean = true;

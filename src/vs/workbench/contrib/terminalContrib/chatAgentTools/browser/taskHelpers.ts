@@ -3,11 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfiguringTask, Task } from '../../../tasks/common/tasks.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { IChatService } from '../../../chat/common/chatService.js';
+import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { ToolProgress } from '../../../chat/common/languageModelToolsService.js';
+import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
+import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { pollForOutputAndIdle, getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -33,7 +42,7 @@ export function getTaskRepresentation(task: IConfiguredTask | Task): string {
 	return '';
 }
 
-export async function getTaskForTool(id: string | undefined, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task | undefined> {
+export async function getTaskForTool(id: string | undefined, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService, allowParentTask?: boolean): Promise<Task | undefined> {
 	let index = 0;
 	let task: IConfiguredTask | undefined;
 	const workspaceFolderToTaskMap = await taskService.getWorkspaceTasks();
@@ -45,11 +54,12 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 		}
 	}
 	for (const configTask of configTasks) {
-		if (!configTask.type || 'hide' in configTask && configTask.hide) {
+		if ((!allowParentTask && !configTask.type) || ('hide' in configTask && configTask.hide)) {
 			// Skip these as they are not included in the agent prompt and we need to align with
 			// the indices used there.
 			continue;
 		}
+
 		if ((configTask.type && taskDefinition.taskType ? configTask.type === taskDefinition.taskType : true) &&
 			((getTaskRepresentation(configTask) === taskDefinition?.taskLabel) || (id === configTask.label))) {
 			task = configTask;
@@ -113,3 +123,50 @@ export interface IConfiguredTask {
 	problemMatcher?: string[];
 	group?: string;
 }
+
+export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task[] | undefined> {
+	if (!parentTask.configurationProperties?.dependsOn) {
+		return undefined;
+	}
+	const dependencyTasks = await Promise.all(parentTask.configurationProperties.dependsOn.map(async (dep: ITaskDependency) => {
+		const depId: string | undefined = typeof dep.task === 'string' ? dep.task : dep.task?._key;
+		if (!depId) {
+			return undefined;
+		}
+		return await getTaskForTool(depId, { taskLabel: depId }, workspaceFolder, configurationService, taskService);
+	}));
+	return dependencyTasks.filter((t: Task | undefined): t is Task => t !== undefined);
+}
+
+/**
+ * Collects output, polling duration, and idle status for all terminals.
+ */
+export async function collectTerminalResults(
+	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, markerService: IMarkerService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }>> {
+	const results: Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }> = [];
+	for (const terminal of terminals) {
+		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
+		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, false, token, languageModelsService, markerService);
+		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
+			outputAndIdle = await racePollingOrPrompt(
+				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive, task, dependencyTasks }, true, token, languageModelsService, markerService),
+				() => promptForMorePolling(task._label, token, invocationContext, chatService),
+				outputAndIdle,
+				token,
+				languageModelsService,
+				markerService,
+				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive, dependencyTasks },
+			);
+		}
+		results.push({
+			name: terminal.shellLaunchConfig.name ?? 'unknown',
+			output: outputAndIdle?.output ?? '',
+			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
+			idle: !!outputAndIdle?.terminalExecutionIdleBeforeTimeout,
+			resources: outputAndIdle?.resources
+		});
+	}
+	return results;
+}
+
+export interface ILinkLocation { uri: URI; range: Range }

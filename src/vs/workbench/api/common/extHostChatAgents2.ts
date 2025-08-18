@@ -20,7 +20,7 @@ import { Location } from '../../../editor/common/languages.js';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActions.js';
-import { IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, UserSelectedTools } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -191,10 +191,10 @@ export class ChatAgentResponseStream {
 					_report(dto, task);
 					return this;
 				},
-				thinkingProgress(value, id?, metadata?) {
+				thinkingProgress(thinkingDelta: vscode.ThinkingDelta) {
 					throwIfDone(this.thinkingProgress);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
-					const part = new extHostTypes.ChatResponseThinkingProgressPart(value, id, metadata);
+					const part = new extHostTypes.ChatResponseThinkingProgressPart(thinkingDelta.text ?? '', thinkingDelta.id, thinkingDelta.metadata);
 					const dto = typeConvert.ChatResponseThinkingProgressPart.from(part);
 					_report(dto);
 					return this;
@@ -477,7 +477,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			location,
 			model,
 			this.getDiagnosticsWhenEnabled(detector.extension),
-			this.getToolsForRequest(detector.extension, request),
+			this.getToolsForRequest(detector.extension, request.userSelectedTools),
 			detector.extension,
 			this._logService);
 
@@ -527,21 +527,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return model;
 	}
 
-	async $setRequestPaused(handle: number, requestId: string, isPaused: boolean) {
-		const agent = this._agents.get(handle);
-		if (!agent) {
-			return;
-		}
 
-		const inFlight = Iterable.find(this._inFlightRequests, r => r.requestId === requestId);
-		if (!inFlight) {
-			return;
-		}
-
-		agent.setChatRequestPauseState({ request: inFlight.extRequest, isPaused });
-	}
-
-	async $setRequestTools(requestId: string, tools: Pick<IChatAgentRequest, 'userSelectedTools'>) {
+	async $setRequestTools(requestId: string, tools: UserSelectedTools) {
 		const request = [...this._inFlightRequests].find(r => r.requestId === requestId);
 		if (!request) {
 			return;
@@ -581,7 +568,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				location,
 				model,
 				this.getDiagnosticsWhenEnabled(agent.extension),
-				this.getToolsForRequest(agent.extension, request),
+				this.getToolsForRequest(agent.extension, request.userSelectedTools),
 				agent.extension,
 				this._logService
 			);
@@ -643,14 +630,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getToolsForRequest(extension: IExtensionDescription, request: Pick<IChatAgentRequest, 'userSelectedTools'>): Map<string, boolean> {
-		if (!request.userSelectedTools) {
+	private getToolsForRequest(extension: IExtensionDescription, tools: UserSelectedTools | undefined): Map<string, boolean> {
+		if (!tools) {
 			return new Map();
 		}
 		const result = new Map<string, boolean>();
 		for (const tool of this._tools.getTools(extension)) {
-			if (typeof request.userSelectedTools[tool.name] === 'boolean') {
-				result.set(tool.name, request.userSelectedTools[tool.name]);
+			if (typeof tools[tool.name] === 'boolean') {
+				result.set(tool.name, tools[tool.name]);
 			}
 		}
 		return result;
@@ -823,7 +810,6 @@ class ExtHostChatAgent {
 	private _followupProvider: vscode.ChatFollowupProvider | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
-	private _helpTextVariablesPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatResultFeedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatUserActionEvent>();
@@ -918,7 +904,6 @@ class ExtHostChatAgent {
 					themeIcon: this._iconPath instanceof extHostTypes.ThemeIcon ? this._iconPath : undefined,
 					hasFollowups: this._followupProvider !== undefined,
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
-					helpTextVariablesPrefix: (!this._helpTextVariablesPrefix || typeof this._helpTextVariablesPrefix === 'string') ? this._helpTextVariablesPrefix : typeConvert.MarkdownString.from(this._helpTextVariablesPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
 					requester: this._requester,
@@ -961,15 +946,6 @@ class ExtHostChatAgent {
 			set helpTextPrefix(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				that._helpTextPrefix = v;
-				updateMetadataSoon();
-			},
-			get helpTextVariablesPrefix() {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				return that._helpTextVariablesPrefix;
-			},
-			set helpTextVariablesPrefix(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				that._helpTextVariablesPrefix = v;
 				updateMetadataSoon();
 			},
 			get helpTextPostfix() {

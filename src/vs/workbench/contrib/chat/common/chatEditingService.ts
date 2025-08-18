@@ -79,8 +79,6 @@ export interface IStreamingEdits {
 	complete(): void;
 }
 
-export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
-
 export interface IModifiedEntryTelemetryInfo {
 	readonly agentId: string | undefined;
 	readonly command: string | undefined;
@@ -240,6 +238,7 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
+	readonly editsRequireManualApproval: IObservable<boolean>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;

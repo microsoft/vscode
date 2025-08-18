@@ -75,7 +75,7 @@ export class QuickInputTreeController extends Disposable {
 						} else if (a.label > b.label) {
 							return 1;
 						}
-						// use description and then detail to break ties
+						// use description to break ties
 						if (a.description && b.description) {
 							if (a.description < b.description) {
 								return -1;
@@ -85,17 +85,6 @@ export class QuickInputTreeController extends Disposable {
 						} else if (a.description) {
 							return -1;
 						} else if (b.description) {
-							return 1;
-						}
-						if (a.detail && b.detail) {
-							if (a.detail < b.detail) {
-								return -1;
-							} else if (a.detail > b.detail) {
-								return 1;
-							}
-						} else if (a.detail) {
-							return -1;
-						} else if (b.detail) {
 							return 1;
 						}
 						return 0;
@@ -135,16 +124,12 @@ export class QuickInputTreeController extends Disposable {
 	updateFilterOptions(options: {
 		matchOnLabel?: boolean;
 		matchOnDescription?: boolean;
-		matchOnDetail?: boolean;
 	}): void {
 		if (options.matchOnLabel !== undefined) {
 			this._filter.matchOnLabel = options.matchOnLabel;
 		}
 		if (options.matchOnDescription !== undefined) {
 			this._filter.matchOnDescription = options.matchOnDescription;
-		}
-		if (options.matchOnDetail !== undefined) {
-			this._filter.matchOnDetail = options.matchOnDetail;
 		}
 		this._tree.refilter();
 	}
@@ -249,6 +234,9 @@ export class QuickInputTreeController extends Disposable {
 		this._register(this._tree.onDidOpen(e => {
 			const item = e.element;
 			if (!item) {
+				return;
+			}
+			if (item.disabled) {
 				return;
 			}
 

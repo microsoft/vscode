@@ -48,8 +48,14 @@ declare module 'vscode' {
 		displayLocation?: InlineCompletionDisplayLocation;
 	}
 
+	export enum InlineCompletionDisplayLocationKind {
+		Code = 1,
+		Label = 2
+	}
+
 	export interface InlineCompletionDisplayLocation {
 		range: Range;
+		kind: InlineCompletionDisplayLocationKind;
 		label: string;
 	}
 
@@ -156,6 +162,8 @@ declare module 'vscode' {
 		readonly requestUuid: string;
 
 		readonly requestIssuedDateTime: number;
+
+		readonly earliestShownDateTime: number;
 	}
 
 	export interface PartialAcceptInfo {

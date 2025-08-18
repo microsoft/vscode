@@ -6,7 +6,7 @@
 import { streamToBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, thenRegisterOrDispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, IObservable, observableValue, autorun, transaction, ObservablePromise } from '../../../../../base/common/observable.js';
@@ -974,12 +974,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			this.cellTextModelMap.set(cell.uri, model);
 			return model;
 		} else {
-			const textEditorModel = await this.textModelService.createModelReference(cell.uri);
-			if (this._store.isDisposed) {
-				textEditorModel.dispose();
-			} else {
-				this._register(textEditorModel);
-			}
+			const textEditorModel = await thenRegisterOrDispose(this.textModelService.createModelReference(cell.uri), this._store);
 			const model = textEditorModel.object.textEditorModel;
 			this.cellTextModelMap.set(cell.uri, model);
 			return model;

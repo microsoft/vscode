@@ -11,14 +11,15 @@ import { IChatService } from '../../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
-import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, promptForMorePolling, racePollingOrPrompt } from '../../bufferOutputPolling.js';
-import { getOutput } from '../../outputHelpers.js';
-import { IConfiguredTask } from '../../taskHelpers.js';
+import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { collectTerminalResults, IConfiguredTask, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
+import { Location } from '../../../../../../../editor/common/languages.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
@@ -54,7 +55,9 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatService private readonly _chatService: IChatService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IMarkerService private readonly _markerService: IMarkerService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -111,40 +114,62 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
-		const resource = this._tasksService.getTerminalForTask(task);
-		const terminal = this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme);
-		if (!terminal) {
+		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
+		const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
+		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(Boolean) as ITerminalInstance[];
+		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label)) };
 		}
 
-		_progress.report({ message: new MarkdownString(localize('copilotChat.checkingOutput', 'Checking output for `{0}`', args.task.label)) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, false, token, this._languageModelsService);
-		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }, true, token, this._languageModelsService),
-				() => promptForMorePolling(args.task.label, token, invocation.context!, this._chatService),
-				outputAndIdle,
-				token,
-				this._languageModelsService,
-				{ getOutput: () => getOutput(terminal), isActive: () => this._isTaskActive(task) }
-			);
+		const terminalResults = await collectTerminalResults(
+			terminals,
+			task,
+			this._languageModelsService,
+			this._markerService,
+			this._chatService,
+			invocation.context!,
+			_progress,
+			token,
+			() => this._isTaskActive(task),
+			dependencyTasks
+		);
+		for (const r of terminalResults) {
+			this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
+				taskLabel: args.task.label,
+				bufferLength: r.output.length ?? 0,
+				pollDurationMs: r.pollDurationMs ?? 0,
+			});
 		}
-		let output = '';
+
+		let resultSummary = '';
 		if (result?.exitCode) {
-			output = `Task \`${args.task.label}\` failed with exit code ${result.exitCode}.`;
+			resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', args.task.label, result.exitCode);
 		} else {
-			if (outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-				output += `Task \`${args.task.label}\` finished`;
-			} else {
-				output += `Task \`${args.task.label}\` started and will continue to run in the background.`;
-			}
+			resultSummary += `Task \`${args.task.label}\` `;
+			resultSummary += terminalResults.every(r => r.idle)
+				? 'finished.'
+				: 'started and will continue to run in the background.';
 		}
-		this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
-			taskLabel: args.task.label,
-			bufferLength: outputAndIdle.output.length,
-			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
-		});
-		return { content: [{ kind: 'text', value: `The output was ${outputAndIdle.output}` }], toolResultMessage: output };
+
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
+		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
+		return {
+			content: [{ kind: 'text', value: uniqueDetails }],
+			toolResultMessage: new MarkdownString(resultSummary),
+			toolResultDetails: Array.from(new Map(
+				terminalResults
+					.flatMap(r =>
+						r.resources?.filter(res => res.uri).map(res => {
+							const range = res.range;
+							const item = range !== undefined ? { uri: res.uri, range } : res.uri;
+							const key = range !== undefined
+								? `${res.uri.toString()}-${range.toString()}`
+								: `${res.uri.toString()}`;
+							return [key, item] as [string, URI | Location];
+						}) ?? []
+					)
+			).values())
+		};
 	}
 
 	private async _isTaskActive(task: Task): Promise<boolean> {

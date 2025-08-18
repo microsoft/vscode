@@ -48,4 +48,6 @@ export interface IExtensionHostDebugService {
 	readonly onTerminateSession: Event<ITerminateSessionEvent>;
 
 	openExtensionDevelopmentHostWindow(args: string[], debugRenderer: boolean): Promise<IOpenExtensionWindowResult>;
+
+	attachToCurrentWindowRenderer(windowId: number): Promise<IOpenExtensionWindowResult>;
 }
