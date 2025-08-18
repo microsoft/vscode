@@ -95,8 +95,8 @@ const crashesRootPath = (() => {
 	return path.join(crashesParentPath, crashesName);
 })();
 
-const logger = createLogger();
 const mcpLogger = new McpLogger();
+const logger = createLogger();
 
 function createLogger(): Logger {
 	const loggers: Logger[] = [];
