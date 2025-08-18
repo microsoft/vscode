@@ -17,7 +17,7 @@ import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
@@ -612,7 +612,7 @@ export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationD
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
-	userSelectedTools?: IObservable<Record<string, boolean>>;
+	userSelectedTools?: IObservable<UserSelectedTools>;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;
@@ -645,6 +645,7 @@ export interface IChatService {
 	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
+	getPersistedSessionTitle(sessionId: string): string | undefined;
 	isPersistedSessionEmpty(sessionId: string): boolean;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModel | undefined;
 	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;

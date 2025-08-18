@@ -5,6 +5,7 @@
 
 import { $ } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -153,9 +154,10 @@ class ConfigureToolsAction extends Action2 {
 			widget.input.selectedToolsModel.set(result, false);
 		}
 
+		const tools = widget.input.selectedToolsModel.entriesMap.get();
 		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
-			total: widget.input.selectedToolsModel.entriesMap.get().size,
-			enabled: widget.input.selectedToolsModel.entries.get().size,
+			total: tools.size,
+			enabled: Iterable.reduce(tools, (prev, [_, enabled]) => enabled ? prev + 1 : prev, 0),
 		});
 	}
 }

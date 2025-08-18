@@ -631,7 +631,13 @@ export function isAuthorizationProtectedResourceMetadata(obj: unknown): obj is I
 	}
 
 	const metadata = obj as IAuthorizationProtectedResourceMetadata;
-	return metadata.resource !== undefined;
+	if (!metadata.resource) {
+		return false;
+	}
+	if (metadata.scopes_supported !== undefined && !Array.isArray(metadata.scopes_supported)) {
+		return false;
+	}
+	return true;
 }
 
 export function isAuthorizationServerMetadata(obj: unknown): obj is IAuthorizationServerMetadata {

@@ -23,6 +23,7 @@ import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { IEditableData } from '../../../common/views.js';
 
 const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
 
@@ -383,6 +384,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _sessions = new Map<string, ContributedChatSessionData>();
 
+	// Editable session support
+	private readonly _editableSessions = new Map<string, IEditableData>();
+
 	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
 			throw Error(`Can not find provider for ${chatSessionType}`);
@@ -410,6 +414,25 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _onWillDisposeSession(session: ChatSession, chatSessionType: string, id: string): void {
 		const sessionKey = `${chatSessionType}_${id}`;
 		this._sessions.delete(sessionKey);
+	}
+
+	// Implementation of editable session methods
+	public async setEditableSession(sessionId: string, data: IEditableData | null): Promise<void> {
+		if (!data) {
+			this._editableSessions.delete(sessionId);
+		} else {
+			this._editableSessions.set(sessionId, data);
+		}
+		// Trigger refresh of the session views that might need to update their rendering
+		this._onDidChangeSessionItems.fire('local');
+	}
+
+	public getEditableData(sessionId: string): IEditableData | undefined {
+		return this._editableSessions.get(sessionId);
+	}
+
+	public isEditable(sessionId: string): boolean {
+		return this._editableSessions.has(sessionId);
 	}
 }
 
