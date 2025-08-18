@@ -34,6 +34,7 @@ export const enum TerminalContribSettingId {
 	StickyScrollEnabled = TerminalStickyScrollSettingId.Enabled,
 	SuggestEnabled = TerminalSuggestSettingId.Enabled,
 	AutoApprove = TerminalChatAgentToolsSettingId.AutoApprove,
+	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 }
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since

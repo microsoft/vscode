@@ -567,8 +567,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatHideAIFeatures',
 				minimumVersion: '1.104',
 
-			},
-			tags: ['experimental']
+			}
 		},
 	}
 });
