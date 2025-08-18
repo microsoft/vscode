@@ -36,7 +36,7 @@ import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
-const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 30;
+const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 45;
 
 export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -138,7 +138,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			const elements = dom.h('div', [
 				dom.h('.message@messageContainer', [
 					dom.h('.message-wrapper@message'),
-					dom.h('a.see-more@showMore'),
+					dom.h('.see-more@showMore', [
+						dom.h('a', [localize('showMore', "Show More")])
+					]),
 				]),
 				dom.h('.editor@editor'),
 				dom.h('.disclaimer@disclaimer'),
@@ -257,10 +259,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				}
 			}
 
-			this._makeMarkdownPart(elements.message, message, codeBlockRenderOptions);
-			elements.showMore.textContent = localize('seeMore', "See more");
+			const mdPart = this._makeMarkdownPart(elements.message, message, codeBlockRenderOptions);
 
-			const messageSeeMoreObserver = this._register(new ElementSizeObserver(elements.message, undefined));
+			const messageSeeMoreObserver = this._register(new ElementSizeObserver(mdPart.domNode, undefined));
 			const updateSeeMoreDisplayed = () => {
 				const show = messageSeeMoreObserver.getHeight() > SHOW_MORE_MESSAGE_HEIGHT_TRIGGER;
 				if (elements.messageContainer.classList.contains('can-see-more') !== show) {
@@ -360,5 +361,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		container.append(part.domNode);
 
 		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
+		return part;
 	}
 }

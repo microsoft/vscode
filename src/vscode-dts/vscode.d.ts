@@ -13883,6 +13883,9 @@ declare module 'vscode' {
 		 * In the same way, symbolic links are preserved, i.e. the file event will report the path of the
 		 * symbolic link as it was provided for watching and not the target.
 		 *
+		 * *Note* that file events from deleting a folder may not include events for contained files. If possible
+		 * events will be aggregated to reduce the overal number of emitted events.
+		 *
 		 * ### Examples
 		 *
 		 * The basic anatomy of a file watcher is as follows:

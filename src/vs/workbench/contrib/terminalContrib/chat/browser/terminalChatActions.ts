@@ -40,7 +40,8 @@ registerActiveXtermAction({
 	menu: {
 		id: MenuId.TerminalInstanceContext,
 		group: TerminalContextMenuGroup.Chat,
-		order: 2
+		order: 2,
+		when: ChatContextKeys.enabled
 	},
 	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {
 		if (isDetachedTerminalInstance(activeInstance)) {

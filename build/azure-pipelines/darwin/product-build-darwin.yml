@@ -201,21 +201,6 @@ steps:
         APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.js $(VSCODE_ARCH)
       displayName: Verify arch of Mach-O objects
 
-    # Setting hardened entitlements is a requirement for:
-    # * Apple notarization
-    # * Running tests on Big Sur (because Big Sur has additional security precautions)
-    - script: |
-        set -e
-        security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-        security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
-        security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-        echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
-        security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
-        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
-        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-        DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
-      displayName: Set Hardened Entitlements
-
     - script: |
         set -e
         ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
@@ -239,6 +224,33 @@ steps:
         sbomPackageVersion: $(Build.SourceVersion)
       condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
       displayName: Publish client archive (unsigned)
+
+    # Hardened entitlements should be set after publishing unsigned client artifacts
+    # to ensure entitlement signing doesn't modify sha that would affect universal build.
+    #
+    # Setting hardened entitlements is a requirement for:
+    # * Apple notarization
+    # * Running tests on Big Sur (because Big Sur has additional security precautions)
+    - script: |
+        set -e
+        security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+        security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
+        security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+        DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
+      displayName: Set Hardened Entitlements
+
+    - script: |
+        set -e
+        ARCHIVE_PATH="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
+      condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
+      displayName: Re-package client after entitlement
 
     - task: UseDotNet@2
       inputs:
@@ -286,7 +298,7 @@ steps:
       condition: succeededOrFailed()
       displayName: "Post-job: ✍️ Codesign & Notarize"
 
-    - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+    - script: unzip $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
       displayName: Extract signed app
 
     - script: |
@@ -298,16 +310,16 @@ steps:
         "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
       displayName: Verify signature
 
-    - script: mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-x64.zip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+    - script: mv $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-x64.zip $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
       displayName: Rename x64 build to its legacy name
       condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
     - task: 1ES.PublishPipelineArtifact@1
       inputs:
         ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
-          targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
+          targetPath: $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
         ${{ else }}:
-          targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+          targetPath: $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
         artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
         sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"

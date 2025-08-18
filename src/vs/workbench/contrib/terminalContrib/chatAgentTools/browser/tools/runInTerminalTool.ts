@@ -35,7 +35,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { isPowerShell } from '../runInTerminalHelpers.js';
-import { extractInlineSubCommands, splitCommandLineIntoSubCommands } from '../subCommands.js';
+import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { OutputMonitor } from '../outputMonitor.js';
@@ -218,9 +218,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		} else {
 			const actualCommand = toolEditedCommand ?? args.command;
 			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
-			const inlineSubCommands = subCommands.map(e => Array.from(extractInlineSubCommands(e, shell, os))).flat();
-			const allSubCommands = [...subCommands, ...inlineSubCommands];
-			const subCommandResults = allSubCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
+			const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
 			const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(actualCommand);
 			const autoApproveReasons: string[] = [
 				...subCommandResults.map(e => e.reason),
@@ -808,8 +806,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
-			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto-approved' };
-			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The reason it was auto approved or denied' };
+			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
+			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
 			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
 		};
 
@@ -924,9 +922,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const baseCommand = parts[0].toLowerCase();
 				const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
 
-				if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3) {
+				if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3 && !parts[2].startsWith('-')) {
 					return `${parts[0]} ${parts[1]} ${parts[2]}`;
-				} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2) {
+				} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2 && !parts[1].startsWith('-')) {
 					return `${parts[0]} ${parts[1]}`;
 				} else {
 					return parts[0];

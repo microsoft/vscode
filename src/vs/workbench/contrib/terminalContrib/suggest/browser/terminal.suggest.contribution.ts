@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { GeneralShellType, TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction, registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
@@ -26,7 +26,6 @@ import { ITerminalCompletionService, TerminalCompletionService } from './termina
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
-import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
 import { SimpleSuggestContext } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { SuggestDetailsClassName } from '../../../../services/suggest/browser/simpleSuggestWidgetDetails.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -52,13 +51,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
-	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
 	private readonly _lspAddons: DisposableMap<string, LspCompletionProviderAddon> = this.add(new DisposableMap());
 	private readonly _lspModelProvider: MutableDisposable<LspTerminalModelContentProvider> = new MutableDisposable();
 	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
-	get pwshAddon(): PwshCompletionProviderAddon | undefined { return this._pwshAddon.value; }
 	get lspAddons(): LspCompletionProviderAddon[] { return Array.from(this._lspAddons.values()); }
 
 	constructor(
@@ -73,7 +70,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		super();
 		this.add(toDisposable(() => {
 			this._addon?.dispose();
-			this._pwshAddon?.dispose();
 			this._lspModelProvider?.value?.dispose();
 			this._lspModelProvider?.dispose();
 		}));
@@ -83,7 +79,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				const completionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enabled;
 				if (!completionsEnabled) {
 					this._addon.clear();
-					this._pwshAddon.clear();
 					this._lspAddons.clearAndDisposeAll();
 				}
 				const xtermRaw = this._ctx.instance.xterm?.raw;
@@ -108,55 +103,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			this._refreshAddons();
 			this._lspModelProvider.value?.shellTypeChanged(this._ctx.instance.shellType);
 		}));
-	}
-
-	private async _loadPwshCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
-		// Disable when shell type is not powershell. A naive check is done for Windows PowerShell
-		// as we don't differentiate it in shellType
-		if (
-			this._ctx.instance.shellType !== GeneralShellType.PowerShell ||
-			this._ctx.instance.shellLaunchConfig.executable?.endsWith('WindowsPowerShell\\v1.0\\powershell.exe')
-		) {
-			this._pwshAddon.clear();
-			return;
-		}
-
-		// Disable the addon on old backends (not conpty or Windows 11)
-		await this._ctx.instance.processReady;
-		const processTraits = this._ctx.processManager.processTraits;
-		if (processTraits?.windowsPty && (processTraits.windowsPty.backend !== 'conpty' || processTraits?.windowsPty.buildNumber <= 19045)) {
-			return;
-		}
-
-		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, this._ctx.instance.capabilities);
-		xterm.loadAddon(pwshCompletionProviderAddon);
-		this.add(pwshCompletionProviderAddon);
-		this.add(pwshCompletionProviderAddon.onDidRequestSendText(text => {
-			this._ctx.instance.sendText(text, false);
-		}));
-		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', pwshCompletionProviderAddon.id, pwshCompletionProviderAddon));
-		// If completions are requested, pause and queue input events until completions are
-		// received. This fixing some problems in PowerShell, particularly enter not executing
-		// when typing quickly and some characters being printed twice. On Windows this isn't
-		// needed because inputs are _not_ echoed when not handled immediately.
-		// TODO: This should be based on the OS of the pty host, not the client
-		if (!isWindows) {
-			let barrier: AutoOpenBarrier | undefined;
-			if (pwshCompletionProviderAddon) {
-				this.add(pwshCompletionProviderAddon.onDidRequestSendText(() => {
-					barrier = new AutoOpenBarrier(2000);
-					this._ctx.instance.pauseInputEvents(barrier);
-				}));
-			}
-			if (this._pwshAddon.value) {
-				this.add(this._pwshAddon.value.onDidReceiveCompletions(() => {
-					barrier?.open();
-					barrier = undefined;
-				}));
-			} else {
-				throw Error('no addon');
-			}
-		}
 	}
 
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
@@ -200,7 +146,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 		const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.sessionId, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 		xterm.loadAddon(addon);
-		this._loadPwshCompletionAddon(xterm);
 		this._loadLspCompletionAddon(xterm);
 
 		if (this._ctx.instance.target === TerminalLocation.Editor) {
@@ -249,7 +194,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 		// Relies on shell type being set
 		this._loadLspCompletionAddon(this._ctx.instance.xterm.raw);
-		this._loadPwshCompletionAddon(this._ctx.instance.xterm.raw);
 	}
 }
 

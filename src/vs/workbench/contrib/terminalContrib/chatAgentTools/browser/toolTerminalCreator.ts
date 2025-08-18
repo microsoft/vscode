@@ -13,6 +13,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 
 const enum ShellLaunchType {
 	Unknown = 0,
@@ -55,12 +56,21 @@ export class ToolTerminalCreator {
 		// integration injection is enabled. Note that it's possible for the fallback case to happen
 		// and then for SI to activate again later in the session.
 		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
+
+		// Get the configurable timeout to wait for shell integration
+		const configuredTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout) as number | undefined;
+		let waitTime: number;
+		if (configuredTimeout === undefined || typeof configuredTimeout !== 'number' || configuredTimeout < 0) {
+			waitTime = siInjectionEnabled ? 5000 : (instance.isRemote ? 3000 : 2000);
+		} else {
+			// There's an absolute minimum is 500ms
+			waitTime = Math.max(configuredTimeout, 500);
+		}
+
 		if (
 			ToolTerminalCreator._lastSuccessfulShell !== ShellLaunchType.Fallback ||
 			siInjectionEnabled
 		) {
-			// Use a reasonable wait time depending on whether the injection setting is set
-			const waitTime = siInjectionEnabled ? 5000 : (instance.isRemote ? 3000 : 2000);
 			const shellIntegrationQuality = await this._waitForShellIntegration(instance, waitTime);
 			if (token.isCancellationRequested) {
 				instance.dispose();

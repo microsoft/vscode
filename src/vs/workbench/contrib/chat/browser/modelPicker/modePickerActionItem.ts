@@ -40,7 +40,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
-			label: mode.name,
+			label: mode.label,
 			class: undefined,
 			enabled: true,
 			checked: currentMode.id === mode.id,
@@ -56,7 +56,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
-			label: mode.name,
+			label: mode.label,
 			class: undefined,
 			enabled: true,
 			checked: currentMode.id === mode.id,
@@ -111,7 +111,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			return null;
 		}
 		this.setAriaLabelAttributes(element);
-		const state = this.delegate.currentMode.get().name;
+		const state = this.delegate.currentMode.get().label;
 		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}
