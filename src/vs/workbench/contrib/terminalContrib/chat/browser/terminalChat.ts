@@ -34,7 +34,6 @@ export const enum TerminalChatContextKeyStrings {
 	ChatResponseContainsCodeBlock = 'terminalChatResponseContainsCodeBlock',
 	ChatResponseContainsMultipleCodeBlocks = 'terminalChatResponseContainsMultipleCodeBlocks',
 	ChatResponseSupportsIssueReporting = 'terminalChatResponseSupportsIssueReporting',
-	ChatSessionResponseVote = 'terminalChatSessionResponseVote',
 }
 
 

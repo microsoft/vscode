@@ -22,7 +22,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActions.js';
 import { IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, UserSelectedTools } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
-import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent } from '../../contrib/chat/common/chatService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -709,38 +709,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			.map(f => typeConvert.ChatFollowup.from(f, request));
 	}
 
-	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void {
-		const agent = this._agents.get(handle);
-		if (!agent) {
-			return;
-		}
-
-		const ehResult = typeConvert.ChatAgentResult.to(result);
-		let kind: extHostTypes.ChatResultFeedbackKind;
-		switch (voteAction.direction) {
-			case ChatAgentVoteDirection.Down:
-				kind = extHostTypes.ChatResultFeedbackKind.Unhelpful;
-				break;
-			case ChatAgentVoteDirection.Up:
-				kind = extHostTypes.ChatResultFeedbackKind.Helpful;
-				break;
-		}
-
-		const feedback: vscode.ChatResultFeedback = {
-			result: ehResult,
-			kind,
-			unhelpfulReason: isProposedApiEnabled(agent.extension, 'chatParticipantAdditions') ? voteAction.reason : undefined,
-		};
-		agent.acceptFeedback(Object.freeze(feedback));
-	}
 
 	$acceptAction(handle: number, result: IChatAgentResult, event: IChatUserActionEvent): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
-			return;
-		}
-		if (event.action.kind === 'vote') {
-			// handled by $acceptFeedback
 			return;
 		}
 

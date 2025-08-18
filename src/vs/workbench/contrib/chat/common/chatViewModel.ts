@@ -17,7 +17,7 @@ import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameS
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
+import { IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
 
@@ -26,7 +26,7 @@ export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 }
 
 export function isResponseVM(item: unknown): item is IChatResponseViewModel {
-	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
+	return !!item && typeof (item as any).id === 'string' && 'response' in (item as any);
 }
 
 export function isChatTreeItem(item: unknown): item is IChatRequestViewModel | IChatResponseViewModel {
@@ -211,8 +211,6 @@ export interface IChatResponseViewModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
-	readonly vote: ChatAgentVoteDirection | undefined;
-	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
@@ -221,8 +219,6 @@ export interface IChatResponseViewModel {
 	readonly isCompleteAddedRequest: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
-	setVote(vote: ChatAgentVoteDirection): void;
-	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
@@ -559,13 +555,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this.result?.errorDetails;
 	}
 
-	get vote() {
-		return this._model.vote;
-	}
-
-	get voteDownReason() {
-		return this._model.voteDownReason;
-	}
 
 	get requestId() {
 		return this._model.requestId;
@@ -666,15 +655,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		this.logService.trace(`ChatResponseViewModel#${tag}: ${message}`);
 	}
 
-	setVote(vote: ChatAgentVoteDirection): void {
-		this._modelChangeCount++;
-		this._model.setVote(vote);
-	}
-
-	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void {
-		this._modelChangeCount++;
-		this._model.setVoteDownReason(reason);
-	}
 
 	setEditApplied(edit: IChatTextEditGroup, editCount: number) {
 		this._modelChangeCount++;

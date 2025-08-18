@@ -425,28 +425,6 @@ export interface IChatFollowup {
 	tooltip?: string;
 }
 
-export enum ChatAgentVoteDirection {
-	Down = 0,
-	Up = 1
-}
-
-export enum ChatAgentVoteDownReason {
-	IncorrectCode = 'incorrectCode',
-	DidNotFollowInstructions = 'didNotFollowInstructions',
-	IncompleteCode = 'incompleteCode',
-	MissingContext = 'missingContext',
-	PoorlyWrittenOrFormatted = 'poorlyWrittenOrFormatted',
-	RefusedAValidRequest = 'refusedAValidRequest',
-	OffensiveOrUnsafe = 'offensiveOrUnsafe',
-	Other = 'other',
-	WillReportIssue = 'willReportIssue'
-}
-
-export interface IChatVoteAction {
-	kind: 'vote';
-	direction: ChatAgentVoteDirection;
-	reason: ChatAgentVoteDownReason | undefined;
-}
 
 export enum ChatCopyKind {
 	// Keyboard shortcut or context menu
@@ -533,7 +511,7 @@ export interface IChatEditingHunkAction {
 	hasRemainingEdits: boolean;
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction | IChatEditingHunkAction;
+export type ChatUserAction = IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction | IChatEditingHunkAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;

@@ -25,7 +25,7 @@ import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommo
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
@@ -177,13 +177,9 @@ export interface IChatResponseModel {
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
-	readonly vote: ChatAgentVoteDirection | undefined;
-	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
 	addUndoStop(undoStop: IChatUndoStop): void;
-	setVote(vote: ChatAgentVoteDirection): void;
-	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 	/**
 	 * Adopts any partially-undo {@link response} as the {@link entireResponse}.
@@ -632,8 +628,6 @@ export interface IChatResponseModelParameters {
 	requestId: string;
 	isComplete?: boolean;
 	isCanceled?: boolean;
-	vote?: ChatAgentVoteDirection;
-	voteDownReason?: ChatAgentVoteDownReason;
 	result?: IChatAgentResult;
 	followups?: ReadonlyArray<IChatFollowup>;
 	isCompleteAddedRequest?: boolean;
@@ -653,8 +647,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _slashCommand: IChatAgentCommand | undefined;
 	private _isComplete: boolean;
 	private _isCanceled: boolean;
-	private _vote?: ChatAgentVoteDirection;
-	private _voteDownReason?: ChatAgentVoteDownReason;
 	private _result?: IChatAgentResult;
 	private _shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly isCompleteAddedRequest: boolean;
@@ -685,13 +677,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._isCanceled;
 	}
 
-	public get vote(): ChatAgentVoteDirection | undefined {
-		return this._vote;
-	}
-
-	public get voteDownReason(): ChatAgentVoteDownReason | undefined {
-		return this._voteDownReason;
-	}
 
 	public get followups(): IChatFollowup[] | undefined {
 		return this._followups;
@@ -784,8 +769,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this.requestId = params.requestId;
 		this._isComplete = params.isComplete ?? false;
 		this._isCanceled = params.isCanceled ?? false;
-		this._vote = params.vote;
-		this._voteDownReason = params.voteDownReason;
 		this._result = params.result;
 		this._followups = params.followups ? [...params.followups] : undefined;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
@@ -898,15 +881,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire(defaultChatResponseModelChangeReason); // Fire so that command followups get rendered on the row
 	}
 
-	setVote(vote: ChatAgentVoteDirection): void {
-		this._vote = vote;
-		this._onDidChange.fire(defaultChatResponseModelChangeReason);
-	}
-
-	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void {
-		this._voteDownReason = reason;
-		this._onDidChange.fire(defaultChatResponseModelChangeReason);
-	}
 
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean {
 		if (!this.response.value.includes(edit)) {
@@ -993,8 +967,6 @@ export interface ISerializableChatRequestData {
 	result?: IChatAgentResult; // Optional for backcompat
 	followups: ReadonlyArray<IChatFollowup> | undefined;
 	isCanceled: boolean | undefined;
-	vote: ChatAgentVoteDirection | undefined;
-	voteDownReason?: ChatAgentVoteDownReason;
 	/** For backward compat: should be optional */
 	usedContext?: IChatUsedContext;
 	contentReferences?: ReadonlyArray<IChatContentReference>;
@@ -1408,8 +1380,6 @@ export class ChatModel extends Disposable implements IChatModel {
 						requestId: request.id,
 						isComplete: true,
 						isCanceled: raw.isCanceled,
-						vote: raw.vote,
-						voteDownReason: raw.voteDownReason,
 						result,
 						followups: raw.followups,
 						restoredId: raw.responseId,
@@ -1726,8 +1696,6 @@ export class ChatModel extends Disposable implements IChatModel {
 					result: r.response?.result,
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
-					vote: r.response?.vote,
-					voteDownReason: r.response?.voteDownReason,
 					agent: agentJson,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,

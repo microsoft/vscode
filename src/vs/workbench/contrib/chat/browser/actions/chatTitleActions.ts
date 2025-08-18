@@ -21,115 +21,14 @@ import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/co
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/chatEditingService.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
+import { IChatService } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-
-export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 const enableFeedbackConfig = 'config.telemetry.feedback.enabled';
 
 export function registerChatTitleActions() {
-	registerAction2(class MarkHelpfulAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.markHelpful',
-				title: localize2('interactive.helpful.label', "Helpful"),
-				f1: false,
-				category: CHAT_CATEGORY,
-				icon: Codicon.thumbsup,
-				toggled: ChatContextKeys.responseVote.isEqualTo('up'),
-				menu: [{
-					id: MenuId.ChatMessageFooter,
-					group: 'navigation',
-					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
-				}, {
-					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
-					group: 'navigation',
-					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
-				}]
-			});
-		}
-
-		run(accessor: ServicesAccessor, ...args: any[]) {
-			const item = args[0];
-			if (!isResponseVM(item)) {
-				return;
-			}
-
-			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction({
-				agentId: item.agent?.id,
-				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
-				requestId: item.requestId,
-				result: item.result,
-				action: {
-					kind: 'vote',
-					direction: ChatAgentVoteDirection.Up,
-					reason: undefined
-				}
-			});
-			item.setVote(ChatAgentVoteDirection.Up);
-			item.setVoteDownReason(undefined);
-		}
-	});
-
-	registerAction2(class MarkUnhelpfulAction extends Action2 {
-		constructor() {
-			super({
-				id: MarkUnhelpfulActionId,
-				title: localize2('interactive.unhelpful.label', "Unhelpful"),
-				f1: false,
-				category: CHAT_CATEGORY,
-				icon: Codicon.thumbsdown,
-				toggled: ChatContextKeys.responseVote.isEqualTo('down'),
-				menu: [{
-					id: MenuId.ChatMessageFooter,
-					group: 'navigation',
-					order: 3,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
-				}, {
-					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
-					group: 'navigation',
-					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
-				}]
-			});
-		}
-
-		run(accessor: ServicesAccessor, ...args: any[]) {
-			const item = args[0];
-			if (!isResponseVM(item)) {
-				return;
-			}
-
-			const reason = args[1];
-			if (typeof reason !== 'string') {
-				return;
-			}
-
-			item.setVote(ChatAgentVoteDirection.Down);
-			item.setVoteDownReason(reason as ChatAgentVoteDownReason);
-
-			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction({
-				agentId: item.agent?.id,
-				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
-				requestId: item.requestId,
-				result: item.result,
-				action: {
-					kind: 'vote',
-					direction: ChatAgentVoteDirection.Down,
-					reason: item.voteDownReason
-				}
-			});
-		}
-	});
 
 	registerAction2(class ReportIssueForBugAction extends Action2 {
 		constructor() {

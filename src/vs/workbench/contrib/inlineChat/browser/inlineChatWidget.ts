@@ -26,9 +26,9 @@ import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
-import { createActionViewItem, IMenuEntryActionViewItemOptions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -40,14 +40,11 @@ import { asCssVariable, asCssVariableName, editorBackground, inputBackground } f
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActions.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
-import { ChatVoteDownButton } from '../../chat/browser/chatListRenderer.js';
 import { ChatWidget, IChatViewState, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/chatColors.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatModel } from '../../chat/common/chatModel.js';
-import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
@@ -120,7 +117,6 @@ export class InlineChatWidget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
-		@IChatService private readonly _chatService: IChatService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		this.scopedContextKeyService = this._store.add(_contextKeyService.createScoped(this._elements.chatWidget));
@@ -175,7 +171,6 @@ export class InlineChatWidget {
 		this._store.add(this._chatWidget);
 
 		const ctxResponse = ChatContextKeys.isResponse.bindTo(this.scopedContextKeyService);
-		const ctxResponseVote = ChatContextKeys.responseVote.bindTo(this.scopedContextKeyService);
 		const ctxResponseSupportIssues = ChatContextKeys.responseSupportsIssueReporting.bindTo(this.scopedContextKeyService);
 		const ctxResponseError = ChatContextKeys.responseHasError.bindTo(this.scopedContextKeyService);
 		const ctxResponseErrorFiltered = ChatContextKeys.responseIsFiltered.bindTo(this.scopedContextKeyService);
@@ -192,7 +187,6 @@ export class InlineChatWidget {
 			viewModelStore.add(toDisposable(() => {
 				toolbar2.context = undefined;
 				ctxResponse.reset();
-				ctxResponseVote.reset();
 				ctxResponseError.reset();
 				ctxResponseErrorFiltered.reset();
 				ctxResponseSupportIssues.reset();
@@ -206,7 +200,6 @@ export class InlineChatWidget {
 				toolbar2.context = last;
 
 				ctxResponse.set(isResponseVM(last));
-				ctxResponseVote.set(isResponseVM(last) ? last.vote === ChatAgentVoteDirection.Down ? 'down' : last.vote === ChatAgentVoteDirection.Up ? 'up' : '' : '');
 				ctxResponseError.set(isResponseVM(last) && last.errorDetails !== undefined);
 				ctxResponseErrorFiltered.set((!!(isResponseVM(last) && last.errorDetails?.responseIsFiltered)));
 				ctxResponseSupportIssues.set(isResponseVM(last) && (last.agent?.metadata.supportIssueReporting ?? false));
@@ -247,12 +240,7 @@ export class InlineChatWidget {
 		const toolbar2 = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar2, _options.secondaryMenuId ?? MenuId.for(''), {
 			telemetrySource: _options.chatWidgetViewOptions?.menus?.telemetrySource,
 			menuOptions: { renderShortTitle: true, shouldForwardArgs: true },
-			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
-				if (action instanceof MenuItemAction && action.item.id === MarkUnhelpfulActionId) {
-					return scopedInstaService.createInstance(ChatVoteDownButton, action, options as IMenuEntryActionViewItemOptions);
-				}
-				return createActionViewItem(scopedInstaService, action, options);
-			}
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => createActionViewItem(scopedInstaService, action, options)
 		});
 		this._store.add(toolbar2.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(toolbar2);
@@ -273,11 +261,6 @@ export class InlineChatWidget {
 			return this._elements.statusLabel.dataset['title'];
 		}));
 
-		this._store.add(this._chatService.onDidPerformUserAction(e => {
-			if (e.sessionId === this._chatWidget.viewModel?.model.sessionId && e.action.kind === 'vote') {
-				this.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
-			}
-		}));
 	}
 
 	private _updateAriaLabel(): void {
@@ -513,7 +496,6 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 		@ILayoutService layoutService: ILayoutService
 	) {
@@ -524,7 +506,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 				...options.chatWidgetViewOptions,
 				editorOverflowWidgetsDomNode: overflowWidgetsNode
 			}
-		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, hoverService);
 
 		this._store.add(toDisposable(() => {
 			overflowWidgetsNode.remove();

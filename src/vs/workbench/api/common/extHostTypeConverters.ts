@@ -3290,11 +3290,6 @@ export namespace ChatAgentResult {
 
 export namespace ChatAgentUserActionEvent {
 	export function to(result: IChatAgentResult, event: IChatUserActionEvent, commandsConverter: CommandsConverter): vscode.ChatUserActionEvent | undefined {
-		if (event.action.kind === 'vote') {
-			// Is the "feedback" type
-			return;
-		}
-
 		const ehResult = ChatAgentResult.to(result);
 		if (event.action.kind === 'command') {
 			const command = event.action.commandButton.command;

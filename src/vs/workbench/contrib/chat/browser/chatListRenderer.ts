@@ -8,7 +8,6 @@ import { renderFormattedText } from '../../../../base/browser/formattedTextRende
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
-import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IListElementRenderDetails, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
@@ -31,20 +30,18 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
-import { IMenuEntryActionViewItemOptions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { CodiconActionViewItem } from '../../notebook/browser/view/cellParts/cellActionView.js';
 import { annotateSpecialMarkdownContent } from '../common/annotations.js';
 import { checkModeOption } from '../common/chat.js';
@@ -52,13 +49,11 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatThinkingPart } from '../common/chatService.js';
-import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
-import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
@@ -87,6 +82,7 @@ import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRender
 import { ChatMarkdownRenderer } from './chatMarkdownRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
+import { IChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, IChatRendererContent, IChatReferences, IChatCodeCitations, IChatErrorDetailsPart, IChatChangesSummaryPart } from '../common/chatViewModel.js';
 
 const $ = dom.$;
 
@@ -420,12 +416,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			eventDebounceDelay: 0,
 			menuOptions: { shouldForwardArgs: true, renderShortTitle: true },
 			toolbarOptions: { shouldInlineSubmenu: submenu => submenu.actions.length <= 1 },
-			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
-				if (action instanceof MenuItemAction && action.item.id === MarkUnhelpfulActionId) {
-					return scopedInstantiationService.createInstance(ChatVoteDownButton, action, options as IMenuEntryActionViewItemOptions);
-				}
-				return createActionViewItem(scopedInstantiationService, action, options);
-			}
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => createActionViewItem(scopedInstantiationService, action, options)
 		}));
 
 		// Insert the details container into the toolbar's internal element structure
@@ -533,9 +524,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		ChatContextKeys.responseDetectedAgentCommand.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
 		if (isResponseVM(element)) {
 			ChatContextKeys.responseSupportsIssueReporting.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
-			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set(element.vote === ChatAgentVoteDirection.Up ? 'up' : element.vote === ChatAgentVoteDirection.Down ? 'down' : '');
-		} else {
-			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set('');
 		}
 
 		if (templateData.titleToolbar) {
@@ -604,7 +592,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
-		// Overlay click listener removed: overlay is non-interactive in cancel-on-any-row mode.
 
 		// hack @joaomoreno
 		templateData.rowContainer.parentElement?.parentElement?.parentElement?.classList.toggle('request', isRequestVM(element));
@@ -1541,88 +1528,4 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 	}
 }
 
-const voteDownDetailLabels: Record<ChatAgentVoteDownReason, string> = {
-	[ChatAgentVoteDownReason.IncorrectCode]: localize('incorrectCode', "Suggested incorrect code"),
-	[ChatAgentVoteDownReason.DidNotFollowInstructions]: localize('didNotFollowInstructions', "Didn't follow instructions"),
-	[ChatAgentVoteDownReason.MissingContext]: localize('missingContext', "Missing context"),
-	[ChatAgentVoteDownReason.OffensiveOrUnsafe]: localize('offensiveOrUnsafe', "Offensive or unsafe"),
-	[ChatAgentVoteDownReason.PoorlyWrittenOrFormatted]: localize('poorlyWrittenOrFormatted', "Poorly written or formatted"),
-	[ChatAgentVoteDownReason.RefusedAValidRequest]: localize('refusedAValidRequest', "Refused a valid request"),
-	[ChatAgentVoteDownReason.IncompleteCode]: localize('incompleteCode', "Incomplete code"),
-	[ChatAgentVoteDownReason.WillReportIssue]: localize('reportIssue', "Report an issue"),
-	[ChatAgentVoteDownReason.Other]: localize('other', "Other"),
-};
 
-export class ChatVoteDownButton extends DropdownMenuActionViewItem {
-	constructor(
-		action: IAction,
-		options: IDropdownMenuActionViewItemOptions | undefined,
-		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService,
-		@ILogService private readonly logService: ILogService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-	) {
-		super(action,
-			{ getActions: () => this.getActions(), },
-			contextMenuService,
-			{
-				...options,
-				classNames: ThemeIcon.asClassNameArray(Codicon.thumbsdown),
-			});
-	}
-
-	getActions(): readonly IAction[] {
-		return [
-			this.getVoteDownDetailAction(ChatAgentVoteDownReason.IncorrectCode),
-			this.getVoteDownDetailAction(ChatAgentVoteDownReason.DidNotFollowInstructions),
-			this.getVoteDownDetailAction(ChatAgentVoteDownReason.IncompleteCode),
-			this.getVoteDownDetailAction(ChatAgentVoteDownReason.MissingContext),
-			this.getVoteDownDetailAction(ChatAgentVoteDownReason.PoorlyWrittenOrFormatted),
-			this.getVoteDownDetailAction(ChatAgentVoteDownReason.RefusedAValidRequest),
-			this.getVoteDownDetailAction(ChatAgentVoteDownReason.OffensiveOrUnsafe),
-			this.getVoteDownDetailAction(ChatAgentVoteDownReason.Other),
-			{
-				id: 'reportIssue',
-				label: voteDownDetailLabels[ChatAgentVoteDownReason.WillReportIssue],
-				tooltip: '',
-				enabled: true,
-				class: undefined,
-				run: async (context: IChatResponseViewModel) => {
-					if (!isResponseVM(context)) {
-						this.logService.error('ChatVoteDownButton#run: invalid context');
-						return;
-					}
-
-					await this.commandService.executeCommand(MarkUnhelpfulActionId, context, ChatAgentVoteDownReason.WillReportIssue);
-					await this.issueService.openReporter({ extensionId: context.agent?.extensionId.value });
-				}
-			}
-		];
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-
-		this.element?.classList.toggle('checked', this.action.checked);
-	}
-
-	private getVoteDownDetailAction(reason: ChatAgentVoteDownReason): IAction {
-		const label = voteDownDetailLabels[reason];
-		return {
-			id: MarkUnhelpfulActionId,
-			label,
-			tooltip: '',
-			enabled: true,
-			checked: (this._context as IChatResponseViewModel).voteDownReason === reason,
-			class: undefined,
-			run: async (context: IChatResponseViewModel) => {
-				if (!isResponseVM(context)) {
-					this.logService.error('ChatVoteDownButton#getVoteDownDetailAction: invalid context');
-					return;
-				}
-
-				await this.commandService.executeCommand(MarkUnhelpfulActionId, context, reason);
-			}
-		};
-	}
-}
