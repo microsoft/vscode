@@ -16,7 +16,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionDisplayLocationKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
@@ -226,7 +226,8 @@ function toInlineSuggestData(
 
 	const displayLocation = inlineCompletion.displayLocation ? {
 		range: Range.lift(inlineCompletion.displayLocation.range),
-		label: inlineCompletion.displayLocation.label
+		label: inlineCompletion.displayLocation.label,
+		kind: inlineCompletion.displayLocation.kind
 	} : undefined;
 
 	return new InlineSuggestData(
@@ -457,6 +458,7 @@ export interface SnippetInfo {
 export interface IDisplayLocation {
 	range: Range;
 	label: string;
+	kind: InlineCompletionDisplayLocationKind;
 }
 
 export enum InlineCompletionEditorType {
