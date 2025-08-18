@@ -90,7 +90,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		originalResult: IPollingResult,
 		token: CancellationToken,
 		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
-		taskService: Pick<ITaskService, 'getTaskData'>,
+		taskService: ITaskService,
 		execution: IExecution
 	): Promise<IRacePollingOrPromptResult> {
 		const pollPromise = pollFn();
