@@ -370,7 +370,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
 
-// Register migration action menu items - only show for local chat sessions
+// Register migration action menu items - only show for non-local chat sessions
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: MoveChatSessionToNewEditorAction.id,
@@ -378,7 +378,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'migration',
 	order: 1,
-	when: ChatContextKeys.sessionType.isEqualTo('local')
+	when: ChatContextKeys.sessionType.notEqualsTo('local')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
@@ -388,7 +388,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'migration',
 	order: 2,
-	when: ChatContextKeys.sessionType.isEqualTo('local')
+	when: ChatContextKeys.sessionType.notEqualsTo('local')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
@@ -398,5 +398,5 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'migration',
 	order: 3,
-	when: ChatContextKeys.sessionType.isEqualTo('local')
+	when: ChatContextKeys.sessionType.notEqualsTo('local')
 });
