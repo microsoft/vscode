@@ -161,6 +161,7 @@ export async function getServer() {
 	}, opts => ({ ...opts, userDataDir: path.join(opts.userDataDir, 'ø') }));
 	await application.start();
 	const connection = await createConnection(undefined, () => Promise.resolve(application.code.driver.browserContext));
+	connection.registerCapabilities({ logging: {} });
 	mcpLogger.server = connection;
 	application.code.driver.browserContext.on('close', () => {
 		connection.close();
