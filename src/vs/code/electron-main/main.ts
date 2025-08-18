@@ -73,6 +73,8 @@ import { SaveStrategy, StateService } from '../../platform/state/node/stateServi
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
 import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
+import { APPLICATION_SCOPES } from '../../workbench/services/configuration/common/configuration.js';
+import { UserSettings, ConfigurationModel } from '../../platform/configuration/common/configurationModels.js';
 
 /**
  * The main VS Code entry point.
@@ -121,8 +123,42 @@ class CodeMain {
 				if (environmentMainService.args['dump-configuration']) {
 					// Wait a moment for any async configuration loading to complete
 					await new Promise(resolve => setTimeout(resolve, 100));
-					const configurationData = configurationService.getConfigurationData();
-					console.log(JSON.stringify(configurationData, null, 2));
+					
+					// Load application-level configuration manually
+					const fileService = accessor.get(IFileService);
+					const logService = accessor.get(ILogService);
+					const uriIdentityService = accessor.get(IUriIdentityService);
+					
+					try {
+						// Create application configuration loader
+						const applicationConfiguration = new UserSettings(
+							userDataProfilesMainService.defaultProfile.settingsResource, 
+							{ scopes: APPLICATION_SCOPES, skipUnregistered: true }, 
+							uriIdentityService.extUri, 
+							fileService, 
+							logService
+						);
+						
+						// Load application configuration
+						const applicationModel = await applicationConfiguration.loadConfiguration();
+						
+						// Get base configuration data
+						const configurationData = configurationService.getConfigurationData();
+						
+						// Update the application configuration in the data
+						const enhancedConfigurationData = {
+							...configurationData,
+							application: applicationModel.toJSON()
+						};
+						
+						console.log(JSON.stringify(enhancedConfigurationData, null, 2));
+					} catch (error) {
+						// Fall back to basic configuration if application config loading fails
+						logService.warn(`Failed to load application configuration: ${error}`);
+						const configurationData = configurationService.getConfigurationData();
+						console.log(JSON.stringify(configurationData, null, 2));
+					}
+					
 					app.exit(0);
 					return;
 				}
