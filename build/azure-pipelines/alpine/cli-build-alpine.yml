@@ -18,8 +18,7 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../cli/cli-apply-patches.yml@self
+  - template: ../cli/cli-apply-patches.yml@self
 
     - script: |
         set -e
