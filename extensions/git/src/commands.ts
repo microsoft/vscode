@@ -3514,7 +3514,7 @@ export class CommandCenter {
 				}
 
 				if (choice.refRemote) {
-					branch = choice.refName.replace(`${choice.refRemote}/`, '');
+					branch = await this.promptForBranchName(repository, undefined, choice.refName.replace(`${choice.refRemote}/`, ''));
 				}
 
 				commitish = choice.refName;
