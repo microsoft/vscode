@@ -115,6 +115,14 @@ class CodeMain {
 				throw error;
 			}
 
+			// Handle dump-configuration flag
+			if (environmentMainService.args['dump-configuration']) {
+				const configurationData = configurationService.getConfigurationData();
+				console.log(JSON.stringify(configurationData, null, 2));
+				app.exit(0);
+				return;
+			}
+
 			// Startup
 			await instantiationService.invokeFunction(async accessor => {
 				const logService = accessor.get(ILogService);

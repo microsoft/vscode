@@ -202,6 +202,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'enable-rdp-display-tracking': { type: 'boolean' },
 	'disable-layout-restore': { type: 'boolean' },
 	'disable-experiments': { type: 'boolean' },
+	'dump-configuration': { type: 'boolean', cat: 't', description: localize('dumpConfiguration', "Dump all configuration settings as JSON and exit.") },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
