@@ -8,7 +8,7 @@ import { encodeBase64 } from '../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { IChatExtensionsContent, IChatToolInputInvocationData, IChatTodoListContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData } from '../chatService.js';
+import { IChatExtensionsContent, IChatPromptFileContent, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData } from '../chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
@@ -47,7 +47,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly toolId: string;
 	public readonly source: ToolDataSource;
 
-	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
+	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatPromptFileContent;
 
 	public readonly progress = observableValue<{ message?: string | IMarkdownString; progress: number }>(this, { progress: 0 });
 

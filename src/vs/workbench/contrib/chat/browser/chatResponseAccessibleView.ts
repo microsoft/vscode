@@ -92,13 +92,20 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 							const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
 							input = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 						} else {
-							input = toolInvocation.toolSpecificData?.kind === 'extensions'
-								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
-								: toolInvocation.toolSpecificData?.kind === 'todoList'
-									? JSON.stringify(toolInvocation.toolSpecificData.todoList)
-									: toolInvocation.toolSpecificData?.kind === 'pullRequest'
-										? JSON.stringify(toolInvocation.toolSpecificData)
-										: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
+							const data = toolInvocation.toolSpecificData;
+							if (data?.kind === 'extensions') {
+								input = JSON.stringify(data.extensions);
+							} else if (data?.kind === 'todoList') {
+								input = JSON.stringify(data.todoList);
+							} else if (data?.kind === 'pullRequest') {
+								input = JSON.stringify(data);
+							} else if (data?.kind === 'promptFile') {
+								input = JSON.stringify(data);
+							} else if (data?.kind === 'input' && 'rawInput' in data) {
+								input = JSON.stringify(data.rawInput);
+							} else {
+								input = JSON.stringify(data);
+							}
 						}
 					}
 					responseContent += `${title}`;
