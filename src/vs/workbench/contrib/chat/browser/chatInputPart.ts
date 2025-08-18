@@ -325,6 +325,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly inputUri: URI;
 
+	private _workingSetLinesAddedSpan?: HTMLElement;
+	private _workingSetLinesRemovedSpan?: HTMLElement;
+
 	private readonly _chatEditsActionsDisposables: DisposableStore;
 	private readonly _chatEditsDisposables: DisposableStore;
 	private _chatEditsContainer?: HTMLElement;
@@ -1611,7 +1614,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			secondary: true,
 			ariaLabel: localize('chatEditingSession.toggleWorkingSet', 'Toggle changed files.'),
 		}));
-		button.label = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
+
+		let added = 0;
+		let removed = 0;
+		if (chatEditingSession) {
+			for (const entry of chatEditingSession.entries.get()) {
+				if (entry.linesAdded && entry.linesRemoved) {
+					added += entry.linesAdded.get();
+					removed += entry.linesRemoved.get();
+				}
+			}
+		}
+
+		const baseLabel = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
+		button.label = baseLabel;
+
+		if (!this._workingSetLinesAddedSpan) {
+			this._workingSetLinesAddedSpan = dom.$('.working-set-lines-added');
+		}
+		if (!this._workingSetLinesRemovedSpan) {
+			this._workingSetLinesRemovedSpan = dom.$('.working-set-lines-removed');
+		}
+
+		const countsContainer = dom.$('.working-set-line-counts');
+		button.element.appendChild(countsContainer);
+		countsContainer.appendChild(this._workingSetLinesAddedSpan);
+		countsContainer.appendChild(this._workingSetLinesRemovedSpan);
+
+		this._workingSetLinesAddedSpan.textContent = `+${added}`;
+		this._workingSetLinesRemovedSpan.textContent = `-${removed}`;
+		button.element.setAttribute('aria-label', localize('chatEditingSession.ariaLabelWithCounts', '{0}, {1} lines added, {2} lines removed', baseLabel, added, removed));
 
 		const applyCollapseState = () => {
 			button.icon = this._workingSetCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
@@ -1619,10 +1651,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidChangeHeight.fire();
 		};
 
-		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
+		const toggleWorkingSet = () => {
 			this._workingSetCollapsed = !this._workingSetCollapsed;
 			applyCollapseState();
+		};
 
+		this._chatEditsActionsDisposables.add(button.onDidClick(() => { toggleWorkingSet(); }));
+		this._chatEditsActionsDisposables.add(addDisposableListener(overviewRegion, 'click', e => {
+			if (e.defaultPrevented) {
+				return;
+			}
+			const target = e.target as HTMLElement;
+			if (target.closest('.monaco-button')) {
+				return;
+			}
+			toggleWorkingSet();
 		}));
 
 		applyCollapseState();

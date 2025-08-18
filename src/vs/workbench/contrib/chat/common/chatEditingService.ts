@@ -257,6 +257,16 @@ export interface IModifiedFileEntry {
 	 */
 	readonly changesCount: IObservable<number>;
 
+	/**
+	 * Number of lines added in this entry.
+	 */
+	readonly linesAdded?: IObservable<number>;
+
+	/**
+	 * Number of lines removed in this entry
+	 */
+	readonly linesRemoved?: IObservable<number>;
+
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 }
 
