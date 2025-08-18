@@ -2920,9 +2920,7 @@ class LayoutStateModel extends Disposable {
 			this.storageService.isNew(StorageScope.APPLICATION) &&
 			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY
 		) {
-			const mainContainerDimension = configuration.mainContainerDimension;
 			this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.ceil(mainContainerDimension.width / (1.618 * 1.618 /* golden ratio */)));
 		}
 
 		// Auxiliary bar: Based on setting for new workspaces
