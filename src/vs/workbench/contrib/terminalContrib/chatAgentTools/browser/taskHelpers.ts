@@ -182,6 +182,9 @@ export async function collectTerminalResults(
 }
 
 export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService): Promise<IPollingResult | boolean | undefined> {
+	if (token.isCancellationRequested) {
+		return;
+	}
 	if (execution.task) {
 		const data: Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined = taskService.getTaskProblems(execution.terminal.instanceId);
 		if (data) {
@@ -215,6 +218,7 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 		}
 	}
 	const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
+
 	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService);
 	if (handled) {
 		return true;

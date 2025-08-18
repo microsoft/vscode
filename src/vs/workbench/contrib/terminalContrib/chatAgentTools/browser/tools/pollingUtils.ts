@@ -127,6 +127,9 @@ export async function handleConfirmationPrompt(
 }
 
 export async function detectConfirmationPromptWithLLM(execution: IExecution, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<IConfirmationPrompt | undefined> {
+	if (token.isCancellationRequested) {
+		return;
+	}
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
 		return undefined;
