@@ -17,9 +17,6 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { toolResultDetailsFromResponse } from './taskUtils.js';
-import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { Location } from '../../../../../../../editor/common/languages.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
