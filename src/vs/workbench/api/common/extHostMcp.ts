@@ -373,7 +373,7 @@ class McpHTTPHandle extends Disposable {
 		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
 		defaultMetadata.scopes_supported = scopesSupported ?? defaultMetadata.scopes_supported ?? [];
 		this._authMetadata = {
-			authorizationServer: URI.parse(serverMetadataUrl),
+			authorizationServer: URI.parse(baseUrl),
 			serverMetadata: defaultMetadata,
 			resourceMetadata: resource
 		};
@@ -404,7 +404,7 @@ class McpHTTPHandle extends Disposable {
 		if (isAuthorizationProtectedResourceMetadata(body)) {
 			return body;
 		} else {
-			throw new Error(`Invalid resource metadata: ${JSON.stringify(body)}`);
+			throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
 		}
 	}
 
