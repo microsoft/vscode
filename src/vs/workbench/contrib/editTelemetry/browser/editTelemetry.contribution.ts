@@ -32,7 +32,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		[EDIT_TELEMETRY_DETAILS_SETTING_ID]: {
@@ -41,7 +41,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		[EDIT_TELEMETRY_SHOW_STATUS_BAR]: {
