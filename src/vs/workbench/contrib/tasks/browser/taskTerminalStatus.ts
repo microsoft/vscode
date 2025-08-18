@@ -26,13 +26,6 @@ interface ITerminalData {
 	disposeListener?: MutableDisposable<IDisposable>;
 }
 
-interface ITaskData {
-	status: ITerminalStatus;
-	problemMatcher: AbstractProblemCollector;
-	taskRunEnded: boolean;
-
-}
-
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
 export const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: spinningLoading, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.active', "Task is running") };
 export const SUCCEEDED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeeded', "Task succeeded") };
@@ -63,10 +56,6 @@ export class TaskTerminalStatus extends Disposable {
 			}
 			this.terminalMap.clear();
 		}));
-	}
-
-	get(terminalId: number): ITaskData | undefined {
-		return this.terminalMap.get(terminalId);
 	}
 
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {

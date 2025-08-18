@@ -242,18 +242,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return this.run(task, resolver, Triggers.reconnect);
 	}
 
-	public getTaskData(terminalId: number): ITaskData | undefined {
-		const data = this._terminalStatusManager.get(terminalId);
-		if (data) {
-			return {
-				status: data?.status,
-				problemMatcher: data?.problemMatcher,
-				taskRunEnded: data?.taskRunEnded
-			};
-		}
-		return undefined;
-	}
-
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		task = task.clone(); // A small amount of task state is stored in the task (instance) and tasks passed in to run may have that set already.
 		const instances = InMemoryTask.is(task) || this._isTaskEmpty(task) ? [] : this._getInstances(task);
