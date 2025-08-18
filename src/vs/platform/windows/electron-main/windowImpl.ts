@@ -820,6 +820,41 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) });
 		});
+
+		this.registerSwipeGesture();
+	}
+	private registerSwipeGesture(): void {
+
+		const configurationKey = 'workbench.editor.swipeGestureRecognizer';
+		const swipeListener = this._register(new DisposableStore());
+
+		const swipeGestureRecognizer = (electronWindow: electron.BrowserWindow) => {
+
+			swipeListener.clear();
+			if (this.configurationService.getValue<boolean | undefined>(configurationKey) !== true) {
+				return;
+			}
+
+			const disposable = this._register(
+				Event.fromNodeEventEmitter(electronWindow, 'swipe',
+					(event: Electron.Event, direction: 'left' | 'right' | 'up' | 'down') => ({ event, direction }))((e) => {
+						this.sendWhenReady('vscode:runAction', CancellationToken.None, { id: '_workbench.triggerSwipeGesture', args: [e.direction] });
+
+					}));
+			swipeListener.add(disposable);
+
+		};
+
+		if (this.win !== null && isMacintosh) {
+			const win = this.win;
+			this._register(this.configurationService.onDidChangeConfiguration(event => {
+				if (event.affectsConfiguration(configurationKey)) {
+					swipeGestureRecognizer(win);
+				}
+			}));
+			swipeGestureRecognizer(win);
+		}
+
 	}
 
 	private marketplaceHeadersPromise: Promise<object> | undefined;
