@@ -856,7 +856,10 @@ registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContrib
 registerAction2(ConfigureToolSets);
 
 // Register chat session actions
-import { RenameChatSessionAction } from './actions/chatSessionActions.js';
+import { RenameChatSessionAction, MoveChatSessionToNewEditorAction, MoveChatSessionToNewWindowAction, MoveChatSessionToSideBarAction } from './actions/chatSessionActions.js';
 registerAction2(RenameChatSessionAction);
+registerAction2(MoveChatSessionToNewEditorAction);
+registerAction2(MoveChatSessionToNewWindowAction);
+registerAction2(MoveChatSessionToSideBarAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

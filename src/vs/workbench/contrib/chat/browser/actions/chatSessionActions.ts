@@ -15,7 +15,13 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { IEditorService, ACTIVE_GROUP, AUX_WINDOW_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IChatWidgetService, ChatViewId } from '../chat.js';
+import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatViewPane } from '../chatViewPane.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -140,6 +146,219 @@ export class RenameChatSessionAction extends Action2 {
 	}
 }
 
+export class MoveChatSessionToNewEditorAction extends Action2 {
+	static readonly id = 'workbench.action.chat.moveSessionToNewEditor';
+
+	constructor() {
+		super({
+			id: MoveChatSessionToNewEditorAction.id,
+			title: localize('moveSessionToNewEditor', "Move to New Editor to the Side"),
+			f1: false,
+			category: 'Chat'
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		// Handle marshalled context from menu actions
+		let sessionContext: IChatSessionContext;
+		if (isMarshalledChatSessionContext(context)) {
+			const session = context.session;
+			let actualSessionId: string | undefined;
+			const currentTitle = session.label;
+
+			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			} else {
+				actualSessionId = session.id;
+			}
+
+			if (!actualSessionId) {
+				return; 
+			}
+
+			sessionContext = {
+				sessionId: actualSessionId,
+				sessionType: session.sessionType || 'editor',
+				currentTitle: currentTitle,
+				editorInput: session.editor,
+				widget: session.widget
+			};
+		} else {
+			sessionContext = context;
+		}
+
+		const editorService = accessor.get(IEditorService);
+		const widgetService = accessor.get(IChatWidgetService);
+
+		// Get the widget first to extract view state
+		const widget = widgetService.getWidgetBySessionId(sessionContext.sessionId);
+		if (widget) {
+			const viewState = widget.getViewState();
+			
+			// Clear the widget
+			widget.clear();
+			await widget.waitForReady();
+
+			// Open in new editor
+			const options: IChatEditorOptions = { 
+				target: { sessionId: sessionContext.sessionId }, 
+				pinned: true,
+				viewState
+			};
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
+		}
+	}
+}
+
+export class MoveChatSessionToNewWindowAction extends Action2 {
+	static readonly id = 'workbench.action.chat.moveSessionToNewWindow';
+
+	constructor() {
+		super({
+			id: MoveChatSessionToNewWindowAction.id,
+			title: localize('moveSessionToNewWindow', "Move to New Window"),
+			f1: false,
+			category: 'Chat'
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		// Handle marshalled context from menu actions
+		let sessionContext: IChatSessionContext;
+		if (isMarshalledChatSessionContext(context)) {
+			const session = context.session;
+			let actualSessionId: string | undefined;
+			const currentTitle = session.label;
+
+			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			} else {
+				actualSessionId = session.id;
+			}
+
+			if (!actualSessionId) {
+				return; 
+			}
+
+			sessionContext = {
+				sessionId: actualSessionId,
+				sessionType: session.sessionType || 'editor',
+				currentTitle: currentTitle,
+				editorInput: session.editor,
+				widget: session.widget
+			};
+		} else {
+			sessionContext = context;
+		}
+
+		const editorService = accessor.get(IEditorService);
+		const widgetService = accessor.get(IChatWidgetService);
+
+		// Get the widget first to extract view state
+		const widget = widgetService.getWidgetBySessionId(sessionContext.sessionId);
+		if (widget) {
+			const viewState = widget.getViewState();
+			
+			// Clear the widget
+			widget.clear();
+			await widget.waitForReady();
+
+			// Open in new auxiliary window
+			const options: IChatEditorOptions = { 
+				target: { sessionId: sessionContext.sessionId }, 
+				pinned: true,
+				viewState,
+				auxiliary: { compact: true, bounds: { width: 640, height: 640 } }
+			};
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, AUX_WINDOW_GROUP);
+		}
+	}
+}
+
+export class MoveChatSessionToSideBarAction extends Action2 {
+	static readonly id = 'workbench.action.chat.moveSessionToSideBar';
+
+	constructor() {
+		super({
+			id: MoveChatSessionToSideBarAction.id,
+			title: localize('moveSessionToSideBar', "Move to Side Bar"),
+			f1: false,
+			category: 'Chat'
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		// Handle marshalled context from menu actions
+		let sessionContext: IChatSessionContext;
+		if (isMarshalledChatSessionContext(context)) {
+			const session = context.session;
+			let actualSessionId: string | undefined;
+			const currentTitle = session.label;
+
+			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			} else {
+				actualSessionId = session.id;
+			}
+
+			if (!actualSessionId) {
+				return; 
+			}
+
+			sessionContext = {
+				sessionId: actualSessionId,
+				sessionType: session.sessionType || 'editor',
+				currentTitle: currentTitle,
+				editorInput: session.editor,
+				widget: session.widget
+			};
+		} else {
+			sessionContext = context;
+		}
+
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const viewsService = accessor.get(IViewsService);
+
+		// If it's an editor session, close the editor and move to sidebar
+		if (sessionContext.sessionType === 'editor' && sessionContext.editorInput instanceof ChatEditorInput) {
+			const chatEditor = editorService.activeEditorPane;
+			const viewState = chatEditor?.getViewState?.();
+			
+			await editorService.closeEditor({ 
+				editor: sessionContext.editorInput, 
+				groupId: editorGroupService.activeGroup.id 
+			});
+			
+			const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+			await view.loadSession(sessionContext.sessionId, viewState);
+			view.focus();
+		} else {
+			// Widget is already in the side bar, so just focus it
+			const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+			view.focus();
+		}
+	}
+}
+
 // Register the menu item - only show for local chat sessions
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
@@ -148,5 +367,36 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'context',
 	order: 1,
+	when: ChatContextKeys.sessionType.isEqualTo('local')
+});
+
+// Register migration action menu items - only show for local chat sessions
+MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+	command: {
+		id: MoveChatSessionToNewEditorAction.id,
+		title: localize('moveSessionToNewEditor', "Move to New Editor to the Side")
+	},
+	group: 'migration',
+	order: 1,
+	when: ChatContextKeys.sessionType.isEqualTo('local')
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+	command: {
+		id: MoveChatSessionToNewWindowAction.id,
+		title: localize('moveSessionToNewWindow', "Move to New Window")
+	},
+	group: 'migration',
+	order: 2,
+	when: ChatContextKeys.sessionType.isEqualTo('local')
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+	command: {
+		id: MoveChatSessionToSideBarAction.id,
+		title: localize('moveSessionToSideBar', "Move to Side Bar")
+	},
+	group: 'migration',
+	order: 3,
 	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
