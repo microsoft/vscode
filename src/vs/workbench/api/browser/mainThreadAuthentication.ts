@@ -11,12 +11,10 @@ import { AuthenticationSessionRequest, ExtHostAuthenticationShape, ExtHostContex
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
-import { ActivationKind, IExtensionService } from '../../services/extensions/common/extensions.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../services/authentication/browser/authenticationUsageService.js';
-import { getAuthenticationProviderActivationEvent } from '../../services/authentication/browser/authenticationService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -118,7 +116,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IAuthenticationUsageService private readonly authenticationUsageService: IAuthenticationUsageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
@@ -200,12 +197,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			this.authenticationService.unregisterAuthenticationProvider(id);
 		} finally {
 			this._suppressUnregisterEvent = false;
-		}
-	}
-
-	async $ensureProvider(id: string): Promise<void> {
-		if (!this.authenticationService.isAuthenticationProviderRegistered(id)) {
-			return await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id), ActivationKind.Immediate);
 		}
 	}
 
