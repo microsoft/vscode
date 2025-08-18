@@ -4,5 +4,7 @@
 <dict>
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
+    <key>com.apple.security.get-task-allow</key>
+	<true/>
 </dict>
 </plist>
