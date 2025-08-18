@@ -9,3 +9,8 @@ Since we replace the system prompt you need the following setting when running a
 ```json
   "github.copilot.chat.advanced.omitBaseAgentInstructions": true
 ```
+
+# Remainng /observed challenges
+The observations are based on using the linked ThreeStep chat mode with consists of Planning, Implementation, and verification.
+- Need to be more explicit about the usage of the todo list. The todo list and the plan are similar concepts and the model needs clear guidance what is what and when to use it.
+- Sometime the model asks for user confirmation as is required by the planning step and sometime it doesn't. The introduction of an explicit user confirmation tool would mitigate this issue.
