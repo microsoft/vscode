@@ -10,6 +10,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IChatSessionsService, ChatSessionStatus, IChatSessionItem } from '../common/chatSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 
 export class ChatSessionsStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -17,6 +18,7 @@ export class ChatSessionsStatusBarEntry extends Disposable implements IWorkbench
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 	private inProgressCount = 0;
+	private refreshScheduler = this._register(new RunOnceScheduler(() => this.update(), 5000)); // Refresh every 5 seconds
 
 	constructor(
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -27,23 +29,35 @@ export class ChatSessionsStatusBarEntry extends Disposable implements IWorkbench
 
 		this.registerListeners();
 		this.update();
+		// Start periodic refresh if there are any in-progress sessions initially
+		this.scheduleRefresh();
 	}
 
 	private registerListeners(): void {
 		// Listen to changes in session items from all providers
 		this._register(this.chatSessionsService.onDidChangeSessionItems(() => {
 			this.update();
+			this.scheduleRefresh(); // Schedule periodic refresh after changes
 		}));
 
 		// Listen to changes in providers themselves
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => {
 			this.update();
+			this.scheduleRefresh();
 		}));
 
 		// Listen to availability changes
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
 			this.update();
+			this.scheduleRefresh();
 		}));
+	}
+
+	private scheduleRefresh(): void {
+		// Only schedule refresh if there are in-progress sessions to monitor
+		if (this.inProgressCount > 0) {
+			this.refreshScheduler.schedule();
+		}
 	}
 
 	private async update(): Promise<void> {
@@ -66,6 +80,8 @@ export class ChatSessionsStatusBarEntry extends Disposable implements IWorkbench
 				// Hide entry when no in-progress sessions
 				this.entry?.dispose();
 				this.entry = undefined;
+				// Cancel scheduled refreshes when no sessions are in progress
+				this.refreshScheduler.cancel();
 			}
 		} catch (error) {
 			// Silently handle errors to avoid disrupting the status bar
