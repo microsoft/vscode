@@ -160,16 +160,8 @@ suite('chat', () => {
 		});
 		disposables.push(participant);
 
-		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
-
-		const raced = await Promise.race([
-			cmd.then(() => 'cmd'),
-			delay(50).then(() => 'timeout')
-		]);
-		assert.strictEqual(raced, 'timeout', 'Command resolved before the chat response completed');
-
-		done.complete();
-		await cmd;
+		const response: any = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
+		assert.strictEqual(response?.type, 'confirmation');
 	});
 
 	test('workbench.action.chat.open.blockOnResponse resolves when an error is hit', async () => {

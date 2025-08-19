@@ -141,7 +141,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<IChatAgentResult | undefined> {
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<IChatAgentResult & { type?: 'confirmation' } | undefined> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
@@ -223,7 +223,6 @@ abstract class OpenChatGlobalAction extends Action2 {
 			const response = await resp;
 			if (response) {
 				await new Promise<void>(resolve => {
-					console.log(response.result?.errorDetails);
 					const d = response.onDidChange(() => {
 						if (response.isComplete || response.isPendingConfirmation.get()) {
 							d.dispose();
@@ -232,7 +231,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 					});
 				});
 
-				return response.result;
+				return { ...response.result, type: response.isPendingConfirmation.get() ? 'confirmation' : undefined };
 			}
 		}
 
