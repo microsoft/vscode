@@ -168,7 +168,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		token: CancellationToken,
 		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 		taskService: ITaskService,
-		pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined
+		pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
+		recursionDepth: number = 0
 	): Promise<IPollingResult> {
 		this._state = OutputMonitorState.Polling;
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
@@ -230,7 +231,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const confirmationPrompt = await this._determineUserInputOptions(execution, token, languageModelsService);
 		const executedOption = await this._selectAndRunOptionInTerminal(confirmationPrompt, execution, token, languageModelsService);
 		if (executedOption) {
-			return this._pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn);
+			if (recursionDepth >= PollingConsts.MaxRecursionCount) {
+				return { state: OutputMonitorState.Timeout, modelOutputEvalResponse, output: buffer };
+			}
+			return this._pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn, recursionDepth + 1);
 		}
 		return { state: this._state, modelOutputEvalResponse, output: buffer };
 	}
