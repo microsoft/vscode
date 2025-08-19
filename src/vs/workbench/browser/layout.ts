@@ -103,6 +103,8 @@ enum LayoutClasses {
 	WINDOW_BORDER = 'border'
 }
 
+const AUXILIARY_BAR_SMALL_WINDOW_THRESHOLD = 1000; // Minimum width to show auxiliary bar by default
+
 interface IPathToOpen extends IPath {
 	readonly viewColumn?: number;
 }
@@ -2859,6 +2861,11 @@ class LayoutStateModel extends Disposable {
 			// sure to not force open it in case we know it was empty before.
 			if (configuration.defaultValue !== 'hidden' && !isConfigured(configuration) && this.stateCache.get(LayoutStateKeys.AUXILIARYBAR_EMPTY.name)) {
 				return true;
+			}
+
+			// Hide auxiliary bar in small windows when not explicitly configured
+			if (!isConfigured(configuration) && mainContainerDimension.width < AUXILIARY_BAR_SMALL_WINDOW_THRESHOLD) {
+				return true; // Hide auxiliary bar in small windows
 			}
 
 			// New users: Show auxiliary bar even in empty workspaces
