@@ -208,17 +208,17 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 				}
 			}
 			if (problemList.length === 0) {
-				return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+				return { terminalExecutionIdleBeforeTimeout: true, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 			}
 			return {
-				terminalExecutionIdleBeforeTimeout,
+				terminalExecutionIdleBeforeTimeout: true,
 				output: problemList.join('\n'),
 				resources: resultResources,
 				pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
 			};
 		}
 	}
-	return;
+	throw new Error('Polling failed');
 }
 
 export function toolResultDetailsFromResponse(terminalResults: { output: string; resources?: ILinkLocation[] }[]): ((URI | Location)[]) {

@@ -181,7 +181,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		while (true) {
 			if (token.isCancellationRequested) {
-				break;
+				// Return immediately on cancellation to avoid hanging promises
+				return { terminalExecutionIdleBeforeTimeout: false, output: buffer };
 			}
 			const now = Date.now();
 			const elapsed = now - pollStartTime;
@@ -229,7 +230,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		terminalExecutionIdleBeforeTimeout = true;
 		const customPollingResult = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, taskService);
 		if (customPollingResult) {
-			return customPollingResult;
+			return { ...customPollingResult, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 		}
 		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token, languageModelsService);
 		const confirmationPrompt = await this._detectConfirmationPromptWithLLM(execution, token, languageModelsService);

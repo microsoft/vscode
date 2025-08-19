@@ -147,10 +147,12 @@ suite('OutputMonitor', () => {
 	});
 
 	test('startMonitoring handles polling without prompt response', async () => {
-		const pollFn = async (_execution: IExecution, _token: CancellationToken, _idle: boolean, _pollStartTime: number, _extendedPolling: boolean) => ({
-			terminalExecutionIdleBeforeTimeout: false,
-			output: 'final output'
-		});
+		const pollFn = async (_execution: IExecution, _token: CancellationToken, _idle: boolean, _pollStartTime: number, _extendedPolling: boolean) => (
+			{
+				terminalExecutionIdleBeforeTimeout: false,
+				output: 'final output'
+			}
+		);
 
 		monitor = store.add(new OutputMonitor(
 			execution,
@@ -166,7 +168,7 @@ suite('OutputMonitor', () => {
 			cts.token
 		);
 
-		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, false);
+		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, true);
 		assert.strictEqual(result.output, 'final output');
 	});
 });
