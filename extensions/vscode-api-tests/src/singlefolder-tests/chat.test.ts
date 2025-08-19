@@ -152,7 +152,7 @@ suite('chat', () => {
 		const done = new DeferredPromise<void>();
 
 		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
-			lm.invokeTool('run_in_terminal', {
+			await lm.invokeTool('run_in_terminal', {
 				input: { command: 'rm dummy.txt' },
 				toolInvocationToken: _request.toolInvocationToken,
 			});
