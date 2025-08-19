@@ -14,7 +14,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IStateService } from '../../state/node/state.js';
 import { INativeWindowConfiguration, IWindowSettings } from '../../window/common/window.js';
 import { IWindowsMainService } from './windows.js';
-import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from '../../window/electron-main/window.js';
+import { defaultWindowState, defaultWorkspaceWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from '../../window/electron-main/window.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export interface IWindowState {
@@ -372,7 +372,12 @@ export class WindowsStateHandler extends Disposable {
 		// Compute x/y based on display bounds
 		// Note: important to use Math.round() because Electron does not seem to be too happy about
 		// display coordinates that are not absolute numbers.
-		let state = defaultWindowState();
+		
+		// Use workspace-aware window sizing: larger size for workspaces, standard size for empty windows
+		const workspace = configuration.workspace;
+		const hasWorkspace = isWorkspaceIdentifier(workspace) || isSingleFolderWorkspaceIdentifier(workspace);
+		let state = hasWorkspace ? defaultWorkspaceWindowState() : defaultWindowState();
+		
 		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
 		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
 
