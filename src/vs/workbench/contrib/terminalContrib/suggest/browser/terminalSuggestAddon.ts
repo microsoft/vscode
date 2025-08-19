@@ -74,7 +74,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _cachedFontInfo: ISimpleSuggestWidgetFontInfo | undefined;
 	private _enableWidget: boolean = true;
 	private _pathSeparator: string = sep;
-	private _isFilteringDirectories: boolean = false;
+	private _isFilteringDirectoriesOrBranches: boolean = false;
 
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
@@ -324,15 +324,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		let normalizedLeadingLineContent = this._leadingLineContent;
 
-		// If there is a single directory in the completions:
+		// If there is a single directory or branch in the completions:
 		// - `\` and `/` are normalized such that either can be used
-		// - Using `\` or `/` will request new completions. It's important that this only occurs
-		//   when a directory is present, if not completions like git branches could be requested
-		//   which leads to flickering
-		this._isFilteringDirectories = completions.some(e => e.kind === TerminalCompletionItemKind.Folder);
-		if (this._isFilteringDirectories) {
-			const firstDir = completions.find(e => e.kind === TerminalCompletionItemKind.Folder);
-			const textLabel = typeof firstDir?.label === 'string' ? firstDir.label : firstDir?.label.label;
+		// - Using `\` or `/` will request new completions for directories, but we now also
+		//   handle branches properly to fix normalization issues with branch names containing '/'
+		this._isFilteringDirectoriesOrBranches = completions.some(e => 
+			e.kind === TerminalCompletionItemKind.Folder || e.kind === TerminalCompletionItemKind.Branch);
+		if (this._isFilteringDirectoriesOrBranches) {
+			const firstDirOrBranch = completions.find(e => 
+				e.kind === TerminalCompletionItemKind.Folder || e.kind === TerminalCompletionItemKind.Branch);
+			const textLabel = typeof firstDirOrBranch?.label === 'string' ? firstDirOrBranch.label : firstDirOrBranch?.label.label;
 			this._pathSeparator = textLabel?.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
@@ -519,8 +520,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						// completions when typing the `-` in `git cherry-pick`
 						prefix?.match(/\s[\-]$/) ||
 						// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-						// with git branches in particular
-						this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
+						// with git branches in particular - we limit auto-triggering to directories
+						completions.some(e => e.kind === TerminalCompletionItemKind.Folder) && prefix?.match(/[\\\/]$/)
 					) {
 						sent = this._requestTriggerCharQuickSuggestCompletions();
 					}
@@ -550,8 +551,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
 						if (
 							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-							// with git branches in particular
-							this._isFilteringDirectories && char.match(/[\\\/]$/) ||
+							// with git branches in particular - we limit auto-triggering to directories
+							completions.some(e => e.kind === TerminalCompletionItemKind.Folder) && char.match(/[\\\/]$/) ||
 							// Check if the character is a trigger character from providers
 							this._checkProviderTriggerCharacters(char)
 						) {
@@ -602,7 +603,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
 			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
-			if (this._isFilteringDirectories) {
+			if (this._isFilteringDirectoriesOrBranches) {
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}
 			const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);

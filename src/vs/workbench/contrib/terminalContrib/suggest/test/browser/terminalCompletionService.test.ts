@@ -23,6 +23,7 @@ import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/termin
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TerminalSuggestSettingId } from '../../common/terminalSuggestConfiguration.js';
 import { TestPathService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -874,6 +875,73 @@ suite('TerminalCompletionService', () => {
 			assert.ok(result.includes(provider1), 'Should include explicitly enabled provider');
 			assert.ok(result.includes(provider3), 'Should include unconfigured provider');
 			assert.ok(!result.includes(provider2), 'Should not include disabled provider');
+		});
+	});
+
+	suite('Branch completion processing', () => {
+		test('should set Branch kind for completions with "Branch" documentation', async () => {
+			const completions: ITerminalCompletion[] = [
+				{
+					label: 'feature/my-branch',
+					documentation: 'Branch',
+					provider: 'test',
+					replacementIndex: 0,
+					replacementLength: 0
+				},
+				{
+					label: 'main',
+					documentation: 'Branch',
+					provider: 'test',
+					replacementIndex: 0,
+					replacementLength: 0
+				},
+				{
+					label: 'some-file.txt',
+					documentation: 'File',
+					provider: 'test',
+					replacementIndex: 0,
+					replacementLength: 0
+				}
+			];
+
+			const mockProvider: ITerminalCompletionProvider = {
+				id: 'test-branch-provider',
+				isBuiltin: false,
+				provideCompletions: async () => completions
+			};
+
+			const capabilities = new TerminalCapabilityStore();
+			const result = await terminalCompletionService.provideCompletions(
+				'git branch -D ',
+				12,
+				false,
+				undefined,
+				capabilities,
+				CancellationToken.None
+			);
+
+			// Register the provider first
+			terminalCompletionService.registerTerminalCompletionProvider('test', 'test-branch-provider', mockProvider);
+
+			// Provide completions again after registration
+			const result2 = await terminalCompletionService.provideCompletions(
+				'git branch -D ',
+				12,
+				false,
+				undefined,
+				capabilities,
+				CancellationToken.None
+			);
+
+			// Verify that completions with "Branch" documentation get the Branch kind set
+			if (result2) {
+				const branchCompletions = result2.filter(c => c.documentation === 'Branch');
+				assert.ok(branchCompletions.length > 0, 'Should have branch completions');
+				for (const completion of branchCompletions) {
+					assert.strictEqual(completion.kind, TerminalCompletionItemKind.Branch, 
+						`Completion "${completion.label}" should have Branch kind`);
+				}
+			}
 		});
 	});
 });

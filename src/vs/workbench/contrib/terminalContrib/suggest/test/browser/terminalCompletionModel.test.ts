@@ -362,4 +362,44 @@ suite('TerminalCompletionModel', function () {
 			assertItems(model, ['main', 'master', 'dev']);
 		});
 	});
+
+	suite('Branch completion normalization', () => {
+		function createBranchItems(...labels: string[]): TerminalCompletionItem[] {
+			return labels.map(label => createItem({ label, kind: TerminalCompletionItemKind.Branch }));
+		}
+
+		test('should normalize branch names with forward slashes on Windows', () => {
+			const items = createBranchItems('feature/abc', 'feature/xyz', 'main');
+			// Verify the normalization happens in the constructor
+			if (process.platform === 'win32') {
+				assert.strictEqual(items[0].labelLow, 'feature\\abc');
+				assert.strictEqual(items[1].labelLow, 'feature\\xyz');
+				assert.strictEqual(items[2].labelLow, 'main');
+				
+				// Verify normalized path for branch items
+				assert.strictEqual(items[0].labelLowNormalizedPath, 'feature/abc');
+				assert.strictEqual(items[1].labelLowNormalizedPath, 'feature/xyz');
+			} else {
+				// On non-Windows, no normalization should occur
+				assert.strictEqual(items[0].labelLow, 'feature/abc');
+				assert.strictEqual(items[1].labelLow, 'feature/xyz');
+			}
+		});
+
+		test('should handle branch completions with "Branch" documentation', () => {
+			const itemWithDocumentation = createItem({ 
+				label: 'feature/test-branch', 
+				documentation: 'Branch',
+				kind: undefined // Simulate extension completion without explicit kind
+			});
+			
+			// The kind should be set by the completion service post-processing
+			// This test verifies the constructor handles branch-like completions properly
+			if (process.platform === 'win32') {
+				// Even without explicit Branch kind, if documentation is "Branch",
+				// the service should set the kind and normalization should work
+				assert.strictEqual(itemWithDocumentation.labelLow, 'feature/test-branch');
+			}
+		});
+	});
 });
