@@ -88,6 +88,7 @@ const postProcessBranches =
 								description: "Current branch",
 								priority: 100,
 								icon: "⭐️", // allow-any-unicode-next-line
+								kind: "Branch",
 							};
 						} else if (parts[0] === "+") {
 							// Branch checked out in another worktree.
@@ -112,6 +113,7 @@ const postProcessBranches =
 						description,
 						icon: "fig://icon?type=git",
 						priority: 75,
+						kind: "Branch",
 					};
 				})
 				.filter((suggestion) => {

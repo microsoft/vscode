@@ -68,6 +68,7 @@ declare module 'vscode' {
 		Flag = 7,
 		SymbolicLinkFile = 8,
 		SymbolicLinkFolder = 9,
+		Branch = 10,
 	}
 
 	export interface TerminalCompletionContext {
