@@ -289,6 +289,8 @@ interface ICollapsibleListTemplate {
 	toolbar: MenuWorkbenchToolBar | undefined;
 	actionBarContainer?: HTMLElement;
 	fileDiffsContainer?: HTMLElement;
+	addedSpan?: HTMLElement;
+	removedSpan?: HTMLElement;
 }
 
 class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
@@ -320,9 +322,13 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		}
 
 		const fileDiffsContainer = $('.working-set-line-counts');
+		const addedSpan = dom.$('.working-set-lines-added');
+		const removedSpan = dom.$('.working-set-lines-removed');
+		fileDiffsContainer.appendChild(addedSpan);
+		fileDiffsContainer.appendChild(removedSpan);
 		label.element.appendChild(fileDiffsContainer);
 
-		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService, fileDiffsContainer };
+		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService, fileDiffsContainer, addedSpan, removedSpan };
 	}
 
 
@@ -410,15 +416,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				if (data.state === ModifiedFileEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
 					const diffMeta = data?.options?.diffMeta;
 					if (diffMeta) {
-						if (!templateData.fileDiffsContainer) {
+						if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {
 							return;
 						}
-
-						const addSpan = templateData.fileDiffsContainer.querySelector('.working-set-lines-added') as HTMLElement ?? templateData.fileDiffsContainer.appendChild(dom.$('.working-set-lines-added'));
-						const removeSpan = templateData.fileDiffsContainer.querySelector('.working-set-lines-removed') as HTMLElement ?? templateData.fileDiffsContainer.appendChild(dom.$('.working-set-lines-removed'));
-
-						addSpan.textContent = `+${diffMeta.added}`;
-						removeSpan.textContent = `-${diffMeta.removed}`;
+						templateData.addedSpan.textContent = `+${diffMeta.added}`;
+						templateData.removedSpan.textContent = `-${diffMeta.removed}`;
 						templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added ?? 0, diffMeta.removed ?? 0));
 					}
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
@@ -431,9 +433,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				templateData.toolbar.context = arg;
 			}
 			if (templateData.contextKeyService) {
-				if (data.state !== undefined) {
-					chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
-				}
+				chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
 			}
 		}
 	}
