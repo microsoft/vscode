@@ -1617,7 +1617,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(Event.any(this.paneCompositeService.onDidPaneCompositeOpen, this.paneCompositeService.onDidPaneCompositeClose)(() => {
 
 			// Auxiliary Bar State
-			this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_EMPTY, this.paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.AuxiliaryBar).length === 0);
+			this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_EMPTY, this.paneCompositeService.getPaneCompositeIds(ViewContainerLocation.AuxiliaryBar).length === 0);
 		}));
 	}
 
