@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
-import { AbstractProblemCollector, StartStopProblemCollector, WatchingProblemCollector } from '../common/problemCollectors.js';
+import { AbstractProblemCollector, StartStopProblemCollector } from '../common/problemCollectors.js';
 import { ITaskGeneralEvent, ITaskProcessEndedEvent, ITaskProcessStartedEvent, TaskEventKind, TaskRunType } from '../common/tasks.js';
 import { ITaskService, Task } from '../common/taskService.js';
 import { ITerminalInstance } from '../../terminal/browser/terminal.js';
@@ -87,7 +87,7 @@ export class TaskTerminalStatus extends Disposable {
 				terminal.addBufferMarker({ marker: this._marker, hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
 			}
 			const markerData = this.terminalMarkerMap.get(terminal.instanceId);
-			if (markerData && problemMatcher instanceof WatchingProblemCollector) {
+			if (markerData) {
 				// Clear existing markers for a new set, otherwise older compilation
 				// issues will be included
 				markerData.markers.clear();
