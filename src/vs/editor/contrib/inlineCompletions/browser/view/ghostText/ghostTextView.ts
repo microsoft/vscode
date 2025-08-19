@@ -25,7 +25,6 @@ import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAff
 import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
-import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
 import { RangeSingleLine } from '../../../../../common/core/ranges/rangeSingleLine.js';
 import { ColumnRange } from '../../../../../common/core/ranges/columnRange.js';
@@ -35,6 +34,8 @@ import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/
 import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextArray.js';
 import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterface.js';
+import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
+import { sum } from '../../../../../../base/common/arrays.js';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
@@ -125,16 +126,18 @@ export class GhostTextView extends Disposable {
 				};
 			});
 
-			const cursorColumn = this._editor.getSelection()?.getStartPosition().column;
+			const cursorColumn = this._editor.getSelection()?.getStartPosition().column!;
+			const disjointInlineTexts = inlineTextsWithTokens.filter(inline => inline.text !== '');
+			const hasInsertionOnCurrentLine = disjointInlineTexts.length !== 0;
 			const renderData: InlineCompletionViewData = {
-				cursorColumnDistance: cursorColumn !== undefined ? Math.abs((inlineTextsWithTokens.length > 0 ? inlineTextsWithTokens[0].column : 1) - cursorColumn) : -1,
-				cursorLineDistance: inlineTextsWithTokens.length > 0 ? 0 : additionalLines.findIndex(line => line.content !== ''),
-				lineCountOriginal: inlineTextsWithTokens.length > 0 ? 1 : 0,
-				lineCountModified: additionalLines.length + (inlineTextsWithTokens.length > 0 ? 1 : 0),
+				cursorColumnDistance: (hasInsertionOnCurrentLine ? disjointInlineTexts[0].column : 1) - cursorColumn,
+				cursorLineDistance: hasInsertionOnCurrentLine ? 0 : (additionalLines.findIndex(line => line.content !== '') + 1),
+				lineCountOriginal: hasInsertionOnCurrentLine ? 1 : 0,
+				lineCountModified: additionalLines.length + (hasInsertionOnCurrentLine ? 1 : 0),
 				characterCountOriginal: 0,
-				characterCountModified: inlineTextsWithTokens.reduce((acc, inline) => acc + inline.text.length, 0) + tokenizedAdditionalLines.reduce((acc, line) => acc + line.content.getTextLength(), 0),
-				disjointReplacements: inlineTextsWithTokens.length + (additionalLines.length > 0 ? 1 : 0),
-				sameShapeReplacements: inlineTextsWithTokens.length > 1 && inlineTextsWithTokens.length === 0 ? inlineTextsWithTokens.every(inline => inline.text.length === inlineTextsWithTokens[0].text.length) : undefined,
+				characterCountModified: sum(disjointInlineTexts.map(inline => inline.text.length)) + sum(tokenizedAdditionalLines.map(line => line.content.getTextLength())),
+				disjointReplacements: disjointInlineTexts.length + (additionalLines.length > 0 ? 1 : 0),
+				sameShapeReplacements: disjointInlineTexts.length > 1 && tokenizedAdditionalLines.length === 0 ? disjointInlineTexts.every(inline => inline.text === disjointInlineTexts[0].text) : undefined,
 			};
 			this._model.handleInlineCompletionShown.read(reader)?.(renderData);
 
@@ -614,7 +617,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 			renderWhitespace,
 			renderControlCharacters,
 			fontLigatures !== EditorFontLigatures.OFF,
-			null
+			null,
+			null,
+			0
 		), sb);
 
 		sb.appendString('</div>');

@@ -113,6 +113,7 @@ export class RenderOptions {
 			modifiedEditorOptions.get(EditorOption.renderWhitespace),
 			modifiedEditorOptions.get(EditorOption.renderControlCharacters),
 			modifiedEditorOptions.get(EditorOption.fontLigatures),
+			modifiedEditorOptions.get(EditorOption.scrollbar).verticalScrollbarSize,
 		);
 	}
 
@@ -128,6 +129,7 @@ export class RenderOptions {
 		public readonly renderWhitespace: FindComputedEditorOptionValueById<EditorOption.renderWhitespace>,
 		public readonly renderControlCharacters: boolean,
 		public readonly fontLigatures: FindComputedEditorOptionValueById<EditorOption.fontLigatures>,
+		public readonly verticalScrollbarSize: number,
 		public readonly setWidth = true,
 	) { }
 
@@ -144,6 +146,7 @@ export class RenderOptions {
 			this.renderWhitespace,
 			this.renderControlCharacters,
 			this.fontLigatures,
+			this.verticalScrollbarSize,
 			setWidth,
 		);
 	}
@@ -161,6 +164,7 @@ export class RenderOptions {
 			this.renderWhitespace,
 			this.renderControlCharacters,
 			this.fontLigatures,
+			this.verticalScrollbarSize,
 			this.setWidth,
 		);
 	}
@@ -219,7 +223,9 @@ function renderOriginalLine(
 		options.renderWhitespace,
 		options.renderControlCharacters,
 		options.fontLigatures !== EditorFontLigatures.OFF,
-		null // Send no selections, original line cannot be selected
+		null, // Send no selections, original line cannot be selected
+		null,
+		options.verticalScrollbarSize
 	), sb);
 
 	sb.appendString('</div>');

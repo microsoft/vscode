@@ -12,7 +12,6 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -30,7 +29,6 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { TerminalCommandId } from '../../terminal/common/terminal.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
@@ -85,7 +83,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -135,8 +132,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 
 		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService, this.logService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			const hasBackups = await this.workingCopyBackupService.hasBackups();
-			if (hasBackups) { return; }
 
 			// Open the welcome even if we opened a set of default editors
 			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
@@ -145,12 +140,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
-					if (this.storageService.isNew(StorageScope.APPLICATION)) {
-						const startupExpValue = startupExpContext.getValue(this.contextKeyService);
-						if (startupExpValue === StartupExperimentGroup.MaximizedChat || startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat) {
-							return;
-						}
-					}
 					await this.openGettingStarted(true);
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);

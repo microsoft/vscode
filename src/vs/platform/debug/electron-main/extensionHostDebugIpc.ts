@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BrowserWindow } from 'electron';
 import { AddressInfo, createServer } from 'net';
-import { IOpenExtensionWindowResult } from '../common/extensionHostDebug.js';
-import { ExtensionHostDebugBroadcastChannel } from '../common/extensionHostDebugIpc.js';
 import { OPTIONS, parseArgs } from '../../environment/node/argv.js';
 import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { IOpenExtensionWindowResult } from '../common/extensionHostDebug.js';
+import { ExtensionHostDebugBroadcastChannel } from '../common/extensionHostDebugIpc.js';
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
 
@@ -20,9 +21,20 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 	override call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
 			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1]);
+		} else if (command === 'attachToCurrentWindowRenderer') {
+			return this.attachToCurrentWindowRenderer(arg[0]);
 		} else {
 			return super.call(ctx, command, arg);
 		}
+	}
+
+	private async attachToCurrentWindowRenderer(windowId: number): Promise<IOpenExtensionWindowResult> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+		if (!codeWindow?.win) {
+			return { success: false };
+		}
+
+		return this.openCdp(codeWindow.win);
 	}
 
 	private async openExtensionDevelopmentHostWindow(args: string[], debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
@@ -50,6 +62,10 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			return { success: true };
 		}
 
+		return this.openCdp(win);
+	}
+
+	private async openCdp(win: BrowserWindow): Promise<IOpenExtensionWindowResult> {
 		const debug = win.webContents.debugger;
 
 		let listeners = debug.isAttached() ? Infinity : 0;

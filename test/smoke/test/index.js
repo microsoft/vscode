@@ -46,12 +46,29 @@ mocha.run(failures => {
 		const rootPath = join(__dirname, '..', '..', '..');
 		const logPath = join(rootPath, '.build', 'logs');
 
-		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
+		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 			console.log(`
 ###################################################################
 #                                                                 #
 # Logs are attached as build artefact and can be downloaded       #
 # from the build Summary page (Summary -> Related -> N published) #
+#                                                                 #
+# Please also scan through attached crash logs in case the        #
+# failure was caused by a native crash.                           #
+#                                                                 #
+# Show playwright traces on: https://trace.playwright.dev/        #
+#                                                                 #
+###################################################################
+		`);
+		} else if (process.env.GITHUB_WORKSPACE) {
+			console.log(`
+###################################################################
+#                                                                 #
+# Logs are attached as build artefact and can be downloaded       #
+# from the build Summary page (Summary -> Artifacts)              #
+#                                                                 #
+# Please also scan through attached crash logs in case the        #
+# failure was caused by a native crash.                           #
 #                                                                 #
 # Show playwright traces on: https://trace.playwright.dev/        #
 #                                                                 #

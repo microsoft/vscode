@@ -36,11 +36,17 @@
 		.mcp-welcome-description {
 			max-width: 350px;
 			padding: 0 20px;
-			margin-top: 26px;
+			margin-top: 16px;
 
 			a {
 				color: var(--vscode-textLink-foreground);
 			}
+		}
+
+		.mcp-welcome-button-container {
+			margin-top: 16px;
+			max-width: 320px;
+			width: 100%;
 		}
 
 	}

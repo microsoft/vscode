@@ -15,22 +15,25 @@ suite('chat', () => {
 		disposables = [];
 
 		// Register a dummy default model which is required for a participant request to go through
-		disposables.push(lm.registerChatModelProvider('test-lm', {
-			async provideLanguageModelResponse(_messages, _options, _extensionId, _progress, _token) {
+		disposables.push(lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async prepareLanguageModelChatInformation(_options, _token) {
+				return [{
+					id: 'test-lm',
+					name: 'test-lm',
+					family: 'test',
+					version: '1.0.0',
+					maxInputTokens: 100,
+					maxOutputTokens: 100,
+					isDefault: true,
+					isUserSelectable: true
+				}];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
 				return undefined;
 			},
-			async provideTokenCount(_text, _token) {
+			async provideTokenCount(_model, _text, _token) {
 				return 1;
 			},
-		}, {
-			name: 'test-lm',
-			version: '1.0.0',
-			family: 'test',
-			vendor: 'test-lm-vendor',
-			maxInputTokens: 100,
-			maxOutputTokens: 100,
-			isDefault: true,
-			isUserSelectable: true
 		}));
 	});
 

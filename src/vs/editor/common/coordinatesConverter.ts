@@ -30,6 +30,7 @@ export interface ICoordinatesConverter {
 }
 
 export class IdentityCoordinatesConverter implements ICoordinatesConverter {
+
 	private readonly _model: ITextModel;
 
 	constructor(model: ITextModel) {

@@ -89,7 +89,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected readonly registry: CompositeRegistry<T>,
 		private readonly activeCompositeSettingsKey: string,
 		private readonly defaultCompositeId: string,
-		private readonly nameForTelemetry: string,
+		protected readonly nameForTelemetry: string,
 		private readonly compositeCSSClass: string,
 		private readonly titleForegroundColor: string | undefined,
 		private readonly titleBorderColor: string | undefined,
@@ -430,7 +430,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			updateTitle: (id, title, keybinding) => {
 				// The title label is shared for all composites in the base CompositePart
 				if (!this.activeComposite || this.activeComposite.getId() === id) {
-					titleLabel.innerText = title;
+					titleLabel.textContent = title;
 					hover.update(keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
 				}
 			},

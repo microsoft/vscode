@@ -736,7 +736,7 @@ class ExtensionFeatureView extends Disposable {
 	}
 
 	private renderElementData(container: HTMLElement, renderer: IExtensionFeatureElementRenderer): void {
-		const elementData = renderer.render(this.manifest);
+		const elementData = this._register(renderer.render(this.manifest));
 		if (elementData.onDidChange) {
 			this._register(elementData.onDidChange(data => {
 				clearNode(container);

@@ -10,7 +10,7 @@ import { extname, isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toFormattedString } from '../../../../base/common/jsonFormatter.js';
-import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from '../../../../editor/common/model.js';
+import { ITextModel, ITextBufferFactory, ITextBuffer } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageSelection, ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -398,8 +398,6 @@ class CellContentProvider implements ITextModelContentProvider {
 			if (cell.uri.toString() === resource.toString()) {
 				const bufferFactory: ITextBufferFactory = {
 					create: (defaultEOL) => {
-						const newEOL = (defaultEOL === DefaultEndOfLine.CRLF ? '\r\n' : '\n');
-						(cell.textBuffer as ITextBuffer).setEOL(newEOL);
 						return { textBuffer: cell.textBuffer as ITextBuffer, disposable: Disposable.None };
 					},
 					getFirstLineText: (limit: number) => {

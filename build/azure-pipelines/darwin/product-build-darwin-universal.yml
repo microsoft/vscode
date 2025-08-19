@@ -68,8 +68,9 @@ steps:
 
   - script: |
       set -e
-      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64
-      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64
+      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64 &
+      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64 &
+      wait
       DEBUG=* node build/darwin/create-universal-app.js $(agent.builddirectory)
     displayName: Create Universal App
 

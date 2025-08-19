@@ -5,7 +5,8 @@
 
 import type { IStringDictionary } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
-import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationPropertySchema, IConfigurationNode, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import product from '../../../../../platform/product/common/product.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
@@ -54,10 +55,7 @@ export interface ITerminalSuggestConfiguration {
 	suggestOnTriggerCharacters: boolean;
 	runOnEnter: 'never' | 'exactMatch' | 'exactMatchIgnoreExtension' | 'always';
 	windowsExecutableExtensions: { [key: string]: boolean };
-	providers: {
-		'terminal-suggest': boolean;
-		'pwsh-shell-integration': boolean;
-	};
+	providers: { [key: string]: boolean };
 	showStatusBar: boolean;
 	cdPath: 'off' | 'relative' | 'absolute';
 	inlineSuggestion: 'off' | 'alwaysOnTopExceptExactMatch' | 'alwaysOnTop';
@@ -76,11 +74,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
 		type: 'object',
 		properties: {},
-		default: {
-			'terminal-suggest': true,
-			'pwsh-shell-integration': true,
-			'lsp': true,
-		},
 		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
@@ -189,10 +182,66 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		restricted: true,
 		markdownDescription: localize('suggest.upArrowNavigatesHistory', "Determines whether the up arrow key navigates the command history when focus is on the first suggestion and navigation has not yet occurred. When set to false, the up arrow will move focus to the last suggestion instead."),
 		type: 'boolean',
-		default: true,
+		default: false,
 		tags: ['preview']
 	},
 
 };
 
+let terminalSuggestProvidersConfiguration: IConfigurationNode | undefined;
 
+export function registerTerminalSuggestProvidersConfiguration(availableProviders?: string[]) {
+	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
+
+	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+
+	const lspProviderId = 'lsp';
+	const defaultValue: IStringDictionary<boolean> = {
+		[lspProviderId]: product.quality !== 'stable',
+	};
+	providersProperties[lspProviderId] ??= {
+		type: 'boolean',
+		description: localize('suggest.provider.lsp.description', "Enable or disable the LSP-based provider. This enables language server protocol-specific argument completion."),
+		default: product.quality !== 'stable',
+	};
+
+	if (availableProviders) {
+		for (const providerId of availableProviders) {
+			if (providerId in defaultValue) {
+				continue;
+			}
+			providersProperties[providerId] = {
+				type: 'boolean',
+				description: localize('suggest.provider.description', "Whether to enable this provider."),
+				default: true
+			};
+			defaultValue[providerId] = true;
+		}
+	}
+
+	terminalSuggestProvidersConfiguration = {
+		id: 'terminalSuggestProviders',
+		order: 100,
+		title: localize('terminalSuggestProvidersConfigurationTitle', "Terminal Suggest Providers"),
+		type: 'object',
+		properties: {
+			[TerminalSuggestSettingId.Providers]: {
+				restricted: true,
+				markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
+				type: 'object',
+				properties: providersProperties,
+				default: defaultValue,
+				tags: ['preview'],
+			}
+		}
+	};
+
+	registry.updateConfigurations({
+		add: [terminalSuggestProvidersConfiguration],
+		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : []
+	});
+}
+
+registerTerminalSuggestProvidersConfiguration([]);

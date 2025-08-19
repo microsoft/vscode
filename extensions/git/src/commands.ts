@@ -9,7 +9,7 @@ import { Command, commands, Disposable, MessageOptions, Position, ProgressLocati
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
-import { Git, Stash } from './git';
+import { Git, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -57,6 +57,19 @@ class RefItemSeparator implements QuickPickItem {
 	constructor(private readonly refType: RefType) { }
 }
 
+class WorktreeItem implements QuickPickItem {
+
+	get label(): string {
+		return `$(list-tree) ${this.worktree.name}`;
+	}
+
+	get description(): string {
+		return this.worktree.path;
+	}
+
+	constructor(readonly worktree: Worktree) { }
+}
+
 class RefItem implements QuickPickItem {
 
 	get label(): string {
@@ -97,6 +110,16 @@ class RefItem implements QuickPickItem {
 		return undefined;
 	}
 
+	get refId(): string {
+		switch (this.ref.type) {
+			case RefType.Head:
+				return `refs/heads/${this.ref.name}`;
+			case RefType.RemoteHead:
+				return `refs/remotes/${this.ref.remote}/${this.ref.name}`;
+			case RefType.Tag:
+				return `refs/tags/${this.ref.name}`;
+		}
+	}
 	get refName(): string | undefined { return this.ref.name; }
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get shortCommit(): string { return (this.ref.commit || '').substring(0, this.shortCommitLength); }
@@ -215,6 +238,29 @@ class RemoteTagDeleteItem extends RefItem {
 	}
 }
 
+class WorktreeDeleteItem extends WorktreeItem {
+	async run(mainRepository: Repository): Promise<void> {
+		if (!this.worktree.path) {
+			return;
+		}
+
+		try {
+			await mainRepository.deleteWorktree(this.worktree.path);
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+				const forceDelete = l10n.t('Force Delete');
+				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+
+				if (choice === forceDelete) {
+					await mainRepository.deleteWorktree(this.worktree.path, { force: true });
+				}
+			}
+		}
+	}
+}
+
+
 class MergeItem extends BranchItem {
 
 	async run(repository: Repository): Promise<void> {
@@ -304,6 +350,7 @@ class StashItem implements QuickPickItem {
 
 interface ScmCommandOptions {
 	repository?: boolean;
+	repositoryFilter?: ('repository' | 'submodule' | 'worktree')[];
 }
 
 interface ScmCommand {
@@ -316,12 +363,12 @@ interface ScmCommand {
 const Commands: ScmCommand[] = [];
 
 function command(commandId: string, options: ScmCommandOptions = {}): Function {
-	return (_target: any, key: string, descriptor: any) => {
-		if (!(typeof descriptor.value === 'function')) {
+	return (value: any, context: ClassMethodDecoratorContext) => {
+		if (context.kind !== 'method') {
 			throw new Error('not supported');
 		}
-
-		Commands.push({ commandId, key, method: descriptor.value, options });
+		const key = context.name.toString();
+		Commands.push({ commandId, key, method: value, options });
 	};
 }
 
@@ -719,6 +766,8 @@ export class CommandCenter {
 
 	private disposables: Disposable[];
 	private commandErrors = new CommandErrorOutputTextDocumentContentProvider();
+
+	private static readonly WORKTREE_ROOT_KEY = 'worktreeRoot';
 
 	constructor(
 		private git: Git,
@@ -1645,7 +1694,11 @@ export class CommandCenter {
 
 	@command('git.diff.stageHunk')
 	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
-		this.diffStageHunkOrSelection(changes);
+		if (changes) {
+			this.diffStageHunkOrSelection(changes);
+		} else {
+			await this.stageHunkAtCursor();
+		}
 	}
 
 	@command('git.diff.stageSelection')
@@ -1681,6 +1734,36 @@ export class CommandCenter {
 		const result = changes.originalWithModifiedChanges;
 		await this.runByRepository(modifiedUri, async (repository, resource) =>
 			await repository.stage(resource, result, modifiedDocument.encoding));
+	}
+
+	private async stageHunkAtCursor(): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor) {
+			return;
+		}
+
+		const workingTreeDiffInformation = getWorkingTreeDiffInformation(textEditor);
+		if (!workingTreeDiffInformation) {
+			return;
+		}
+
+		const workingTreeLineChanges = toLineChanges(workingTreeDiffInformation);
+		const modifiedDocument = textEditor.document;
+		const cursorPosition = textEditor.selection.active;
+
+		// Find the hunk that contains the cursor position
+		const hunkAtCursor = workingTreeLineChanges.find(change => {
+			const hunkRange = getModifiedRange(modifiedDocument, change);
+			return hunkRange.contains(cursorPosition);
+		});
+
+		if (!hunkAtCursor) {
+			window.showInformationMessage(l10n.t('No hunk found at cursor position.'));
+			return;
+		}
+
+		await this._stageChanges(textEditor, [hunkAtCursor]);
 	}
 
 	@command('git.stageSelectedRanges')
@@ -1719,6 +1802,8 @@ export class CommandCenter {
 
 	@command('git.stageFile')
 	async stageFile(uri: Uri): Promise<void> {
+		uri = uri ?? window.activeTextEditor?.document.uri;
+
 		if (!uri) {
 			return;
 		}
@@ -2030,6 +2115,8 @@ export class CommandCenter {
 
 	@command('git.unstageFile')
 	async unstageFile(uri: Uri): Promise<void> {
+		uri = uri ?? window.activeTextEditor?.document.uri;
+
 		if (!uri) {
 			return;
 		}
@@ -2247,8 +2334,8 @@ export class CommandCenter {
 
 		const messageWarning = !discardUntrackedChangesToTrash
 			? resources.length === 1
-				? '\n\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.'
-				: '\n\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.'
+				? '\n\n' + l10n.t('This is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.')
+				: '\n\n' + l10n.t('This is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.')
 			: '';
 
 		const message = resources.length === 1
@@ -2258,11 +2345,11 @@ export class CommandCenter {
 		const messageDetail = discardUntrackedChangesToTrash
 			? isWindows
 				? resources.length === 1
-					? 'You can restore this file from the Recycle Bin.'
-					: 'You can restore these files from the Recycle Bin.'
+					? l10n.t('You can restore this file from the Recycle Bin.')
+					: l10n.t('You can restore these files from the Recycle Bin.')
 				: resources.length === 1
-					? 'You can restore this file from the Trash.'
-					: 'You can restore these files from the Trash.'
+					? l10n.t('You can restore this file from the Trash.')
+					: l10n.t('You can restore these files from the Trash.')
 			: '';
 
 		const primaryAction = discardUntrackedChangesToTrash
@@ -2846,8 +2933,13 @@ export class CommandCenter {
 			try {
 				await item.run(repository, opts);
 			} catch (err) {
-				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
+				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree && err.gitErrorCode !== GitErrorCodes.WorktreeBranchAlreadyUsed) {
 					throw err;
+				}
+
+				if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+					this.handleWorktreeBranchAlreadyUsed(err);
+					return false;
 				}
 
 				const stash = l10n.t('Stash & Checkout');
@@ -3313,6 +3405,331 @@ export class CommandCenter {
 		if (choice instanceof TagDeleteItem) {
 			await choice.run(repository);
 		}
+	}
+
+	@command('git.createWorktree')
+	async createWorktree(repository: any): Promise<void> {
+		repository = this.model.getRepository(repository);
+
+		if (!repository) {
+			// Single repository/submodule/worktree
+			if (this.model.repositories.length === 1) {
+				repository = this.model.repositories[0];
+			}
+		}
+
+		if (!repository) {
+			// Single repository/submodule
+			const repositories = this.model.repositories
+				.filter(r => r.kind === 'repository' || r.kind === 'submodule');
+
+			if (repositories.length === 1) {
+				repository = repositories[0];
+			}
+		}
+
+		if (!repository) {
+			// Multiple repositories/submodules
+			repository = await this.model.pickRepository(['repository', 'submodule']);
+		}
+
+		if (!repository) {
+			return;
+		}
+
+		await this._createWorktree(repository);
+	}
+
+	private async _createWorktree(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const branchPrefix = config.get<string>('branchPrefix')!;
+		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+
+		const createBranch = new CreateBranchItem();
+		const getBranchPicks = async () => {
+			const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
+			const itemsProcessor = new RefItemsProcessor(repository, [
+				new RefProcessor(RefType.Head),
+				new RefProcessor(RefType.RemoteHead),
+				new RefProcessor(RefType.Tag)
+			]);
+			const branchItems = itemsProcessor.processRefs(refs);
+			return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
+		};
+
+		const placeHolder = l10n.t('Select a branch or tag to create the new worktree from');
+		const choice = await this.pickRef(getBranchPicks(), placeHolder);
+
+		if (!choice) {
+			return;
+		}
+
+		let branch: string | undefined = undefined;
+		let commitish: string;
+
+		if (choice === createBranch) {
+			branch = await this.promptForBranchName(repository);
+
+			if (!branch) {
+				return;
+			}
+
+			commitish = 'HEAD';
+		} else {
+			if (!(choice instanceof RefItem) || !choice.refName) {
+				return;
+			}
+
+			if (choice.refName === repository.HEAD?.name) {
+				const message = l10n.t('Branch "{0}" is already checked out in the current repository.', choice.refName);
+				const createBranch = l10n.t('Create New Branch');
+				const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
+
+				if (pick === createBranch) {
+					branch = await this.promptForBranchName(repository);
+
+					if (!branch) {
+						return;
+					}
+
+					commitish = 'HEAD';
+				} else {
+					return;
+				}
+			} else {
+				// Check whether the selected branch is checked out in an existing worktree
+				const worktree = repository.worktrees.find(worktree => worktree.ref === choice.refId);
+				if (worktree) {
+					const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
+					await this.handleWorktreeConflict(worktree.path, message);
+					return;
+				}
+				commitish = choice.refName;
+			}
+		}
+
+		const worktreeName = ((branch ?? commitish).startsWith(branchPrefix)
+			? (branch ?? commitish).substring(branchPrefix.length).replace(/\//g, '-')
+			: (branch ?? commitish).replace(/\//g, '-'));
+
+		// If user selects folder button, they manually select the worktree path through folder picker
+		const getWorktreePath = async (): Promise<string | undefined> => {
+			const worktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+			const defaultUri = worktreeRoot ? Uri.file(worktreeRoot) : Uri.file(path.dirname(repository.root));
+
+			const uris = await window.showOpenDialog({
+				defaultUri,
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				openLabel: l10n.t('Select as Worktree Destination'),
+			});
+
+			if (!uris || uris.length === 0) {
+				return;
+			}
+
+			return path.join(uris[0].fsPath, worktreeName);
+		};
+
+		const getValueSelection = (value: string): [number, number] | undefined => {
+			if (!value || !worktreeName) {
+				return;
+			}
+
+			const start = value.length - worktreeName.length;
+			return [start, value.length];
+		};
+
+		const getValidationMessage = (value: string): InputBoxValidationMessage | undefined => {
+			const worktree = repository.worktrees.find(worktree => pathEquals(path.normalize(worktree.path), path.normalize(value)));
+			return worktree ? {
+				message: l10n.t('A worktree already exists at "{0}".', value),
+				severity: InputBoxValidationSeverity.Warning
+			} : undefined;
+		};
+
+		// Default worktree path is based on the last worktree location or a worktree folder for the repository
+		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+		const defaultWorktreePath = defaultWorktreeRoot
+			? path.join(defaultWorktreeRoot, worktreeName)
+			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
+
+		const disposables: Disposable[] = [];
+		const inputBox = window.createInputBox();
+		disposables.push(inputBox);
+
+		inputBox.placeholder = l10n.t('Worktree path');
+		inputBox.prompt = l10n.t('Please provide a worktree path');
+		inputBox.value = defaultWorktreePath;
+		inputBox.valueSelection = getValueSelection(inputBox.value);
+		inputBox.validationMessage = getValidationMessage(inputBox.value);
+		inputBox.ignoreFocusOut = true;
+		inputBox.buttons = [
+			{
+				iconPath: new ThemeIcon('folder'),
+				tooltip: l10n.t('Select Worktree Destination'),
+				location: QuickInputButtonLocation.Inline
+			}
+		];
+
+		inputBox.show();
+
+		const worktreePath = await new Promise<string | undefined>((resolve) => {
+			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
+			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+			disposables.push(inputBox.onDidChangeValue(value => {
+				inputBox.validationMessage = getValidationMessage(value);
+			}));
+			disposables.push(inputBox.onDidTriggerButton(async () => {
+				inputBox.value = await getWorktreePath() ?? '';
+				inputBox.valueSelection = getValueSelection(inputBox.value);
+			}));
+		});
+
+		dispose(disposables);
+
+		if (!worktreePath) {
+			return;
+		}
+
+		try {
+			await repository.addWorktree({ path: worktreePath, branch, commitish: commitish });
+
+			// Update worktree root in global state
+			const worktreeRoot = path.dirname(worktreePath);
+			if (worktreeRoot !== defaultWorktreeRoot) {
+				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
+			}
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+				await this.handleWorktreeAlreadyExists(err);
+			} else if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+				await this.handleWorktreeBranchAlreadyUsed(err);
+			} else {
+				throw err;
+			}
+
+			return;
+		}
+	}
+
+	private async handleWorktreeBranchAlreadyUsed(err: any): Promise<void> {
+		const match = err.stderr.match(/fatal: '([^']+)' is already used by worktree at '([^']+)'/);
+
+		if (!match) {
+			return;
+		}
+
+		const [, branch, path] = match;
+		const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', branch, path);
+		await this.handleWorktreeConflict(path, message);
+	}
+
+	private async handleWorktreeAlreadyExists(err: any): Promise<void> {
+		const match = err.stderr.match(/fatal: '([^']+)'/);
+
+		if (!match) {
+			return;
+		}
+
+		const [, path] = match;
+		const message = l10n.t('A worktree already exists at "{0}".', path);
+		await this.handleWorktreeConflict(path, message);
+	}
+
+	private async handleWorktreeConflict(path: string, message: string): Promise<void> {
+		await this.model.openRepository(path, true);
+
+		const worktreeRepository = this.model.getRepository(path);
+
+		if (!worktreeRepository) {
+			return;
+		}
+
+		const openWorktree = l10n.t('Open Worktree in Current Window');
+		const openWorktreeInNewWindow = l10n.t('Open Worktree in New Window');
+		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
+
+		if (choice === openWorktree) {
+			await this.openWorktreeInCurrentWindow(worktreeRepository);
+		} else if (choice === openWorktreeInNewWindow) {
+			await this.openWorktreeInNewWindow(worktreeRepository);
+		}
+		return;
+	}
+
+
+	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
+	async deleteWorktree(repository: Repository): Promise<void> {
+		if (!repository.dotGit.commonPath) {
+			return;
+		}
+
+		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
+		if (!mainRepository) {
+			await window.showErrorMessage(l10n.t('You cannot delete the worktree you are currently in. Please switch to the main repository first.'), { modal: true });
+			return;
+		}
+
+		// Dispose worktree repository
+		this.model.disposeRepository(repository);
+
+		try {
+			await mainRepository.deleteWorktree(repository.root);
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+				const forceDelete = l10n.t('Force Delete');
+				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+				if (choice === forceDelete) {
+					await mainRepository.deleteWorktree(repository.root, { force: true });
+				} else {
+					await this.model.openRepository(repository.root);
+				}
+
+				return;
+			}
+
+			throw err;
+		}
+	}
+
+	@command('git.deleteWorktreeFromPalette', { repository: true, repositoryFilter: ['repository', 'submodule'] })
+	async deleteWorktreeFromPalette(repository: Repository): Promise<void> {
+		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
+			const worktrees = await repository.getWorktrees();
+			return worktrees.length === 0
+				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
+				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
+		};
+
+		const placeHolder = l10n.t('Select a worktree to delete');
+		const choice = await this.pickRef<WorktreeDeleteItem | QuickPickItem>(worktreePicks(), placeHolder);
+
+		if (choice instanceof WorktreeDeleteItem) {
+			await choice.run(repository);
+		}
+	}
+
+	@command('git.openWorktree', { repository: true })
+	async openWorktreeInCurrentWindow(repository: Repository): Promise<void> {
+		if (!repository) {
+			return;
+		}
+
+		const uri = Uri.file(repository.root);
+		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
+	}
+
+	@command('git.openWorktreeInNewWindow', { repository: true })
+	async openWorktreeInNewWindow(repository: Repository): Promise<void> {
+		if (!repository) {
+			return;
+		}
+
+		const uri = Uri.file(repository.root);
+		await commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
 	}
 
 	@command('git.graph.deleteTag', { repository: true })
@@ -4675,10 +5092,8 @@ export class CommandCenter {
 
 				if (repository) {
 					repositoryPromise = Promise.resolve(repository);
-				} else if (this.model.repositories.length === 1) {
-					repositoryPromise = Promise.resolve(this.model.repositories[0]);
 				} else {
-					repositoryPromise = this.model.pickRepository();
+					repositoryPromise = this.model.pickRepository(options.repositoryFilter);
 				}
 
 				result = repositoryPromise.then(repository => {

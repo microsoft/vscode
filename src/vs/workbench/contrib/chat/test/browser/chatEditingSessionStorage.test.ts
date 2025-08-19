@@ -65,8 +65,8 @@ suite('ChatEditingSessionStorage', () => {
 			recentSnapshot: makeStop(undefined, 'd', 'e'),
 			linearHistoryIndex: 3,
 			linearHistory: [
-				{ startIndex: 0, requestId: r1, stops: [makeStop(r1, 'a', 'b')], postEdit: makeStop(r1, 'b', 'c').entries },
-				{ startIndex: 1, requestId: r2, stops: [makeStop(r2, 'c', 'd'), makeStop(r2, 'd', 'd')], postEdit: makeStop(r2, 'd', 'd').entries },
+				{ startIndex: 0, requestId: r1, stops: [makeStop(r1, 'a', 'b')] },
+				{ startIndex: 1, requestId: r2, stops: [makeStop(r2, 'c', 'd'), makeStop(r2, 'd', 'd')] },
 			]
 		};
 	}

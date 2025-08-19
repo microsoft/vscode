@@ -440,6 +440,10 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			'use-inmemory-secretstorage': {
 				type: 'boolean',
 				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running VS Code extension tests or when you're experiencing difficulties with the credential store.")
+			},
+			'remote-debugging-port': {
+				type: 'string',
+				description: localize('argv.remoteDebuggingPort', "Specifies the port to use for remote debugging.")
 			}
 		}
 	};

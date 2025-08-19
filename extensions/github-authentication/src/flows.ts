@@ -132,6 +132,8 @@ async function exchangeCodeForToken(
 		body.append('github_enterprise', enterpriseUri.toString(true));
 	}
 	const result = await fetching(endpointUri.toString(true), {
+		logger,
+		expectJSON: true,
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -339,6 +341,8 @@ class DeviceCodeFlow implements IFlow {
 			query: `client_id=${Config.gitHubClientId}&scope=${scopes}`
 		});
 		const result = await fetching(uri.toString(true), {
+			logger,
+			expectJSON: true,
 			method: 'POST',
 			headers: {
 				Accept: 'application/json'
@@ -373,10 +377,11 @@ class DeviceCodeFlow implements IFlow {
 		const uriToOpen = await env.asExternalUri(open);
 		await env.openExternal(uriToOpen);
 
-		return await this.waitForDeviceCodeAccessToken(baseUri, json);
+		return await this.waitForDeviceCodeAccessToken(logger, baseUri, json);
 	}
 
 	private async waitForDeviceCodeAccessToken(
+		logger: Log,
 		baseUri: Uri,
 		json: IGitHubDeviceCodeResponse,
 	): Promise<string> {
@@ -407,6 +412,8 @@ class DeviceCodeFlow implements IFlow {
 				let accessTokenResult;
 				try {
 					accessTokenResult = await fetching(refreshTokenUri.toString(true), {
+						logger,
+						expectJSON: true,
 						method: 'POST',
 						headers: {
 							Accept: 'application/json'
@@ -500,6 +507,8 @@ class PatFlow implements IFlow {
 		try {
 			logger.info('Getting token scopes...');
 			const result = await fetching(serverUri.toString(), {
+				logger,
+				expectJSON: false,
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': `${env.appName} (${env.appHost})`
@@ -571,14 +580,14 @@ export function getFlows(query: IFlowQuery) {
  */
 export const enum GitHubSocialSignInProvider {
 	Google = 'google',
-	// Apple = 'apple',
+	Apple = 'apple',
 }
 
 const GitHubSocialSignInProviderLabels = {
 	[GitHubSocialSignInProvider.Google]: l10n.t('Google'),
-	// [GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
+	[GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
 };
 
 export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
-	return provider === GitHubSocialSignInProvider.Google; // || provider === GitHubSocialSignInProvider.Apple;
+	return provider === GitHubSocialSignInProvider.Google || provider === GitHubSocialSignInProvider.Apple;
 }

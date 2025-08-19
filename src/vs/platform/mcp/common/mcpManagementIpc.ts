@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
 import { cloneAndChange } from '../../../base/common/objects.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from '../../../base/common/uriIpc.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpManagementService, IInstallableMcpServer, InstallMcpServerEvent, InstallMcpServerResult, InstallOptions, UninstallMcpServerEvent, UninstallOptions } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpManagementService, IInstallableMcpServer, InstallMcpServerEvent, InstallMcpServerResult, InstallOptions, UninstallMcpServerEvent, UninstallOptions, IAllowedMcpServersService } from './mcpManagement.js';
+import { AbstractMcpManagementService } from './mcpManagementService.js';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
 function transformIncomingURI(uri: UriComponents | undefined, transformer: IURITransformer | null): URI | undefined;
@@ -115,7 +115,7 @@ export class McpManagementChannel implements IServerChannel {
 	}
 }
 
-export class McpManagementChannelClient extends Disposable implements IMcpManagementService {
+export class McpManagementChannelClient extends AbstractMcpManagementService implements IMcpManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -134,8 +134,11 @@ export class McpManagementChannelClient extends Disposable implements IMcpManage
 	private readonly _onDidUpdateMcpServers = this._register(new Emitter<InstallMcpServerResult[]>());
 	get onDidUpdateMcpServers() { return this._onDidUpdateMcpServers.event; }
 
-	constructor(private readonly channel: IChannel) {
-		super();
+	constructor(
+		private readonly channel: IChannel,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService
+	) {
+		super(allowedMcpServersService);
 		this._register(this.channel.listen<InstallMcpServerEvent>('onInstallMcpServer')(e => this._onInstallMcpServer.fire(({ ...e, mcpResource: transformIncomingURI(e.mcpResource, null) }))));
 		this._register(this.channel.listen<readonly InstallMcpServerResult[]>('onDidInstallMcpServers')(results => this._onDidInstallMcpServers.fire(results.map(e => ({ ...e, local: e.local ? transformIncomingServer(e.local, null) : e.local, mcpResource: transformIncomingURI(e.mcpResource, null) })))));
 		this._register(this.channel.listen<readonly InstallMcpServerResult[]>('onDidUpdateMcpServers')(results => this._onDidUpdateMcpServers.fire(results.map(e => ({ ...e, local: e.local ? transformIncomingServer(e.local, null) : e.local, mcpResource: transformIncomingURI(e.mcpResource, null) })))));

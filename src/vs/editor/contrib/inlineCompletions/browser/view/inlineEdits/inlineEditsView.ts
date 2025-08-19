@@ -7,7 +7,7 @@ import { equalsIfDefined, itemEquals } from '../../../../../../base/common/equal
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorunWithStore, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, derivedOpts, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
@@ -35,6 +35,7 @@ import { InlineEditsWordReplacementView } from './inlineEditsViews/inlineEditsWo
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineEditsViews/originalEditorInlineDiffView.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils/utils.js';
 import './view.css';
+import { $ } from '../../../../../../base/browser/dom.js';
 
 
 export class InlineEditsView extends Disposable {
@@ -89,7 +90,7 @@ export class InlineEditsView extends Disposable {
 			}
 
 			if (state.kind === InlineCompletionViewKind.SideBySide) {
-				const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange);
+				const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange, textModel.getOptions().tabSize);
 				newText = indentationAdjustmentEdit.applyToString(newText);
 
 				mappings = applyEditToModifiedRangeMappings(mappings, indentationAdjustmentEdit);
@@ -305,6 +306,40 @@ export class InlineEditsView extends Disposable {
 
 		this._register(this._instantiationService.createInstance(InlineEditsOnboardingExperience, this._host, this._model, this._indicator, this._inlineCollapsedView));
 
+		const minEditorScrollHeight = derived(this, reader => {
+			return Math.max(
+				...this._wordReplacementViews.read(reader).map(v => v.minEditorScrollHeight.read(reader)),
+				this._lineReplacementView.minEditorScrollHeight.read(reader),
+				this._customView.minEditorScrollHeight.read(reader)
+			);
+		}).recomputeInitiallyAndOnChange(this._store);
+
+		const textModel = this._editor.getModel()!;
+
+		let viewZoneId: string | undefined;
+		this._register(autorun(reader => {
+			const minScrollHeight = minEditorScrollHeight.read(reader);
+			this._editor.changeViewZones(accessor => {
+				const scrollHeight = this._editor.getScrollHeight();
+				const viewZoneHeight = minScrollHeight - scrollHeight + 1 /* Add 1px so there is a small gap */;
+
+				if (viewZoneHeight !== 0 && viewZoneId) {
+					accessor.removeZone(viewZoneId);
+					viewZoneId = undefined;
+				}
+
+				if (viewZoneHeight <= 0) {
+					return;
+				}
+
+				viewZoneId = accessor.addZone({
+					afterLineNumber: textModel.getLineCount(),
+					heightInPx: viewZoneHeight,
+					domNode: $('div.minScrollHeightViewZone'),
+				});
+			});
+		}));
+
 		this._constructorDone.set(true, undefined); // TODO: remove and use correct initialization order
 	}
 
@@ -394,12 +429,17 @@ export class InlineEditsView extends Disposable {
 
 			const allInnerChangesNotTooLong = inner.every(m => TextLength.ofRange(m.originalRange).columnCount < InlineEditsWordReplacementView.MAX_LENGTH && TextLength.ofRange(m.modifiedRange).columnCount < InlineEditsWordReplacementView.MAX_LENGTH);
 			if (allInnerChangesNotTooLong && isSingleInnerEdit && numOriginalLines === 1 && numModifiedLines === 1) {
-				// Make sure there is no insertion, even if we grow them
-				if (
-					!inner.some(m => m.originalRange.isEmpty()) ||
-					!growEditsUntilWhitespace(inner.map(m => new TextReplacement(m.originalRange, '')), inlineEdit.originalText).some(e => e.range.isEmpty() && TextLength.ofRange(e.range).columnCount < InlineEditsWordReplacementView.MAX_LENGTH)
-				) {
-					return InlineCompletionViewKind.WordReplacements;
+				// Do not show indentation changes with word replacement view
+				const modifiedText = inner.map(m => newText.getValueOfRange(m.modifiedRange));
+				const originalText = inner.map(m => model.inlineEdit.originalText.getValueOfRange(m.originalRange));
+				if (!modifiedText.some(v => v.includes('\t')) && !originalText.some(v => v.includes('\t'))) {
+					// Make sure there is no insertion, even if we grow them
+					if (
+						!inner.some(m => m.originalRange.isEmpty()) ||
+						!growEditsUntilWhitespace(inner.map(m => new TextReplacement(m.originalRange, '')), inlineEdit.originalText).some(e => e.range.isEmpty() && TextLength.ofRange(e.range).columnCount < InlineEditsWordReplacementView.MAX_LENGTH)
+					) {
+						return InlineCompletionViewKind.WordReplacements;
+					}
 				}
 			}
 		}
@@ -446,15 +486,16 @@ export class InlineEditsView extends Disposable {
 		}));
 
 		const cursorPosition = inlineEdit.cursorPosition;
+		const startsWithEOL = stringChanges[0].modified.startsWith(textModel.getEOL());
 		const viewData: InlineCompletionViewData = {
 			cursorColumnDistance: inlineEdit.edit.replacements[0].range.getStartPosition().column - cursorPosition.column,
-			cursorLineDistance: inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber,
+			cursorLineDistance: inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber + (startsWithEOL && inlineEdit.lineEdit.lineRange.startLineNumber >= cursorPosition.lineNumber ? 1 : 0),
 			lineCountOriginal: inlineEdit.lineEdit.lineRange.length,
 			lineCountModified: inlineEdit.lineEdit.newLines.length,
 			characterCountOriginal: stringChanges.reduce((acc, r) => acc + r.original.length, 0),
 			characterCountModified: stringChanges.reduce((acc, r) => acc + r.modified.length, 0),
 			disjointReplacements: stringChanges.length,
-			sameShapeReplacements: stringChanges.length > 1 ? stringChanges.every(r => r.original === stringChanges[0].original && r.modified === stringChanges[0].modified) : undefined,
+			sameShapeReplacements: stringChanges.every(r => r.original === stringChanges[0].original && r.modified === stringChanges[0].modified),
 		};
 
 		switch (view) {

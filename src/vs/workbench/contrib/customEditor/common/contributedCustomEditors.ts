@@ -33,9 +33,9 @@ export class ContributedCustomEditors extends Disposable {
 			this.add(new CustomEditorInfo(info));
 		}
 
-		customEditorsExtensionPoint.setHandler(extensions => {
+		this._register(customEditorsExtensionPoint.setHandler(extensions => {
 			this.update(extensions);
-		});
+		}));
 	}
 
 	private readonly _onChange = this._register(new Emitter<void>());

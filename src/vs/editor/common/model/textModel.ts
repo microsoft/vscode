@@ -48,7 +48,7 @@ import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
 import { LineTokens, TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
-import { EditReasons, TextModelEditReason } from '../textModelEditReason.js';
+import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
 import { InjectedTextOptions } from '../model.js';
 import { IViewModel } from '../viewModel.js';
@@ -459,7 +459,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this.onDidChangeContentOrInjectedText(contentChangeEvent);
 	}
 
-	public setValue(value: string | model.ITextSnapshot, reason = EditReasons.setValue()): void {
+	public setValue(value: string | model.ITextSnapshot, reason = EditSources.setValue()): void {
 		this._assertNotDisposed();
 
 		if (value === null || value === undefined) {
@@ -470,7 +470,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._setValueFromTextBuffer(textBuffer, disposable, reason);
 	}
 
-	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, rangeEndPosition: Position, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean, reason: TextModelEditReason): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, rangeEndPosition: Position, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean, reason: TextModelEditSource): IModelContentChangedEvent {
 		return {
 			changes: [{
 				range: range,
@@ -489,7 +489,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		};
 	}
 
-	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable, reason: TextModelEditReason): void {
+	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable, reason: TextModelEditSource): void {
 		this._assertNotDisposed();
 		const oldFullModelRange = this.getFullModelRange();
 		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
@@ -549,7 +549,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, false, true, EditReasons.eolChange())
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, new Position(endLineNumber, endColumn), this.getValue(), false, false, false, true, EditSources.eolChange())
 		);
 	}
 
@@ -1300,11 +1300,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return result;
 	}
 
-	public edit(edit: TextEdit, options?: { reason?: TextModelEditReason }): void {
+	public edit(edit: TextEdit, options?: { reason?: TextModelEditSource }): void {
 		this.pushEditOperations(null, edit.replacements.map(r => ({ range: r.range, text: r.text })), null);
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null {
+	public pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditSource): Selection[] | null {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
@@ -1315,7 +1315,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null {
+	private _pushEditOperations(beforeCursorState: Selection[] | null, editOperations: model.ValidAnnotatedEditOperation[], cursorStateComputer: model.ICursorStateComputer | null, group?: UndoRedoGroup, reason?: TextModelEditSource): Selection[] | null {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1450,23 +1450,23 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true): model.IValidEditOperation[];
 	/** @internal */
-	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false, reason: TextModelEditReason): void;
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false, reason: TextModelEditSource): void;
 	/** @internal */
-	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true, reason: TextModelEditReason): model.IValidEditOperation[];
-	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits?: boolean, reason?: TextModelEditReason): void | model.IValidEditOperation[] {
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true, reason: TextModelEditSource): model.IValidEditOperation[];
+	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits?: boolean, reason?: TextModelEditSource): void | model.IValidEditOperation[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
 			const operations = this._validateEditOperations(rawOperations);
 
-			return this._doApplyEdits(operations, computeUndoEdits ?? false, reason ?? EditReasons.applyEdits());
+			return this._doApplyEdits(operations, computeUndoEdits ?? false, reason ?? EditSources.applyEdits());
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
-	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean, reason: TextModelEditReason): void | model.IValidEditOperation[] {
+	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean, reason: TextModelEditSource): void | model.IValidEditOperation[] {
 
 		const oldLineCount = this._buffer.getLineCount();
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
@@ -2450,6 +2450,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly hideInCommentTokens: boolean | null;
 	readonly hideInStringTokens: boolean | null;
 	readonly affectsFont: boolean | null;
+	readonly textDirection?: model.TextDirection | null | undefined;
 
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
@@ -2487,6 +2488,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.before = options.before ? ModelDecorationInjectedTextOptions.from(options.before) : null;
 		this.hideInCommentTokens = options.hideInCommentTokens ?? false;
 		this.hideInStringTokens = options.hideInStringTokens ?? false;
+		this.textDirection = options.textDirection ?? null;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });

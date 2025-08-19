@@ -1,10 +1,10 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.referenceGeneratedDepsByArch = exports.recommendedDeps = exports.additionalDeps = void 0;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.referenceGeneratedDepsByArch = exports.recommendedDeps = exports.additionalDeps = void 0;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/additional_deps
 // Additional dependencies not in the dpkg-shlibdeps output.
 exports.additionalDeps = [

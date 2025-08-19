@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { safeInnerHtml } from '../../../../base/browser/dom.js';
+import { safeSetInnerHtml } from '../../../../base/browser/domSanitize.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
@@ -93,7 +93,25 @@ export class IssueFormService implements IIssueFormService {
 			// removes preset monaco-workbench
 			auxiliaryWindow.container.remove();
 			auxiliaryWindow.window.document.body.appendChild(div);
-			safeInnerHtml(div, BaseHtml());
+			safeSetInnerHtml(div, BaseHtml(), {
+				// Also allow input elements
+				allowedTags: {
+					augment: [
+						'input',
+						'select',
+						'checkbox',
+						'textarea',
+					]
+				},
+				allowedAttributes: {
+					augment: [
+						'id',
+						'class',
+						'style',
+						'textarea',
+					]
+				}
+			});
 
 			this.issueReporterWindow = auxiliaryWindow.window;
 		} else {

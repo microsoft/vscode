@@ -27,7 +27,7 @@ export class TerminalSuggestShownTracker extends Disposable implements ITerminal
 	private _timeout: TimeoutTimer | undefined;
 	private _start: number | undefined;
 
-	private _firstShownTracker: { shell: Set<TerminalShellType>; window: boolean } | undefined = undefined;
+	private _firstShownTracker: { shell: Set<TerminalShellType | undefined>; window: boolean } | undefined = undefined;
 
 	constructor(
 		private readonly _shellType: TerminalShellType | undefined,
@@ -93,7 +93,7 @@ export class TerminalSuggestShownTracker extends Disposable implements ITerminal
 		this._start = undefined;
 	}
 
-	getFirstShown(shellType: TerminalShellType): { window: boolean; shell: boolean } {
+	getFirstShown(shellType: TerminalShellType | undefined): { window: boolean; shell: boolean } {
 		if (!this._firstShownTracker) {
 			this._firstShownTracker = {
 				window: true,

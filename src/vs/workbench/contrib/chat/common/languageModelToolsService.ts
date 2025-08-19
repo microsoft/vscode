@@ -16,12 +16,14 @@ import { ContextKeyExpression } from '../../../../platform/contextkey/common/con
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
-import { IChatExtensionsContent, IChatTerminalToolInvocationData, IChatToolInputInvocationData } from './chatService.js';
+import { IChatExtensionsContent, IChatToolInputInvocationData, IChatTodoListContent, type IChatTerminalToolInvocationData } from './chatService.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { localize } from '../../../../nls.js';
+import { LanguageModelPartAudience } from './languageModels.js';
+import { Separator } from '../../../../base/common/actions.js';
 
 export interface IToolData {
 	id: string;
@@ -60,6 +62,8 @@ export type ToolDataSource =
 	| {
 		type: 'mcp';
 		label: string;
+		serverLabel: string | undefined;
+		instructions: string | undefined;
 		collectionId: string;
 		definitionId: string;
 	}
@@ -111,7 +115,7 @@ export interface IToolInvocation {
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
 	chatInteractionId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 	modelId?: string;
 }
 
@@ -130,30 +134,46 @@ export interface IToolInvocationPreparationContext {
 	chatInteractionId?: string;
 }
 
+export type ToolInputOutputBase = {
+	/** Mimetype of the value, optional */
+	mimeType?: string;
+	/** URI of the resource on the MCP server. */
+	uri?: URI;
+	/** If true, this part came in as a resource reference rather than direct data. */
+	asResource?: boolean;
+};
+
+export type ToolInputOutputEmbedded = ToolInputOutputBase & {
+	type: 'embed';
+	value: string;
+	/** If true, value is text. If false or not given, value is base64 */
+	isText?: boolean;
+};
+
+export type ToolInputOutputReference = ToolInputOutputBase & { type: 'ref'; uri: URI };
+
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
-	readonly output: ({
-		value: string;
-		/** If true, value is text. If false or not given, value is base64 */
-		isText?: boolean;
-		/** Mimetype of the value, optional */
-		mimeType?: string;
-		/** URI of the resource on the MCP server. */
-		uri?: URI;
-		/** If true, this part came in as a resource reference rather than direct data. */
-		asResource?: boolean;
-	})[];
+	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
+}
+
+export interface IToolResultOutputDetails {
+	readonly output: { type: 'data'; mimeType: string; value: VSBuffer };
 }
 
 export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
 	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
 }
 
+export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDetails {
+	return typeof obj === 'object' && typeof obj?.output === 'object' && typeof obj?.output?.mimeType === 'string' && obj?.output?.type === 'data';
+}
+
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
 	toolResultMessage?: string | IMarkdownString;
-	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails;
+	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string;
 }
 
@@ -173,6 +193,7 @@ export function stringifyPromptTsxPart(part: IToolResultPromptTsxPart): string {
 export interface IToolResultTextPart {
 	kind: 'text';
 	value: string;
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IToolResultDataPart {
@@ -181,6 +202,7 @@ export interface IToolResultDataPart {
 		mimeType: string;
 		data: VSBuffer;
 	};
+	audience?: LanguageModelPartAudience[];
 }
 
 export interface IToolConfirmationMessages {
@@ -188,7 +210,16 @@ export interface IToolConfirmationMessages {
 	message: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
 	allowAutoConfirm?: boolean;
+	terminalCustomActions?: ToolConfirmationAction[];
 }
+
+export interface IToolConfirmationAction {
+	label: string;
+	tooltip?: string;
+	data: any;
+}
+
+export type ToolConfirmationAction = IToolConfirmationAction | Separator;
 
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
@@ -196,8 +227,7 @@ export interface IPreparedToolInvocation {
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: 'hidden' | undefined;
-	// When this gets extended, be sure to update `chatResponseAccessibleView.ts` to handle the new properties.
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 }
 
 export interface IToolImpl {
@@ -267,6 +297,7 @@ export interface ILanguageModelToolsService {
 	onDidChangeTools: Event<void>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
+	flushToolChanges(): void;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;

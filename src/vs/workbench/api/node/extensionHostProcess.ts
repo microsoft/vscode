@@ -37,6 +37,19 @@ interface ParsedExtHostArgs {
 	useHostProxy?: 'true' | 'false'; // use a string, as undefined is also a valid value
 }
 
+// silence experimental warnings when in development
+if (process.env.VSCODE_DEV) {
+	const warningListeners = process.listeners('warning');
+	process.removeAllListeners('warning');
+	process.on('warning', (warning: any) => {
+		if (warning.code === 'ExperimentalWarning' || warning.name === 'ExperimentalWarning') {
+			return;
+		}
+
+		warningListeners[0](warning);
+	});
+}
+
 // workaround for https://github.com/microsoft/vscode/issues/85490
 // remove --inspect-port=0 after start so that it doesn't trigger LSP debugging
 (function removeInspectPort() {

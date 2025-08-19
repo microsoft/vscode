@@ -153,7 +153,7 @@ export const expandAndGetTestById = async (collection: IMainThreadTestCollection
 /**
  * Waits for the test to no longer be in the "busy" state.
  */
-const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
+export const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
 	if (!test.item.busy) {
 		return;
 	}
@@ -318,6 +318,8 @@ export interface AmbiguousRunTestsRequest {
 	exclude?: InternalTestItem[];
 	/** Whether this was triggered from an auto run. */
 	continuous?: boolean;
+	/** Whether this was trigged by a user action in UI. Default=true */
+	preserveFocus?: boolean;
 }
 
 export interface ITestFollowup {

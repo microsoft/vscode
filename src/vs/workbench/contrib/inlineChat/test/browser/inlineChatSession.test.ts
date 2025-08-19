@@ -66,6 +66,10 @@ import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 import { NullLanguageModelsService } from '../../../chat/test/common/languageModels.js';
 import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
+import { IChatSessionsService } from '../../../chat/common/chatSessionsService.js';
+import { ChatSessionsService } from '../../../chat/browser/chatSessions.contribution.js';
 
 suite('InlineChatSession', function () {
 
@@ -93,6 +97,7 @@ suite('InlineChatSession', function () {
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatTransferService, new SyncDescriptor(ChatTransferService)],
+			[IChatSessionsService, new SyncDescriptor(ChatSessionsService)],
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
@@ -102,6 +107,7 @@ suite('InlineChatSession', function () {
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[ILanguageModelToolsService, new MockLanguageModelToolsService()],
+			[IMcpService, new TestMcpService()],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
 					return {
@@ -117,6 +123,7 @@ suite('InlineChatSession', function () {
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
 				override acceptRequest(): number { return -1; }
+				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
@@ -134,6 +141,7 @@ suite('InlineChatSession', function () {
 
 		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
+		store.add(instaService.get(IChatSessionsService) as ChatSessionsService);  // Needs to be disposed in between test runs to clear extensionPoint contribution
 
 		instaService.get(IChatAgentService).registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,

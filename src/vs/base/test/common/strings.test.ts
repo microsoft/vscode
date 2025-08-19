@@ -155,24 +155,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
 	});
 
-	suite('rcut', () => {
-		test('basic truncation', () => {
-			assert.strictEqual(strings.rcut('foo bar', 0), 'foo');
-			assert.strictEqual(strings.rcut('foo bar', 1), 'foo');
-			assert.strictEqual(strings.rcut('foo bar', 4), 'foo');
-			assert.strictEqual(strings.rcut('foo bar', 7), 'foo bar');
-			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3), 'test');
-		});
-
-		test('truncation with suffix', () => {
-			assert.strictEqual(strings.rcut('foo bar', 0, '…'), 'foo…');
-			assert.strictEqual(strings.rcut('foo bar', 1, '…'), 'foo…');
-			assert.strictEqual(strings.rcut('foo bar', 4, '…'), 'foo…');
-			assert.strictEqual(strings.rcut('foo bar', 7, '…'), 'foo bar');
-			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3, '…'), 'test…');
-		});
-	});
-
 	test('escape', () => {
 		assert.strictEqual(strings.escape(''), '');
 		assert.strictEqual(strings.escape('foo'), 'foo');
@@ -660,6 +642,12 @@ suite('Strings', () => {
 		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter(' '), true);
 		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e004e}b'), true);
 		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e015a}\u000bb'), true);
+	});
+
+	test('multibyteAwareBtoa', () => {
+		assert.ok(strings.multibyteAwareBtoa('hello world').length > 0);
+		assert.ok(strings.multibyteAwareBtoa('平仮名').length > 0);
+		assert.ok(strings.multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

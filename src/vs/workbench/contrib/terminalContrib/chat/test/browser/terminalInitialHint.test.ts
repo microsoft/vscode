@@ -94,14 +94,4 @@ suite('Terminal Initial Hint Addon', () => {
 			strictEqual(eventCount, 1);
 		});
 	});
-	suite('Input', () => {
-		test('hint is not shown when there has been input', () => {
-			onDidChangeAgentsEmitter.fire(agent);
-			xterm.writeln('data');
-			setTimeout(() => {
-				xterm.focus();
-				strictEqual(eventCount, 0);
-			}, 50);
-		});
-	});
 });

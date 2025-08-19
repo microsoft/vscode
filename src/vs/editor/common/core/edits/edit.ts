@@ -7,7 +7,7 @@ import { sumBy } from '../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { OffsetRange } from '../ranges/offsetRange.js';
 
-export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseEdit<T, TEdit>> {
+export abstract class BaseEdit<T extends BaseReplacement<T> = BaseReplacement<any>, TEdit extends BaseEdit<T, TEdit> = BaseEdit<T, any>> {
 	constructor(
 		public readonly replacements: readonly T[],
 	) {
@@ -321,7 +321,7 @@ export abstract class BaseReplacement<TSelf extends BaseReplacement<TSelf>> {
 	*/
 	public abstract tryJoinTouching(other: TSelf): TSelf | undefined;
 
-	public abstract slice(newReplaceRange: OffsetRange, rangeInReplacement: OffsetRange): TSelf;
+	public abstract slice(newReplaceRange: OffsetRange, rangeInReplacement?: OffsetRange): TSelf;
 
 	public delta(offset: number): TSelf {
 		return this.slice(this.replaceRange.delta(offset), new OffsetRange(0, this.getNewLength()));
@@ -391,7 +391,7 @@ export class AnnotationReplacement<TAnnotation> extends BaseReplacement<Annotati
 		return new AnnotationReplacement<TAnnotation>(this.replaceRange.joinRightTouching(other.replaceRange), this.newLength + other.newLength, this.annotation);
 	}
 
-	slice(range: OffsetRange, rangeInReplacement: OffsetRange): AnnotationReplacement<TAnnotation> {
-		return new AnnotationReplacement<TAnnotation>(range, rangeInReplacement.length, this.annotation);
+	slice(range: OffsetRange, rangeInReplacement?: OffsetRange): AnnotationReplacement<TAnnotation> {
+		return new AnnotationReplacement<TAnnotation>(range, rangeInReplacement ? rangeInReplacement.length : this.newLength, this.annotation);
 	}
 }

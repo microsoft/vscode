@@ -301,6 +301,11 @@ export interface IToolBarRenderOptions {
 	 * Should the primary group allow for separators.
 	 */
 	useSeparatorsInPrimaryActions?: boolean;
+
+	/**
+	 * Force a leading separator in the primary actions group.
+	 */
+	forceLeadingSeparatorInPrimaryActions?: boolean;
 }
 
 export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
@@ -353,7 +358,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				if (!provider) {
 					provider = options?.actionViewItemProvider;
 				}
-				const viewItem = provider?.(action, opts);
+				const viewItem = provider?.(action, opts, instaService);
 				if (viewItem) {
 					return viewItem;
 				}
@@ -369,6 +374,9 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
 			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
+			if (options?.toolbarOptions?.forceLeadingSeparatorInPrimaryActions && primary.length > 0) {
+				primary.unshift(new Separator());
+			}
 			super.setActions(primary, secondary);
 		};
 

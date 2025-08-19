@@ -151,6 +151,7 @@ export interface ITaskSystem {
 	customExecutionComplete(task: Task, result: number): Promise<void>;
 	isTaskVisible(task: Task): boolean;
 	getTaskForTerminal(instanceId: number): Task | undefined;
+	getTerminalsForTasks(tasks: Task | Task[]): URI[] | undefined;
 	getFirstInstance(task: Task): Task | undefined;
 	get lastTask(): VerifiedTask | undefined;
 	set lastTask(task: VerifiedTask);

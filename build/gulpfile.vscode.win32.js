@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 'use strict';
 
 const gulp = require('gulp');
@@ -112,9 +111,10 @@ function buildWin32Setup(arch, target) {
 			Quality: quality
 		};
 
-		if (quality === 'insider') {
-			definitions['AppxPackage'] = `code_insiders_explorer_${arch}.appx`;
-			definitions['AppxPackageFullname'] = `Microsoft.${product.win32RegValueName}_1.0.0.0_neutral__8wekyb3d8bbwe`;
+		if (quality !== 'exploration') {
+			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
+			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
+			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
 		}
 
 		packageInnoSetup(issPath, { definitions }, cb);

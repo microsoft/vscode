@@ -6,10 +6,10 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
+import { IChatAccessibilityService } from '../chat.js';
 import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
@@ -23,15 +23,20 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		elicitation: IChatElicitationRequest,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService
 	) {
 		super();
 
 		const buttons = [
-			{ label: localize('accept', "Respond"), data: true },
-			{ label: localize('dismiss', "Cancel"), data: false, isSecondary: true },
+			{ label: elicitation.acceptButtonLabel, data: true },
+			{ label: elicitation.rejectButtonLabel, data: false, isSecondary: true },
 		];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, elicitation.title, elicitation.originMessage, this.getMessageToRender(elicitation), buttons, context.container));
+		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, { title: elicitation.title, subtitle: elicitation.subtitle, buttons, message: this.getMessageToRender(elicitation), toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation } }));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
+
+		if (elicitation.onDidRequestHide) {
+			this._register(elicitation.onDidRequestHide(() => this.domNode.remove()));
+		}
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
@@ -48,7 +53,11 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			this._onDidChangeHeight.fire();
 		}));
 
+		this.chatAccessibilityService.acceptElicitation(elicitation);
 		this.domNode = confirmationWidget.domNode;
+		this.domNode.tabIndex = 0;
+		const messageToRender = this.getMessageToRender(elicitation);
+		this.domNode.ariaLabel = elicitation.title + ' ' + (typeof messageToRender === 'string' ? messageToRender : messageToRender.value || '');
 	}
 
 	private getMessageToRender(elicitation: IChatElicitationRequest): IMarkdownString | string {

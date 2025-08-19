@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Throttler } from '../../../../../base/common/async.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { posix as pathPosix, sep as pathSep, win32 as pathWin32 } from '../../../../../base/common/path.js';
+import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Location } from '../../../../../editor/common/languages.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { McpServerDefinition, McpServerTransportType, IMcpWorkbenchService, IMcpConfigPath } from '../mcpTypes.js';
-import { IMcpDiscovery } from './mcpDiscovery.js';
-import { mcpConfigurationSection } from '../mcpConfiguration.js';
-import { posix as pathPosix, win32 as pathWin32, sep as pathSep } from '../../../../../base/common/path.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
-import { Location } from '../../../../../editor/common/languages.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
-import { ILocalMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { IWorkbenchLocalMcpServer } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
+import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
+import { mcpConfigurationSection } from '../mcpConfiguration.js';
+import { IMcpRegistry } from '../mcpRegistryTypes.js';
+import { IMcpConfigPath, IMcpWorkbenchService, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
+import { IMcpDiscovery } from './mcpDiscovery.js';
 
 export class InstalledMcpServersDiscovery extends Disposable implements IMcpDiscovery {
 
@@ -60,22 +60,18 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 			const remoteEnv = await this.remoteAgentService.getEnvironment();
 			const collections = new Map<string, [IMcpConfigPath | undefined, McpServerDefinition[]]>();
 			const mcpConfigPathInfos = new ResourceMap<Promise<IMcpConfigPath & { locations: Map<string, Location> } | undefined>>();
-			for (const server of this.mcpWorkbenchService.local) {
-				if (!server.local) {
-					continue;
-				}
-
-				let mcpConfigPathPromise = mcpConfigPathInfos.get(server.local.mcpResource);
+			for (const server of this.mcpWorkbenchService.getEnabledLocalMcpServers()) {
+				let mcpConfigPathPromise = mcpConfigPathInfos.get(server.mcpResource);
 				if (!mcpConfigPathPromise) {
-					mcpConfigPathPromise = (async (local: ILocalMcpServer) => {
+					mcpConfigPathPromise = (async (local: IWorkbenchLocalMcpServer) => {
 						const mcpConfigPath = this.mcpWorkbenchService.getMcpConfigPath(local);
 						const locations = mcpConfigPath?.uri ? await this.getServerIdMapping(mcpConfigPath?.uri, mcpConfigPath.section ? [...mcpConfigPath.section, 'servers'] : ['servers']) : new Map();
 						return mcpConfigPath ? { ...mcpConfigPath, locations } : undefined;
-					})(server.local);
-					mcpConfigPathInfos.set(server.local.mcpResource, mcpConfigPathPromise);
+					})(server);
+					mcpConfigPathInfos.set(server.mcpResource, mcpConfigPathPromise);
 				}
 
-				const config = server.local.config;
+				const config = server.config;
 				const mcpConfigPath = await mcpConfigPathPromise;
 				const collectionId = `mcp.config.${mcpConfigPath ? mcpConfigPath.id : 'unknown'}`;
 
@@ -93,31 +89,34 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					return fsPathLocal.replaceAll(pathSep, sep);
 				};
 
+				const launch: McpServerLaunch = config.type === 'http' ? {
+					type: McpServerTransportType.HTTP,
+					uri: URI.parse(config.url),
+					headers: Object.entries(config.headers || {}),
+				} : {
+					type: McpServerTransportType.Stdio,
+					command: config.command,
+					args: config.args || [],
+					env: config.env || {},
+					envFile: config.envFile,
+					cwd: config.cwd
+						// if the cwd is defined in a workspace folder but not absolute (and not
+						// a variable or tilde-expansion) then resolve it in the workspace folder
+						// if the cwd is defined in a workspace folder but not absolute (and not
+						// a variable or tilde-expansion) then resolve it in the workspace folder
+						? (!isAbsolute(config.cwd) && !config.cwd.startsWith('~') && !config.cwd.startsWith('${') && mcpConfigPath?.workspaceFolder
+							? join(fsPathForRemote(mcpConfigPath.workspaceFolder.uri), config.cwd)
+							: config.cwd)
+						: mcpConfigPath?.workspaceFolder
+							? fsPathForRemote(mcpConfigPath.workspaceFolder.uri)
+							: undefined,
+				};
+
 				definitions[1].push({
-					id: `${collectionId}.${server.local.name}`,
-					label: server.local.name,
-					launch: config.type === 'http' ? {
-						type: McpServerTransportType.HTTP,
-						uri: URI.parse(config.url),
-						headers: Object.entries(config.headers || {}),
-					} : {
-						type: McpServerTransportType.Stdio,
-						command: config.command,
-						args: config.args || [],
-						env: config.env || {},
-						envFile: config.envFile,
-						cwd: config.cwd
-							// if the cwd is defined in a workspace folder but not absolute (and not
-							// a variable or tilde-expansion) then resolve it in the workspace folder
-							// if the cwd is defined in a workspace folder but not absolute (and not
-							// a variable or tilde-expansion) then resolve it in the workspace folder
-							? (!isAbsolute(config.cwd) && !config.cwd.startsWith('~') && !config.cwd.startsWith('${') && mcpConfigPath?.workspaceFolder
-								? join(fsPathForRemote(mcpConfigPath.workspaceFolder.uri), config.cwd)
-								: config.cwd)
-							: mcpConfigPath?.workspaceFolder
-								? fsPathForRemote(mcpConfigPath.workspaceFolder.uri)
-								: undefined,
-					},
+					id: `${collectionId}.${server.name}`,
+					label: server.name,
+					launch,
+					cacheNonce: await McpServerLaunch.hash(launch),
 					roots: mcpConfigPath?.workspaceFolder ? [mcpConfigPath.workspaceFolder.uri] : undefined,
 					variableReplacement: {
 						folder: mcpConfigPath?.workspaceFolder,
@@ -127,7 +126,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					devMode: config.dev,
 					presentation: {
 						order: mcpConfigPath?.order,
-						origin: mcpConfigPath?.locations.get(server.local.name)
+						origin: mcpConfigPath?.locations.get(server.name)
 					}
 				});
 			}
@@ -135,7 +134,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 			for (const [id, [mcpConfigPath, serverDefinitions]] of collections) {
 				this.collectionDisposables.deleteAndDispose(id);
 				this.collectionDisposables.set(id, this.mcpRegistry.registerCollection({
-					id: id,
+					id,
 					label: mcpConfigPath?.label ?? '',
 					presentation: {
 						order: serverDefinitions[0]?.presentation?.order,
@@ -143,7 +142,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					},
 					remoteAuthority: mcpConfigPath?.remoteAuthority ?? null,
 					serverDefinitions: observableValue(this, serverDefinitions),
-					isTrustedByDefault: true,
+					trustBehavior: mcpConfigPath?.workspaceFolder ? McpServerTrust.Kind.TrustedOnNonce : McpServerTrust.Kind.Trusted,
 					configTarget: mcpConfigPath?.target ?? ConfigurationTarget.USER,
 					scope: mcpConfigPath?.scope ?? StorageScope.PROFILE,
 				}));

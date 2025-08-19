@@ -20,6 +20,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	onDidChangeTools: Event<void> = Event.None;
 
+	flushToolChanges(): void {
+
+	}
+
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
 	}

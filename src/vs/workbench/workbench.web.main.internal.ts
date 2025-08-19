@@ -58,6 +58,7 @@ import './services/localization/browser/localeService.js';
 import './services/path/browser/pathService.js';
 import './services/themes/browser/browserHostColorSchemeService.js';
 import './services/encryption/browser/encryptionService.js';
+import './services/imageResize/browser/imageResizeService.js';
 import './services/secrets/browser/secretStorageService.js';
 import './services/workingCopy/browser/workingCopyBackupService.js';
 import './services/tunnel/browser/tunnelService.js';

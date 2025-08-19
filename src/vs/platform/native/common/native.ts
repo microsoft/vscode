@@ -130,6 +130,8 @@ export interface ICommonNativeHostService {
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;
 
+	setBackgroundThrottling(allowed: boolean): Promise<void>;
+
 	/**
 	 * Make the window focused.
 	 * @param options specify the specific window to focus and the focus mode.
@@ -209,6 +211,7 @@ export interface ICommonNativeHostService {
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 	openGPUInfoWindow(): Promise<void>;
+	openDevToolsWindow(url: string): Promise<void>;
 	stopTracing(): Promise<void>;
 
 	// Perf Introspection

@@ -16,6 +16,7 @@ import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
+import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalChatController } from './terminalChatController.js';
@@ -37,9 +38,10 @@ registerActiveXtermAction({
 		TerminalChatContextKeys.hasChatAgent
 	),
 	menu: {
-		id: MenuId.ChatTerminalMenu,
-		group: 'copilot',
-		order: 1
+		id: MenuId.TerminalInstanceContext,
+		group: TerminalContextMenuGroup.Chat,
+		order: 2,
+		when: ChatContextKeys.enabled
 	},
 	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {
 		if (isDetachedTerminalInstance(activeInstance)) {

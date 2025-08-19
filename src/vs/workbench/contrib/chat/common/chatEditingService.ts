@@ -79,8 +79,6 @@ export interface IStreamingEdits {
 	complete(): void;
 }
 
-export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
-
 export interface IModifiedEntryTelemetryInfo {
 	readonly agentId: string | undefined;
 	readonly command: string | undefined;
@@ -142,6 +140,12 @@ export interface IChatEditingSession extends IDisposable {
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
 	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
+
+	/**
+	 * Gets the document diff of a change made to a URI between one request to another one.
+	 * @returns The observable or undefined if there is no diff between the requests.
+	 */
+	getEntryDiffBetweenRequests(uri: URI, startRequestIs: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined>;
 
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;
@@ -251,6 +255,16 @@ export interface IModifiedFileEntry {
 	 * Number of changes for this file
 	 */
 	readonly changesCount: IObservable<number>;
+
+	/**
+	 * Number of lines added in this entry.
+	 */
+	readonly linesAdded?: IObservable<number>;
+
+	/**
+	 * Number of lines removed in this entry
+	 */
+	readonly linesRemoved?: IObservable<number>;
 
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 }

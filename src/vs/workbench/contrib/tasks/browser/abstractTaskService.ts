@@ -48,7 +48,7 @@ import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/
 import { ITerminalProfileResolverService } from '../../terminal/common/terminal.js';
 
 import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY, TaskEventKind, InstancePolicy, RerunAllRunningTasksCommandId } from '../common/tasks.js';
-import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
+import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext, TasksAvailableContext } from '../common/taskService.js';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
 
@@ -88,6 +88,7 @@ import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { getActiveElement } from '../../../../base/browser/dom.js';
 
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
@@ -230,6 +231,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _persistentTasks: LRUCache<string, string> | undefined;
 
 	protected _taskRunningState: IContextKey<boolean>;
+	protected _tasksAvailableState: IContextKey<boolean>;
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
@@ -346,6 +348,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		}));
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(_contextKeyService);
+		this._tasksAvailableState = TasksAvailableContext.bindTo(_contextKeyService);
 		this._onDidStateChange = this._register(new Emitter());
 		this._registerCommands().then(() => TaskCommandsRegistered.bindTo(this._contextKeyService).set(true));
 		ServerlessWebContext.bindTo(this._contextKeyService).set(Platform.isWeb && !remoteAgentService.getConnection()?.remoteAuthority);
@@ -2437,6 +2440,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return folder;
 	}
 
+	getTerminalsForTasks(task: (Task | Task[])): URI[] | undefined {
+		return this._taskSystem?.getTerminalsForTasks(task);
+	}
+
 	protected async _computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {
 		const promises: Promise<IWorkspaceFolderTaskResult | undefined>[] = [];
 		for (const folder of this.workspaceFolders) {
@@ -2462,6 +2469,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (userTasks) {
 			result.set(USER_TASKS_GROUP_KEY, userTasks);
 		}
+
+		// Update tasks available context key
+		const hasAnyTasks = Array.from(result.values()).some(folderResult =>
+			(folderResult.set?.tasks && folderResult.set.tasks.length > 0) ||
+			(folderResult.configurations?.byIdentifier && Object.keys(folderResult.configurations.byIdentifier).length > 0)
+		);
+		this._tasksAvailableState.set(hasAnyTasks);
+
 		return result;
 	}
 
@@ -2933,7 +2948,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _trust(): Promise<boolean> {
-		if (ServerlessWebContext && !TaskExecutionSupportedContext) {
+		const context = this._contextKeyService.getContext(getActiveElement());
+		if (ServerlessWebContext.getValue(this._contextKeyService) && !TaskExecutionSupportedContext?.evaluate(context)) {
 			return false;
 		}
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;

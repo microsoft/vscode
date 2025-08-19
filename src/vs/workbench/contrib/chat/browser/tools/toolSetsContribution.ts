@@ -362,8 +362,6 @@ export class ConfigureToolSets extends Action2 {
 			});
 		}
 
-
-
 		const pick = await quickInputService.pick(picks, {
 			canPickMany: false,
 			placeHolder: localize('chat.configureToolSets.placeholder', 'Select a tool set to configure'),

@@ -19,7 +19,6 @@ import { IEditorDecorationsCollection } from '../../../../editor/common/editorCo
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel/inlineDecorations.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { SaveReason } from '../../../common/editor.js';
@@ -41,6 +40,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ConflictActionsFactory, IContentWidgetAction } from '../../mergeEditor/browser/view/conflictActions.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel/inlineDecorations.js';
 
 export interface IEditObserver {
 	start(): void;

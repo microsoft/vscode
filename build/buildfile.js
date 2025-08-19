@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
 
 /**
  * @param {string} name
@@ -44,7 +45,6 @@ exports.code = [
 	createModuleDescription('vs/code/node/cliProcessMain'),
 	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-browser/workbench/workbench'),
-	createModuleDescription('vs/workbench/contrib/webview/browser/pre/service-worker')
 ];
 
 exports.codeWeb = createModuleDescription('vs/code/browser/workbench/workbench');

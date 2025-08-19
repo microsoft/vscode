@@ -82,10 +82,13 @@ export namespace Schemas {
 	export const vscodeChatCodeCompareBlock = 'vscode-chat-code-compare-block';
 
 	/** Scheme used for the chat input editor. */
-	export const vscodeChatSesssion = 'vscode-chat-editor';
+	export const vscodeChatEditor = 'vscode-chat-editor';
 
 	/** Scheme used for the chat input part */
 	export const vscodeChatInput = 'chatSessionInput';
+
+	/** Scheme for chat session content */
+	export const vscodeChatSession = 'vscode-chat-session';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -142,6 +145,12 @@ export namespace Schemas {
 	 * Scheme used for the accessible view
 	 */
 	export const accessibleView = 'accessible-view';
+
+	/**
+	 * Used for snapshots of chat edits
+	 */
+	export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
+	export const chatEditingModel = 'chat-editing-text-model';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {

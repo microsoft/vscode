@@ -323,8 +323,8 @@
 <g id="Input Container">
 <g id="Chat Input">
 <g clip-path="url(#clip11_2747_5745)">
-<rect x="197" y="390" width="385" height="88" rx="4" fill="var(--vscode-widget-border, #313131)"/>
-<rect id="BG" x="197" y="390" width="385" height="88" fill="var(--vscode-widget-border, #313131)"/>
+<rect x="197" y="390" width="385" height="88" rx="4" fill="var(--vscode-input-background, #3c3c3c)" stroke="none"/>
+<rect id="BG" x="197" y="390" width="385" height="88" fill="var(--vscode-input-background, #3c3c3c)"/>
 <g id=".Chat Input/Top">
 <g id="Chat Acion">
 <rect x="205.5" y="398.5" width="106" height="17" rx="3.5" stroke="var(--vscode-tab-activeForeground, #ffffff)" stroke-opacity="0.0705882"/>

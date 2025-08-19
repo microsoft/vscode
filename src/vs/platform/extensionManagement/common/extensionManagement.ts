@@ -209,6 +209,7 @@ export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
 	isPreReleaseVersion: boolean;
+	targetPlatforms: TargetPlatform[];
 }
 
 export interface IGalleryExtension {
@@ -383,7 +384,6 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
-	updateCheck?: boolean;
 }
 
 export interface IExtensionGalleryCapabilities {

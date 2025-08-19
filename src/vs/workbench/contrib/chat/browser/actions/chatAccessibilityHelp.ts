@@ -100,6 +100,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('chatAgent.runCommand', 'To take the action, use the accept tool command{0}.', '<keybinding:workbench.action.chat.acceptTool>'));
 			content.push(localize('chatAgent.autoApprove', 'To automatically approve tool actions without manual confirmation, set chat.tools.autoApprove to true in your settings.'));
 			content.push(localize('chatAgent.acceptTool', 'To accept a tool action, use the Accept Tool Confirmation command{0}.', '<keybinding:workbench.action.chat.acceptTool>'));
+			content.push(localize('chatAgent.openEditedFilesSetting', 'By default, when edits are made to files, they will be opened. To change this behavior, set accessibility.openChatEditedFiles to false in your settings.'));
 		}
 		content.push(localize('chatEditing.helpfulCommands', 'Some helpful commands include:'));
 		content.push(localize('workbench.action.chat.undoEdits', '- Undo Edits{0}.', '<keybinding:workbench.action.chat.undoEdits>'));
@@ -111,6 +112,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chatEditing.discardAllFiles', '- Undo All Edits{0}.', '<keybinding:chatEditing.discardAllFiles>'));
 		content.push(localize('chatEditing.openFileInDiff', '- Open File in Diff{0}.', '<keybinding:chatEditing.openFileInDiff>'));
 		content.push(localize('chatEditing.viewChanges', '- View Changes{0}.', '<keybinding:chatEditing.viewChanges>'));
+		content.push('chatEditing.viewAllEdits', '- View All Edits{0}.', '<keybinding:chatEditing.viewAllEdits>');
+		content.push(localize('chatEditing.viewPreviousEdits', '- View Previous Edits{0}.', '<keybinding:chatEditing.viewPreviousEdits>'));
 	}
 	else {
 		content.push(localize('inlineChat.overview', "Inline chat occurs within a code editor and takes into account the current selection. It is useful for making changes to the current editor. For example, fixing diagnostics, documenting or refactoring code. Keep in mind that AI generated code may be incorrect."));
@@ -156,6 +159,9 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 				const ctrl = <{ focus(): void } | undefined>editor?.getContribution(INLINE_CHAT_ID);
 				ctrl?.focus();
 
+			} else if (type === 'quickChat' || type === 'editsView' || type === 'agentView') {
+				// For quickChat, editsView, and agentView, restore focus to the chat widget input
+				widgetService.lastFocusedWidget?.focusInput();
 			}
 		},
 		type === 'panelChat' ? AccessibilityVerbositySettingId.Chat : AccessibilityVerbositySettingId.InlineChat,

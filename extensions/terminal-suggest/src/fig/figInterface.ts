@@ -46,6 +46,18 @@ export async function getFigSuggestions(
 		items: [],
 	};
 	const currentCommand = currentCommandAndArgString.split(' ')[0];
+
+	// Assemble a map to allow O(1) access to the available command from a spec
+	// label. The label does not include an extension on Windows.
+	const specLabelToAvailableCommandMap = new Map<string, ICompletionResource>();
+	for (const command of availableCommands) {
+		let label = typeof command.label === 'string' ? command.label : command.label.label;
+		if (osIsWindows()) {
+			label = removeAnyFileExtension(label);
+		}
+		specLabelToAvailableCommandMap.set(label, command);
+	}
+
 	for (const spec of specs) {
 		const specLabels = getFigSuggestionLabel(spec);
 
@@ -53,9 +65,7 @@ export async function getFigSuggestions(
 			continue;
 		}
 		for (const specLabel of specLabels) {
-			const availableCommand = (osIsWindows()
-				? availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label).match(new RegExp(`${specLabel}(\\.[^ ]+)?$`)))
-				: availableCommands.find(command => (typeof command.label === 'string' ? command.label : command.label.label) === (specLabel)));
+			const availableCommand = specLabelToAvailableCommandMap.get(specLabel);
 			if (!availableCommand || (token && token.isCancellationRequested)) {
 				continue;
 			}
@@ -83,8 +93,8 @@ export async function getFigSuggestions(
 				: availableCommands.filter(command => specLabel === (command.definitionCommand ?? (typeof command.label === 'string' ? command.label : command.label.label))));
 			if (
 				!(osIsWindows()
-					? commandAndAliases.some(e => currentCommand.startsWith(removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))))
-					: commandAndAliases.some(e => currentCommand.startsWith(typeof e.label === 'string' ? e.label : e.label.label)))
+					? commandAndAliases.some(e => currentCommand === (removeAnyFileExtension((typeof e.label === 'string' ? e.label : e.label.label))))
+					: commandAndAliases.some(e => currentCommand === (typeof e.label === 'string' ? e.label : e.label.label)))
 			) {
 				continue;
 			}
@@ -100,7 +110,7 @@ export async function getFigSuggestions(
 				result.foldersRequested ||= completionItemResult.foldersRequested;
 				result.fileExtensions ||= completionItemResult.fileExtensions;
 				if (completionItemResult.items) {
-					result.items.push(...completionItemResult.items);
+					result.items = result.items.concat(completionItemResult.items);
 				}
 			}
 		}

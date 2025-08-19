@@ -55,6 +55,7 @@ import './services/themes/electron-browser/nativeHostColorSchemeService.js';
 import './services/extensionManagement/electron-browser/extensionManagementService.js';
 import './services/mcp/electron-browser/mcpWorkbenchManagementService.js';
 import './services/encryption/electron-browser/encryptionService.js';
+import './services/imageResize/electron-browser/imageResizeService.js';
 import './services/browserElements/electron-browser/browserElementsService.js';
 import './services/secrets/electron-browser/secretStorageService.js';
 import './services/localization/electron-browser/languagePackService.js';

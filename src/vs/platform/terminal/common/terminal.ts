@@ -154,7 +154,7 @@ export const enum GeneralShellType {
 	NuShell = 'nu',
 	Node = 'node',
 }
-export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType;
+export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType | undefined;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -286,6 +286,10 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
+export interface ITerminalLaunchResult {
+	injectedArgs: string[];
+}
+
 /**
  * A service that communicates with a pty host.
 */
@@ -327,7 +331,7 @@ export interface IPtyService {
 	 */
 	getLatency(): Promise<IPtyHostLatencyMeasurement[]>;
 
-	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
+	start(id: number): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
 	sendSignal(id: number, signal: string): Promise<void>;
@@ -650,6 +654,12 @@ export interface IShellLaunchConfig {
 	 * Report terminal's shell environment variables to VS Code and extensions
 	 */
 	shellIntegrationEnvironmentReporting?: boolean;
+
+	/**
+	 * A custom nonce to use for shell integration when provided by an extension.
+	 * This allows extensions to control shell integration for terminals they create.
+	 */
+	shellIntegrationNonce?: string;
 }
 
 export interface ITerminalTabAction {
@@ -766,7 +776,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
+	start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined>;
 
 	/**
 	 * Detach the process from the UI and await reconnect.

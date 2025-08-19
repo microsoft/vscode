@@ -427,7 +427,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _disposed = false;
 
 	constructor(
-		private readonly _workerDescriptorOrWorker: IWebWorkerDescriptor | Worker,
+		private readonly _workerDescriptorOrWorker: IWebWorkerDescriptor | Worker | Promise<Worker>,
 		keepIdleModels: boolean,
 		@IModelService modelService: IModelService,
 	) {

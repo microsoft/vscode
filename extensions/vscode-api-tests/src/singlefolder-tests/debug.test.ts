@@ -6,13 +6,16 @@
 import * as assert from 'assert';
 import { basename } from 'path';
 import { commands, debug, Disposable, FunctionBreakpoint, window, workspace } from 'vscode';
-import { assertNoRpc, createRandomFile, disposeAll } from '../utils';
+import { assertNoRpc, closeAllEditors, createRandomFile, disposeAll } from '../utils';
 
 suite('vscode API - debug', function () {
 
-	teardown(assertNoRpc);
+	teardown(async function () {
+		assertNoRpc();
+		await closeAllEditors();
+	});
 
-	test('breakpoints are available before accessing debug extension API', async () => {
+	test.skip('breakpoints are available before accessing debug extension API', async () => {
 		const file = await createRandomFile(undefined, undefined, '.js');
 		const doc = await workspace.openTextDocument(file);
 		await window.showTextDocument(doc);

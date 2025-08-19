@@ -31,6 +31,10 @@ export interface ScrollableElementCreationOptions {
 	 */
 	mouseWheelSmoothScroll?: boolean;
 	/**
+	 * Make scrolling inertial - mostly useful with touchpad on linux.
+	 */
+	inertialScroll?: boolean;
+	/**
 	 * Flip axes. Treat vertical scrolling like horizontal and vice-versa.
 	 * Defaults to false.
 	 */
@@ -151,6 +155,7 @@ export interface ScrollableElementResolvedOptions {
 	fastScrollSensitivity: number;
 	scrollPredominantAxis: boolean;
 	mouseWheelSmoothScroll: boolean;
+	inertialScroll: boolean;
 	arrowSize: number;
 	listenOnDomNode: HTMLElement | null;
 	horizontal: ScrollbarVisibility;

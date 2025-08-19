@@ -104,11 +104,12 @@ export class TestNativeHostService implements INativeHostService {
 	async isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean> { return false; }
 	async toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void> { }
 	async setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> { }
-	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
+	async getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
+	async setBackgroundThrottling(throttling: boolean): Promise<void> { }
 	async focusWindow(options?: INativeHostOptions): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
@@ -150,6 +151,7 @@ export class TestNativeHostService implements INativeHostService {
 	async openDevTools(options?: Partial<Electron.OpenDevToolsOptions> & INativeHostOptions | undefined): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async stopTracing(): Promise<void> { }
+	async openDevToolsWindow(url: string): Promise<void> { }
 	async openGPUInfoWindow(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }

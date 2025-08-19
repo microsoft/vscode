@@ -199,7 +199,7 @@ CommandsRegistry.registerCommand({
 		};
 
 		const workspaceToOpen: IWorkspaceToOpen | IFolderToOpen = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
-		const filesToOpen: IFileToOpen[] = typeof arg === 'object' ? arg.filesToOpen?.map(file => ({ fileUri: URI.from(file, true) })) ?? [] : [];
+		const filesToOpen: IFileToOpen[] = arg?.filesToOpen?.map(file => ({ fileUri: URI.from(file, true) })) ?? [];
 		return commandService.executeCommand('_files.windowOpen', [workspaceToOpen, ...filesToOpen], options);
 	},
 	metadata: {

@@ -10,10 +10,9 @@ import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
 import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
-import dompurify from './dompurify/dompurify.js';
 import { KeyCode } from '../common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
-import { RemoteAuthorities, Schemas } from '../common/network.js';
+import { RemoteAuthorities } from '../common/network.js';
 import * as platform from '../common/platform.js';
 import { URI } from '../common/uri.js';
 import { hash } from '../common/hash.js';
@@ -1178,10 +1177,10 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 class FocusTracker extends Disposable implements IFocusTracker {
 
 	private readonly _onDidFocus = this._register(new event.Emitter<void>());
-	readonly onDidFocus = this._onDidFocus.event;
+	get onDidFocus() { return this._onDidFocus.event; }
 
 	private readonly _onDidBlur = this._register(new event.Emitter<void>());
-	readonly onDidBlur = this._onDidBlur.event;
+	get onDidBlur() { return this._onDidBlur.event; }
 
 	private _refreshStateHandler: () => void;
 
@@ -1280,7 +1279,7 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
  * Removes all children from `parent` and appends `children`
  */
 export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
-	parent.innerText = '';
+	parent.textContent = '';
 	append(parent, ...children);
 }
 
@@ -1589,6 +1588,35 @@ export function triggerUpload(): Promise<FileList | undefined> {
 	});
 }
 
+export interface INotification extends IDisposable {
+	readonly onClick: event.Event<void>;
+}
+
+export async function triggerNotification(message: string, options?: { detail?: string; sticky?: boolean }): Promise<INotification | undefined> {
+	const permission = await Notification.requestPermission();
+	if (permission !== 'granted') {
+		return;
+	}
+
+	const disposables = new DisposableStore();
+
+	const notification = new Notification(message, {
+		body: options?.detail,
+		requireInteraction: options?.sticky
+	});
+
+	const onClick = new event.Emitter<void>();
+	disposables.add(addDisposableListener(notification, 'click', () => onClick.fire()));
+	disposables.add(addDisposableListener(notification, 'close', () => disposables.dispose()));
+
+	disposables.add(toDisposable(() => notification.close()));
+
+	return {
+		onClick: onClick.event,
+		dispose: () => disposables.dispose()
+	};
+}
+
 export enum DetectedFullscreenMode {
 
 	/**
@@ -1650,171 +1678,6 @@ export function detectFullscreen(targetWindow: Window): IDetectedFullscreen | nu
 
 	// Not in fullscreen
 	return null;
-}
-
-// -- sanitize and trusted html
-
-/**
- * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
- * attributes are valid.
- */
-export function hookDomPurifyHrefAndSrcSanitizer(allowedProtocols: readonly string[], allowDataImages = false): IDisposable {
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-
-	// build an anchor to map URLs to
-	const anchor = document.createElement('a');
-
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// check all href/src attributes for validity
-		for (const attr of ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				const attrValue = node.getAttribute(attr) as string;
-				if (attr === 'href' && attrValue.startsWith('#')) {
-					// Allow fragment links
-					continue;
-				}
-
-				anchor.href = attrValue;
-				if (!allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
-					if (allowDataImages && attr === 'src' && anchor.href.startsWith('data:')) {
-						continue;
-					}
-
-					node.removeAttribute(attr);
-				}
-			}
-		}
-	});
-
-	return toDisposable(() => {
-		dompurify.removeHook('afterSanitizeAttributes');
-	});
-}
-
-const defaultSafeProtocols = [
-	Schemas.http,
-	Schemas.https,
-	Schemas.command,
-];
-
-/**
- * List of safe, non-input html tags.
- */
-export const basicMarkupHtmlTags = Object.freeze([
-	'a',
-	'abbr',
-	'b',
-	'bdo',
-	'blockquote',
-	'br',
-	'caption',
-	'cite',
-	'code',
-	'col',
-	'colgroup',
-	'dd',
-	'del',
-	'details',
-	'dfn',
-	'div',
-	'dl',
-	'dt',
-	'em',
-	'figcaption',
-	'figure',
-	'h1',
-	'h2',
-	'h3',
-	'h4',
-	'h5',
-	'h6',
-	'hr',
-	'i',
-	'img',
-	'input',
-	'ins',
-	'kbd',
-	'label',
-	'li',
-	'mark',
-	'ol',
-	'p',
-	'pre',
-	'q',
-	'rp',
-	'rt',
-	'ruby',
-	'samp',
-	'small',
-	'small',
-	'source',
-	'span',
-	'strike',
-	'strong',
-	'sub',
-	'summary',
-	'sup',
-	'table',
-	'tbody',
-	'td',
-	'tfoot',
-	'th',
-	'thead',
-	'time',
-	'tr',
-	'tt',
-	'u',
-	'ul',
-	'var',
-	'video',
-	'wbr',
-]);
-
-const defaultDomPurifyConfig = Object.freeze<dompurify.Config & { RETURN_TRUSTED_TYPE: true }>({
-	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-	ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type', 'start'],
-	RETURN_DOM: false,
-	RETURN_DOM_FRAGMENT: false,
-	RETURN_TRUSTED_TYPE: true
-});
-
-/**
- * Sanitizes the given `value` and reset the given `node` with it.
- */
-export function safeInnerHtml(node: HTMLElement, value: string, extraDomPurifyConfig?: dompurify.Config): void {
-	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
-	try {
-		const html = dompurify.sanitize(value, { ...defaultDomPurifyConfig, ...extraDomPurifyConfig });
-		node.innerHTML = html as unknown as string;
-	} finally {
-		hook.dispose();
-	}
-}
-
-/**
- * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
- *
- * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
- */
-function toBinary(str: string): string {
-	const codeUnits = new Uint16Array(str.length);
-	for (let i = 0; i < codeUnits.length; i++) {
-		codeUnits[i] = str.charCodeAt(i);
-	}
-	let binary = '';
-	const uint8array = new Uint8Array(codeUnits.buffer);
-	for (let i = 0; i < uint8array.length; i++) {
-		binary += String.fromCharCode(uint8array[i]);
-	}
-	return binary;
-}
-
-/**
- * Version of the global `btoa` function that handles multi-byte characters instead
- * of throwing an exception.
- */
-export function multibyteAwareBtoa(str: string): string {
-	return btoa(toBinary(str));
 }
 
 type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';

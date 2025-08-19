@@ -61,7 +61,7 @@ import { editorErrorForeground, editorHintForeground, editorInfoForeground, edit
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { LineBreaksComputerFactory } from '../../../common/viewModel/lineBreaksComputer.js';
-import { TextModelEditReason, EditReasons } from '../../../common/textModelEditReason.js';
+import { TextModelEditSource, EditSources } from '../../../common/textModelEditSource.js';
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
@@ -1248,11 +1248,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
-	public edit(edit: TextEdit, reason: TextModelEditReason): boolean {
+	public edit(edit: TextEdit, reason: TextModelEditSource): boolean {
 		return this.executeEdits(reason, edit.replacements.map<IIdentifiedSingleEditOperation>(e => ({ range: e.range, text: e.text })), undefined);
 	}
 
-	public executeEdits(source: string | null | undefined | TextModelEditReason, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
+	public executeEdits(source: string | null | undefined | TextModelEditSource, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
 		if (!this._modelData) {
 			return false;
 		}
@@ -1271,13 +1271,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		let sourceStr: string | undefined | null;
-		let reason: TextModelEditReason;
+		let reason: TextModelEditSource;
 
-		if (source instanceof TextModelEditReason) {
+		if (source instanceof TextModelEditSource) {
 			reason = source;
 			sourceStr = source.metadata.source;
 		} else {
-			reason = EditReasons.unknown({ name: sourceStr });
+			reason = EditSources.unknown({ name: sourceStr });
 			sourceStr = source;
 		}
 

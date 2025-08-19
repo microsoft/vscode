@@ -57,7 +57,7 @@ import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdenti
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfilesReadonlyService } from '../../platform/userDataProfile/node/userDataProfile.js';
-import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from '../../platform/telemetry/node/telemetryUtils.js';
+import { resolveMachineId, resolveSqmId, resolveDevDeviceId } from '../../platform/telemetry/node/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LogService } from '../../platform/log/common/logService.js';
 import { LoggerService } from '../../platform/log/node/loggerService.js';
@@ -68,10 +68,11 @@ import { AllowedExtensionsService } from '../../platform/extensionManagement/com
 import { McpManagementCli } from '../../platform/mcp/common/mcpManagementCli.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifestService.js';
-import { IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
+import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
 
 class CliMain extends Disposable {
 
@@ -201,7 +202,7 @@ class CliMain extends Disposable {
 			}
 		}
 		const sqmId = await resolveSqmId(stateService, logService);
-		const devDeviceId = await resolvedevDeviceId(stateService, logService);
+		const devDeviceId = await resolveDevDeviceId(stateService, logService);
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesService.init();
@@ -229,6 +230,7 @@ class CliMain extends Disposable {
 		services.set(ILanguagePackService, new SyncDescriptor(NativeLanguagePackService, undefined, false));
 
 		// MCP
+		services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService, undefined, true));
 		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
 		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService, undefined, true));
 		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));

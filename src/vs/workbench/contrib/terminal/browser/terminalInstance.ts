@@ -141,6 +141,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * before xterm.js could be created.
 	 */
 	private _xtermReadyPromise: Promise<XtermTerminal | undefined>;
+	get xtermReadyPromise(): Promise<XtermTerminal | undefined> { return this._xtermReadyPromise; }
 
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 	private _instanceId: number;
@@ -453,7 +454,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(scopedContextKeyService);
 		this._terminalHasFixedWidth = TerminalContextKeys.terminalHasFixedWidth.bindTo(scopedContextKeyService);
-		this._terminalHasTextContextKey = TerminalContextKeys.textSelected.bindTo(scopedContextKeyService);
+		this._terminalHasTextContextKey = TerminalContextKeys.textSelected.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(scopedContextKeyService);
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
@@ -489,6 +490,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		}));
+		this._register(this.onDidChangeShellType(() => refreshShellIntegrationInfoStatus(this)));
 		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
 			capabilityListeners.get(capability)?.dispose();
 		}));
@@ -529,16 +531,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
 				this.shellLaunchConfig.executable = defaultProfile.path;
 				this.shellLaunchConfig.args = defaultProfile.args;
-				if (this.shellLaunchConfig.isExtensionOwnedTerminal) {
-					// Only use default icon and color and env if they are undefined in the SLC
-					this.shellLaunchConfig.icon ??= defaultProfile.icon;
-					this.shellLaunchConfig.color ??= defaultProfile.color;
-					this.shellLaunchConfig.env ??= defaultProfile.env;
-				} else {
-					this.shellLaunchConfig.icon = defaultProfile.icon;
-					this.shellLaunchConfig.color = defaultProfile.color;
-					this.shellLaunchConfig.env = defaultProfile.env;
-				}
+				// Only use default icon and color and env if they are undefined in the SLC
+				this.shellLaunchConfig.icon ??= defaultProfile.icon;
+				this.shellLaunchConfig.color ??= defaultProfile.color;
+				this.shellLaunchConfig.env ??= defaultProfile.env;
 			}
 
 			// Resolve the shell type ahead of time to allow features that depend upon it to work
@@ -1403,7 +1399,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._instanceId,
 			this.shellLaunchConfig?.cwd,
 			deserializedCollections,
-			this.shellLaunchConfig.attachPersistentProcess?.shellIntegrationNonce
+			this.shellLaunchConfig.shellIntegrationNonce ?? this.shellLaunchConfig.attachPersistentProcess?.shellIntegrationNonce
 		);
 		this.capabilities.add(processManager.capabilities);
 		this._register(processManager.onProcessReady(async (e) => {
@@ -1960,11 +1956,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellType === shellType) {
 			return;
 		}
-		if (shellType) {
-			this._shellType = shellType;
+		this._shellType = shellType;
+		if (shellType === undefined) {
+			this._terminalShellTypeContextKey.reset();
+		} else {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
-			this._onDidChangeShellType.fire(shellType);
 		}
+		this._onDidChangeShellType.fire(shellType);
+
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {

@@ -42,6 +42,10 @@ import { EditOperation } from '../../../../../editor/common/core/editOperation.j
 import { Position } from '../../../../../editor/common/core/position.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionsService } from '../../browser/chatSessions.contribution.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -73,9 +77,11 @@ suite('ChatEditingService', function () {
 		collection.set(IChatVariablesService, new MockChatVariablesService());
 		collection.set(IChatSlashCommandService, new class extends mock<IChatSlashCommandService>() { });
 		collection.set(IChatTransferService, new SyncDescriptor(ChatTransferService));
+		collection.set(IChatSessionsService, new SyncDescriptor(ChatSessionsService));
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
+		collection.set(IMcpService, new TestMcpService());
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
@@ -97,6 +103,8 @@ suite('ChatEditingService', function () {
 		editingService = value;
 
 		chatService = insta.get(IChatService);
+
+		store.add(insta.get(IChatSessionsService) as ChatSessionsService); // Needs to be disposed in between test runs to clear extensionPoint contribution
 
 		const chatAgentService = insta.get(IChatAgentService);
 

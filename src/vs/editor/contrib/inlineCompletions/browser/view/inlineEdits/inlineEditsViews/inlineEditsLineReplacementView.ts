@@ -46,6 +46,8 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 
 	readonly isHovered;
 
+	readonly minEditorScrollHeight;
+
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
 		private readonly _edit: IObservable<{
@@ -187,6 +189,13 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			const viewZoneHeight = layout.lowerBackground.height;
 			const viewZoneLineNumber = edit.originalRange.endLineNumberExclusive;
 			return { height: viewZoneHeight, lineNumber: viewZoneLineNumber };
+		});
+		this.minEditorScrollHeight = derived(reader => {
+			const layout = mapOutFalsy(this._layout).read(reader);
+			if (!layout || this._viewZoneInfo.read(reader) !== undefined) {
+				return 0;
+			}
+			return layout.read(reader).lowerText.bottom + this._editor.editor.getScrollTop();
 		});
 		this._div = n.div({
 			class: 'line-replacement',

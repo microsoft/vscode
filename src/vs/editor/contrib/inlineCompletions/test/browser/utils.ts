@@ -189,27 +189,27 @@ export class GhostTextContext extends Disposable {
 	}
 
 	public cursorUp(): void {
-		CoreNavigationCommands.CursorUp.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorUp, null);
 	}
 
 	public cursorRight(): void {
-		CoreNavigationCommands.CursorRight.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorRight, null);
 	}
 
 	public cursorLeft(): void {
-		CoreNavigationCommands.CursorLeft.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorLeft, null);
 	}
 
 	public cursorDown(): void {
-		CoreNavigationCommands.CursorDown.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorDown, null);
 	}
 
 	public cursorLineEnd(): void {
-		CoreNavigationCommands.CursorLineEnd.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorLineEnd, null);
 	}
 
 	public leftDelete(): void {
-		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreEditingCommands.DeleteLeft, null);
 	}
 }
 

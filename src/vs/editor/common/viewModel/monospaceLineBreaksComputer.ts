@@ -360,7 +360,7 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
+function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
 
 	let injectionOptions: InjectedTextOptions[] | null;
@@ -438,6 +438,18 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		}
 
 		visibleColumn += charWidth;
+
+		// literal \n shall trigger a softwrap
+		if (
+			wrapOnEscapedLineFeeds
+			&& i >= 2
+			&& (i < 3 || lineText.charAt(i - 3) !== '\\')
+			&& lineText.charAt(i - 2) === '\\'
+			&& lineText.charAt(i - 1) === 'n'
+			&& lineText.includes('"')
+		) {
+			visibleColumn += breakingColumn;
+		}
 
 		// check if adding character at `i` will go over the breaking column
 		if (visibleColumn > breakingColumn) {

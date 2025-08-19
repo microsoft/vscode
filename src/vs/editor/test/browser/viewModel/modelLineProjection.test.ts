@@ -125,7 +125,8 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			'simple',
 			wrappingInfo.wrappingColumn,
 			wrappingIndent,
-			wordBreak
+			wordBreak,
+			wrapOnEscapedLineFeeds
 		);
 
 		callback(model, linesCollection);
@@ -442,7 +443,7 @@ suite('SplitLinesCollection', () => {
 	}
 
 	test('getViewLinesData - no wrapping', () => {
-		withSplitLinesCollection(model, 'off', 0, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'off', 0, false, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 8);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
@@ -576,7 +577,7 @@ suite('SplitLinesCollection', () => {
 	});
 
 	test('getViewLinesData - with wrapping', () => {
-		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'wordWrapColumn', 30, false, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 12);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
@@ -761,7 +762,7 @@ suite('SplitLinesCollection', () => {
 			}
 		}]);
 
-		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'wordWrapColumn', 30, false, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 14);
 
 			assert.strictEqual(splitLinesCollection.getViewLineMaxColumn(1), 24);
@@ -947,7 +948,7 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: ViewModelLinesFromProjectedModel) => void): void {
+	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, wrapOnEscapedLineFeeds: boolean, callback: (splitLinesCollection: ViewModelLinesFromProjectedModel) => void): void {
 		const configuration = new TestConfiguration({
 			wordWrap: wordWrap,
 			wordWrapColumn: wordWrapColumn,
@@ -972,7 +973,8 @@ suite('SplitLinesCollection', () => {
 			'simple',
 			wrappingInfo.wrappingColumn,
 			wrappingIndent,
-			wordBreak
+			wordBreak,
+			wrapOnEscapedLineFeeds
 		);
 
 		callback(linesCollection);

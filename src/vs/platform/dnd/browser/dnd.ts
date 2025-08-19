@@ -34,6 +34,7 @@ export const CodeDataTransfers = {
 	SYMBOLS: 'application/vnd.code.symbols',
 	MARKERS: 'application/vnd.code.diagnostics',
 	NOTEBOOK_CELL_OUTPUT: 'notebook-cell-output',
+	SCM_HISTORY_ITEM: 'scm-history-item',
 };
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {

@@ -168,6 +168,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
+	'transient': { type: 'boolean' },
 	'use-inmemory-secretstorage': { type: 'boolean', deprecates: ['disable-keytar'] },
 	'password-store': { type: 'string' },
 	'disable-workspace-trust': { type: 'boolean' },
@@ -201,7 +202,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'enable-rdp-display-tracking': { type: 'boolean' },
 	'disable-layout-restore': { type: 'boolean' },
 	'disable-experiments': { type: 'boolean' },
-	'startup-experiment-group': { type: 'string', cat: 't', args: 'control|maximizedChat|splitEmptyEditorChat|splitWelcomeChat', description: localize('startupExperimentGroup', "Override the startup experiment group.") },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

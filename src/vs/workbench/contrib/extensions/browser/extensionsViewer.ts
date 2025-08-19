@@ -265,8 +265,7 @@ class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExt
 	public renderTemplate(container: HTMLElement): IExtensionTemplateData {
 		container.classList.add('extension');
 
-		const icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
-		const iconWidget = this.instantiationService.createInstance(ExtensionIconWidget, icon);
+		const iconWidget = this.instantiationService.createInstance(ExtensionIconWidget, container);
 		const details = dom.append(container, dom.$('.details'));
 
 		const header = dom.append(details, dom.$('.header'));

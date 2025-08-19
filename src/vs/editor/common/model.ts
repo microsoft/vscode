@@ -25,7 +25,7 @@ import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
 import { LineTokens, TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
-import { TextModelEditReason } from './textModelEditReason.js';
+import { TextModelEditSource } from './textModelEditSource.js';
 import { TextEdit } from './core/edits/textEdit.js';
 import { IViewModel } from './viewModel.js';
 
@@ -306,6 +306,20 @@ export interface IModelDecorationOptions {
 	 * @internal
 	 */
 	affectsFont?: boolean | null;
+
+	/**
+	 * The text direction of the decoration.
+	 */
+	textDirection?: TextDirection | null;
+}
+
+/**
+ * Text Direction for a decoration.
+ */
+export enum TextDirection {
+	LTR = 0,
+
+	RTL = 1,
 }
 
 /**
@@ -1223,7 +1237,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	*/
-	edit(edit: TextEdit, options?: { reason?: TextModelEditReason }): void;
+	edit(edit: TextEdit, options?: { reason?: TextModelEditSource }): void;
 
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
@@ -1237,7 +1251,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null;
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup, reason?: TextModelEditSource): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of
@@ -1253,7 +1267,7 @@ export interface ITextModel {
 	 */
 	applyEdits(operations: readonly IIdentifiedSingleEditOperation[]): void;
 	/** @internal */
-	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], reason: TextModelEditReason): void;
+	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], reason: TextModelEditSource): void;
 	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
 	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
 
@@ -1276,26 +1290,22 @@ export interface ITextModel {
 	/**
 	 * Undo edit operations until the previous undo/redo point.
 	 * The inverse edit operations will be pushed on the redo stack.
-	 * @internal
 	 */
 	undo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the undo stack?
-	 * @internal
 	 */
 	canUndo(): boolean;
 
 	/**
 	 * Redo edit operations until the next undo/redo point.
 	 * The inverse edit operations will be pushed on the undo stack.
-	 * @internal
 	 */
 	redo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the redo stack?
-	 * @internal
 	 */
 	canRedo(): boolean;
 

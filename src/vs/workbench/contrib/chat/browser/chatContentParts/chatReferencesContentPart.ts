@@ -226,7 +226,7 @@ export class CollapsibleListPool extends Disposable {
 						}
 					},
 
-					getWidgetAriaLabel: () => localize('chatCollapsibleList', "Collapsible Chat List")
+					getWidgetAriaLabel: () => localize('chatCollapsibleList', "Collapsible Chat References List")
 				},
 				dnd: {
 					getDragURI: (element: IChatCollapsibleListItem) => getResourceForElement(element)?.toString() ?? null,

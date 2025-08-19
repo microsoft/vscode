@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { PolicyTag } from '../../../../../base/common/policy.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { DefaultAccountService, IDefaultAccount, IDefaultAccountService } from '../../../accounts/common/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
@@ -55,8 +56,8 @@ suite('MultiplexPolicyService', () => {
 				policy: {
 					name: 'PolicySettingB',
 					minimumVersion: '1.0.0',
-					previewFeature: true,
-					defaultValue: "policyValueB"
+					defaultValue: "policyValueB",
+					tags: [PolicyTag.Account, PolicyTag.Preview]
 				}
 			},
 			'setting.C': {
@@ -65,8 +66,8 @@ suite('MultiplexPolicyService', () => {
 				policy: {
 					name: 'PolicySettingC',
 					minimumVersion: '1.0.0',
-					previewFeature: true,
 					defaultValue: JSON.stringify(['policyValueC1', 'policyValueC2']),
+					tags: [PolicyTag.Account, PolicyTag.Preview]
 				}
 			},
 			'setting.D': {
@@ -75,8 +76,8 @@ suite('MultiplexPolicyService', () => {
 				policy: {
 					name: 'PolicySettingD',
 					minimumVersion: '1.0.0',
-					previewFeature: true,
 					defaultValue: false,
+					tags: [PolicyTag.Account, PolicyTag.Preview]
 				}
 			},
 			'setting.E': {
@@ -211,7 +212,7 @@ suite('MultiplexPolicyService', () => {
 			const C = policyService.getPolicyValue('PolicySettingC');
 			const D = policyService.getPolicyValue('PolicySettingD');
 
-			assert.strictEqual(A, undefined); // Not tagged with 'previewFeature'
+			assert.strictEqual(A, undefined); // Not tagged with preview tags
 			assert.strictEqual(B, 'policyValueB');
 			assert.strictEqual(C, JSON.stringify(['policyValueC1', 'policyValueC2']));
 			assert.strictEqual(D, false);

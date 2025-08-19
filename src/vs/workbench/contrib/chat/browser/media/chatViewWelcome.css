@@ -13,6 +13,14 @@
 	}
 }
 
+.interactive-session.experimental-welcome-view .interactive-input-part .dropdown-action-container {
+	display: none;
+}
+
+.interactive-session.experimental-welcome-view .interactive-input-part .chat-attachments-container {
+	display: none;
+}
+
 /* Container for chat widget welcome message */
 .interactive-session .chat-welcome-view-container {
 	display: flex;
@@ -27,6 +35,10 @@
 }
 
 .interactive-session.experimental-welcome-view .chat-input-toolbars > .chat-input-toolbar > div {
+	display: none;
+}
+
+.interactive-session.experimental-welcome-view .chat-input-toolbars .action-item:not(:has(.monaco-dropdown-with-primary)) {
 	display: none;
 }
 
@@ -77,6 +89,22 @@ div.chat-welcome-view {
 
 		a {
 			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	& > .chat-welcome-view-message.experimental-empty-state {
+		position: relative;
+		text-align: center;
+		max-width: 100%;
+		margin: 0 auto;
+		color: var(--vscode-input-placeholderForeground);
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+		p{
+			margin-top: 8px;
+			margin-bottom: 8px;
 		}
 	}
 
@@ -131,6 +159,7 @@ div.chat-welcome-view {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
+		row-gap: 8px;
 		margin-top: 4px;
 
 		> .chat-welcome-view-suggested-prompt {

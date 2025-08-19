@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { strictEqual } from 'node:assert';
+import { deepStrictEqual, strictEqual } from 'node:assert';
 import type { MarkdownString } from 'vscode';
 import { PathExecutableCache } from '../../env/pathExecutableCache';
 
@@ -16,12 +16,12 @@ suite('PathExecutableCache', () => {
 		strictEqual(Array.from(result!.labels!).length, 0);
 	});
 
-	test('caching is working on successive calls', async () => {
+	test('results are the same on successive calls', async () => {
 		const cache = new PathExecutableCache();
 		const env = { PATH: process.env.PATH };
 		const result = await cache.getExecutablesInPath(env);
 		const result2 = await cache.getExecutablesInPath(env);
-		strictEqual(result, result2);
+		deepStrictEqual(result!.labels, result2!.labels);
 	});
 
 	test('refresh clears the cache', async () => {

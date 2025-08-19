@@ -123,61 +123,6 @@ export class Progress<T> implements IProgress<T> {
 	}
 }
 
-export class AsyncProgress<T> implements IProgress<T> {
-
-	private _value?: T;
-	get value(): T | undefined { return this._value; }
-
-	private _asyncQueue?: T[];
-	private _processingAsyncQueue?: boolean;
-	private _drainListener: (() => void) | undefined;
-
-	constructor(private callback: (data: T) => unknown) { }
-
-	report(item: T) {
-		if (!this._asyncQueue) {
-			this._asyncQueue = [item];
-		} else {
-			this._asyncQueue.push(item);
-		}
-		this._processAsyncQueue();
-	}
-
-	private async _processAsyncQueue() {
-		if (this._processingAsyncQueue) {
-			return;
-		}
-		try {
-			this._processingAsyncQueue = true;
-
-			while (this._asyncQueue && this._asyncQueue.length) {
-				const item = this._asyncQueue.shift()!;
-				this._value = item;
-				await this.callback(this._value);
-			}
-
-		} finally {
-			this._processingAsyncQueue = false;
-			const drainListener = this._drainListener;
-			this._drainListener = undefined;
-			drainListener?.();
-		}
-	}
-
-	drain(): Promise<void> {
-		if (this._processingAsyncQueue) {
-			return new Promise<void>(resolve => {
-				const prevListener = this._drainListener;
-				this._drainListener = () => {
-					prevListener?.();
-					resolve();
-				};
-			});
-		}
-		return Promise.resolve();
-	}
-}
-
 /**
  * A helper to show progress during a long running operation. If the operation
  * is started multiple times, only the last invocation will drive the progress.

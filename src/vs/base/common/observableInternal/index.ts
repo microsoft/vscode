@@ -6,7 +6,7 @@
 // This is a facade for the observable implementation. Only import from here!
 
 export { observableValueOpts } from './observables/observableValueOpts.js';
-export { autorun, autorunDelta, autorunHandleChanges, autorunOpts, autorunWithStore, autorunWithStoreHandleChanges, autorunIterableDelta } from './reactions/autorun.js';
+export { autorun, autorunDelta, autorunHandleChanges, autorunOpts, autorunWithStore, autorunWithStoreHandleChanges, autorunIterableDelta, autorunSelfDisposable } from './reactions/autorun.js';
 export { type IObservable, type IObservableWithChange, type IObserver, type IReader, type ISettable, type ISettableObservable, type ITransaction } from './base.js';
 export { disposableObservableValue } from './observables/observableValue.js';
 export { derived, derivedDisposable, derivedHandleChanges, derivedOpts, derivedWithSetter, derivedWithStore } from './observables/derived.js';
@@ -20,7 +20,7 @@ export {
 	signalFromObservable, wasEventTriggeredRecently,
 } from './utils/utils.js';
 export { type DebugOwner } from './debugName.js';
-export { type IChangeContext, type IChangeTracker, recordChanges } from './changeTracker.js';
+export { type IChangeContext, type IChangeTracker, recordChanges, recordChangesLazy } from './changeTracker.js';
 export { constObservable } from './observables/constObservable.js';
 export { type IObservableSignal, observableSignal } from './observables/observableSignal.js';
 export { observableFromEventOpts } from './observables/observableFromEvent.js';
@@ -34,6 +34,7 @@ export { observableValue } from './observables/observableValue.js';
 
 export { ObservableSet } from './set.js';
 export { ObservableMap } from './map.js';
+export { DebugLocation } from './debugLocation.js';
 
 import { addLogger, setLogObservableFn } from './logging/logging.js';
 import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
@@ -52,7 +53,7 @@ if (enableLogging) {
 	addLogger(new ConsoleObservableLogger());
 }
 
-if (env && env['VSCODE_DEV_DEBUG']) {
+if (env && env['VSCODE_DEV_DEBUG_OBSERVABLES']) {
 	// To debug observables you also need the extension "ms-vscode.debug-value-editor"
 	addLogger(DevToolsLogger.getInstance());
 }

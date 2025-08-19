@@ -9,21 +9,24 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { ITextModel } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
 import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
-import { IInlineDecorationsComputerContext, InlineDecoration, InlineModelDecorationsComputer } from './inlineDecorations.js';
-import { ViewModelDecoration } from './viewModelDecoration.js';
+import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
+import { InlineDecoration, InlineDecorationType } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
-export interface IDecorationsViewportData {
+/**
+ * A collection of decorations in a range of lines.
+ */
+export interface IViewDecorationsCollection {
 	/**
-	 * decorations in the viewport.
+	 * decorations in the range of lines (ungrouped).
 	 */
 	readonly decorations: ViewModelDecoration[];
 	/**
-	 * inline decorations grouped by each line in the viewport.
+	 * inline decorations (grouped by each line in the range of lines).
 	 */
 	readonly inlineDecorations: InlineDecoration[][];
 	/**
-	 * Whether the decorations affects the fonts.
+	 * Whether the decorations affect the fonts.
 	 */
 	readonly hasVariableFonts: boolean;
 }
@@ -36,7 +39,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private readonly _inlineDecorationsComputer: InlineModelDecorationsComputer;
 
-	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
+	private _cachedModelDecorationsResolver: IViewDecorationsCollection | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
 
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
@@ -82,7 +85,7 @@ export class ViewModelDecorations implements IDisposable {
 		return this._inlineDecorationsComputer.getDecorations(range, true, false).decorations;
 	}
 
-	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
+	public getDecorationsViewportData(viewRange: Range): IViewDecorationsCollection {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
@@ -92,9 +95,74 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): { inlineDecorations: InlineDecoration[]; hasVariableFonts: boolean } {
+	public getDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): IViewDecorationsCollection {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
-		const decorations = this._inlineDecorationsComputer.getDecorations(range, onlyMinimapDecorations, onlyMarginDecorations);
-		return { inlineDecorations: decorations.inlineDecorations[0], hasVariableFonts: decorations.hasVariableFonts };
+		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations);
+	}
+
+	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IViewDecorationsCollection {
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
+		const startLineNumber = viewRange.startLineNumber;
+		const endLineNumber = viewRange.endLineNumber;
+
+		const decorationsInViewport: ViewModelDecoration[] = [];
+		let decorationsInViewportLen = 0;
+		const inlineDecorations: InlineDecoration[][] = [];
+		for (let j = startLineNumber; j <= endLineNumber; j++) {
+			inlineDecorations[j - startLineNumber] = [];
+		}
+
+		let hasVariableFonts = false;
+		for (let i = 0, len = modelDecorations.length; i < len; i++) {
+			const modelDecoration = modelDecorations[i];
+			const decorationOptions = modelDecoration.options;
+
+			if (!isModelDecorationVisible(this.model, modelDecoration)) {
+				continue;
+			}
+
+			const viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
+			const viewRange = viewModelDecoration.range;
+
+			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
+
+			if (decorationOptions.inlineClassName) {
+				const inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
+				const intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
+				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
+				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
+					inlineDecorations[j - startLineNumber].push(inlineDecoration);
+				}
+			}
+			if (decorationOptions.beforeContentClassName) {
+				if (startLineNumber <= viewRange.startLineNumber && viewRange.startLineNumber <= endLineNumber) {
+					const inlineDecoration = new InlineDecoration(
+						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn),
+						decorationOptions.beforeContentClassName,
+						InlineDecorationType.Before
+					);
+					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
+				}
+			}
+			if (decorationOptions.afterContentClassName) {
+				if (startLineNumber <= viewRange.endLineNumber && viewRange.endLineNumber <= endLineNumber) {
+					const inlineDecoration = new InlineDecoration(
+						new Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn),
+						decorationOptions.afterContentClassName,
+						InlineDecorationType.After
+					);
+					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
+				}
+			}
+			if (decorationOptions.affectsFont) {
+				hasVariableFonts = true;
+			}
+		}
+
+		return {
+			decorations: decorationsInViewport,
+			inlineDecorations: inlineDecorations,
+			hasVariableFonts
+		};
 	}
 }

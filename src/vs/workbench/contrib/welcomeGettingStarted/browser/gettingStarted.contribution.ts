@@ -242,27 +242,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'welcome.showNewWelcome',
-			title: localize2('welcome.showNewWelcome', 'Open New Welcome Experience'),
-			f1: true,
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const options: GettingStartedEditorOptions = { selectedCategory: 'NewWelcomeExperience', forceReload: true, showTelemetryNotice: true };
-
-		editorService.openEditor({
-			resource: GettingStartedInput.RESOURCE,
-			options
-		});
-	}
-});
-
 CommandsRegistry.registerCommand({
 	id: 'welcome.newWorkspaceChat',
 	handler: (accessor, stepID: string) => {

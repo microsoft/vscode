@@ -161,17 +161,21 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				newValue = { uri: model.uri, range: selection } satisfies Location;
 				isSelection = true;
 			} else {
-				const visibleRanges = codeEditor?.getVisibleRanges();
-				if (visibleRanges && visibleRanges.length > 0) {
-					// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
-					// Something like a Location with an array of Ranges?
-					let range = visibleRanges[0];
-					visibleRanges.slice(1).forEach(r => {
-						range = range.plusRange(r);
-					});
-					newValue = { uri: model.uri, range } satisfies Location;
-				} else {
+				if (this.configurationService.getValue('chat.implicitContext.suggestedContext')) {
 					newValue = model.uri;
+				} else {
+					const visibleRanges = codeEditor?.getVisibleRanges();
+					if (visibleRanges && visibleRanges.length > 0) {
+						// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
+						// Something like a Location with an array of Ranges?
+						let range = visibleRanges[0];
+						visibleRanges.slice(1).forEach(r => {
+							range = range.plusRange(r);
+						});
+						newValue = { uri: model.uri, range } satisfies Location;
+					} else {
+						newValue = model.uri;
+					}
 				}
 			}
 		}

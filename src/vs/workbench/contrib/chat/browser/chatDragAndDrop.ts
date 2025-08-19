@@ -25,6 +25,7 @@ import { IChatAttachmentResolveService, ImageTransferData } from './chatAttachme
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
 import { convertStringToUInt8Array } from './imageUtils.js';
+import { extractSCMHistoryItemDropData } from '../../scm/browser/scmHistoryChatContext.js';
 
 enum ChatDragAndDropType {
 	FILE_INTERNAL,
@@ -34,7 +35,8 @@ enum ChatDragAndDropType {
 	SYMBOL,
 	HTML,
 	MARKER,
-	NOTEBOOK_CELL_OUTPUT
+	NOTEBOOK_CELL_OUTPUT,
+	SCM_HISTORY_ITEM
 }
 
 const IMAGE_DATA_REGEX = /^data:image\/[a-z]+;base64,/;
@@ -180,6 +182,8 @@ export class ChatDragAndDrop extends Themable {
 		// This is an estimation based on the datatransfer types/items
 		if (containsDragType(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT)) {
 			return ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT;
+		} else if (containsDragType(e, CodeDataTransfers.SCM_HISTORY_ITEM)) {
+			return ChatDragAndDropType.SCM_HISTORY_ITEM;
 		} else if (containsImageDragType(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
 		} else if (containsDragType(e, 'text/html')) {
@@ -215,6 +219,7 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.MARKER: return localize('problem', 'Problem');
 			case ChatDragAndDropType.HTML: return localize('url', 'URL');
 			case ChatDragAndDropType.NOTEBOOK_CELL_OUTPUT: return localize('notebookOutput', 'Output');
+			case ChatDragAndDropType.SCM_HISTORY_ITEM: return localize('scmHistoryItem', 'Change');
 		}
 	}
 
@@ -227,6 +232,13 @@ export class ChatDragAndDrop extends Themable {
 			const notebookOutputData = extractNotebookCellOutputDropData(e);
 			if (notebookOutputData) {
 				return this.chatAttachmentResolveService.resolveNotebookOutputAttachContext(notebookOutputData);
+			}
+		}
+
+		if (containsDragType(e, CodeDataTransfers.SCM_HISTORY_ITEM)) {
+			const scmHistoryItemData = extractSCMHistoryItemDropData(e);
+			if (scmHistoryItemData) {
+				return this.chatAttachmentResolveService.resolveSourceControlHistoryItemAttachContext(scmHistoryItemData);
 			}
 		}
 

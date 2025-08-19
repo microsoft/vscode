@@ -9,6 +9,11 @@ export enum ChatConfiguration {
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	EditRequests = 'chat.editRequests',
+	AutoApproveEdits = 'chat.tools.edits.autoApprove',
+	EnableMath = 'chat.math.enabled',
+	CheckpointsEnabled = 'chat.checkpoints.enabled',
+	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
+	ShowThinking = 'chat.agent.showThinking',
 }
 
 /**

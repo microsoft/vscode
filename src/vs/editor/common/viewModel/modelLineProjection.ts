@@ -10,8 +10,7 @@ import { EndOfLinePreference, ITextModel, PositionAffinity } from '../model.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { InjectedText, ModelLineProjectionData } from '../modelLineProjectionData.js';
 import { ViewLineData } from '../viewModel.js';
-import { getLineTokensWithInjections } from '../model/textModel.js';
-import { IInjectedTextInlineDecorationsComputer, InjectedTextInlineDecorationsComputer, InlineDecoration } from './inlineDecorations.js';
+import { SingleLineInlineDecoration } from './inlineDecorations.js';
 
 export interface IModelLineProjection {
 	isVisible(): boolean;

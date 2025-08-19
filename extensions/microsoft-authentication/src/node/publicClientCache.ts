@@ -231,10 +231,16 @@ class PublicClientApplicationsSecretStorage implements IPublicClientApplicationS
 	private readonly _onDidChangeEmitter = new EventEmitter<void>;
 	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
 
-	private readonly _oldKey = `publicClientApplications-${this._cloudName}`;
-	private readonly _key = `publicClients-${this._cloudName}`;
+	private readonly _oldKey: string;
+	private readonly _key: string;
 
-	private constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
+	private constructor(
+		private readonly _secretStorage: SecretStorage,
+		private readonly _cloudName: string
+	) {
+		this._oldKey = `publicClientApplications-${this._cloudName}`;
+		this._key = `publicClients-${this._cloudName}`;
+
 		this._disposable = Disposable.from(
 			this._onDidChangeEmitter,
 			this._secretStorage.onDidChange(e => {

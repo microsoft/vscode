@@ -149,34 +149,29 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			}
 
 			this.hasCustomModes.set(this._customModeInstances.size > 0);
-
-			if (fireChangeEvent) {
-				this._onDidChangeChatModes.fire();
-			}
 		} catch (error) {
 			this.logService.error(error, 'Failed to load custom chat modes');
 			this._customModeInstances.clear();
 			this.hasCustomModes.set(false);
 		}
+		if (fireChangeEvent) {
+			this._onDidChangeChatModes.fire();
+		}
 	}
 
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
-		return { builtin: this.getBuiltinModes(), custom: Array.from(this._customModeInstances.values()) };
-	}
-
-	private getFlatModes(): IChatMode[] {
-		const allModes = this.getModes();
-		return [...allModes.builtin, ...allModes.custom];
+		return {
+			builtin: this.getBuiltinModes(),
+			custom: this.getCustomModes(),
+		};
 	}
 
 	findModeById(id: string | ChatModeKind): IChatMode | undefined {
-		const allModes = this.getFlatModes();
-		return allModes.find(mode => mode.id === id);
+		return this.getBuiltinModes().find(mode => mode.id === id) ?? this.getCustomModes().find(mode => mode.id === id);
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		const allModes = this.getFlatModes();
-		return allModes.find(mode => mode.name === name);
+		return this.getBuiltinModes().find(mode => mode.name === name) ?? this.getCustomModes().find(mode => mode.name === name);
 	}
 
 	private getBuiltinModes(): IChatMode[] {
@@ -189,6 +184,10 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		}
 		builtinModes.push(ChatMode.Edit);
 		return builtinModes;
+	}
+
+	private getCustomModes(): IChatMode[] {
+		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
 	}
 }
 
@@ -206,7 +205,9 @@ export interface IChatModeData {
 export interface IChatMode {
 	readonly id: string;
 	readonly name: string;
+	readonly label: string;
 	readonly description: IObservable<string | undefined>;
+	readonly isBuiltin: boolean;
 	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly model?: IObservable<string | undefined>;
@@ -245,6 +246,10 @@ export class CustomChatMode implements IChatMode {
 		return this._descriptionObservable;
 	}
 
+	public get isBuiltin(): boolean {
+		return isBuiltinChatMode(this);
+	}
+
 	get customTools(): IObservable<readonly string[] | undefined> {
 		return this._customToolsObservable;
 	}
@@ -259,6 +264,10 @@ export class CustomChatMode implements IChatMode {
 
 	get uri(): IObservable<URI> {
 		return this._uriObservable;
+	}
+
+	get label(): string {
+		return this.name;
 	}
 
 	public readonly kind = ChatModeKind.Agent;
@@ -308,14 +317,22 @@ export class BuiltinChatMode implements IChatMode {
 
 	constructor(
 		public readonly kind: ChatModeKind,
-		public readonly name: string,
+		public readonly label: string,
 		description: string
 	) {
 		this.description = observableValue('description', description);
 	}
 
+	public get isBuiltin(): boolean {
+		return isBuiltinChatMode(this);
+	}
+
 	get id(): string {
 		// Need a differentiator?
+		return this.kind;
+	}
+
+	get name(): string {
 		return this.kind;
 	}
 
@@ -333,9 +350,9 @@ export class BuiltinChatMode implements IChatMode {
 }
 
 export namespace ChatMode {
-	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Ask Copilot"));
-	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit files in your workspace"));
-	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Edit files in your workspace in agent mode"));
+	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Ask a question."));
+	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit files."));
+	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Provide instructions."));
 }
 
 export function isBuiltinChatMode(mode: IChatMode): boolean {

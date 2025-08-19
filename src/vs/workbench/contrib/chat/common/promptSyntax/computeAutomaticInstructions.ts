@@ -81,6 +81,17 @@ export class ComputeAutomaticInstructions {
 
 	}
 
+	public async collectCopilotInstructionsOnly(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+		const copilotInstructions = await this._getCopilotInstructions();
+		for (const entry of copilotInstructions) {
+			variables.add(entry);
+		}
+		this._logService.trace(`[InstructionsContextComputer]  ${copilotInstructions.length} Copilot instructions files added.`);
+		// add all instructions for all instruction files that are in the context
+		await this._addReferencedInstructions(variables, token);
+		return;
+	}
+
 	/** public for testing */
 	public async findInstructionFilesFor(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, token: CancellationToken): Promise<IPromptFileVariableEntry[]> {
 
@@ -209,11 +220,9 @@ export class ComputeAutomaticInstructions {
 			if (metadata?.promptType !== PromptsType.instructions) {
 				continue;
 			}
-			const applyTo = metadata?.applyTo;
+			const applyTo = metadata?.applyTo ?? '**/*';
 			const description = metadata?.description ?? '';
-			if (applyTo && applyTo !== '**' && applyTo !== '**/*' && applyTo !== '*') {
-				entries.push(`| ${metadata.applyTo} | '${getFilePath(uri)}' | ${description} |`);
-			}
+			entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
 		}
 		if (entries.length === 0) {
 			return entries;
@@ -226,7 +235,7 @@ export class ComputeAutomaticInstructions {
 			'Please make sure to follow the rules specified in these files when working with the codebase.',
 			`If the file is not already available as attachment, use the \`${toolName}\` tool to acquire it.`,
 			'Make sure to acquire the instructions before making any changes to the code.',
-			'| Pattern | File Path | Description |',
+			'| File | Applies To | Description |',
 			'| ------- | --------- | ----------- |',
 		].concat(entries);
 	}

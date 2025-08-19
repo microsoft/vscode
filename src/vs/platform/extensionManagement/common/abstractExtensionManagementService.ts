@@ -276,11 +276,12 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 	protected async installExtensions(extensions: InstallableExtension[]): Promise<InstallExtensionResult[]> {
 		const installExtensionResultsMap = new Map<string, InstallExtensionResult & { profileLocation: URI }>();
-		const installingExtensionsMap = new Map<string, { task: IInstallExtensionTask; root: IInstallExtensionTask | undefined }>();
+		const installingExtensionsMap = new Map<string, { task: IInstallExtensionTask; root: IInstallExtensionTask | undefined; uninstallTaskToWaitFor?: IUninstallExtensionTask }>();
 		const alreadyRequestedInstallations: Promise<any>[] = [];
 
 		const getInstallExtensionTaskKey = (extension: IGalleryExtension, profileLocation: URI) => `${ExtensionKey.create(extension).toString()}-${profileLocation.toString()}`;
 		const createInstallExtensionTask = (manifest: IExtensionManifest, extension: IGalleryExtension | URI, options: InstallExtensionTaskOptions, root: IInstallExtensionTask | undefined): void => {
+			let uninstallTaskToWaitFor;
 			if (!URI.isUri(extension)) {
 				if (installingExtensionsMap.has(`${extension.identifier.id.toLowerCase()}-${options.profileLocation.toString()}`)) {
 					return;
@@ -306,10 +307,11 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 					}
 					return;
 				}
+				uninstallTaskToWaitFor = this.uninstallingExtensions.get(this.getUninstallExtensionTaskKey(extension.identifier, options.profileLocation));
 			}
 			const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options);
 			const key = `${getGalleryExtensionId(manifest.publisher, manifest.name)}-${options.profileLocation.toString()}`;
-			installingExtensionsMap.set(key, { task: installExtensionTask, root });
+			installingExtensionsMap.set(key, { task: installExtensionTask, root, uninstallTaskToWaitFor });
 			this._onInstallExtension.fire({ identifier: installExtensionTask.identifier, source: extension, profileLocation: options.profileLocation });
 			this.logService.info('Installing extension:', installExtensionTask.identifier.id, options);
 			// only cache gallery extensions tasks
@@ -386,10 +388,20 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			}
 
 			// Install extensions in parallel and wait until all extensions are installed / failed
-			await this.joinAllSettled([...installingExtensionsMap.entries()].map(async ([key, { task }]) => {
+			await this.joinAllSettled([...installingExtensionsMap.entries()].map(async ([key, { task, uninstallTaskToWaitFor }]) => {
 				const startTime = new Date().getTime();
 				let local: ILocalExtension;
 				try {
+					if (uninstallTaskToWaitFor) {
+						this.logService.info('Waiting for existing uninstall task to complete before installing', task.identifier.id);
+						try {
+							await uninstallTaskToWaitFor.waitUntilTaskIsFinished();
+							this.logService.info('Finished waiting for uninstall task, proceeding with install', task.identifier.id);
+						} catch (error) {
+							this.logService.info('Uninstall task failed, proceeding with install anyway', task.identifier.id, getErrorMessage(error));
+						}
+					}
+
 					local = await task.run();
 					await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, task.options, CancellationToken.None)), ExtensionManagementErrorCode.PostInstall);
 				} catch (e) {
@@ -718,16 +730,27 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		return compatibleExtension;
 	}
 
+	private getUninstallExtensionTaskKey(identifier: IExtensionIdentifier, profileLocation: URI, version?: string): string {
+		return `${identifier.id.toLowerCase()}${version ? `-${version}` : ''}@${profileLocation.toString()}`;
+	}
+
 	async uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
 
-		const getUninstallExtensionTaskKey = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions) => `${extension.identifier.id.toLowerCase()}${uninstallOptions.versionOnly ? `-${extension.manifest.version}` : ''}@${uninstallOptions.profileLocation.toString()}`;
+		const getUninstallExtensionTaskKey = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions) => this.getUninstallExtensionTaskKey(extension.identifier, uninstallOptions.profileLocation, uninstallOptions.versionOnly ? extension.manifest.version : undefined);
 
-		const createUninstallExtensionTask = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions): IUninstallExtensionTask => {
-			const uninstallExtensionTask = this.createUninstallExtensionTask(extension, uninstallOptions);
-			this.uninstallingExtensions.set(getUninstallExtensionTaskKey(uninstallExtensionTask.extension, uninstallOptions), uninstallExtensionTask);
+		const createUninstallExtensionTask = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions): void => {
+			let installTaskToWaitFor: IInstallExtensionTask | undefined;
+			for (const { task } of this.installingExtensions.values()) {
+				if (!(task.source instanceof URI) && areSameExtensions(task.identifier, extension.identifier) && this.uriIdentityService.extUri.isEqual(task.options.profileLocation, uninstallOptions.profileLocation)) {
+					installTaskToWaitFor = task;
+					break;
+				}
+			}
+			const task = this.createUninstallExtensionTask(extension, uninstallOptions);
+			this.uninstallingExtensions.set(getUninstallExtensionTaskKey(task.extension, uninstallOptions), task);
 			this.logService.info('Uninstalling extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString());
 			this._onUninstallExtension.fire({ identifier: extension.identifier, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
-			return uninstallExtensionTask;
+			allTasks.push({ task, installTaskToWaitFor });
 		};
 
 		const postUninstallExtension = (extension: ILocalExtension, uninstallOptions: UninstallExtensionTaskOptions, error?: ExtensionManagementError): void => {
@@ -740,7 +763,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			this._onDidUninstallExtension.fire({ identifier: extension.identifier, error: error?.code, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
 		};
 
-		const allTasks: IUninstallExtensionTask[] = [];
+		const allTasks: { task: IUninstallExtensionTask; installTaskToWaitFor?: IInstallExtensionTask }[] = [];
 		const processedTasks: IUninstallExtensionTask[] = [];
 		const alreadyRequestedUninstalls: Promise<any>[] = [];
 		const extensionsToRemove: ILocalExtension[] = [];
@@ -764,7 +787,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				this.logService.info('Extensions is already requested to uninstall', extension.identifier.id);
 				alreadyRequestedUninstalls.push(uninstallExtensionTask.waitUntilTaskIsFinished());
 			} else {
-				allTasks.push(createUninstallExtensionTask(extension, uninstallOptions));
+				createUninstallExtensionTask(extension, uninstallOptions);
 			}
 
 			if (uninstallOptions.remove || extension.isApplicationScoped) {
@@ -784,7 +807,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 							this.logService.info('Extensions is already requested to uninstall', profileExtension.identifier.id);
 							alreadyRequestedUninstalls.push(uninstallExtensionTask.waitUntilTaskIsFinished());
 						} else {
-							allTasks.push(createUninstallExtensionTask(profileExtension, uninstallOptionsWithProfile));
+							createUninstallExtensionTask(profileExtension, uninstallOptionsWithProfile);
 						}
 					}
 				}
@@ -792,7 +815,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		}
 
 		try {
-			for (const task of allTasks.slice(0)) {
+			for (const { task } of allTasks.slice(0)) {
 				const installed = await getInstalledExtensions(task.options.profileLocation);
 
 				if (task.options.donotIncludePack) {
@@ -803,20 +826,31 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 						if (this.uninstallingExtensions.has(getUninstallExtensionTaskKey(packedExtension, task.options))) {
 							this.logService.info('Extensions is already requested to uninstall', packedExtension.identifier.id);
 						} else {
-							allTasks.push(createUninstallExtensionTask(packedExtension, task.options));
+							createUninstallExtensionTask(packedExtension, task.options);
 						}
 					}
 				}
 				if (task.options.donotCheckDependents) {
 					this.logService.info('Uninstalling the extension without checking dependents', `${task.extension.identifier.id}@${task.extension.manifest.version}`);
 				} else {
-					this.checkForDependents(allTasks.map(task => task.extension), installed, task.extension);
+					this.checkForDependents(allTasks.map(({ task }) => task.extension), installed, task.extension);
 				}
 			}
 
 			// Uninstall extensions in parallel and wait until all extensions are uninstalled / failed
-			await this.joinAllSettled(allTasks.map(async task => {
+			await this.joinAllSettled(allTasks.map(async ({ task, installTaskToWaitFor }) => {
 				try {
+					// Wait for opposite task if it exists
+					if (installTaskToWaitFor) {
+						this.logService.info('Waiting for existing install task to complete before uninstalling', task.extension.identifier.id);
+						try {
+							await installTaskToWaitFor.waitUntilTaskIsFinished();
+							this.logService.info('Finished waiting for install task, proceeding with uninstall', task.extension.identifier.id);
+						} catch (error) {
+							this.logService.info('Install task failed, proceeding with uninstall anyway', task.extension.identifier.id, getErrorMessage(error));
+						}
+					}
+
 					await task.run();
 					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, task.options, CancellationToken.None)));
 					// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
@@ -838,7 +872,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				await this.joinAllSettled(alreadyRequestedUninstalls);
 			}
 
-			for (const task of allTasks) {
+			for (const { task } of allTasks) {
 				postUninstallExtension(task.extension, task.options);
 			}
 
@@ -847,7 +881,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			}
 		} catch (e) {
 			const error = toExtensionManagementError(e);
-			for (const task of allTasks) {
+			for (const { task } of allTasks) {
 				// cancel the tasks
 				try { task.cancel(); } catch (error) { /* ignore */ }
 				if (!processedTasks.includes(task)) {
@@ -857,7 +891,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			throw error;
 		} finally {
 			// Remove tasks from cache
-			for (const task of allTasks) {
+			for (const { task } of allTasks) {
 				if (!this.uninstallingExtensions.delete(getUninstallExtensionTaskKey(task.extension, task.options))) {
 					this.logService.warn('Uninstallation task is not found in the cache', task.extension.identifier.id);
 				}
