@@ -10,6 +10,11 @@ export const terminalLspSupportedLanguages = new Set<{ shellType: string; langua
 		shellType: 'python',
 		languageId: 'python',
 		extension: 'py'
+	},
+	{
+		shellType: 'pwsh',
+		languageId: 'powershell',
+		extension: 'ps1'
 	}
 ]);
 

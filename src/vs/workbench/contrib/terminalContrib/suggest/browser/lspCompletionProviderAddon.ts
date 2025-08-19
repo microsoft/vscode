@@ -53,6 +53,7 @@ export class LspCompletionProviderAddon extends Disposable implements ITerminalA
 
 		const completions: ITerminalCompletion[] = [];
 		if (this._provider && this._provider._debugDisplayName !== 'wordbasedCompletions') {
+			console.log(`we are with provider: ${this._provider}`);
 
 			const result = await this._provider.provideCompletionItems(this._textVirtualModel.object.textEditorModel, positionVirtualDocument, { triggerKind: CompletionTriggerKind.TriggerCharacter }, token);
 			for (const item of (result?.suggestions || [])) {
