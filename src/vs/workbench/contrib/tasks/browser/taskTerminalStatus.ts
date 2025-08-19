@@ -11,12 +11,12 @@ import { AbstractProblemCollector, StartStopProblemCollector, WatchingProblemCol
 import { ITaskGeneralEvent, ITaskProcessEndedEvent, ITaskProcessStartedEvent, TaskEventKind, TaskRunType } from '../common/tasks.js';
 import { ITaskService, Task } from '../common/taskService.js';
 import { ITerminalInstance } from '../../terminal/browser/terminal.js';
-import { IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import type { IMarker } from '@xterm/xterm';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ITerminalStatus } from '../../terminal/common/terminal.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IMarkerData, MarkerSeverity, IMarker as ITaskMarker } from '../../../../platform/markers/common/markers.js';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -73,36 +73,39 @@ export class TaskTerminalStatus extends Disposable {
 			resources: new Map<string, URI>(),
 			markers: new Map<string, Map<string, IMarkerData>>()
 		});
+		this._register(terminal.onDisposed(() => {
+			this.terminalMarkerMap.delete(terminal.instanceId);
+		}));
 		this._register(problemMatcher.onDidFindFirstMatch(() => {
 			this._marker = terminal.registerMarker();
 			if (this._marker) {
 				this._register(this._marker);
 			}
 		}));
-		this._register(problemMatcher.onDidFindErrors(() => {
+		this._register(problemMatcher.onDidFindErrors((markers: ITaskMarker[]) => {
 			if (this._marker) {
 				terminal.addBufferMarker({ marker: this._marker, hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
 			}
 			const markerData = this.terminalMarkerMap.get(terminal.instanceId);
 			if (markerData && problemMatcher instanceof WatchingProblemCollector) {
-				for (const [owner, resourceMap] of problemMatcher.markers) {
-					// Clear existing markers for a new set, otherwise older compilation
-					// issues will be included
-					markerData.markers.clear();
-					markerData.resources.clear();
-					for (const [resource, markers] of resourceMap) {
-						markerData.resources.set(resource, URI.parse(resource));
-						if (!markerData.markers.has(owner)) {
-							markerData.markers.set(owner, new Map());
+				// Clear existing markers for a new set, otherwise older compilation
+				// issues will be included
+				markerData.markers.clear();
+				markerData.resources.clear();
+
+				markers.forEach((marker) => {
+					if (marker.severity === MarkerSeverity.Error) {
+						markerData.resources.set(marker.resource.toString(), marker.resource);
+						const markersForOwner = markerData.markers.get(marker.owner);
+						let markerMap = markersForOwner;
+						if (!markerMap) {
+							markerMap = new Map();
+							markerData.markers.set(marker.owner, markerMap);
 						}
-						const ownerMap = markerData.markers.get(owner)!;
-						markers.forEach((marker) => {
-							if (marker.severity === MarkerSeverity.Error) {
-								ownerMap.set(resource, marker);
-							}
-						});
+						markerMap.set(marker.resource.toString(), marker);
+						this.terminalMarkerMap.set(terminal.instanceId, markerData);
 					}
-				}
+				});
 			}
 		}));
 		this._register(problemMatcher.onDidRequestInvalidateLastMarker(() => {
@@ -197,8 +200,10 @@ export class TaskTerminalStatus extends Disposable {
 	 */
 	public getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined {
 		const markerData = this.terminalMarkerMap.get(instanceId);
-		if (!markerData || markerData.markers.size === 0) {
+		if (!markerData) {
 			return undefined;
+		} else if (markerData.markers.size === 0) {
+			return new Map();
 		}
 
 		const result = new Map<string, { resources: URI[]; markers: IMarkerData[] }>();

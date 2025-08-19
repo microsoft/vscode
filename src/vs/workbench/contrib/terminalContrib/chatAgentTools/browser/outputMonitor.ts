@@ -212,21 +212,26 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				lastBufferLength = currentBufferLength;
 			}
 
+			const inactive = execution.isActive && await execution.isActive() === false;
 			if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
 				if (execution.isActive && ((await execution.isActive()) === true)) {
 					noNewDataCount = 0;
 					lastBufferLength = currentBufferLength;
 					continue;
+				} else {
+					break;
 				}
+			} else if (inactive) {
+				break;
 			}
 		}
+
 		terminalExecutionIdleBeforeTimeout = true;
-		if (pollFn) {
-			const customPollingResult = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, taskService);
-			if (customPollingResult) {
-				return customPollingResult;
-			}
+		const customPollingResult = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, taskService);
+		if (customPollingResult) {
+			return customPollingResult;
 		}
+		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token, languageModelsService);
 		const confirmationPrompt = await this._detectConfirmationPromptWithLLM(execution, token, languageModelsService);
 		const handled = await this._handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService);
 		if (handled) {
@@ -237,7 +242,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return handled;
 			}
 		}
-		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token, languageModelsService);
 		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
 

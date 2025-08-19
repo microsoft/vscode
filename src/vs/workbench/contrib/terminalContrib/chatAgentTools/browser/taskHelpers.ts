@@ -195,6 +195,7 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 				for (let i = 0; i < markers.length; i++) {
 					const uri: URI | undefined = resources[i];
 					const marker = markers[i];
+					console.log('marker found', marker.message);
 					resultResources.push({
 						uri,
 						range: marker.startLineNumber !== undefined && marker.startColumn !== undefined && marker.endLineNumber !== undefined && marker.endColumn !== undefined

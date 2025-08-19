@@ -17,6 +17,8 @@ import { ITaskService, Task } from '../../common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { ITerminalStatusList, TerminalStatusList } from '../../../terminal/browser/terminalStatusList.js';
 import { ITerminalStatus } from '../../../terminal/common/terminal.js';
+import { IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../../../platform/markers/common/markers.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 class TestTaskService implements Partial<ITaskService> {
 	private readonly _onDidStateChange: Emitter<ITaskEvent> = new Emitter();
@@ -61,7 +63,7 @@ class TestTask extends CommonTask {
 class TestProblemCollector extends Disposable implements Partial<AbstractProblemCollector> {
 	protected readonly _onDidFindFirstMatch = new Emitter<void>();
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
-	protected readonly _onDidFindErrors = new Emitter<void>();
+	protected readonly _onDidFindErrors = new Emitter<IMarker[]>();
 	readonly onDidFindErrors = this._onDidFindErrors.event;
 	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
 	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
@@ -161,4 +163,21 @@ async function poll<T>(
 		await new Promise(resolve => setTimeout(resolve, retryInterval));
 		trial++;
 	}
+}
+
+export interface IMarker {
+	owner: string;
+	resource: URI;
+	severity: MarkerSeverity;
+	code?: string | { value: string; target: URI };
+	message: string;
+	source?: string;
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber: number;
+	endColumn: number;
+	modelVersionId?: number;
+	relatedInformation?: IRelatedInformation[];
+	tags?: MarkerTag[];
+	origin?: string | undefined;
 }
