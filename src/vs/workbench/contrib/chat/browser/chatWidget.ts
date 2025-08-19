@@ -821,7 +821,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private renderChatTodoListWidget(): void {
 		const isChatTodoListToolEnabled = this.configurationService.getValue<boolean>(TodoListToolSettingId) === true;
 		if (isChatTodoListToolEnabled) {
-			this.chatTodoListWidget.updateSessionId(this.viewModel?.sessionId);
+			this.chatTodoListWidget.render(this.viewModel?.sessionId);
 		}
 	}
 

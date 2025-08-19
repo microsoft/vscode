@@ -2412,6 +2412,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 100;
 	background-color: var(--vscode-sideBar-background);
 	padding: 4px 16px 6px 16px;
+}
+
+.chat-todo-list-widget.scrolled {
 	box-shadow: 0 2px 4px var(--vscode-scrollbar-shadow);
 }
 
@@ -2423,6 +2426,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 2px 0;
 	justify-content: space-between;
 	width: 100%;
+}
+
+.chat-todo-list-widget .todo-list-expand:focus:not(:focus-visible) {
+	outline: none;
 }
 
 .chat-todo-list-widget .todo-list-expand .todo-list-title-section {
@@ -2480,11 +2487,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 4px;
 }
 
-.chat-todo-list-widget .todo-list-expand:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-	border-radius: 4px;
-}
 
 .chat-todo-list-widget .expand-icon {
 	flex-shrink: 0;
