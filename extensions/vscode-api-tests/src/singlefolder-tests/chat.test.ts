@@ -124,50 +124,76 @@ suite('chat', () => {
 		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
 	});
 
-	test('blockOnResponse waits until response completes with confirmation', async () => {
-		const done = new DeferredPromise<void>();
+	describe('workbench.action.chat.open.blockOnResponse', () => {
+		test('defaults to non-blocking for backwards compatibility', async () => {
+			const done = new DeferredPromise<void>();
 
-		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
-			await lm.invokeTool('run_in_terminal', {
-				input: { command: 'rm dummy.txt' },
-				toolInvocationToken: _request.toolInvocationToken,
+			const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
+				await lm.invokeTool('run_in_terminal', {
+					input: { command: 'rm dummy.txt' },
+					toolInvocationToken: _request.toolInvocationToken,
+				});
+				return done.p.then(() => ({ metadata: { complete: true } }));
 			});
-			return done.p.then(() => ({ metadata: { complete: true } }));
+			disposables.push(participant);
+
+			const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello' });
+
+			const raced = await Promise.race([
+				cmd.then(() => 'cmd'),
+				delay(50).then(() => 'timeout')
+			]);
+			assert.strictEqual(raced, 'cmd', 'Command did not resolve immediately when blockOnResponse was not set');
+
+			done.complete();
+			await cmd;
 		});
-		disposables.push(participant);
 
-		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
+		test('resolves when waiting for user confirmation to run a tool', async () => {
+			const done = new DeferredPromise<void>();
 
-		const raced = await Promise.race([
-			cmd.then(() => 'cmd'),
-			delay(50).then(() => 'timeout')
-		]);
-		assert.strictEqual(raced, 'timeout', 'Command resolved before the chat response completed');
+			const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
+				await lm.invokeTool('run_in_terminal', {
+					input: { command: 'rm dummy.txt' },
+					toolInvocationToken: _request.toolInvocationToken,
+				});
+				return done.p.then(() => ({ metadata: { complete: true } }));
+			});
+			disposables.push(participant);
 
-		done.complete();
-		await cmd;
-	});
+			const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
 
-	test('blockOnResponse waits until response completes with error', async () => {
-		const done = new DeferredPromise<void>();
-		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
-			await done.p;
-			return { errorDetails: { code: 'rate_limited', message: `You've been rate limited. Try again later!` } };
+			const raced = await Promise.race([
+				cmd.then(() => 'cmd'),
+				delay(50).then(() => 'timeout')
+			]);
+			assert.strictEqual(raced, 'timeout', 'Command resolved before the chat response completed');
+
+			done.complete();
+			await cmd;
 		});
-		disposables.push(participant);
 
-		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
+		test('resolves when an error is hit', async () => {
+			const done = new DeferredPromise<void>();
+			const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
+				await done.p;
+				return { errorDetails: { code: 'rate_limited', message: `You've been rate limited. Try again later!` } };
+			});
+			disposables.push(participant);
 
-		const raced = await Promise.race([
-			cmd.then(() => 'cmd'),
-			delay(50).then(() => 'timeout')
-		]);
-		assert.strictEqual(raced, 'timeout', 'Command resolved before the chat response completed');
+			const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
 
-		done.complete();
-		const resp = await cmd;
+			const raced = await Promise.race([
+				cmd.then(() => 'cmd'),
+				delay(50).then(() => 'timeout')
+			]);
+			assert.strictEqual(raced, 'timeout', 'Command resolved before the chat response completed');
 
-		assert.strictEqual((resp as any).errorDetails.code, 'rate_limited');
+			done.complete();
+			const resp = await cmd;
+
+			assert.strictEqual((resp as any).errorDetails.code, 'rate_limited');
+		});
 	});
 
 	test.skip('title provider is called for first request', async () => {

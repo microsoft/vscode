@@ -113,7 +113,7 @@ export interface IChatViewOpenOptions {
 	 */
 	mode?: ChatModeKind | string;
 	/**
-	 * Whether to wait for the completion of the chat response.
+	 * Wait to resolve the command until the chat response reaches a terminal state (complete, error, or pending user confirmation, etc.).
 	 */
 	blockOnResponse?: boolean;
 }
