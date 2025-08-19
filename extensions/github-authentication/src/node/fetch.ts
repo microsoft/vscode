@@ -63,63 +63,66 @@ _fetchers.push({
 	fetch: nodeHTTP,
 });
 
-let _fetcher: Fetcher | undefined;
-
-export const fetching: Fetch = async (url, options) => {
-	if (!_fetcher) {
-		let firstResponse: FetchResponse | undefined;
-		let firstError: any;
-		for (const fetcher of _fetchers) {
-			try {
-				const res = await fetcher.fetch(url, options);
-				if (fetcher === _fetchers[0]) {
-					firstResponse = res;
-				}
-				if (!res.ok) {
-					options.logger.info(`fetching: ${fetcher.name} failed with status: ${res.status} ${res.statusText}`);
-					continue;
-				}
-				if (!options.expectJSON) {
-					options.logger.info(`fetching: ${fetcher.name} succeeded (not JSON)`);
+export function createFetch(): Fetch {
+	let _fetcher: Fetcher | undefined;
+	return async (url, options) => {
+		if (!_fetcher) {
+			let firstResponse: FetchResponse | undefined;
+			let firstError: any;
+			for (const fetcher of _fetchers) {
+				try {
+					const res = await fetcher.fetch(url, options);
+					if (fetcher === _fetchers[0]) {
+						firstResponse = res;
+					}
+					if (!res.ok) {
+						options.logger.info(`fetching: ${fetcher.name} failed with status: ${res.status} ${res.statusText}`);
+						continue;
+					}
+					if (!options.expectJSON) {
+						options.logger.info(`fetching: ${fetcher.name} succeeded (not JSON)`);
+						_fetcher = fetcher;
+						return res;
+					}
+					const text = await res.text();
+					if (fetcher === _fetchers[0]) {
+						// Update to unconsumed response
+						firstResponse = new FetchResponseImpl(
+							res.status,
+							res.statusText,
+							res.headers,
+							async () => text,
+							async () => JSON.parse(text),
+						);
+					}
+					const json = JSON.parse(text); // Verify JSON
+					options.logger.info(`fetching: ${fetcher.name} succeeded (JSON)`);
 					_fetcher = fetcher;
-					return res;
-				}
-				const text = await res.text();
-				if (fetcher === _fetchers[0]) {
-					// Update to unconsumed response
-					firstResponse = new FetchResponseImpl(
+					return new FetchResponseImpl(
 						res.status,
 						res.statusText,
 						res.headers,
 						async () => text,
-						async () => JSON.parse(text),
+						async () => json,
 					);
+				} catch (err) {
+					if (fetcher === _fetchers[0]) {
+						firstError = err;
+					}
+					options.logger.info(`fetching: ${fetcher.name} failed with error: ${err.message}`);
 				}
-				const json = JSON.parse(text); // Verify JSON
-				options.logger.info(`fetching: ${fetcher.name} succeeded (JSON)`);
-				_fetcher = fetcher;
-				return new FetchResponseImpl(
-					res.status,
-					res.statusText,
-					res.headers,
-					async () => text,
-					async () => json,
-				);
-			} catch (err) {
-				if (fetcher === _fetchers[0]) {
-					firstError = err;
-				}
-				options.logger.info(`fetching: ${fetcher.name} failed with error: ${err.message}`);
 			}
+			_fetcher = _fetchers[0]; // Do this only once
+			if (firstResponse) {
+				return firstResponse;
+			}
+			throw firstError;
 		}
-		_fetcher = _fetchers[0]; // Do this only once
-		if (firstResponse) {
-			return firstResponse;
-		}
-		throw firstError;
-	}
-	return _fetcher.fetch(url, options);
-};
+		return _fetcher.fetch(url, options);
+	};
+}
+
+export const fetching = createFetch();
 
 class FetchResponseImpl implements FetchResponse {
 	public readonly ok: boolean;
