@@ -1,8 +1,6 @@
 parameters:
   - name: VSCODE_ARCH
     type: string
-  - name: VSCODE_QUALITY
-    type: string
   - name: VSCODE_CIBUILD
     type: boolean
   - name: VSCODE_RUN_ELECTRON_TESTS
@@ -19,35 +17,29 @@ parameters:
     default: ""
 
 steps:
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - checkout: self
-      fetchDepth: 1
-      retryCountOnTaskFailure: 3
-
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../distro/download-distro.yml@self
+  - template: ../distro/download-distro.yml@self
 
-    - task: AzureKeyVault@2
-      displayName: "Azure Key Vault: Get Secrets"
-      inputs:
-        azureSubscription: vscode
-        KeyVaultName: vscode-build-secrets
-        SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: vscode
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: Compilation
-        path: $(Build.ArtifactStagingDirectory)
-      displayName: Download compilation output
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: Compilation
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download compilation output
 
-    - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-      displayName: Extract compilation output
+  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+    displayName: Extract compilation output
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -110,10 +102,9 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: node build/azure-pipelines/distro/mixin-npm
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-      displayName: Mixin distro node modules
+  - script: node build/azure-pipelines/distro/mixin-npm
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Mixin distro node modules
 
   - script: |
       set -e
@@ -123,57 +114,49 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: node build/azure-pipelines/distro/mixin-quality
-      displayName: Mixin distro quality
+  - script: node build/azure-pipelines/distro/mixin-quality
+    displayName: Mixin distro quality
 
   - template: ../common/install-builtin-extensions.yml@self
 
-  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: node build/lib/policies darwin
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        npm run gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
-        echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
-      env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Build client
+  - script: |
+      set -e
+      npm run gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+      echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build client
 
-    - script: |
-        set -e
-        npm run gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
-        mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
-        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
-        mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
-        echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
-      env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Build server
+  - script: |
+      set -e
+      npm run gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
+      mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
+      ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
+      mkdir -p $(dirname $ARCHIVE_PATH)
+      (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
+      echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build server
 
-    - script: |
-        set -e
-        npm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
-        mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
-        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
-        mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
-        echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
-      env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Build server (web)
+  - script: |
+      set -e
+      npm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+      mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
+      ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
+      mkdir -p $(dirname $ARCHIVE_PATH)
+      (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
+      echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build server (web)
 
-  - ${{ else }}:
-      - script: npm run gulp transpile-client-esbuild transpile-extensions
-        env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        displayName: Transpile
-
-  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
@@ -285,15 +268,12 @@ steps:
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-darwin-test.yml@self
       parameters:
-        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_TEST_ARTIFACT_NAME: ${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}
         VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
         VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
-        ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-          PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
-  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: npx deemon --attach node build/azure-pipelines/darwin/codesign.js
       condition: succeededOrFailed()
       displayName: "Post-job: ✍️ Codesign & Notarize"

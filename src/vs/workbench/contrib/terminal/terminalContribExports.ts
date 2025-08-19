@@ -34,6 +34,7 @@ export const enum TerminalContribSettingId {
 	StickyScrollEnabled = TerminalStickyScrollSettingId.Enabled,
 	SuggestEnabled = TerminalSuggestSettingId.Enabled,
 	AutoApprove = TerminalChatAgentToolsSettingId.AutoApprove,
+	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 }
 

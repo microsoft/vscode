@@ -300,7 +300,7 @@
 		{
 			"label": "Launch MCP Server",
 			"type": "shell",
-			"command": "cd test/mcp && npm run compile && npm start",
+			"command": "cd test/mcp && npm run compile && npm start-http",
 			"isBackground": true,
 			"problemMatcher": [
 				"$tsc"

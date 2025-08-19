@@ -289,7 +289,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
-			tags: ['preview'],
 		},
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
@@ -546,7 +545,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat, which the agent uses as a tool for planning, progress tracking, and context management for complex development workflows."),
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		'chat.todoListTool.writeOnly': {

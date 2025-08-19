@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { equals } from '../../../../base/common/objects.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Queue, Barrier, Promises, Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
@@ -1339,9 +1339,8 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	static readonly ID = 'workbench.contrib.configurationDefaultOverridesContribution';
 
 	private readonly processedExperimentalSettings = new Set<string>();
-	private readonly autoRefetchExperimentalSettings = new Set<string>();
+	private readonly autoExperimentalSettings = new Set<string>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	private readonly autoRefetchExperimentalSettingsScheduler: RunOnceScheduler;
 
 	constructor(
 		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
@@ -1351,19 +1350,29 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	) {
 		super();
 
-		this.autoRefetchExperimentalSettingsScheduler = new RunOnceScheduler(() => {
-			this.processExperimentalSettings(this.autoRefetchExperimentalSettings, true);
+		this.updateDefaults().then(() => {
 			if (ASSIGNMENT_REFETCH_INTERVAL !== 0) {
-				// TODO@sandy081 wait for the promise returned by processExperimentalSettings to avoid unbounded queuing
-				this.autoRefetchExperimentalSettingsScheduler.schedule();
+				this._register(this.scheduleProcessingAutoExperimentalSettings(ASSIGNMENT_REFETCH_INTERVAL));
 			}
-		}, ASSIGNMENT_REFETCH_INTERVAL);
-
-		this.updateDefaults();
+		});
 
 		// When configuration is updated make sure to apply experimental configuration overrides
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties, false)));
+	}
 
+	private scheduleProcessingAutoExperimentalSettings(interval: number): IDisposable {
+		const processAutoExperimentalSettingsScheduler = new RunOnceScheduler(async () => {
+			try {
+				if (this.autoExperimentalSettings.size) {
+					await this.processExperimentalSettings(this.autoExperimentalSettings, true);
+				}
+			} finally {
+				processAutoExperimentalSettingsScheduler.schedule();
+			}
+		}, interval);
+
+		processAutoExperimentalSettingsScheduler.schedule();
+		return processAutoExperimentalSettingsScheduler;
 	}
 
 	private async updateDefaults(): Promise<void> {
@@ -1379,9 +1388,6 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 			this.logService.trace('ConfigurationService#updateDefaults: resetting the defaults');
 			this.configurationService.reloadConfiguration(ConfigurationTarget.DEFAULT);
 		}
-
-		// Schedule auto-refetch of experimental settings
-		this.autoRefetchExperimentalSettingsScheduler.schedule();
 	}
 
 	private async processExperimentalSettings(properties: Iterable<string>, autoRefetch: boolean): Promise<void> {
@@ -1397,7 +1403,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 			}
 			this.processedExperimentalSettings.add(property);
 			if (schema.experiment.mode === 'auto') {
-				this.autoRefetchExperimentalSettings.add(property);
+				this.autoExperimentalSettings.add(property);
 			}
 			try {
 				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
