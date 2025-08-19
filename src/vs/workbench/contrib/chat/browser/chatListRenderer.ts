@@ -716,7 +716,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 			// The part will hide itself if the list is empty.
 			content.push({ kind: 'references', references: element.contentReferences });
-			content.push(...annotateSpecialMarkdownContent(element.response.value.filter(p => !(p.kind === 'thinking' && !p.value))));
+			content.push(...annotateSpecialMarkdownContent(element.response.value));
 			if (element.codeCitations.length) {
 				content.push({ kind: 'codeCitations', citations: element.codeCitations });
 			}
@@ -1023,7 +1023,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// An unregistered setting for development- skip the word counting and smoothing, just render content as it comes in
 		const renderImmediately = this.configService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
 
-		const renderableResponse = annotateSpecialMarkdownContent(element.response.value.filter(p => !(p.kind === 'thinking' && !p.value)));
+		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
