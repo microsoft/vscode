@@ -174,6 +174,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			metadata: { helpTextPrefix: SetupAgent.SETUP_NEEDED_MESSAGE },
 			description,
 			extensionId: nullExtensionDescription.identifier,
+			extensionVersion: undefined,
 			extensionDisplayName: nullExtensionDescription.name,
 			extensionPublisherId: nullExtensionDescription.publisher
 		}));

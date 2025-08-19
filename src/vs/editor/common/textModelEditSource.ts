@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProviderId } from './languages.js';
+import { ProviderId, VersionedExtensionId } from './languages.js';
 
 const privateSymbol = Symbol('TextModelEditSource');
 
@@ -126,10 +126,14 @@ export const EditSources = {
 		} as const);
 	},
 
-	inlineChatApplyEdit(data: { modelId: string | undefined }) {
+	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$extensionId: data.extensionId?.extensionId,
+			$extensionVersion: data.extensionId?.version,
+			$$requestId: data.requestId,
+			$$languageId: data.languageId,
 		} as const);
 	},
 
