@@ -225,12 +225,13 @@ abstract class OpenChatGlobalAction extends Action2 {
 				await new Promise<void>(resolve => {
 					const d = response.onDidChange(async () => {
 						if (response.isComplete || response.isPendingConfirmation.get()) {
-							await timeout(0); // response.isPendingConfirmation.get() may flip during this.
 							d.dispose();
 							resolve();
 						}
 					});
 				});
+
+				console.log('DEBUG RESPONSE:', JSON.stringify(response), response.isPendingConfirmation.get());
 
 				return { ...response.result, type: response.isPendingConfirmation.get() ? 'confirmation' : undefined };
 			}
