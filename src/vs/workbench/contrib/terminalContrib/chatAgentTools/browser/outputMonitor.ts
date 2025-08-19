@@ -78,10 +78,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				() => this._pollForOutputAndIdle(this._execution, true, token, this._languageModelsService, this._taskService, this._pollFn),
 				() => this._promptForMorePolling(command, token, invocationContext, chatService),
 				result,
-				token,
-				this._languageModelsService,
-				this._taskService,
-				this._execution
 			);
 		}
 
@@ -94,26 +90,33 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 */
 	private async _racePollingOrPrompt(
 		pollFn: () => Promise<IRacePollingOrPromptResult>,
-		promptFn: () => Promise<{ promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide' | 'dispose'> }>,
+		promptFn: () => Promise<{ promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'dispose'> }>,
 		originalResult: IPollingResult,
-		token: CancellationToken,
-		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
-		taskService: ITaskService,
-		execution: IExecution
 	): Promise<IRacePollingOrPromptResult> {
-		const pollPromise = pollFn().then(result => ({ type: 'poll', result }));
-		const { promise: promptPromise } = await promptFn();
-		const promptPromiseWrapped = promptPromise.then(result => ({ type: 'prompt', result }));
-		const raceResult = await Promise.race([pollPromise, promptPromiseWrapped]);
-		if (raceResult.type === 'poll') {
-			return raceResult.result as IRacePollingOrPromptResult;
-		} else if (raceResult.type === 'prompt') {
-			const promptResult = raceResult.result as boolean;
-			if (promptResult) {
-				return await this._pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn);
-			} else {
-				return originalResult;
-			}
+		type Winner =
+			| { kind: 'poll'; result: IRacePollingOrPromptResult }
+			| { kind: 'prompt'; continuePolling: boolean };
+
+		const { promise: promptP, part } = await promptFn();
+
+		const pollPromise = pollFn().then<Winner>(result => ({ kind: 'poll', result }));
+		const promptPromise = promptP.then<Winner>(continuePolling => ({ kind: 'prompt', continuePolling }));
+
+		let winner: Winner;
+		try {
+			winner = await Promise.race([pollPromise, promptPromise]);
+		} finally {
+			part?.hide();
+			part?.dispose?.();
+		}
+
+		if (winner.kind === 'poll') {
+			return winner.result;
+		}
+
+		if (winner.kind === 'prompt' && !winner.continuePolling) {
+			this._state = OutputMonitorState.Cancelled;
+			return { ...originalResult, state: this._state };
 		}
 		return await pollFn();
 	}
