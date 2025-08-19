@@ -149,13 +149,13 @@ export async function collectTerminalResults(
 	if (token.isCancellationRequested) {
 		return results;
 	}
-	for (const terminal of terminals) {
-		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
+	for (const instance of terminals) {
+		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
 		const execution = {
-			getOutput: () => terminal.xterm?.getContentsAsText() ?? '',
+			getOutput: () => instance.xterm?.getContentsAsText() ?? '',
 			isActive,
 			task,
-			terminal,
+			instance,
 			dependencyTasks
 		};
 		const outputMonitor = new OutputMonitor(
@@ -171,7 +171,7 @@ export async function collectTerminalResults(
 			token
 		);
 		results.push({
-			name: terminal.shellLaunchConfig.name ?? 'unknown',
+			name: instance.shellLaunchConfig.name ?? 'unknown',
 			output: outputAndIdle?.output ?? '',
 			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
 			resources: outputAndIdle?.resources,
@@ -186,7 +186,7 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 		return;
 	}
 	if (execution.task) {
-		const data: Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined = taskService.getTaskProblems(execution.terminal.instanceId);
+		const data: Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined = taskService.getTaskProblems(execution.instance.instanceId);
 		if (data) {
 			// Problem matchers exist for this task
 			const problemList: string[] = [];

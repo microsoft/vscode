@@ -20,7 +20,7 @@ suite('OutputMonitor', () => {
 	let languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>;
 	let taskService: Pick<ITaskService, 'getActiveTasks'>;
 	let chatService: Pick<IChatService, 'getSession'>;
-	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; terminal: Pick<ITerminalInstance, 'instanceId' | 'sendText'> };
+	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText'> };
 	let cts: CancellationTokenSource;
 
 	setup(() => {
@@ -47,7 +47,7 @@ suite('OutputMonitor', () => {
 		execution = {
 			getOutput: () => 'test output',
 			isActive: async () => true,
-			terminal: {
+			instance: {
 				instanceId: 1,
 				sendText: async () => { }
 			}

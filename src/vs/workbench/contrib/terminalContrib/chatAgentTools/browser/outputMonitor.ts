@@ -333,7 +333,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// Validate that the selectedOption matches one of the original options
 			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
 			if (selectedOption && validOption) {
-				await execution.terminal.sendText(validOption, true);
+				await execution.instance.sendText(validOption, true);
 				return Promise.resolve(validOption);
 			}
 		}
