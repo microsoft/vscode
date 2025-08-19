@@ -628,7 +628,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
 		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.environmentService, this.viewDescriptorService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
@@ -1589,7 +1589,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 		}
 
-		this._register(this.storageService.onWillSaveState(e => {
+		this._register(this.storageService.onWillSaveState(() => {
 
 			// Side Bar Size
 			const sideBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN)
@@ -1612,6 +1612,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, auxiliaryBarSize as number);
 
 			this.stateModel.save(true, true);
+		}));
+
+		this._register(Event.any(this.paneCompositeService.onDidPaneCompositeOpen, this.paneCompositeService.onDidPaneCompositeClose)(() => {
+
+			// Auxiliary Bar State
+			this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_EMPTY, this.paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.AuxiliaryBar).length === 0);
 		}));
 	}
 
@@ -2705,6 +2711,7 @@ const LayoutStateKeys = {
 	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_SIZE: new InitializationStateKey<number>('panel.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 
+	// Part State
 	PANEL_LAST_NON_MAXIMIZED_HEIGHT: new RuntimeStateKey<number>('panel.lastNonMaximizedHeight', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_LAST_NON_MAXIMIZED_WIDTH: new RuntimeStateKey<number>('panel.lastNonMaximizedWidth', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
@@ -2717,6 +2724,7 @@ const LayoutStateKeys = {
 		panelVisible: false,
 		auxiliaryBarVisible: false
 	}),
+	AUXILIARYBAR_EMPTY: new InitializationStateKey<boolean>('auxiliaryBar.empty', StorageScope.PROFILE, StorageTarget.MACHINE, false),
 
 	// Part Positions
 	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.WORKSPACE, StorageTarget.MACHINE, Position.LEFT),
@@ -2776,8 +2784,6 @@ class LayoutStateModel extends Disposable {
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
-		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		private readonly viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -2847,28 +2853,11 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
 			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
-			if (configuration.defaultValue !== 'hidden' && !isConfigured(configuration)) {
 
-				// TODO@bpasero: lots of hacks here to not force open the auxiliary sidebar
-				// when no Chat view is present within:
-				// - revisit this when Chat is available in serverless web
-				// - drop the need to probe for chat.setupContext
-				// - drop the need to probe for chat.hideAIFeatures
-				// - drop the need to probe for view location of workbench.panel.chat.view.copilot
-
-				if (isWeb && !this.environmentService.remoteAuthority) {
-					return true; // Chat view is not enabled
-				}
-
-				const context = this.storageService.getObject<{ hidden?: boolean; disabled?: boolean; installed?: boolean }>('chat.setupContext', StorageScope.PROFILE);
-				if (context && ((context.installed && context.disabled) || (!context.installed && context.hidden) || (!context.installed && this.configurationService.getValue('chat.hideAIFeatures') === true))) {
-					return true; // Chat view is hidden by user choice
-				}
-
-				const location = this.viewDescriptorService.getViewLocationById('workbench.panel.chat.view.copilot');
-				if (location === ViewContainerLocation.Sidebar || location === ViewContainerLocation.Panel) {
-					return true; // Chat view is not located in the auxiliary bar
-				}
+			// Unless auxiliary bar visibility is explicitly configured, make
+			// sure to not force open it in case we know it was empty before.
+			if (configuration.defaultValue !== 'hidden' && !isConfigured(configuration) && this.stateCache.get(LayoutStateKeys.AUXILIARYBAR_EMPTY.name)) {
+				return true;
 			}
 
 			// New users: Show auxiliary bar even in empty workspaces
