@@ -44,6 +44,7 @@ import { basename } from '../../../../../../base/common/path.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -314,6 +315,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.info(`- ${reason}`);
 			}
 
+			// TODO: Move this higher, prevent unnecessary work
+			const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === 'on';
+			if (!isAutoApproveEnabled) {
+				isAutoApproved = false;
+			}
+
 			// Send telemetry about auto approval process
 			this._sendTelemetryPrepare({
 				terminalToolSessionId,
@@ -334,7 +341,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 
 			let customActions: ToolConfirmationAction[] | undefined;
-			if (!isAutoApproved) {
+			if (!isAutoApproved && isAutoApproveEnabled) {
 				customActions = this._generateAutoApproveActions(actualCommand, subCommands, { subCommandResults, commandLineResult });
 			}
 

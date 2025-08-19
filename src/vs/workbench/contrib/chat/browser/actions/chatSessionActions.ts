@@ -13,6 +13,7 @@ import { IChatService } from '../../common/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import Severity from '../../../../../base/common/severity.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -91,7 +92,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 		id: RenameChatSessionAction.id,
 		title: localize('renameSession', "Rename")
 	},
-	group: '1_modification',
+	group: 'context',
 	order: 1,
-	when: ContextKeyExpr.true() // Will be filtered by context menu handler
+	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
