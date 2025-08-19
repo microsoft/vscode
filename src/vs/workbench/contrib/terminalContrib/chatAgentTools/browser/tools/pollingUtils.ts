@@ -109,7 +109,7 @@ export async function handleConfirmationPrompt(
 			const sanitizedOptions = confirmationPrompt.options.map(opt => sanitizeForPrompt(opt));
 			const promptText = `Given the following confirmation prompt and options from a terminal output, which option should be selected to proceed safely and correctly?\nPrompt: "${sanitizedPrompt}"\nOptions: ${JSON.stringify(sanitizedOptions)}\nRespond with only the option string.`;
 			const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
-				{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: promptText }] }
+				{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 			], {}, token);
 
 			const selectedOption = (await getResponseFromStream(response)).trim();
