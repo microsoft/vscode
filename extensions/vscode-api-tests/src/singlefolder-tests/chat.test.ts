@@ -124,7 +124,7 @@ suite('chat', () => {
 		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
 	});
 
-	describe('workbench.action.chat.open.blockOnResponse', () => {
+	suite('workbench.action.chat.open.blockOnResponse', () => {
 		test('defaults to non-blocking for backwards compatibility', async () => {
 			const done = new DeferredPromise<void>();
 
