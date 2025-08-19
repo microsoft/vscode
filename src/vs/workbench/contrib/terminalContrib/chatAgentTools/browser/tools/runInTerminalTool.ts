@@ -16,7 +16,6 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -45,6 +44,7 @@ import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
@@ -141,6 +141,7 @@ const promptInjectionWarningCommandsLowerPwshOnly = [
 export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _terminalToolCreator: ToolTerminalCreator;
+	private readonly _telemetry: RunInTerminalToolTelemetry;
 	protected readonly _commandLineAutoApprover: CommandLineAutoApprover;
 	protected readonly _sessionTerminalAssociations: Map<string, IToolTerminal> = new Map();
 
@@ -161,7 +162,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -172,6 +172,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		super();
 
 		this._terminalToolCreator = _instantiationService.createInstance(ToolTerminalCreator);
+		this._telemetry = _instantiationService.createInstance(RunInTerminalToolTelemetry);
 		this._commandLineAutoApprover = this._register(_instantiationService.createInstance(CommandLineAutoApprover));
 		this._osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
@@ -322,19 +323,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 
 			// Send telemetry about auto approval process
-			this._sendTelemetryPrepare({
-				terminalToolSessionId,
-				autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
-				autoApproveReason,
-				autoApproveDefault,
-			});
-
-			// Send individual command telemetry for commands in the allow list
-			const autoApproveResultStr = isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual';
-			for (const command of subCommands) {
-				if (this._shouldReportCommand(command)) {
-					this._sendCommandTelemetry(terminalToolSessionId, command, autoApproveResultStr);
-				}
+			const autoApproveResult = isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual';
+			this._telemetry.logPrepare({ terminalToolSessionId, autoApproveResult, autoApproveReason, autoApproveDefault });
+			for (const subCommand of subCommands) {
+				this._telemetry.logPrepareCommand({ terminalToolSessionId, subCommand, autoApproveResult });
 			}
 
 			// Add a disclaimer warning about prompt injection for common commands that return
@@ -502,7 +494,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				store.dispose();
 				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetryInvoke(toolTerminal.instance, {
+				this._telemetry.logInvoke(toolTerminal.instance, {
 					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
 					didUserEditCommand,
 					didToolEditCommand,
@@ -571,7 +563,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} finally {
 				store.dispose();
 				const timingExecuteMs = Date.now() - timingStart;
-				this._sendTelemetryInvoke(toolTerminal.instance, {
+				this._telemetry.logInvoke(toolTerminal.instance, {
 					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
 					didUserEditCommand,
 					didToolEditCommand,
@@ -800,176 +792,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				RunInTerminalTool._backgroundExecutions.delete(termId);
 			}
 		}
-	}
-
-	// Hardcoded list of commands to include in telemetry reporting for understanding tool usage patterns
-	private static readonly _commandReportingAllowList = [
-		'git',
-		'npm',
-		'yarn',
-		'docker',
-		'kubectl',
-		'cargo',
-		'dotnet',
-		'mvn',
-		'gradle',
-		'pip',
-		'python',
-		'node',
-		'java',
-		'go',
-		'make',
-		'cmake',
-	];
-
-	/**
-	 * Check if a command should be included in telemetry reporting
-	 */
-	private _shouldReportCommand(command: string): boolean {
-		const commandWord = command.split(' ')[0].toLowerCase();
-		return RunInTerminalTool._commandReportingAllowList.some(allowedCommand => 
-			commandWord === allowedCommand || commandWord.startsWith(allowedCommand.toLowerCase())
-		);
-	}
-
-	/**
-	 * Send telemetry for individual commands that match the reporting allow list
-	 */
-	private _sendCommandTelemetry(terminalToolSessionId: string | undefined, command: string, autoApproveResult: string) {
-		type CommandTelemetryEvent = {
-			terminalToolSessionId: string | undefined;
-			command: string;
-			autoApproveResult: string;
-		};
-		type CommandTelemetryClassification = {
-			owner: 'tyriar';
-			comment: 'Understanding which commands are being executed through the terminal tool';
-
-			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
-			command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The command that was executed' };
-			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
-		};
-
-		this._telemetryService.publicLog2<CommandTelemetryEvent, CommandTelemetryClassification>('toolUse.runInTerminal.command', {
-			terminalToolSessionId,
-			command,
-			autoApproveResult,
-		});
-	}
-
-	private _sendTelemetryPrepare(state: {
-		terminalToolSessionId: string | undefined;
-		autoApproveResult: 'approved' | 'denied' | 'manual';
-		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
-		autoApproveDefault: boolean | undefined;
-	}) {
-		type TelemetryEvent = {
-			terminalToolSessionId: string | undefined;
-
-			autoApproveResult: string;
-			autoApproveReason: string | undefined;
-			autoApproveDefault: boolean | undefined;
-		};
-		type TelemetryClassification = {
-			owner: 'tyriar';
-			comment: 'Understanding the auto approve behavior of the runInTerminal tool';
-
-			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
-
-			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
-			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
-			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
-		};
-
-		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
-			terminalToolSessionId: state.terminalToolSessionId,
-
-			autoApproveResult: state.autoApproveResult,
-			autoApproveReason: state.autoApproveReason,
-			autoApproveDefault: state.autoApproveDefault,
-		});
-	}
-
-	private _sendTelemetryInvoke(instance: ITerminalInstance, state: {
-		terminalToolSessionId: string | undefined;
-		didUserEditCommand: boolean;
-		didToolEditCommand: boolean;
-		error: string | undefined;
-		isBackground: boolean;
-		isNewSession: boolean;
-		shellIntegrationQuality: ShellIntegrationQuality;
-		outputLineCount: number;
-		timingConnectMs: number;
-		timingExecuteMs: number;
-		pollDurationMs?: number;
-		terminalExecutionIdleBeforeTimeout?: boolean;
-		exitCode: number | undefined;
-		inputUserChars: number;
-		inputUserSigint: boolean;
-	}) {
-		type TelemetryEvent = {
-			terminalSessionId: string;
-			terminalToolSessionId: string | undefined;
-
-			result: string;
-			strategy: 0 | 1 | 2;
-			userEditedCommand: 0 | 1;
-			toolEditedCommand: 0 | 1;
-			isBackground: 0 | 1;
-			isNewSession: 0 | 1;
-			outputLineCount: number;
-			nonZeroExitCode: -1 | 0 | 1;
-			timingConnectMs: number;
-			pollDurationMs: number;
-			timingExecuteMs: number;
-			terminalExecutionIdleBeforeTimeout: boolean;
-
-			inputUserChars: number;
-			inputUserSigint: boolean;
-		};
-		type TelemetryClassification = {
-			owner: 'tyriar';
-			comment: 'Understanding the usage of the runInTerminal tool';
-
-			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
-			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
-
-			result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool ran successfully, or the type of error' };
-			strategy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'What strategy was used to execute the command (0=none, 1=basic, 2=rich)' };
-			userEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user edited the command' };
-			toolEditedCommand: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool edited the command' };
-			isBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command is a background command' };
-			isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this was the first execution for the terminal session' };
-			outputLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many lines of output were produced, this is -1 when isBackground is true or if there\'s an error' };
-			nonZeroExitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command exited with a non-zero code (-1=error/unknown, 0=zero exit code, 1=non-zero)' };
-			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
-			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to execute the command' };
-			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
-			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
-
-			inputUserChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters the user input manually, a single key stroke could map to several characters. Focus in/out sequences are not counted as part of this' };
-			inputUserSigint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user input the SIGINT signal' };
-		};
-		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
-			terminalSessionId: instance.sessionId,
-			terminalToolSessionId: state.terminalToolSessionId,
-
-			result: state.error ?? 'success',
-			strategy: state.shellIntegrationQuality === ShellIntegrationQuality.Rich ? 2 : state.shellIntegrationQuality === ShellIntegrationQuality.Basic ? 1 : 0,
-			userEditedCommand: state.didUserEditCommand ? 1 : 0,
-			toolEditedCommand: state.didToolEditCommand ? 1 : 0,
-			isBackground: state.isBackground ? 1 : 0,
-			isNewSession: state.isNewSession ? 1 : 0,
-			outputLineCount: state.outputLineCount,
-			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
-			timingConnectMs: state.timingConnectMs,
-			timingExecuteMs: state.timingExecuteMs,
-			pollDurationMs: state.pollDurationMs ?? 0,
-			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
-
-			inputUserChars: state.inputUserChars,
-			inputUserSigint: state.inputUserSigint,
-		});
 	}
 
 	private _generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): ToolConfirmationAction[] {
