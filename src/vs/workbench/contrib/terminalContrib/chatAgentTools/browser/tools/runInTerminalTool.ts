@@ -280,13 +280,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Send telemetry about auto approval process
 			this._telemetry.logPrepare({
 				terminalToolSessionId,
+				subCommands,
 				autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
 				autoApproveReason,
 				autoApproveDefault
 			});
-			for (const command of subCommands) {
-				this._telemetry.logPrepareCommand({ terminalToolSessionId, command });
-			}
 
 			// Add a disclaimer warning about prompt injection for common commands that return
 			// content from the web
