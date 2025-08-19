@@ -12,11 +12,10 @@ import { ILanguageModelsService } from '../../../../../chat/common/languageModel
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, toolResultDetailsFromResponse } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { toolResultDetailsFromResponse } from './taskUtils.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };

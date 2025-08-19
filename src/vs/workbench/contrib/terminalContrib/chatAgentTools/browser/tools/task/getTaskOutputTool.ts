@@ -13,8 +13,7 @@ import { ILanguageModelsService } from '../../../../../chat/common/languageModel
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
-import { toolResultDetailsFromResponse } from './taskUtils.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, toolResultDetailsFromResponse } from '../../taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',

@@ -12,13 +12,12 @@ import { ILanguageModelsService } from '../../../../../chat/common/languageModel
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, IConfiguredTask, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, IConfiguredTask, resolveDependencyTasks, toolResultDetailsFromResponse } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { toolResultDetailsFromResponse } from './taskUtils.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };

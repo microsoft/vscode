@@ -147,11 +147,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							thePart.state = 'rejected';
 							thePart.hide();
 							resolve(true);
-						},
-						async () => {
-							thePart.state = 'rejected';
-							thePart.hide();
-							resolve(false);
 						}
 					);
 					this._register(thePart);
