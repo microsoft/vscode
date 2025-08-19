@@ -10,7 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename, isAbsolute } from '../../../../base/common/path.js';
-import { isDefined } from '../../../../base/common/types.js';
+import { isDefined, Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -79,16 +79,12 @@ class RunTestTool implements IToolImpl {
 			properties: {
 				files: {
 					type: 'array',
-					items: {
-						type: 'string',
-					},
+					items: { type: 'string' },
 					description: 'Absolute paths to the test files to run. If not provided, all test files will be run.',
 				},
 				testNames: {
 					type: 'array',
-					items: {
-						type: 'string',
-					},
+					items: { type: 'string' },
 					description: 'An array of test names to run. Depending on the context, test names defined in code may be strings or the names of functions or classes containing the test cases. If not provided, all tests in the files will be run.',
 				}
 			},
@@ -101,6 +97,7 @@ class RunTestTool implements IToolImpl {
 			'enable_other_tool_copilot_listDirectory',
 			'enable_other_tool_copilot_findFiles',
 			'enable_other_tool_copilot_runTests',
+			'enable_other_tool_copilot_testFailure',
 		],
 	};
 
@@ -142,8 +139,11 @@ class RunTestTool implements IToolImpl {
 			};
 		}
 
+		const summary = this._makeModelTestResults(result);
+		const content = [{ kind: 'text', value: summary } as const];
+
 		return {
-			content: [{ kind: 'text', value: this._makeModelTestResults(result) }],
+			content: content as Mutable<IToolResult['content']>,
 			toolResultMessage: getTestProgressText(collectTestStateCounts(true, [result])),
 		};
 	}
@@ -163,10 +163,42 @@ class RunTestTool implements IToolImpl {
 			const [, ...testPath] = TestId.split(failure.item.extId);
 			const testName = testPath.pop();
 			str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
-			str += failure.tasks.flatMap(t => t.messages.filter(m => m.type === TestMessageType.Error).map(m => typeof m.message === 'string' ? m.message : m.message.value)).join('\n\n');
-			str += `\n</testFailure>\n`;
-		}
 
+			// Extract detailed failure information from error messages
+			for (const task of failure.tasks) {
+				for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
+					// Add expected/actual outputs if available
+					if (message.expected !== undefined && message.actual !== undefined) {
+						str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
+						str += `<actualOutput>\n${message.actual}\n</actualOutput>\n`;
+					} else {
+						// Fallback to the message content
+						const messageText = typeof message.message === 'string' ? message.message : message.message.value;
+						str += `<message>\n${messageText}\n</message>\n`;
+					}
+
+					// Add stack trace information if available (limit to first 10 frames)
+					if (message.stackTrace && message.stackTrace.length > 0) {
+						for (const frame of message.stackTrace.slice(0, 10)) {
+							if (frame.uri && frame.position) {
+								str += `<stackFrame path="${frame.uri.fsPath}" line="${frame.position.lineNumber}" col="${frame.position.column}" />\n`;
+							} else if (frame.uri) {
+								str += `<stackFrame path="${frame.uri.fsPath}">${frame.label}</stackFrame>\n`;
+							} else {
+								str += `<stackFrame>${frame.label}</stackFrame>\n`;
+							}
+						}
+					}
+
+					// Add location information if available
+					if (message.location) {
+						str += `<location path="${message.location.uri.fsPath}" line="${message.location.range.startLineNumber}" col="${message.location.range.startColumn}" />\n`;
+					}
+				}
+			}
+
+			str += `</testFailure>\n`;
+		}
 		return str;
 	}
 
