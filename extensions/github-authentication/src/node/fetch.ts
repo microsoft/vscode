@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as http from 'http';
+import * as https from 'https';
 import { workspace } from 'vscode';
 import { Log } from '../common/logger';
 
@@ -12,6 +14,7 @@ export interface FetchOptions {
 	method?: 'GET' | 'POST' | 'DELETE';
 	headers?: Record<string, string>;
 	body?: string;
+	signal?: AbortSignal;
 }
 
 export interface FetchHeaders {
@@ -54,6 +57,11 @@ if (useElectronFetch) {
 } else {
 	_fetchers.unshift(nodeFetch);
 }
+
+_fetchers.push({
+	name: 'Node http/s',
+	fetch: nodeHTTP,
+});
 
 let _fetcher: Fetcher | undefined;
 
@@ -124,4 +132,99 @@ class FetchResponseImpl implements FetchResponse {
 	) {
 		this.ok = this.status >= 200 && this.status < 300;
 	}
+}
+
+async function nodeHTTP(url: string, options: FetchOptions): Promise<FetchResponse> {
+	return new Promise((resolve, reject) => {
+		const { method, headers, body, signal } = options;
+		const module = url.startsWith('https:') ? https : http;
+		const req = module.request(url, { method, headers }, res => {
+			if (signal?.aborted) {
+				res.destroy();
+				req.destroy();
+				reject(makeAbortError(signal));
+				return;
+			}
+
+			const nodeFetcherResponse = new NodeFetcherResponse(req, res, signal);
+			resolve(new FetchResponseImpl(
+				res.statusCode || 0,
+				res.statusMessage || '',
+				nodeFetcherResponse.headers,
+				async () => nodeFetcherResponse.text(),
+				async () => nodeFetcherResponse.json(),
+			));
+		});
+		req.setTimeout(60 * 1000); // time out after 60s of receiving no data
+		req.on('error', reject);
+
+		if (body) {
+			req.write(body);
+		}
+		req.end();
+	});
+}
+
+class NodeFetcherResponse {
+
+	readonly headers: FetchHeaders;
+
+	constructor(
+		readonly req: http.ClientRequest,
+		readonly res: http.IncomingMessage,
+		readonly signal: AbortSignal | undefined,
+	) {
+		this.headers = new class implements FetchHeaders {
+			get(name: string): string | null {
+				const result = res.headers[name];
+				return Array.isArray(result) ? result[0] : result ?? null;
+			}
+			[Symbol.iterator](): Iterator<[string, string], any, undefined> {
+				const keys = Object.keys(res.headers);
+				let index = 0;
+				return {
+					next: (): IteratorResult<[string, string]> => {
+						if (index >= keys.length) {
+							return { done: true, value: undefined };
+						}
+						const key = keys[index++];
+						return { done: false, value: [key, this.get(key)!] };
+					}
+				};
+			}
+		};
+	}
+
+	public text(): Promise<string> {
+		return new Promise<string>((resolve, reject) => {
+			const chunks: Buffer[] = [];
+			this.res.on('data', chunk => chunks.push(chunk));
+			this.res.on('end', () => resolve(Buffer.concat(chunks).toString()));
+			this.res.on('error', reject);
+			this.signal?.addEventListener('abort', () => {
+				this.res.destroy();
+				this.req.destroy();
+				reject(makeAbortError(this.signal!));
+			});
+		});
+	}
+
+	public async json(): Promise<any> {
+		const text = await this.text();
+		return JSON.parse(text);
+	}
+
+	public async body(): Promise<NodeJS.ReadableStream | null> {
+		this.signal?.addEventListener('abort', () => {
+			this.res.emit('error', makeAbortError(this.signal!));
+			this.res.destroy();
+			this.req.destroy();
+		});
+		return this.res;
+	}
+}
+
+function makeAbortError(signal: AbortSignal): Error {
+	// see https://github.com/nodejs/node/issues/38361#issuecomment-1683839467
+	return signal.reason;
 }
