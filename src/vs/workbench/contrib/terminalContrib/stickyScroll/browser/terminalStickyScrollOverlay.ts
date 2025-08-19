@@ -216,6 +216,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
+		// Check if this is a pager command - if so, don't show sticky scroll
+		if (this._isPagerCommand(command)) {
+			this._setVisible(false);
+			return;
+		}
+
 		// Partial command
 		if (!('marker' in command)) {
 			const partialCommand = this._commandDetection.currentCommand;
@@ -350,6 +356,80 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		} else {
 			this._setVisible(false);
 		}
+	}
+
+	/**
+	 * Checks if the command is a pager command that typically causes scrolling issues
+	 * This helps prevent sticky scroll flashing during pager operations
+	 */
+	private _isPagerCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
+		// Extract command text
+		let commandText = '';
+
+		if ('marker' in command) {
+			// Full command - get the command text
+			commandText = command.command || '';
+		} else {
+			// Partial command - get from current command detection
+			const currentCommand = this._commandDetection.currentCommand;
+			commandText = currentCommand?.command || '';
+		}
+
+		if (!commandText) {
+			return false;
+		}
+
+		// Normalize command text - remove extra whitespace and convert to lowercase
+		const normalizedCommand = commandText.trim().toLowerCase();
+
+		// List of commands that commonly use pagers or cause rapid scroll events
+		const pagerCommands = [
+			// Git commands that use pagers
+			'git diff',
+			'git log',
+			'git show',
+			'git blame',
+			'git reflog',
+
+			// Direct pager invocations
+			'less ',
+			'more ',
+			'most ',
+			'pg ',
+
+			// Commands that often pipe to pagers
+			'man ',
+			'help ',
+			'--help',
+
+			// Viewing file contents (often piped to pagers)
+			'cat ',
+			'type ', // Windows equivalent of cat
+
+			// Log viewing commands
+			'tail -f',
+			'journalctl',
+
+			// Package manager commands that use pagers
+			'npm help',
+			'yarn help',
+			'pip help',
+		];
+
+		// Check if the command starts with any known pager command
+		for (const pagerCmd of pagerCommands) {
+			if (normalizedCommand.startsWith(pagerCmd)) {
+				return true;
+			}
+		}
+
+		// Check for commands piped to common pagers
+		const pipeToPageRegex = /\|\s*(less|more|most|pg)\s*$/;
+		if (pipeToPageRegex.test(normalizedCommand)) {
+			return true;
+		}
+
+		return false;
 	}
 
 	private _ensureElement() {
