@@ -21,10 +21,7 @@ import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './text
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
-import { InlineDecoration, SingleLineInlineDecoration } from './viewModel/inlineDecorations.js';
 import { InlineDecoration } from './viewModel/inlineDecorations.js';
-import { ViewModelDecoration } from './viewModel/viewModelDecoration.js';
-import { ICoordinatesConverter } from './coordinatesConverter.js';
 
 export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 

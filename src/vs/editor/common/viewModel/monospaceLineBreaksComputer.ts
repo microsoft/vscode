@@ -39,6 +39,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				const fontInfo = config.options.get(EditorOption.fontInfo);
 				const wrappingIndent = options.get(EditorOption.wrappingIndent);
 				const wrappingColumn = options.get(EditorOption.wrappingInfo).wrappingColumn;
+				const wrapOnEscapedLineFeeds = options.get(EditorOption.wrapOnEscapedLineFeeds);
 				const wordBreak = options.get(EditorOption.wordBreak);
 				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
 				const result: (ModelLineProjectionData | null)[] = [];
@@ -50,7 +51,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineContent, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, lineContent, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
+						result[i] = createLineBreaks(this.classifier, lineContent, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
 					}
 				}
 				arrPool1.length = 0;

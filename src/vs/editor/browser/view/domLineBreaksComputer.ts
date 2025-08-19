@@ -10,7 +10,7 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { applyFontInfo } from '../config/domFontInfo.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions, WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
-import { InjectedTextOptions } from '../../common/model.js';
+import { InjectedTextOptions, TextDirection } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { CharacterMapping, RenderLineInput, RenderLineOutput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
@@ -248,7 +248,9 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 		renderWhitespace,
 		renderControlCharacters,
 		fontLigaturesEnabled,
-		null
+		null,
+		TextDirection.LTR,
+		10
 	);
 	const renderedLineOutput = renderViewLine(renderLineInput, sb);
 	sb.appendString('</div>');

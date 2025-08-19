@@ -92,7 +92,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		wrappingStrategy: 'simple' | 'advanced',
 		wrappingColumn: number,
 		wrappingIndent: WrappingIndent,
-		wordBreak: 'normal' | 'keepAll'
+		wordBreak: 'normal' | 'keepAll',
+		wrapOnEscapedLineFeeds: boolean
 	) {
 		this._editorId = editorId;
 		this.model = model;

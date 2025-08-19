@@ -102,6 +102,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const fontInfo = config.options.get(EditorOption.fontInfo);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 		const wordBreak = config.options.get(EditorOption.wordBreak);
+		const wrapOnEscapedLineFeeds = config.options.get(EditorOption.wrapOnEscapedLineFeeds);
 		const domLineBreaksComputerFactory = DOMLineBreaksComputerFactory.create(getActiveWindow());
 		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(config.options);
 		const lineBreaksComputerFactory = new LineBreaksComputerFactory(domLineBreaksComputerFactory, monospaceLineBreaksComputerFactory);

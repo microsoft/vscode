@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
-import { ITextModel } from '../model.js';
+import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
 import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
 import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
@@ -34,22 +35,23 @@ export interface IViewDecorationsCollection {
 export class ViewModelDecorations implements IDisposable {
 
 	private readonly editorId: number;
+	private readonly model: ITextModel;
 	private readonly configuration: IEditorConfiguration;
 	private readonly _linesCollection: IViewModelLines;
+	private readonly _coordinatesConverter: ICoordinatesConverter;
 
-	private readonly _inlineDecorationsComputer: InlineModelDecorationsComputer;
+	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
 
 	private _cachedModelDecorationsResolver: IViewDecorationsCollection | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
 
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
+		this.model = model;
 		this.configuration = configuration;
 		this._linesCollection = linesCollection;
-		const context: IInlineDecorationsComputerContext = {
-			getModelDecorations: (range: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean) => this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations)
-		};
-		this._inlineDecorationsComputer = new InlineModelDecorationsComputer(context, model, coordinatesConverter);
+		this._coordinatesConverter = coordinatesConverter;
+		this._decorationsCache = Object.create(null);
 		this._cachedModelDecorationsResolver = null;
 		this._cachedModelDecorationsResolverViewRange = null;
 	}
@@ -60,36 +62,57 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._inlineDecorationsComputer.reset();
+		this._decorationsCache = Object.create(null);
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public reset(): void {
-		this._inlineDecorationsComputer.reset();
+		this._decorationsCache = Object.create(null);
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onModelDecorationsChanged(): void {
-		this._inlineDecorationsComputer.onModelDecorationsChanged();
+		this._decorationsCache = Object.create(null);
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onLineMappingChanged(): void {
-		this._inlineDecorationsComputer.onLineMappingChanged();
+		this._decorationsCache = Object.create(null);
 
 		this._clearCachedModelDecorationsResolver();
 	}
 
+	private _getOrCreateViewModelDecoration(modelDecoration: IModelDecoration): ViewModelDecoration {
+		const id = modelDecoration.id;
+		let r = this._decorationsCache[id];
+		if (!r) {
+			const modelRange = modelDecoration.range;
+			const options = modelDecoration.options;
+			let viewRange: Range;
+			if (options.isWholeLine) {
+				const start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1), PositionAffinity.Left, false, true);
+				const end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)), PositionAffinity.Right);
+				viewRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+			} else {
+				// For backwards compatibility reasons, we want injected text before any decoration.
+				// Thus, move decorations to the right.
+				viewRange = this._coordinatesConverter.convertModelRangeToViewRange(modelRange, PositionAffinity.Right);
+			}
+			r = new ViewModelDecoration(viewRange, options);
+			this._decorationsCache[id] = r;
+		}
+		return r;
+	}
 
 	public getMinimapDecorationsInRange(range: Range): ViewModelDecoration[] {
-		return this._inlineDecorationsComputer.getDecorations(range, true, false).decorations;
+		return this._getDecorationsInRange(range, true, false).decorations;
 	}
 
 	public getDecorationsViewportData(viewRange: Range): IViewDecorationsCollection {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._inlineDecorationsComputer.getDecorations(viewRange, false, false);
+			this._cachedModelDecorationsResolver = this._getDecorationsInRange(viewRange, false, false);
 			this._cachedModelDecorationsResolverViewRange = viewRange;
 		}
 		return this._cachedModelDecorationsResolver!;

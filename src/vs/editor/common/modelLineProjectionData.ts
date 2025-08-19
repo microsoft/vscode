@@ -10,7 +10,7 @@ import { Position } from './core/position.js';
 import { InjectedTextCursorStops, InjectedTextOptions, ITextModel, PositionAffinity } from './model.js';
 import { LineInjectedText } from './textModelEvents.js';
 import { LineTokens } from './tokens/lineTokens.js';
-import { InlineDecoration, IdentityInlineDecorationsComputer } from './viewModel/inlineDecorations.js';
+import { IdentityInlineDecorationsComputer, InlineDecoration } from './viewModel/inlineDecorations.js';
 
 /**
  * *input*:

@@ -435,7 +435,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _registerModelEvents(): void {
-
 		this._register(this.model.onDidChangeFont((e) => {
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
@@ -878,7 +877,14 @@ export class ViewModel extends Disposable implements IViewModel {
 		const mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
 		const tabSize = this.getTabSize();
 		const lineData = this._lines.getViewLineData(lineNumber);
-		const inlineDecorations = [...modelInlineDecorations, ...lineData.inlineDecorations];
+
+		if (lineData.inlineDecorations) {
+			inlineDecorations = [
+				...inlineDecorations,
+				...lineData.inlineDecorations
+			];
+		}
+
 		return new ViewLineRenderingData(
 			lineData.minColumn,
 			lineData.maxColumn,

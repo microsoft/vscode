@@ -27,25 +27,25 @@ const suggestionSetting = 'suggestionActions.enabled';
 
 export default class LanguageProvider extends Disposable {
 
-	private readonly _classFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: 60, fontWeight: 'bold', fontFamily: 'Arial' });
-	private readonly _interfaceFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: 80, fontWeight: 'bold' }); // fontFamily: 'Times New Roman'
-	private readonly _functionFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50, fontSize: 40, fontWeight: 'italic', fontFamily: 'Courier New' });
-	private readonly _methodFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30, fontSize: 20, fontWeight: 'italic', fontFamily: 'Georgia' });
+	private readonly _classFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: '60px', fontWeight: 'bold', fontFamily: 'Arial' });
+	private readonly _interfaceFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: '80px', fontWeight: 'bold' }); // fontFamily: 'Times New Roman'
+	private readonly _functionFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50, fontSize: '40px', fontWeight: 'italic', fontFamily: 'Courier New' });
+	private readonly _methodFontSizeDecorationType1: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30, fontSize: '20px', fontWeight: 'italic', fontFamily: 'Georgia' });
 
-	private readonly _classFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: 60, fontWeight: 'italic', fontFamily: 'Georgia' });
-	private readonly _interfaceFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: 60, fontWeight: 'italic' }); //  fontFamily: 'Arial'
-	private readonly _functionFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50, fontSize: 30, fontWeight: 'bold', fontFamily: 'Times New Roman' });
-	private readonly _methodFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30, fontSize: 10, fontWeight: 'bold', fontFamily: 'Courier New' });
+	private readonly _classFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: '60px', fontWeight: 'italic', fontFamily: 'Georgia' });
+	private readonly _interfaceFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: '60px', fontWeight: 'italic' }); //  fontFamily: 'Arial'
+	private readonly _functionFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50, fontSize: '30px', fontWeight: 'bold', fontFamily: 'Times New Roman' });
+	private readonly _methodFontSizeDecorationType2: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30, fontSize: '10px', fontWeight: 'bold', fontFamily: 'Courier New' });
 
-	private readonly _classFontSizeDecorationType3: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: 20, fontWeight: 'bold', fontFamily: 'Consolas' });
-	private readonly _interfaceFontSizeDecorationType3: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: 20, fontWeight: 'bold', fontFamily: 'Consolas' });
-	private readonly _functionFontSizeDecorationType3: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50, fontSize: 20, fontWeight: 'italic', fontFamily: 'Consolas' });
-	private readonly _methodFontSizeDecorationType3: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30, fontSize: 10, fontWeight: 'italic', fontFamily: 'Consolas' });
+	private readonly _classFontSizeDecorationType3: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Consolas' });
+	private readonly _interfaceFontSizeDecorationType3: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Consolas' });
+	private readonly _functionFontSizeDecorationType3: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50, fontSize: '20px', fontWeight: 'italic', fontFamily: 'Consolas' });
+	private readonly _methodFontSizeDecorationType3: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30, fontSize: '10px', fontWeight: 'italic', fontFamily: 'Consolas' });
 
-	private readonly _classFontSizeDecorationType4: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: 20, fontWeight: 'italic', fontFamily: 'Consolas' });
-	private readonly _interfaceFontSizeDecorationType4: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: 20, fontWeight: 'italic', fontFamily: 'Consolas' });
-	private readonly _functionFontSizeDecorationType4: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50, fontSize: 20, fontWeight: 'bold', fontFamily: 'Consolas' });
-	private readonly _methodFontSizeDecorationType4: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30, fontSize: 10, fontWeight: 'bold', fontFamily: 'Consolas' });
+	private readonly _classFontSizeDecorationType4: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: '20px', fontWeight: 'italic', fontFamily: 'Consolas' });
+	private readonly _interfaceFontSizeDecorationType4: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 70, fontSize: '20px', fontWeight: 'italic', fontFamily: 'Consolas' });
+	private readonly _functionFontSizeDecorationType4: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 50, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Consolas' });
+	private readonly _methodFontSizeDecorationType4: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ lineHeight: 30, fontSize: '10px', fontWeight: 'bold', fontFamily: 'Consolas' });
 
 	// private readonly _classFontSizeDecorationTypeInjectedText: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ after: { contentText: 'AFTER CLASS', fontWeight: 'italic', fontFamily: 'Segoe' } });
 	// private readonly _interfaceFontSizeDecorationTypeInjectedText: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({ after: { contentText: 'AFTER INTERFACE', fontWeight: 'italic', fontFamily: 'Roboto' } });
