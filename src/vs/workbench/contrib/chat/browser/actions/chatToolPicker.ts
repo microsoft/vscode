@@ -7,7 +7,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { assertType } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -55,6 +54,8 @@ interface IBucketTreeItem extends IToolTreeItem {
 	readonly ordinal: BucketOrdinal;
 	toolset?: ToolSet; // For MCP servers where the bucket represents the ToolSet - mutable
 	readonly status?: string;
+	readonly children: AnyTreeItem[];
+	checked: boolean | 'partial';
 }
 
 /**
@@ -64,6 +65,8 @@ interface IBucketTreeItem extends IToolTreeItem {
 interface IToolSetTreeItem extends IToolTreeItem {
 	readonly itemType: 'toolset';
 	readonly toolset: ToolSet;
+	readonly children: AnyTreeItem[];
+	checked: boolean | 'partial';
 }
 
 /**
@@ -73,6 +76,7 @@ interface IToolSetTreeItem extends IToolTreeItem {
 interface IToolTreeItemData extends IToolTreeItem {
 	readonly itemType: 'tool';
 	readonly tool: IToolData;
+	checked: boolean;
 }
 
 /**
@@ -158,8 +162,7 @@ export async function showToolsPicker(
 	accessor: ServicesAccessor,
 	placeHolder: string,
 	description?: string,
-	toolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>,
-	onUpdate?: (toolsEntries: ReadonlyMap<ToolSet | IToolData, boolean>) => void
+	toolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
@@ -200,18 +203,18 @@ export async function showToolsPicker(
 	// Process entries and organize into buckets
 	for (const [toolSetOrTool, picked] of toolsEntries) {
 		let bucketItem: IBucketTreeItem | undefined;
-		const buttons: ActionableButton[] = [];
 
 		if (toolSetOrTool.source.type === 'mcp') {
 			const key = ToolDataSource.toKey(toolSetOrTool.source);
-			const { definitionId } = toolSetOrTool.source;
-			const mcpServer = mcpService.servers.get().find(candidate => candidate.definition.id === definitionId);
-			if (!mcpServer) {
-				continue;
-			}
-
 			bucketItem = bucketMap.get(key);
 			if (!bucketItem) {
+				const { definitionId } = toolSetOrTool.source;
+				const mcpServer = mcpService.servers.get().find(candidate => candidate.definition.id === definitionId);
+				if (!mcpServer) {
+					continue;
+				}
+
+				const buttons: ActionableButton[] = [];
 				const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
 				if (collection?.source) {
 					buttons.push({
@@ -257,7 +260,7 @@ export async function showToolsPicker(
 			} else if (toolSetOrTool.canBeReferencedInPrompt) {
 				// Add MCP tools directly as children
 				const toolTreeItem = createToolTreeItemFromData(toolSetOrTool, picked);
-				bucketItem.children = [...(bucketItem.children || []), toolTreeItem];
+				bucketItem.children.push(toolTreeItem);
 			}
 
 		} else {
@@ -282,14 +285,6 @@ export async function showToolsPicker(
 				label = localize('userBucket', "User Defined Tool Sets");
 				// Group all user tools under one bucket
 				key = ordinal.toString();
-				buttons.push({
-					iconClass: ThemeIcon.asClassName(Codicon.edit),
-					tooltip: localize('editUserBucket', "Edit Tool Set"),
-					action: () => {
-						assertType(toolSetOrTool.source.type === 'user');
-						editorService.openEditor({ resource: toolSetOrTool.source.file });
-					}
-				});
 			} else {
 				assertNever(toolSetOrTool.source);
 			}
@@ -307,7 +302,7 @@ export async function showToolsPicker(
 					label,
 					checked: false,
 					children: [],
-					buttons,
+					buttons: [],
 					collapsed,
 					...iconProps
 				};
@@ -317,6 +312,15 @@ export async function showToolsPicker(
 			if (toolSetOrTool instanceof ToolSet) {
 				// Add ToolSet as child with its tools as grandchildren - create directly instead of using legacy pick structure
 				const iconProps = mapIconToTreeItem(toolSetOrTool.icon);
+				const buttons = [];
+				if (toolSetOrTool.source.type === 'user') {
+					const resource = toolSetOrTool.source.file;
+					buttons.push({
+						iconClass: ThemeIcon.asClassName(Codicon.edit),
+						tooltip: localize('editUserBucket', "Edit Tool Set"),
+						action: () => editorService.openEditor({ resource })
+					});
+				}
 				const toolSetTreeItem: IToolSetTreeItem = {
 					itemType: 'toolset',
 					toolset: toolSetOrTool,
@@ -325,16 +329,17 @@ export async function showToolsPicker(
 					label: toolSetOrTool.referenceName,
 					description: toolSetOrTool.description,
 					checked: picked,
+					children: [],
 					collapsed: true,
 					// TODO: Bring this back when tools in toolsets can be enabled/disabled.
 					// children: Array.from(toolSetOrTool.getTools()).map(tool => createToolTreeItemFromData(tool, picked)),
 					...iconProps
 				};
-				bucketItem.children = [...(bucketItem.children || []), toolSetTreeItem];
+				bucketItem.children.push(toolSetTreeItem);
 			} else if (toolSetOrTool.canBeReferencedInPrompt) {
 				// Add individual tool as child
 				const toolTreeItem = createToolTreeItemFromData(toolSetOrTool, picked);
-				bucketItem.children = [...(bucketItem.children || []), toolTreeItem];
+				bucketItem.children.push(toolTreeItem);
 			}
 		}
 	}
@@ -344,15 +349,10 @@ export async function showToolsPicker(
 	treeItems.push(...sortedBuckets);
 
 	// Set up checkbox states based on parent-child relationships
-	for (const bucketItem of treeItems.filter(isBucketTreeItem)) {
-		if (bucketItem.checked) {
+	for (const bucketItem of sortedBuckets) {
+		if (bucketItem.checked === true) { // only set for MCP tool sets
 			// Check all children if bucket is checked
-			bucketItem.children?.forEach(child => {
-				(child as any).checked = true;
-			});
-		} else {
-			// Check bucket if any child is checked
-			bucketItem.checked = bucketItem.children?.some(child => (child as any).checked) || false;
+			bucketItem.children.forEach(child => child.checked = true);
 		}
 	}
 
@@ -380,41 +380,19 @@ export async function showToolsPicker(
 		}
 	}));
 
-	// Result collection
-	const result = new Map<IToolData | ToolSet, boolean>();
-
-	const collectResults = () => {
-		result.clear();
-
-		let count = 0;
-		const traverse = (items: readonly AnyTreeItem[]) => {
-			for (const item of items) {
-				if (isBucketTreeItem(item)) {
-					if (item.toolset) {
-						// MCP server bucket represents a ToolSet
-						const checked = typeof item.checked === 'boolean' ? item.checked : false;
-						result.set(item.toolset, checked);
-					}
-					if (item.children) {
-						traverse(item.children as readonly AnyTreeItem[]);
-					}
-				} else if (isToolSetTreeItem(item)) {
-					const checked = typeof item.checked === 'boolean' ? item.checked : false;
-					result.set(item.toolset, checked);
-					if (item.children) {
-						traverse(item.children as readonly AnyTreeItem[]);
-					}
-				} else if (isToolTreeItem(item)) {
-					const checked = typeof item.checked === 'boolean' ? item.checked : false;
-					if (checked) { count++; }
-					result.set(item.tool, checked);
-				}
-			}
-		};
-
-		traverse(treeItems);
-
+	const updateToolLimitMessage = () => {
 		if (toolLimit) {
+			let count = 0;
+			const traverse = (items: readonly AnyTreeItem[]) => {
+				for (const item of items) {
+					if (isBucketTreeItem(item) || isToolSetTreeItem(item)) {
+						traverse(item.children);
+					} else if (isToolTreeItem(item) && item.checked) {
+						count++;
+					}
+				}
+			};
+			traverse(treeItems);
 			if (count > toolLimit) {
 				treePicker.severity = Severity.Warning;
 				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, markdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
@@ -423,16 +401,33 @@ export async function showToolsPicker(
 				treePicker.validationMessage = undefined;
 			}
 		}
-
-		// Special MCP handling: MCP toolset is enabled only if all tools are enabled
-		for (const item of toolsService.toolSets.get()) {
-			if (item.source.type === 'mcp') {
-				const toolsInSet = Array.from(item.getTools());
-				result.set(item, toolsInSet.every(tool => result.get(tool)));
-			}
-		}
 	};
-	collectResults();
+	updateToolLimitMessage();
+
+	const collectResults = () => {
+
+		const result = new Map<IToolData | ToolSet, boolean>();
+		const traverse = (items: readonly AnyTreeItem[]) => {
+			for (const item of items) {
+				if (isBucketTreeItem(item)) {
+					if (item.toolset) { // MCP server
+						// MCP toolset is enabled only if all tools are enabled
+						const allChecked = item.checked === true;
+						result.set(item.toolset, allChecked);
+					}
+					traverse(item.children);
+				} else if (isToolSetTreeItem(item)) {
+					result.set(item.toolset, item.checked === true);
+					traverse(item.children);
+				} else if (isToolTreeItem(item)) {
+					result.set(item.tool, item.checked);
+				}
+			}
+		};
+
+		traverse(treeItems);
+		return result;
+	};
 
 	// Temporary command to close the picker and open settings, for use in the validation message
 	store.add(CommandsRegistry.registerCommand({
@@ -444,24 +439,7 @@ export async function showToolsPicker(
 	}));
 
 	// Handle checkbox state changes
-	store.add(treePicker.onDidChangeCheckedLeafItems(() => {
-		collectResults();
-
-		if (onUpdate) {
-			// Check if results changed
-			let didChange = toolsEntries.size !== result.size;
-			for (const [key, value] of toolsEntries) {
-				if (didChange) {
-					break;
-				}
-				didChange = result.get(key) !== value;
-			}
-
-			if (didChange) {
-				onUpdate(result);
-			}
-		}
-	}));
+	store.add(treePicker.onDidChangeCheckedLeafItems(() => updateToolLimitMessage()));
 
 	// Handle acceptance
 	let didAccept = false;
@@ -507,6 +485,5 @@ export async function showToolsPicker(
 
 	store.dispose();
 
-	collectResults();
-	return didAccept ? result : undefined;
+	return didAccept ? collectResults() : undefined;
 }
