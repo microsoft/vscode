@@ -16,7 +16,7 @@ export async function pollForOutputAndIdle(
 	token: CancellationToken,
 	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 	taskService: ITaskService,
-	pollFn?: (execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService) => Promise<IPollingResult | boolean | undefined> | undefined
+	pollFn?: (execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined
 ): Promise<IPollingResult> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
@@ -72,13 +72,7 @@ export async function pollForOutputAndIdle(
 		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
 		const terminalReceivedInputResult = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, taskService);
 		if (terminalReceivedInputResult) {
-			if (typeof terminalReceivedInputResult === 'boolean' && terminalReceivedInputResult) {
-				// input was sent to the terminal, poll more
-				pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn);
-			} else {
-				// problems were discovered, return the result
-				return terminalReceivedInputResult;
-			}
+			return terminalReceivedInputResult;
 		}
 		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}

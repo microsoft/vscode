@@ -18,7 +18,6 @@ import { IExecution, IPollingResult, PollingConsts } from './bufferOutputPolling
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { OutputMonitor } from './outputMonitor.js';
 import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
-import { detectConfirmationPromptWithLLM, handleConfirmationPrompt } from './tools/pollingUtils.js';
 import { Location } from '../../../../../editor/common/languages.js';
 
 export function getTaskDefinition(id: string) {
@@ -182,7 +181,7 @@ export async function collectTerminalResults(
 	return results;
 }
 
-export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService): Promise<IPollingResult | boolean | undefined> {
+export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService): Promise<IPollingResult | undefined> {
 	if (token.isCancellationRequested) {
 		return;
 	}
@@ -218,13 +217,7 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 			};
 		}
 	}
-	const confirmationPrompt = await detectConfirmationPromptWithLLM(execution, token, languageModelsService);
-
-	const handled = await handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService);
-	if (handled) {
-		return true;
-	}
-	return false;
+	return;
 }
 
 export function toolResultDetailsFromResponse(terminalResults: { output: string; resources?: ILinkLocation[] }[]): ((URI | Location)[]) {
