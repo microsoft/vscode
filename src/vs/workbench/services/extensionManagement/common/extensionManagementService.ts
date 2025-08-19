@@ -12,6 +12,7 @@ import {
 	UninstallExtensionInfo,
 	IAllowedExtensionsService,
 	EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT,
+	DisablePublisherTrustPromptConfigKey,
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IPublisherInfo, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from './extensionManagement.js';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
@@ -832,6 +833,12 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		}
 
 		if (!untrustedExtensions.length) {
+			return;
+		}
+
+		if (this.configurationService.getValue<boolean>(DisablePublisherTrustPromptConfigKey)) {
+			const publishersToTrust = distinct(untrustedExtensions, e => e.publisher).map(e => ({ publisher: e.publisher, publisherDisplayName: e.publisherDisplayName }));
+			this.trustPublishers(...publishersToTrust);
 			return;
 		}
 
