@@ -179,7 +179,7 @@ export class MoveChatSessionToNewEditorAction extends Action2 {
 			}
 
 			if (!actualSessionId) {
-				return; 
+				return;
 			}
 
 			sessionContext = {
@@ -200,14 +200,14 @@ export class MoveChatSessionToNewEditorAction extends Action2 {
 		const widget = widgetService.getWidgetBySessionId(sessionContext.sessionId);
 		if (widget) {
 			const viewState = widget.getViewState();
-			
+
 			// Clear the widget
 			widget.clear();
 			await widget.waitForReady();
 
 			// Open in new editor
-			const options: IChatEditorOptions = { 
-				target: { sessionId: sessionContext.sessionId }, 
+			const options: IChatEditorOptions = {
+				target: { sessionId: sessionContext.sessionId },
 				pinned: true,
 				viewState
 			};
@@ -249,7 +249,7 @@ export class MoveChatSessionToNewWindowAction extends Action2 {
 			}
 
 			if (!actualSessionId) {
-				return; 
+				return;
 			}
 
 			sessionContext = {
@@ -270,14 +270,14 @@ export class MoveChatSessionToNewWindowAction extends Action2 {
 		const widget = widgetService.getWidgetBySessionId(sessionContext.sessionId);
 		if (widget) {
 			const viewState = widget.getViewState();
-			
+
 			// Clear the widget
 			widget.clear();
 			await widget.waitForReady();
 
 			// Open in new auxiliary window
-			const options: IChatEditorOptions = { 
-				target: { sessionId: sessionContext.sessionId }, 
+			const options: IChatEditorOptions = {
+				target: { sessionId: sessionContext.sessionId },
 				pinned: true,
 				viewState,
 				auxiliary: { compact: true, bounds: { width: 640, height: 640 } }
@@ -320,7 +320,7 @@ export class MoveChatSessionToSideBarAction extends Action2 {
 			}
 
 			if (!actualSessionId) {
-				return; 
+				return;
 			}
 
 			sessionContext = {
@@ -342,12 +342,12 @@ export class MoveChatSessionToSideBarAction extends Action2 {
 		if (sessionContext.sessionType === 'editor' && sessionContext.editorInput instanceof ChatEditorInput) {
 			const chatEditor = editorService.activeEditorPane;
 			const viewState = chatEditor?.getViewState?.();
-			
-			await editorService.closeEditor({ 
-				editor: sessionContext.editorInput, 
-				groupId: editorGroupService.activeGroup.id 
+
+			await editorService.closeEditor({
+				editor: sessionContext.editorInput,
+				groupId: editorGroupService.activeGroup.id
 			});
-			
+
 			const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 			await view.loadSession(sessionContext.sessionId, viewState);
 			view.focus();
@@ -370,7 +370,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
 
-// Register migration action menu items - only show for non-local chat sessions
+// Register migration action menu items - only show for local chat sessions
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: MoveChatSessionToNewEditorAction.id,
@@ -378,7 +378,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'migration',
 	order: 1,
-	when: ChatContextKeys.sessionType.notEqualsTo('local')
+	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
@@ -388,7 +388,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'migration',
 	order: 2,
-	when: ChatContextKeys.sessionType.notEqualsTo('local')
+	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
@@ -398,5 +398,5 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'migration',
 	order: 3,
-	when: ChatContextKeys.sessionType.notEqualsTo('local')
+	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
