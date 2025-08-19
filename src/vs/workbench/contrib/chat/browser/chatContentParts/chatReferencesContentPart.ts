@@ -421,7 +421,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 						}
 						templateData.addedSpan.textContent = `+${diffMeta.added}`;
 						templateData.removedSpan.textContent = `-${diffMeta.removed}`;
-						templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added ?? 0, diffMeta.removed ?? 0));
+						templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
 					}
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 				} else if (data.state !== ModifiedFileEntryState.Modified) {
