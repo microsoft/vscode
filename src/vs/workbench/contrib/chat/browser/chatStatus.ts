@@ -35,6 +35,7 @@ import { Link } from '../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
+import { IChatSessionsService, ChatSessionStatus, IChatSessionItem } from '../common/chatSessionsService.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -316,6 +317,7 @@ class ChatStatusDashboard extends Disposable {
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -415,6 +417,11 @@ class ChatStatusDashboard extends Disposable {
 					}
 				}));
 			}
+		}
+
+		// Running Chat Sessions
+		{
+			this.renderRunningSessions(disposables, addSeparator, token);
 		}
 
 		// Settings
@@ -520,6 +527,77 @@ class ChatStatusDashboard extends Disposable {
 				store.add(new Link(target, node, undefined, this.hoverService, this.openerService));
 			}
 		}
+	}
+
+	private async renderRunningSessions(disposables: DisposableStore, addSeparator: (label?: string, action?: IAction) => void, token: CancellationToken): Promise<void> {
+		try {
+			const inProgressSessions = await this.getInProgressSessions(token);
+			
+			if (inProgressSessions.length > 0) {
+				addSeparator(localize('runningSessionsTitle', "Running Sessions"), toAction({
+					id: 'workbench.view.chat.sessions',
+					label: localize('viewSessionsLabel', "View Sessions"),
+					tooltip: localize('viewSessionsTooltip', "Open Chat Sessions View"),
+					class: ThemeIcon.asClassName(Codicon.commentDiscussion),
+					run: () => this.runCommandAndClose('workbench.view.chat.sessions'),
+				}));
+
+				// Show session list
+				const sessionsList = this.element.appendChild($('div.running-sessions'));
+				
+				for (const { session } of inProgressSessions) {
+					const sessionItem = sessionsList.appendChild($('div.session-item'));
+					
+					// Add spinning icon
+					const iconSpan = sessionItem.appendChild($('span.session-icon.codicon.codicon-loading'));
+					iconSpan.classList.add('codicon-modifier-spin');
+					
+					// Add session label
+					const labelSpan = sessionItem.appendChild($('span.session-label', undefined, session.label));
+					
+					// Add status text
+					const statusSpan = sessionItem.appendChild($('span.session-status', undefined, localize('sessionInProgress', "In progress")));
+				}
+
+				// Add summary text
+				if (inProgressSessions.length === 1) {
+					const summaryText = localize('workingOnSession', "Working on 1 session");
+					this.element.appendChild($('div.description', undefined, summaryText));
+				} else {
+					const summaryText = localize('workingOnSessions', "Working on {0} sessions", inProgressSessions.length);
+					this.element.appendChild($('div.description', undefined, summaryText));
+				}
+			}
+		} catch (error) {
+			// Silently handle errors to avoid disrupting the status dashboard
+		}
+	}
+
+	private async getInProgressSessions(token: CancellationToken): Promise<Array<{ provider: string; session: IChatSessionItem }>> {
+		const inProgressSessions: Array<{ provider: string; session: IChatSessionItem }> = [];
+		
+		// Get all available providers
+		const providers = this.chatSessionsService.getAllChatSessionItemProviders();
+		
+		// Check each provider for in-progress sessions
+		for (const provider of providers) {
+			try {
+				const sessionItems = await this.chatSessionsService.provideChatSessionItems(
+					provider.chatSessionType, 
+					token
+				);
+				
+				for (const session of sessionItems) {
+					if (session.status === ChatSessionStatus.InProgress) {
+						inProgressSessions.push({ provider: provider.chatSessionType, session });
+					}
+				}
+			} catch (error) {
+				// Continue with other providers if one fails
+			}
+		}
+
+		return inProgressSessions;
 	}
 
 	private runCommandAndClose(commandOrFn: string | Function): void {

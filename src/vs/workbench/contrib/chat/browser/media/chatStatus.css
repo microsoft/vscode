@@ -181,3 +181,39 @@
 		color: var(--vscode-descriptionForeground);
 	}
 }
+
+/* Running Sessions */
+
+.chat-status-bar-entry-tooltip .running-sessions {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions .session-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 0;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions .session-icon {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions .session-label {
+	flex: 1;
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions .session-status {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
