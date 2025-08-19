@@ -111,6 +111,9 @@ export class TaskTerminalStatus extends Disposable {
 		this._register(problemMatcher.onDidRequestInvalidateLastMarker(() => {
 			this._marker?.dispose();
 			this._marker = undefined;
+			const markerData = this.terminalMarkerMap.get(terminal.instanceId);
+			markerData?.markers.clear();
+			markerData?.resources.clear();
 		}));
 
 		this.terminalMap.set(terminal.instanceId, { terminal, task, status, problemMatcher, taskRunEnded: false });
