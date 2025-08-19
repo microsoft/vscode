@@ -2360,6 +2360,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.editor-instance .interactive-session .interactive-item-container.interactive-response .checkpoint-restore-container {
+	.checkpoint-label-text,
+	.monaco-toolbar {
+		background-color: var(--vscode-editor-background);
+	}
+}
+
 .chat-buttons-container {
 	display: flex;
 	gap: 8px;
