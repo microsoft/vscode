@@ -115,7 +115,7 @@ export class RunTaskTool implements IToolImpl {
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
 			toolResultMessage: new MarkdownString(resultSummary),
-			toolResultDetails: toolResultDetailsFromResponse(terminalResults)
+			toolResultDetails: toolResultDetails
 		};
 	}
 
