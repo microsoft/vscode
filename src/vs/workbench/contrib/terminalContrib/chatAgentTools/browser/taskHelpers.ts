@@ -14,9 +14,9 @@ import { ToolProgress } from '../../../chat/common/languageModelToolsService.js'
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { IExecution, IPollingResult, OutputMonitorState } from './bufferOutputPollingTypes.js';
+import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/bufferOutputPollingTypes.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
-import { OutputMonitor } from './outputMonitor.js';
+import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
 import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
 import { Location } from '../../../../../editor/common/languages.js';
 

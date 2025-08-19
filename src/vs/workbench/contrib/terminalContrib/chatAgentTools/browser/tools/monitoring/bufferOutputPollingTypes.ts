@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Task } from '../../../tasks/common/taskService.js';
-import type { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import type { ILinkLocation } from './taskHelpers.js';
+import type { Task } from '../../../../../tasks/common/taskService.js';
+import type { ITerminalInstance } from '../../../../../terminal/browser/terminal.js';
+import type { ILinkLocation } from '../../taskHelpers.js';
 
 export interface IConfirmationPrompt {
 	prompt: string;

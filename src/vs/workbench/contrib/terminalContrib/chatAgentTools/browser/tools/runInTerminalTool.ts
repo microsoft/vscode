@@ -28,14 +28,14 @@ import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerm
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
-import { getOutput } from '../bufferOutputPolling.js';
+import { getOutput } from './monitoring/bufferOutputPolling.js';
 import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult } from '../commandLineAutoApprover.js';
 import { CommandSimplifier } from '../commandSimplifier.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
-import { OutputMonitor } from '../outputMonitor.js';
+import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { splitCommandLineIntoSubCommands } from '../subCommands.js';
@@ -44,7 +44,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { ITaskService } from '../../../../tasks/common/taskService.js';
-import { OutputMonitorState } from '../bufferOutputPollingTypes.js';
+import { OutputMonitorState } from './monitoring/bufferOutputPollingTypes.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 

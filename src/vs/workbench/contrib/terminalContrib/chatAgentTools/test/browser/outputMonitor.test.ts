@@ -7,11 +7,11 @@ import * as assert from 'assert';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { ITaskService } from '../../../../tasks/common/taskService.js';
-import { OutputMonitor } from '../../browser/outputMonitor.js';
+import { OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource, CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/bufferOutputPollingTypes.js';
+import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/bufferOutputPollingTypes.js';
 import { AsyncIterableObject } from '../../../../../../base/common/async.js';
 
 suite('OutputMonitor', () => {

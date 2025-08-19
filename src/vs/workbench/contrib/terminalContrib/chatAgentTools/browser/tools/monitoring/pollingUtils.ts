@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageModelChatResponse } from '../../../../chat/common/languageModels.js';
+import { ILanguageModelChatResponse } from '../../../../../chat/common/languageModels.js';
 
 export async function getResponseFromStream(response: ILanguageModelChatResponse): Promise<string> {
 	let responseText = '';

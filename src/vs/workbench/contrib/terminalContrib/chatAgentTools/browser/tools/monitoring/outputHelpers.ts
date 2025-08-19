@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { ITerminalInstance } from '../../../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarker): string {

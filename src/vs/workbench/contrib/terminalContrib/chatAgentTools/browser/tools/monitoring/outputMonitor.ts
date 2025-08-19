@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ITaskService } from '../../../tasks/common/taskService.js';
-import { ILinkLocation } from './taskHelpers.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { localize } from '../../../../../nls.js';
-import { ChatElicitationRequestPart } from '../../../chat/browser/chatElicitationRequestPart.js';
-import { ChatModel } from '../../../chat/common/chatModel.js';
-import { IChatService } from '../../../chat/common/chatService.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { IToolInvocationContext } from '../../../chat/common/languageModelToolsService.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { ITaskService } from '../../../../../tasks/common/taskService.js';
+import { ILinkLocation } from '../../taskHelpers.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { localize } from '../../../../../../../nls.js';
+import { ChatElicitationRequestPart } from '../../../../../chat/browser/chatElicitationRequestPart.js';
+import { ChatModel } from '../../../../../chat/common/chatModel.js';
+import { IChatService } from '../../../../../chat/common/chatService.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
 import { IRacePollingOrPromptResult, IPollingResult, IExecution, IConfirmationPrompt, PollingConsts, OutputMonitorState } from './bufferOutputPollingTypes.js';
-import { getResponseFromStream } from './tools/pollingUtils.js';
-import { timeout } from '../../../../../base/common/async.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { getResponseFromStream } from './pollingUtils.js';
+import { timeout } from '../../../../../../../base/common/async.js';
+import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly isIdle: boolean;
