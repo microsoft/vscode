@@ -446,7 +446,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputMonitor = new OutputMonitor(execution, this._languageModelsService, this._taskService, undefined);
+				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, this._languageModelsService, this._taskService, undefined);
 				store.add(outputMonitor);
 
 				outputAndIdle = await outputMonitor.startMonitoring(this._chatService, command, invocation.context!, token);
