@@ -146,8 +146,8 @@ suite('chat', () => {
 		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello' });
 
 		done.complete();
-		await cmd;
-		assert.strictEqual(cmd, undefined);
+		const result = await cmd;
+		assert.strictEqual(result, undefined);
 	});
 
 	test('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
