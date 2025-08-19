@@ -92,6 +92,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _itemsProviders: Map<string, IChatSessionItemProvider> = new Map();
 	
 	// Cache for chat session items to avoid redundant provider calls
+	// This cache is particularly beneficial when multiple consumers (like status bar and tree views)
+	// need to access session data around the same time, especially for extension-contributed providers
 	private readonly _sessionItemsCache: Map<string, { items: IChatSessionItem[]; timestamp: number }> = new Map();
 	private readonly CACHE_TTL = 5000; // Cache for 5 seconds to balance freshness with performance
 
