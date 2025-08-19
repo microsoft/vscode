@@ -161,7 +161,7 @@ export async function detectConfirmationPromptWithLLM(execution: IExecution, tok
 			${sanitizedLastLine}
 			`;
 	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
-		{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: promptText }] }
+		{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 	], {}, token);
 
 	const responseText = await getResponseFromStream(response);
