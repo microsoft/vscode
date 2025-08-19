@@ -38,6 +38,8 @@ class TestaccessibilitySignalService implements Partial<IAccessibilitySignalServ
 
 class TestTerminal extends Disposable implements Partial<ITerminalInstance> {
 	statusList: TerminalStatusList = this._register(new TerminalStatusList(new TestConfigurationService()));
+	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
+	public readonly onDisposed: Event<ITerminalInstance> = this._onDisposed.event;
 	constructor() {
 		super();
 	}
