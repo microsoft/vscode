@@ -33,7 +33,7 @@ export interface IOutputMonitor extends Disposable {
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
-	): Promise<{ output: string; state: OutputMonitorState; pollDurationMs?: number; modelOutputEvalResponse?: string }>;
+	): Promise<IPollingResult>;
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
