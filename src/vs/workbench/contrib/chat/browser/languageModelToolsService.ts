@@ -302,7 +302,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				if (prepared?.confirmationMessages && !this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace)) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(prepared.confirmationMessages.title), detail: renderAsPlaintext(prepared.confirmationMessages.message) });
 					if (!result.confirmed) {
-						throw new CancellationError();
+						const err = new CancellationError();
+						err.message = 'HIT HERE';
+						throw err;
 					}
 				}
 
@@ -310,7 +312,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 
 			if (token.isCancellationRequested) {
-				throw new CancellationError();
+				const err = new CancellationError();
+				err.message = 'isCancellationRequested';
+				throw err;
 			}
 
 			toolResult = await tool.impl.invoke(dto, countTokens, {
@@ -341,6 +345,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
 				});
+
+			// This is being hit?
 			this._logService.error(`[LanguageModelToolsService#invokeTool] Error from tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}:\n${toErrorMessage(err, true)}`);
 
 			toolResult ??= { content: [] };
@@ -348,7 +354,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (tool.data.alwaysDisplayInputOutput) {
 				toolResult.toolResultDetails = { input: this.formatToolInput(dto), output: [{ type: 'embed', isText: true, value: String(err) }], isError: true };
 			}
-
+			console.log('TOOL ERROR', err);
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);

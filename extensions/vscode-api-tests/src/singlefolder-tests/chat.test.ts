@@ -142,6 +142,7 @@ suite('chat', () => {
 		});
 		disposables.push(participant, toolRegistration);
 
+		await commands.executeCommand('workbench.action.chat.newChat');
 		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello' });
 
 		const raced = await Promise.race([
@@ -170,6 +171,7 @@ suite('chat', () => {
 		});
 		disposables.push(participant, toolRegistration);
 
+		await commands.executeCommand('workbench.action.chat.newChat');
 		const response: any = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
 		assert.strictEqual(response?.type, 'confirmation');
 	});
@@ -182,6 +184,7 @@ suite('chat', () => {
 		});
 		disposables.push(participant);
 
+		await commands.executeCommand('workbench.action.chat.newChat');
 		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
 
 		const raced = await Promise.race([
