@@ -700,7 +700,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Clean up any background executions associated with this session
 			const terminalToRemove: string[] = [];
 			for (const [termId, execution] of RunInTerminalTool._backgroundExecutions.entries()) {
-				if (execution.terminal === toolTerminal.instance) {
+				if (execution.instance === toolTerminal.instance) {
 					execution.dispose();
 					terminalToRemove.push(termId);
 				}
@@ -782,14 +782,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 class BackgroundTerminalExecution extends Disposable {
 	private _startMarker?: IXtermMarker;
 	constructor(
-		readonly terminal: ITerminalInstance,
+		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string
 	) {
 		super();
 
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this.terminal.runCommand(this._commandLine, true);
+		this.instance.runCommand(this._commandLine, true);
 	}
 	getOutput(): string {
 		return getOutput(this._xterm?.raw, this._startMarker);
