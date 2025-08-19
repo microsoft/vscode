@@ -13,7 +13,21 @@ The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open 
 - Handle file uploads and downloads
 - Manage browser tabs and windows
 
-## Quick Start
+## Quick Start - Stdio
+
+Firstly, make sure you install all dependencies (`npm i`) at the root of the repo.
+
+Then, open the Command Palette and run:
+```
+MCP: List Servers → vscode-playwright-mcp → Start Server
+```
+or open [mcp.json](../../.vscode/mcp.json) and start it from there.
+
+That's it! It should automatically compile everything needed.
+
+Then you can use `/playwright` to ask specific questions.
+
+## Quick Start - HTTP
 
 Getting started with the MCP server is simple - just run the pre-configured Code - OSS task:
 

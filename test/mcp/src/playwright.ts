@@ -138,6 +138,7 @@ export async function getServer() {
 	process.env.VSCODE_REPOSITORY = rootPath;
 	process.env.VSCODE_DEV = '1';
 	process.env.VSCODE_CLI = '1';
+	delete process.env.ELECTRON_RUN_AS_NODE; // Ensure we run as Node.js
 	const quality = Quality.Dev;
 	const userDataDir = path.join(testDataPath, 'd');
 
