@@ -39,4 +39,5 @@ export class TaskService extends AbstractTaskService {
 		return this.executionEngine === ExecutionEngine.Terminal;
 	}
 }
+
 registerSingleton(ITaskService, TaskService, InstantiationType.Delayed);

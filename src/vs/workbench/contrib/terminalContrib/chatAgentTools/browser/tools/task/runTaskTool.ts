@@ -107,9 +107,14 @@ export class RunTaskTool implements IToolImpl {
 			resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
 		} else {
 			resultSummary += `\`${taskLabel}\` task `;
+			const problemCount = toolResultDetails.length;
 			resultSummary += terminalResults.every(r => r.state === OutputMonitorState.Idle)
-				? (toolResultDetails.length ? `finished with \`${toolResultDetails.length}\` problems` : 'finished')
-				: (toolResultDetails.length ? `started and will continue to run in the background with \`${toolResultDetails.length}\` problems` : 'started and will continue to run in the background');
+				? (problemCount
+					? `finished with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
+					: 'finished')
+				: (problemCount
+					? `started and will continue to run in the background with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
+					: 'started and will continue to run in the background');
 		}
 
 		return {
