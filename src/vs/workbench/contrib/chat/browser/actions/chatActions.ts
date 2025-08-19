@@ -231,8 +231,6 @@ abstract class OpenChatGlobalAction extends Action2 {
 					});
 				});
 
-				console.log('DEBUG RESPONSE:', JSON.stringify(response), response.isPendingConfirmation.get());
-
 				return { ...response.result, type: response.isPendingConfirmation.get() ? 'confirmation' : undefined };
 			}
 		}

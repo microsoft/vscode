@@ -127,14 +127,20 @@ suite('chat', () => {
 	test('workbench.action.chat.open.blockOnResponse defaults to non-blocking for backwards compatibility', async () => {
 		const done = new DeferredPromise<void>();
 
+		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
+			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
+				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
+			}
+		});
+
 		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
-			await lm.invokeTool('run_in_terminal', {
-				input: { command: 'rm dummy.txt' },
+			await lm.invokeTool('requires_confirmation_tool', {
+				input: {},
 				toolInvocationToken: _request.toolInvocationToken,
 			});
 			return done.p.then(() => ({ metadata: { complete: true } }));
 		});
-		disposables.push(participant);
+		disposables.push(participant, toolRegistration);
 
 		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello' });
 
