@@ -31,8 +31,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService);
-		this.setContextKeyService(contextKeyService);
+		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService, contextKeyService);
 
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 

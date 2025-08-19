@@ -53,8 +53,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService);
-		this.setContextKeyService(contextKeyService);
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextKeyService);
 		this.processService = processService;
 		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });

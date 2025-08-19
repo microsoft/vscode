@@ -30,6 +30,7 @@ import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, Issue
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -86,6 +87,7 @@ export class BaseIssueReporterService extends Disposable {
 		@IThemeService public readonly themeService: IThemeService,
 		@IFileService public readonly fileService: IFileService,
 		@IFileDialogService public readonly fileDialogService: IFileDialogService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -177,10 +179,9 @@ export class BaseIssueReporterService extends Disposable {
 		// Do not evaluate visibility until an extension has been selected.
 	}
 
-	// Placeholder for future context key service injection when entitlement check reinstated
-	public setContextKeyService(_: IContextKeyService | undefined): void {
-		// No-op for now
-	}
+	// Context key service is injected via constructor
+
+	// (legacy placeholder removed; see setContextKeyService above)
 
 	render(): void {
 		this.renderBlocks();
@@ -584,6 +585,16 @@ export class BaseIssueReporterService extends Disposable {
 	private updateInternalActionsVisibility(): void {
 		const container = this.getElementById('internal-actions');
 		if (!container) { return; }
+
+		// Check entitlement first
+		const entitled = this.contextKeyService ? !!ChatContextKeys.Entitlement.internal.getValue(this.contextKeyService) : false;
+		if (!entitled) {
+			hide(container);
+			container.style.display = 'none';
+			console.debug('[IssueReporter] Internal actions hidden (not entitled)');
+			return;
+		}
+
 		const { selectedExtension, fileOnExtension } = this.issueReporterModel.getData();
 		const matchesExtension = selectedExtension && selectedExtension.id.toLowerCase() === 'github.copilot-chat';
 		// Temporarily ignore entitlement; only gate on explicit selection + extension match
@@ -593,11 +604,11 @@ export class BaseIssueReporterService extends Disposable {
 			if (this.internalPreviewButton) {
 				this.internalPreviewButton.enabled = this.previewButton?.enabled ?? false;
 			}
-			console.debug('[IssueReporter] Internal actions visible (extension match).');
+			console.debug('[IssueReporter] Internal actions visible (entitled + extension match).');
 		} else {
 			hide(container);
 			container.style.display = 'none';
-			console.debug('[IssueReporter] Internal actions hidden', { hasChosenExtension: this.hasChosenExtension, fileOnExtension, matchesExtension });
+			console.debug('[IssueReporter] Internal actions hidden', { hasChosenExtension: this.hasChosenExtension, fileOnExtension, matchesExtension, entitled });
 		}
 	}
 
