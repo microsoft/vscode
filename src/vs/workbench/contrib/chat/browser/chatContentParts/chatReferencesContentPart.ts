@@ -288,6 +288,7 @@ interface ICollapsibleListTemplate {
 	readonly templateDisposables: DisposableStore;
 	toolbar: MenuWorkbenchToolBar | undefined;
 	actionBarContainer?: HTMLElement;
+	fileDiffsContainer?: HTMLElement;
 }
 
 class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
@@ -318,7 +319,10 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			label.element.appendChild(actionBarContainer);
 		}
 
-		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService };
+		const fileDiffsContainer = $('.working-set-line-counts');
+		label.element.appendChild(fileDiffsContainer);
+
+		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService, fileDiffsContainer };
 	}
 
 
@@ -404,7 +408,19 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		if (data.state !== undefined) {
 			if (templateData.actionBarContainer) {
 				if (data.state === ModifiedFileEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
-					templateData.actionBarContainer.classList.add('modified');
+					const diffMeta = data?.options?.diffMeta;
+					if (diffMeta) {
+						if (!templateData.fileDiffsContainer) {
+							return;
+						}
+
+						const addSpan = templateData.fileDiffsContainer.querySelector('.working-set-lines-added') as HTMLElement ?? templateData.fileDiffsContainer.appendChild(dom.$('.working-set-lines-added'));
+						const removeSpan = templateData.fileDiffsContainer.querySelector('.working-set-lines-removed') as HTMLElement ?? templateData.fileDiffsContainer.appendChild(dom.$('.working-set-lines-removed'));
+
+						addSpan.textContent = `+${diffMeta.added}`;
+						removeSpan.textContent = `-${diffMeta.removed}`;
+						templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added ?? 0, diffMeta.removed ?? 0));
+					}
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 				} else if (data.state !== ModifiedFileEntryState.Modified) {
 					templateData.actionBarContainer.classList.remove('modified');

@@ -111,7 +111,10 @@ export enum ChatResponseClearToPreviousToolInvocationReason {
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference | string;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
-	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
+	options?: {
+		status?: { description: string; kind: ChatResponseReferencePartStatusKind };
+		diffMeta?: { added: number; removed: number };
+	};
 	kind: 'reference';
 }
 
