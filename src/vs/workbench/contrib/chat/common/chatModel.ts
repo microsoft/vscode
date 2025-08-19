@@ -1403,15 +1403,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
 					request.response = new ChatResponseModel({
-						responseContent: raw.response ? raw.response.map(part => {
-							if (isMarkdownString(part)) {
-								return part;
-							} else if ('kind' in part && part.kind === 'thinking') {
-								return { kind: 'thinking', value: part.value, id: part.id, metadata: part.metadata };
-							}
-
-							return part;
-						}) : [new MarkdownString(raw.response)],
+						responseContent: raw.response ?? [new MarkdownString(raw.response)],
 						session: this,
 						agent,
 						slashCommand: raw.slashCommand,
