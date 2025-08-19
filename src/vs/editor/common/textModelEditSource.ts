@@ -91,10 +91,12 @@ export const EditSources = {
 
 	rename: () => createEditSource({ source: 'rename' } as const),
 
-	chatApplyEdits(data: { modelId: string | undefined; sessionId: string | undefined; requestId: string | undefined; languageId: string; mode: string | undefined }) {
+	chatApplyEdits(data: { modelId: string | undefined; sessionId: string | undefined; requestId: string | undefined; languageId: string; mode: string | undefined; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$extensionId: data.extensionId?.extensionId,
+			$extensionVersion: data.extensionId?.version,
 			$$languageId: data.languageId,
 			$$sessionId: data.sessionId,
 			$$requestId: data.requestId,
