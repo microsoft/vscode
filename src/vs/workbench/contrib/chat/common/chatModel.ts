@@ -316,9 +316,8 @@ class AbstractResponse implements IResponse {
 	 */
 	protected _markdownContent = '';
 
-	// Ignore empty thinking parts.
 	get value(): IChatProgressResponseContent[] {
-		return this._responseParts.filter(p => !(p.kind === 'thinking' && !p.value));
+		return this._responseParts;
 	}
 
 	constructor(value: IChatProgressResponseContent[]) {
