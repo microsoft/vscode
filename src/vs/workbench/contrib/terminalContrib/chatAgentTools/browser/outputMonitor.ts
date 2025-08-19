@@ -288,7 +288,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			${sanitizedLastLine}
 			`;
 		const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
+			{ role: ChatMessageRole.User, content: [{ type: 'text', value: sanitizeForPrompt(promptText) }] }
 		], {}, token);
 
 		const responseText = await getResponseFromStream(response);

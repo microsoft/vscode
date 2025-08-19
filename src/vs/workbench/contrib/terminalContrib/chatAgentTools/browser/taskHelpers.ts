@@ -220,7 +220,7 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 	throw new Error('Polling failed');
 }
 
-export function toolResultDetailsFromResponse(terminalResults: { output: string; resources?: ILinkLocation[] }[]): ((URI | Location)[]) {
+export function toolResultDetailsFromResponse(terminalResults: { output: string; resources?: ILinkLocation[] }[]): (URI | Location)[] {
 	return Array.from(new Map(
 		terminalResults
 			.flatMap(r =>
