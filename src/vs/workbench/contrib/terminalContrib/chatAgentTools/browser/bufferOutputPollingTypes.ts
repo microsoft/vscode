@@ -25,7 +25,6 @@ export interface IExecution {
 export interface IPollingResult {
 	output: string;
 	resources?: ILinkLocation[];
-	pollDurationMs?: number;
 	modelOutputEvalResponse?: string;
 	state: OutputMonitorState;
 }

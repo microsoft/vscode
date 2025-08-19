@@ -87,7 +87,7 @@ suite('OutputMonitor', () => {
 
 	test('startMonitoring shows prompt when initial polling times out', async () => {
 		let callCount = 0;
-		const pollFn = async (_execution: IExecution, _token: CancellationToken, _pollStartTime: number, _extendedPolling: boolean) => {
+		const pollFn = async (_execution: IExecution, _token: CancellationToken) => {
 			callCount++;
 			if (callCount === 1) {
 				return {
@@ -120,7 +120,7 @@ suite('OutputMonitor', () => {
 	});
 
 	test('startMonitoring handles cancellation', async () => {
-		const pollFn = async (_execution: IExecution, _token: CancellationToken, _pollStartTime: number, _extendedPolling: boolean): Promise<IPollingResult> => {
+		const pollFn = async (_execution: IExecution, _token: CancellationToken): Promise<IPollingResult> => {
 
 			return new Promise(() => {
 				// Never resolve to simulate long-running operation
@@ -149,7 +149,7 @@ suite('OutputMonitor', () => {
 	});
 
 	test('startMonitoring handles polling without prompt response', async () => {
-		const pollFn = async (_execution: IExecution, _token: CancellationToken, _pollStartTime: number, _extendedPolling: boolean) => (
+		const pollFn = async (_execution: IExecution, _token: CancellationToken) => (
 			{
 				state: OutputMonitorState.Idle,
 				output: 'final output'

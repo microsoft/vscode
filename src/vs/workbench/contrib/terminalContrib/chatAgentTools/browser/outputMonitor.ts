@@ -33,7 +33,7 @@ export interface IOutputMonitor extends Disposable {
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
-	): Promise<{ output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>;
+	): Promise<{ output: string; state: OutputMonitorState; pollDurationMs?: number; modelOutputEvalResponse?: string }>;
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
@@ -58,7 +58,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		private readonly _execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Task; beginsPattern?: string; endsPattern?: string; dependencyTasks?: Task[]; terminal: Pick<ITerminalInstance, 'instanceId' | 'sendText'> },
 		@ILanguageModelsService private readonly _languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 		@ITaskService private readonly _taskService: ITaskService,
-		private readonly _pollFn?: (execution: IExecution, token: CancellationToken, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
+		private readonly _pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
 	) {
 		super();
 	}
@@ -68,7 +68,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
-	): Promise<{ output: string; pollDurationMs?: number; state: OutputMonitorState; modelOutputEvalResponse?: string; resources?: ILinkLocation[] }> {
+	): Promise<{ output: string; pollDurationMs: number; state: OutputMonitorState; modelOutputEvalResponse?: string; resources?: ILinkLocation[] }> {
+
+		const pollStartTime = Date.now();
+
 		let result = await this._pollForOutputAndIdle(this._execution, false, token, this._languageModelsService, this._taskService, this._pollFn);
 
 		if (this._state === OutputMonitorState.Timeout) {
@@ -83,7 +86,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			);
 		}
 
-		return result;
+		return { ...result, pollDurationMs: Date.now() - pollStartTime };
 	}
 
 	/**
@@ -163,32 +166,32 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		token: CancellationToken,
 		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 		taskService: ITaskService,
-		pollFn?: (execution: IExecution, token: CancellationToken, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined
+		pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined
 	): Promise<IPollingResult> {
 		this._state = OutputMonitorState.Polling;
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
-		const pollStartTime = Date.now();
 
 		let lastBufferLength = 0;
 		let noNewDataCount = 0;
 		let buffer = '';
 
+		let pollDuration = 0;
 		while (true) {
 			if (token.isCancellationRequested) {
 				this._state = OutputMonitorState.Cancelled;
 				return { output: buffer, state: this._state };
 			}
-			const now = Date.now();
-			const elapsed = now - pollStartTime;
-			if (elapsed >= maxWaitMs) {
+
+			if (pollDuration >= maxWaitMs) {
 				this._state = OutputMonitorState.Timeout;
 				break;
 			}
 
-			const waitTime = Math.min(currentInterval, maxWaitMs - elapsed);
+			const waitTime = Math.min(currentInterval, maxWaitMs - pollDuration);
 			await timeout(waitTime, token);
+			pollDuration += waitTime;
 
 			currentInterval = Math.min(currentInterval * 2, maxInterval);
 
@@ -217,9 +220,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 		}
 
-		const customPollingResult = await pollFn?.(execution, token, pollStartTime, extendedPolling, languageModelsService, taskService);
+		const customPollingResult = await pollFn?.(execution, token, taskService);
 		if (customPollingResult) {
-			return { ...customPollingResult, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+			return { ...customPollingResult, output: buffer };
 		}
 		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token, languageModelsService);
 		const confirmationPrompt = await this._determineUserInputOptions(execution, token, languageModelsService);
@@ -227,7 +230,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (executedOption) {
 			return this._pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn);
 		}
-		return { state: this._state, modelOutputEvalResponse, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+		return { state: this._state, modelOutputEvalResponse, output: buffer };
 	}
 
 

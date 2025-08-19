@@ -14,7 +14,7 @@ import { ToolProgress } from '../../../chat/common/languageModelToolsService.js'
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './bufferOutputPollingTypes.js';
+import { IExecution, IPollingResult, OutputMonitorState } from './bufferOutputPollingTypes.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { OutputMonitor } from './outputMonitor.js';
 import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
@@ -181,7 +181,7 @@ export async function collectTerminalResults(
 	return results;
 }
 
-export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService): Promise<IPollingResult | undefined> {
+export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, taskService: ITaskService): Promise<IPollingResult | undefined> {
 	if (token.isCancellationRequested) {
 		return;
 	}
@@ -208,13 +208,12 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 				}
 			}
 			if (problemList.length === 0) {
-				return { state: OutputMonitorState.Idle, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+				return { state: OutputMonitorState.Idle, output: 'The task succeeded with no problems.' };
 			}
 			return {
 				state: OutputMonitorState.Idle,
 				output: problemList.join('\n'),
 				resources: resultResources,
-				pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
 			};
 		}
 	}
