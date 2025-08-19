@@ -52,6 +52,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	get isIdle(): boolean {
 		return this._isIdle;
 	}
+	private _lastOptionRan: string | undefined;
 
 	constructor(
 		private readonly _execution: IExecution,
@@ -336,8 +337,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (selectedOption) {
 			// Validate that the selectedOption matches one of the original options
 			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
-			if (selectedOption && validOption) {
+			if (selectedOption && validOption && validOption !== this._lastOptionRan) {
 				await execution.instance.sendText(validOption, true);
+				this._lastOptionRan = validOption;
 				return Promise.resolve(validOption);
 			}
 		}
