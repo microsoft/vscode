@@ -19,6 +19,9 @@ import { IEditorService, SIDE_GROUP, AUX_WINDOW_GROUP } from '../../../../servic
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatViewId } from '../chat.js';
+import { ChatViewPane } from '../chatViewPane.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -147,12 +150,12 @@ export class RenameChatSessionAction extends Action2 {
 }
 
 export class OpenChatSessionInNewEditorAction extends Action2 {
-	static readonly id = 'workbench.action.chat.openSessionInNewEditor';
+	static readonly id = 'workbench.action.chat.moveSessionToNewEditor';
 
 	constructor() {
 		super({
 			id: OpenChatSessionInNewEditorAction.id,
-			title: localize('openSessionInNewEditor', "Open in New Editor to the Side"),
+			title: localize('moveSessionToNewEditor', "Move to New Editor to the Side"),
 			f1: false,
 			category: 'Chat'
 		});
@@ -226,12 +229,12 @@ export class OpenChatSessionInNewEditorAction extends Action2 {
 }
 
 export class OpenChatSessionInNewWindowAction extends Action2 {
-	static readonly id = 'workbench.action.chat.openSessionInNewWindow';
+	static readonly id = 'workbench.action.chat.moveSessionToNewWindow';
 
 	constructor() {
 		super({
 			id: OpenChatSessionInNewWindowAction.id,
-			title: localize('openSessionInNewWindow', "Open in New Window"),
+			title: localize('moveSessionToNewWindow', "Move to New Window"),
 			f1: false,
 			category: 'Chat'
 		});
@@ -307,12 +310,12 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 }
 
 export class OpenChatSessionInSideBarAction extends Action2 {
-	static readonly id = 'workbench.action.chat.openSessionInSideBar';
+	static readonly id = 'workbench.action.chat.moveSessionToSideBar';
 
 	constructor() {
 		super({
 			id: OpenChatSessionInSideBarAction.id,
-			title: localize('openSessionInSideBar', "Move to Side Bar"),
+			title: localize('moveSessionToSideBar', "Move to Side Bar"),
 			f1: false,
 			category: 'Chat'
 		});
@@ -359,10 +362,11 @@ export class OpenChatSessionInSideBarAction extends Action2 {
 		}
 
 		const editorService = accessor.get(IEditorService);
+		const viewsService = accessor.get(IViewsService);
 		const logService = accessor.get(ILogService);
 
 		try {
-			// For extension-contributed sessions, load in sidebar by opening without specifying editor group
+			// For extension-contributed sessions, load in sidebar using the same pattern as $showChatSession
 			if (chatSessionType && chatSessionType !== 'local') {
 				const sessionUri = ChatSessionUri.forSession(chatSessionType, sessionContext.sessionId);
 				
@@ -374,8 +378,9 @@ export class OpenChatSessionInSideBarAction extends Action2 {
 					}
 				}
 				
-				// Open in sidebar by not specifying an editor group (defaults to sidebar)
-				await editorService.openEditor({ resource: sessionUri, options: { pinned: true } });
+				// Open in sidebar using the same approach as mainThreadChatSessions.$showChatSession
+				const chatPanel = await viewsService.openView<ChatViewPane>(ChatViewId);
+				await chatPanel?.loadSession(sessionUri);
 				logService.info(`OpenChatSessionInSideBarAction: Successfully moved extension session ${sessionContext.sessionId} (type: ${chatSessionType}) to side bar`);
 			} else {
 				// This action shouldn't show for local sessions, but handle gracefully
@@ -398,13 +403,13 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
 
-// Register migration action menu items - only show for local chat sessions
+// Register migration action menu items - only show for non-local chat sessions
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: OpenChatSessionInNewEditorAction.id,
-		title: localize('openSessionInNewEditor', "Open in New Editor to the Side")
+		title: localize('moveSessionToNewEditor', "Move to New Editor to the Side")
 	},
-	group: 'context',
+	group: 'migration',
 	order: 9,
 	when: ChatContextKeys.sessionType.notEqualsTo('local')
 });
@@ -412,9 +417,9 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: OpenChatSessionInNewWindowAction.id,
-		title: localize('openSessionInNewWindow', "Open in New Window")
+		title: localize('moveSessionToNewWindow', "Move to New Window")
 	},
-	group: 'context',
+	group: 'migration',
 	order: 10,
 	when: ChatContextKeys.sessionType.notEqualsTo('local')
 });
@@ -422,9 +427,9 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: OpenChatSessionInSideBarAction.id,
-		title: localize('openSessionInSideBar', "Move to Side Bar")
+		title: localize('moveSessionToSideBar', "Move to Side Bar")
 	},
-	group: 'context',
+	group: 'migration',
 	order: 11,
 	when: ChatContextKeys.sessionType.notEqualsTo('local')
 });
