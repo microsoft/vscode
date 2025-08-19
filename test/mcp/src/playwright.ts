@@ -59,8 +59,18 @@ process.once('exit', () => {
 	}
 });
 
+function getTestTypeSuffix(): string {
+	if (opts.web) {
+		return 'browser';
+	} else if (opts.remote) {
+		return 'remote';
+	} else {
+		return 'electron';
+	}
+}
+
 const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
+const workspacePath = path.join(testDataPath, `vscode-smoketest-express-${getTestTypeSuffix()}`);
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 fs.mkdirSync(extensionsPath, { recursive: true });
 
