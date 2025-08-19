@@ -177,6 +177,7 @@ function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSani
 				...allowedMarkdownHtmlAttributes,
 				'name',
 				'id',
+				'class',
 				'role',
 				'tabindex',
 				'placeholder',

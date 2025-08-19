@@ -52,6 +52,7 @@ suite('RunInTerminalTool', () => {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
+		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'on');
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionId: string; reason: 'cleared' }>();
 
