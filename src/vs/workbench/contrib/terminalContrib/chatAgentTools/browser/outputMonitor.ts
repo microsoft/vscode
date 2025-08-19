@@ -182,22 +182,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 			const now = Date.now();
 			const elapsed = now - pollStartTime;
-			const timeLeft = maxWaitMs - elapsed;
-
-			if (timeLeft <= 0) {
+			if (elapsed >= maxWaitMs) {
 				this._state = OutputMonitorState.Timeout;
 				break;
 			}
 
-			// Cap the wait so we never overshoot timeLeft
-			const waitTime = Math.min(currentInterval, timeLeft);
+			const waitTime = Math.min(currentInterval, maxWaitMs - elapsed);
 			await timeout(waitTime, token);
-
-			// Check again immediately after waking
-			if (Date.now() - pollStartTime >= maxWaitMs) {
-				this._state = OutputMonitorState.Timeout;
-				break;
-			}
 
 			currentInterval = Math.min(currentInterval * 2, maxInterval);
 
@@ -211,37 +202,30 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				lastBufferLength = currentBufferLength;
 			}
 
-			const inactive = execution.isActive && ((await execution.isActive()) === false);
-			if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
-				if (execution.isActive && ((await execution.isActive()) === true)) {
-					noNewDataCount = 0;
-					lastBufferLength = currentBufferLength;
-					continue;
-				} else {
-					this._state = OutputMonitorState.Idle;
-					break;
-				}
-			} else if (inactive) {
+			const isInactive = execution.isActive && ((await execution.isActive()) === false);
+			const isActive = execution.isActive && ((await execution.isActive()) === true);
+			const noNewData = noNewDataCount >= PollingConsts.MinNoDataEvents;
+
+			if (noNewData || isInactive) {
 				this._state = OutputMonitorState.Idle;
 				break;
 			}
+			if (noNewData && isActive) {
+				noNewDataCount = 0;
+				lastBufferLength = currentBufferLength;
+				continue;
+			}
 		}
 
-		this._state = OutputMonitorState.Idle;
 		const customPollingResult = await pollFn?.(execution, token, pollStartTime, extendedPolling, languageModelsService, taskService);
 		if (customPollingResult) {
 			return { ...customPollingResult, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 		}
 		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token, languageModelsService);
-		const confirmationPrompt = await this._detectConfirmationPromptWithLLM(execution, token, languageModelsService);
-		const handled = await this._handleConfirmationPrompt(confirmationPrompt, execution, token, languageModelsService);
-		if (handled) {
-			if (typeof handled === 'boolean' && handled) {
-				// Something was sent to the terminal, poll again
-				return this._pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn);
-			} else {
-				return handled;
-			}
+		const confirmationPrompt = await this._determineUserInputOptions(execution, token, languageModelsService);
+		const executedOption = await this._selectAndRunOptionInTerminal(confirmationPrompt, execution, token, languageModelsService);
+		if (executedOption) {
+			return this._pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn);
 		}
 		return { state: this._state, modelOutputEvalResponse, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
@@ -264,7 +248,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 	}
 
-	private async _detectConfirmationPromptWithLLM(execution: IExecution, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<IConfirmationPrompt | undefined> {
+	private async _determineUserInputOptions(execution: IExecution, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<IConfirmationPrompt | undefined> {
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -319,34 +303,36 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return undefined;
 	}
 
-	private async _handleConfirmationPrompt(
+	private async _selectAndRunOptionInTerminal(
 		confirmationPrompt: IConfirmationPrompt | undefined,
 		execution: IExecution,
 		token: CancellationToken,
 		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
-	): Promise<boolean> {
-		if (confirmationPrompt && confirmationPrompt.options.length > 0) {
-			const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot' });
-			if (models.length > 0) {
-				const sanitizedPrompt = sanitizeForPrompt(confirmationPrompt.prompt);
-				const sanitizedOptions = confirmationPrompt.options.map(opt => sanitizeForPrompt(opt));
-				const promptText = `Given the following confirmation prompt and options from a terminal output, which option should be selected to proceed safely and correctly?\nPrompt: "${sanitizedPrompt}"\nOptions: ${JSON.stringify(sanitizedOptions)}\nRespond with only the option string.`;
-				const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
-					{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
-				], {}, token);
+	): Promise<string | undefined> {
+		if (!confirmationPrompt?.options.length) {
+			return Promise.resolve(undefined);
+		}
+		const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot' });
+		if (!models.length) {
+			return Promise.resolve(undefined);
+		}
+		const sanitizedPrompt = sanitizeForPrompt(confirmationPrompt.prompt);
+		const sanitizedOptions = confirmationPrompt.options.map(opt => sanitizeForPrompt(opt));
+		const promptText = `Given the following confirmation prompt and options from a terminal output, which option should be selected to proceed safely and correctly?\nPrompt: "${sanitizedPrompt}"\nOptions: ${JSON.stringify(sanitizedOptions)}\nRespond with only the option string.`;
+		const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
+			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
+		], {}, token);
 
-				const selectedOption = (await getResponseFromStream(response)).trim();
-				if (selectedOption) {
-					// Validate that the selectedOption matches one of the original options
-					const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
-					if (selectedOption && validOption) {
-						await execution.terminal.sendText(validOption, true);
-						return true;
-					}
-				}
+		const selectedOption = (await getResponseFromStream(response)).trim();
+		if (selectedOption) {
+			// Validate that the selectedOption matches one of the original options
+			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
+			if (selectedOption && validOption) {
+				await execution.terminal.sendText(validOption, true);
+				return Promise.resolve(validOption);
 			}
 		}
-		return false;
+		return Promise.resolve(undefined);
 	}
 }
 
