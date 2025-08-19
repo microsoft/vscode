@@ -72,7 +72,7 @@ class RunTestTool implements IToolImpl {
 		canBeReferencedInPrompt: true,
 		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
-		modelDescription: 'Run workspace tests through the VS Code Testing API to quickly validate code changes and re-run known failing tests. Accepts test file paths (absolute or workspace-relative) and/or substrings of test or suite names to narrow what runs. Returns a structured summary of pass/fail counts and failure messages (not full raw runner stdout). If you need custom test runner CLI flags (e.g., jest --testNamePattern, mocha -g, pytest -k) or full console output for deep debugging, prefer using a terminal command (npm test / yarn test / cargo test, etc.). Always provide the narrowest set of files and/or test names you can to save time.',
+		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run.',
 		icon: Codicon.beaker,
 		inputSchema: {
 			type: 'object',
@@ -80,12 +80,12 @@ class RunTestTool implements IToolImpl {
 				files: {
 					type: 'array',
 					items: { type: 'string' },
-					description: 'Array of absolute or workspace-relative paths to test files (or directories containing tests). Narrow selection to reduce run time. Omit to run all discovered tests in the workspace.',
+					description: 'Absolute paths to the test files to run. If not provided, all test files will be run.',
 				},
 				testNames: {
 					type: 'array',
 					items: { type: 'string' },
-					description: 'Array of substrings matched against test item labels (suite/class/case). Use to run only specific tests within the provided files. Omit to run all tests in those files.',
+					description: 'An array of test names to run. Depending on the context, test names defined in code may be strings or the names of functions or classes containing the test cases. If not provided, all tests in the files will be run.',
 				}
 			},
 		},
@@ -114,7 +114,7 @@ class RunTestTool implements IToolImpl {
 		const testCases = await this._getTestCasesToRun(params, testFiles, progress);
 		if (!testCases.length) {
 			return {
-				content: [{ kind: 'text', value: 'No tests found in the files. Ensure correct paths (absolute or workspace-relative) are passed to the tool.' }],
+				content: [{ kind: 'text', value: 'No tests found in the files. Ensure the correct absolute paths are passed to the tool.' }],
 				toolResultError: localize('runTestTool.noTests', 'No tests found in the files'),
 			};
 		}
@@ -124,7 +124,7 @@ class RunTestTool implements IToolImpl {
 		const result = await this._captureTestResult(testCases, token);
 		if (!result) {
 			return {
-				content: [{ kind: 'text', value: 'No test run was started. You may need to ensure your test runner or extension is configured, or run tests from a terminal for custom setups.' }],
+				content: [{ kind: 'text', value: 'No test run was started. Instruct the user to ensure their test runner is correctly configured' }],
 				toolResultError: localize('runTestTool.noRunStarted', 'No test run was started. This may be an issue with your test runner or extension.'),
 			};
 		}
