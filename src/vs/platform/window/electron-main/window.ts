@@ -138,8 +138,8 @@ export interface IWindowState {
 	readonly display?: number;
 }
 
-export const defaultWindowState = function (mode = WindowMode.Normal, isWorkspace = false): IWindowState {
-	const size = isWorkspace ? DEFAULT_WORKSPACE_WINDOW_SIZE : DEFAULT_EMPTY_WINDOW_SIZE;
+export const defaultWindowState = function (mode = WindowMode.Normal, hasWorkspace = false): IWindowState {
+	const size = hasWorkspace ? DEFAULT_WORKSPACE_WINDOW_SIZE : DEFAULT_EMPTY_WINDOW_SIZE;
 	return {
 		width: size.width,
 		height: size.height,
