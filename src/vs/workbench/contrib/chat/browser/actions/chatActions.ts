@@ -115,7 +115,7 @@ export interface IChatViewOpenOptions {
 	/**
 	 * Whether to wait for the completion of the chat response.
 	 */
-	waitForCompletion?: boolean;
+	blockOnResponse?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -219,7 +219,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 
 		chatWidget.focusInput();
 
-		if (opts?.waitForCompletion) {
+		if (opts?.blockOnResponse) {
 			const response = await resp;
 			if (response) {
 				await new Promise<void>(resolve => {

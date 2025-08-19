@@ -124,7 +124,7 @@ suite('chat', () => {
 		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
 	});
 
-	test('waitForCompletion waits until response completes with confirmation', async () => {
+	test('blockOnResponse waits until response completes with confirmation', async () => {
 		const done = new DeferredPromise<void>();
 
 		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
@@ -136,7 +136,7 @@ suite('chat', () => {
 		});
 		disposables.push(participant);
 
-		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', waitForCompletion: true });
+		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
 
 		const raced = await Promise.race([
 			cmd.then(() => 'cmd'),
@@ -148,7 +148,7 @@ suite('chat', () => {
 		await cmd;
 	});
 
-	test('waitForCompletion waits until response completes with error', async () => {
+	test('blockOnResponse waits until response completes with error', async () => {
 		const done = new DeferredPromise<void>();
 		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
 			await done.p;
@@ -156,7 +156,7 @@ suite('chat', () => {
 		});
 		disposables.push(participant);
 
-		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', waitForCompletion: true });
+		const cmd = commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
 
 		const raced = await Promise.race([
 			cmd.then(() => 'cmd'),
