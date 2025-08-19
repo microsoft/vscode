@@ -60,7 +60,9 @@ export const RunInTerminalToolData: IToolData = {
 		'This tool allows you to execute shell commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.',
 		'',
 		'Command Execution:',
-		'- Supports multi-line commands',
+		// TODO: Multi-line command execution does work, but it requires AST parsing to pull
+		// sub-commands out reliably https://github.com/microsoft/vscode/issues/261794
+		'- Does NOT support multi-line commands',
 		'',
 		'Directory Management:',
 		'- Must use absolute paths to avoid navigation issues.',
