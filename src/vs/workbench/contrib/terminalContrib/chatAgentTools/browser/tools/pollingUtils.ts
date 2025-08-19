@@ -70,9 +70,9 @@ export async function pollForOutputAndIdle(
 		}
 		terminalExecutionIdleBeforeTimeout = true;
 		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
-		const terminalReceivedInputResult = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, taskService);
-		if (terminalReceivedInputResult) {
-			return terminalReceivedInputResult;
+		const customPollingResult = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, taskService);
+		if (customPollingResult) {
+			return customPollingResult;
 		}
 		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
