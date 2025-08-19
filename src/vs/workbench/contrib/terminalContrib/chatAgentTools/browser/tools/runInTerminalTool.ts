@@ -321,12 +321,31 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				isAutoApproved = false;
 			}
 
+			// Check command reporting for telemetry
+			let commandForReporting: string | undefined;
+			let commandReportingEnabled = false;
+			let commandReportingRule: string | undefined;
+
+			// Check the first sub-command for reporting (most relevant for understanding command usage)
+			if (subCommands.length > 0) {
+				const firstSubCommand = subCommands[0];
+				const reportingResult = this._commandLineAutoApprover.isCommandReportingEnabled(firstSubCommand, shell, os);
+				if (reportingResult.enabled) {
+					commandForReporting = firstSubCommand;
+					commandReportingEnabled = true;
+					commandReportingRule = reportingResult.rule?.sourceText;
+				}
+			}
+
 			// Send telemetry about auto approval process
 			this._sendTelemetryPrepare({
 				terminalToolSessionId,
 				autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
 				autoApproveReason,
 				autoApproveDefault,
+				command: commandForReporting,
+				commandReportingEnabled,
+				commandReportingRule,
 			});
 
 			// Add a disclaimer warning about prompt injection for common commands that return
@@ -799,6 +818,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		autoApproveResult: 'approved' | 'denied' | 'manual';
 		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		autoApproveDefault: boolean | undefined;
+		command?: string;
+		commandReportingEnabled?: boolean;
+		commandReportingRule?: string;
 	}) {
 		type TelemetryEvent = {
 			terminalToolSessionId: string | undefined;
@@ -806,6 +828,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			autoApproveResult: string;
 			autoApproveReason: string | undefined;
 			autoApproveDefault: boolean | undefined;
+			command: string | undefined;
+			commandReportingEnabled: boolean | undefined;
+			commandReportingRule: string | undefined;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -816,6 +841,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
 			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
 			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
+			command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The command that was executed, only included when command reporting is enabled for this command pattern' };
+			commandReportingEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether command reporting is enabled for this command' };
+			commandReportingRule: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The rule that enabled command reporting for this command' };
 		};
 
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
@@ -824,6 +852,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			autoApproveResult: state.autoApproveResult,
 			autoApproveReason: state.autoApproveReason,
 			autoApproveDefault: state.autoApproveDefault,
+			command: state.command,
+			commandReportingEnabled: state.commandReportingEnabled,
+			commandReportingRule: state.commandReportingRule,
 		});
 	}
 

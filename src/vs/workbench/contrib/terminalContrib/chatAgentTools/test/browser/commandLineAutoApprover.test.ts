@@ -1200,4 +1200,115 @@ suite('CommandLineAutoApprover', () => {
 			ok(isAutoApproved('FOO=bar echo test'), 'Unknown shells should default to bourne shell behavior');
 		});
 	});
+
+	suite('command reporting', () => {
+		function setCommandReportingConfig(value: { [key: string]: boolean }) {
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.CommandReportingAllowList, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set([TerminalChatAgentToolsSettingId.CommandReportingAllowList]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
+		}
+
+		function isCommandReportingEnabled(command: string): boolean {
+			return commandLineAutoApprover.isCommandReportingEnabled(command, shell, os).enabled;
+		}
+
+		function getCommandReportingReason(command: string): string {
+			return commandLineAutoApprover.isCommandReportingEnabled(command, shell, os).reason;
+		}
+
+		function getCommandReportingRule(command: string): string | undefined {
+			return commandLineAutoApprover.isCommandReportingEnabled(command, shell, os).rule?.sourceText;
+		}
+
+		test('should enable reporting for commands matching allow list', () => {
+			setCommandReportingConfig({
+				"git": true,
+				"npm": true
+			});
+
+			ok(isCommandReportingEnabled('git status'));
+			ok(isCommandReportingEnabled('npm install'));
+			ok(!isCommandReportingEnabled('echo hello'));
+		});
+
+		test('should not enable reporting for commands not in allow list', () => {
+			setCommandReportingConfig({
+				"git": true
+			});
+
+			ok(!isCommandReportingEnabled('npm install'));
+			ok(!isCommandReportingEnabled('docker run'));
+		});
+
+		test('should handle regex patterns in command reporting', () => {
+			setCommandReportingConfig({
+				"/^docker\\b/": true
+			});
+
+			ok(isCommandReportingEnabled('docker run'));
+			ok(isCommandReportingEnabled('docker build'));
+			ok(!isCommandReportingEnabled('dockerimage'));
+		});
+
+		test('should return correct reason for command reporting decisions', () => {
+			setCommandReportingConfig({
+				"git": true
+			});
+
+			strictEqual(getCommandReportingReason('git status'), "Command 'git status' matches reporting rule: git");
+			strictEqual(getCommandReportingReason('npm install'), "Command 'npm install' has no matching command reporting entries");
+		});
+
+		test('should return correct rule for enabled command reporting', () => {
+			setCommandReportingConfig({
+				"git": true,
+				"/^npm\\b/": true
+			});
+
+			strictEqual(getCommandReportingRule('git status'), 'git');
+			strictEqual(getCommandReportingRule('npm install'), '/^npm\\b/');
+			strictEqual(getCommandReportingRule('echo hello'), undefined);
+		});
+
+		test('should work with empty command reporting config', () => {
+			setCommandReportingConfig({});
+
+			ok(!isCommandReportingEnabled('git status'));
+			ok(!isCommandReportingEnabled('npm install'));
+		});
+
+		test('should ignore false values in command reporting config', () => {
+			// The type system only allows true values, but we should handle false gracefully if it somehow gets in
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.CommandReportingAllowList, {
+				"git": true,
+				"npm": false as any // Simulating unexpected false value
+			});
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+				affectedKeys: new Set([TerminalChatAgentToolsSettingId.CommandReportingAllowList]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
+
+			ok(isCommandReportingEnabled('git status'));
+			ok(!isCommandReportingEnabled('npm install')); // Should be false/ignored
+		});
+
+		test('should handle complex command patterns', () => {
+			setCommandReportingConfig({
+				"docker": true,
+				"/^python\\d*\\b/i": true
+			});
+
+			ok(isCommandReportingEnabled('docker run alpine'));
+			ok(isCommandReportingEnabled('python script.py'));
+			ok(isCommandReportingEnabled('python3 script.py'));
+			ok(isCommandReportingEnabled('Python script.py')); // Case insensitive
+			ok(!isCommandReportingEnabled('pythonscript')); // Should not match without word boundary
+		});
+	});
 });

@@ -12,6 +12,7 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
+	CommandReportingAllowList = 'chat.tools.terminal.commandReportingAllowList',
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
@@ -23,6 +24,7 @@ export const enum TerminalChatAgentToolsSettingId {
 
 export interface ITerminalChatAgentToolsConfiguration {
 	autoApprove: { [key: string]: boolean };
+	commandReportingAllowList: { [key: string]: boolean };
 	shellIntegrationTimeout: number;
 }
 
@@ -284,6 +286,49 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			iex: false,
 			// #endregion
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
+	},
+	[TerminalChatAgentToolsSettingId.CommandReportingAllowList]: {
+		markdownDescription: [
+			localize('commandReportingAllowList.description.intro', "A list of commands or regular expressions that control which commands are included in telemetry reporting. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
+			localize('commandReportingAllowList.description.values', "Set to {0} to enable reporting for commands matching the pattern.", '`true`'),
+			localize('commandReportingAllowList.description.examples', "Note that this setting only controls telemetry reporting and does not affect command execution or auto-approval behavior."),
+			[
+				localize('commandReportingAllowList.description.examples.title', 'Examples:'),
+				`|${localize('commandReportingAllowList.description.examples.value', "Value")}|${localize('commandReportingAllowList.description.examples.description', "Description")}|`,
+				'|---|---|',
+				'| `\"git\": true` | ' + localize('commandReportingAllowList.description.examples.git', "Report all commands starting with {0}", '`git`'),
+				'| `\"npm\": true` | ' + localize('commandReportingAllowList.description.examples.npm', "Report all commands starting with {0}", '`npm`'),
+				'| `\"/^docker\\\\b/\": true` | ' + localize('commandReportingAllowList.description.examples.docker', "Report all commands starting with {0}", '`docker`'),
+			].join('\n')
+		].join('\n\n'),
+		type: 'object',
+		additionalProperties: {
+			type: 'boolean',
+			enum: [true],
+			enumDescriptions: [
+				localize('commandReportingAllowList.true', "Include commands matching this pattern in telemetry reporting."),
+			],
+			description: localize('commandReportingAllowList.key', "The start of a command to match against for telemetry reporting. A regular expression can be provided by wrapping the string in `/` characters."),
+		},
+		default: {
+			// Common development commands that are useful for understanding tool usage patterns
+			git: true,
+			npm: true,
+			yarn: true,
+			docker: true,
+			kubectl: true,
+			cargo: true,
+			dotnet: true,
+			mvn: true,
+			gradle: true,
+			pip: true,
+			python: true,
+			node: true,
+			java: true,
+			go: true,
+			make: true,
+			cmake: true,
+		} satisfies Record<string, boolean>,
 	},
 	[TerminalChatAgentToolsSettingId.ShellIntegrationTimeout]: {
 		markdownDescription: localize('shellIntegrationTimeout.description', "Configures the duration in milliseconds to wait for shell integration to be detected when the run in terminal tool launches a new terminal. Set to `0` to wait the minimum time, the default value `-1` means the wait time is variable based on the value of {0} and whether it's a remote window. A large value can be useful if your shell starts very slowly and a low value if you're intentionally not using shell integration.", `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
