@@ -34,7 +34,6 @@ export class CommandLineAutoApprover extends Disposable {
 	private _allowListRules: IAutoApproveRule[] = [];
 	private _allowListCommandLineRules: IAutoApproveRule[] = [];
 	private _denyListCommandLineRules: IAutoApproveRule[] = [];
-	private _commandReportingRules: IAutoApproveRule[] = [];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -44,8 +43,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.CommandReportingAllowList)
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible)
 			) {
 				this.updateConfiguration();
 			}
@@ -73,11 +71,6 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListRules = denyListRules;
 		this._allowListCommandLineRules = allowListCommandLineRules;
 		this._denyListCommandLineRules = denyListCommandLineRules;
-
-		// Load command reporting rules
-		const commandReportingConfig = this._configurationService.getValue(TerminalChatAgentToolsSettingId.CommandReportingAllowList);
-		const commandReportingInspectValue = this._configurationService.inspect(TerminalChatAgentToolsSettingId.CommandReportingAllowList);
-		this._commandReportingRules = this._mapCommandReportingConfigToRules(commandReportingConfig, commandReportingInspectValue);
 	}
 
 	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
@@ -324,55 +317,5 @@ export class CommandLineAutoApprover extends Disposable {
 
 		// Regular strings should match the start of the command line and be a word boundary
 		return new RegExp(`^${sanitizedValue}\\b`);
-	}
-
-	/**
-	 * Check if a command should be included in telemetry reporting based on the command reporting allow list
-	 */
-	isCommandReportingEnabled(command: string, shell: string, os: OperatingSystem): { enabled: boolean; rule?: IAutoApproveRule; reason: string } {
-		// Check the command reporting allow list
-		for (const rule of this._commandReportingRules) {
-			if (this._commandMatchesRule(rule, command, shell, os)) {
-				return {
-					enabled: true,
-					rule,
-					reason: `Command '${command}' matches reporting rule: ${rule.sourceText}`
-				};
-			}
-		}
-
-		return {
-			enabled: false,
-			reason: `Command '${command}' has no matching command reporting entries`
-		};
-	}
-
-	private _mapCommandReportingConfigToRules(config: unknown, configInspectValue: IConfigurationValue<Readonly<unknown>>): IAutoApproveRule[] {
-		if (!config || typeof config !== 'object') {
-			return [];
-		}
-
-		const reportingRules: IAutoApproveRule[] = [];
-
-		Object.entries(config).forEach(([key, value]) => {
-			// Check if source target maps to expected enum value
-			const sourceTarget = configInspectValue.defaultValue && isObject(configInspectValue.defaultValue) && key in configInspectValue.defaultValue ? ConfigurationTarget.DEFAULT :
-				configInspectValue.globalValue && isObject(configInspectValue.globalValue) && key in configInspectValue.globalValue ? ConfigurationTarget.GLOBAL :
-					configInspectValue.workspaceFolderValue && isObject(configInspectValue.workspaceFolderValue) && key in configInspectValue.workspaceFolderValue ? ConfigurationTarget.WORKSPACE_FOLDER :
-						configInspectValue.workspaceValue && isObject(configInspectValue.workspaceValue) && key in configInspectValue.workspaceValue ? ConfigurationTarget.WORKSPACE :
-							ConfigurationTarget.USER;
-
-			const isDefaultRule = sourceTarget === ConfigurationTarget.DEFAULT;
-
-			if (typeof value === 'boolean') {
-				// Only true values are allowed for command reporting
-				if (value === true) {
-					const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
-					reportingRules.push({ regex, regexCaseInsensitive, sourceText: key, sourceTarget, isDefaultRule });
-				}
-			}
-		});
-
-		return reportingRules;
 	}
 }
