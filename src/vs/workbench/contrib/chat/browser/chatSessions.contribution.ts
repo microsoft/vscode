@@ -274,6 +274,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				isSticky: false,
 			},
 			extensionId,
+			extensionVersion: extensionDescription.version,
 			extensionDisplayName: extensionDisplayName || extensionName,
 			extensionPublisherId,
 		};
