@@ -18,6 +18,7 @@ import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { IEditorService, SIDE_GROUP, AUX_WINDOW_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatSessionUri } from '../../common/chatUri.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -36,6 +37,9 @@ interface IMarshalledChatSessionContext {
 		editor?: ChatEditorInput;
 		widget?: any;
 		sessionType?: 'editor' | 'widget';
+		provider?: {
+			chatSessionType: string;
+		};
 	};
 }
 
@@ -161,6 +165,8 @@ export class OpenChatSessionInNewEditorAction extends Action2 {
 
 		// Handle marshalled context from menu actions
 		let sessionContext: IChatSessionContext;
+		let chatSessionType: string | undefined;
+		
 		if (isMarshalledChatSessionContext(context)) {
 			const session = context.session;
 			let actualSessionId: string | undefined;
@@ -178,6 +184,9 @@ export class OpenChatSessionInNewEditorAction extends Action2 {
 				return;
 			}
 
+			// Get the chat session type from the provider
+			chatSessionType = session.provider?.chatSessionType;
+
 			sessionContext = {
 				sessionId: actualSessionId,
 				sessionType: session.sessionType || 'editor',
@@ -193,13 +202,23 @@ export class OpenChatSessionInNewEditorAction extends Action2 {
 		const logService = accessor.get(ILogService);
 
 		try {
-			// Open chat session in new editor to the side
-			const options: IChatEditorOptions = {
-				target: { sessionId: sessionContext.sessionId },
-				pinned: true
-			};
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, SIDE_GROUP);
-			logService.info(`OpenChatSessionInNewEditorAction: Successfully opened session ${sessionContext.sessionId} in new editor group`);
+			// For extension-contributed sessions, use ChatSessionUri to create proper URI
+			if (chatSessionType && chatSessionType !== 'local') {
+				const sessionUri = ChatSessionUri.forSession(chatSessionType, sessionContext.sessionId);
+				const options: IChatEditorOptions = {
+					pinned: true
+				};
+				await editorService.openEditor({ resource: sessionUri, options }, SIDE_GROUP);
+				logService.info(`OpenChatSessionInNewEditorAction: Successfully opened extension session ${sessionContext.sessionId} (type: ${chatSessionType}) in new editor group`);
+			} else {
+				// Fall back to original approach for local sessions (though this action shouldn't show for local sessions)
+				const options: IChatEditorOptions = {
+					target: { sessionId: sessionContext.sessionId },
+					pinned: true
+				};
+				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, SIDE_GROUP);
+				logService.info(`OpenChatSessionInNewEditorAction: Successfully opened local session ${sessionContext.sessionId} in new editor group`);
+			}
 		} catch (error) {
 			logService.error('OpenChatSessionInNewEditorAction: Failed to open chat session in new editor', error);
 		}
@@ -225,6 +244,8 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 
 		// Handle marshalled context from menu actions
 		let sessionContext: IChatSessionContext;
+		let chatSessionType: string | undefined;
+		
 		if (isMarshalledChatSessionContext(context)) {
 			const session = context.session;
 			let actualSessionId: string | undefined;
@@ -242,6 +263,9 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 				return;
 			}
 
+			// Get the chat session type from the provider
+			chatSessionType = session.provider?.chatSessionType;
+
 			sessionContext = {
 				sessionId: actualSessionId,
 				sessionType: session.sessionType || 'editor',
@@ -257,16 +281,108 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		const logService = accessor.get(ILogService);
 
 		try {
-			// Open chat session in new auxiliary window
-			const options: IChatEditorOptions = {
-				target: { sessionId: sessionContext.sessionId },
-				pinned: true,
-				auxiliary: { compact: true, bounds: { width: 640, height: 640 } }
-			};
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, AUX_WINDOW_GROUP);
-			logService.info(`OpenChatSessionInNewWindowAction: Successfully opened session ${sessionContext.sessionId} in new auxiliary window`);
+			// For extension-contributed sessions, use ChatSessionUri to create proper URI
+			if (chatSessionType && chatSessionType !== 'local') {
+				const sessionUri = ChatSessionUri.forSession(chatSessionType, sessionContext.sessionId);
+				const options: IChatEditorOptions = {
+					pinned: true,
+					auxiliary: { compact: true, bounds: { width: 640, height: 640 } }
+				};
+				await editorService.openEditor({ resource: sessionUri, options }, AUX_WINDOW_GROUP);
+				logService.info(`OpenChatSessionInNewWindowAction: Successfully opened extension session ${sessionContext.sessionId} (type: ${chatSessionType}) in new auxiliary window`);
+			} else {
+				// Fall back to original approach for local sessions (though this action shouldn't show for local sessions)
+				const options: IChatEditorOptions = {
+					target: { sessionId: sessionContext.sessionId },
+					pinned: true,
+					auxiliary: { compact: true, bounds: { width: 640, height: 640 } }
+				};
+				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, AUX_WINDOW_GROUP);
+				logService.info(`OpenChatSessionInNewWindowAction: Successfully opened local session ${sessionContext.sessionId} in new auxiliary window`);
+			}
 		} catch (error) {
 			logService.error('OpenChatSessionInNewWindowAction: Failed to open chat session in new window', error);
+		}
+	}
+}
+
+export class OpenChatSessionInSideBarAction extends Action2 {
+	static readonly id = 'workbench.action.chat.openSessionInSideBar';
+
+	constructor() {
+		super({
+			id: OpenChatSessionInSideBarAction.id,
+			title: localize('openSessionInSideBar', "Move to Side Bar"),
+			f1: false,
+			category: 'Chat'
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		// Handle marshalled context from menu actions
+		let sessionContext: IChatSessionContext;
+		let chatSessionType: string | undefined;
+		
+		if (isMarshalledChatSessionContext(context)) {
+			const session = context.session;
+			let actualSessionId: string | undefined;
+			const currentTitle = session.label;
+
+			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			} else {
+				actualSessionId = session.id;
+			}
+
+			if (!actualSessionId) {
+				return;
+			}
+
+			// Get the chat session type from the provider
+			chatSessionType = session.provider?.chatSessionType;
+
+			sessionContext = {
+				sessionId: actualSessionId,
+				sessionType: session.sessionType || 'editor',
+				currentTitle: currentTitle,
+				editorInput: session.editor,
+				widget: session.widget
+			};
+		} else {
+			sessionContext = context;
+		}
+
+		const editorService = accessor.get(IEditorService);
+		const logService = accessor.get(ILogService);
+
+		try {
+			// For extension-contributed sessions, load in sidebar by opening without specifying editor group
+			if (chatSessionType && chatSessionType !== 'local') {
+				const sessionUri = ChatSessionUri.forSession(chatSessionType, sessionContext.sessionId);
+				
+				// Close any existing editors for this session first
+				const editors = editorService.editors;
+				for (const editor of editors) {
+					if (editor instanceof ChatEditorInput && editor.sessionId === sessionContext.sessionId) {
+						await editorService.closeEditor(editor);
+					}
+				}
+				
+				// Open in sidebar by not specifying an editor group (defaults to sidebar)
+				await editorService.openEditor({ resource: sessionUri, options: { pinned: true } });
+				logService.info(`OpenChatSessionInSideBarAction: Successfully moved extension session ${sessionContext.sessionId} (type: ${chatSessionType}) to side bar`);
+			} else {
+				// This action shouldn't show for local sessions, but handle gracefully
+				logService.warn(`OpenChatSessionInSideBarAction: Action called for local session ${sessionContext.sessionId}, which should not happen`);
+			}
+		} catch (error) {
+			logService.error('OpenChatSessionInSideBarAction: Failed to move chat session to side bar', error);
 		}
 	}
 }
@@ -300,5 +416,15 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'context',
 	order: 10,
+	when: ChatContextKeys.sessionType.notEqualsTo('local')
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+	command: {
+		id: OpenChatSessionInSideBarAction.id,
+		title: localize('openSessionInSideBar', "Move to Side Bar")
+	},
+	group: 'context',
+	order: 11,
 	when: ChatContextKeys.sessionType.notEqualsTo('local')
 });
