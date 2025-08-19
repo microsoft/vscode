@@ -23,18 +23,28 @@ export interface IExecution {
 }
 
 export interface IPollingResult {
-	terminalExecutionIdleBeforeTimeout: boolean;
 	output: string;
 	resources?: ILinkLocation[];
 	pollDurationMs?: number;
 	modelOutputEvalResponse?: string;
+	state: OutputMonitorState;
+}
+
+export enum OutputMonitorState {
+	Initial = 'Initial',
+	Idle = 'Idle',
+	Polling = 'Polling',
+	Prompting = 'Prompting',
+	Timeout = 'Timeout',
+	Active = 'Active',
+	Cancelled = 'Cancelled',
 }
 
 export interface IRacePollingOrPromptResult {
-	terminalExecutionIdleBeforeTimeout: boolean;
 	output: string;
 	pollDurationMs?: number;
 	modelOutputEvalResponse?: string;
+	state: OutputMonitorState;
 }
 
 export const enum PollingConsts {

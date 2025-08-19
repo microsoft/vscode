@@ -16,6 +16,7 @@ import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDepen
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { OutputMonitorState } from '../../bufferOutputPollingTypes.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -106,7 +107,7 @@ export class RunTaskTool implements IToolImpl {
 			resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
 		} else {
 			resultSummary += `\`${taskLabel}\` task `;
-			resultSummary += terminalResults.every(r => r.idle)
+			resultSummary += terminalResults.every(r => r.state === OutputMonitorState.Idle)
 				? (toolResultDetails.length ? `finished with \`${toolResultDetails.length}\` problems` : 'finished')
 				: (toolResultDetails.length ? `started and will continue to run in the background with \`${toolResultDetails.length}\` problems` : 'started and will continue to run in the background');
 		}

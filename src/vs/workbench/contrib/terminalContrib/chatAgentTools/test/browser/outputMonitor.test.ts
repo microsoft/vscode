@@ -11,7 +11,7 @@ import { OutputMonitor } from '../../browser/outputMonitor.js';
 import { CancellationTokenSource, CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { IExecution, IPollingResult } from '../../browser/bufferOutputPollingTypes.js';
+import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/bufferOutputPollingTypes.js';
 import { AsyncIterableObject } from '../../../../../../base/common/async.js';
 
 suite('OutputMonitor', () => {
@@ -63,7 +63,7 @@ suite('OutputMonitor', () => {
 
 	test('startMonitoring returns immediately when polling succeeds', async () => {
 		const pollFn = async () => ({
-			terminalExecutionIdleBeforeTimeout: true,
+			state: OutputMonitorState.Idle,
 			output: 'success output'
 		});
 
@@ -81,22 +81,22 @@ suite('OutputMonitor', () => {
 			cts.token
 		);
 
-		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, true);
+		assert.strictEqual(result.state, OutputMonitorState.Idle);
 		assert.strictEqual(result.output, 'success output');
 	});
 
 	test('startMonitoring shows prompt when initial polling times out', async () => {
 		let callCount = 0;
-		const pollFn = async (_execution: IExecution, _token: CancellationToken, _idle: boolean, _pollStartTime: number, _extendedPolling: boolean) => {
+		const pollFn = async (_execution: IExecution, _token: CancellationToken, _pollStartTime: number, _extendedPolling: boolean) => {
 			callCount++;
 			if (callCount === 1) {
 				return {
-					terminalExecutionIdleBeforeTimeout: false,
+					state: OutputMonitorState.Timeout,
 					output: 'timeout output'
 				};
 			}
 			return {
-				terminalExecutionIdleBeforeTimeout: true,
+				state: OutputMonitorState.Idle,
 				output: 'success after prompt'
 			};
 		};
@@ -115,14 +115,16 @@ suite('OutputMonitor', () => {
 			cts.token
 		);
 
-		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, false);
+		assert.strictEqual(result.state, OutputMonitorState.Timeout);
 		assert.strictEqual(result.output, 'timeout output');
 	});
 
 	test('startMonitoring handles cancellation', async () => {
-		const pollFn = async (_execution: IExecution, _token: CancellationToken, _idle: boolean, _pollStartTime: number, _extendedPolling: boolean): Promise<IPollingResult> => {
+		const pollFn = async (_execution: IExecution, _token: CancellationToken, _pollStartTime: number, _extendedPolling: boolean): Promise<IPollingResult> => {
+
 			return new Promise(() => {
 				// Never resolve to simulate long-running operation
+
 			});
 		};
 
@@ -143,13 +145,13 @@ suite('OutputMonitor', () => {
 		cts.cancel();
 
 		const result = await monitorPromise;
-		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, false);
+		assert.strictEqual(result.state, OutputMonitorState.Timeout);
 	});
 
 	test('startMonitoring handles polling without prompt response', async () => {
-		const pollFn = async (_execution: IExecution, _token: CancellationToken, _idle: boolean, _pollStartTime: number, _extendedPolling: boolean) => (
+		const pollFn = async (_execution: IExecution, _token: CancellationToken, _pollStartTime: number, _extendedPolling: boolean) => (
 			{
-				terminalExecutionIdleBeforeTimeout: false,
+				state: OutputMonitorState.Idle,
 				output: 'final output'
 			}
 		);
@@ -168,7 +170,7 @@ suite('OutputMonitor', () => {
 			cts.token
 		);
 
-		assert.strictEqual(result.terminalExecutionIdleBeforeTimeout, true);
+		assert.strictEqual(result.state, OutputMonitorState.Idle);
 		assert.strictEqual(result.output, 'final output');
 	});
 });

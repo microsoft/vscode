@@ -14,7 +14,7 @@ import { ToolProgress } from '../../../chat/common/languageModelToolsService.js'
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { IExecution, IPollingResult, PollingConsts } from './bufferOutputPollingTypes.js';
+import { IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './bufferOutputPollingTypes.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { OutputMonitor } from './outputMonitor.js';
 import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
@@ -144,8 +144,8 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, taskService: ITaskService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }>> {
-	const results: Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; idle: boolean }> = [];
+	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, taskService: ITaskService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState }>> {
+	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number }> = [];
 	if (token.isCancellationRequested) {
 		return results;
 	}
@@ -174,14 +174,14 @@ export async function collectTerminalResults(
 			name: terminal.shellLaunchConfig.name ?? 'unknown',
 			output: outputAndIdle?.output ?? '',
 			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
-			idle: !!outputAndIdle?.terminalExecutionIdleBeforeTimeout,
-			resources: outputAndIdle?.resources
+			resources: outputAndIdle?.resources,
+			state: outputAndIdle?.state
 		});
 	}
 	return results;
 }
 
-export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService): Promise<IPollingResult | undefined> {
+export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService): Promise<IPollingResult | undefined> {
 	if (token.isCancellationRequested) {
 		return;
 	}
@@ -208,10 +208,10 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 				}
 			}
 			if (problemList.length === 0) {
-				return { terminalExecutionIdleBeforeTimeout: true, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+				return { state: OutputMonitorState.Idle, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 			}
 			return {
-				terminalExecutionIdleBeforeTimeout: true,
+				state: OutputMonitorState.Idle,
 				output: problemList.join('\n'),
 				resources: resultResources,
 				pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)

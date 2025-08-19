@@ -16,7 +16,7 @@ import { ChatModel } from '../../../chat/common/chatModel.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../chat/common/languageModelToolsService.js';
-import { IRacePollingOrPromptResult, IPollingResult, IExecution, IConfirmationPrompt, PollingConsts } from './bufferOutputPollingTypes.js';
+import { IRacePollingOrPromptResult, IPollingResult, IExecution, IConfirmationPrompt, PollingConsts, OutputMonitorState } from './bufferOutputPollingTypes.js';
 import { getResponseFromStream } from './tools/pollingUtils.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -33,11 +33,15 @@ export interface IOutputMonitor extends Disposable {
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
-	): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>;
+	): Promise<{ output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>;
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _isIdle = false;
+	private _state: OutputMonitorState = OutputMonitorState.Initial;
+	get state(): OutputMonitorState {
+		return this._state;
+	}
 
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
@@ -54,7 +58,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		private readonly _execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Task; beginsPattern?: string; endsPattern?: string; dependencyTasks?: Task[]; terminal: Pick<ITerminalInstance, 'instanceId' | 'sendText'> },
 		@ILanguageModelsService private readonly _languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 		@ITaskService private readonly _taskService: ITaskService,
-		private readonly _pollFn?: (execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
+		private readonly _pollFn?: (execution: IExecution, token: CancellationToken, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
 	) {
 		super();
 	}
@@ -64,10 +68,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
-	): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string; resources?: ILinkLocation[] }> {
+	): Promise<{ output: string; pollDurationMs?: number; state: OutputMonitorState; modelOutputEvalResponse?: string; resources?: ILinkLocation[] }> {
 		let result = await this._pollForOutputAndIdle(this._execution, false, token, this._languageModelsService, this._taskService, this._pollFn);
 
-		if (!result.terminalExecutionIdleBeforeTimeout) {
+		if (this._state === OutputMonitorState.Timeout) {
 			result = await this._racePollingOrPrompt(
 				() => this._pollForOutputAndIdle(this._execution, true, token, this._languageModelsService, this._taskService, this._pollFn),
 				() => this._promptForMorePolling(command, token, invocationContext, chatService),
@@ -95,20 +99,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		taskService: ITaskService,
 		execution: IExecution
 	): Promise<IRacePollingOrPromptResult> {
-		const pollPromise = pollFn();
+		const pollPromise = pollFn().then(result => ({ type: 'poll', result }));
 		const { promise: promptPromise } = await promptFn();
-
-		const pollPromiseWrapped = pollPromise.then(async result => {
-			return { type: 'poll', result };
-		});
-
-		const promptPromiseWrapped = promptPromise.then(result => {
-			return { type: 'prompt', result };
-		});
-		const raceResult = await Promise.race([
-			pollPromiseWrapped,
-			promptPromiseWrapped
-		]);
+		const promptPromiseWrapped = promptPromise.then(result => ({ type: 'prompt', result }));
+		const raceResult = await Promise.race([pollPromise, promptPromiseWrapped]);
 		if (raceResult.type === 'poll') {
 			return raceResult.result as IRacePollingOrPromptResult;
 		} else if (raceResult.type === 'prompt') {
@@ -124,9 +118,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 
 	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext, chatService: IChatService): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };
 		}
+		this._state = OutputMonitorState.Prompting;
 		const chatModel = chatService.getSession(context.sessionId);
 		if (chatModel instanceof ChatModel) {
 			const request = chatModel.getRequests().at(-1);
@@ -148,7 +143,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						async () => {
 							thePart.state = 'rejected';
 							thePart.hide();
-							resolve(true);
+							this._state = OutputMonitorState.Cancelled;
+							resolve(false);
 						}
 					);
 					this._register(thePart);
@@ -167,8 +163,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		token: CancellationToken,
 		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 		taskService: ITaskService,
-		pollFn?: (execution: IExecution, token: CancellationToken, terminalExecutionIdleBeforeTimeout: boolean, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined
+		pollFn?: (execution: IExecution, token: CancellationToken, pollStartTime: number, extendedPolling: boolean, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined
 	): Promise<IPollingResult> {
+		this._state = OutputMonitorState.Polling;
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
@@ -177,18 +174,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		let lastBufferLength = 0;
 		let noNewDataCount = 0;
 		let buffer = '';
-		let terminalExecutionIdleBeforeTimeout = false;
 
 		while (true) {
 			if (token.isCancellationRequested) {
-				// Return immediately on cancellation to avoid hanging promises
-				return { terminalExecutionIdleBeforeTimeout: false, output: buffer };
+				this._state = OutputMonitorState.Cancelled;
+				return { output: buffer, state: this._state };
 			}
 			const now = Date.now();
 			const elapsed = now - pollStartTime;
 			const timeLeft = maxWaitMs - elapsed;
 
 			if (timeLeft <= 0) {
+				this._state = OutputMonitorState.Timeout;
 				break;
 			}
 
@@ -198,6 +195,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			// Check again immediately after waking
 			if (Date.now() - pollStartTime >= maxWaitMs) {
+				this._state = OutputMonitorState.Timeout;
 				break;
 			}
 
@@ -213,24 +211,26 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				lastBufferLength = currentBufferLength;
 			}
 
-			const inactive = execution.isActive && await execution.isActive() === false;
+			const inactive = execution.isActive && ((await execution.isActive()) === false);
 			if (noNewDataCount >= PollingConsts.MinNoDataEvents) {
 				if (execution.isActive && ((await execution.isActive()) === true)) {
 					noNewDataCount = 0;
 					lastBufferLength = currentBufferLength;
 					continue;
 				} else {
+					this._state = OutputMonitorState.Idle;
 					break;
 				}
 			} else if (inactive) {
+				this._state = OutputMonitorState.Idle;
 				break;
 			}
 		}
 
-		terminalExecutionIdleBeforeTimeout = true;
-		const customPollingResult = await pollFn?.(execution, token, terminalExecutionIdleBeforeTimeout, pollStartTime, extendedPolling, languageModelsService, taskService);
+		this._state = OutputMonitorState.Idle;
+		const customPollingResult = await pollFn?.(execution, token, pollStartTime, extendedPolling, languageModelsService, taskService);
 		if (customPollingResult) {
-			return { ...customPollingResult, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+			return { ...customPollingResult, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 		}
 		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token, languageModelsService);
 		const confirmationPrompt = await this._detectConfirmationPromptWithLLM(execution, token, languageModelsService);
@@ -243,7 +243,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return handled;
 			}
 		}
-		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+		return { state: this._state, modelOutputEvalResponse, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
 
 
@@ -258,7 +258,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		try {
 			const responseFromStream = getResponseFromStream(response);
 			await Promise.all([response.result, responseFromStream]);
-			return response.result;
+			return responseFromStream;
 		} catch (err) {
 			return 'Error occurred ' + err;
 		}

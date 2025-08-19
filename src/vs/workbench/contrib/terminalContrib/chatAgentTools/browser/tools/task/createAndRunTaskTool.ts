@@ -18,6 +18,7 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { OutputMonitorState } from '../../bufferOutputPollingTypes.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
@@ -143,7 +144,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', args.task.label, result.exitCode);
 		} else {
 			resultSummary += `Task \`${args.task.label}\` `;
-			resultSummary += terminalResults.every(r => r.idle)
+			resultSummary += terminalResults.every(r => r.state === OutputMonitorState.Idle)
 				? 'finished.'
 				: 'started and will continue to run in the background.';
 		}
