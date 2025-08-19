@@ -198,10 +198,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const presentation = alternativeRecommendation ? 'hidden' : undefined;
 
 		const os = await this._osBackend;
-		const shell = await this._terminalProfileResolverService.getDefaultShell({
-			os,
-			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
-		});
+		const shell = await this._getCopilotShell();
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
@@ -570,9 +567,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
+	private async _getCopilotShell(): Promise<string> {
+		const defaultShell = await this._terminalProfileResolverService.getDefaultShell({
+			os: await this._osBackend,
+			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
+		});
+		// Force pwsh over cmd as cmd doesn't have shell integration
+		if (basename(defaultShell) === 'cmd.exe') {
+			return 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+		}
+		return defaultShell;
+	}
+
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-		const toolTerminal = await this._terminalToolCreator.createTerminal(token);
+		const shell = await this._getCopilotShell();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(shell, token);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
 			toolTerminal.instance.dispose();
@@ -589,7 +599,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 			return cachedTerminal;
 		}
-		const toolTerminal = await this._terminalToolCreator.createTerminal(token);
+		const shell = await this._getCopilotShell();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(shell, token);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
 			toolTerminal.instance.dispose();
