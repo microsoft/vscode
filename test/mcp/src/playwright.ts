@@ -59,8 +59,18 @@ process.once('exit', () => {
 	}
 });
 
+function getTestTypeSuffix(): string {
+	if (opts.web) {
+		return 'browser';
+	} else if (opts.remote) {
+		return 'remote';
+	} else {
+		return 'electron';
+	}
+}
+
 const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
+const workspacePath = path.join(testDataPath, `vscode-smoketest-express-${getTestTypeSuffix()}`);
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 fs.mkdirSync(extensionsPath, { recursive: true });
 
@@ -138,6 +148,7 @@ export async function getServer() {
 	process.env.VSCODE_REPOSITORY = rootPath;
 	process.env.VSCODE_DEV = '1';
 	process.env.VSCODE_CLI = '1';
+	delete process.env.ELECTRON_RUN_AS_NODE; // Ensure we run as Node.js
 	const quality = Quality.Dev;
 	const userDataDir = path.join(testDataPath, 'd');
 

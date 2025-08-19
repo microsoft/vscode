@@ -7,17 +7,21 @@
 
 declare module 'vscode' {
 
+	// TODO: Document all methods and types
+
+
 	// TODO@API name scheme
 	export interface LanguageModelChatRequestHandleOptions {
 
 		// initiator
+		// TODO@API Do we need this?
 		readonly extensionId: string;
 
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
 		 * and need to be looked up in the respective documentation.
 		 */
-		readonly modelOptions: { [name: string]: any };
+		readonly modelOptions: { readonly [name: string]: any };
 
 		/**
 		 * An optional list of tools that are available to the language model. These could be registered tools available via
@@ -30,12 +34,12 @@ declare module 'vscode' {
 		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link LanguageModelChatMessage} with a
 		 * {@link LanguageModelToolCallPart}, followed by a User-type message with a {@link LanguageModelToolResultPart}.
 		 */
-		tools?: LanguageModelChatTool[];
+		readonly tools?: readonly LanguageModelChatTool[];
 
 		/**
 		 * 	The tool-selecting mode to use. {@link LanguageModelChatToolMode.Auto} by default.
 		 */
-		toolMode?: LanguageModelChatToolMode;
+		readonly toolMode?: LanguageModelChatToolMode;
 	}
 
 	export interface LanguageModelChatInformation {
@@ -46,6 +50,7 @@ declare module 'vscode' {
 		 * Human-readable name of the language model.
 		 */
 		readonly name: string;
+
 		/**
 		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
 		 * but they are defined by extensions contributing languages and subject to change.
@@ -76,8 +81,11 @@ declare module 'vscode' {
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
 		 * the user must approve of another extension accessing the models contributed by this extension.
 		 * Additionally, the extension can provide a label that will be shown in the UI.
+		 *
+		 *
+		 * TODO: What should the label explain?
 		 */
-		auth?: true | { label: string };
+		requiresAuthorization?: true | { label: string };
 
 		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
 		// TODO@API isPreselected proposed
@@ -93,13 +101,14 @@ declare module 'vscode' {
 
 			// TODO@API should be `boolean | number` so extensions can express how many tools they support
 			readonly toolCalling?: boolean | number;
-
 		};
 
 		/**
 		 * Optional category to group models by in the model picker.
 		 * The lower the order, the higher the category appears in the list.
 		 * Has no effect if `isUserSelectable` is `false`.
+		 *
+		 * TODO: Don't finalize?
 		 */
 		readonly category?: { label: string; order: number };
 	}
@@ -109,15 +118,15 @@ declare module 'vscode' {
 	 */
 	export interface LanguageModelChatRequestMessage {
 		/**
-			* The role of this message.
-			*/
+		 * The role of this message.
+		 */
 		readonly role: LanguageModelChatMessageRole;
 
 		/**
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		readonly content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | unknown>;
+		readonly content: ReadonlyArray<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | unknown>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -127,13 +136,15 @@ declare module 'vscode' {
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
 
-		// signals a change from the provider to the editor so that prepareLanguageModelChat is called again
-		onDidChangeLanguageModelInformation?: Event<void>;
+		/**
+		 * Signals a change from the provider to the editor so that {@linkcode prepareLanguageModelChatInformation} is called again
+		 */
+		readonly onDidChangeLanguageModelInformation?: Event<void>;
 
 		// NOT cacheable (between reloads)
-		prepareLanguageModelChatInformation(options: PrepareLMChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
+		prepareLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 
-		provideLanguageModelChatResponse(model: T, messages: Array<LanguageModelChatRequestMessage>, options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, token: CancellationToken): Thenable<any>;
 
 		provideTokenCount(model: T, text: string | LanguageModelChatRequestMessage, token: CancellationToken): Thenable<number>;
 	}
@@ -143,7 +154,7 @@ declare module 'vscode' {
 		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
 	}
 
-	export interface PrepareLMChatModelOptions {
-		silent: boolean;
+	export interface PrepareLanguageModelChatModelOptions {
+		readonly silent: boolean;
 	}
 }
