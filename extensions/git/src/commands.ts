@@ -3444,6 +3444,7 @@ export class CommandCenter {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
+		const refs = await repository.getRefs({ pattern: 'refs/heads' });
 
 		const createBranch = new CreateBranchItem();
 		const getBranchPicks = async () => {
@@ -3482,135 +3483,157 @@ export class CommandCenter {
 
 			if (choice.refName === repository.HEAD?.name) {
 				const message = l10n.t('Branch "{0}" is already checked out in the current repository.', choice.refName);
-				const createBranch = l10n.t('Create New Branch');
-				const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
+				branch = await this.handleBranchAlreadyExists(repository, message);
 
-				if (pick === createBranch) {
-					branch = await this.promptForBranchName(repository);
+				if (!branch) {
+					return;
+				}
 
-					if (!branch) {
+				commitish = 'HEAD';
+			} else {
+				// Check whether the selected branch is checked out in an existing worktree
+				let worktree: Worktree | undefined = repository.worktrees.find(w => w.ref === choice.refId);
+
+				if (choice.refRemote) {
+					const localBranchName = choice.refName.replace(`${choice.refRemote}/`, '');
+					const localBranchRef = `refs/heads/${localBranchName}`;
+
+					if (!worktree) {
+						worktree = repository.worktrees.find(w => w.ref === localBranchRef);
+					}
+
+					if (worktree) {
+						const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
+						await this.handleWorktreeConflict(worktree.path, message);
 						return;
 					}
 
-					commitish = 'HEAD';
+					const existingBranch = refs.find(ref => ref.name === localBranchName);
+					if (existingBranch) {
+						const message = l10n.t('Branch "{0}" already exists.', localBranchName);
+						branch = await this.handleBranchAlreadyExists(repository, message);
+
+						if (!branch) {
+							return;
+						}
+					} else {
+						branch = localBranchName;
+					}
 				} else {
-					return;
+					if (worktree) {
+						const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
+						await this.handleWorktreeConflict(worktree.path, message);
+						return;
+					}
 				}
-			} else {
-				// Check whether the selected branch is checked out in an existing worktree
-				const worktree = repository.worktrees.find(worktree => worktree.ref === choice.refId);
-				if (worktree) {
-					const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
-					await this.handleWorktreeConflict(worktree.path, message);
-					return;
-				}
+
 				commitish = choice.refName;
 			}
-		}
 
-		const worktreeName = ((branch ?? commitish).startsWith(branchPrefix)
-			? (branch ?? commitish).substring(branchPrefix.length).replace(/\//g, '-')
-			: (branch ?? commitish).replace(/\//g, '-'));
+			const worktreeName = ((branch ?? commitish).startsWith(branchPrefix)
+				? (branch ?? commitish).substring(branchPrefix.length).replace(/\//g, '-')
+				: (branch ?? commitish).replace(/\//g, '-'));
 
-		// If user selects folder button, they manually select the worktree path through folder picker
-		const getWorktreePath = async (): Promise<string | undefined> => {
-			const worktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
-			const defaultUri = worktreeRoot ? Uri.file(worktreeRoot) : Uri.file(path.dirname(repository.root));
+			// If user selects folder button, they manually select the worktree path through folder picker
+			const getWorktreePath = async (): Promise<string | undefined> => {
+				const worktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+				const defaultUri = worktreeRoot ? Uri.file(worktreeRoot) : Uri.file(path.dirname(repository.root));
 
-			const uris = await window.showOpenDialog({
-				defaultUri,
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				openLabel: l10n.t('Select as Worktree Destination'),
+				const uris = await window.showOpenDialog({
+					defaultUri,
+					canSelectFiles: false,
+					canSelectFolders: true,
+					canSelectMany: false,
+					openLabel: l10n.t('Select as Worktree Destination'),
+				});
+
+				if (!uris || uris.length === 0) {
+					return;
+				}
+
+				return path.join(uris[0].fsPath, worktreeName);
+			};
+
+			const getValueSelection = (value: string): [number, number] | undefined => {
+				if (!value || !worktreeName) {
+					return;
+				}
+
+				const start = value.length - worktreeName.length;
+				return [start, value.length];
+			};
+
+			const getValidationMessage = (value: string): InputBoxValidationMessage | undefined => {
+				const worktree = repository.worktrees.find(worktree => pathEquals(path.normalize(worktree.path), path.normalize(value)));
+				return worktree ? {
+					message: l10n.t('A worktree already exists at "{0}".', value),
+					severity: InputBoxValidationSeverity.Warning
+				} : undefined;
+			};
+
+			// Default worktree path is based on the last worktree location or a worktree folder for the repository
+			const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+			const defaultWorktreePath = defaultWorktreeRoot
+				? path.join(defaultWorktreeRoot, worktreeName)
+				: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
+
+			const disposables: Disposable[] = [];
+			const inputBox = window.createInputBox();
+			disposables.push(inputBox);
+
+			inputBox.placeholder = l10n.t('Worktree path');
+			inputBox.prompt = l10n.t('Please provide a worktree path');
+			inputBox.value = defaultWorktreePath;
+			inputBox.valueSelection = getValueSelection(inputBox.value);
+			inputBox.validationMessage = getValidationMessage(inputBox.value);
+			inputBox.ignoreFocusOut = true;
+			inputBox.buttons = [
+				{
+					iconPath: new ThemeIcon('folder'),
+					tooltip: l10n.t('Select Worktree Destination'),
+					location: QuickInputButtonLocation.Inline
+				}
+			];
+
+			inputBox.show();
+
+			const worktreePath = await new Promise<string | undefined>((resolve) => {
+				disposables.push(inputBox.onDidHide(() => resolve(undefined)));
+				disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
+				disposables.push(inputBox.onDidChangeValue(value => {
+					inputBox.validationMessage = getValidationMessage(value);
+				}));
+				disposables.push(inputBox.onDidTriggerButton(async () => {
+					inputBox.value = await getWorktreePath() ?? '';
+					inputBox.valueSelection = getValueSelection(inputBox.value);
+				}));
 			});
 
-			if (!uris || uris.length === 0) {
+			dispose(disposables);
+
+			if (!worktreePath) {
 				return;
 			}
 
-			return path.join(uris[0].fsPath, worktreeName);
-		};
+			try {
+				await repository.addWorktree({ path: worktreePath, branch, commitish: commitish });
 
-		const getValueSelection = (value: string): [number, number] | undefined => {
-			if (!value || !worktreeName) {
+				// Update worktree root in global state
+				const worktreeRoot = path.dirname(worktreePath);
+				if (worktreeRoot !== defaultWorktreeRoot) {
+					this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
+				}
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+					await this.handleWorktreeAlreadyExists(err);
+				} else if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+					await this.handleWorktreeBranchAlreadyUsed(err);
+				} else {
+					throw err;
+				}
+
 				return;
 			}
-
-			const start = value.length - worktreeName.length;
-			return [start, value.length];
-		};
-
-		const getValidationMessage = (value: string): InputBoxValidationMessage | undefined => {
-			const worktree = repository.worktrees.find(worktree => pathEquals(path.normalize(worktree.path), path.normalize(value)));
-			return worktree ? {
-				message: l10n.t('A worktree already exists at "{0}".', value),
-				severity: InputBoxValidationSeverity.Warning
-			} : undefined;
-		};
-
-		// Default worktree path is based on the last worktree location or a worktree folder for the repository
-		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
-		const defaultWorktreePath = defaultWorktreeRoot
-			? path.join(defaultWorktreeRoot, worktreeName)
-			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
-
-		const disposables: Disposable[] = [];
-		const inputBox = window.createInputBox();
-		disposables.push(inputBox);
-
-		inputBox.placeholder = l10n.t('Worktree path');
-		inputBox.prompt = l10n.t('Please provide a worktree path');
-		inputBox.value = defaultWorktreePath;
-		inputBox.valueSelection = getValueSelection(inputBox.value);
-		inputBox.validationMessage = getValidationMessage(inputBox.value);
-		inputBox.ignoreFocusOut = true;
-		inputBox.buttons = [
-			{
-				iconPath: new ThemeIcon('folder'),
-				tooltip: l10n.t('Select Worktree Destination'),
-				location: QuickInputButtonLocation.Inline
-			}
-		];
-
-		inputBox.show();
-
-		const worktreePath = await new Promise<string | undefined>((resolve) => {
-			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
-			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
-			disposables.push(inputBox.onDidChangeValue(value => {
-				inputBox.validationMessage = getValidationMessage(value);
-			}));
-			disposables.push(inputBox.onDidTriggerButton(async () => {
-				inputBox.value = await getWorktreePath() ?? '';
-				inputBox.valueSelection = getValueSelection(inputBox.value);
-			}));
-		});
-
-		dispose(disposables);
-
-		if (!worktreePath) {
-			return;
-		}
-
-		try {
-			await repository.addWorktree({ path: worktreePath, branch, commitish: commitish });
-
-			// Update worktree root in global state
-			const worktreeRoot = path.dirname(worktreePath);
-			if (worktreeRoot !== defaultWorktreeRoot) {
-				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
-			}
-		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
-				await this.handleWorktreeAlreadyExists(err);
-			} else if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
-				await this.handleWorktreeBranchAlreadyUsed(err);
-			} else {
-				throw err;
-			}
-
-			return;
 		}
 	}
 
@@ -3657,6 +3680,23 @@ export class CommandCenter {
 			await this.openWorktreeInNewWindow(worktreeRepository);
 		}
 		return;
+	}
+
+	private async handleBranchAlreadyExists(repository: Repository, message: string): Promise<string | undefined> {
+		const createBranch = l10n.t('Create New Branch');
+		const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
+
+		if (pick !== createBranch) {
+			return undefined;
+		}
+
+		const branch = await this.promptForBranchName(repository);
+
+		if (!branch) {
+			return undefined;
+		}
+
+		return branch;
 	}
 
 
