@@ -239,6 +239,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult {
 		this._reconnectToTerminals();
+
 		return this.run(task, resolver, Triggers.reconnect);
 	}
 
