@@ -15,13 +15,23 @@ export class RunInTerminalToolTelemetry {
 
 	logPrepare(state: {
 		terminalToolSessionId: string | undefined;
+		subCommands: string[];
 		autoApproveResult: 'approved' | 'denied' | 'manual';
 		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		autoApproveDefault: boolean | undefined;
 	}) {
+		const subCommandsSanitized = state.subCommands.map(e => {
+			let commandName = e.split(' ')[0].toLowerCase();
+			if (!commandAllowList.has(commandName)) {
+				commandName = '(unknown)';
+			}
+			return commandName;
+		});
+
 		type TelemetryEvent = {
 			terminalToolSessionId: string | undefined;
 
+			subCommands: string;
 			autoApproveResult: string;
 			autoApproveReason: string | undefined;
 			autoApproveDefault: boolean | undefined;
@@ -32,6 +42,7 @@ export class RunInTerminalToolTelemetry {
 
 			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
+			subCommands: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A sanitized list of sub-commands that were executed, encoded as a JSON array' };
 			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
 			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
 			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
@@ -39,39 +50,10 @@ export class RunInTerminalToolTelemetry {
 
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
 			terminalToolSessionId: state.terminalToolSessionId,
-
+			subCommands: JSON.stringify(subCommandsSanitized),
 			autoApproveResult: state.autoApproveResult,
 			autoApproveReason: state.autoApproveReason,
 			autoApproveDefault: state.autoApproveDefault,
-		});
-	}
-
-	/**
-	 * Send telemetry for individual commands that match the reporting allow list
-	 */
-	logPrepareCommand(state: {
-		terminalToolSessionId: string | undefined;
-		command: string;
-	}) {
-		let commandName = state.command.split(' ')[0].toLowerCase();
-		if (!commandAllowList.has(commandName)) {
-			commandName = '(unknown)';
-		}
-
-		type CommandTelemetryEvent = {
-			terminalToolSessionId: string | undefined;
-			command: string;
-		};
-		type CommandTelemetryClassification = {
-			owner: 'tyriar';
-			comment: 'Understanding which commands are being executed through the terminal tool';
-
-			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
-			command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The command that was executed' };
-		};
-		this._telemetryService.publicLog2<CommandTelemetryEvent, CommandTelemetryClassification>('toolUse.runInTerminal.prepare.command', {
-			terminalToolSessionId: state.terminalToolSessionId,
-			command: commandName,
 		});
 	}
 
