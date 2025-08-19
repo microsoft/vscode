@@ -1,8 +1,10 @@
 {
 	"servers": {
 		"vscode-playwright-mcp": {
-			"url": "http://localhost:33418/mcp",
-			"type": "http"
+			"type": "stdio",
+			"command": "npm",
+			"args": ["run", "start-stdio"],
+			"cwd": "${workspaceFolder}/test/mcp"
 		}
 	},
 	"inputs": []
