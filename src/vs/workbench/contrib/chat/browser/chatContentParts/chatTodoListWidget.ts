@@ -108,6 +108,18 @@ export class ChatTodoListWidget extends Disposable {
 		this.updateTodoDisplay();
 	}
 
+	public clear(sessionId: string | undefined): void {
+		if (!sessionId || this.domNode.style.display === 'none') {
+			return;
+		}
+
+		const currentTodos = this.chatTodoListService.getTodos(sessionId);
+		const todoListCompleted = !currentTodos.some(todo => todo.status !== 'completed');
+		if (todoListCompleted) {
+			this.clearAllTodos();
+		}
+	}
+
 	private updateTodoDisplay(): void {
 		if (!this._currentSessionId) {
 			this.domNode.style.display = 'none';
