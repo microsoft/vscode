@@ -1048,9 +1048,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					for (const nextPart of renderableResponse.slice(i + 1)) {
 						if (nextPart.kind !== 'markdownContent') {
 							i++;
-							if (nextPart.kind === 'thinking' && !nextPart.value) {
-								continue;
-							}
 							partsToRender.push(nextPart);
 						} else {
 							break;
@@ -1069,8 +1066,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 					break;
 				}
-			} else if (part.kind === 'thinking' && !part.value) {
-				continue;
 			} else {
 				partsToRender.push(part);
 			}

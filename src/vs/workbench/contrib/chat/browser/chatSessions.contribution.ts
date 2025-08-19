@@ -24,6 +24,8 @@ import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessio
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { IEditableData } from '../../../common/views.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IChatEditorOptions } from './chatEditor.js';
 
 const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
 
@@ -272,6 +274,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				isSticky: false,
 			},
 			extensionId,
+			extensionVersion: extensionDescription.version,
 			extensionDisplayName: extensionDisplayName || extensionName,
 			extensionPublisherId,
 		};
@@ -387,6 +390,31 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	// Editable session support
 	private readonly _editableSessions = new Map<string, IEditableData>();
 
+	/**
+	 * Creates a new chat session by delegating to the appropriate provider
+	 * @param chatSessionType The type of chat session provider to use
+	 * @param options Options for the new session
+	 * @param token A cancellation token
+	 * @returns A session ID for the newly created session
+	 */
+	public async provideNewChatSessionItem(chatSessionType: string, options: {
+		prompt?: string;
+		history?: any[];
+		metadata?: any;
+	}, token: CancellationToken): Promise<IChatSessionItem> {
+		if (!(await this.canResolveItemProvider(chatSessionType))) {
+			throw Error(`Cannot find provider for ${chatSessionType}`);
+		}
+
+		const provider = this._itemsProviders.get(chatSessionType);
+		if (!provider?.provideNewChatSessionItem) {
+			throw Error(`Provider for ${chatSessionType} does not support creating sessions`);
+		}
+		const chatSessionItem = await provider.provideNewChatSessionItem(options, token);
+		this._onDidChangeSessionItems.fire(chatSessionType);
+		return chatSessionItem;
+	}
+
 	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
 			throw Error(`Can not find provider for ${chatSessionType}`);
@@ -448,7 +476,8 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IChatSessionsService private readonly chatSessionService: IChatSessionsService
+		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 	}
@@ -491,16 +520,37 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		if (chatSession?.requestHandler) {
 			await chatSession.requestHandler(request, progress, [], token);
 		} else {
-			// TODO(jospicer): Temporary while we work on API for dynamic agent to trigger a session
-			const content = new MarkdownString(
-				localize('chatSessionNotFound', "Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS),
-			);
-			progress(
-				[{
+			try {
+				const chatSessionItem = await this.chatSessionService.provideNewChatSessionItem(
+					this.chatSession.type,
+					{
+						prompt: request.message,
+					},
+					token,
+				);
+				const options: IChatEditorOptions = {
+					pinned: true,
+					preferredTitle: chatSessionItem.label,
+				};
+				await this.editorService.openEditor({
+					resource: ChatSessionUri.forSession(this.chatSession.type, chatSessionItem.id),
+					options,
+				});
+				progress([{
+					kind: 'markdownContent',
+					content: new MarkdownString(localize('continueInNewChat', 'Continue **{0}** in a new chat editor', chatSessionItem.label)),
+				}]);
+			} catch (error) {
+				// End up here if extension does not support 'provideNewChatSessionItem'
+				// TODO(jospicer): Fallback that should be removed/generalized when API stabilizes
+				const content = new MarkdownString(
+					localize('chatSessionNotFound', "Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS),
+				);
+				progress([{
 					kind: 'markdownContent',
 					content,
-				}]
-			);
+				}]);
+			}
 		}
 
 		return {};

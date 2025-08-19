@@ -1541,6 +1541,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
 			}
+			if (e.kind === 'addRequest') {
+				this.chatTodoListWidget.clear(model.sessionId);
+			}
 		}));
 
 		if (this.tree && this.visible) {
