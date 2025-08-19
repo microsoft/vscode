@@ -51,6 +51,7 @@ export interface IChatResponseErrorDetails {
 	isQuotaExceeded?: boolean;
 	level?: ChatErrorLevel;
 	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
+	code?: string;
 }
 
 export interface IChatResponseProgressFileTreeData {

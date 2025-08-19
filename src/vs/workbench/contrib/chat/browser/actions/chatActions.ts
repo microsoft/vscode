@@ -51,7 +51,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
@@ -72,6 +72,7 @@ import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -111,6 +112,10 @@ export interface IChatViewOpenOptions {
 	 * The mode ID or name to open the chat in.
 	 */
 	mode?: ChatModeKind | string;
+	/**
+	 * Whether to wait for the completion of the chat response.
+	 */
+	waitForCompletion?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -136,7 +141,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<IChatAgentResult | undefined> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
@@ -184,13 +189,16 @@ abstract class OpenChatGlobalAction extends Action2 {
 				}
 			}
 		}
+
+		let resp: Promise<IChatResponseModel | undefined> | undefined;
+
 		if (opts?.query) {
 			if (opts.isPartialQuery) {
 				chatWidget.setInput(opts.query);
 			} else {
 				await chatWidget.waitForReady();
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
-				chatWidget.acceptInput(opts.query);
+				resp = chatWidget.acceptInput(opts.query);
 			}
 		}
 		if (opts?.toolIds && opts.toolIds.length > 0) {
@@ -210,6 +218,25 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 
 		chatWidget.focusInput();
+
+		if (opts?.waitForCompletion) {
+			const response = await resp;
+			if (response) {
+				await new Promise<void>(resolve => {
+					console.log(response.result?.errorDetails);
+					const d = response.onDidChange(() => {
+						if (response.isComplete || response.isPendingConfirmation.get()) {
+							d.dispose();
+							resolve();
+						}
+					});
+				});
+
+				return response.result;
+			}
+		}
+
+		return undefined;
 	}
 
 	private async handleSwitchToMode(switchToMode: IChatMode, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
