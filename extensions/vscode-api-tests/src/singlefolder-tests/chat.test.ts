@@ -149,14 +149,12 @@ suite('chat', () => {
 	});
 
 	test('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
-		const done = new DeferredPromise<void>();
-
 		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
 			await lm.invokeTool('run_in_terminal', {
 				input: { command: 'rm dummy.txt' },
 				toolInvocationToken: _request.toolInvocationToken,
 			});
-			return done.p.then(() => ({ metadata: { complete: true } }));
+			return { metadata: { complete: true } };
 		});
 		disposables.push(participant);
 
