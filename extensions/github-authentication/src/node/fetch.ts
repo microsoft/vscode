@@ -6,12 +6,11 @@
 import { workspace } from 'vscode';
 import { Log } from '../common/logger';
 
-const acceptJSON = ['application/json', 'application/vnd.github+json'] as const;
-
 export interface FetchOptions {
 	logger: Log;
+	expectJSON: boolean;
 	method?: 'GET' | 'POST' | 'DELETE';
-	headers?: Record<string, string> & { Accept?: typeof acceptJSON[number] };
+	headers?: Record<string, string>;
 	body?: string;
 }
 
@@ -72,7 +71,7 @@ export const fetching: Fetch = async (url, options) => {
 					options.logger.info(`fetching: ${fetcher.name} failed with status: ${res.status} ${res.statusText}`);
 					continue;
 				}
-				if (!options.headers?.Accept || !acceptJSON.includes(options.headers?.Accept)) {
+				if (!options.expectJSON) {
 					options.logger.info(`fetching: ${fetcher.name} succeeded (not JSON)`);
 					_fetcher = fetcher;
 					return res;

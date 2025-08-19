@@ -133,6 +133,7 @@ async function exchangeCodeForToken(
 	}
 	const result = await fetching(endpointUri.toString(true), {
 		logger,
+		expectJSON: true,
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -341,6 +342,7 @@ class DeviceCodeFlow implements IFlow {
 		});
 		const result = await fetching(uri.toString(true), {
 			logger,
+			expectJSON: true,
 			method: 'POST',
 			headers: {
 				Accept: 'application/json'
@@ -411,6 +413,7 @@ class DeviceCodeFlow implements IFlow {
 				try {
 					accessTokenResult = await fetching(refreshTokenUri.toString(true), {
 						logger,
+						expectJSON: true,
 						method: 'POST',
 						headers: {
 							Accept: 'application/json'
@@ -505,6 +508,7 @@ class PatFlow implements IFlow {
 			logger.info('Getting token scopes...');
 			const result = await fetching(serverUri.toString(), {
 				logger,
+				expectJSON: false,
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': `${env.appName} (${env.appHost})`
