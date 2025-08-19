@@ -16,9 +16,6 @@ export interface IExecution {
 	getOutput: () => string;
 	isActive?: () => Promise<boolean>;
 	task?: Task | Pick<Task, 'configurationProperties'>;
-	beginsPattern?: string;
-	endsPattern?: string;
-	dependencyTasks?: Task[];
 	terminal: Pick<ITerminalInstance, 'sendText' | 'instanceId'>;
 }
 

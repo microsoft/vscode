@@ -6,8 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ITaskService, Task } from '../../../tasks/common/taskService.js';
-import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ILinkLocation } from './taskHelpers.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
@@ -55,7 +54,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	constructor(
-		private readonly _execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Task; beginsPattern?: string; endsPattern?: string; dependencyTasks?: Task[]; terminal: Pick<ITerminalInstance, 'instanceId' | 'sendText'> },
+		private readonly _execution: IExecution,
 		@ILanguageModelsService private readonly _languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 		@ITaskService private readonly _taskService: ITaskService,
 		private readonly _pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
