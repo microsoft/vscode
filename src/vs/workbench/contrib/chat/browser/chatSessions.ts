@@ -84,6 +84,18 @@ function getSessionItemContextOverlay(session: IChatSessionItem, provider?: ICha
 	return overlay;
 }
 
+// Special parent item for chat history
+interface IChatHistoryParentItem extends IChatSessionItem {
+	readonly type: 'history-parent';
+	readonly historyItems: IChatDetail[];
+}
+
+// Individual historical chat session item
+interface IChatHistoryItem extends IChatSessionItem {
+	readonly type: 'history-item';
+	readonly historyDetail: IChatDetail;
+}
+
 // Extended interface for local chat session items that includes editor information or widget information
 interface ILocalChatSessionItem extends IChatSessionItem {
 	editor?: EditorInput;
@@ -92,7 +104,6 @@ interface ILocalChatSessionItem extends IChatSessionItem {
 	sessionType: 'editor' | 'widget';
 	description?: string;
 	status?: ChatSessionStatus;
-	historyItem?: IChatDetail;
 }
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
@@ -160,9 +171,6 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 	// Maintain ordered list of editor keys to preserve consistent ordering
 	private editorOrder: string[] = [];
-
-	// Track history expansion state
-	private isHistoryExpanded: boolean = false;
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -267,11 +275,6 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		return editor.resource?.scheme === 'vscode-chat-editor';
 	}
 
-	toggleHistoryExpansion(): void {
-		this.isHistoryExpanded = !this.isHistoryExpanded;
-		this._onDidChange.fire();
-	}
-
 	private registerGroupListeners(group: IEditorGroup): void {
 		this._register(group.onDidModelChange(e => {
 			if (!this.isLocalChatSession(e.editor)) {
@@ -323,8 +326,8 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		}));
 	}
 
-	async provideChatSessionItems(token: CancellationToken): Promise<ILocalChatSessionItem[]> {
-		const sessions: ILocalChatSessionItem[] = [];
+	async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
+		const sessions: IChatSessionItem[] = [];
 		// Create a map to quickly find editors by their key
 		const editorMap = new Map<string, { editor: EditorInput; group: IEditorGroup }>();
 
@@ -367,7 +370,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			}
 		});
 
-		// Add history items
+		// Add history parent item if there's history available
 		try {
 			const allHistory = await this.chatService.getHistory();
 			// Filter out active sessions to avoid duplicates
@@ -390,36 +393,19 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			const historyItems = allHistory.filter(item => !activeSessionIds.has(item.sessionId));
 			
 			if (historyItems.length > 0) {
-				// Add history expansion toggle item
-				const expandIcon = this.isHistoryExpanded ? Codicon.chevronDown : Codicon.chevronRight;
-				const expandLabel = this.isHistoryExpanded 
-					? nls.localize('chat.sessions.hidePreviousChats', "Hide Previous Chats ({0})", historyItems.length)
-					: nls.localize('chat.sessions.showPreviousChats', "Show Previous Chats ({0})", historyItems.length);
-
-				sessions.push({
-					id: 'history-toggle',
-					label: expandLabel,
-					description: nls.localize('chat.sessions.historyToggle.description', "Expand to view chat history"),
-					iconPath: expandIcon,
-					sessionType: 'widget'
-				});
-
-				// If expanded, add individual history items
-				if (this.isHistoryExpanded) {
-					// Sort history by last message date (most recent first)
-					historyItems.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
-					
-					historyItems.forEach(historyItem => {
-						sessions.push({
-							id: `history-${historyItem.sessionId}`,
-							label: historyItem.title,
-							description: nls.localize('chat.sessions.historicalSession', "Previous chat"),
-							iconPath: Codicon.history,
-							sessionType: 'widget',
-							historyItem: historyItem
-						});
-					});
-				}
+				// Sort history by last message date (most recent first)
+				historyItems.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
+				
+				// Add history parent item
+				const historyParent: IChatHistoryParentItem = {
+					id: 'chat-history-parent',
+					label: nls.localize('chat.sessions.previousChats', "Previous Chats ({0})", historyItems.length),
+					description: nls.localize('chat.sessions.historyParent.description', "Expand to view chat history"),
+					iconPath: Codicon.history,
+					type: 'history-parent',
+					historyItems: historyItems
+				};
+				sessions.push(historyParent);
 			}
 		} catch (error) {
 			// Log error but continue without history
@@ -619,8 +605,17 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 	) { }
 
 	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): boolean {
-		// Only the provider (root) has children
-		return element === this.provider;
+		// Provider (root) has children
+		if (element === this.provider) {
+			return true;
+		}
+		
+		// History parent items have children (the individual history items)
+		if ('type' in element && element.type === 'history-parent') {
+			return true;
+		}
+		
+		return false;
 	}
 
 	async getChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): Promise<ChatSessionItemWithProvider[]> {
@@ -632,6 +627,21 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 				return [];
 			}
 		}
+		
+		// If this is a history parent, return its children
+		if ('type' in element && element.type === 'history-parent') {
+			const historyParent = element as IChatHistoryParentItem & { provider: IChatSessionItemProvider };
+			return historyParent.historyItems.map(historyDetail => ({
+				id: `history-${historyDetail.sessionId}`,
+				label: historyDetail.title,
+				description: nls.localize('chat.sessions.historicalSession', "Previous chat"),
+				iconPath: Codicon.history,
+				type: 'history-item',
+				historyDetail: historyDetail,
+				provider: this.provider
+			} as IChatHistoryItem & { provider: IChatSessionItemProvider }));
+		}
+		
 		return [];
 	}
 }
@@ -1049,8 +1059,9 @@ class SessionsViewPane extends ViewPane {
 		return this._isEmpty;
 	}
 
-	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
-		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
+	private isLocalChatSessionItem(item: IChatSessionItem): boolean {
+		const sessionWithProvider = item as ChatSessionItemWithProvider;
+		return sessionWithProvider.provider?.chatSessionType === 'local';
 	}
 
 	public refreshTree(): void {
@@ -1222,21 +1233,13 @@ class SessionsViewPane extends ViewPane {
 			const element = e.element as ChatSessionItemWithProvider;
 
 			if (element && this.isLocalChatSessionItem(element)) {
-				// Handle history expansion toggle
-				if (element.id === 'history-toggle') {
-					const localProvider = this.provider as LocalChatSessionsProvider;
-					if (typeof localProvider.toggleHistoryExpansion === 'function') {
-						localProvider.toggleHistoryExpansion();
-					}
-					return;
-				}
-
-				// Handle historical chat sessions
-				if (element.id.startsWith('history-') && element.historyItem) {
+				// Handle historical chat sessions (children of history parent)
+				if ('type' in element && element.type === 'history-item') {
+					const historyItem = element as IChatHistoryItem;
 					const options: IChatEditorOptions = {
-						target: { sessionId: element.historyItem.sessionId },
+						target: { sessionId: historyItem.historyDetail.sessionId },
 						pinned: true,
-						preferredTitle: element.historyItem.title
+						preferredTitle: historyItem.historyDetail.title
 					};
 					await this.editorService.openEditor({
 						resource: ChatEditorInput.getNewEditorUri(),
@@ -1245,12 +1248,19 @@ class SessionsViewPane extends ViewPane {
 					return;
 				}
 
+				// Handle history parent item - do nothing on click (just expand/collapse)
+				if ('type' in element && element.type === 'history-parent') {
+					// The tree view will handle expand/collapse automatically
+					return;
+				}
+
 				// Handle regular local sessions
-				if (element.sessionType === 'editor' && element.editor && element.group) {
+				const localItem = element as ILocalChatSessionItem;
+				if ('sessionType' in localItem && localItem.sessionType === 'editor' && localItem.editor && localItem.group) {
 					// Open the chat editor
-					await this.editorService.openEditor(element.editor, element.group);
-				} else if (element.sessionType === 'widget' && element.widget) {
-					this.viewsService.openView(element.id, true);
+					await this.editorService.openEditor(localItem.editor, localItem.group);
+				} else if ('sessionType' in localItem && localItem.sessionType === 'widget' && localItem.widget) {
+					this.viewsService.openView(localItem.id, true);
 				}
 			} else {
 				const ckey = this.contextKeyService.createKey('chatSessionType', element.provider.chatSessionType);
