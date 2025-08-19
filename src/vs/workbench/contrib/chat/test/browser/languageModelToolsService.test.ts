@@ -5,18 +5,90 @@
 
 import * as assert from 'assert';
 import { Barrier } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IChatModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatService, IChatToolInputInvocationData } from '../../common/chatService.js';
 import { IInvokeToolInput, IToolData, IToolImpl, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
+
+// --- Test helpers to reduce repetition and improve readability ---
+
+class TestAccessibilitySignalService implements Partial<IAccessibilitySignalService> {
+	public signalPlayedCalls: { signal: AccessibilitySignal; options?: any }[] = [];
+
+	async playSignal(signal: AccessibilitySignal, options?: any): Promise<void> {
+		this.signalPlayedCalls.push({ signal, options });
+	}
+
+	reset() {
+		this.signalPlayedCalls = [];
+	}
+}
+
+class TestTelemetryService implements Partial<ITelemetryService> {
+	public events: Array<{ eventName: string; data: any }> = [];
+
+	publicLog2<E extends Record<string, any>, T extends Record<string, any>>(eventName: string, data?: E): void {
+		this.events.push({ eventName, data });
+	}
+
+	reset() {
+		this.events = [];
+	}
+}
+
+function registerToolForTest(service: LanguageModelToolsService, store: any, id: string, impl: IToolImpl, data?: Partial<IToolData>) {
+	const toolData: IToolData = {
+		id,
+		modelDescription: data?.modelDescription ?? 'Test Tool',
+		displayName: data?.displayName ?? 'Test Tool',
+		source: ToolDataSource.Internal,
+		...data,
+	};
+	store.add(service.registerToolData(toolData));
+	store.add(service.registerToolImplementation(id, impl));
+	return {
+		id,
+		makeDto: (parameters: any, context?: { sessionId: string }, callId: string = '1'): IInvokeToolInput => ({
+			callId,
+			toolId: id,
+			tokenBudget: 100,
+			parameters,
+			context,
+		}),
+	};
+}
+
+function stubGetSession(chatService: MockChatService, sessionId: string, options?: { requestId?: string; capture?: { invocation?: any } }): IChatModel {
+	const requestId = options?.requestId ?? 'requestId';
+	const capture = options?.capture;
+	const fakeModel = {
+		sessionId,
+		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
+		acceptResponseProgress: (_req: any, progress: any) => { if (capture) { capture.invocation = progress; } },
+	} as any as IChatModel;
+	chatService.addSession(fakeModel);
+	return fakeModel;
+}
+
+async function waitForPublishedInvocation(capture: { invocation?: any }, tries = 5): Promise<any> {
+	for (let i = 0; i < tries && !capture.invocation; i++) {
+		await Promise.resolve();
+	}
+	return capture.invocation;
+}
 
 suite('LanguageModelToolsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,10 +96,13 @@ suite('LanguageModelToolsService', () => {
 	let contextKeyService: IContextKeyService;
 	let service: LanguageModelToolsService;
 	let chatService: MockChatService;
+	let configurationService: TestConfigurationService;
 
 	setup(() => {
+		configurationService = new TestConfigurationService();
 		const instaService = workbenchInstantiationService({
-			contextKeyService: () => store.add(new ContextKeyService(new TestConfigurationService)),
+			contextKeyService: () => store.add(new ContextKeyService(configurationService)),
+			configurationService: () => configurationService
 		}, store);
 		contextKeyService = instaService.get(IContextKeyService);
 		chatService = new MockChatService();
@@ -163,32 +238,115 @@ suite('LanguageModelToolsService', () => {
 
 		store.add(service.registerToolImplementation('testTool', toolImpl));
 
-		const dto: IInvokeToolInput = {
-			callId: '1',
-			toolId: 'testTool',
-			tokenBudget: 100,
-			parameters: {
-				a: 1
-			},
-			context: undefined,
-		};
+		const dto: IInvokeToolInput = { callId: '1', toolId: 'testTool', tokenBudget: 100, parameters: { a: 1 }, context: undefined };
 
 		const result = await service.invokeTool(dto, async () => 0, CancellationToken.None);
 		assert.strictEqual(result.content[0].value, 'result');
 	});
 
-	test('cancel tool call', async () => {
+	test('invocation parameters are overridden by input toolSpecificData', async () => {
 		const toolData: IToolData = {
-			id: 'testTool',
+			id: 'testToolInputOverride',
+			modelDescription: 'Test Tool',
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(toolData));
+
+		const rawInput = { b: 2 };
+		const toolImpl: IToolImpl = {
+			prepareToolInvocation: async () => ({
+				toolSpecificData: { kind: 'input', rawInput } satisfies IChatToolInputInvocationData
+			}),
+			invoke: async (invocation) => {
+				// The service should replace parameters with rawInput and strip toolSpecificData
+				assert.deepStrictEqual(invocation.input.parameters, rawInput);
+				assert.strictEqual(invocation.toolSpecificData, undefined);
+				return { content: [{ kind: 'text', value: 'ok' }] };
+			},
+		};
+
+		store.add(service.registerToolImplementation(toolData.id, toolImpl));
+
+		const dto: IInvokeToolInput = { callId: '1', toolId: toolData.id, tokenBudget: 100, parameters: { a: 1 }, context: undefined };
+
+		const result = await service.invokeTool(dto, async () => 0, CancellationToken.None);
+		assert.strictEqual(result.content[0].value, 'ok');
+	});
+
+	test('chat invocation injects input toolSpecificData for confirmation when alwaysDisplayInputOutput', async () => {
+		const toolData: IToolData = {
+			id: 'testToolDisplayIO',
+			modelDescription: 'Test Tool',
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+			alwaysDisplayInputOutput: true,
+		};
+
+		const tool = registerToolForTest(service, store, 'testToolDisplayIO', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: { title: 'Confirm', message: 'Proceed?' }
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'done' }] }),
+		}, toolData);
+
+		const sessionId = 'sessionId-io';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'requestId-io', capture });
+
+		const dto = tool.makeDto({ a: 1 }, { sessionId });
+
+		const invokeP = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published, 'expected ChatToolInvocation to be published');
+		assert.strictEqual(published.toolId, tool.id);
+		// The service should have injected input toolSpecificData with the raw parameters
+		assert.strictEqual(published.toolSpecificData?.kind, 'input');
+		assert.deepStrictEqual(published.toolSpecificData?.rawInput, dto.parameters);
+
+		// Confirm to let invoke proceed
+		published.confirmed.complete(true);
+		const result = await invokeP;
+		assert.strictEqual(result.content[0].value, 'done');
+	});
+
+	test('chat invocation waits for user confirmation before invoking', async () => {
+		const toolData: IToolData = {
+			id: 'testToolConfirm',
 			modelDescription: 'Test Tool',
 			displayName: 'Test Tool',
 			source: ToolDataSource.Internal,
 		};
 
-		store.add(service.registerToolData(toolData));
+		let invoked = false;
+		const tool = registerToolForTest(service, store, toolData.id, {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm', message: 'Go?' } }),
+			invoke: async () => {
+				invoked = true;
+				return { content: [{ kind: 'text', value: 'ran' }] };
+			},
+		}, toolData);
 
+		const sessionId = 'sessionId-confirm';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'requestId-confirm', capture });
+
+		const dto = tool.makeDto({ x: 1 }, { sessionId });
+
+		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published, 'expected ChatToolInvocation to be published');
+		assert.strictEqual(invoked, false, 'invoke should not run before confirmation');
+
+		published.confirmed.complete(true);
+		const result = await promise;
+		assert.strictEqual(invoked, true, 'invoke should have run after confirmation');
+		assert.strictEqual(result.content[0].value, 'ran');
+	});
+
+	test('cancel tool call', async () => {
 		const toolBarrier = new Barrier();
-		const toolImpl: IToolImpl = {
+		const tool = registerToolForTest(service, store, 'testTool', {
 			prepareToolInvocation: async () => ({}),
 			invoke: async (invocation, countTokens, progress, cancelToken) => {
 				assert.strictEqual(invocation.input.callId, '1');
@@ -201,32 +359,13 @@ suite('LanguageModelToolsService', () => {
 					throw new Error('Tool call should be cancelled');
 				}
 			}
-		};
-
-		store.add(service.registerToolImplementation('testTool', toolImpl));
+		});
 
 		const sessionId = 'sessionId';
 		const requestId = 'requestId';
-		const dto: IInvokeToolInput = {
-			callId: '1',
-			toolId: 'testTool',
-			tokenBudget: 100,
-			parameters: {
-				a: 1
-			},
-			context: {
-				sessionId
-			},
-		};
-		chatService.addSession({
-			sessionId: sessionId,
-			getRequests: () => {
-				return [{
-					id: requestId
-				}];
-			},
-			acceptResponseProgress: () => { }
-		} as any as IChatModel);
+		stubGetSession(chatService, sessionId, { requestId });
+
+		const dto = tool.makeDto({ a: 1 }, { sessionId });
 
 		const toolPromise = service.invokeTool(dto, async () => 0, CancellationToken.None);
 		service.cancelToolCallsForRequest(requestId);
@@ -366,5 +505,450 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result['tool1'], true, 'existing tool should be enabled');
 		// Non-existent tools should not appear in the result map
 		assert.strictEqual(result['nonExistentTool'], undefined, 'non-existent tool should not be in result');
+	});
+
+	test('accessibility signal for tool confirmation', async () => {
+		// Create a test configuration service with proper settings
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.autoApprove', false);
+		testConfigService.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'auto', announcement: 'auto' });
+
+		// Create a test accessibility service that simulates screen reader being enabled
+		const testAccessibilityService = new class extends TestAccessibilityService {
+			override isScreenReaderOptimized(): boolean { return true; }
+		}();
+
+		// Create a test accessibility signal service that tracks calls
+		const testAccessibilitySignalService = new TestAccessibilitySignalService();
+
+		// Create a new service instance with the test services
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(IAccessibilityService, testAccessibilityService);
+		instaService.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		const toolData: IToolData = {
+			id: 'testAccessibilityTool',
+			modelDescription: 'Test Accessibility Tool',
+			displayName: 'Test Accessibility Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const tool = registerToolForTest(testService, store, toolData.id, {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Accessibility Test', message: 'Testing accessibility signal' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'executed' }] }),
+		}, toolData);
+
+		const sessionId = 'sessionId-accessibility';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'requestId-accessibility', capture });
+
+		const dto = tool.makeDto({ param: 'value' }, { sessionId });
+
+		const promise = testService.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+
+		assert.ok(published, 'expected ChatToolInvocation to be published');
+		assert.ok(published.confirmationMessages, 'should have confirmation messages');
+
+		// The accessibility signal should have been played
+		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 1, 'accessibility signal should have been played once');
+		const signalCall = testAccessibilitySignalService.signalPlayedCalls[0];
+		assert.strictEqual(signalCall.signal, AccessibilitySignal.chatUserActionRequired, 'correct signal should be played');
+		assert.ok(signalCall.options?.customAlertMessage.includes('Accessibility Test'), 'alert message should include tool title');
+		assert.ok(signalCall.options?.customAlertMessage.includes('Chat confirmation required'), 'alert message should include confirmation text');
+
+		// Complete the invocation
+		published.confirmed.complete(true);
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'executed');
+	});
+
+	test('accessibility signal respects autoApprove configuration', async () => {
+		// Create a test configuration service with auto-approve enabled
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.autoApprove', true);
+		testConfigService.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'auto', announcement: 'auto' });
+
+		// Create a test accessibility service that simulates screen reader being enabled
+		const testAccessibilityService = new class extends TestAccessibilityService {
+			override isScreenReaderOptimized(): boolean { return true; }
+		}();
+
+		// Create a test accessibility signal service that tracks calls
+		const testAccessibilitySignalService = new TestAccessibilitySignalService();
+
+		// Create a new service instance with the test services
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(IAccessibilityService, testAccessibilityService);
+		instaService.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		const toolData: IToolData = {
+			id: 'testAutoApproveTool',
+			modelDescription: 'Test Auto Approve Tool',
+			displayName: 'Test Auto Approve Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const tool = registerToolForTest(testService, store, toolData.id, {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Auto Approve Test', message: 'Testing auto approve' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'auto approved' }] }),
+		}, toolData);
+
+		const sessionId = 'sessionId-auto-approve';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'requestId-auto-approve', capture });
+
+		const dto = tool.makeDto({ config: 'test' }, { sessionId });
+
+		// When auto-approve is enabled, tool should complete without user intervention
+		const result = await testService.invokeTool(dto, async () => 0, CancellationToken.None);
+
+		// Verify the tool completed and no accessibility signal was played
+		assert.strictEqual(result.content[0].value, 'auto approved');
+		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 0, 'accessibility signal should not be played when auto-approve is enabled');
+	});
+
+	test('shouldAutoConfirm with basic configuration', async () => {
+		// Test basic shouldAutoConfirm behavior with simple configuration
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.autoApprove', true); // Global enabled
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Register a tool that should be auto-approved
+		const autoTool = registerToolForTest(testService, store, 'autoTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Test', message: 'Should auto-approve' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'auto approved' }] })
+		});
+
+		const sessionId = 'test-basic-config';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool should be auto-approved (global config = true)
+		const result = await testService.invokeTool(
+			autoTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'auto approved');
+	});
+
+	test('shouldAutoConfirm with per-tool configuration object', async () => {
+		// Test per-tool configuration: { toolId: true/false }
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.autoApprove', {
+			'approvedTool': true,
+			'deniedTool': false
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool explicitly approved
+		const approvedTool = registerToolForTest(testService, store, 'approvedTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Test', message: 'Should auto-approve' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'approved' }] })
+		});
+
+		const sessionId = 'test-per-tool';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Approved tool should auto-approve
+		const approvedResult = await testService.invokeTool(
+			approvedTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(approvedResult.content[0].value, 'approved');
+
+		// Test that non-specified tools require confirmation (default behavior)
+		const unspecifiedTool = registerToolForTest(testService, store, 'unspecifiedTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Test', message: 'Should require confirmation' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'unspecified' }] })
+		});
+
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId + '2', { requestId: 'req2', capture });
+		const unspecifiedPromise = testService.invokeTool(
+			unspecifiedTool.makeDto({ test: 2 }, { sessionId: sessionId + '2' }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'unspecified tool should require confirmation');
+
+		published.confirmed.complete(true);
+		const unspecifiedResult = await unspecifiedPromise;
+		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified');
+	});
+
+	test('tool content formatting with alwaysDisplayInputOutput', async () => {
+		// Test ensureToolDetails, formatToolInput, and toolResultToIO
+		const toolData: IToolData = {
+			id: 'formatTool',
+			modelDescription: 'Format Test Tool',
+			displayName: 'Format Test Tool',
+			source: ToolDataSource.Internal,
+			alwaysDisplayInputOutput: true
+		};
+
+		const tool = registerToolForTest(service, store, toolData.id, {
+			prepareToolInvocation: async () => ({}),
+			invoke: async (invocation) => ({
+				content: [
+					{ kind: 'text', value: 'Text result' },
+					{ kind: 'data', value: { data: VSBuffer.fromByteArray([1, 2, 3]), mimeType: 'application/octet-stream' } }
+				]
+			})
+		}, toolData);
+
+		const input = { a: 1, b: 'test', c: [1, 2, 3] };
+		const result = await service.invokeTool(
+			tool.makeDto(input),
+			async () => 0,
+			CancellationToken.None
+		);
+
+		// Should have tool result details because alwaysDisplayInputOutput = true
+		assert.ok(result.toolResultDetails, 'should have toolResultDetails');
+		const details = result.toolResultDetails as any; // Type assertion needed for test
+
+		// Test formatToolInput - should be formatted JSON
+		const expectedInputJson = JSON.stringify(input, undefined, 2);
+		assert.strictEqual(details.input, expectedInputJson, 'input should be formatted JSON');
+
+		// Test toolResultToIO - should convert different content types
+		assert.strictEqual(details.output.length, 2, 'should have 2 output items');
+
+		// Text content
+		const textOutput = details.output[0];
+		assert.strictEqual(textOutput.type, 'embed');
+		assert.strictEqual(textOutput.isText, true);
+		assert.strictEqual(textOutput.value, 'Text result');
+
+		// Data content (base64 encoded)
+		const dataOutput = details.output[1];
+		assert.strictEqual(dataOutput.type, 'embed');
+		assert.strictEqual(dataOutput.mimeType, 'application/octet-stream');
+		assert.strictEqual(dataOutput.value, 'AQID'); // base64 of [1,2,3]
+	});
+
+	test('tool error handling and telemetry', async () => {
+		const testTelemetryService = new TestTelemetryService();
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(configurationService)),
+			configurationService: () => configurationService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ITelemetryService, testTelemetryService as any);
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Test successful invocation telemetry
+		const successTool = registerToolForTest(testService, store, 'successTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] })
+		});
+
+		const sessionId = 'telemetry-test';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		await testService.invokeTool(
+			successTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+
+		// Check success telemetry
+		const successEvents = testTelemetryService.events.filter(e => e.eventName === 'languageModelToolInvoked');
+		assert.strictEqual(successEvents.length, 1, 'should have success telemetry event');
+		assert.strictEqual(successEvents[0].data.result, 'success');
+		assert.strictEqual(successEvents[0].data.toolId, 'successTool');
+		assert.strictEqual(successEvents[0].data.chatSessionId, sessionId);
+
+		testTelemetryService.reset();
+
+		// Test error telemetry
+		const errorTool = registerToolForTest(testService, store, 'errorTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => { throw new Error('Tool error'); }
+		});
+
+		stubGetSession(chatService, sessionId + '2', { requestId: 'req2' });
+
+		try {
+			await testService.invokeTool(
+				errorTool.makeDto({ test: 2 }, { sessionId: sessionId + '2' }),
+				async () => 0,
+				CancellationToken.None
+			);
+			assert.fail('Should have thrown');
+		} catch (err) {
+			// Expected
+		}
+
+		// Check error telemetry
+		const errorEvents = testTelemetryService.events.filter(e => e.eventName === 'languageModelToolInvoked');
+		assert.strictEqual(errorEvents.length, 1, 'should have error telemetry event');
+		assert.strictEqual(errorEvents[0].data.result, 'error');
+		assert.strictEqual(errorEvents[0].data.toolId, 'errorTool');
+	});
+
+	test('call tracking and cleanup', async () => {
+		// Test that cancelToolCallsForRequest method exists and can be called
+		// (The detailed cancellation behavior is already tested in "cancel tool call" test)
+		const sessionId = 'tracking-session';
+		const requestId = 'tracking-request';
+		stubGetSession(chatService, sessionId, { requestId });
+
+		// Just verify the method exists and doesn't throw
+		assert.doesNotThrow(() => {
+			service.cancelToolCallsForRequest(requestId);
+		}, 'cancelToolCallsForRequest should not throw');
+
+		// Verify calling with non-existent request ID doesn't throw
+		assert.doesNotThrow(() => {
+			service.cancelToolCallsForRequest('non-existent-request');
+		}, 'cancelToolCallsForRequest with non-existent ID should not throw');
+	});
+
+	test('accessibility signal with different settings combinations', async () => {
+		const testAccessibilitySignalService = new TestAccessibilitySignalService();
+
+		// Test case 1: Sound enabled, announcement disabled, screen reader off
+		const testConfigService1 = new TestConfigurationService();
+		testConfigService1.setUserConfiguration('chat.tools.autoApprove', false);
+		testConfigService1.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'on', announcement: 'off' });
+
+		const testAccessibilityService1 = new class extends TestAccessibilityService {
+			override isScreenReaderOptimized(): boolean { return false; }
+		}();
+
+		const instaService1 = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService1)),
+			configurationService: () => testConfigService1
+		}, store);
+		instaService1.stub(IChatService, chatService);
+		instaService1.stub(IAccessibilityService, testAccessibilityService1);
+		instaService1.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		const testService1 = store.add(instaService1.createInstance(LanguageModelToolsService));
+
+		const tool1 = registerToolForTest(testService1, store, 'soundOnlyTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Sound Test', message: 'Testing sound only' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'executed' }] })
+		});
+
+		const sessionId1 = 'sound-test';
+		const capture1: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId1, { requestId: 'req1', capture: capture1 });
+
+		const promise1 = testService1.invokeTool(tool1.makeDto({ test: 1 }, { sessionId: sessionId1 }), async () => 0, CancellationToken.None);
+		const published1 = await waitForPublishedInvocation(capture1);
+
+		// Signal should be played (sound=on, no screen reader requirement)
+		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 1, 'sound should be played when sound=on');
+		const call1 = testAccessibilitySignalService.signalPlayedCalls[0];
+		assert.strictEqual(call1.options?.modality, undefined, 'should use default modality for sound');
+
+		published1.confirmed.complete(true);
+		await promise1;
+
+		testAccessibilitySignalService.reset();
+
+		// Test case 2: Sound auto, announcement auto, screen reader on
+		const testConfigService2 = new TestConfigurationService();
+		testConfigService2.setUserConfiguration('chat.tools.autoApprove', false);
+		testConfigService2.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'auto', announcement: 'auto' });
+
+		const testAccessibilityService2 = new class extends TestAccessibilityService {
+			override isScreenReaderOptimized(): boolean { return true; }
+		}();
+
+		const instaService2 = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService2)),
+			configurationService: () => testConfigService2
+		}, store);
+		instaService2.stub(IChatService, chatService);
+		instaService2.stub(IAccessibilityService, testAccessibilityService2);
+		instaService2.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		const testService2 = store.add(instaService2.createInstance(LanguageModelToolsService));
+
+		const tool2 = registerToolForTest(testService2, store, 'autoScreenReaderTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Auto Test', message: 'Testing auto with screen reader' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'executed' }] })
+		});
+
+		const sessionId2 = 'auto-sr-test';
+		const capture2: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId2, { requestId: 'req2', capture: capture2 });
+
+		const promise2 = testService2.invokeTool(tool2.makeDto({ test: 2 }, { sessionId: sessionId2 }), async () => 0, CancellationToken.None);
+		const published2 = await waitForPublishedInvocation(capture2);
+
+		// Signal should be played (both sound and announcement enabled for screen reader)
+		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 1, 'signal should be played with screen reader optimization');
+		const call2 = testAccessibilitySignalService.signalPlayedCalls[0];
+		assert.ok(call2.options?.customAlertMessage, 'should have custom alert message');
+		assert.strictEqual(call2.options?.userGesture, true, 'should mark as user gesture');
+
+		published2.confirmed.complete(true);
+		await promise2;
+
+		testAccessibilitySignalService.reset();
+
+		// Test case 3: Sound off, announcement off - no signal
+		const testConfigService3 = new TestConfigurationService();
+		testConfigService3.setUserConfiguration('chat.tools.autoApprove', false);
+		testConfigService3.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'off', announcement: 'off' });
+
+		const testAccessibilityService3 = new class extends TestAccessibilityService {
+			override isScreenReaderOptimized(): boolean { return true; }
+		}();
+
+		const instaService3 = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService3)),
+			configurationService: () => testConfigService3
+		}, store);
+		instaService3.stub(IChatService, chatService);
+		instaService3.stub(IAccessibilityService, testAccessibilityService3);
+		instaService3.stub(IAccessibilitySignalService, testAccessibilitySignalService as unknown as IAccessibilitySignalService);
+		const testService3 = store.add(instaService3.createInstance(LanguageModelToolsService));
+
+		const tool3 = registerToolForTest(testService3, store, 'offTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Off Test', message: 'Testing off settings' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'executed' }] })
+		});
+
+		const sessionId3 = 'off-test';
+		const capture3: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId3, { requestId: 'req3', capture: capture3 });
+
+		const promise3 = testService3.invokeTool(tool3.makeDto({ test: 3 }, { sessionId: sessionId3 }), async () => 0, CancellationToken.None);
+		const published3 = await waitForPublishedInvocation(capture3);
+
+		// No signal should be played
+		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 0, 'no signal should be played when both sound and announcement are off');
+
+		published3.confirmed.complete(true);
+		await promise3;
 	});
 });
