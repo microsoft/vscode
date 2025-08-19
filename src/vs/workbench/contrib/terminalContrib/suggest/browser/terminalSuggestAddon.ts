@@ -34,7 +34,7 @@ import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
-import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon } from './terminalSymbolIcons.js';
+import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon, terminalSymbolBranch } from './terminalSymbolIcons.js';
 import { TerminalSuggestShownTracker } from './terminalSuggestShownTracker.js';
 
 export interface ISuggestController {
@@ -118,6 +118,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Option, terminalSymbolOptionIcon],
 		[TerminalCompletionItemKind.OptionValue, terminalSymbolEnumMember],
 		[TerminalCompletionItemKind.Flag, terminalSymbolFlagIcon],
+		[TerminalCompletionItemKind.Branch, terminalSymbolBranch],
 		[TerminalCompletionItemKind.InlineSuggestion, terminalSymbolInlineSuggestionIcon],
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, terminalSymbolInlineSuggestionIcon],
 	]);
@@ -133,6 +134,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Option, localize('option', 'Option')],
 		[TerminalCompletionItemKind.OptionValue, localize('optionValue', 'Option Value')],
 		[TerminalCompletionItemKind.Flag, localize('flag', 'Flag')],
+		[TerminalCompletionItemKind.Branch, localize('branch', 'Branch')],
 		[TerminalCompletionItemKind.InlineSuggestion, localize('inlineSuggestion', 'Inline Suggestion')],
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, localize('inlineSuggestionAlwaysOnTop', 'Inline Suggestion')],
 	]);
@@ -328,10 +330,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// - `\` and `/` are normalized such that either can be used
 		// - Using `\` or `/` will request new completions for directories, but we now also
 		//   handle branches properly to fix normalization issues with branch names containing '/'
-		this._isFilteringDirectoriesOrBranches = completions.some(e => 
-			e.kind === TerminalCompletionItemKind.Folder || e.kind === TerminalCompletionItemKind.Branch);
+		this._isFilteringDirectoriesOrBranches = completions.some(e => e.kind === TerminalCompletionItemKind.Folder || e.kind === TerminalCompletionItemKind.Branch);
 		if (this._isFilteringDirectoriesOrBranches) {
-			const firstDirOrBranch = completions.find(e => 
+			const firstDirOrBranch = completions.find(e =>
 				e.kind === TerminalCompletionItemKind.Folder || e.kind === TerminalCompletionItemKind.Branch);
 			const textLabel = typeof firstDirOrBranch?.label === 'string' ? firstDirOrBranch.label : firstDirOrBranch?.label.label;
 			this._pathSeparator = textLabel?.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
@@ -519,9 +520,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						// Only trigger on `-` if it's after a space. This is required to not clear
 						// completions when typing the `-` in `git cherry-pick`
 						prefix?.match(/\s[\-]$/) ||
-						// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-						// with git branches in particular - we limit auto-triggering to directories
-						completions.some(e => e.kind === TerminalCompletionItemKind.Folder) && prefix?.match(/[\\\/]$/)
+						// Only trigger on `\` and `/` if it's a directory or branch
+						this._isFilteringDirectoriesOrBranches && prefix?.match(/[\\\/]$/)
 					) {
 						sent = this._requestTriggerCharQuickSuggestCompletions();
 					}
@@ -550,9 +550,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
 						const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
 						if (
-							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-							// with git branches in particular - we limit auto-triggering to directories
-							completions.some(e => e.kind === TerminalCompletionItemKind.Folder) && char.match(/[\\\/]$/) ||
+							// Only trigger on `\` and `/` if it's a directory or branch
+							this._isFilteringDirectoriesOrBranches && char.match(/[\\\/]$/) ||
 							// Check if the character is a trigger character from providers
 							this._checkProviderTriggerCharacters(char)
 						) {

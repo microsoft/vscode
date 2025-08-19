@@ -244,7 +244,7 @@ export async function collectCompletionItemResult(
 							{ label },
 							undefined,
 							typeof item === 'string' ? item : item.description,
-							kind
+							item.icon === 'vscode://icon?type=git.branch' ? vscode.TerminalCompletionItemKind.Branch : kind,
 						));
 					}
 				}

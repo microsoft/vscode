@@ -111,7 +111,7 @@ const postProcessBranches =
 					return {
 						name,
 						description,
-						icon: "fig://icon?type=git",
+						icon: "vscode://icon?type=git.branch",
 						priority: 75,
 						kind: "Branch",
 					};

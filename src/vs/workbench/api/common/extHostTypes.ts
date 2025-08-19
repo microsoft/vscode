@@ -2160,7 +2160,8 @@ export enum TerminalCompletionItemKind {
 	OptionValue = 6,
 	Flag = 7,
 	SymbolicLinkFile = 8,
-	SymbolicLinkFolder = 9
+	SymbolicLinkFolder = 9,
+	Branch = 10
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {

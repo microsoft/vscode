@@ -209,14 +209,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
 			this._logService.trace(`TerminalCompletionService#_collectCompletions amend ${completionItems.length} completion items`);
-			
-			// Set proper kind for branch completions that come from extensions with "Branch" documentation
-			for (const completion of completionItems) {
-				if (completion.documentation === 'Branch' && !completion.kind) {
-					completion.kind = TerminalCompletionItemKind.Branch;
-				}
-			}
-			
+
 			if (shellType === GeneralShellType.PowerShell) {
 				for (const completion of completionItems) {
 					completion.isFileOverride ??= completion.kind === TerminalCompletionItemKind.Method && completion.replacementIndex === 0;
