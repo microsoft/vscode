@@ -8,6 +8,8 @@
 .chat-status-bar-entry-tooltip {
 	margin-top: 4px;
 	margin-bottom: 4px;
+	max-width: 300px; /* Ensure tooltip doesn't get too wide */
+	min-width: 200px; /* Ensure minimum readability */
 }
 
 .chat-status-bar-entry-tooltip hr {
@@ -216,4 +218,128 @@
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
 	font-style: italic;
+}
+
+/* Running Sessions - Compact List */
+
+.chat-status-bar-entry-tooltip .running-sessions-compact {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions-compact .session-item-compact {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 1px 0;
+	max-width: 100%;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions-compact .session-item-compact .session-icon {
+	width: 12px;
+	height: 12px;
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions-compact .session-item-compact .session-title {
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions-compact .session-more {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	padding-left: 18px; /* Align with session titles */
+	margin-top: 2px;
+}
+
+/* Running Sessions Container */
+
+.chat-status-bar-entry-tooltip .running-sessions-container {
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions-loading,
+.chat-status-bar-entry-tooltip .no-running-sessions,
+.chat-status-bar-entry-tooltip .sessions-error {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions-list {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.chat-status-bar-entry-tooltip .running-session-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 0;
+	max-width: 100%;
+}
+
+.chat-status-bar-entry-tooltip .running-session-item .session-icon {
+	width: 12px;
+	height: 12px;
+	flex-shrink: 0;
+	color: var(--vscode-charts-green);
+}
+
+.chat-status-bar-entry-tooltip .running-session-item .session-title {
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions-list .session-more {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	padding-left: 18px;
+	margin-top: 2px;
+}
+
+/* Simple Running Sessions Indicator */
+
+.chat-status-bar-entry-tooltip .running-sessions-simple {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	margin: 4px 0;
+	border-radius: 3px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 11px;
+	border: 1px solid var(--vscode-contrastBorder);
+	white-space: nowrap;
+	overflow: hidden;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.chat-status-bar-entry-tooltip .running-sessions-simple:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.chat-status-bar-entry-tooltip .running-sessions-simple .sessions-icon {
+	width: 12px;
+	height: 12px;
+	flex-shrink: 0;
 }
