@@ -17,8 +17,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { Location } from '../../../../../../../editor/common/languages.js';
+import { toolResultDetailsFromResponse } from './taskHelpers.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -103,19 +102,7 @@ export class RunTaskTool implements IToolImpl {
 
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
-		const toolResultDetails = Array.from(new Map(
-			terminalResults
-				.flatMap(r =>
-					r.resources?.filter(res => res.uri).map(res => {
-						const range = res.range;
-						const item = range !== undefined ? { uri: res.uri, range } : res.uri;
-						const key = range !== undefined
-							? `${res.uri.toString()}-${range.toString()}`
-							: `${res.uri.toString()}`;
-						return [key, item] as [string, URI | Location];
-					}) ?? []
-				)).values());
-
+		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
 		let resultSummary = '';
 		if (result?.exitCode) {
 			resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
