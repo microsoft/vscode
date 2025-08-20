@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AbstractProblemCollector } from '../common/problemCollectors.js';
 import { ITerminalInstance } from '../../terminal/browser/terminal.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,6 +17,7 @@ interface ITerminalMarkerData {
 export class TaskProblemMonitor extends Disposable {
 
 	private readonly terminalMarkerMap: Map<number, ITerminalMarkerData> = new Map();
+	private readonly terminalDisposables: Map<number, DisposableStore> = new Map();
 
 	constructor() {
 		super();
@@ -27,9 +28,17 @@ export class TaskProblemMonitor extends Disposable {
 			resources: new Map<string, URI>(),
 			markers: new Map<string, Map<string, IMarkerData>>()
 		});
-		this._register(terminal.onDisposed(() => this.terminalMarkerMap.delete(terminal.instanceId)));
 
-		this._register(problemMatcher.onDidFindErrors((markers: ITaskMarker[]) => {
+		const store = new DisposableStore();
+		this.terminalDisposables.set(terminal.instanceId, store);
+
+		store.add(terminal.onDisposed(() => {
+			this.terminalMarkerMap.delete(terminal.instanceId);
+			this.terminalDisposables.get(terminal.instanceId)?.dispose();
+			this.terminalDisposables.delete(terminal.instanceId);
+		}));
+
+		store.add(problemMatcher.onDidFindErrors((markers: ITaskMarker[]) => {
 			const markerData = this.terminalMarkerMap.get(terminal.instanceId);
 			if (markerData) {
 				// Clear existing markers for a new set, otherwise older compilation
@@ -52,7 +61,7 @@ export class TaskProblemMonitor extends Disposable {
 				}
 			}
 		}));
-		this._register(problemMatcher.onDidRequestInvalidateLastMarker(() => {
+		store.add(problemMatcher.onDidRequestInvalidateLastMarker(() => {
 			const markerData = this.terminalMarkerMap.get(terminal.instanceId);
 			markerData?.markers.clear();
 			markerData?.resources.clear();
