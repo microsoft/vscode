@@ -72,9 +72,8 @@ import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
-import { ILanguageModelsService } from '../../common/languageModels.js';
+import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { LanguageModelChatSelector } from 'vscode';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -127,7 +126,7 @@ export interface IChatViewOpenOptions {
 	 * }
 	 * ```
 	 */
-	modelSelector?: LanguageModelChatSelector;
+	modelSelector?: ILanguageModelChatSelector;
 
 	/**
 	 * Wait to resolve the command until the chat response reaches a terminal state (complete, error, or pending user confirmation, etc.).
