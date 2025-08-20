@@ -24,7 +24,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { fromNowByDay } from '../../../../base/common/date.js';
+import { fromNowByDay, fromNow } from '../../../../base/common/date.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -844,12 +844,30 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
 				.slice(0, 3);
 
+			// Compute today's midnight once for label decisions
+			const todayMidnight = new Date();
+			todayMidnight.setHours(0, 0, 0, 0);
+			const todayMidnightMs = todayMidnight.getTime();
+
 			for (const item of filtered) {
 				const row = dom.append(listEl, $('.chat-welcome-history-item'));
 				const title = dom.append(row, $('.chat-welcome-history-title'));
 				title.textContent = item.title;
-				const date = dom.append(row, $('.chat-welcome-history-date'));
-				date.textContent = fromNowByDay(item.lastMessageDate, true, true);
+				const date = dom.append(row, ($('.chat-welcome-history-date')));
+				const last = typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now();
+				let label: string;
+				if (last > todayMidnightMs) {
+					const diffSeconds = Math.round((Date.now() - last) / 1000);
+					if (diffSeconds < 60) {
+						// Clamp to minutes granularity (avoid seconds like 'now'/'35 secs')
+						label = fromNow(Date.now() - 60 * 1000, true, true);
+					} else {
+						label = fromNow(last, true, true);
+					}
+				} else {
+					label = fromNowByDay(last, true, true);
+				}
+				date.textContent = label;
 
 				row.tabIndex = 0;
 				row.setAttribute('role', 'button');
