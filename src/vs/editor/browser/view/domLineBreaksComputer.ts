@@ -13,7 +13,7 @@ import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions, TextDirection } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
-import { CharacterMapping, RenderLineInput, RenderLineOutput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
+import { CharacterMapping, DomPosition, RenderLineInput, RenderLineOutput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
 import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
 import { LineInjectedText } from '../../common/textModelEvents.js';
 
@@ -157,8 +157,8 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	for (let i = 0; i < lineNumbers.length; i++) {
 		const lineDomNode = lineDomNodes[i];
 		const characterMapping = characterMappings[i];
-		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, renderLineContents[i], characterMapping);
-		if (breakOffsets === null) {
+		const breakData = readLineBreaks(range, lineDomNode, renderLineContents[i], characterMapping);
+		if (breakData === null) {
 			result[i] = createEmptyLineBreakWithPossiblyInjectedText(lineNumbers[i]);
 			continue;
 		}
@@ -166,8 +166,11 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const wrappedTextIndentLength = wrappedTextIndentLengths[i] + additionalIndentSize;
 
 		const breakOffsetsVisibleColumn: number[] = [];
-		for (let j = 0, len = breakOffsets.length; j < len; j++) {
-			breakOffsetsVisibleColumn[j] = characterMapping.getHorizontalOffset(breakOffsets[j] + 1) + 1;
+		const breakOffsets = breakData.breakOffsets;
+		const breakDomPositions = breakData.breakDomPositions;
+		for (let j = 0, len = breakDomPositions.length; j < len; j++) {
+			const breakDomPosition = breakDomPositions[j];
+			breakOffsetsVisibleColumn[j] = characterMapping.getColumn(breakDomPosition.domPosition, breakDomPosition.partLength);
 		}
 
 		let injectionOptions: InjectedTextOptions[] | null;
@@ -213,6 +216,7 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 	const stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 	const renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 	const fontLigatures = options.get(EditorOption.fontLigatures);
+	const verticalScrollbarSize = options.get(EditorOption.scrollbar).verticalScrollbarSize;
 	const fontLigaturesEnabled = fontLigatures !== EditorFontLigatures.OFF;
 	const fontInfo = options.get(EditorOption.fontInfo);
 	const useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
@@ -252,7 +256,7 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 		fontLigaturesEnabled,
 		null,
 		TextDirection.LTR,
-		10
+		verticalScrollbarSize
 	);
 	const renderedLineOutput = renderViewLine(renderLineInput, sb);
 	sb.appendString('</div>');
@@ -260,15 +264,21 @@ function renderLine(context: ILineBreaksComputerContext, lineNumber: number, tab
 	return renderedLineOutput;
 }
 
-function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: string, characterMapping: CharacterMapping): number[] | null {
+interface BreakDomPosition {
+	domPosition: DomPosition;
+	partLength: number;
+}
+
+function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: string, characterMapping: CharacterMapping): { breakOffsets: number[]; breakDomPositions: BreakDomPosition[] } | null {
 	if (lineContent.length <= 1) {
 		return null;
 	}
 	const span = <HTMLSpanElement>Array.prototype.slice.call(lineDomNode.children, 0)[0];
 
 	const breakOffsets: number[] = [];
+	const breakDomPositions: BreakDomPosition[] = [];
 	try {
-		discoverBreaks(characterMapping, range, span, 0, null, lineContent.length - 1, null, breakOffsets);
+		discoverBreaks(characterMapping, range, span, 0, null, lineContent.length - 1, null, breakOffsets, breakDomPositions);
 	} catch (err) {
 		console.log(err);
 		return null;
@@ -278,11 +288,15 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 		return null;
 	}
 
+	const domPosition = characterMapping.getDomPosition(lineContent.length);
+	const spans = <HTMLSpanElement[]>Array.prototype.slice.call(span.children, 0);
+	const partLength = spans[domPosition.partIndex].firstChild!.textContent?.length ?? 0;
 	breakOffsets.push(lineContent.length);
-	return breakOffsets;
+	breakDomPositions.push({ domPosition, partLength });
+	return { breakOffsets, breakDomPositions };
 }
 
-function discoverBreaks(characterMapping: CharacterMapping, range: Range, span: HTMLSpanElement, low: number, lowRects: DOMRectList | null, high: number, highRects: DOMRectList | null, result: number[]): void {
+function discoverBreaks(characterMapping: CharacterMapping, range: Range, span: HTMLSpanElement, low: number, lowRects: DOMRectList | null, high: number, highRects: DOMRectList | null, breakOffsets: number[], breakDomPositions: BreakDomPosition[]): void {
 	if (low === high) {
 		return;
 	}
@@ -302,7 +316,11 @@ function discoverBreaks(characterMapping: CharacterMapping, range: Range, span: 
 	// there is at least one line break between these two offsets
 	if (low + 1 === high) {
 		// the two characters are adjacent, so the line break must be exactly between them
-		result.push(high);
+		const domPosition = highDomPosition1;
+		const spans = <HTMLSpanElement[]>Array.prototype.slice.call(span.children, 0);
+		const partLength = spans[domPosition.partIndex].firstChild!.textContent?.length ?? 0;
+		breakOffsets.push(high);
+		breakDomPositions.push({ domPosition, partLength });
 		return;
 	}
 
@@ -310,8 +328,8 @@ function discoverBreaks(characterMapping: CharacterMapping, range: Range, span: 
 	const midDomPosition1 = characterMapping.getDomPosition(mid);
 	const midDomPosition2 = characterMapping.getDomPosition(mid + 1);
 	const midRects = readClientRect(range, span, midDomPosition1.charIndex, midDomPosition1.partIndex, midDomPosition2.charIndex, midDomPosition2.partIndex);
-	discoverBreaks(characterMapping, range, span, low, lowRects, mid, midRects, result);
-	discoverBreaks(characterMapping, range, span, mid, midRects, high, highRects, result);
+	discoverBreaks(characterMapping, range, span, low, lowRects, mid, midRects, breakOffsets, breakDomPositions);
+	discoverBreaks(characterMapping, range, span, mid, midRects, high, highRects, breakOffsets, breakDomPositions);
 }
 
 function readClientRect(range: Range, span: HTMLSpanElement, startCharacterOffset: number, startSpanOffset: number, endCharacterOffset: number, endSpanOffset: number): DOMRectList {
