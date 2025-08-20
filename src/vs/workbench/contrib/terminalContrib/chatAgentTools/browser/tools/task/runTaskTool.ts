@@ -22,6 +22,7 @@ type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
 	bufferLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the terminal buffer as a string.' };
 	pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long polling for output took (ms).' };
+	autoReplyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times the tool automatically replied to prompts.' };
 	owner: 'meganrogge';
 	comment: 'Understanding the usage of the runTask tool';
 };
@@ -29,6 +30,7 @@ type RunTaskToolEvent = {
 	taskId: string;
 	bufferLength: number;
 	pollDurationMs: number | undefined;
+	autoReplyCount: number;
 };
 
 interface IRunTaskToolInput extends IToolInvocation {
@@ -95,6 +97,7 @@ export class RunTaskTool implements IToolImpl {
 				taskId: args.id,
 				bufferLength: r.output.length ?? 0,
 				pollDurationMs: r.pollDurationMs ?? 0,
+				autoReplyCount: r.autoReplyCount ?? 0
 			});
 		}
 

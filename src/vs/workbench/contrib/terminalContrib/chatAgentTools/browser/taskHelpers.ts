@@ -144,8 +144,8 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, taskService: ITaskService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState }>> {
-	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number }> = [];
+	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, taskService: ITaskService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState; autoReplyCount: number }>> {
+	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; autoReplyCount: number }> = [];
 	if (token.isCancellationRequested) {
 		return results;
 	}
@@ -175,7 +175,8 @@ export async function collectTerminalResults(
 			output: outputAndIdle?.output ?? '',
 			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
 			resources: outputAndIdle?.resources,
-			state: outputAndIdle?.state
+			state: outputAndIdle?.state,
+			autoReplyCount: outputAndIdle?.executedOptionCount ?? 0
 		});
 	}
 	return results;
