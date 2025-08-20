@@ -74,6 +74,7 @@ import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
+import { LanguageModelChatSelector } from 'vscode';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -115,10 +116,18 @@ export interface IChatViewOpenOptions {
 	mode?: ChatModeKind | string;
 
 	/**
-	 * The language model ID to use for the chat (e.g. 'claude-sonnet-4'). The first match will be used
-	 * among the available models.
+	 * The language model selector to use for the chat.
+	 * An Error will be thrown if there's no match or if it matches multiple models.
+	 *
+	 * Example:
+	 * ```
+	 * {
+	 *   id: 'claude-sonnet-4',
+	 *   vendor: 'copilot'
+	 * }
+	 * ```
 	 */
-	modelId?: string;
+	modelSelector?: LanguageModelChatSelector;
 
 	/**
 	 * Wait to resolve the command until the chat response reaches a terminal state (complete, error, or pending user confirmation, etc.).
@@ -180,21 +189,23 @@ abstract class OpenChatGlobalAction extends Action2 {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
 		}
 
-		if (opts?.modelId) {
-			// `modelId` is vendor-agnostic. e.g. `gpt-5` NOT `copilot/gpt-5`.
-			// `id`, however, is vendor-specific. e.g. `copilot/gpt-5`.
-			const ids = await languageModelService.selectLanguageModels({ id: opts.modelId }, false);
-			const [id] = ids.sort();
-			if (!id) {
-				throw new Error(`Language model not found for ID: ${opts.modelId}.`);
+		if (opts?.modelSelector) {
+			const ids = await languageModelService.selectLanguageModels(opts.modelSelector, false);
+			if (ids.length === 0) {
+				throw new Error(`No language models found matching selector: ${JSON.stringify(opts.modelSelector)}.`);
 			}
 
+			if (ids.length > 1) {
+				throw new Error(`Multiple language models found matching selector: ${JSON.stringify(opts.modelSelector)}. Please specify a more specific selector.`);
+			}
+
+			const id = ids[0];
 			const model = languageModelService.lookupLanguageModel(id);
 			if (!model) {
 				throw new Error(`Language model not loaded: ${id}.`);
 			}
 
-			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: opts.modelId });
+			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
 		}
 
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
