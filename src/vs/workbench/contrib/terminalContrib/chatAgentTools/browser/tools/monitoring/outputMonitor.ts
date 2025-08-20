@@ -251,7 +251,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		try {
 			const responseFromStream = getResponseFromStream(response);
 			await Promise.all([response.result, responseFromStream]);
-			return responseFromStream;
+			return await responseFromStream;
 		} catch (err) {
 			return 'Error occurred ' + err;
 		}
