@@ -586,12 +586,10 @@ export class BaseIssueReporterService extends Disposable {
 		const container = this.getElementById('internal-actions');
 		if (!container) { return; }
 
-		// Check entitlement first
-		const entitled = this.contextKeyService ? !!ChatContextKeys.Entitlement.internal.getValue(this.contextKeyService) : false;
+		const entitled = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.internal.key);
 		if (!entitled) {
 			hide(container);
 			container.style.display = 'none';
-			console.debug('[IssueReporter] Internal actions hidden (not entitled)');
 			return;
 		}
 
@@ -604,11 +602,9 @@ export class BaseIssueReporterService extends Disposable {
 			if (this.internalPreviewButton) {
 				this.internalPreviewButton.enabled = this.previewButton?.enabled ?? false;
 			}
-			console.debug('[IssueReporter] Internal actions visible (entitled + extension match).');
 		} else {
 			hide(container);
 			container.style.display = 'none';
-			console.debug('[IssueReporter] Internal actions hidden', { hasChosenExtension: this.hasChosenExtension, fileOnExtension, matchesExtension, entitled });
 		}
 	}
 
