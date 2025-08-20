@@ -60,10 +60,8 @@ class AnnounceChatConfirmationAction extends Action2 {
 		// Check for active confirmations in the chat responses
 		let firstConfirmationElement: HTMLElement | undefined;
 
-		let confirmation;
 		const lastResponse = viewModel.getItems()[viewModel.getItems().length - 1];
 		if (isResponseVM(lastResponse)) {
-			confirmation = lastResponse.response.value.filter(p => p.kind === 'toolInvocation')?.[0];
 			const confirmationWidgets = lastFocusedWidget.domNode.querySelectorAll('.chat-confirmation-widget-container');
 			if (confirmationWidgets.length > 0) {
 				firstConfirmationElement = confirmationWidgets[0] as HTMLElement;
