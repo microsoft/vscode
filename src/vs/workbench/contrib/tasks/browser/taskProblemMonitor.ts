@@ -56,6 +56,10 @@ export class TaskProblemMonitor extends Disposable {
 			const markerData = this.terminalMarkerMap.get(terminal.instanceId);
 			markerData?.markers.clear();
 			markerData?.resources.clear();
+			this.terminalMarkerMap.set(terminal.instanceId, {
+				resources: new Map<string, URI>(),
+				markers: new Map<string, Map<string, IMarkerData>>()
+			});
 		}));
 	}
 
