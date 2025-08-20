@@ -8,17 +8,17 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { IChatWidgetService } from '../browser/chat.js';
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
-import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
@@ -27,7 +27,9 @@ import { IEditableData } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { VIEWLET_ID } from './chatSessions.js';
-import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CHAT_CATEGORY } from './actions/chatActions.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 
 const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
 
@@ -161,8 +163,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contributions.set(contribution.type, contribution);
-
-		// Let _evaluateAvailability handle the actual registration based on when clause
 		this._evaluateAvailability();
 
 		return {
@@ -200,13 +200,55 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
+	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
+		return registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
+					title: localize2('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
+					category: CHAT_CATEGORY,
+					icon: Codicon.plus,
+					f1: true, // Show in command palette
+					precondition: ChatContextKeys.enabled
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const chatSessionsService = accessor.get(IChatSessionsService);
+				const editorService = accessor.get(IEditorService);
+				const logService = accessor.get(ILogService);
+
+				const { type } = contribution;
+
+				try {
+
+					// Try to create a new chat session (extension must implement this)
+					const chatSessionItem = await chatSessionsService.provideNewChatSessionItem(
+						type,
+						{}, // Empty options for a blank session
+						CancellationToken.None
+					);
+
+					// Open it in an editor
+					await editorService.openEditor({
+						resource: ChatSessionUri.forSession(type, chatSessionItem.id),
+						options: {
+							override: ChatEditorInput.EditorID,
+							pinned: true
+						}
+					});
+				} catch (e) {
+					logService.error(`Failed to open new '${type}' chat session editor`, e);
+				}
+			}
+		});
+	}
+
 	private _evaluateAvailability(): void {
 		let hasChanges = false;
-
 		for (const contribution of this._contributions.values()) {
 			const isCurrentlyRegistered = this._disposableStores.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
-
 			if (isCurrentlyRegistered && !shouldBeRegistered) {
 				// Disable the contribution by disposing its disposable store
 				const store = this._disposableStores.get(contribution.type);
@@ -223,18 +265,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				hasChanges = true;
 			}
 		}
-
-		// Fire events to notify UI about provider availability changes
 		if (hasChanges) {
-			// Fire the main availability change event
 			this._onDidChangeAvailability.fire();
-
-			// Notify that the list of available item providers has changed
 			for (const provider of this._itemsProviders.values()) {
 				this._onDidChangeItemsProviders.fire(provider);
 			}
-
-			// Notify about session items changes for all chat session types
 			for (const contribution of this._contributions.values()) {
 				this._onDidChangeSessionItems.fire(contribution.type);
 			}
@@ -246,7 +281,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._disposableStores.set(contribution.type, disposableStore);
 
 		disposableStore.add(this._registerDynamicAgent(contribution));
-		// disposableStore.add(this._registerCommands(contribution)); // TODO: Implement this another time. Just keep the comment placeholder
+		disposableStore.add(this._registerCommands(contribution));
 		disposableStore.add(this._registerMenuItems(contribution));
 	}
 
