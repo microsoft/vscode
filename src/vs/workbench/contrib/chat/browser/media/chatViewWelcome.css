@@ -201,7 +201,7 @@ div.chat-welcome-view {
 		max-width: 400px;
 		color: var(--vscode-disabledForeground);
 		font-size: 12px;
-		margin: 12px auto;
+		margin: 16px auto;
 		padding: 0 12px;
 		a {
 			color: var(--vscode-textLink-foreground);
