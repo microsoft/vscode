@@ -23,7 +23,7 @@ export const enum ChatSessionStatus {
 }
 
 export interface IChatSessionsExtensionPoint {
-	readonly id: string;
+	readonly id: string; // TODO(jospicer): Deprecated. Remove
 	readonly type: string;
 	readonly name: string;
 	readonly displayName: string;

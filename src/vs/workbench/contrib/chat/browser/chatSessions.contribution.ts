@@ -26,6 +26,8 @@ import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { IEditableData } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IChatEditorOptions } from './chatEditor.js';
+import { VIEWLET_ID } from './chatSessions.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 
 const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
 
@@ -97,7 +99,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
 	private readonly _contentProviders: Map<string, IChatSessionContentProvider> = new Map();
 	private readonly _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
-	private readonly _dynamicAgentDisposables: Map<string, IDisposable> = new Map();
+	private readonly _disposableStores: Map<string, DisposableStore> = new Map();
 	private readonly _contextKeys = new Set<string>();
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<string>());
 	readonly onDidChangeSessionItems: Event<string> = this._onDidChangeSessionItems.event;
@@ -160,13 +162,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		this._contributions.set(contribution.type, contribution);
 
-		// Register dynamic agent if the when condition is satisfied
-		this._registerDynamicAgentIfAvailable(contribution);
+		// Let _evaluateAvailability handle the actual registration based on when clause
+		this._evaluateAvailability();
 
 		return {
 			dispose: () => {
 				this._contributions.delete(contribution.type);
-				this._disposeDynamicAgent(contribution.type);
+				const store = this._disposableStores.get(contribution.type);
+				if (store) {
+					store.dispose();
+					this._disposableStores.delete(contribution.type);
+				}
 			}
 		};
 	}
@@ -175,42 +181,45 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (!contribution.when) {
 			return true;
 		}
-
 		const whenExpr = ContextKeyExpr.deserialize(contribution.when);
 		return !whenExpr || this._contextKeyService.contextMatchesRules(whenExpr);
 	}
 
-	private _registerDynamicAgentIfAvailable(contribution: IChatSessionsExtensionPoint): void {
-		if (this._isContributionAvailable(contribution)) {
-			const disposable = this._registerDynamicAgent(contribution);
-			this._dynamicAgentDisposables.set(contribution.type, disposable);
-		}
-	}
-
-	private _disposeDynamicAgent(contributionId: string): void {
-		const disposable = this._dynamicAgentDisposables.get(contributionId);
-		if (disposable) {
-			disposable.dispose();
-			this._dynamicAgentDisposables.delete(contributionId);
-		}
+	private _registerMenuItems(contribution: IChatSessionsExtensionPoint): IDisposable {
+		return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+			command: {
+				id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
+				title: localize('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
+				icon: Codicon.plus,
+			},
+			group: 'navigation',
+			order: 1,
+			when: ContextKeyExpr.and(
+				ContextKeyExpr.equals('view', `${VIEWLET_ID}.${contribution.type}`)
+			),
+		});
 	}
 
 	private _evaluateAvailability(): void {
 		let hasChanges = false;
 
 		for (const contribution of this._contributions.values()) {
-			const isCurrentlyRegistered = this._dynamicAgentDisposables.has(contribution.type);
+			const isCurrentlyRegistered = this._disposableStores.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
 
 			if (isCurrentlyRegistered && !shouldBeRegistered) {
-				// Should be unregistered
-				this._disposeDynamicAgent(contribution.type);
+				// Disable the contribution by disposing its disposable store
+				const store = this._disposableStores.get(contribution.type);
+				if (store) {
+					store.dispose();
+					this._disposableStores.delete(contribution.type);
+				}
 				// Also dispose any cached sessions for this contribution
 				this._disposeSessionsForContribution(contribution.type);
 				hasChanges = true;
 			} else if (!isCurrentlyRegistered && shouldBeRegistered) {
-				// Should be registered
-				this._registerDynamicAgentIfAvailable(contribution);
+				// Enable the contribution by registering it
+				this._enableContribution(contribution);
 				hasChanges = true;
 			}
 		}
@@ -230,6 +239,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._onDidChangeSessionItems.fire(contribution.type);
 			}
 		}
+	}
+
+	private _enableContribution(contribution: IChatSessionsExtensionPoint): void {
+		const disposableStore = new DisposableStore();
+		this._disposableStores.set(contribution.type, disposableStore);
+
+		disposableStore.add(this._registerDynamicAgent(contribution));
+		// disposableStore.add(this._registerCommands(contribution)); // TODO: Implement this another time. Just keep the comment placeholder
+		disposableStore.add(this._registerMenuItems(contribution));
 	}
 
 	private _disposeSessionsForContribution(contributionId: string): void {
