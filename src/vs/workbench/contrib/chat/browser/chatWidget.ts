@@ -24,6 +24,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { fromNowByDay } from '../../../../base/common/date.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -55,7 +56,7 @@ import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/langua
 import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { IPromptParserResult, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, ChatViewId } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
@@ -73,6 +74,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { TodoListToolSettingId as TodoListToolSettingId } from '../common/tools/manageTodoListTool.js';
 
@@ -805,6 +808,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				welcomeContent = this.getWelcomeViewContent(additionalMessage);
 				welcomeContent.tips = tips;
 			}
+			// Optional: recent chat history above welcome content when enabled
+			const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled) === true;
+			if (showHistory) {
+				this.renderWelcomeHistorySection();
+			}
+
 			this.welcomePart.value = this.instantiationService.createInstance(
 				ChatViewWelcomePart,
 				welcomeContent,
@@ -819,6 +828,78 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
 			dom.setVisibility(numItems !== 0, this.listContainer);
+		}
+	}
+
+	private async renderWelcomeHistorySection(): Promise<void> {
+		try {
+			const historyRoot = dom.append(this.welcomeMessageContainer, $('.chat-welcome-history-root'));
+			const container = dom.append(historyRoot, $('.chat-welcome-history'));
+			const listEl = dom.append(container, $('.chat-welcome-history-list'));
+
+			const items = await this.chatService.getHistory();
+			// Sort by most recent and take up to three, excluding current active ("new chat") item
+			const filtered = items
+				.filter(i => !i.isActive)
+				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
+				.slice(0, 3);
+
+			for (const item of filtered) {
+				const row = dom.append(listEl, $('.chat-welcome-history-item'));
+				const title = dom.append(row, $('.chat-welcome-history-title'));
+				title.textContent = item.title;
+				const date = dom.append(row, $('.chat-welcome-history-date'));
+				date.textContent = fromNowByDay(item.lastMessageDate, true, true);
+
+				row.tabIndex = 0;
+				row.setAttribute('role', 'button');
+				row.setAttribute('aria-label', item.title);
+				this._register(dom.addDisposableListener(row, dom.EventType.CLICK, async () => {
+					await this.openHistorySession(item.sessionId);
+				}));
+				this._register(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						await this.openHistorySession(item.sessionId);
+					}
+				}));
+			}
+
+			// Show more link
+			const more = dom.append(container, $('.chat-welcome-history-more'));
+			const moreLink = dom.append(more, $('a')) as HTMLAnchorElement;
+			moreLink.textContent = localize('chat.history.showMoreButton', 'Show chat history...');
+			moreLink.href = '#';
+			// Clicking should not bubble to the container, which would focus the input and close quick pick.
+			this._register(dom.addDisposableListener(moreLink, dom.EventType.CLICK, async (e: MouseEvent) => {
+				e.preventDefault();
+				e.stopPropagation();
+				// Defer to let the click settling finish before showing quick pick
+				setTimeout(() => {
+					this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
+				}, 0);
+			}));
+			this._register(dom.addDisposableListener(moreLink, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					setTimeout(() => {
+						this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
+					}, 0);
+				}
+			}));
+		} catch (err) {
+			this.logService.error('Failed to render welcome history', err);
+		}
+	}
+
+	private async openHistorySession(sessionId: string): Promise<void> {
+		try {
+			const viewsService = this.instantiationService.invokeFunction(accessor => accessor.get(IViewsService));
+			const chatView = await viewsService.openView<any>(ChatViewId);
+			await (chatView as any)?.loadSession?.(sessionId);
+		} catch (e) {
+			this.logService.error('Failed to open chat session from history', e);
 		}
 	}
 

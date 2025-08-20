@@ -282,6 +282,12 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
+		[ChatConfiguration.EmptyStateHistoryEnabled]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
+			tags: ['experimental']
+		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
 			default: true,

@@ -29,6 +29,31 @@
 	overflow: hidden;
 }
 
+/* When recent history is shown, stack it above the welcome view */
+.interactive-session .chat-welcome-view-container:has(.chat-welcome-history-root) {
+	flex-direction: column;
+	justify-content: flex-start;
+	align-items: stretch;
+	height: 100%; /* allow vertical centering of welcome view within remaining space */
+}
+
+/* Hide the welcome section title when history is displayed */
+.interactive-session .chat-welcome-view-container:has(.chat-welcome-history-root) div.chat-welcome-view > .chat-welcome-view-title {
+	display: none;
+}
+
+/* Vertically center the icon without changing its size */
+.interactive-session .chat-welcome-view-container:has(.chat-welcome-history-root) .chat-welcome-view-icon .codicon {
+	line-height: 48px; /* matches icon container min-height for vertical centering */
+}
+
+/* Vertically center the entire welcome view within the container (history remains at top) */
+.interactive-session .chat-welcome-view-container:has(.chat-welcome-history-root) div.chat-welcome-view {
+	align-self: center;
+	margin-top: auto;
+	margin-bottom: auto;
+}
+
 .interactive-session .experimental-welcome-view & > .chat-welcome-view-input-part {
 	max-width: 650px;
 	margin-bottom: 48px;
@@ -175,7 +200,7 @@ div.chat-welcome-view {
 			width: fit-content;
 			margin: 0 4px;
 
-			> .chat-welcome-view-suggested-prompt-icon {
+			& > .chat-welcome-view-suggested-prompt-icon {
 				display: flex;
 				align-items: center;
 				font-size: 4px;
@@ -184,16 +209,79 @@ div.chat-welcome-view {
 				padding: 4px;
 			}
 
-			> .chat-welcome-view-suggested-prompt-label {
+			& > .chat-welcome-view-suggested-prompt-label {
 				font-size: 14px;
 				color: var(--vscode-editorWidget-foreground);
 				padding: 4px 4px 4px 0;
 			}
 		}
 
-		> .chat-welcome-view-suggested-prompt:hover {
+		& > .chat-welcome-view-suggested-prompt:hover {
 			background-color: var(--vscode-list-hoverBackground);
 			border-color: var(--vscode-focusBorder);
 		}
 	}
 }
+
+/* Recent history list shown above the welcome content */
+.chat-welcome-history-root {
+	width: 100%;
+	padding: 0px 8px 0 8px;
+}
+
+.chat-welcome-history {
+	margin: 0 0 12px;
+	width: 100%;
+}
+
+.chat-welcome-history-list {
+	display: flex;
+	flex-direction: column;
+	border-radius: 4px;
+	overflow: hidden;
+	box-sizing: border-box;
+	padding: 0 14px 0 0;
+}
+
+.chat-welcome-history-item {
+	display: flex;
+	flex-direction: row;
+	border-radius: 4px;
+	align-items: center;
+	justify-content: space-between;
+	padding: 2px 12px;
+	line-height: 18px;
+	gap: 8px;
+	cursor: pointer;
+	outline: none;
+}
+
+.chat-welcome-history-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.chat-welcome-history-title {
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1 1 auto;
+}
+
+.chat-welcome-history-date {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	flex: 0 0 auto;
+	margin-left: 8px;
+}
+
+.chat-welcome-history-more {
+	margin: 4px 0 0; /* slightly tighter spacing before link */
+	padding-left: 12px;
+}
+
+.chat-welcome-history-more a {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
