@@ -48,7 +48,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../common/v
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extensions/browser/extensionUrlHandler.js';
-import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
@@ -71,6 +71,8 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { ChatMode } from '../common/chatModes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -793,11 +795,12 @@ class ChatSetup {
 	}
 }
 
+const CHAT_HIDDEN_CONFIGURATION_KEY = 'chat.disableAIFeatures';
+const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for free...");
+
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatSetup';
-
-	private static readonly CHAT_HIDDEN_CONFIGURATION_KEY = 'chat.hideAIFeatures';
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -806,9 +809,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
-		@IViewDescriptorService private readonly viewsDescriptorService: IViewDescriptorService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -820,33 +820,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
 
-		this.registerListeners();
 		this.registerSetupAgents(context, controller);
 		this.registerActions(context, requests, controller);
 		this.registerUrlLinkHandler();
-	}
-
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (
-				e.affectsConfiguration(ChatSetupContribution.CHAT_HIDDEN_CONFIGURATION_KEY) &&
-				this.configurationService.getValue(ChatSetupContribution.CHAT_HIDDEN_CONFIGURATION_KEY) === true
-			) {
-				this.maybeHideAuxiliaryBar();
-			}
-		}));
-	}
-
-	private maybeHideAuxiliaryBar(force?: boolean): void {
-		const activeContainers = this.viewsDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar).filter(
-			container => this.viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0
-		);
-		if (
-			(activeContainers.length === 0 && force) ||  											// chat view is already gone but we know it was there before
-			(activeContainers.length === 1 && activeContainers.at(0)?.id === CHAT_SIDEBAR_PANEL_ID) // chat view is the only view which is going to go away
-		) {
-			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
-		}
 	}
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
@@ -903,14 +879,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 	private registerActions(context: ChatEntitlementContext, requests: ChatEntitlementRequests, controller: Lazy<ChatSetupController>): void {
 		const chatSetupTriggerContext = ContextKeyExpr.and(
-			ContextKeyExpr.not(`config.${ChatSetupContribution.CHAT_HIDDEN_CONFIGURATION_KEY}`),
+			ContextKeyExpr.not(`config.${CHAT_HIDDEN_CONFIGURATION_KEY}`),
 			ContextKeyExpr.or(
 				ChatContextKeys.Setup.installed.negate(),
 				ChatContextKeys.Entitlement.canSignUp
 			)
 		);
-
-		const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for free...");
 
 		class ChatSetupTriggerAction extends Action2 {
 
@@ -1027,52 +1001,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		const that = this;
-		class ChatSetupHideAction extends Action2 {
-
-			static readonly ID = 'workbench.action.chat.hideSetup';
-			static readonly TITLE = localize2('hideChatSetup', "Hide AI Features");
-
-			constructor() {
-				super({
-					id: ChatSetupHideAction.ID,
-					title: ChatSetupHideAction.TITLE,
-					f1: true,
-					category: CHAT_CATEGORY,
-					precondition: ContextKeyExpr.and(ChatContextKeys.Setup.installed.negate(), ChatContextKeys.Setup.hidden.negate()),
-					menu: {
-						id: MenuId.ChatTitleBarMenu,
-						group: 'z_hide',
-						order: 1,
-						when: ChatContextKeys.Setup.installed.negate()
-					}
-				});
-			}
-
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const viewsDescriptorService = accessor.get(IViewDescriptorService);
-				const dialogService = accessor.get(IDialogService);
-
-				const { confirmed } = await dialogService.confirm({
-					message: localize('hideChatSetupConfirm', "Are you sure you want to hide AI features?"),
-					detail: localize('hideChatSetupDetail', "You can restore AI features by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
-					primaryButton: localize('hideChatSetupButton', "Hide AI Features")
-				});
-
-				if (!confirmed) {
-					return;
-				}
-
-				const location = viewsDescriptorService.getViewLocationById(ChatViewId);
-
-				await context.update({ hidden: true });
-
-				if (location === ViewContainerLocation.AuxiliaryBar) {
-					that.maybeHideAuxiliaryBar(true);
-				}
-			}
-		}
-
 		const windowFocusListener = this._register(new MutableDisposable());
 		class UpgradePlanAction extends Action2 {
 			constructor() {
@@ -1166,7 +1094,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
 		registerAction2(ChatSetupTriggerWithoutDialogAction);
-		registerAction2(ChatSetupHideAction);
 		registerAction2(UpgradePlanAction);
 		registerAction2(EnableOveragesAction);
 	}
@@ -1185,6 +1112,141 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				return true;
 			}
 		}));
+	}
+}
+
+export class ChatTeardownContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatTeardown';
+
+	constructor(
+		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	) {
+		super();
+
+		const context = chatEntitlementService.context?.value;
+		if (!context) {
+			return; // disabled
+		}
+
+		this.registerListeners();
+		this.checkExtensionInstallation(context);
+		this.registerActions(context);
+	}
+
+	private async checkExtensionInstallation(context: ChatEntitlementContext): Promise<void> {
+		if (context.state.installed) {
+			this.configurationService.updateValue(CHAT_HIDDEN_CONFIGURATION_KEY, false);
+		}
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(async e => {
+			if (
+				e.affectsConfiguration(CHAT_HIDDEN_CONFIGURATION_KEY) &&
+				this.configurationService.getValue(CHAT_HIDDEN_CONFIGURATION_KEY) === true
+			) {
+				const proceed = await this.maybeUninstallExtensions();
+				if (proceed) {
+					this.maybeHideAuxiliaryBar();
+				}
+			}
+		}));
+	}
+
+	private maybeHideAuxiliaryBar(force?: boolean): void {
+		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar).filter(
+			container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0
+		);
+		if (
+			(activeContainers.length === 0 && force) ||  											// chat view is already gone but we know it was there before
+			(activeContainers.length === 1 && activeContainers.at(0)?.id === CHAT_SIDEBAR_PANEL_ID) // chat view is the only view which is going to go away
+		) {
+			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
+		}
+	}
+
+	private async maybeUninstallExtensions(): Promise<boolean> {
+		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
+		if (!defaultChatExtension?.local || !this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
+			return true;
+		}
+
+		const { confirmed } = await this.dialogService.confirm({
+			type: Severity.Warning,
+			message: localize('setup.uninstall.message', "Are you sure you want to uninstall the '{0}' extension?", defaultChat.extensionId),
+			detail: localize('setup.uninstall.detail', "Uninstalling the extension is required to disable AI features."),
+			primaryButton: localize({ key: 'setup.uninstall', comment: ['&& denotes a mnemonic'] }, "&&Uninstall"),
+		});
+
+		if (confirmed) {
+			await this.extensionsWorkbenchService.uninstall(defaultChatExtension);
+			const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Disable AI features"));
+			if (stopped) {
+				this.extensionService.startExtensionHosts();
+			}
+		} else {
+			await this.configurationService.updateValue(CHAT_HIDDEN_CONFIGURATION_KEY, false);
+		}
+
+		return confirmed;
+	}
+
+	private registerActions(context: ChatEntitlementContext): void {
+		const that = this;
+		class ChatSetupHideAction extends Action2 {
+
+			static readonly ID = 'workbench.action.chat.hideSetup';
+			static readonly TITLE = localize2('hideChatSetup', "Hide AI Features");
+
+			constructor() {
+				super({
+					id: ChatSetupHideAction.ID,
+					title: ChatSetupHideAction.TITLE,
+					f1: true,
+					category: CHAT_CATEGORY,
+					precondition: ContextKeyExpr.and(ChatContextKeys.Setup.installed.negate(), ChatContextKeys.Setup.hidden.negate()),
+					menu: {
+						id: MenuId.ChatTitleBarMenu,
+						group: 'z_hide',
+						order: 1,
+						when: ChatContextKeys.Setup.installed.negate()
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const viewsDescriptorService = accessor.get(IViewDescriptorService);
+				const dialogService = accessor.get(IDialogService);
+
+				const { confirmed } = await dialogService.confirm({
+					message: localize('hideChatSetupConfirm', "Are you sure you want to hide AI features?"),
+					detail: localize('hideChatSetupDetail', "You can restore AI features by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
+					primaryButton: localize('hideChatSetupButton', "Hide AI Features")
+				});
+
+				if (!confirmed) {
+					return;
+				}
+
+				const location = viewsDescriptorService.getViewLocationById(ChatViewId);
+
+				await context.update({ hidden: true });
+
+				if (location === ViewContainerLocation.AuxiliaryBar) {
+					that.maybeHideAuxiliaryBar(true);
+				}
+			}
+		}
+
+		registerAction2(ChatSetupHideAction);
 	}
 }
 
