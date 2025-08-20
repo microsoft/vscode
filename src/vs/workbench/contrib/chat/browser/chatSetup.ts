@@ -1161,18 +1161,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private maybeHideAuxiliaryBar(force?: boolean): void {
-		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar).filter(
-			container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0
-		);
-		if (
-			(activeContainers.length === 0 && force) ||  											// chat view is already gone but we know it was there before
-			(activeContainers.length === 1 && activeContainers.at(0)?.id === CHAT_SIDEBAR_PANEL_ID) // chat view is the only view which is going to go away
-		) {
-			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
-		}
-	}
-
 	private async maybeUninstallExtensions(): Promise<boolean> {
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
 		if (!defaultChatExtension?.local || !this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
@@ -1181,7 +1169,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 		const { confirmed } = await this.dialogService.confirm({
 			type: Severity.Warning,
-			message: localize('setup.uninstall.message', "Are you sure you want to uninstall the '{0}' extension?", defaultChat.extensionId),
+			message: localize('setup.uninstall.message', "Are you sure you want to uninstall '{0}'?", defaultChat.extensionId),
 			detail: localize('setup.uninstall.detail', "Uninstalling the extension is required to disable AI features."),
 			primaryButton: localize({ key: 'setup.uninstall', comment: ['&& denotes a mnemonic'] }, "&&Uninstall"),
 		});
@@ -1197,6 +1185,18 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}
 
 		return confirmed;
+	}
+
+	private maybeHideAuxiliaryBar(force?: boolean): void {
+		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar).filter(
+			container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0
+		);
+		if (
+			(activeContainers.length === 0 && force) ||  											// chat view is already gone but we know it was there before
+			(activeContainers.length === 1 && activeContainers.at(0)?.id === CHAT_SIDEBAR_PANEL_ID) // chat view is the only view which is going to go away
+		) {
+			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
+		}
 	}
 
 	private registerActions(context: ChatEntitlementContext): void {
