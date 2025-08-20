@@ -1162,14 +1162,14 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async maybeUninstallExtensions(): Promise<boolean> {
-		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
+		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 		if (!defaultChatExtension?.local || !this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
 			return true;
 		}
 
 		const { confirmed } = await this.dialogService.confirm({
 			type: Severity.Warning,
-			message: localize('setup.uninstall.message', "Are you sure you want to uninstall '{0}'?", defaultChat.extensionId),
+			message: localize('setup.uninstall.message', "Are you sure you want to uninstall '{0}'?", defaultChat.chatExtensionId),
 			detail: localize('setup.uninstall.detail', "Uninstalling the extension is required to disable AI features."),
 			primaryButton: localize({ key: 'setup.uninstall', comment: ['&& denotes a mnemonic'] }, "&&Uninstall"),
 		});
