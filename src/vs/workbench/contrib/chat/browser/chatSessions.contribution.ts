@@ -214,28 +214,20 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 
 			async run(accessor: ServicesAccessor) {
-				const chatSessionsService = accessor.get(IChatSessionsService);
 				const editorService = accessor.get(IEditorService);
 				const logService = accessor.get(ILogService);
 
 				const { type } = contribution;
 
 				try {
-
-					// Try to create a new chat session (extension must implement this)
-					const chatSessionItem = await chatSessionsService.provideNewChatSessionItem(
-						type,
-						{}, // Empty options for a blank session
-						CancellationToken.None
-					);
-
-					// Open it in an editor
+					const options: IChatEditorOptions = {
+						override: ChatEditorInput.EditorID,
+						pinned: true,
+						chatSessionType: type, // This will 'lock' the UI of the new, unattached editor to our chat session type
+					};
 					await editorService.openEditor({
-						resource: ChatSessionUri.forSession(type, chatSessionItem.id),
-						options: {
-							override: ChatEditorInput.EditorID,
-							pinned: true
-						}
+						resource: ChatEditorInput.getNewEditorUri(),
+						options,
 					});
 				} catch (e) {
 					logService.error(`Failed to open new '${type}' chat session editor`, e);
@@ -578,6 +570,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 					this.chatSession.type,
 					{
 						prompt: request.message,
+						history,
 					},
 					token,
 				);
@@ -585,14 +578,29 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 					pinned: true,
 					preferredTitle: chatSessionItem.label,
 				};
-				await this.editorService.openEditor({
-					resource: ChatSessionUri.forSession(this.chatSession.type, chatSessionItem.id),
-					options,
-				});
-				progress([{
-					kind: 'markdownContent',
-					content: new MarkdownString(localize('continueInNewChat', 'Continue **{0}** in a new chat editor', chatSessionItem.label)),
-				}]);
+				const activeGroup = this.editorGroupService.activeGroup;
+				const currentEditor = activeGroup?.activeEditor;
+				if (currentEditor instanceof ChatEditorInput) {
+					await this.editorService.replaceEditors([{
+						editor: currentEditor,
+						replacement: {
+							resource: ChatSessionUri.forSession(this.chatSession.type, chatSessionItem.id),
+							options,
+						}
+					}], activeGroup);
+				} else {
+					// Fallback: open in new editor if we couldn't find the current one
+					await this.editorService.openEditor({
+						resource: ChatSessionUri.forSession(this.chatSession.type, chatSessionItem.id),
+						options,
+					});
+					progress([{
+						kind: 'markdownContent',
+						content: new MarkdownString(localize('continueInNewChat', 'Continue **{0}** in a new chat editor', chatSessionItem.label)),
+					}]);
+				}
+
+
 			} catch (error) {
 				// End up here if extension does not support 'provideNewChatSessionItem'
 				// TODO(jospicer): Fallback that should be removed/generalized when API stabilizes
