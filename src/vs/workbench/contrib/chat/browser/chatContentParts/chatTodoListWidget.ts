@@ -10,6 +10,9 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
+import * as aria from '../../../../../base/browser/ui/aria/aria.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 
 export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -23,6 +26,8 @@ export class ChatTodoListWidget extends Disposable {
 	private clearButtonContainer!: HTMLElement;
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
+	private _focusedItemIndex: number = -1;
+	private _currentTodos: IChatTodo[] = [];
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
@@ -66,6 +71,9 @@ export class ChatTodoListWidget extends Disposable {
 
 		this.todoListContainer = dom.$('.todo-list-container');
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
+		this.todoListContainer.setAttribute('role', 'listbox');
+		this.todoListContainer.setAttribute('aria-label', localize('chat.todoList.listLabel', 'Todo items'));
+		this.todoListContainer.setAttribute('tabindex', '0');
 
 		container.appendChild(this.expandoElement);
 		container.appendChild(this.todoListContainer);
@@ -83,6 +91,16 @@ export class ChatTodoListWidget extends Disposable {
 
 		this._register(dom.addDisposableListener(this.todoListContainer, 'scroll', () => {
 			this.updateScrollShadow();
+		}));
+
+		this._register(dom.addDisposableListener(this.todoListContainer, 'keydown', (e) => {
+			this.handleTodoListKeyDown(e);
+		}));
+
+		this._register(dom.addDisposableListener(this.todoListContainer, 'focus', () => {
+			if (this._currentTodos.length > 0 && this._focusedItemIndex === -1) {
+				this.setFocusedItem(0);
+			}
 		}));
 
 		return container;
@@ -141,6 +159,8 @@ export class ChatTodoListWidget extends Disposable {
 
 	private renderTodoList(todoList: IChatTodo[]): void {
 		this.todoListContainer.textContent = '';
+		this._currentTodos = todoList;
+		this._focusedItemIndex = -1; // Reset focus when re-rendering
 
 		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
 		if (titleElement) {
@@ -153,6 +173,17 @@ export class ChatTodoListWidget extends Disposable {
 
 		todoList.forEach((todo, index) => {
 			const todoElement = dom.$('.todo-item');
+			todoElement.setAttribute('role', 'option');
+			todoElement.setAttribute('tabindex', '-1');
+			todoElement.setAttribute('data-index', index.toString());
+			todoElement.setAttribute('id', `todo-item-${index}`);
+			
+			// Set ARIA label with status and description
+			const statusText = this.getStatusText(todo.status);
+			const ariaLabel = todo.description 
+				? localize('chat.todoList.itemWithDescription', '{0}, {1}. {2}', todo.title, statusText, todo.description)
+				: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
+			todoElement.setAttribute('aria-label', ariaLabel);
 
 			// Add tooltip if description exists
 			if (todo.description && todo.description.trim()) {
@@ -162,6 +193,7 @@ export class ChatTodoListWidget extends Disposable {
 			const statusIcon = dom.$('.todo-status-icon.codicon');
 			statusIcon.classList.add(this.getStatusIconClass(todo.status));
 			statusIcon.style.color = this.getStatusIconColor(todo.status);
+			statusIcon.setAttribute('aria-hidden', 'true'); // Hide from screen readers as status is in aria-label
 
 			const todoContent = dom.$('.todo-content');
 
@@ -203,7 +235,171 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoElement.setAttribute('aria-expanded', this._isExpanded.toString());
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
+		// Restore focus to the list if it was expanded and had a focused item
+		if (this._isExpanded && this._focusedItemIndex >= 0 && this._currentTodos.length > 0) {
+			setTimeout(() => {
+				this.setFocusedItem(this._focusedItemIndex);
+				this.todoListContainer.focus();
+			}, 0);
+		}
+
 		this._onDidChangeHeight.fire();
+	}
+
+	private handleTodoListKeyDown(e: KeyboardEvent): void {
+		const event = new StandardKeyboardEvent(e);
+		
+		switch (event.keyCode) {
+			case KeyCode.UpArrow:
+				e.preventDefault();
+				this.navigateUp();
+				break;
+			case KeyCode.DownArrow:
+				e.preventDefault();
+				this.navigateDown();
+				break;
+			case KeyCode.Enter:
+			case KeyCode.Space:
+				e.preventDefault();
+				this.toggleCurrentTodoStatus();
+				break;
+			case KeyCode.Escape:
+				e.preventDefault();
+				if (this._isExpanded) {
+					this.toggleExpanded();
+					this.expandoElement.focus();
+				}
+				break;
+		}
+
+		// Handle keyboard shortcuts with modifiers
+		if (event.ctrlKey || event.metaKey) {
+			if (event.keyCode === KeyCode.Enter && !event.shiftKey) {
+				e.preventDefault();
+				this.setCurrentTodoStatus('completed');
+			} else if (event.keyCode === KeyCode.Enter && event.shiftKey) {
+				e.preventDefault();
+				this.setCurrentTodoStatus('in-progress');
+			}
+		}
+	}
+
+	private navigateUp(): void {
+		if (this._currentTodos.length === 0) {
+			return;
+		}
+		
+		const newIndex = this._focusedItemIndex <= 0 ? this._currentTodos.length - 1 : this._focusedItemIndex - 1;
+		this.setFocusedItem(newIndex);
+	}
+
+	private navigateDown(): void {
+		if (this._currentTodos.length === 0) {
+			return;
+		}
+		
+		const newIndex = this._focusedItemIndex >= this._currentTodos.length - 1 ? 0 : this._focusedItemIndex + 1;
+		this.setFocusedItem(newIndex);
+	}
+
+	private setFocusedItem(index: number): void {
+		if (index < 0 || index >= this._currentTodos.length) {
+			return;
+		}
+
+		// Remove previous focus styling
+		if (this._focusedItemIndex >= 0) {
+			const prevElement = this.todoListContainer.querySelector(`[data-index="${this._focusedItemIndex}"]`) as HTMLElement;
+			if (prevElement) {
+				prevElement.classList.remove('focused');
+				prevElement.setAttribute('aria-selected', 'false');
+			}
+		}
+
+		// Set new focus
+		this._focusedItemIndex = index;
+		const newElement = this.todoListContainer.querySelector(`[data-index="${index}"]`) as HTMLElement;
+		if (newElement) {
+			newElement.classList.add('focused');
+			newElement.setAttribute('aria-selected', 'true');
+			newElement.scrollIntoView({ block: 'nearest' });
+		}
+
+		// Update aria-activedescendant
+		this.todoListContainer.setAttribute('aria-activedescendant', `todo-item-${index}`);
+	}
+
+	private toggleCurrentTodoStatus(): void {
+		if (this._focusedItemIndex < 0 || this._focusedItemIndex >= this._currentTodos.length) {
+			return;
+		}
+
+		const currentTodo = this._currentTodos[this._focusedItemIndex];
+		let newStatus: IChatTodo['status'];
+
+		// Cycle through statuses: not-started -> in-progress -> completed -> not-started
+		switch (currentTodo.status) {
+			case 'not-started':
+				newStatus = 'in-progress';
+				break;
+			case 'in-progress':
+				newStatus = 'completed';
+				break;
+			case 'completed':
+				newStatus = 'not-started';
+				break;
+			default:
+				newStatus = 'in-progress';
+		}
+
+		this.setCurrentTodoStatus(newStatus);
+	}
+
+	private setCurrentTodoStatus(status: IChatTodo['status']): void {
+		if (this._focusedItemIndex < 0 || this._focusedItemIndex >= this._currentTodos.length || !this._currentSessionId) {
+			return;
+		}
+
+		const oldStatus = this._currentTodos[this._focusedItemIndex].status;
+		if (oldStatus === status) {
+			return;
+		}
+
+		// Update the todo status
+		const updatedTodos = [...this._currentTodos];
+		updatedTodos[this._focusedItemIndex] = { ...updatedTodos[this._focusedItemIndex], status };
+
+		// Save the updated todos
+		this.chatTodoListService.setTodos(this._currentSessionId, updatedTodos);
+		
+		// Announce status change to screen readers
+		this.announceTodoStatusChange(updatedTodos[this._focusedItemIndex], oldStatus);
+		
+		// Re-render to update UI
+		this.updateTodoDisplay();
+		
+		// Restore focus after re-render
+		setTimeout(() => {
+			this.setFocusedItem(this._focusedItemIndex);
+		}, 0);
+	}
+
+	private announceTodoStatusChange(todo: IChatTodo, oldStatus: string): void {
+		const statusText = this.getStatusText(todo.status);
+		const message = localize('chat.todoList.statusChanged', '{0} is now {1}', todo.title, statusText);
+		aria.alert(message);
+	}
+
+	private getStatusText(status: string): string {
+		switch (status) {
+			case 'completed':
+				return localize('chat.todoList.statusCompleted', 'completed');
+			case 'in-progress':
+				return localize('chat.todoList.statusInProgress', 'in progress');
+			case 'not-started':
+			default:
+				return localize('chat.todoList.statusNotStarted', 'not started');
+		}
 	}
 
 	private clearAllTodos(): void {
