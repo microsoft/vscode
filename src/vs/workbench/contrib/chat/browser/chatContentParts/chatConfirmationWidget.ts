@@ -362,6 +362,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		]);
 		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
