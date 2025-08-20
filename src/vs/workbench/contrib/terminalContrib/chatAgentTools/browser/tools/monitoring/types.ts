@@ -24,7 +24,7 @@ export interface IPollingResult {
 	resources?: ILinkLocation[];
 	modelOutputEvalResponse?: string;
 	state: OutputMonitorState;
-	executedOptionCount?: number;
+	autoReplyCount?: number;
 }
 
 export enum OutputMonitorState {

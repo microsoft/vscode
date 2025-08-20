@@ -176,7 +176,7 @@ export async function collectTerminalResults(
 			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
 			resources: outputAndIdle?.resources,
 			state: outputAndIdle?.state,
-			autoReplyCount: outputAndIdle?.executedOptionCount ?? 0
+			autoReplyCount: outputAndIdle?.autoReplyCount ?? 0
 		});
 	}
 	return results;

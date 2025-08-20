@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
-import { ILinkLocation } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../../nls.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/browser/chatElicitationRequestPart.js';
@@ -68,7 +67,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
-	): Promise<{ output: string; pollDurationMs: number; state: OutputMonitorState; modelOutputEvalResponse?: string; resources?: ILinkLocation[]; executedOptionCount?: number }> {
+	): Promise<IPollingResult & { pollDurationMs: number }> {
 
 		const pollStartTime = Date.now();
 
@@ -237,7 +236,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 			return this._pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn, recursionDepth + 1);
 		}
-		return { state: this._state, modelOutputEvalResponse, output: buffer, executedOptionCount: recursionDepth };
+		return { state: this._state, modelOutputEvalResponse, output: buffer, autoReplyCount: recursionDepth };
 	}
 
 
