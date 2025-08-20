@@ -82,7 +82,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 				}
 			}
 		} else {
-			alert(localize('noConfirmationRequired', 'No chat confirmation required.'));
+			alert(localize('noConfirmationRequired', 'No chat confirmation required'));
 		}
 	}
 }
