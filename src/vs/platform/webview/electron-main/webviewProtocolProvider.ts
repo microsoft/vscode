@@ -12,10 +12,10 @@ import { IFileService } from '../../files/common/files.js';
 
 export class WebviewProtocolProvider implements IDisposable {
 
-	private static validWebviewFilePaths = new Map<string, string>([
-		['/index.html', 'index.html'],
-		['/fake.html', 'fake.html'],
-		['/service-worker.js', 'service-worker.js'],
+	private static validWebviewFilePaths = new Map<string, { readonly mime: string }>([
+		['/index.html', { mime: 'text/html' }],
+		['/fake.html', { mime: 'text/html' }],
+		['/service-worker.js', { mime: 'application/javascript' }],
 	]);
 
 	constructor(
@@ -29,17 +29,19 @@ export class WebviewProtocolProvider implements IDisposable {
 	dispose(): void {
 		protocol.unhandle(Schemas.vscodeWebview);
 	}
+
 	private async handleWebviewRequest(request: GlobalRequest): Promise<GlobalResponse> {
 		try {
 			const uri = URI.parse(request.url);
 			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
-			if (typeof entry === 'string') {
-				const relativeResourcePath: AppResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
+			if (entry) {
+				const relativeResourcePath: AppResourcePath = `vs/workbench/contrib/webview/browser/pre${uri.path}`;
 				const url = FileAccess.asFileUri(relativeResourcePath);
 
 				const content = await this._fileService.readFile(url);
 				return new Response(content.value.buffer.buffer as ArrayBuffer, {
 					headers: {
+						'Content-Type': entry.mime,
 						...COI.getHeadersFromQuery(request.url),
 						'Cross-Origin-Resource-Policy': 'cross-origin',
 					}
