@@ -266,7 +266,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return undefined;
 		}
 		const lastLine = execution.getOutput().trimEnd().split('\n').slice(-5).join('\n');
-		const sanitizedLastLine = sanitizeForPrompt(lastLine);
 		const promptText =
 			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text and the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings). If there is no such prompt, return null.
 			Examples:
@@ -289,10 +288,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				Response: {"prompt": "Continue", "options": ["y", "N"]}
 
 			Now, analyze this output:
-			${sanitizedLastLine}
+			${lastLine}
 			`;
 		const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: sanitizeForPrompt(promptText) }] }
+			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 		], {}, token);
 
 		const responseText = await getResponseFromStream(response);
@@ -325,8 +324,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!models.length) {
 			return Promise.resolve(undefined);
 		}
-		const sanitizedPrompt = sanitizeForPrompt(confirmationPrompt.prompt);
-		const sanitizedOptions = confirmationPrompt.options.map(opt => sanitizeForPrompt(opt));
+		const sanitizedPrompt = confirmationPrompt.prompt;
+		const sanitizedOptions = confirmationPrompt.options.map(opt => opt);
 		const promptText = `Given the following confirmation prompt and options from a terminal output, which option should be selected to proceed safely and correctly?\nPrompt: "${sanitizedPrompt}"\nOptions: ${JSON.stringify(sanitizedOptions)}\nRespond with only the option string.`;
 		const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
@@ -346,18 +345,3 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 }
 
-/**
- * Sanitizes text to reduce prompt injection risk and remove characters that could manipulate LLM responses.
- * - Removes backticks, quotes, and backslashes.
- * - Removes control characters.
- * - Removes common LLM prompt injection patterns.
- */
-export function sanitizeForPrompt(text: string): string {
-	// Remove backticks, quotes, and backslashes
-	let sanitized = text.replace(/[`"'\\]/g, '');
-	// Remove control characters except \n and \t
-	sanitized = sanitized.replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '');
-	// Remove common LLM prompt injection patterns
-	sanitized = sanitized.replace(/(ignore previous instructions|as an ai language model|you are now|assistant:|system:|user:)/gi, '');
-	return sanitized;
-}
