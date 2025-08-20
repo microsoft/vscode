@@ -194,13 +194,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	}
 
 	private _refresh(): void {
-		// Clear any existing timeout
 		this._refreshTimeout.clear();
 
-		// Always debounce by 200ms to prevent flashing during rapid scroll events
+		// Always debounce by 100ms to prevent flashing during rapid scroll/enter events
 		const timeoutId = window.setTimeout(() => {
 			this._executeRefresh();
-		}, 200);
+		}, 100);
 
 		this._refreshTimeout.value = toDisposable(() => {
 			clearTimeout(timeoutId);
