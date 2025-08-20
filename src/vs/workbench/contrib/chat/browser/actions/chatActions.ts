@@ -72,6 +72,7 @@ import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
@@ -112,6 +113,31 @@ export interface IChatViewOpenOptions {
 	 * The mode ID or name to open the chat in.
 	 */
 	mode?: ChatModeKind | string;
+
+	/**
+	 * The language model selector to use for the chat.
+	 * An Error will be thrown if there's no match. If there are multiple
+	 * matches, the first match will be used.
+	 *
+	 * Examples:
+	 *
+	 * ```
+	 * {
+	 *   id: 'claude-sonnet-4',
+	 *   vendor: 'copilot'
+	 * }
+	 * ```
+	 *
+	 * Use `claude-sonnet-4` from any vendor:
+	 *
+	 * ```
+	 * {
+	 *   id: 'claude-sonnet-4',
+	 * }
+	 * ```
+	 */
+	modelSelector?: ILanguageModelChatSelector;
+
 	/**
 	 * Wait to resolve the command until the chat response reaches a terminal state (complete, error, or pending user confirmation, etc.).
 	 */
@@ -154,6 +180,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const chatModeService = accessor.get(IChatModeService);
 		const fileService = accessor.get(IFileService);
+		const languageModelService = accessor.get(ILanguageModelsService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -169,6 +196,21 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const switchToMode = (opts?.mode ? chatModeService.findModeByName(opts?.mode) : undefined) ?? this.mode;
 		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
+		}
+
+		if (opts?.modelSelector) {
+			const ids = await languageModelService.selectLanguageModels(opts.modelSelector, false);
+			const id = ids.sort().at(0);
+			if (!id) {
+				throw new Error(`No language models found matching selector: ${JSON.stringify(opts.modelSelector)}.`);
+			}
+
+			const model = languageModelService.lookupLanguageModel(id);
+			if (!model) {
+				throw new Error(`Language model not loaded: ${id}.`);
+			}
+
+			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
 		}
 
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
