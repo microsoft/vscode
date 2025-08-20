@@ -599,7 +599,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						responseIsIncomplete: true
 					};
 				}
-				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded || errorDetails?.confirmationButtons) {
+				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded || errorDetails?.confirmationButtons || errorDetails?.code) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
