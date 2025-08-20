@@ -1708,7 +1708,7 @@
         },
         {
           "command": "git.deleteWorktree",
-          "group": "1_worktree@3",
+          "group": "2_worktree@1",
           "when": "scmProvider == git && scmProviderContext == worktree"
         }
       ],

@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatProgress } from './chatService.js';
 import { IChatAgentRequest } from './chatAgents.js';
 import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IEditableData } from '../../../common/views.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export const enum ChatSessionStatus {
@@ -65,6 +66,11 @@ export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
 	readonly onDidChangeChatSessionItems: Event<void>;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
+	provideNewChatSessionItem?(options: {
+		prompt?: string;
+		history?: any[];
+		metadata?: any;
+	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
 
 export interface IChatSessionContentProvider {
@@ -82,11 +88,21 @@ export interface IChatSessionsService {
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
 	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
+	provideNewChatSessionItem(chatSessionType: string, options: {
+		prompt?: string;
+		history?: any[];
+		metadata?: any;
+	}, token: CancellationToken): Promise<IChatSessionItem>;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
 	provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession>;
+
+	// Editable session support
+	setEditableSession(sessionId: string, data: IEditableData | null): Promise<void>;
+	getEditableData(sessionId: string): IEditableData | undefined;
+	isEditable(sessionId: string): boolean;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

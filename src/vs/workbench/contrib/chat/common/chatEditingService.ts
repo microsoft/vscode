@@ -238,7 +238,6 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
-	readonly editsRequireManualApproval: IObservable<boolean>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
@@ -256,6 +255,16 @@ export interface IModifiedFileEntry {
 	 * Number of changes for this file
 	 */
 	readonly changesCount: IObservable<number>;
+
+	/**
+	 * Number of lines added in this entry.
+	 */
+	readonly linesAdded?: IObservable<number>;
+
+	/**
+	 * Number of lines removed in this entry
+	 */
+	readonly linesRemoved?: IObservable<number>;
 
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 }

@@ -81,6 +81,10 @@ export class ChatTodoListWidget extends Disposable {
 			}
 		}));
 
+		this._register(dom.addDisposableListener(this.todoListContainer, 'scroll', () => {
+			this.updateScrollShadow();
+		}));
+
 		return container;
 	}
 
@@ -99,7 +103,7 @@ export class ChatTodoListWidget extends Disposable {
 		}));
 	}
 
-	public updateSessionId(sessionId: string | undefined): void {
+	public render(sessionId: string | undefined): void {
 		this._currentSessionId = sessionId;
 		this.updateTodoDisplay();
 	}
@@ -111,8 +115,7 @@ export class ChatTodoListWidget extends Disposable {
 			return;
 		}
 
-		const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
-		const todoList = todoListStorage.getTodoList(this._currentSessionId);
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
 
 		if (todoList.length > 0) {
 			this.renderTodoList(todoList);
@@ -196,8 +199,7 @@ export class ChatTodoListWidget extends Disposable {
 			return;
 		}
 
-		const todoListStorage = this.chatTodoListService.getChatTodoListStorage();
-		todoListStorage.setTodoList(this._currentSessionId, []);
+		this.chatTodoListService.setTodos(this._currentSessionId, []);
 		this.updateTodoDisplay();
 	}
 
@@ -233,6 +235,10 @@ export class ChatTodoListWidget extends Disposable {
 				});
 			}
 		}, 50);
+	}
+
+	private updateScrollShadow(): void {
+		this.domNode.classList.toggle('scrolled', this.todoListContainer.scrollTop > 0);
 	}
 
 	private getProgressText(todoList: IChatTodo[]): string {
