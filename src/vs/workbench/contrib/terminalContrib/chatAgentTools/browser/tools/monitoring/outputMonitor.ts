@@ -265,7 +265,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!models.length) {
 			return undefined;
 		}
-		const lastLine = execution.getOutput().trimEnd().split('\n').slice(-5).join('\n');
+		const lastFiveLines = execution.getOutput().trimEnd().split('\n').slice(-5).join('\n');
 		const promptText =
 			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text and the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings). If there is no such prompt, return null.
 			Examples:
@@ -288,7 +288,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				Response: {"prompt": "Continue", "options": ["y", "N"]}
 
 			Now, analyze this output:
-			${lastLine}
+			${lastFiveLines}
 			`;
 		const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
