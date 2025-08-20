@@ -55,6 +55,7 @@ import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { IChatWidget, IChatWidgetService, ChatViewId } from './chat.js';
 import { ChatViewPane } from './chatViewPane.js';
 import { ChatEditorInput } from './chatEditorInput.js';
+import { IChatEditorOptions } from './chatEditor.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import './media/chatSessions.css';
@@ -80,6 +81,10 @@ function getSessionItemContextOverlay(session: IChatSessionItem, provider?: ICha
 	if (provider) {
 		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
 	}
+
+	// Mark history items
+	const isHistoryItem = session.id.startsWith('history-');
+	overlay.push([ChatContextKeys.isHistoryItem.key, isHistoryItem]);
 
 	return overlay;
 }
@@ -259,7 +264,19 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		if (!(editor instanceof ChatEditorInput)) {
 			return false; // Only track ChatEditorInput instances
 		}
-		return editor.resource?.scheme === 'vscode-chat-editor';
+
+		// Only track editors with vscode-chat-editor scheme
+		if (editor.resource?.scheme !== 'vscode-chat-editor') {
+			return false;
+		}
+
+		// Exclude history sessions that are opened from "Show history"
+		// These have a sessionId in their target options indicating they're loading existing sessions
+		if (editor.options.target && 'sessionId' in editor.options.target) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private registerGroupListeners(group: IEditorGroup): void {
@@ -1240,11 +1257,19 @@ class SessionsViewPane extends ViewPane {
 			// Handle history items first
 			if (element.id.startsWith('history-')) {
 				const sessionId = element.id.substring('history-'.length);
+				const sessionWithProvider = element as ChatSessionItemWithProvider;
 
-				// Load the historical session in the chat panel
-				const chatViewPane = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-				if (chatViewPane) {
-					await chatViewPane.loadSession(sessionId);
+				// For local history sessions, use ChatEditorInput approach
+				if (sessionWithProvider.provider.chatSessionType === 'local') {
+					const options: IChatEditorOptions = { target: { sessionId }, pinned: true };
+					await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
+				} else {
+					// For external provider sessions, use ChatSessionUri approach
+					const providerType = sessionWithProvider.provider.chatSessionType;
+					await this.editorService.openEditor({
+						resource: ChatSessionUri.forSession(providerType, sessionId),
+						options: { pinned: true }
+					});
 				}
 				return;
 			}
