@@ -281,7 +281,7 @@ export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidg
 
 	constructor(
 		private readonly _container: HTMLElement,
-		options: IChatConfirmationWidgetOptions & { message: string | IMarkdownString },
+		options: IChatConfirmationWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -508,7 +508,7 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 
 	constructor(
 		private readonly _container: HTMLElement,
-		options: IChatConfirmationWidget2Options & { message: HTMLElement | IMarkdownString | string },
+		options: IChatConfirmationWidget2Options,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -533,7 +533,7 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
 		container: HTMLElement,
-		options: IChatConfirmationWidget2Options & { message: HTMLElement | IMarkdownString | string },
+		options: IChatConfirmationWidget2Options,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
