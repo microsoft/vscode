@@ -15,8 +15,7 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { ITaskService, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
-import { Location } from '../../../../../../../editor/common/languages.js';
-import { URI } from '../../../../../../../base/common/uri.js';
+import { toolResultDetailsFromResponse } from './taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
@@ -112,19 +111,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
 			toolResultMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskLabel)),
-			toolResultDetails: Array.from(new Map(
-				terminalResults
-					.flatMap(r =>
-						r.resources?.filter(res => res.uri).map(res => {
-							const range = res.range;
-							const item = range !== undefined ? { uri: res.uri, range } : res.uri;
-							const key = range !== undefined
-								? `${res.uri.toString()}-${range.toString()}`
-								: `${res.uri.toString()}`;
-							return [key, item] as [string, URI | Location];
-						}) ?? []
-					)
-			).values())
+			toolResultDetails: toolResultDetailsFromResponse(terminalResults)
 		};
 	}
 }
