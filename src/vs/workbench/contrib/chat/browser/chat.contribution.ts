@@ -117,6 +117,7 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { RenameChatSessionAction } from './actions/chatSessionActions.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -562,14 +563,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.disableAIFeatures': {
 			type: 'boolean',
-			description: nls.localize('chat.disableAIFeatures', "Disable and hide all AI features including Chat."),
+			description: nls.localize('chat.disableAIFeatures', "Disable and hide all AI features provided by GitHub Copilot, including Chat, Code Completions and Next Edit Suggestions."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			policy: {
-				name: 'ChatDisableAIFeatures',
-				minimumVersion: '1.104',
-
-			}
 		},
 	}
 });
@@ -856,8 +852,6 @@ registerPromptFileContributions();
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerAction2(ConfigureToolSets);
 
-// Register chat session actions
-import { RenameChatSessionAction } from './actions/chatSessionActions.js';
 registerAction2(RenameChatSessionAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

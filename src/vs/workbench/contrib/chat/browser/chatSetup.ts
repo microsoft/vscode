@@ -72,7 +72,7 @@ import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { ChatMode } from '../common/chatModes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -1123,7 +1123,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
@@ -1148,43 +1147,45 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(async e => {
-			if (
-				e.affectsConfiguration(CHAT_HIDDEN_CONFIGURATION_KEY) &&
-				this.configurationService.getValue(CHAT_HIDDEN_CONFIGURATION_KEY) === true
-			) {
-				const proceed = await this.maybeUninstallExtensions();
-				if (proceed) {
-					this.maybeHideAuxiliaryBar();
-				}
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(CHAT_HIDDEN_CONFIGURATION_KEY)) {
+				return;
+			}
+
+			const value = this.configurationService.getValue(CHAT_HIDDEN_CONFIGURATION_KEY);
+			if (value === true) {
+				this.maybeDisableExtension();
+				this.maybeHideAuxiliaryBar();
+			} else if (value === false) {
+				this.maybeEnableExtension();
 			}
 		}));
 	}
 
-	private async maybeUninstallExtensions(): Promise<boolean> {
+	private async maybeDisableExtension(): Promise<void> {
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 		if (!defaultChatExtension?.local || !this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
-			return true;
+			return;
 		}
 
-		const { confirmed } = await this.dialogService.confirm({
-			type: Severity.Warning,
-			message: localize('setup.uninstall.message', "Are you sure you want to uninstall '{0}'?", defaultChat.chatExtensionId),
-			detail: localize('setup.uninstall.detail', "Uninstalling the extension is required to disable AI features."),
-			primaryButton: localize({ key: 'setup.uninstall', comment: ['&& denotes a mnemonic'] }, "&&Uninstall"),
-		});
+		await this.extensionsWorkbenchService.setEnablement(defaultChatExtension, EnablementState.DisabledGlobally);
+		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason.disable', "Disabling AI features"));
+		if (stopped) {
+			this.extensionService.startExtensionHosts();
+		}
+	}
 
-		if (confirmed) {
-			await this.extensionsWorkbenchService.uninstall(defaultChatExtension);
-			const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Disable AI features"));
-			if (stopped) {
-				this.extensionService.startExtensionHosts();
-			}
-		} else {
-			await this.configurationService.updateValue(CHAT_HIDDEN_CONFIGURATION_KEY, false);
+	private async maybeEnableExtension(): Promise<void> {
+		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
+		if (!defaultChatExtension?.local || this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
+			return;
 		}
 
-		return confirmed;
+		await this.extensionEnablementService.setEnablement([defaultChatExtension.local], EnablementState.EnabledGlobally);
+		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason.enable', "Enabling AI features"));
+		if (stopped) {
+			this.extensionService.startExtensionHosts();
+		}
 	}
 
 	private maybeHideAuxiliaryBar(): void {
