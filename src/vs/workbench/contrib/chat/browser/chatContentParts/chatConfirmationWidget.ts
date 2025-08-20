@@ -40,6 +40,7 @@ export interface IChatConfirmationButton {
 
 export interface IChatConfirmationWidgetOptions {
 	title: string | IMarkdownString;
+	message: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton[];
 	toolbarData?: { arg: any; partType: string; partSource?: string };
@@ -144,8 +145,9 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 	) {
 		super();
 
-		const { title, subtitle, buttons } = options;
+		const { title, subtitle, message, buttons } = options;
 		this.title = title;
+
 
 		const elements = dom.h('.chat-confirmation-widget@root', [
 			dom.h('.chat-confirmation-widget-title@title'),
@@ -155,7 +157,9 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 				dom.h('.chat-toolbar@toolbar'),
 			]),
 		]);
-		this._domNode = elements.root;
+		const container = createAccessibilityContainer(title, message);
+		container.appendChild(elements.root);
+		this._domNode = container;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		const titlePart = this._register(instantiationService.createInstance(
@@ -277,7 +281,7 @@ export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidg
 
 	constructor(
 		private readonly _container: HTMLElement,
-		options: IChatConfirmationWidgetOptions & { message: string | IMarkdownString },
+		options: IChatConfirmationWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -302,6 +306,7 @@ export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidg
 
 export interface IChatConfirmationWidget2Options {
 	title: string | IMarkdownString;
+	message: string | IMarkdownString | HTMLElement;
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton[];
@@ -320,6 +325,8 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		return this._domNode;
 	}
 
+	private _buttonsDomNode: HTMLElement;
+
 	private get showingButtons() {
 		return !this.domNode.classList.contains('hideButtons');
 	}
@@ -337,7 +344,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	constructor(
 		options: IChatConfirmationWidget2Options,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHostService private readonly _hostService: IHostService,
 		@IViewsService private readonly _viewsService: IViewsService,
@@ -345,7 +352,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	) {
 		super();
 
-		const { title, subtitle, buttons, icon } = options;
+		const { title, subtitle, message, buttons, icon } = options;
 		this.title = title;
 
 		const elements = dom.h('.chat-confirmation-widget2@root', [
@@ -360,7 +367,12 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 				dom.h('.chat-buttons@buttons'),
 			]),
 		]);
-		this._domNode = elements.root;
+
+		const container = createAccessibilityContainer(title, message);
+		container.appendChild(elements.root);
+		this._domNode = container;
+		this._buttonsDomNode = elements.buttons;
+
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		const titlePart = this._register(instantiationService.createInstance(
@@ -375,42 +387,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 		this.messageElement = elements.message;
 
-		for (const buttonData of buttons) {
-			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
-
-			let button: IButton;
-			if (buttonData.moreActions) {
-				button = new ButtonWithDropdown(elements.buttons, {
-					...buttonOptions,
-					contextMenuProvider: contextMenuService,
-					addPrimaryActionToDropdown: false,
-					actions: buttonData.moreActions.map(action => {
-						if (action instanceof Separator) {
-							return action;
-						}
-						return this._register(new Action(
-							action.label,
-							action.label,
-							undefined,
-							!action.disabled,
-							() => {
-								this._onDidClick.fire(action);
-								return Promise.resolve();
-							},
-						));
-					}),
-				});
-			} else {
-				button = new Button(elements.buttons, buttonOptions);
-			}
-
-			this._register(button);
-			button.label = buttonData.label;
-			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
-			if (buttonData.onDidChangeDisablement) {
-				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
-			}
-		}
+		this.updateButtons(buttons);
 
 		// Create toolbar if actions are provided
 		if (options?.toolbarData) {
@@ -434,17 +411,48 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		}
 	}
 
+	updateButtons(buttons: IChatConfirmationButton[]) {
+		while (this._buttonsDomNode.children.length > 0) {
+			this._buttonsDomNode.children[0].remove();
+		}
+		for (const buttonData of buttons) {
+			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
-	// protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
-	// 	this.messageElement.append(element);
+			let button: IButton;
+			if (buttonData.moreActions) {
+				button = new ButtonWithDropdown(this._buttonsDomNode, {
+					...buttonOptions,
+					contextMenuProvider: this.contextMenuService,
+					addPrimaryActionToDropdown: false,
+					actions: buttonData.moreActions.map(action => {
+						if (action instanceof Separator) {
+							return action;
+						}
+						return this._register(new Action(
+							action.label,
+							action.label,
+							undefined,
+							!action.disabled,
+							() => {
+								this._onDidClick.fire(action);
+								return Promise.resolve();
+							},
+						));
+					}),
+				});
+			} else {
+				button = new Button(this._buttonsDomNode, buttonOptions);
+			}
 
-	// 	if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
-	// 		const targetWindow = dom.getWindow(listContainer);
-	// 		if (!targetWindow.document.hasFocus()) {
-	// 			this.notifyConfirmationNeeded(targetWindow);
-	// 		}
-	// 	}
-	// }
+			this._register(button);
+			button.label = buttonData.label;
+			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
+			if (buttonData.onDidChangeDisablement) {
+				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
+			}
+		}
+	}
+
 	protected renderMessage(element: HTMLElement | IMarkdownString | string, listContainer: HTMLElement): void {
 		if (!dom.isHTMLElement(element)) {
 			const messageElement = this._register(this.markdownRenderer.render(
@@ -501,7 +509,7 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 
 	constructor(
 		private readonly _container: HTMLElement,
-		options: IChatConfirmationWidget2Options & { message: HTMLElement | IMarkdownString | string },
+		options: IChatConfirmationWidget2Options,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -526,7 +534,7 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	constructor(
 		container: HTMLElement,
-		options: IChatConfirmationWidget2Options & { message: HTMLElement | IMarkdownString | string },
+		options: IChatConfirmationWidget2Options,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -537,4 +545,14 @@ export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 		super(options, instantiationService, contextMenuService, configurationService, hostService, viewsService, contextKeyService);
 		this.renderMessage(options.message, container);
 	}
+}
+
+function createAccessibilityContainer(title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement): HTMLElement {
+	const container = document.createElement('div');
+	container.tabIndex = 0;
+	const titleAsString = typeof title === 'string' ? title : title.value;
+	const messageAsString = typeof message === 'string' ? message : message && 'value' in message ? message.value : message && 'textContent' in message ? message.textContent : '';
+	container.setAttribute('aria-label', localize('chat.confirmationWidget.ariaLabel', "Chat Confirmation Dialog {0} {1}", titleAsString, messageAsString));
+	container.classList.add('chat-confirmation-widget-container');
+	return container;
 }

@@ -15,13 +15,27 @@ export class RunInTerminalToolTelemetry {
 
 	logPrepare(state: {
 		terminalToolSessionId: string | undefined;
+		subCommands: string[];
 		autoApproveResult: 'approved' | 'denied' | 'manual';
 		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		autoApproveDefault: boolean | undefined;
 	}) {
+		const subCommandsSanitized = state.subCommands.map(e => {
+			let commandName = e.split(' ')[0].toLowerCase();
+			if (!commandAllowList.has(commandName)) {
+				if (/[\\\/]/.test(commandName)) {
+					commandName = '(unknown:path)';
+				} else {
+					commandName = '(unknown)';
+				}
+			}
+			return commandName;
+		});
+
 		type TelemetryEvent = {
 			terminalToolSessionId: string | undefined;
 
+			subCommands: string;
 			autoApproveResult: string;
 			autoApproveReason: string | undefined;
 			autoApproveDefault: boolean | undefined;
@@ -32,6 +46,7 @@ export class RunInTerminalToolTelemetry {
 
 			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
+			subCommands: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A sanitized list of sub-commands that were executed, encoded as a JSON array' };
 			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
 			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
 			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
@@ -39,39 +54,10 @@ export class RunInTerminalToolTelemetry {
 
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
 			terminalToolSessionId: state.terminalToolSessionId,
-
+			subCommands: JSON.stringify(subCommandsSanitized),
 			autoApproveResult: state.autoApproveResult,
 			autoApproveReason: state.autoApproveReason,
 			autoApproveDefault: state.autoApproveDefault,
-		});
-	}
-
-	/**
-	 * Send telemetry for individual commands that match the reporting allow list
-	 */
-	logPrepareCommand(state: {
-		terminalToolSessionId: string | undefined;
-		command: string;
-	}) {
-		let commandName = state.command.split(' ')[0].toLowerCase();
-		if (!commandAllowList.has(commandName)) {
-			commandName = '(unknown)';
-		}
-
-		type CommandTelemetryEvent = {
-			terminalToolSessionId: string | undefined;
-			command: string;
-		};
-		type CommandTelemetryClassification = {
-			owner: 'tyriar';
-			comment: 'Understanding which commands are being executed through the terminal tool';
-
-			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
-			command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The command that was executed' };
-		};
-		this._telemetryService.publicLog2<CommandTelemetryEvent, CommandTelemetryClassification>('toolUse.runInTerminal.prepare.command', {
-			terminalToolSessionId: state.terminalToolSessionId,
-			command: commandName,
 		});
 	}
 
@@ -172,6 +158,8 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'attrib',
 	'awk',
 	'basename',
+	'bg',
+	'blkid',
 	'bunzip2',
 	'bzip2',
 	'cat',
@@ -182,6 +170,7 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'cmp',
 	'column',
 	'comm',
+	'compress',
 	'copy',
 	'cp',
 	'curl',
@@ -194,18 +183,24 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'dig',
 	'dir',
 	'dirname',
+	'diskpart',
+	'disown',
 	'du',
 	'echo',
 	'env',
 	'erase',
 	'eval',
+	'expand',
 	'export',
 	'fc',
+	'fdisk',
+	'fg',
 	'file',
 	'find',
 	'findstr',
 	'fmt',
 	'fold',
+	'forfiles',
 	'free',
 	'git',
 	'grep',
@@ -224,6 +219,8 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'iostat',
 	'ip',
 	'ipconfig',
+	'iptables',
+	'jobs',
 	'jq',
 	'kill',
 	'killall',
@@ -231,10 +228,13 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'ln',
 	'locate',
 	'ls',
+	'lsblk',
+	'lscpu',
 	'lsof',
 	'mkdir',
 	'mklink',
 	'more',
+	'mount',
 	'move',
 	'mv',
 	'nc/netcat',
@@ -250,6 +250,7 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'pgrep',
 	'ping',
 	'pkill',
+	'pr',
 	'printenv',
 	'ps',
 	'pwd',
@@ -264,19 +265,24 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'rm',
 	'rmdir',
 	'robocopy',
+	'route',
 	'rsync',
 	'schtasks',
 	'scp',
 	'sed',
 	'seq',
+	'sfc',
+	'shred',
 	'shuf',
 	'shutdown',
 	'sleep',
 	'sort',
 	'source',
 	'split',
+	'ss',
 	'ssh',
 	'stat',
+	'strings',
 	'sudo',
 	'systeminfo',
 	'tac',
@@ -293,11 +299,17 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'tracert',
 	'tree',
 	'true',
+	'truncate',
 	'type',
 	'type',
 	'umask',
+	'umount',
 	'unalias',
+	'uname',
+	'uncompress',
+	'unexpand',
 	'uniq',
+	'unlink',
 	'unrar',
 	'unzip',
 	'uptime',
@@ -305,6 +317,7 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'watch',
 	'wc',
 	'wget',
+	'where',
 	'whereis',
 	'which',
 	'who',
@@ -315,7 +328,10 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'xxd',
 	'xz',
 	'yes',
+	'zcat',
 	'zip',
+	'zless',
+	'zmore',
 
 	// SCM
 	'bitbucket',
@@ -326,6 +342,8 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'glab',
 	'hg',
 	'svn',
+	'fossil',
+	'p4',
 
 	// Devtools, languages, package manager
 	'apk',
@@ -374,6 +392,16 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'yarn',
 	'yum',
 	'zypper',
+	'tsc',
+	'eslint',
+	'tslint',
+	'jest',
+	'mocha',
+	'vitest',
+	'webpack',
+	'vite',
+	'rollup',
+	'esbuild',
 
 	// Misc Windows executables
 	'taskkill',

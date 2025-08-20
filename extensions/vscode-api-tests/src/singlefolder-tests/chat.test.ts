@@ -124,6 +124,59 @@ suite('chat', () => {
 		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
 	});
 
+	test('workbench.action.chat.open.blockOnResponse defaults to non-blocking for backwards compatibility', async () => {
+		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
+			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
+				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
+			}
+		});
+
+		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
+			await lm.invokeTool('requires_confirmation_tool', {
+				input: {},
+				toolInvocationToken: _request.toolInvocationToken,
+			});
+			return { metadata: { complete: true } };
+		});
+		disposables.push(participant, toolRegistration);
+
+		await commands.executeCommand('workbench.action.chat.newChat');
+		const result = await commands.executeCommand('workbench.action.chat.open', { query: 'hello' });
+		assert.strictEqual(result, undefined);
+	});
+
+	test('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
+		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
+			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
+				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
+			}
+		});
+
+		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
+			await lm.invokeTool('requires_confirmation_tool', {
+				input: {},
+				toolInvocationToken: _request.toolInvocationToken,
+			});
+			return { metadata: { complete: true } };
+		});
+		disposables.push(participant, toolRegistration);
+
+		await commands.executeCommand('workbench.action.chat.newChat');
+		const result: any = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
+		assert.strictEqual(result?.type, 'confirmation');
+	});
+
+	test('workbench.action.chat.open.blockOnResponse resolves when an error is hit', async () => {
+		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
+			return { errorDetails: { code: 'rate_limited', message: `You've been rate limited. Try again later!` } };
+		});
+		disposables.push(participant);
+
+		await commands.executeCommand('workbench.action.chat.newChat');
+		const result = await commands.executeCommand('workbench.action.chat.open', { query: 'hello', blockOnResponse: true });
+		assert.strictEqual((result as any).errorDetails.code, 'rate_limited');
+	});
+
 	test.skip('title provider is called for first request', async () => {
 		let calls = 0;
 		const deferred = new DeferredPromise<void>();
