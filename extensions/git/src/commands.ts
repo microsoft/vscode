@@ -3444,7 +3444,6 @@ export class CommandCenter {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
-		const refs = await repository.getRefs({ pattern: 'refs/heads' });
 
 		const createBranch = new CreateBranchItem();
 		const getBranchPicks = async () => {
@@ -3511,6 +3510,7 @@ export class CommandCenter {
 						return;
 					}
 
+					const refs = await repository.getRefs({ pattern: 'refs/heads' });
 					const existingBranch = refs.find(ref => ref.name === localBranchName);
 					if (existingBranch) {
 						const message = l10n.t('Branch "{0}" already exists.', localBranchName);
