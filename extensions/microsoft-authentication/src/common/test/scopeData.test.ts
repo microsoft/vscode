@@ -102,4 +102,16 @@ suite('ScopeData', () => {
 		const scopeData = new ScopeData(['custom_scope', 'VSCODE_TENANT:scope_tenant'], undefined, authorizationServer);
 		assert.strictEqual(scopeData.tenant, 'url_tenant');
 	});
+
+	test('should extract tenant from v1.0 authorization server URL path', () => {
+		const authorizationServer = Uri.parse('https://login.microsoftonline.com/tenant123');
+		const scopeData = new ScopeData(['custom_scope'], undefined, authorizationServer);
+		assert.strictEqual(scopeData.tenant, 'tenant123');
+	});
+
+	test('should extract tenant from v1.0 common authorization server URL', () => {
+		const authorizationServer = Uri.parse('https://login.microsoftonline.com/common');
+		const scopeData = new ScopeData(['custom_scope'], undefined, authorizationServer);
+		assert.strictEqual(scopeData.tenant, 'common');
+	});
 });
