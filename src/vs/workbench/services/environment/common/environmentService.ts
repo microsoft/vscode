@@ -41,7 +41,6 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly debugRenderer: boolean;
 	readonly logExtensionHostCommunication?: boolean;
 	readonly enableSmokeTestDriver?: boolean;
-	readonly allowDialogsWhileDriven?: boolean;
 	readonly profDurationMarkers?: string[];
 
 	// --- Editors to open

@@ -163,7 +163,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'export-default-configuration': { type: 'string' },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
-	'allow-dialogs-while-driven': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
 	'skip-welcome': { type: 'boolean' },
