@@ -1730,12 +1730,12 @@ registerAction2(class EditToolApproval extends Action2 {
 		const currentState = toolsService.getToolAutoConfirmation(toolId);
 
 		interface TItem extends IQuickPickItem {
-			id: 'memory' | 'workspace' | 'profile' | 'never';
+			id: 'session' | 'workspace' | 'profile' | 'never';
 		}
 
 		const items: TItem[] = [
 			{ id: 'never', label: localize('chat.toolApproval.manual', "Always require manual approval") },
-			{ id: 'memory', label: localize('chat.toolApproval.session', "Auto-approve for this session") },
+			{ id: 'session', label: localize('chat.toolApproval.session', "Auto-approve for this session") },
 			{ id: 'workspace', label: localize('chat.toolApproval.workspace', "Auto-approve for this workspace") },
 			{ id: 'profile', label: localize('chat.toolApproval.profile', "Auto-approve globally") }
 		];

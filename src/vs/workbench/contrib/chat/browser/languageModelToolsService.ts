@@ -198,18 +198,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory' | 'never'): void {
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void {
 		this._workspaceToolConfirmStore.value.setAutoConfirm(toolId, scope === 'workspace');
 		this._profileToolConfirmStore.value.setAutoConfirm(toolId, scope === 'profile');
 
-		if (scope === 'memory') {
+		if (scope === 'session') {
 			this._memoryToolConfirmStore.add(toolId);
 		} else {
 			this._memoryToolConfirmStore.delete(toolId);
 		}
 	}
 
-	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'memory' | 'never' {
+	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
 		if (this._workspaceToolConfirmStore.value.getAutoConfirm(toolId)) {
 			return 'workspace';
 		}
@@ -217,7 +217,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return 'profile';
 		}
 		if (this._memoryToolConfirmStore.has(toolId)) {
-			return 'memory';
+			return 'session';
 		}
 		return 'never';
 	}
