@@ -72,6 +72,7 @@ import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -111,6 +112,11 @@ export interface IChatViewOpenOptions {
 	 * The mode ID or name to open the chat in.
 	 */
 	mode?: ChatModeKind | string;
+
+	/**
+	 * The language model ID to use for the chat (e.g. 'copilot/claude-sonnet-4').
+	 */
+	modelId?: string;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -149,6 +155,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const chatModeService = accessor.get(IChatModeService);
 		const fileService = accessor.get(IFileService);
+		const languageModelService = accessor.get(ILanguageModelsService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -164,6 +171,17 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const switchToMode = (opts?.mode ? chatModeService.findModeByName(opts?.mode) : undefined) ?? this.mode;
 		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
+		}
+
+		if (opts?.modelId) {
+			await languageModelService.selectLanguageModels({}, false);
+			const model = languageModelService.lookupLanguageModel(opts.modelId);
+			if (!model) {
+				const models = languageModelService.getLanguageModelIds();
+				throw new Error(`Language model not found for ID: ${opts.modelId}. Valid options are: ${models.join(', ')}.`);
+			}
+
+			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: opts.modelId });
 		}
 
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
