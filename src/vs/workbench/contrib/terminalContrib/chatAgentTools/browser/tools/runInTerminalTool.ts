@@ -44,7 +44,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { ITaskService } from '../../../../tasks/common/taskService.js';
-import { OutputMonitorState } from './monitoring/bufferMonitoringTyper.js';
+import { OutputMonitorState } from './monitoring/types.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 

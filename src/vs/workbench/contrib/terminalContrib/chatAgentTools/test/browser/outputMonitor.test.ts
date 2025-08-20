@@ -11,7 +11,7 @@ import { OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { OutputMonitorState } from '../../browser/tools/monitoring/bufferMonitoringTyper.js';
+import { OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { AsyncIterableObject } from '../../../../../../base/common/async.js';
 
 suite('OutputMonitor', () => {

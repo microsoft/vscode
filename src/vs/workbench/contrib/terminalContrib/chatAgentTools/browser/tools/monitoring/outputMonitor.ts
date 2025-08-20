@@ -15,7 +15,7 @@ import { ChatModel } from '../../../../../chat/common/chatModel.js';
 import { IChatService } from '../../../../../chat/common/chatService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
-import { IRacePollingOrPromptResult, IPollingResult, IExecution, IConfirmationPrompt, PollingConsts, OutputMonitorState } from './bufferMonitoringTyper.js';
+import { IRacePollingOrPromptResult, IPollingResult, IExecution, IConfirmationPrompt, PollingConsts, OutputMonitorState } from './types.js';
 import { getResponseFromStream } from './pollingUtils.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';

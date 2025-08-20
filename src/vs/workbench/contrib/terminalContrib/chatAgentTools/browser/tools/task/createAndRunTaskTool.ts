@@ -18,7 +18,7 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { OutputMonitorState } from '../monitoring/bufferMonitoringTyper.js';
+import { OutputMonitorState } from '../monitoring/types.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };

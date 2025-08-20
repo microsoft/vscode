@@ -16,7 +16,7 @@ import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDepen
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { OutputMonitorState } from '../monitoring/bufferMonitoringTyper.js';
+import { OutputMonitorState } from '../monitoring/types.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
