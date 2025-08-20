@@ -114,7 +114,8 @@ export interface IChatViewOpenOptions {
 	mode?: ChatModeKind | string;
 
 	/**
-	 * The language model ID to use for the chat (e.g. 'copilot/claude-sonnet-4').
+	 * The language model ID to use for the chat (e.g. 'claude-sonnet-4'). The first match will be used
+	 * among the available models.
 	 */
 	modelId?: string;
 }
@@ -174,11 +175,17 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 
 		if (opts?.modelId) {
-			await languageModelService.selectLanguageModels({}, false);
-			const model = languageModelService.lookupLanguageModel(opts.modelId);
+			// `modelId` is vendor-agnostic. e.g. `gpt-5` NOT `copilot/gpt-5`.
+			// `id`, however, is vendor-specific. e.g. `copilot/gpt-5`.
+			const ids = await languageModelService.selectLanguageModels({ id: opts.modelId }, false);
+			const [id] = ids.sort();
+			if (!id) {
+				throw new Error(`Language model not found for ID: ${opts.modelId}.`);
+			}
+
+			const model = languageModelService.lookupLanguageModel(id);
 			if (!model) {
-				const models = languageModelService.getLanguageModelIds();
-				throw new Error(`Language model not found for ID: ${opts.modelId}. Valid options are: ${models.join(', ')}.`);
+				throw new Error(`Language model not loaded: ${id}.`);
 			}
 
 			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: opts.modelId });
