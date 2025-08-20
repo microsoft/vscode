@@ -57,6 +57,9 @@ async function launchServer(options: LaunchOptions) {
 	if (options.verbose) {
 		args.push('--log=trace');
 	}
+	if (options.allowDialogs) {
+		args.push('--allow-dialogs-while-driven');
+	}
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {

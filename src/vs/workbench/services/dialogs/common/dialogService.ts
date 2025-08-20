@@ -33,7 +33,8 @@ export class DialogService extends Disposable implements IDialogService {
 			return true; // integration tests
 		}
 
-		return !!this.environmentService.enableSmokeTestDriver; // smoke tests
+		// driver automation (like smoke tests)
+		return !!this.environmentService.enableSmokeTestDriver && !this.environmentService.allowDialogsWhileDriven;
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
