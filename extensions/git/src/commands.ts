@@ -4779,11 +4779,12 @@ export class CommandCenter {
 
 		const title = `${item.shortRef} - ${truncate(commit.message)}`;
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${commitParentId}..${commit.hash}` });
+		const reveal = { modifiedUri: toGitUri(uri, commit.hash) };
 
 		return {
 			command: '_workbench.openMultiDiffEditor',
 			title: l10n.t('Open Commit'),
-			arguments: [{ multiDiffSourceUri, title, resources }, options]
+			arguments: [{ multiDiffSourceUri, title, resources, reveal }, options]
 		};
 	}
 
@@ -5032,7 +5033,7 @@ export class CommandCenter {
 	}
 
 	@command('git.viewCommit', { repository: true })
-	async viewCommit(repository: Repository, historyItemId: string): Promise<void> {
+	async viewCommit(repository: Repository, historyItemId: string, revealUri?: Uri): Promise<void> {
 		if (!repository || !historyItemId) {
 			return;
 		}
@@ -5049,8 +5050,9 @@ export class CommandCenter {
 
 		const changes = await repository.diffTrees(historyItemParentId, historyItemId);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
+		const reveal = revealUri ? { modifiedUri: toGitUri(revealUri, historyItemId) } : undefined;
 
-		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources, reveal });
 	}
 
 	@command('git.copyContentToClipboard')
