@@ -96,7 +96,7 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 			...editorOptions,
 			...BaseCellEditorOptions.fixedEditorOptions,
 			...editorOptionsOverride,
-			...{ padding: { top: 12, bottom: 12 } },
+			...{ padding: { top: 12, bottom: 12, left: 1, right: 1 } },
 			readOnly: this.notebookEditor.isReadOnly
 		});
 
