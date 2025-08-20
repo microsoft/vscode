@@ -226,7 +226,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		const customPollingResult = await pollFn?.(execution, token, taskService);
 		if (customPollingResult) {
-			return { ...customPollingResult, output: buffer };
+			return { ...customPollingResult };
 		}
 		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token, languageModelsService);
 		const confirmationPrompt = await this._determineUserInputOptions(execution, token, languageModelsService);
