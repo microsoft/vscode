@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
-import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
+import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
@@ -110,7 +110,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			},
 		}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		const icon = !toolInvocation.isConfirmed ?
+		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
+			? toolInvocation.isConfirmed : toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction;
+		const icon = !isConfirmed ?
 			Codicon.error :
 			toolInvocation.isComplete ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');

@@ -1663,3 +1663,63 @@ registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
 		configurationService.updateValue('workbench.secondarySideBar.defaultVisibility', currentValue !== 'hidden' ? 'hidden' : 'visible');
 	}
 });
+
+registerAction2(class EditToolApproval extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.editToolApproval',
+			title: localize2('chat.editToolApproval.label', "Edit Tool Approval"),
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, toolId: string): Promise<void> {
+		if (!toolId) {
+			return;
+		}
+
+		const quickInputService = accessor.get(IQuickInputService);
+		const toolsService = accessor.get(ILanguageModelToolsService);
+		const tool = toolsService.getTool(toolId);
+		if (!tool) {
+			return;
+		}
+
+		const currentState = toolsService.getToolAutoConfirmation(toolId);
+
+		interface TItem extends IQuickPickItem {
+			id: 'memory' | 'workspace' | 'profile' | 'never';
+		}
+
+		const items: TItem[] = [
+			{ id: 'never', label: localize('chat.toolApproval.manual', "Always require manual approval") },
+			{ id: 'memory', label: localize('chat.toolApproval.session', "Auto-approve for this session") },
+			{ id: 'workspace', label: localize('chat.toolApproval.workspace', "Auto-approve for this workspace") },
+			{ id: 'profile', label: localize('chat.toolApproval.profile', "Auto-approve globally") }
+		];
+
+		const quickPick = quickInputService.createQuickPick<TItem>();
+		quickPick.placeholder = localize('chat.editToolApproval.title', "Approval setting for {0}", tool.displayName ?? tool.id);
+		quickPick.items = items;
+		quickPick.canSelectMany = false;
+		quickPick.activeItems = items.filter(item => item.id === currentState);
+
+		const selection = await new Promise<TItem | undefined>((resolve) => {
+			quickPick.onDidAccept(() => {
+				const selected = quickPick.selectedItems[0];
+				resolve(selected);
+			});
+			quickPick.onDidHide(() => {
+				resolve(undefined);
+
+			});
+			quickPick.show();
+		});
+
+		quickPick.dispose();
+
+		if (selection) {
+			toolsService.setToolAutoConfirmation(toolId, selection.id);
+		}
+	}
+});

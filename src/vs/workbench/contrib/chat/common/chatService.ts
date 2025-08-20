@@ -311,14 +311,29 @@ export interface IChatToolInputInvocationData {
 	rawInput: any;
 }
 
+export const enum ToolConfirmKind {
+	Denied,
+	ConfirmationNotNeeded,
+	Setting,
+	LmServicePerTool,
+	UserAction
+}
+
+export type ConfirmedReason =
+	| { type: ToolConfirmKind.Denied }
+	| { type: ToolConfirmKind.ConfirmationNotNeeded }
+	| { type: ToolConfirmKind.Setting; id: string }
+	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
+	| { type: ToolConfirmKind.UserAction };
+
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];
 	toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent;
 	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
-	confirmed: DeferredPromise<boolean>;
-	/** A 3-way: undefined=don't know yet. */
-	isConfirmed: boolean | undefined;
+	confirmed: DeferredPromise<ConfirmedReason>;
+	/** undefined=don't know yet. */
+	isConfirmed: ConfirmedReason | undefined;
 	originMessage: string | IMarkdownString | undefined;
 	invocationMessage: string | IMarkdownString;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -352,7 +367,8 @@ export interface IChatToolInvocationSerialized {
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetailsSerialized;
-	isConfirmed: boolean | undefined;
+	/** boolean used by pre-1.104 versions */
+	isConfirmed: ConfirmedReason | boolean | undefined;
 	isComplete: boolean;
 	toolCallId: string;
 	toolId: string;
