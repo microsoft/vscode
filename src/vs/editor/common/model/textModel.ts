@@ -1607,7 +1607,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	// TODO: need to check this happens as soon as there is a change and not deferred
 	private onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
 		for (const viewModel of this._viewModels) {
 			viewModel.onDidChangeContentOrInjectedText(e);
