@@ -10,7 +10,7 @@ import { EndOfLinePreference, ITextModel, PositionAffinity } from '../model.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { InjectedText, ModelLineProjectionData } from '../modelLineProjectionData.js';
 import { ViewLineData } from '../viewModel.js';
-import { IInjectedTextInlineDecorationsComputer, InjectedTextInlineDecorationsComputer, InlineDecoration } from './inlineDecorations.js';
+import { IInjectedTextInlineDecorationsComputerContext, InjectedTextInlineDecorationsComputer, InlineDecoration } from './inlineDecorations.js';
 import { getLineTokensWithInjections } from '../model/textModel.js';
 
 export interface IModelLineProjection {
@@ -165,7 +165,7 @@ class ModelLineProjection implements IModelLineProjection {
 		const injectionOffsets = lineBreakData.injectionOffsets;
 		const injectionOptions = lineBreakData.injectionOptions;
 
-		const context: IInjectedTextInlineDecorationsComputer = {
+		const context: IInjectedTextInlineDecorationsComputerContext = {
 			getInjectionOptions: () => injectionOptions,
 			getInjectionOffsets: () => injectionOffsets,
 			getBreakOffsets: () => lineBreakData.breakOffsets,

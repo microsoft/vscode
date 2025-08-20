@@ -26,7 +26,7 @@ export class InlineDecoration {
 	) { }
 }
 
-export class InlineDecorations {
+class InlineDecorations {
 
 	constructor(
 		public readonly decorations: InlineDecoration[][],
@@ -65,7 +65,7 @@ export interface IInlineDecorationsComputerContext {
 	getModelDecorations(range: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[];
 }
 
-export class InlineModelDecorationsComputer {
+export class InlineDecorationsComputer {
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
 
@@ -88,8 +88,9 @@ export class InlineModelDecorationsComputer {
 		const startLineNumber = range.startLineNumber;
 		const endLineNumber = range.endLineNumber;
 
-		const decorationsInViewport: ViewModelDecoration[] = [];
 		let decorationsInViewportLen = 0;
+		const decorationsInViewport: ViewModelDecoration[] = [];
+
 		const inlineDecorations: InlineDecoration[][] = [];
 		for (let j = startLineNumber; j <= endLineNumber; j++) {
 			inlineDecorations[j - startLineNumber] = [];
@@ -106,7 +107,6 @@ export class InlineModelDecorationsComputer {
 
 			const viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
 			const viewRange = viewModelDecoration.range;
-
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
 			if (decorationOptions.inlineClassName) {
@@ -183,7 +183,7 @@ export class InlineModelDecorationsComputer {
 	}
 }
 
-export interface IInjectedTextInlineDecorationsComputer {
+export interface IInjectedTextInlineDecorationsComputerContext {
 	/**
 	 * Get the injections options for a model line number
 	 */
@@ -204,7 +204,7 @@ export interface IInjectedTextInlineDecorationsComputer {
 
 export class InjectedTextInlineDecorationsComputer {
 
-	constructor(private readonly context: IInjectedTextInlineDecorationsComputer) { }
+	constructor(private readonly context: IInjectedTextInlineDecorationsComputerContext) { }
 
 	public getInlineDecorations(lineNumber: number): InlineDecorations | null {
 		const injectionOffsets = this.context.getInjectionOffsets(lineNumber);
@@ -266,7 +266,7 @@ export class InjectedTextInlineDecorationsComputer {
 
 export class IdentityInlineDecorationsComputer {
 
-	private readonly _inlineDecorationsComputer: InlineModelDecorationsComputer;
+	private readonly _inlineDecorationsComputer: InlineDecorationsComputer;
 	private readonly _injectedTextInlineDecorationsComputer: InjectedTextInlineDecorationsComputer;
 
 	private readonly _decorationData: Map<number, InlineDecorations> = new Map();
@@ -281,13 +281,13 @@ export class IdentityInlineDecorationsComputer {
 		const context: IInlineDecorationsComputerContext = {
 			getModelDecorations: (range: Range) => this.model.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.options), filterFontDecorations(this.options), false, false),
 		};
-		const injectedContext: IInjectedTextInlineDecorationsComputer = {
+		const injectedContext: IInjectedTextInlineDecorationsComputerContext = {
 			getInjectionOptions: (lineNumber: number) => this._getLineInjectedText(lineNumber).map(t => t.options),
 			getInjectionOffsets: (lineNumber: number) => this._getLineInjectedText(lineNumber).map(text => text.column - 1),
 			getBreakOffsets: () => null,
 			getWrappedTextIndentLength: () => null
 		};
-		this._inlineDecorationsComputer = new InlineModelDecorationsComputer(context, this.model, coordinatesConverter);
+		this._inlineDecorationsComputer = new InlineDecorationsComputer(context, this.model, coordinatesConverter);
 		this._injectedTextInlineDecorationsComputer = new InjectedTextInlineDecorationsComputer(injectedContext);
 	}
 

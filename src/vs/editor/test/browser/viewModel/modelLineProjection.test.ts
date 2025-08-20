@@ -98,11 +98,6 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 
 	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: ViewModelLinesFromProjectedModel) => void): void {
 		const config = new TestConfiguration({});
-		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
-		const fontInfo = config.options.get(EditorOption.fontInfo);
-		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
-		const wordBreak = config.options.get(EditorOption.wordBreak);
-		const wrapOnEscapedLineFeeds = config.options.get(EditorOption.wrapOnEscapedLineFeeds);
 		const domLineBreaksComputerFactory = DOMLineBreaksComputerFactory.create(getActiveWindow());
 		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(config.options);
 		const lineBreaksComputerFactory = new LineBreaksComputerFactory(domLineBreaksComputerFactory, monospaceLineBreaksComputerFactory);
@@ -121,13 +116,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			model,
 			lineBreaksComputerFactory,
 			config,
-			fontInfo,
 			model.getOptions().tabSize,
-			'simple',
-			wrappingInfo.wrappingColumn,
-			wrappingIndent,
-			wordBreak,
-			wrapOnEscapedLineFeeds
 		);
 
 		callback(model, linesCollection);
@@ -955,13 +944,8 @@ suite('SplitLinesCollection', () => {
 			wordWrapColumn: wordWrapColumn,
 			wrappingIndent: 'indent'
 		});
-		const wrappingInfo = configuration.options.get(EditorOption.wrappingInfo);
-		const fontInfo = configuration.options.get(EditorOption.fontInfo);
 		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
-		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
-		const wordBreak = configuration.options.get(EditorOption.wordBreak);
-
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const linesCollection = new ViewModelLinesFromProjectedModel(
@@ -969,13 +953,7 @@ suite('SplitLinesCollection', () => {
 			model,
 			lineBreaksComputerFactory,
 			configuration,
-			fontInfo,
-			model.getOptions().tabSize,
-			'simple',
-			wrappingInfo.wrappingColumn,
-			wrappingIndent,
-			wordBreak,
-			wrapOnEscapedLineFeeds
+			model.getOptions().tabSize
 		);
 
 		callback(linesCollection);

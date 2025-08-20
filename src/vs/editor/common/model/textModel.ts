@@ -1601,7 +1601,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLines = Array.from(affectedFontLines);
 			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.lineNumber));
-			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
+			const modelFontChangedEvent = new ModelFontChangedEvent(fontChangeEvent);
+			this._onDidChangeFont.fire(modelFontChangedEvent);
+			this.onFontChanged(modelFontChangedEvent);
 		}
 	}
 
@@ -1609,6 +1611,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
 		for (const viewModel of this._viewModels) {
 			viewModel.onDidChangeContentOrInjectedText(e);
+		}
+	}
+
+	private onFontChanged(e: ModelFontChangedEvent): void {
+		for (const viewModel of this._viewModels) {
+			viewModel.onFontChanged(e);
 		}
 	}
 
@@ -2069,11 +2077,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
 	let lineTokens: LineTokens;
-	if (injectionOffsets) {
+	if (injectionOptions && injectionOffsets) {
 		const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
 		for (let idx = 0; idx < injectionOffsets.length; idx++) {
 			const offset = injectionOffsets[idx];
-			const tokens = injectionOptions![idx].tokens;
+			const tokens = injectionOptions[idx].tokens;
 			if (tokens) {
 				tokens.forEach((range, info) => {
 					tokensToInsert.push({

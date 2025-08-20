@@ -5,12 +5,11 @@
 
 import { assertNever } from '../../base/common/assert.js';
 import { IEditorConfiguration } from './config/editorConfiguration.js';
-import { IComputedEditorOptions } from './config/editorOptions.js';
 import { Position } from './core/position.js';
-import { InjectedTextCursorStops, InjectedTextOptions, ITextModel, PositionAffinity } from './model.js';
+import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
 import { LineInjectedText } from './textModelEvents.js';
 import { LineTokens } from './tokens/lineTokens.js';
-import { IdentityInlineDecorationsComputer, InlineDecoration } from './viewModel/inlineDecorations.js';
+import { InlineDecoration } from './viewModel/inlineDecorations.js';
 
 /**
  * *input*:
@@ -349,29 +348,4 @@ export interface ILineBreaksComputer {
 	 */
 	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
-}
-
-export function getLineBreaksComputerContext(ownerId: number, model: ITextModel, options: IComputedEditorOptions): ILineBreaksComputerContext {
-	const inlineDecorationsComputer = new IdentityInlineDecorationsComputer(ownerId, model, options);
-	const context: ILineBreaksComputerContext = {
-		getLineMaxColumn: (lineNumber: number): number => {
-			return model.getLineMaxColumn(lineNumber);
-		},
-		getLineContent: (lineNumber: number): string => {
-			return model.getLineContent(lineNumber);
-		},
-		getLineTokens: (lineNumber: number): LineTokens => {
-			return model.getLineTokens(lineNumber, ownerId);
-		},
-		getLineInjectedText: (lineNumber: number): LineInjectedText[] => {
-			return model.getLineInjectedText(lineNumber, ownerId);
-		},
-		getLineInlineDecorations: (lineNumber: number): InlineDecoration[] => {
-			return inlineDecorationsComputer.getLineInlineDecorations(lineNumber);
-		},
-		hasVariableFonts: (lineNumber: number): boolean => {
-			return inlineDecorationsComputer.hasVariableFonts(lineNumber);
-		}
-	};
-	return context;
 }

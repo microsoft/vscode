@@ -28,6 +28,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 		return new DOMLineBreaksComputerFactory(new WeakRef(targetWindow));
 	}
 
+	// TODO: Remove this later
 	private _containerDomNode: HTMLDivElement | null = null;
 
 	constructor(private targetWindow: WeakRef<Window>) {
@@ -49,7 +50,6 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	}
 }
 
-// TODO: better understand the previous logic with the wrapped indent length
 function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], config: IEditorConfiguration, tabSize: number): { data: (ModelLineProjectionData | null)[]; domNode: HTMLDivElement | null } {
 	function createEmptyLineBreakWithPossiblyInjectedText(lineNumber: number): ModelLineProjectionData | null {
 		const injectedTexts = context.getLineInjectedText(lineNumber);
@@ -91,6 +91,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	applyFontInfo(containerDomNode, fontInfo);
 
 	const sb = new StringBuilder(10000);
+	// TODO: do we need the first non white-space indices
 	const wrappedTextIndentLengths: number[] = [];
 	const renderLineContents: string[] = [];
 	const characterMappings: CharacterMapping[] = [];
@@ -128,6 +129,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 		const renderedLineOutput = renderLine(context, lineNumber, tabSize, width, options, sb, additionalIndentLength);
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
 		characterMappings[i] = renderedLineOutput.characterMapping;
+		// TODO, should we store the cropped rendered line content?
 	}
 	const html = sb.build();
 	const trustedhtml = ttPolicy?.createHTML(html) ?? html;
