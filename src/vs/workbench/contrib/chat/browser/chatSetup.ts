@@ -903,7 +903,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 	private registerActions(context: ChatEntitlementContext, requests: ChatEntitlementRequests, controller: Lazy<ChatSetupController>): void {
 		const chatSetupTriggerContext = ContextKeyExpr.and(
-			ContextKeyExpr.not('config.chat.hideAIFeatures'),
+			ContextKeyExpr.not(`config.${ChatSetupContribution.CHAT_HIDDEN_CONFIGURATION_KEY}`),
 			ContextKeyExpr.or(
 				ChatContextKeys.Setup.installed.negate(),
 				ChatContextKeys.Entitlement.canSignUp
@@ -1070,7 +1070,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (location === ViewContainerLocation.AuxiliaryBar) {
 					that.maybeHideAuxiliaryBar(true);
 				}
-
 			}
 		}
 
