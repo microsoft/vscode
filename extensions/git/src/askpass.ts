@@ -108,7 +108,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		if (/passphrase/i.test(request)) {
 			// Commit signing - Enter passphrase:
 			// Git operation  - Enter passphrase for key '/c/Users/<username>/.ssh/id_ed25519':
-			const file = extractFilePathFromArgs(argv, 6);
+			const file = argv[6] ? extractFilePathFromArgs(argv, 6) : undefined;
 
 			this.logger.trace(`[Askpass][handleSSHAskpass] request: ${request}, file: ${file}`);
 
