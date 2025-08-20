@@ -298,12 +298,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
 			if (match) {
-				try {
-					const obj = JSON.parse(match[0]);
-					if (obj && typeof obj.prompt === 'string' && Array.isArray(obj.options)) {
-						return obj;
-					}
-				} catch {
+				const obj = JSON.parse(match[0]);
+				if (obj && typeof obj.prompt === 'string' && Array.isArray(obj.options)) {
+					return obj;
 				}
 			}
 		} catch {
