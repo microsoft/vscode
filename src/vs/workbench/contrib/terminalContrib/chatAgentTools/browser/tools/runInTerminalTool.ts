@@ -28,7 +28,7 @@ import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerm
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
-import { getOutput } from './monitoring/bufferOutputPolling.js';
+import { getOutput } from './monitoring/getOutputHelper.js';
 import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult } from '../commandLineAutoApprover.js';
 import { CommandSimplifier } from '../commandSimplifier.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
@@ -44,7 +44,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { ITaskService } from '../../../../tasks/common/taskService.js';
-import { OutputMonitorState } from './monitoring/bufferOutputPollingTypes.js';
+import { OutputMonitorState } from './monitoring/bufferMonitoringTyper.js';
 
 const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
 
