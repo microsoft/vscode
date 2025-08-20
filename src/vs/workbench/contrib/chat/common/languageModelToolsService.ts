@@ -215,6 +215,7 @@ export interface IToolConfirmationMessages {
 
 export interface IToolConfirmationAction {
 	label: string;
+	disabled?: boolean;
 	tooltip?: string;
 	data: any;
 }
