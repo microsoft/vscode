@@ -306,7 +306,7 @@ export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidg
 
 export interface IChatConfirmationWidget2Options {
 	title: string | IMarkdownString;
-	message: string | IMarkdownString;
+	message: string | IMarkdownString | HTMLElement;
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton[];
@@ -548,11 +548,11 @@ export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	}
 }
 
-function createAccessibilityContainer(title: string | IMarkdownString, message?: string | IMarkdownString): HTMLElement {
+function createAccessibilityContainer(title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement): HTMLElement {
 	const container = document.createElement('div');
 	container.tabIndex = 0;
 	const titleAsString = typeof title === 'string' ? title : title.value;
-	const messageAsString = typeof message === 'string' ? message : message?.value ?? '';
+	const messageAsString = typeof message === 'string' ? message : message && 'value' in message ? message.value : message && 'textContent' in message ? message.textContent : '';
 	container.setAttribute('aria-label', localize('chat.confirmationWidget.ariaLabel', "Chat Confirmation Dialog {0} {1}", titleAsString, messageAsString));
 	container.classList.add('chat-confirmation-widget-container');
 	return container;
