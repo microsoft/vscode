@@ -1187,12 +1187,12 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		return confirmed;
 	}
 
-	private maybeHideAuxiliaryBar(force?: boolean): void {
+	private maybeHideAuxiliaryBar(): void {
 		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar).filter(
 			container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0
 		);
 		if (
-			(activeContainers.length === 0 && force) ||  											// chat view is already gone but we know it was there before
+			(activeContainers.length === 0) ||  													// chat view is already gone but we know it was there before
 			(activeContainers.length === 1 && activeContainers.at(0)?.id === CHAT_SIDEBAR_PANEL_ID) // chat view is the only view which is going to go away
 		) {
 			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
@@ -1241,7 +1241,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 				await context.update({ hidden: true });
 
 				if (location === ViewContainerLocation.AuxiliaryBar) {
-					that.maybeHideAuxiliaryBar(true);
+					that.maybeHideAuxiliaryBar();
 				}
 			}
 		}
