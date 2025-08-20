@@ -116,13 +116,23 @@ export interface IChatViewOpenOptions {
 
 	/**
 	 * The language model selector to use for the chat.
-	 * An Error will be thrown if there's no match or if it matches multiple models.
+	 * An Error will be thrown if there's no match. If there are multiple
+	 * matches, the first match will be used.
 	 *
-	 * Example:
+	 * Examples:
+	 *
 	 * ```
 	 * {
 	 *   id: 'claude-sonnet-4',
 	 *   vendor: 'copilot'
+	 * }
+	 * ```
+	 *
+	 * Use `claude-sonnet-4` from any vendor:
+	 *
+	 * ```
+	 * {
+	 *   id: 'claude-sonnet-4',
 	 * }
 	 * ```
 	 */
@@ -194,11 +204,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 				throw new Error(`No language models found matching selector: ${JSON.stringify(opts.modelSelector)}.`);
 			}
 
-			if (ids.length > 1) {
-				throw new Error(`Multiple language models found matching selector: ${JSON.stringify(opts.modelSelector)}. Please specify a more specific selector.`);
-			}
-
-			const id = ids[0];
+			const id = ids.sort()[0];
 			const model = languageModelService.lookupLanguageModel(id);
 			if (!model) {
 				throw new Error(`Language model not loaded: ${id}.`);
