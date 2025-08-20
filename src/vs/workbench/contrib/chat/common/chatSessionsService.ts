@@ -56,7 +56,7 @@ export interface ChatSession extends IDisposable {
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,
-		history: [],
+		history: any[], // TODO: Nail down types
 		token: CancellationToken
 	) => Promise<void>;
 }

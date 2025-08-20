@@ -534,7 +534,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		super();
 	}
 
-	async invoke(request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
+	async invoke(request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 		const widget = this.chatWidgetService.getWidgetBySessionId(request.sessionId);
 
 		if (!widget) {
@@ -570,7 +570,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		}
 
 		if (chatSession?.requestHandler) {
-			await chatSession.requestHandler(request, progress, [], token);
+			await chatSession.requestHandler(request, progress, history, token); // TODO: Revisit this function's signature in relation to its extension API (eg: 'history' is not strongly typed here)
 		} else {
 			try {
 				const chatSessionItem = await this.chatSessionService.provideNewChatSessionItem(
