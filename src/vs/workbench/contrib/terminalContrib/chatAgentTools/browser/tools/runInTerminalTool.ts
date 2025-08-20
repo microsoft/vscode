@@ -408,7 +408,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			inputUserSigint ||= data === '\x03';
 		}));
 		if (args.isBackground) {
-			let outputAndState: { output: string; pollDurationMs?: number; modelOutputEvalResponse?: string; state: OutputMonitorState } | undefined = undefined;
+			let outputAndState: { output: string; pollDurationMs?: number; modelOutputEvalResponse?: string; state: OutputMonitorState; executedOptionCount?: number } | undefined = undefined;
 			let outputMonitor: OutputMonitor | undefined = undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
@@ -476,6 +476,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					pollDurationMs: outputAndState?.pollDurationMs,
 					inputUserChars,
 					inputUserSigint,
+					autoReplyCount: outputAndState?.executedOptionCount
 				});
 			}
 		} else {

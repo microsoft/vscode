@@ -89,6 +89,7 @@ export class RunInTerminalToolTelemetry {
 		pollDurationMs?: number;
 		terminalExecutionIdleBeforeTimeout?: boolean;
 		exitCode: number | undefined;
+		autoReplyCount?: number;
 		inputUserChars: number;
 		inputUserSigint: boolean;
 	}) {
@@ -108,6 +109,8 @@ export class RunInTerminalToolTelemetry {
 			pollDurationMs: number;
 			timingExecuteMs: number;
 			terminalExecutionIdleBeforeTimeout: boolean;
+
+			autoReplyCount: number;
 
 			inputUserChars: number;
 			inputUserSigint: boolean;
@@ -134,6 +137,7 @@ export class RunInTerminalToolTelemetry {
 
 			inputUserChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters the user input manually, a single key stroke could map to several characters. Focus in/out sequences are not counted as part of this' };
 			inputUserSigint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user input the SIGINT signal' };
+			autoReplyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the tool automatically replied to requests from the terminal for user input' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -151,6 +155,7 @@ export class RunInTerminalToolTelemetry {
 			timingExecuteMs: state.timingExecuteMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
 			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
+			autoReplyCount: state.autoReplyCount ?? 0,
 
 			inputUserChars: state.inputUserChars,
 			inputUserSigint: state.inputUserSigint,

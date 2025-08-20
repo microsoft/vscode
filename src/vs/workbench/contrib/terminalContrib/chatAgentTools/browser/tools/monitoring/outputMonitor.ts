@@ -68,7 +68,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
-	): Promise<{ output: string; pollDurationMs: number; state: OutputMonitorState; modelOutputEvalResponse?: string; resources?: ILinkLocation[] }> {
+	): Promise<{ output: string; pollDurationMs: number; state: OutputMonitorState; modelOutputEvalResponse?: string; resources?: ILinkLocation[]; executedOptionCount?: number }> {
 
 		const pollStartTime = Date.now();
 
@@ -237,7 +237,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 			return this._pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn, recursionDepth + 1);
 		}
-		return { state: this._state, modelOutputEvalResponse, output: buffer };
+		return { state: this._state, modelOutputEvalResponse, output: buffer, executedOptionCount: recursionDepth };
 	}
 
 
