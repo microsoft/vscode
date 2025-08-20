@@ -19,6 +19,8 @@ import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { OutputMonitorState } from '../monitoring/types.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
@@ -56,6 +58,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		@IChatService private readonly _chatService: IChatService,
 		@IFileService private readonly _fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -118,16 +121,18 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label)) };
 		}
-
+		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
 			terminals,
 			task,
 			this._languageModelsService,
+			this._instantiationService,
 			this._tasksService,
 			this._chatService,
 			invocation.context!,
 			_progress,
 			token,
+			store,
 			() => this._isTaskActive(task),
 			dependencyTasks
 		);

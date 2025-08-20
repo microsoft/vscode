@@ -5,9 +5,10 @@
 
 import type { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatService } from '../../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
@@ -52,7 +53,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IChatService private readonly _chatService: IChatService
+		@IChatService private readonly _chatService: IChatService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -91,15 +93,18 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskLabel)) };
 		}
+		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
 			terminals,
 			task,
 			this._languageModelsService,
+			this._instantiationService,
 			this._tasksService,
 			this._chatService,
 			invocation.context!,
 			_progress,
 			token,
+			store,
 			undefined,
 			dependencyTasks
 		);

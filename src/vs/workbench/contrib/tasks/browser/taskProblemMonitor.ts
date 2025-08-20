@@ -10,8 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IMarkerData, MarkerSeverity, IMarker as ITaskMarker } from '../../../../platform/markers/common/markers.js';
 
 interface ITerminalMarkerData {
-	resources: Map<string, URI>;
-	markers: Map<string, Map<string, IMarkerData>>;
+	readonly resources: Map<string, URI>;
+	readonly markers: Map<string, Map<string, IMarkerData>>;
 }
 
 export class TaskProblemMonitor extends Disposable {

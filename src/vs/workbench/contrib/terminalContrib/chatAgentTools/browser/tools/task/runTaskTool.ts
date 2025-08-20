@@ -17,6 +17,8 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { OutputMonitorState } from '../monitoring/types.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -46,7 +48,8 @@ export class RunTaskTool implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatService private readonly _chatService: IChatService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -79,19 +82,22 @@ export class RunTaskTool implements IToolImpl {
 		if (terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskLabel)) };
 		}
-
+		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
 			terminals,
 			task,
 			this._languageModelsService,
+			this._instantiationService,
 			this._tasksService,
 			this._chatService,
 			invocation.context!,
 			_progress,
 			token,
+			store,
 			() => this._isTaskActive(task),
-			dependencyTasks
+			dependencyTasks,
 		);
+		store.dispose();
 		for (const r of terminalResults) {
 			this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
 				taskId: args.id,
