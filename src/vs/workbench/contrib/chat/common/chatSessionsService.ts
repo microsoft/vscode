@@ -66,6 +66,11 @@ export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
 	readonly onDidChangeChatSessionItems: Event<void>;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
+	provideNewChatSessionItem?(options: {
+		prompt?: string;
+		history?: any[];
+		metadata?: any;
+	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
 
 export interface IChatSessionContentProvider {
@@ -83,6 +88,11 @@ export interface IChatSessionsService {
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
 	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
+	provideNewChatSessionItem(chatSessionType: string, options: {
+		prompt?: string;
+		history?: any[];
+		metadata?: any;
+	}, token: CancellationToken): Promise<IChatSessionItem>;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;

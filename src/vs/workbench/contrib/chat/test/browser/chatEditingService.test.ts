@@ -52,6 +52,7 @@ function getAgentData(id: string): IChatAgentData {
 		name: id,
 		id: id,
 		extensionId: nullExtensionDescription.identifier,
+		extensionVersion: undefined,
 		extensionPublisherId: '',
 		publisherDisplayName: '',
 		extensionDisplayName: '',

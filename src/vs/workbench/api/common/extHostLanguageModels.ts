@@ -174,10 +174,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const modelInformation = await data.provider.prepareLanguageModelChatInformation(options, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map(m => {
 			let auth;
-			if (m.auth) {
+			if (m.requiresAuthorization) {
 				auth = {
 					providerLabel: data.extensionName,
-					accountLabel: typeof m.auth === 'object' ? m.auth.label : undefined
+					accountLabel: typeof m.requiresAuthorization === 'object' ? m.requiresAuthorization.label : undefined
 				};
 			}
 			return {

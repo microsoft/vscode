@@ -72,7 +72,6 @@ import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
-import { startupExpContext, StartupExperimentGroup } from '../../../services/coreExperimentation/common/coreExperimentationService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { TodoListToolSettingId as TodoListToolSettingId } from '../common/tools/manageTodoListTool.js';
@@ -490,6 +489,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					const renderFollowups = this.viewOptions.renderFollowups ?? false;
 					const renderStyle = this.viewOptions.renderStyle;
 					this.createInput(this.container, { renderFollowups, renderStyle });
+					this.inputPart.initForNewChatModel(this.getViewState(), true);
 				}
 			}
 		}));
@@ -721,6 +721,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const renderFollowups = this.viewOptions.renderFollowups ?? false;
 				const renderStyle = this.viewOptions.renderStyle;
 				this.createInput(this.container, { renderFollowups, renderStyle });
+				this.inputPart.initForNewChatModel(this.getViewState(), true);
 			}
 
 			this.renderWelcomeViewContentIfNeeded();
@@ -775,10 +776,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const numItems = this.viewModel?.getItems().length ?? 0;
 		if (!numItems) {
 			dom.clearNode(this.welcomeMessageContainer);
-			// TODO@bhavyaus remove this startup experiment once settled
-			const startupExpValue = startupExpContext.getValue(this.contextKeyService);
-			const configuration = this.configurationService.inspect('workbench.secondarySideBar.defaultVisibility');
-			const expIsActive = configuration.defaultValue !== 'hidden';
 
 			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
 
@@ -790,10 +787,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
-			if ((startupExpValue === StartupExperimentGroup.MaximizedChat
-				|| startupExpValue === StartupExperimentGroup.SplitEmptyEditorChat
-				|| startupExpValue === StartupExperimentGroup.SplitWelcomeChat
-				|| expIsActive) && this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
+			if (this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
@@ -827,7 +821,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private renderChatTodoListWidget(): void {
 		const isChatTodoListToolEnabled = this.configurationService.getValue<boolean>(TodoListToolSettingId) === true;
 		if (isChatTodoListToolEnabled) {
-			this.chatTodoListWidget.updateSessionId(this.viewModel?.sessionId);
+			this.chatTodoListWidget.render(this.viewModel?.sessionId);
 		}
 	}
 
@@ -1546,6 +1540,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
+			}
+			if (e.kind === 'addRequest') {
+				this.chatTodoListWidget.clear(model.sessionId);
 			}
 		}));
 

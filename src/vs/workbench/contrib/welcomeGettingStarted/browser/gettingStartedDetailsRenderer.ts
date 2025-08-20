@@ -238,7 +238,7 @@ export class GettingStartedDetailsRenderer {
 			const contents = await this.readContentsOfPath(path);
 			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, {
 				sanitizerConfig: {
-					allowedProtocols: {
+					allowedLinkProtocols: {
 						override: '*'
 					},
 					allowedTags: {

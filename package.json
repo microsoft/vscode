@@ -118,6 +118,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.53.2",
+    "@playwright/mcp": "^0.0.33",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
@@ -140,7 +141,7 @@
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.36.0",
     "@typescript/native-preview": "^7.0.0-dev.20250812.1",
-    "@vscode/gulp-electron": "^1.38.1",
+    "@vscode/gulp-electron": "^1.38.2",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.6",

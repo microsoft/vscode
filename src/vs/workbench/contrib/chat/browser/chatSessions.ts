@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import { $, append, clearNode, getActiveWindow } from '../../../../base/browser/dom.js';
+import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
@@ -65,7 +65,6 @@ import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaul
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { timeout } from '../../../../base/common/async.js';
-import { IChatSessionContext } from './actions/chatSessionActions.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
@@ -511,6 +510,13 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 					viewDescriptorsToRegister.push(viewDescriptor);
 					this.registeredViewDescriptors.set(provider.chatSessionType, viewDescriptor);
+
+					if (provider.chatSessionType === 'local') {
+						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
+							content: nls.localize('chatSessions.noResults', "No local chat sessions\n[Start a Chat](command:workbench.action.openChat)"),
+						}));
+					}
 				}
 			});
 
@@ -937,6 +943,7 @@ class SessionsViewPane extends ViewPane {
 	private dataSource?: SessionsDataSource;
 	private labels?: ResourceLabels;
 	private messageElement?: HTMLElement;
+	private _isEmpty: boolean = true;
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
@@ -954,6 +961,7 @@ class SessionsViewPane extends ViewPane {
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -967,6 +975,10 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
+	override shouldShowWelcome(): boolean {
+		return this._isEmpty;
+	}
+
 	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
 		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
 	}
@@ -977,59 +989,27 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
-	private showEmptyMessage(): void {
-		if (!this.messageElement) {
-			return;
+	private isEmpty() {
+		// Check if the tree has the provider node and get its children count
+		if (!this.tree?.hasNode(this.provider)) {
+			return true;
 		}
+		const providerNode = this.tree.getNode(this.provider);
+		const childCount = providerNode.children?.length || 0;
 
-		const messageText = this.provider.chatSessionType === 'local'
-			? nls.localize('chatSessions.noChatSessions', "No chat sessions")
-			: nls.localize('chatSessions.noAgentSessions', "No agent sessions found");
-
-		// Clear the message element using DOM utility
-		clearNode(this.messageElement);
-
-		const messageContainer = append(this.messageElement, $('.no-sessions-message'));
-
-		const textElement = append(messageContainer, $('span'));
-		textElement.textContent = messageText;
-
-		// Show the message element
-		this.messageElement.style.display = 'block';
-
-		// Hide the tree
-		if (this.treeContainer) {
-			this.treeContainer.style.display = 'none';
-		}
-	}
-
-	private hideMessage(): void {
-		if (this.messageElement) {
-			this.messageElement.style.display = 'none';
-		}
-
-		// Show the tree
-		if (this.treeContainer) {
-			this.treeContainer.style.display = 'block';
-		}
+		return childCount === 0;
 	}
 
 	/**
 	 * Updates the empty state message based on current tree data.
 	 * Uses the tree's existing data to avoid redundant provider calls.
 	 */
-	private updateEmptyStateMessage(): void {
+	private updateEmptyState(): void {
 		try {
-			// Check if the tree has the provider node and get its children count
-			if (this.tree?.hasNode(this.provider)) {
-				const providerNode = this.tree.getNode(this.provider);
-				const childCount = providerNode.children?.length || 0;
-
-				if (childCount === 0) {
-					this.showEmptyMessage();
-				} else {
-					this.hideMessage();
-				}
+			const newEmptyState = this.isEmpty();
+			if (newEmptyState !== this._isEmpty) {
+				this._isEmpty = newEmptyState;
+				this._onDidChangeViewWelcomeState.fire();
 			}
 		} catch (error) {
 			this.logService.error('Error checking tree data for empty state:', error);
@@ -1057,7 +1037,7 @@ class SessionsViewPane extends ViewPane {
 			);
 
 			// Check for empty state after refresh using tree data
-			this.updateEmptyStateMessage();
+			this.updateEmptyState();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error refreshing chat sessions tree:', error);
@@ -1085,7 +1065,7 @@ class SessionsViewPane extends ViewPane {
 			);
 
 			// Check for empty state after loading using tree data
-			this.updateEmptyStateMessage();
+			this.updateEmptyState();
 		} catch (error) {
 			// Log error but don't throw to avoid breaking the UI
 			this.logService.error('Error loading chat sessions data:', error);
@@ -1215,46 +1195,48 @@ class SessionsViewPane extends ViewPane {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IChatSessionItem | null>): void {
-		if (!e.element || !this.isLocalChatSessionItem(e.element)) {
+		if (!e.element) {
 			return;
 		}
 
-		const sessionItem = e.element as ILocalChatSessionItem;
-		let actualSessionId: string | undefined;
-
-		// Extract the actual chat session ID based on session type
-		if (sessionItem.sessionType === 'editor' && sessionItem.editor instanceof ChatEditorInput) {
-			// For editor sessions, use the ChatEditorInput's sessionId
-			actualSessionId = sessionItem.editor.sessionId;
-		} else if (sessionItem.sessionType === 'widget' && sessionItem.widget) {
-			// For widget sessions, get the session ID from the model
-			actualSessionId = sessionItem.widget.viewModel?.model.sessionId;
-		}
-
-		if (!actualSessionId) {
-			return; // Cannot rename without a valid session ID
-		}
-
-		// Create context for the rename action
-		const context: IChatSessionContext = {
-			sessionId: actualSessionId,
-			sessionType: sessionItem.sessionType,
-			currentTitle: sessionItem.label,
-			editorInput: sessionItem.editor,
-			editorGroup: sessionItem.group,
-			widget: sessionItem.widget
-		};
+		const session = e.element;
+		const sessionWithProvider = session as ChatSessionItemWithProvider;
 
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
-		this.contextMenuService.showContextMenu({
-			menuId: MenuId.ChatSessionsMenu,
-			menuActionOptions: { shouldForwardArgs: true },
-			contextKeyService: this.contextKeyService,
-			getAnchor: () => e.anchor,
-			getActionsContext: () => context,
-		});
+		// Create context overlay for this specific session item
+		const contextOverlay = getSessionItemContextOverlay(session, sessionWithProvider.provider);
+		const contextKeyService = this.contextKeyService.createOverlay(contextOverlay);
+
+		// Create marshalled context for command execution (same approach as action bar)
+		const marshalledSession = {
+			session: session,
+			$mid: MarshalledId.ChatSessionContext
+		};
+
+		// Create menu and get all actions
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService);
+		const actions = menu.getActions({ arg: marshalledSession, shouldForwardArgs: true });
+
+		// Filter to only show actions from the 'context' group
+		const contextActions: any[] = [];
+		for (const [group, groupActions] of actions) {
+			if (group === 'context') {
+				contextActions.push(...groupActions);
+			}
+		}
+
+		menu.dispose();
+
+		// Only show context menu if there are context actions
+		if (contextActions.length > 0) {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => contextActions,
+				getActionsContext: () => marshalledSession,
+			});
+		}
 	}
 
 	override focus(): void {
