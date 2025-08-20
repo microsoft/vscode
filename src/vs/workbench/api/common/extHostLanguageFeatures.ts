@@ -1437,6 +1437,7 @@ class InlineCompletionAdapter {
 						message: typeConvert.MarkdownString.from(item.warning.message),
 						icon: item.warning.icon ? typeConvert.IconPath.fromThemeIcon(item.warning.icon) : undefined,
 					} : undefined,
+					correlationId: this._isAdditionsProposedApiEnabled ? item.correlationId : undefined,
 				});
 			}),
 			commands: commands.map(c => {
