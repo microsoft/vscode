@@ -195,14 +195,29 @@ div.chat-welcome-view {
 	}
 
 	/* Dedicated disclaimer container appended at root in TS */
-	& > .chat-welcome-view-disclaimer {
+	/* Only show when chat history empty state is enabled */
+	.interactive-session .chat-welcome-view-container:has(.chat-welcome-history-root) & > .chat-welcome-view-disclaimer {
 		text-align: center;
 		max-width: 400px;
 		color: var(--vscode-disabledForeground);
 		font-size: 12px;
-		list-style: 5;
-		margin-top: 8px;
+		margin: 8px auto;
 		padding: 0 12px;
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	/* Hide disclaimer when history empty state is not enabled */
+	.interactive-session .chat-welcome-view-container:not(:has(.chat-welcome-history-root)) & > .chat-welcome-view-disclaimer {
+		font-size: 12px;
+		color: var(--vscode-disabledForeground);
+		text-align: center;
+		margin: 8px auto;
+		max-width: 400px;
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
 	}
 
 	& > .chat-welcome-view-suggested-prompts {
