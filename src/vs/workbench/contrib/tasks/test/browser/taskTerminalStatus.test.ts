@@ -17,8 +17,7 @@ import { ITaskService, Task } from '../../common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { ITerminalStatusList, TerminalStatusList } from '../../../terminal/browser/terminalStatusList.js';
 import { ITerminalStatus } from '../../../terminal/common/terminal.js';
-import { IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../../../platform/markers/common/markers.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { IMarker } from '../../../../../platform/markers/common/markers.js';
 
 class TestTaskService implements Partial<ITaskService> {
 	private readonly _onDidStateChange: Emitter<ITaskEvent> = new Emitter();
@@ -38,8 +37,6 @@ class TestaccessibilitySignalService implements Partial<IAccessibilitySignalServ
 
 class TestTerminal extends Disposable implements Partial<ITerminalInstance> {
 	statusList: TerminalStatusList = this._register(new TerminalStatusList(new TestConfigurationService()));
-	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
-	public readonly onDisposed: Event<ITerminalInstance> = this._onDisposed.event;
 	constructor() {
 		super();
 	}
@@ -165,21 +162,4 @@ async function poll<T>(
 		await new Promise(resolve => setTimeout(resolve, retryInterval));
 		trial++;
 	}
-}
-
-export interface IMarker {
-	owner: string;
-	resource: URI;
-	severity: MarkerSeverity;
-	code?: string | { value: string; target: URI };
-	message: string;
-	source?: string;
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber: number;
-	endColumn: number;
-	modelVersionId?: number;
-	relatedInformation?: IRelatedInformation[];
-	tags?: MarkerTag[];
-	origin?: string | undefined;
 }
