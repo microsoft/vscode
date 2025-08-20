@@ -55,7 +55,7 @@ interface IBucketTreeItem extends IToolTreeItem {
 	toolset?: ToolSet; // For MCP servers where the bucket represents the ToolSet - mutable
 	readonly status?: string;
 	readonly children: AnyTreeItem[];
-	checked: boolean | 'partial';
+	checked: boolean | 'partial' | undefined;
 }
 
 /**
@@ -65,7 +65,7 @@ interface IBucketTreeItem extends IToolTreeItem {
 interface IToolSetTreeItem extends IToolTreeItem {
 	readonly itemType: 'toolset';
 	readonly toolset: ToolSet;
-	readonly children: AnyTreeItem[];
+	children: AnyTreeItem[] | undefined;
 	checked: boolean | 'partial';
 }
 
@@ -143,6 +143,31 @@ function createToolTreeItemFromData(tool: IToolData, checked: boolean): IToolTre
 	};
 }
 
+function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService: IEditorService): IToolSetTreeItem {
+	const iconProps = mapIconToTreeItem(toolset.icon);
+	const buttons = [];
+	if (toolset.source.type === 'user') {
+		const resource = toolset.source.file;
+		buttons.push({
+			iconClass: ThemeIcon.asClassName(Codicon.edit),
+			tooltip: localize('editUserBucket', "Edit Tool Set"),
+			action: () => editorService.openEditor({ resource })
+		});
+	}
+	return {
+		itemType: 'toolset',
+		toolset,
+		buttons,
+		id: toolset.id,
+		label: toolset.referenceName,
+		description: toolset.description,
+		checked,
+		children: undefined,
+		collapsed: true,
+		...iconProps
+	};
+}
+
 /**
  * New QuickTree implementation of the tools picker.
  * Uses IQuickTree to provide a true hierarchical tree structure with:
@@ -200,161 +225,160 @@ export async function showToolsPicker(
 	const treeItems: AnyTreeItem[] = [];
 	const bucketMap = new Map<string, IBucketTreeItem>();
 
-	// Process entries and organize into buckets
-	for (const [toolSetOrTool, picked] of toolsEntries) {
-		let bucketItem: IBucketTreeItem | undefined;
+	const getKey = (source: ToolDataSource): string => {
+		switch (source.type) {
+			case 'mcp':
+			case 'extension':
+				return ToolDataSource.toKey(source);
+			case 'internal':
+				return BucketOrdinal.BuiltIn.toString();
+			case 'user':
+				return BucketOrdinal.User.toString();
+			default:
+				assertNever(source);
+		}
+	};
 
-		if (toolSetOrTool.source.type === 'mcp') {
-			const key = ToolDataSource.toKey(toolSetOrTool.source);
-			bucketItem = bucketMap.get(key);
-			if (!bucketItem) {
-				const { definitionId } = toolSetOrTool.source;
-				const mcpServer = mcpService.servers.get().find(candidate => candidate.definition.id === definitionId);
-				if (!mcpServer) {
-					continue;
-				}
-
-				const buttons: ActionableButton[] = [];
-				const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
-				if (collection?.source) {
-					buttons.push({
-						iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-						tooltip: localize('configMcpCol', "Configure {0}", collection.label),
-						action: () => collection.source ? collection.source instanceof ExtensionIdentifier ? extensionsWorkbenchService.open(collection.source.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }) : mcpWorkbenchService.open(collection.source, { tab: McpServerEditorTab.Configuration }) : undefined
-					});
-				} else if (collection?.presentation?.origin) {
-					buttons.push({
-						iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-						tooltip: localize('configMcpCol', "Configure {0}", collection.label),
-						action: () => editorService.openEditor({
-							resource: collection!.presentation!.origin,
-						})
-					});
-				}
-				if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
-					buttons.push({
-						iconClass: ThemeIcon.asClassName(Codicon.warning),
-						tooltip: localize('mcpShowOutput', "Show Output"),
-						action: () => mcpServer.showOutput(),
-					});
-				}
-
-				bucketItem = {
-					itemType: 'bucket',
-					ordinal: BucketOrdinal.Mcp,
-					id: key,
-					label: localize('mcplabel', "MCP Server: {0}", toolSetOrTool.source.label),
-					checked: false,
-					collapsed: true,
-					children: [],
-					buttons,
-					iconClass: ThemeIcon.asClassName(Codicon.mcp)
-				};
-				bucketMap.set(key, bucketItem);
+	const createBucket = (source: ToolDataSource, key: string): IBucketTreeItem | undefined => {
+		if (source.type === 'mcp') {
+			const { definitionId } = source;
+			const mcpServer = mcpService.servers.get().find(candidate => candidate.definition.id === definitionId);
+			if (!mcpServer) {
+				return undefined;
 			}
 
-			if (toolSetOrTool instanceof ToolSet) {
-				// MCP ToolSets are hidden - store in bucket for special handling
-				bucketItem.toolset = toolSetOrTool;
-				bucketItem.checked = picked;
-			} else if (toolSetOrTool.canBeReferencedInPrompt) {
-				// Add MCP tools directly as children
-				const toolTreeItem = createToolTreeItemFromData(toolSetOrTool, picked);
-				bucketItem.children.push(toolTreeItem);
+			const buttons: ActionableButton[] = [];
+			const collection = mcpRegistry.collections.get().find(c => c.id === mcpServer.collection.id);
+			if (collection?.source) {
+				buttons.push({
+					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+					tooltip: localize('configMcpCol', "Configure {0}", collection.label),
+					action: () => collection.source ? collection.source instanceof ExtensionIdentifier ? extensionsWorkbenchService.open(collection.source.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }) : mcpWorkbenchService.open(collection.source, { tab: McpServerEditorTab.Configuration }) : undefined
+				});
+			} else if (collection?.presentation?.origin) {
+				buttons.push({
+					iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+					tooltip: localize('configMcpCol', "Configure {0}", collection.label),
+					action: () => editorService.openEditor({
+						resource: collection!.presentation!.origin,
+					})
+				});
 			}
-
+			if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
+				buttons.push({
+					iconClass: ThemeIcon.asClassName(Codicon.warning),
+					tooltip: localize('mcpShowOutput', "Show Output"),
+					action: () => mcpServer.showOutput(),
+				});
+			}
+			return {
+				itemType: 'bucket',
+				ordinal: BucketOrdinal.Mcp,
+				id: key,
+				label: localize('mcplabel', "MCP Server: {0}", source.label),
+				checked: undefined,
+				collapsed: true,
+				children: [],
+				buttons,
+				iconClass: ThemeIcon.asClassName(Codicon.mcp)
+			};
+		} else if (source.type === 'extension') {
+			return {
+				itemType: 'bucket',
+				ordinal: BucketOrdinal.Extension,
+				id: key,
+				label: localize('ext', 'Extension: {0}', source.label),
+				checked: undefined,
+				children: [],
+				buttons: [],
+				collapsed: true,
+				iconClass: ThemeIcon.asClassName(Codicon.extensions)
+			};
+		} else if (source.type === 'internal') {
+			return {
+				itemType: 'bucket',
+				ordinal: BucketOrdinal.BuiltIn,
+				id: key,
+				label: localize('defaultBucketLabel', "Built-In"),
+				checked: undefined,
+				children: [],
+				buttons: [],
+				collapsed: false
+			};
 		} else {
-			// Handle other tool sources (extension, internal, user)
-			let ordinal: BucketOrdinal;
-			let label: string;
-			let key: string;
-			let collapsed: boolean | undefined;
-			if (toolSetOrTool.source.type === 'extension') {
-				ordinal = BucketOrdinal.Extension;
-				label = localize('ext', 'Extension: {0}', toolSetOrTool.source.label);
-				// Create separate buckets per extension, similar to MCP servers
-				key = ToolDataSource.toKey(toolSetOrTool.source);
-				collapsed = true;
-			} else if (toolSetOrTool.source.type === 'internal') {
-				ordinal = BucketOrdinal.BuiltIn;
-				label = localize('defaultBucketLabel', "Built-In");
-				// Group all internal tools under one bucket
-				key = ordinal.toString();
-			} else if (toolSetOrTool.source.type === 'user') {
-				ordinal = BucketOrdinal.User;
-				label = localize('userBucket', "User Defined Tool Sets");
-				// Group all user tools under one bucket
-				key = ordinal.toString();
-			} else {
-				assertNever(toolSetOrTool.source);
-			}
+			return {
+				itemType: 'bucket',
+				ordinal: BucketOrdinal.User,
+				id: key,
+				label: localize('userBucket', "User Defined Tool Sets"),
+				checked: undefined,
+				children: [],
+				buttons: [],
+				collapsed: true
+			};
+		}
+	};
 
-			bucketItem = bucketMap.get(key);
-			if (!bucketItem) {
-				const iconProps = toolSetOrTool.source.type === 'extension'
-					? { iconClass: ThemeIcon.asClassName(Codicon.extensions) }
-					: {};
-
-				bucketItem = {
-					itemType: 'bucket',
-					ordinal,
-					id: key,
-					label,
-					checked: false,
-					children: [],
-					buttons: [],
-					collapsed,
-					...iconProps
-				};
-				bucketMap.set(key, bucketItem);
-			}
-
-			if (toolSetOrTool instanceof ToolSet) {
-				// Add ToolSet as child with its tools as grandchildren - create directly instead of using legacy pick structure
-				const iconProps = mapIconToTreeItem(toolSetOrTool.icon);
-				const buttons = [];
-				if (toolSetOrTool.source.type === 'user') {
-					const resource = toolSetOrTool.source.file;
-					buttons.push({
-						iconClass: ThemeIcon.asClassName(Codicon.edit),
-						tooltip: localize('editUserBucket', "Edit Tool Set"),
-						action: () => editorService.openEditor({ resource })
-					});
-				}
-				const toolSetTreeItem: IToolSetTreeItem = {
-					itemType: 'toolset',
-					toolset: toolSetOrTool,
-					buttons,
-					id: toolSetOrTool.id,
-					label: toolSetOrTool.referenceName,
-					description: toolSetOrTool.description,
-					checked: picked,
-					children: [],
-					collapsed: true,
-					// TODO: Bring this back when tools in toolsets can be enabled/disabled.
-					// children: Array.from(toolSetOrTool.getTools()).map(tool => createToolTreeItemFromData(tool, picked)),
-					...iconProps
-				};
-				bucketItem.children.push(toolSetTreeItem);
-			} else if (toolSetOrTool.canBeReferencedInPrompt) {
-				// Add individual tool as child
-				const toolTreeItem = createToolTreeItemFromData(toolSetOrTool, picked);
-				bucketItem.children.push(toolTreeItem);
+	const getBucket = (source: ToolDataSource): IBucketTreeItem | undefined => {
+		const key = getKey(source);
+		let bucket = bucketMap.get(key);
+		if (!bucket) {
+			bucket = createBucket(source, key);
+			if (bucket) {
+				bucketMap.set(key, bucket);
 			}
 		}
+		return bucket;
+	};
+
+	for (const toolSet of toolsService.toolSets.get()) {
+		if (!toolsEntries.has(toolSet)) {
+			continue;
+		}
+		const bucket = getBucket(toolSet.source);
+		if (!bucket) {
+			continue;
+		}
+		const toolSetChecked = toolsEntries.get(toolSet) === true;
+		if (toolSet.source.type === 'mcp') {
+			// bucket represents the toolset
+			bucket.toolset = toolSet;
+			if (toolSetChecked) {
+				bucket.checked = toolSetChecked;
+			}
+			// all mcp tools are part of toolsService.getTools()
+		} else {
+			const treeItem = createToolSetTreeItem(toolSet, toolSetChecked, editorService);
+			bucket.children.push(treeItem);
+			const children = [];
+			for (const tool of toolSet.getTools()) {
+				if (tool.canBeReferencedInPrompt) {
+					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
+					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
+					children.push(toolTreeItem);
+				}
+			}
+			if (children.length > 0) {
+				treeItem.children = children;
+			}
+		}
+	}
+	for (const tool of toolsService.getTools()) {
+		if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
+			continue;
+		}
+		const bucket = getBucket(tool.source);
+		if (!bucket) {
+			continue;
+		}
+		const toolChecked = bucket.checked === true || toolsEntries.get(tool) === true;
+		const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
+		bucket.children.push(toolTreeItem);
 	}
 
 	// Convert bucket map to sorted tree items
 	const sortedBuckets = Array.from(bucketMap.values()).sort((a, b) => a.ordinal - b.ordinal);
 	treeItems.push(...sortedBuckets);
-
-	// Set up checkbox states based on parent-child relationships
-	for (const bucketItem of sortedBuckets) {
-		if (bucketItem.checked === true) { // only set for MCP tool sets
-			// Check all children if bucket is checked
-			bucketItem.children.forEach(child => child.checked = true);
-		}
-	}
 
 	// Create and configure the tree picker
 	const store = new DisposableStore();
@@ -386,7 +410,9 @@ export async function showToolsPicker(
 			const traverse = (items: readonly AnyTreeItem[]) => {
 				for (const item of items) {
 					if (isBucketTreeItem(item) || isToolSetTreeItem(item)) {
-						traverse(item.children);
+						if (item.children) {
+							traverse(item.children);
+						}
 					} else if (isToolTreeItem(item) && item.checked) {
 						count++;
 					}
@@ -418,7 +444,9 @@ export async function showToolsPicker(
 					traverse(item.children);
 				} else if (isToolSetTreeItem(item)) {
 					result.set(item.toolset, item.checked === true);
-					traverse(item.children);
+					if (item.children) {
+						traverse(item.children);
+					}
 				} else if (isToolTreeItem(item)) {
 					result.set(item.tool, item.checked);
 				}
