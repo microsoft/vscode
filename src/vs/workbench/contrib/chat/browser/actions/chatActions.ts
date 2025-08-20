@@ -200,11 +200,11 @@ abstract class OpenChatGlobalAction extends Action2 {
 
 		if (opts?.modelSelector) {
 			const ids = await languageModelService.selectLanguageModels(opts.modelSelector, false);
-			if (ids.length === 0) {
+			const id = ids.sort().at(0);
+			if (!id) {
 				throw new Error(`No language models found matching selector: ${JSON.stringify(opts.modelSelector)}.`);
 			}
 
-			const id = ids.sort()[0];
 			const model = languageModelService.lookupLanguageModel(id);
 			if (!model) {
 				throw new Error(`Language model not loaded: ${id}.`);
