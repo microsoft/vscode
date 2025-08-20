@@ -235,10 +235,17 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoElement.setAttribute('aria-expanded', this._isExpanded.toString());
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
-		// Restore focus to the list if it was expanded and had a focused item
-		if (this._isExpanded && this._focusedItemIndex >= 0 && this._currentTodos.length > 0) {
+		// Reset focus when collapsing
+		if (!this._isExpanded) {
+			this._focusedItemIndex = -1;
+		}
+
+		// Restore focus to the list if it was expanded and has todos
+		if (this._isExpanded && this._currentTodos.length > 0) {
 			setTimeout(() => {
-				this.setFocusedItem(this._focusedItemIndex);
+				// Only restore focus if there was a previously focused item, otherwise set to first item
+				const targetIndex = this._focusedItemIndex >= 0 ? this._focusedItemIndex : 0;
+				this.setFocusedItem(targetIndex);
 				this.todoListContainer.focus();
 			}, 0);
 		}
@@ -247,6 +254,10 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private handleTodoListKeyDown(e: KeyboardEvent): void {
+		if (!this._isExpanded) {
+			return; // Don't handle keys when collapsed
+		}
+		
 		const event = new StandardKeyboardEvent(e);
 		
 		switch (event.keyCode) {
@@ -285,7 +296,7 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private navigateUp(): void {
-		if (this._currentTodos.length === 0) {
+		if (this._currentTodos.length === 0 || !this._isExpanded) {
 			return;
 		}
 		
@@ -294,7 +305,7 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private navigateDown(): void {
-		if (this._currentTodos.length === 0) {
+		if (this._currentTodos.length === 0 || !this._isExpanded) {
 			return;
 		}
 		
@@ -303,7 +314,7 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private setFocusedItem(index: number): void {
-		if (index < 0 || index >= this._currentTodos.length) {
+		if (index < 0 || index >= this._currentTodos.length || !this._isExpanded) {
 			return;
 		}
 
