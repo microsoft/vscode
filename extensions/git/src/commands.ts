@@ -3675,24 +3675,6 @@ export class CommandCenter {
 		return;
 	}
 
-	// private async handleBranchAlreadyExists(repository: Repository, message: string): Promise<string | undefined> {
-	// 	const createBranch = l10n.t('Create New Branch');
-	// 	const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
-
-	// 	if (pick !== createBranch) {
-	// 		return undefined;
-	// 	}
-
-	// 	const branch = await this.promptForBranchName(repository);
-
-	// 	if (!branch) {
-	// 		return undefined;
-	// 	}
-
-	// 	return branch;
-	// }
-
-
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
 	async deleteWorktree(repository: Repository): Promise<void> {
 		if (!repository.dotGit.commonPath) {
