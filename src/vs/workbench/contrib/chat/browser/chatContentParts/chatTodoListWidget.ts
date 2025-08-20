@@ -253,6 +253,22 @@ export class ChatTodoListWidget extends Disposable {
 		this.domNode.classList.toggle('scrolled', this.todoListContainer.scrollTop > 0);
 	}
 
+	private getCurrentActiveTodo(todoList: IChatTodo[]): IChatTodo | undefined {
+		// First, look for in-progress todos (highest priority)
+		const inProgressTodos = todoList.filter(todo => todo.status === 'in-progress');
+		if (inProgressTodos.length > 0) {
+			return inProgressTodos[0]; // Return the first in-progress todo
+		}
+
+		// Fallback to first not-started todo
+		const notStartedTodos = todoList.filter(todo => todo.status === 'not-started');
+		if (notStartedTodos.length > 0) {
+			return notStartedTodos[0]; // Return the first not-started todo
+		}
+
+		return undefined; // No active todos found
+	}
+
 	private getProgressText(todoList: IChatTodo[]): string {
 		if (todoList.length === 0) {
 			return localize('chat.todoList.title', 'Todos');
@@ -260,8 +276,25 @@ export class ChatTodoListWidget extends Disposable {
 
 		const completedCount = todoList.filter(todo => todo.status === 'completed').length;
 		const totalCount = todoList.length;
+		const baseText = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
 
-		return localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
+		// Get the current active todo to display in header
+		const activeTodo = this.getCurrentActiveTodo(todoList);
+		if (activeTodo) {
+			// Truncate long titles to prevent header from becoming too wide
+			const maxTitleLength = 30;
+			const truncatedTitle = activeTodo.title.length > maxTitleLength
+				? activeTodo.title.substring(0, maxTitleLength) + '...'
+				: activeTodo.title;
+
+			if (activeTodo.status === 'in-progress') {
+				return localize('chat.todoList.titleWithWorkingOn', '{0} - Working on: {1}', baseText, truncatedTitle);
+			} else {
+				return localize('chat.todoList.titleWithNext', '{0} - Next: {1}', baseText, truncatedTitle);
+			}
+		}
+
+		return baseText;
 	}
 
 	private getStatusIconClass(status: string): string {
