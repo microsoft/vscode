@@ -303,7 +303,8 @@ export interface ILanguageModelToolsService {
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm?: boolean): void;
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory' | 'never'): void;
+	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'memory' | 'never';
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
 	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
