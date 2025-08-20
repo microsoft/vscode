@@ -35,6 +35,7 @@
         "label": "Microsoft",
         "id": "microsoft",
         "authorizationServerGlobs": [
+          "https://login.microsoftonline.com/*",
           "https://login.microsoftonline.com/*/v2.0"
         ]
       },
