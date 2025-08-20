@@ -2938,6 +2938,22 @@ export class CommandCenter {
 				}
 
 				if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+					if (!repository.dotGit.commonPath) {
+						this.handleWorktreeBranchAlreadyUsed(err);
+						return false;
+					}
+
+					const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
+					if (mainRepository && item.refName && item.refName === mainRepository.HEAD?.name) {
+						const message = l10n.t('Branch "{0}" is already checked out in the current repository.', item.refName);
+						const createBranch = l10n.t('Create a new branch');
+						const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
+
+						if (pick === createBranch) {
+							await this._branch(repository, undefined, false, mainRepository.HEAD?.name);
+						}
+						return false;
+					}
 					this.handleWorktreeBranchAlreadyUsed(err);
 					return false;
 				}
@@ -3658,6 +3674,23 @@ export class CommandCenter {
 		}
 		return;
 	}
+
+	// private async handleBranchAlreadyExists(repository: Repository, message: string): Promise<string | undefined> {
+	// 	const createBranch = l10n.t('Create New Branch');
+	// 	const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
+
+	// 	if (pick !== createBranch) {
+	// 		return undefined;
+	// 	}
+
+	// 	const branch = await this.promptForBranchName(repository);
+
+	// 	if (!branch) {
+	// 		return undefined;
+	// 	}
+
+	// 	return branch;
+	// }
 
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
