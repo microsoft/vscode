@@ -22,11 +22,11 @@ import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
 import { DomEmitter } from './event.js';
-import { IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
-import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
+import { StandardKeyboardEvent } from './keyboardEvent.js';
+import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
-export type MarkdownActionHandler = (content: string, event: IMouseEvent | IKeyboardEvent) => void;
+export type MarkdownActionHandler = (linkContent: string, mdStr: IMarkdownString) => void;
 
 /**
  * Options for the rendering of markdown with {@link renderMarkdown}.
@@ -345,7 +345,7 @@ function preprocessMarkdownString(markdown: IMarkdownString) {
 	return value;
 }
 
-function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent): void {
+function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent): void {
 	const target = event.target.closest('a[data-href]');
 	if (!DOM.isHTMLElement(target)) {
 		return;
@@ -354,10 +354,10 @@ function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions,
 	try {
 		let href = target.dataset['href'];
 		if (href) {
-			if (markdown.baseUri) {
-				href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+			if (mdStr.baseUri) {
+				href = resolveWithBaseUri(URI.from(mdStr.baseUri), href);
 			}
-			options.actionHandler?.(href, event);
+			options.actionHandler?.(href, mdStr);
 		}
 	} catch (err) {
 		onUnexpectedError(err);

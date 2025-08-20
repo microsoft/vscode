@@ -98,8 +98,8 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			parent.classList.add(...(customOptions.classes || []));
 			customOptions.markdownDetails?.forEach(markdownDetail => {
 				const result = dialogDisposables.add(this.markdownRenderer.render(markdownDetail.markdown, {
-					actionHandler: markdownDetail.actionHandler || (link => {
-						return openLinkFromMarkdown(this.openerService, link, markdownDetail.markdown.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */);
+					actionHandler: markdownDetail.actionHandler || ((link, mdStr) => {
+						return openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted, true /* skip URL validation to prevent another dialog from showing which is unsupported */);
 					}),
 				}));
 				parent.appendChild(result.element);
