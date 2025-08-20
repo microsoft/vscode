@@ -59,6 +59,24 @@ Open the [mcp.json](../../.vscode/mcp.json) and modify the `args`:
 
 > *NOTE: `--web` requires running `npm run install-playwright` from root*
 
+## Debugging the server
+
+You can modify the mcp.json to debug the server:
+```JSON
+"vscode-playwright-mcp": {
+	"type": "stdio",
+	"command": "node",
+	"args": ["./out/stdio.js"],
+	"cwd": "${workspaceFolder}/test/mcp",
+	"dev": {
+		"watch": "test/mcp/**/*.ts",
+		"debug": {
+			"type": "node"
+		}
+	}
+}
+```
+
 ## What the Server Provides
 
 The MCP server exposes a comprehensive set of browser automation tools through the MCP protocol:
