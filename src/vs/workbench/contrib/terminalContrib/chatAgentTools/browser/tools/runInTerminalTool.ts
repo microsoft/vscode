@@ -44,8 +44,11 @@ import { basename } from '../../../../../../base/common/path.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
-const TERMINAL_SESSION_STORAGE_KEY = 'chat.terminalSessions';
+const enum TerminalToolStorageKeysInternal {
+	TerminalSession = 'chat.terminalSessions'
+}
 
 interface IStoredTerminalAssociation {
 	sessionId: string;
@@ -684,7 +687,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private _restoreTerminalAssociations(): void {
-		const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
+		const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 		try {
 			const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
@@ -730,7 +733,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			]);
 
 			if (typeof pid === 'number') {
-				const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
+				const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 				const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
 				const existingAssociation = associations[pid] || {};
@@ -742,7 +745,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					isBackground
 				};
 
-				this._storageService.store(TERMINAL_SESSION_STORAGE_KEY, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
+				this._storageService.store(TerminalToolStorageKeysInternal.TerminalSession, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
 				this._logService.debug(`RunInTerminalTool: Associated terminal PID ${pid} with session ${sessionId}`);
 			}
 		} catch (error) {
@@ -752,12 +755,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private async _removeProcessIdAssociation(pid: number): Promise<void> {
 		try {
-			const storedAssociations = this._storageService.get(TERMINAL_SESSION_STORAGE_KEY, StorageScope.WORKSPACE, '{}');
+			const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 			const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
 			if (associations[pid]) {
 				delete associations[pid];
-				this._storageService.store(TERMINAL_SESSION_STORAGE_KEY, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
+				this._storageService.store(TerminalToolStorageKeysInternal.TerminalSession, JSON.stringify(associations), StorageScope.WORKSPACE, StorageTarget.USER);
 				this._logService.debug(`RunInTerminalTool: Removed terminal association for PID ${pid}`);
 			}
 		} catch (error) {
@@ -933,19 +936,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			if (subCommandsToSuggest.length > 0) {
 				let subCommandLabel: string;
-				let subCommandTooltip: string;
 				if (subCommandsToSuggest.length === 1) {
 					subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always Allow Command: {0}', subCommandsToSuggest[0]);
-					subCommandTooltip = localize('autoApprove.baseCommandSingleTooltip', 'Always allow command starting with `{0}` to run without confirmation', subCommandsToSuggest[0]);
 				} else {
 					const commandSeparated = subCommandsToSuggest.join(', ');
 					subCommandLabel = localize('autoApprove.baseCommand', 'Always Allow Commands: {0}', commandSeparated);
-					subCommandTooltip = localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated);
 				}
 
 				actions.push({
 					label: subCommandLabel,
-					tooltip: subCommandTooltip,
 					data: {
 						type: 'newRule',
 						rule: subCommandsToSuggest.map(key => ({
@@ -964,7 +963,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				actions.push({
 					// Add an extra & since it's treated as a mnemonic
 					label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line: {0}', truncatedCommandLine.replaceAll('&&', '&&&')),
-					tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command line to run without confirmation'),
 					data: {
 						type: 'newRule',
 						rule: {
@@ -986,7 +984,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Always show configure option
 		actions.push({
 			label: localize('autoApprove.configure', 'Configure Auto Approve...'),
-			tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
 			data: {
 				type: 'configure'
 			} satisfies TerminalNewAutoApproveButtonData

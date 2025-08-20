@@ -320,6 +320,8 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		return this._domNode;
 	}
 
+	private _buttonsDomNode: HTMLElement;
+
 	private get showingButtons() {
 		return !this.domNode.classList.contains('hideButtons');
 	}
@@ -337,7 +339,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	constructor(
 		options: IChatConfirmationWidget2Options,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHostService private readonly _hostService: IHostService,
 		@IViewsService private readonly _viewsService: IViewsService,
@@ -361,6 +363,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			]),
 		]);
 		this._domNode = elements.root;
+		this._buttonsDomNode = elements.buttons;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		const titlePart = this._register(instantiationService.createInstance(
@@ -375,42 +378,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 
 		this.messageElement = elements.message;
 
-		for (const buttonData of buttons) {
-			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
-
-			let button: IButton;
-			if (buttonData.moreActions) {
-				button = new ButtonWithDropdown(elements.buttons, {
-					...buttonOptions,
-					contextMenuProvider: contextMenuService,
-					addPrimaryActionToDropdown: false,
-					actions: buttonData.moreActions.map(action => {
-						if (action instanceof Separator) {
-							return action;
-						}
-						return this._register(new Action(
-							action.label,
-							action.label,
-							undefined,
-							!action.disabled,
-							() => {
-								this._onDidClick.fire(action);
-								return Promise.resolve();
-							},
-						));
-					}),
-				});
-			} else {
-				button = new Button(elements.buttons, buttonOptions);
-			}
-
-			this._register(button);
-			button.label = buttonData.label;
-			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
-			if (buttonData.onDidChangeDisablement) {
-				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
-			}
-		}
+		this.updateButtons(buttons);
 
 		// Create toolbar if actions are provided
 		if (options?.toolbarData) {
@@ -434,17 +402,48 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		}
 	}
 
+	updateButtons(buttons: IChatConfirmationButton[]) {
+		while (this._buttonsDomNode.children.length > 0) {
+			this._buttonsDomNode.children[0].remove();
+		}
+		for (const buttonData of buttons) {
+			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
-	// protected renderMessage(element: HTMLElement, listContainer: HTMLElement): void {
-	// 	this.messageElement.append(element);
+			let button: IButton;
+			if (buttonData.moreActions) {
+				button = new ButtonWithDropdown(this._buttonsDomNode, {
+					...buttonOptions,
+					contextMenuProvider: this.contextMenuService,
+					addPrimaryActionToDropdown: false,
+					actions: buttonData.moreActions.map(action => {
+						if (action instanceof Separator) {
+							return action;
+						}
+						return this._register(new Action(
+							action.label,
+							action.label,
+							undefined,
+							!action.disabled,
+							() => {
+								this._onDidClick.fire(action);
+								return Promise.resolve();
+							},
+						));
+					}),
+				});
+			} else {
+				button = new Button(this._buttonsDomNode, buttonOptions);
+			}
 
-	// 	if (this.showingButtons && this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
-	// 		const targetWindow = dom.getWindow(listContainer);
-	// 		if (!targetWindow.document.hasFocus()) {
-	// 			this.notifyConfirmationNeeded(targetWindow);
-	// 		}
-	// 	}
-	// }
+			this._register(button);
+			button.label = buttonData.label;
+			this._register(button.onDidClick(() => this._onDidClick.fire(buttonData)));
+			if (buttonData.onDidChangeDisablement) {
+				this._register(buttonData.onDidChangeDisablement(disabled => button.enabled = !disabled));
+			}
+		}
+	}
+
 	protected renderMessage(element: HTMLElement | IMarkdownString | string, listContainer: HTMLElement): void {
 		if (!dom.isHTMLElement(element)) {
 			const messageElement = this._register(this.markdownRenderer.render(
