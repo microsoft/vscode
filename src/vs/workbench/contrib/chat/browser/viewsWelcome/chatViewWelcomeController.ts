@@ -141,8 +141,6 @@ export class ChatViewWelcomePart extends Disposable {
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
-		console.count('creating ChatViewWelcomePart');
-		performance.mark('chatViewWelcomePart.create');
 
 		this.element = dom.$('.chat-welcome-view');
 
@@ -257,8 +255,6 @@ export class ChatViewWelcomePart extends Disposable {
 	}
 
 	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {
-		console.count('renderMarkdownMessageContent');
-		performance.mark('chatViewWelcomePart.renderMarkdownMessageContent');
 		const messageResult = this._register(renderer.render(content));
 		const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
 		if (firstLink) {
