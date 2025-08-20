@@ -26,7 +26,6 @@ export interface LaunchOptions {
 	readonly remote?: boolean;
 	readonly web?: boolean;
 	readonly tracing?: boolean;
-	readonly allowDialogs?: boolean;
 	snapshots?: boolean;
 	readonly headless?: boolean;
 	readonly browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
