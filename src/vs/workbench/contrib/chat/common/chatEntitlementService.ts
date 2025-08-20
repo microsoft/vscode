@@ -32,6 +32,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { isWeb } from '../../../../base/common/platform.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
+import { distinct } from '../../../../base/common/arrays.js';
 
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
 
@@ -890,9 +891,11 @@ export class ChatEntitlementRequests extends Disposable {
 		}
 	}
 
-	async signIn(options?: { useSocialProvider?: string }) {
+	async signIn(options?: { useSocialProvider?: string; additionalScopes?: readonly string[] }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
-		const session = await this.authenticationService.createSession(providerId, defaultChat.providerScopes[0], options?.useSocialProvider ? { provider: options.useSocialProvider } : undefined);
+
+		const scopes = options?.additionalScopes ? distinct([...defaultChat.providerScopes[0], ...options.additionalScopes]) : defaultChat.providerScopes[0];
+		const session = await this.authenticationService.createSession(providerId, scopes, options?.useSocialProvider ? { provider: options.useSocialProvider } : undefined);
 
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);
