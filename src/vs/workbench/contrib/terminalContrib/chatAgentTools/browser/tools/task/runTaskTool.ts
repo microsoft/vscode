@@ -22,7 +22,7 @@ type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
 	bufferLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the terminal buffer as a string.' };
 	pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long polling for output took (ms).' };
-	autoReplyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times the tool responded to the terminal's request for input on behalf of the user.' };
+	autoReplyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times the tool automatically replied to requests from the terminal for user input' };
 	owner: 'meganrogge';
 	comment: 'Understanding the usage of the runTask tool';
 };
