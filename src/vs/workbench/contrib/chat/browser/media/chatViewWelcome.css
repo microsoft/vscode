@@ -35,6 +35,7 @@
 	justify-content: flex-start;
 	align-items: stretch;
 	height: 100%; /* allow vertical centering of welcome view within remaining space */
+	position: relative; /* enable anchoring disclaimer to the bottom */
 }
 
 /* Hide the welcome section title when history is displayed */
@@ -52,6 +53,19 @@
 	align-self: center;
 	margin-top: auto;
 	margin-bottom: auto;
+}
+
+/* Anchor the disclaimer just above the input when history is enabled */
+.interactive-session .chat-welcome-view-container:has(.chat-welcome-history-root) .chat-welcome-view-message.experimental-empty-state,
+.interactive-session .chat-welcome-view-container:has(.chat-welcome-history-root) .chat-welcome-view-disclaimer {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0; /* sits above input thanks to container padding-bottom set in layout() */
+	margin: 0; /* little to no extra spacing above */
+	padding: 0 8px; /* minimal horizontal padding */
+	max-width: none; /* allow full width for centering */
+	text-align: center;
 }
 
 .interactive-session .experimental-welcome-view & > .chat-welcome-view-input-part {
@@ -178,6 +192,17 @@ div.chat-welcome-view {
 		text-align: center;
 		max-width: 400px;
 		margin-top: 8px;
+	}
+
+	/* Dedicated disclaimer container appended at root in TS */
+	& > .chat-welcome-view-disclaimer {
+		text-align: center;
+		max-width: 400px;
+		color: var(--vscode-disabledForeground);
+		font-size: 12px;
+		list-style: 5;
+		margin-top: 8px;
+		padding: 0 12px;
 	}
 
 	& > .chat-welcome-view-suggested-prompts {
