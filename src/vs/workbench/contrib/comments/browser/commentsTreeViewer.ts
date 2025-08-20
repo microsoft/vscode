@@ -246,12 +246,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		}
 	}
 
-	private getRenderedComment(commentBody: IMarkdownString, disposables: DisposableStore) {
+	private getRenderedComment(commentBody: IMarkdownString) {
 		const renderedComment = renderMarkdown(commentBody, {
-			actionHandler: {
-				callback: (link) => openLinkFromMarkdown(this.openerService, link, commentBody.isTrusted),
-				disposables: disposables
-			}
+			actionHandler: (link) => openLinkFromMarkdown(this.openerService, link, commentBody.isTrusted),
 		}, document.createElement('span'));
 		const images = renderedComment.element.getElementsByTagName('img');
 		for (let i = 0; i < images.length; i++) {
@@ -312,7 +309,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		} else {
 			const disposables = new DisposableStore();
 			templateData.disposables.push(disposables);
-			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
+			const renderedComment = this.getRenderedComment(originalComment.comment.body);
 			templateData.disposables.push(renderedComment);
 			for (let i = renderedComment.element.children.length - 1; i >= 1; i--) {
 				renderedComment.element.removeChild(renderedComment.element.children[i]);

@@ -91,7 +91,7 @@ export class ChatQueryTitlePart extends Disposable {
 			const str = this.toMdString(subtitle);
 			const renderedTitle = this._register(_renderer.render(str, {
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-				actionHandler: { callback: link => openLinkFromMarkdown(this._openerService, link, str.isTrusted), disposables: this._store },
+				actionHandler: link => openLinkFromMarkdown(this._openerService, link, str.isTrusted),
 			}));
 			const wrapper = document.createElement('small');
 			wrapper.appendChild(renderedTitle.element);
