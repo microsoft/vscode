@@ -148,7 +148,6 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 		const { title, subtitle, message, buttons } = options;
 		this.title = title;
 
-		const container = createAccessibilityContainer(title, message);
 
 		const elements = dom.h('.chat-confirmation-widget@root', [
 			dom.h('.chat-confirmation-widget-title@title'),
@@ -158,6 +157,7 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 				dom.h('.chat-toolbar@toolbar'),
 			]),
 		]);
+		const container = createAccessibilityContainer(title, message);
 		container.appendChild(elements.root);
 		this._domNode = container;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -353,9 +353,6 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		const { title, subtitle, message, buttons, icon } = options;
 		this.title = title;
 
-		// Accessibility: wrap in a focusable container with aria-label
-		const container = createAccessibilityContainer(title, message);
-
 		const elements = dom.h('.chat-confirmation-widget2@root', [
 			dom.h('.chat-confirmation-widget-title', [
 				dom.h('.chat-title@title'),
@@ -368,6 +365,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 				dom.h('.chat-buttons@buttons'),
 			]),
 		]);
+		const container = createAccessibilityContainer(title, message);
 		container.appendChild(elements.root);
 		this._domNode = container;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
