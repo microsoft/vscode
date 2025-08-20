@@ -76,19 +76,15 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 		if (subCommandsToSuggest.length > 0) {
 			let subCommandLabel: string;
-			let subCommandTooltip: string;
 			if (subCommandsToSuggest.length === 1) {
 				subCommandLabel = localize('autoApprove.baseCommandSingle', 'Always Allow Command: {0}', subCommandsToSuggest[0]);
-				subCommandTooltip = localize('autoApprove.baseCommandSingleTooltip', 'Always allow command starting with `{0}` to run without confirmation', subCommandsToSuggest[0]);
 			} else {
 				const commandSeparated = subCommandsToSuggest.join(', ');
 				subCommandLabel = localize('autoApprove.baseCommand', 'Always Allow Commands: {0}', commandSeparated);
-				subCommandTooltip = localize('autoApprove.baseCommandTooltip', 'Always allow commands starting with `{0}` to run without confirmation', commandSeparated);
 			}
 
 			actions.push({
 				label: subCommandLabel,
-				tooltip: subCommandTooltip,
 				data: {
 					type: 'newRule',
 					rule: subCommandsToSuggest.map(key => ({
@@ -107,7 +103,6 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			actions.push({
 				// Add an extra & since it's treated as a mnemonic
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line: {0}', truncatedCommandLine.replaceAll('&&', '&&&')),
-				tooltip: localize('autoApprove.exactCommandTooltip', 'Always allow this exact command line to run without confirmation'),
 				data: {
 					type: 'newRule',
 					rule: {
@@ -129,7 +124,6 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 	// Always show configure option
 	actions.push({
 		label: localize('autoApprove.configure', 'Configure Auto Approve...'),
-		tooltip: localize('autoApprove.configureTooltip', 'Open settings to configure terminal command auto approval'),
 		data: {
 			type: 'configure'
 		} satisfies TerminalNewAutoApproveButtonData

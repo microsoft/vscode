@@ -19,7 +19,6 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMcpServerManifest, PackageType } from '../../../../platform/mcp/common/mcpManagement.js';
-import { AbstractMcpResourceManagementService } from '../../../../platform/mcp/common/mcpManagementService.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -411,7 +410,7 @@ export class McpAddConfigurationCommand {
 			if (!packageType) {
 				throw new Error(`Unsupported assisted package type ${type}`);
 			}
-			const server = AbstractMcpResourceManagementService.toScannedMcpServerAndInputs(config.server, packageType);
+			const server = this._mcpManagementService.getMcpServerConfigurationFromManifest(config.server, packageType);
 			if (server.config.type !== McpServerType.LOCAL) {
 				throw new Error(`Unexpected server type ${server.config.type} for assisted configuration from server.json.`);
 			}
