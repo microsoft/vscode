@@ -9,6 +9,7 @@ import { Disposable, DisposableStore } from '../../../../../../../base/common/li
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { IChatService } from '../../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
@@ -54,7 +55,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatService private readonly _chatService: IChatService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) {
 		super();
 	}
@@ -98,6 +100,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			terminals,
 			task,
 			this._languageModelsService,
+			this._chatWidgetService,
 			this._instantiationService,
 			this._tasksService,
 			this._chatService,

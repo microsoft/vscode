@@ -21,6 +21,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { OutputMonitorState } from '../monitoring/types.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
@@ -58,7 +59,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		@IChatService private readonly _chatService: IChatService,
 		@IFileService private readonly _fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -126,6 +128,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 			terminals,
 			task,
 			this._languageModelsService,
+			this._chatWidgetService,
 			this._instantiationService,
 			this._tasksService,
 			this._chatService,

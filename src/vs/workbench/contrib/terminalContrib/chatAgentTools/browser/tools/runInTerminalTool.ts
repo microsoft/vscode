@@ -47,6 +47,7 @@ import { ITaskService } from '../../../../tasks/common/taskService.js';
 import { OutputMonitorState } from './monitoring/types.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 
 const enum TerminalToolStorageKeysInternal {
 	TerminalSession = 'chat.terminalSessions'
@@ -175,7 +176,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@ITaskService private readonly _taskService: ITaskService
+		@ITaskService private readonly _taskService: ITaskService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) {
 		super();
 
@@ -427,7 +429,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, this._languageModelsService, this._taskService, undefined);
+				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, this._languageModelsService, this._taskService, this._chatWidgetService, undefined);
 				store.add(outputMonitor);
 
 				outputAndState = await outputMonitor.startMonitoring(this._chatService, command, invocation.context!, token);

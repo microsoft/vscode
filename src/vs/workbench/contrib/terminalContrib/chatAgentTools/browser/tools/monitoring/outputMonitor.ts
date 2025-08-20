@@ -18,6 +18,8 @@ import { IRacePollingOrPromptResult, IPollingResult, IExecution, IConfirmationPr
 import { getResponseFromStream } from './pollingUtils.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
+import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
+import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly isIdle: boolean;
@@ -57,6 +59,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		private readonly _execution: IExecution,
 		@ILanguageModelsService private readonly _languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
 		@ITaskService private readonly _taskService: ITaskService,
+		@IChatWidgetService private readonly _chatWidgetService: Pick<IChatWidgetService, 'getWidgetsByLocations'>,
 		private readonly _pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
 	) {
 		super();
@@ -71,11 +74,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		const pollStartTime = Date.now();
 
-		let result = await this._pollForOutputAndIdle(this._execution, false, token, this._languageModelsService, this._taskService, this._pollFn);
+		let result = await this._pollForOutputAndIdle(this._execution, false, token, this._languageModelsService, this._chatWidgetService, this._taskService, this._pollFn);
 
 		if (this._state === OutputMonitorState.Timeout) {
 			result = await this._racePollingOrPrompt(
-				() => this._pollForOutputAndIdle(this._execution, true, token, this._languageModelsService, this._taskService, this._pollFn),
+				() => this._pollForOutputAndIdle(this._execution, true, token, this._languageModelsService, this._chatWidgetService, this._taskService, this._pollFn),
 				() => this._promptForMorePolling(command, token, invocationContext, chatService),
 				result,
 			);
@@ -167,6 +170,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		extendedPolling: boolean,
 		token: CancellationToken,
 		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
+		chatWidgetService: Pick<IChatWidgetService, 'getWidgetsByLocations'>,
 		taskService: ITaskService,
 		pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
 		recursionDepth: number = 0
@@ -229,12 +233,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token, languageModelsService);
 		const confirmationPrompt = await this._determineUserInputOptions(execution, token, languageModelsService);
-		const executedOption = await this._selectAndRunOptionInTerminal(confirmationPrompt, execution, token, languageModelsService);
+		const executedOption = await this._selectAndRunOptionInTerminal(confirmationPrompt, execution, token, languageModelsService, chatWidgetService);
 		if (executedOption) {
 			if (recursionDepth >= PollingConsts.MaxRecursionCount) {
 				return { state: OutputMonitorState.Timeout, modelOutputEvalResponse, output: buffer };
 			}
-			return this._pollForOutputAndIdle(execution, true, token, languageModelsService, taskService, pollFn, recursionDepth + 1);
+			return this._pollForOutputAndIdle(execution, true, token, languageModelsService, chatWidgetService, taskService, pollFn, recursionDepth + 1);
 		}
 		return { state: this._state, modelOutputEvalResponse, output: buffer, autoReplyCount: recursionDepth };
 	}
@@ -313,11 +317,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		execution: IExecution,
 		token: CancellationToken,
 		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
+		chatWidgetService: Pick<IChatWidgetService, 'getWidgetsByLocations'>
 	): Promise<string | undefined> {
 		if (!confirmationPrompt?.options.length) {
 			return Promise.resolve(undefined);
 		}
-		const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot' });
+		const model = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)[0]?.input.currentLanguageModel;
+		const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', id: model });
 		if (!models.length) {
 			return Promise.resolve(undefined);
 		}

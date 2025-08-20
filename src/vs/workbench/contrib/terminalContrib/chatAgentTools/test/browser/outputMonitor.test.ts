@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { AsyncIterableObject } from '../../../../../../base/common/async.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,6 +23,7 @@ suite('OutputMonitor', () => {
 	let chatService: Pick<IChatService, 'getSession'>;
 	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText'> };
 	let cts: CancellationTokenSource;
+	let chatWidgetService: Pick<IChatWidgetService, 'getWidgetsByLocations'>;
 
 	setup(() => {
 		languageModelsService = {
@@ -34,6 +36,9 @@ suite('OutputMonitor', () => {
 				}),
 				result: Promise.resolve('')
 			})
+		};
+		chatWidgetService = {
+			getWidgetsByLocations: () => []
 		};
 
 		taskService = {
@@ -66,6 +71,7 @@ suite('OutputMonitor', () => {
 			execution,
 			languageModelsService,
 			taskService as ITaskService,
+			chatWidgetService,
 		));
 
 		const result = await monitor.startMonitoring(

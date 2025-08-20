@@ -22,6 +22,7 @@ import { Location } from '../../../../../editor/common/languages.js';
 import { getOutput } from './tools/monitoring/getOutputHelper.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IChatWidgetService } from '../../../chat/browser/chat.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -147,7 +148,7 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, instantiationService: IInstantiationService, taskService: ITaskService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, disposableStore: DisposableStore, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState; autoReplyCount: number }>> {
+	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, chatWidgetService: Pick<IChatWidgetService, 'getWidgetsByLocations'>, instantiationService: IInstantiationService, taskService: ITaskService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, disposableStore: DisposableStore, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState; autoReplyCount: number }>> {
 	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; autoReplyCount: number }> = [];
 	if (token.isCancellationRequested) {
 		return results;
@@ -161,7 +162,7 @@ export async function collectTerminalResults(
 			instance,
 			dependencyTasks
 		};
-		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, languageModelsService, taskService, taskProblemPollFn));
+		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, languageModelsService, taskService, chatWidgetService, taskProblemPollFn));
 		const outputAndIdle = await outputMonitor.startMonitoring(
 			chatService,
 			task._label,

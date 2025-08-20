@@ -19,6 +19,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { OutputMonitorState } from '../monitoring/types.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
@@ -49,7 +50,8 @@ export class RunTaskTool implements IToolImpl {
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -87,6 +89,7 @@ export class RunTaskTool implements IToolImpl {
 			terminals,
 			task,
 			this._languageModelsService,
+			this._chatWidgetService,
 			this._instantiationService,
 			this._tasksService,
 			this._chatService,
