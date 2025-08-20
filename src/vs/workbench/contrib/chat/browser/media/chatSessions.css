@@ -167,6 +167,26 @@
 	display: block;
 } */
 
+/* Hide twisties for elements that don't have children */
+/* Alternative approach: Hide twisties for all individual chat session items */
+.chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
+	visibility: hidden;
+	width: 0;
+	padding: 0;
+	margin: 0;
+	/* display: none !important; */
+}
+
+/* Show twistie only for collapsible items (like "Show history...") */
+.chat-sessions-tree-container .monaco-list-row[aria-expanded] .monaco-tl-twistie {
+	visibility: visible;
+	width: auto;
+	padding-left: 0px;
+	padding-right: 6px;
+	margin: initial;
+	/* display: inline-block !important; */
+}
+
 /* History items styling */
 .chat-sessions-tree .chat-session-item[data-history-item="true"] {
 	opacity: 0.9;

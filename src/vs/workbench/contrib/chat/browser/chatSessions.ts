@@ -363,7 +363,6 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		const historyNode: IChatSessionItem = {
 			id: 'show-history',
 			label: nls.localize('chat.sessions.showHistory', "Show history..."),
-			iconPath: Codicon.history
 		};
 		sessions.push(historyNode);
 
@@ -744,13 +743,6 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		} else {
 			templateData.container.classList.remove('local-session');
 		}
-
-		// Add CSS classes for history items
-		// if ('type' in session && session.type === 'history-item') {
-		// 	templateData.container.setAttribute('data-history-item', 'true');
-		// } else {
-		// 	templateData.container.removeAttribute('data-history-item');
-		// }
 
 		// Clear any previous element disposables
 		if (templateData.elementDisposable) {
@@ -1194,7 +1186,6 @@ class SessionsViewPane extends ViewPane {
 				accessibilityProvider,
 				identityProvider,
 				multipleSelectionSupport: false,
-				expandOnlyOnTwistieClick: true,
 				overrideStyles: {
 					listBackground: undefined
 				},
