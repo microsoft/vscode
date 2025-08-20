@@ -15,14 +15,14 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 
-export const ACTION_ID_ANNOUNCE_CHAT_CONFIRMATION = 'workbench.action.chat.announceConfirmation';
+export const ACTION_ID_FOCUS_CHAT_CONFIRMATION = 'workbench.action.chat.focusConfirmation';
 
 class AnnounceChatConfirmationAction extends Action2 {
 	constructor() {
 		super({
-			id: ACTION_ID_ANNOUNCE_CHAT_CONFIRMATION,
-			title: localize('announceChatConfirmation', 'Announce Chat Confirmation Status'),
-			category: localize('chat.category', 'Chat'),
+			id: ACTION_ID_FOCUS_CHAT_CONFIRMATION,
+			title: { value: localize('focusChatConfirmation', 'Focus Chat Confirmation'), original: 'Focus Chat Confirmation' },
+			category: { value: localize('chat.category', 'Chat'), original: 'Chat' },
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -58,38 +58,19 @@ class AnnounceChatConfirmationAction extends Action2 {
 		}
 
 		// Check for active confirmations in the chat responses
-		let activeConfirmations = 0;
 		let firstConfirmationElement: HTMLElement | undefined;
 
-		// Look through the chat responses for confirmations
-		for (const item of viewModel.getItems()) {
-			if (isResponseVM(item)) {
-				// Check if this response has any confirmations
-				if (item.response.value) {
-					for (const content of item.response.value) {
-						if (content.kind === 'confirmation' && !content.isUsed) {
-							activeConfirmations++;
-							
-							// Try to find the DOM element for this confirmation to focus it
-							if (!firstConfirmationElement && lastFocusedWidget.domNode) {
-								const confirmationWidgets = lastFocusedWidget.domNode.querySelectorAll('.chat-confirmation-widget:not(.hideButtons), .chat-confirmation-widget2:not(.hideButtons)');
-								if (confirmationWidgets.length > 0) {
-									firstConfirmationElement = confirmationWidgets[0] as HTMLElement;
-								}
-							}
-						}
-					}
-				}
+		let confirmation;
+		const lastResponse = viewModel.getItems()[viewModel.getItems().length - 1];
+		if (isResponseVM(lastResponse)) {
+			confirmation = lastResponse.response.value.filter(p => p.kind === 'toolInvocation')?.[0];
+			const confirmationWidgets = lastFocusedWidget.domNode.querySelectorAll('.chat-confirmation-widget-container');
+			if (confirmationWidgets.length > 0) {
+				firstConfirmationElement = confirmationWidgets[0] as HTMLElement;
 			}
 		}
 
-		if (activeConfirmations > 0) {
-			const message = activeConfirmations === 1 
-				? localize('confirmationRequired', 'Chat confirmation required. {0} action needed.', activeConfirmations)
-				: localize('confirmationsRequired', 'Chat confirmations required. {0} actions needed.', activeConfirmations);
-			
-			alert(message);
-			
+		if (confirmation?.confirmationMessages) {
 			// Focus the first active confirmation dialog
 			if (firstConfirmationElement) {
 				const firstButton = firstConfirmationElement.querySelector('button');
