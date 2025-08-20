@@ -43,7 +43,7 @@ export interface IStickyScrollController {
 	goToFocused(): void;
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
-	selectEditor(): void;
+	selectEditor(): void; asdasdsa
 	onDidChangeStickyScrollHeight: Event<{ height: number }>;
 }
 
