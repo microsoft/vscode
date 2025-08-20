@@ -285,3 +285,8 @@ div.chat-welcome-view {
 	cursor: pointer;
 }
 
+/* Hide the "Show chat history..." link when the history list is empty */
+.chat-welcome-history-root:not(:has(.chat-welcome-history-item)) .chat-welcome-history-more {
+	display: none;
+}
+
