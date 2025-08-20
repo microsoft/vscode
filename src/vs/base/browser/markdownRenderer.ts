@@ -22,18 +22,21 @@ import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
 import { DomEmitter } from './event.js';
-import { FormattedTextRenderOptions } from './formattedTextRenderer.js';
-import { StandardKeyboardEvent } from './keyboardEvent.js';
-import { StandardMouseEvent } from './mouseEvent.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
+import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
+
+export type MarkdownActionHandler = (content: string, event: IMouseEvent | IKeyboardEvent) => void;
 
 /**
  * Options for the rendering of markdown with {@link renderMarkdown}.
  */
-export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
+export interface MarkdownRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	readonly codeBlockRendererSync?: (languageId: string, value: string, raw?: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
+
+	readonly actionHandler?: MarkdownActionHandler;
 
 	readonly fillInIncompleteTokens?: boolean;
 
@@ -202,9 +205,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Add event listeners for links
 	if (options.actionHandler) {
-		const onClick = options.actionHandler.disposables.add(new DomEmitter(outElement, 'click'));
-		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(outElement, 'auxclick'));
-		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
+		const onClick = disposables.add(new DomEmitter(outElement, 'click'));
+		const onAuxClick = disposables.add(new DomEmitter(outElement, 'auxclick'));
+		disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
 			const mouseEvent = new StandardMouseEvent(DOM.getWindow(outElement), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
@@ -212,7 +215,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			activateLink(markdown, options, mouseEvent);
 		}));
 
-		options.actionHandler.disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
+		disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
 			if (!keyboardEvent.equals(KeyCode.Space) && !keyboardEvent.equals(KeyCode.Enter)) {
 				return;
@@ -354,7 +357,7 @@ function activateLink(markdown: IMarkdownString, options: MarkdownRenderOptions,
 			if (markdown.baseUri) {
 				href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 			}
-			options.actionHandler!.callback(href, event);
+			options.actionHandler?.(href, event);
 		}
 	} catch (err) {
 		onUnexpectedError(err);

@@ -52,7 +52,7 @@ export class MarkdownRenderer {
 		}
 
 		const disposables = new DisposableStore();
-		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, outElement));
+		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown), ...options }, outElement));
 		rendered.element.classList.add('rendered-markdown');
 		return {
 			element: rendered.element,
@@ -60,7 +60,7 @@ export class MarkdownRenderer {
 		};
 	}
 
-	private _getRenderOptions(markdown: IMarkdownString, disposables: DisposableStore): MarkdownRenderOptions {
+	private _getRenderOptions(markdown: IMarkdownString): MarkdownRenderOptions {
 		return {
 			codeBlockRenderer: async (languageAlias, value) => {
 				// In markdown,
@@ -95,10 +95,7 @@ export class MarkdownRenderer {
 
 				return element;
 			},
-			actionHandler: {
-				callback: (link) => this.openMarkdownLink(link, markdown),
-				disposables
-			}
+			actionHandler: (link) => this.openMarkdownLink(link, markdown),
 		};
 	}
 
