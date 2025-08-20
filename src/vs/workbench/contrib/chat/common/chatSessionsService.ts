@@ -23,7 +23,7 @@ export const enum ChatSessionStatus {
 }
 
 export interface IChatSessionsExtensionPoint {
-	readonly id: string;
+	readonly id: string; // TODO(jospicer): Deprecated. Remove
 	readonly type: string;
 	readonly name: string;
 	readonly displayName: string;
@@ -56,7 +56,7 @@ export interface ChatSession extends IDisposable {
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,
-		history: [],
+		history: any[], // TODO: Nail down types
 		token: CancellationToken
 	) => Promise<void>;
 }
