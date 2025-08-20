@@ -20,6 +20,8 @@ import { ITerminalProfileResolverService } from '../../../../terminal/common/ter
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -65,6 +67,9 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultShell: async () => 'pwsh'
 		});
+
+		const storageService = instantiationService.get(IStorageService);
+		storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
 
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
 	});
