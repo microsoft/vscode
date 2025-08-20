@@ -44,7 +44,7 @@ import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
-	TerminalAutoApproveOptIn = 'chat.tools.terminal.autoApprove.optIn'
+	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
 }
 
 const $ = dom.$;
@@ -105,10 +105,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
-		const autoApproveOptIn = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveOptIn, StorageScope.APPLICATION, false);
-		const moreActions: (IChatConfirmationButton | Separator)[] = [];
-		if (terminalCustomActions) {
-			if (!autoApproveOptIn) {
+		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === 'on';
+		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
+		let moreActions: (IChatConfirmationButton | Separator)[] | undefined = undefined;
+		if (autoApproveEnabled) {
+			moreActions = [];
+			if (!autoApproveWarningAccepted) {
 				moreActions.push({
 					label: localize('autoApprove.enable', 'Enable Auto Approve...'),
 					data: {
@@ -116,13 +118,17 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					} satisfies TerminalNewAutoApproveButtonData
 				});
 				moreActions.push(new Separator());
-				for (const action of terminalCustomActions) {
-					if (!(action instanceof Separator)) {
-						action.disabled = true;
+				if (terminalCustomActions) {
+					for (const action of terminalCustomActions) {
+						if (!(action instanceof Separator)) {
+							action.disabled = true;
+						}
 					}
 				}
 			}
-			moreActions.push(...terminalCustomActions);
+			if (terminalCustomActions) {
+				moreActions.push(...terminalCustomActions);
+			}
 		}
 
 		const buttons: IChatConfirmationButton[] = [
@@ -216,12 +222,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			if (typeof data !== 'boolean') {
 				switch (data.type) {
 					case 'enable': {
-						const optedIn = await this._doShowEnablementOptIn();
+						const optedIn = await this._showAutoApproveWarning();
 						if (optedIn) {
-							this.storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
+							this.storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
 							// If this would not have been auto approved, enable the options and do
 							// not complete
-							// TODO: Update buttons
 							if (terminalCustomActions) {
 								for (const action of terminalCustomActions) {
 									if (!(action instanceof Separator)) {
@@ -271,7 +276,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							});
 							throw new ErrorNoTelemetry(`Cannot add new rule, existing setting is unexpected format`);
 						}
-						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue);
+						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue, ConfigurationTarget.USER);
 						function formatRuleLinks(newRules: ITerminalNewAutoApproveRule[]): string {
 							return newRules.map(e => {
 								return `[\`${e.key}\`](settings_${ConfigurationTarget.USER} "${localize('ruleTooltip', 'View rule in settings')}")`;
@@ -308,17 +313,14 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this.domNode = confirmWidget.domNode;
 	}
 
-	private async _doShowEnablementOptIn(
-	): Promise<boolean> {
+	private async _showAutoApproveWarning(): Promise<boolean> {
 		const promptResult = await this._dialogService.prompt({
 			type: Severity.Info,
 			message: localize('autoApprove.title', 'Enable terminal auto approve?'),
-			buttons: [
-				{
-					label: localize('autoApprove.button.enable', 'Enable'),
-					run: () => true
-				}
-			],
+			buttons: [{
+				label: localize('autoApprove.button.enable', 'Enable'),
+				run: () => true
+			}],
 			cancelButton: true,
 			custom: {
 				icon: Codicon.shield,
