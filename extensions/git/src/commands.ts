@@ -3492,7 +3492,7 @@ export class CommandCenter {
 				commitish = 'HEAD';
 			} else {
 				// Check whether the selected branch is checked out in an existing worktree
-				let worktree: Worktree | undefined = repository.worktrees.find(w => w.ref === choice.refId);
+				let worktree = repository.worktrees.find(w => w.ref === choice.refId);
 				if (worktree) {
 					const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
 					await this.handleWorktreeConflict(worktree.path, message);
