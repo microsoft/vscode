@@ -69,9 +69,9 @@ export class MessageController implements IEditorContribution {
 
 		if (isMarkdownString(message)) {
 			const renderedMessage = this._messageListeners.add(renderMarkdown(message, {
-				actionHandler: (url) => {
+				actionHandler: (url, mdStr) => {
 					this.closeMessage();
-					openLinkFromMarkdown(this._openerService, url, isMarkdownString(message) ? message.isTrusted : undefined);
+					openLinkFromMarkdown(this._openerService, url, mdStr.isTrusted);
 				},
 			}));
 			this._messageWidget.value = new MessageWidget(this._editor, position, renderedMessage.element);
