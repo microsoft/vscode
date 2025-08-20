@@ -16,7 +16,7 @@ import { ExtHostChatSessionsShape, IChatProgressDto } from '../../common/extHost
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { IChatProgress } from '../../../contrib/chat/common/chatService.js';
-import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
@@ -48,7 +48,8 @@ suite('ObservableChatSession', function () {
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
-			$provideChatSessionItems: sinon.stub()
+			$provideChatSessionItems: sinon.stub(),
+			$provideNewChatSessionItem: sinon.stub().resolves({ id: 'new-session-id', label: 'New Session' } as IChatSessionItem)
 		};
 	});
 
@@ -327,7 +328,8 @@ suite('MainThreadChatSessions', function () {
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
-			$provideChatSessionItems: sinon.stub()
+			$provideChatSessionItems: sinon.stub(),
+			$provideNewChatSessionItem: sinon.stub().resolves({ id: 'new-session-id', label: 'New Session' } as IChatSessionItem)
 		};
 
 		const extHostContext = new class implements IExtHostContext {
@@ -366,6 +368,28 @@ suite('MainThreadChatSessions', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('provideNewChatSessionItem creates a new chat session', async function () {
+		mainThread.$registerChatSessionItemProvider(1, 'test-type');
+
+		// Valid
+		const chatSessionItem = await chatSessionsService.provideNewChatSessionItem('test-type', {
+			prompt: 'my prompt',
+			metadata: {}
+		}, CancellationToken.None);
+		assert.strictEqual(chatSessionItem.id, 'new-session-id');
+		assert.strictEqual(chatSessionItem.label, 'New Session');
+
+		// Invalid session type should throw
+		await assert.rejects(
+			chatSessionsService.provideNewChatSessionItem('invalid-type', {
+				prompt: 'my prompt',
+				metadata: {}
+			}, CancellationToken.None)
+		);
+
+		mainThread.$unregisterChatSessionItemProvider(1);
+	});
 
 	test('provideChatSessionContent creates and initializes session', async function () {
 		mainThread.$registerChatSessionContentProvider(1, 'test-type');

@@ -10,7 +10,9 @@ import { type IConfigurationPropertySchema } from '../../../../../platform/confi
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalChatAgentToolsSettingId {
+	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
+
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
@@ -22,6 +24,7 @@ export const enum TerminalChatAgentToolsSettingId {
 
 export interface ITerminalChatAgentToolsConfiguration {
 	autoApprove: { [key: string]: boolean };
+	commandReportingAllowList: { [key: string]: boolean };
 	shellIntegrationTimeout: number;
 }
 

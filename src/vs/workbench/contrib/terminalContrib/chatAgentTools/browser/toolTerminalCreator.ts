@@ -45,8 +45,8 @@ export class ToolTerminalCreator {
 	) {
 	}
 
-	async createTerminal(token: CancellationToken): Promise<IToolTerminal> {
-		const instance = await this._createCopilotTerminal();
+	async createTerminal(shell: string, token: CancellationToken): Promise<IToolTerminal> {
+		const instance = await this._createCopilotTerminal(shell);
 		const toolTerminal: IToolTerminal = {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
@@ -108,9 +108,10 @@ export class ToolTerminalCreator {
 		}
 	}
 
-	private _createCopilotTerminal() {
+	private _createCopilotTerminal(shell: string) {
 		return this._terminalService.createTerminal({
 			config: {
+				executable: shell,
 				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 				hideFromUser: true,
 				env: {

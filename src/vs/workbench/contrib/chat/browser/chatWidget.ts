@@ -821,7 +821,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private renderChatTodoListWidget(): void {
 		const isChatTodoListToolEnabled = this.configurationService.getValue<boolean>(TodoListToolSettingId) === true;
 		if (isChatTodoListToolEnabled) {
-			this.chatTodoListWidget.updateSessionId(this.viewModel?.sessionId);
+			this.chatTodoListWidget.render(this.viewModel?.sessionId);
 		}
 	}
 
@@ -1540,6 +1540,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
+			}
+			if (e.kind === 'addRequest') {
+				this.chatTodoListWidget.clear(model.sessionId);
 			}
 		}));
 

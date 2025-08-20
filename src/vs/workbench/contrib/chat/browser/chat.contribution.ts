@@ -59,6 +59,7 @@ import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languag
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
+import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
 import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
 import { registerNewChatActions } from './actions/chatClearActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
@@ -289,7 +290,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
-			tags: ['preview'],
 		},
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
@@ -546,7 +546,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat, which the agent uses as a tool for planning, progress tracking, and context management for complex development workflows."),
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
 		},
 		'chat.todoListTool.writeOnly': {
@@ -803,6 +803,7 @@ registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchP
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
+registerChatAccessibilityActions();
 registerChatCopyActions();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();

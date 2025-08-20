@@ -32,8 +32,12 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	}
 
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile', autoConfirm?: boolean): void {
+	setToolAutoConfirmation(toolId: string, scope: any): void {
 
+	}
+
+	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'memory' | 'never' {
+		return 'never';
 	}
 
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {

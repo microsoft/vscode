@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -13,7 +12,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
-import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
+import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
@@ -106,11 +105,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 						}
 					}
 				},
-				disposables: new DisposableStore(),
+				disposables: this._store,
 			},
 		}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		const icon = !toolInvocation.isConfirmed ?
+		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
+			? toolInvocation.isConfirmed : toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction;
+		const icon = !isConfirmed ?
 			Codicon.error :
 			toolInvocation.isComplete ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');

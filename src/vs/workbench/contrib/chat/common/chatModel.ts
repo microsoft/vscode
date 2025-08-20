@@ -463,10 +463,12 @@ export class Response extends AbstractResponse implements IDisposable {
 	private _citations: IChatCodeCitation[] = [];
 
 
-	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>) {
-		super(asArray(value).map((v) => (isMarkdownString(v) ?
-			{ content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
-			'kind' in v ? v : { kind: 'treeData', treeData: v })));
+	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart>) {
+		super(asArray(value).map((v) => (
+			'kind' in v ? v :
+				isMarkdownString(v) ? { content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
+					{ kind: 'treeData', treeData: v }
+		)));
 	}
 
 	dispose(): void {
@@ -625,7 +627,7 @@ export class Response extends AbstractResponse implements IDisposable {
 }
 
 export interface IChatResponseModelParameters {
-	responseContent: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>;
+	responseContent: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart>;
 	session: ChatModel;
 	agent?: IChatAgentData;
 	slashCommand?: IChatAgentCommand;
@@ -980,7 +982,7 @@ export interface ISerializableChatRequestData {
 	message: string | IParsedChatRequest; // string => old format
 	/** Is really like "prompt data". This is the message in the format in which the agent gets it + variable values. */
 	variableData: IChatRequestVariableData;
-	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability> | undefined;
+	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart> | undefined;
 
 	/**Old, persisted name for shouldBeRemovedOnSend */
 	isHidden?: boolean;
