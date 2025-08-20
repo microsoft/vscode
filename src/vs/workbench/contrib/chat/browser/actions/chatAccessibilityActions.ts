@@ -70,17 +70,8 @@ class AnnounceChatConfirmationAction extends Action2 {
 			}
 		}
 
-		if (confirmation?.confirmationMessages) {
-			// Focus the first active confirmation dialog
-			if (firstConfirmationElement) {
-				const firstButton = firstConfirmationElement.querySelector('button');
-				if (firstButton) {
-					firstButton.focus();
-				} else {
-					// Fallback: focus the confirmation element itself
-					firstConfirmationElement.focus();
-				}
-			}
+		if (firstConfirmationElement) {
+			firstConfirmationElement.focus();
 		} else {
 			alert(localize('noConfirmationRequired', 'No chat confirmation required'));
 		}
