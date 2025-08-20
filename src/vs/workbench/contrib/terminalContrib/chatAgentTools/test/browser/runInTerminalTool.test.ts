@@ -39,6 +39,7 @@ suite('RunInTerminalTool', () => {
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
+	let storageService: IStorageService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionId: string; reason: 'cleared' }>;
 
@@ -68,7 +69,7 @@ suite('RunInTerminalTool', () => {
 			getDefaultShell: async () => 'pwsh'
 		});
 
-		const storageService = instantiationService.get(IStorageService);
+		storageService = instantiationService.get(IStorageService);
 		storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
 
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
@@ -86,6 +87,10 @@ suite('RunInTerminalTool', () => {
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});
+	}
+
+	function clearAutoApproveWarningAcceptedState() {
+		storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 	}
 
 	/**
@@ -965,6 +970,38 @@ suite('RunInTerminalTool', () => {
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
 			chatServiceDisposeEmitter.fire({ sessionId: 'non-existent-session', reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
+		});
+	});
+
+	suite('auto approve warning acceptance mechanism', () => {
+		test('should require confirmation for auto-approvable commands when warning not accepted', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'on');
+			setAutoApprove({
+				echo: true
+			});
+
+			clearAutoApproveWarningAcceptedState();
+
+			assertConfirmationRequired(await executeToolTest({ command: 'echo hello world' }), 'Run `pwsh` command?');
+		});
+
+		test('should auto-approve commands when both auto-approve enabled and warning accepted', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'on');
+			setAutoApprove({
+				echo: true
+			});
+
+			assertAutoApproved(await executeToolTest({ command: 'echo hello world' }));
+		});
+
+		test('should require confirmation when auto-approve disabled regardless of warning acceptance', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'off');
+			setAutoApprove({
+				echo: true
+			});
+
+			const result = await executeToolTest({ command: 'echo hello world' });
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 		});
 	});
 });
