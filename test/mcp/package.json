@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.3",
+    "@playwright/mcp": "^0.0.34",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "minimist": "^1.2.8",
