@@ -297,7 +297,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				(buffer.cursorX === 1 && lineStartsWith(line, ':')) ||
 				(buffer.cursorX === 5 && lineStartsWith(line, '(END)'))
 			) {
-				console.log('I think the pager is active in _updateContent')
 				this._setVisible(false);
 				return;
 			}
