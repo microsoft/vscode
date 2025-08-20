@@ -2946,7 +2946,7 @@ export class CommandCenter {
 					const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
 					if (mainRepository && item.refName && item.refName === mainRepository.HEAD?.name) {
 						const message = l10n.t('Branch "{0}" is already checked out in the current repository.', item.refName);
-						const createBranch = l10n.t('Create a new branch');
+						const createBranch = l10n.t('Create New Branch');
 						const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
 
 						if (pick === createBranch) {
