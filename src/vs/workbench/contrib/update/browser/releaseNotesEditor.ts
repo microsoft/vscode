@@ -265,6 +265,11 @@ export class ReleaseNotesManager extends Disposable {
 		const nonce = generateUuid();
 
 		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
+			sanitizerConfig: {
+				allowedLinkProtocols: {
+					override: [Schemas.http, Schemas.https, Schemas.command]
+				}
+			},
 			markedExtensions: [{
 				renderer: {
 					html: this._simpleSettingRenderer.getHtmlRenderer(),
