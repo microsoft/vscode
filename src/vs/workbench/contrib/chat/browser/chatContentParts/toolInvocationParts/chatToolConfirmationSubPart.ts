@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
@@ -309,22 +309,23 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		hasToolConfirmation.set(true);
 
 		this._register(confirmWidget.onDidClick(button => {
-			const reason: ConfirmedReason = { type: ToolConfirmKind.UserAction };
+			const confirmAndSave = (kind: 'profile' | 'workspace' | 'session') => {
+				this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, kind);
+				toolInvocation.confirmed.complete({ type: ToolConfirmKind.LmServicePerTool, scope: kind });
+			};
+
 			switch (button.data as ConfirmationOutcome) {
 				case ConfirmationOutcome.AllowGlobally:
-					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'profile');
-					toolInvocation.confirmed.complete(reason);
+					confirmAndSave('profile');
 					break;
 				case ConfirmationOutcome.AllowWorkspace:
-					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'workspace');
-					toolInvocation.confirmed.complete(reason);
+					confirmAndSave('workspace');
 					break;
 				case ConfirmationOutcome.AllowSession:
-					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'memory');
-					toolInvocation.confirmed.complete(reason);
+					confirmAndSave('session');
 					break;
 				case ConfirmationOutcome.Allow:
-					toolInvocation.confirmed.complete(reason);
+					toolInvocation.confirmed.complete({ type: ToolConfirmKind.UserAction });
 					break;
 				case ConfirmationOutcome.Disallow:
 					toolInvocation.confirmed.complete({ type: ToolConfirmKind.Denied });
