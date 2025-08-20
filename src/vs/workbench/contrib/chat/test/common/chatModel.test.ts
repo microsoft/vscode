@@ -79,7 +79,7 @@ suite('ChatModel', () => {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
 		const text = 'hello';
-		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, true);
+		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, true);
 
 		assert.strictEqual(request1.isCompleteAddedRequest, true);
 		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);

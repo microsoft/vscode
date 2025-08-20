@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 9
+// version: 10
 
 declare module 'vscode' {
 
@@ -183,6 +183,8 @@ declare module 'vscode' {
 		isQuotaExceeded?: boolean;
 
 		level?: ChatErrorLevel;
+
+		code?: string;
 	}
 
 	export namespace chat {

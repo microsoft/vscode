@@ -16,7 +16,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IActivityService, NumberBadge } from '../../activity/common/activity.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
 import { IAuthenticationUsageService } from './authenticationUsageService.js';
-import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount } from '../common/authentication.js';
+import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationSessionRequest, isAuthenticationSessionRequest } from '../common/authentication.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -287,7 +287,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	/**
 	 * This function should be used only when there are sessions to disambiguate.
 	 */
-	async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {
+	async selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationSessionRequest, availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {
 		const allAccounts = await this._authenticationService.getAccounts(providerId);
 		if (!allAccounts.length) {
 			throw new Error('No accounts available');
@@ -333,7 +333,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 				if (!session) {
 					const account = quickPick.selectedItems[0].account;
 					try {
-						session = await this._authenticationService.createSession(providerId, scopes, { account });
+						session = await this._authenticationService.createSession(providerId, scopeListOrRequest, { account });
 					} catch (e) {
 						reject(e);
 						return;
@@ -359,7 +359,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		});
 	}
 
-	private async completeSessionAccessRequest(provider: IAuthenticationProvider, extensionId: string, extensionName: string, scopes: string[]): Promise<void> {
+	private async completeSessionAccessRequest(provider: IAuthenticationProvider, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationSessionRequest): Promise<void> {
 		const providerRequests = this._sessionAccessRequestItems.get(provider.id) || {};
 		const existingRequest = providerRequests[extensionId];
 		if (!existingRequest) {
@@ -374,7 +374,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		let session: AuthenticationSession | undefined;
 		if (provider.supportsMultipleAccounts) {
 			try {
-				session = await this.selectSession(provider.id, extensionId, extensionName, scopes, possibleSessions);
+				session = await this.selectSession(provider.id, extensionId, extensionName, scopeListOrRequest, possibleSessions);
 			} catch (_) {
 				// ignore cancel
 			}
@@ -390,7 +390,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 	}
 
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: AuthenticationSession[]): void {
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationSessionRequest, possibleSessions: AuthenticationSession[]): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
 		const hasExistingRequest = providerRequests[extensionId];
 		if (hasExistingRequest) {
@@ -415,7 +415,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		const accessCommand = CommandsRegistry.registerCommand({
 			id: `${providerId}${extensionId}Access`,
 			handler: async (accessor) => {
-				this.completeSessionAccessRequest(provider, extensionId, extensionName, scopes);
+				this.completeSessionAccessRequest(provider, extensionId, extensionName, scopeListOrRequest);
 			}
 		});
 
@@ -424,7 +424,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		this.updateBadgeCount();
 	}
 
-	async requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void> {
+	async requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationSessionRequest, extensionId: string, extensionName: string): Promise<void> {
 		if (!this._authenticationService.isAuthenticationProviderRegistered(providerId)) {
 			// Activate has already been called for the authentication provider, but it cannot block on registering itself
 			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
@@ -447,10 +447,12 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 
 		const providerRequests = this._signInRequestItems.get(providerId);
-		const scopesList = scopes.join(SCOPESLIST_SEPARATOR);
+		const signInRequestKey = isAuthenticationSessionRequest(scopeListOrRequest)
+			? `${scopeListOrRequest.challenge}:${scopeListOrRequest.scopes?.join(SCOPESLIST_SEPARATOR) ?? ''}`
+			: `${scopeListOrRequest.join(SCOPESLIST_SEPARATOR)}`;
 		const extensionHasExistingRequest = providerRequests
-			&& providerRequests[scopesList]
-			&& providerRequests[scopesList].requestingExtensionIds.includes(extensionId);
+			&& providerRequests[signInRequestKey]
+			&& providerRequests[signInRequestKey].requestingExtensionIds.includes(extensionId);
 
 		if (extensionHasExistingRequest) {
 			return;
@@ -476,7 +478,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 			id: commandId,
 			handler: async (accessor) => {
 				const authenticationService = accessor.get(IAuthenticationService);
-				const session = await authenticationService.createSession(providerId, scopes);
+				const session = await authenticationService.createSession(providerId, scopeListOrRequest);
 
 				this._authenticationAccessService.updateAllowedExtensions(providerId, session.account.label, [{ id: extensionId, name: extensionName, allowed: true }]);
 				this._updateAccountAndSessionPreferences(providerId, extensionId, session);
@@ -485,16 +487,16 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 
 
 		if (providerRequests) {
-			const existingRequest = providerRequests[scopesList] || { disposables: [], requestingExtensionIds: [] };
+			const existingRequest = providerRequests[signInRequestKey] || { disposables: [], requestingExtensionIds: [] };
 
-			providerRequests[scopesList] = {
+			providerRequests[signInRequestKey] = {
 				disposables: [...existingRequest.disposables, menuItem, signInCommand],
 				requestingExtensionIds: [...existingRequest.requestingExtensionIds, extensionId]
 			};
 			this._signInRequestItems.set(providerId, providerRequests);
 		} else {
 			this._signInRequestItems.set(providerId, {
-				[scopesList]: {
+				[signInRequestKey]: {
 					disposables: [menuItem, signInCommand],
 					requestingExtensionIds: [extensionId]
 				}

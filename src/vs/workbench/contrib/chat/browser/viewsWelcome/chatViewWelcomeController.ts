@@ -88,14 +88,7 @@ export class ChatViewWelcomeController extends Disposable {
 		dom.clearNode(this.element!);
 
 		const matchingDescriptors = descriptors.filter(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
-		let enabledDescriptor: IChatViewsWelcomeDescriptor | undefined;
-		for (const descriptor of matchingDescriptors) {
-			if (typeof descriptor.content === 'function') {
-				enabledDescriptor = descriptor; // when multiple descriptors match, prefer a "core" one over a "descriptive" one
-				break;
-			}
-		}
-		enabledDescriptor = enabledDescriptor ?? matchingDescriptors.at(0);
+		const enabledDescriptor = matchingDescriptors.at(0);
 		if (enabledDescriptor) {
 			const content: IChatViewWelcomeContent = {
 				icon: enabledDescriptor.icon,
@@ -112,26 +105,26 @@ export class ChatViewWelcomeController extends Disposable {
 }
 
 export interface IChatViewWelcomeContent {
-	icon?: ThemeIcon;
-	title: string;
-	message: IMarkdownString | ((disposables: DisposableStore) => HTMLElement);
-	additionalMessage?: string | IMarkdownString;
+	readonly icon?: ThemeIcon;
+	readonly title: string;
+	readonly message: IMarkdownString;
+	readonly additionalMessage?: string | IMarkdownString;
 	tips?: IMarkdownString;
-	inputPart?: HTMLElement;
-	isExperimental?: boolean;
-	suggestedPrompts?: IChatSuggestedPrompts[];
+	readonly inputPart?: HTMLElement;
+	readonly isExperimental?: boolean;
+	readonly suggestedPrompts?: readonly IChatSuggestedPrompts[];
 }
 
 export interface IChatSuggestedPrompts {
-	icon?: ThemeIcon;
-	label: string;
-	prompt: string;
+	readonly icon?: ThemeIcon;
+	readonly label: string;
+	readonly prompt: string;
 }
 
 export interface IChatViewWelcomeRenderOptions {
-	firstLinkToButton?: boolean;
-	location: ChatAgentLocation;
-	isWidgetAgentWelcomeViewContent?: boolean;
+	readonly firstLinkToButton?: boolean;
+	readonly location: ChatAgentLocation;
+	readonly isWidgetAgentWelcomeViewContent?: boolean;
 }
 
 export class ChatViewWelcomePart extends Disposable {
@@ -148,6 +141,7 @@ export class ChatViewWelcomePart extends Disposable {
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
+
 		this.element = dom.$('.chat-welcome-view');
 
 		try {
@@ -173,12 +167,9 @@ export class ChatViewWelcomePart extends Disposable {
 			// Message
 			const message = dom.append(this.element, content.isExperimental ? $('.chat-welcome-experimental-view-message') : $('.chat-welcome-view-message'));
 			message.classList.toggle('experimental-empty-state', expEmptyState);
-			if (typeof content.message === 'function') {
-				dom.append(message, content.message(this._register(new DisposableStore())));
-			} else {
-				const messageResult = this.renderMarkdownMessageContent(renderer, content.message, options);
-				dom.append(message, messageResult.element);
-			}
+
+			const messageResult = this.renderMarkdownMessageContent(renderer, content.message, options);
+			dom.append(message, messageResult.element);
 
 			if (content.isExperimental && content.inputPart) {
 				content.inputPart.querySelector('.chat-attachments-container')?.remove();

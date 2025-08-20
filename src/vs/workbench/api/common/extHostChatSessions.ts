@@ -11,7 +11,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
-import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionItem, ChatSessionStatus } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
@@ -128,6 +128,55 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		await this._proxy.$showChatSession(chatSessionType, sessionId, typeConvert.ViewColumn.from(options?.viewColumn));
 	}
 
+	private convertChatSessionStatus(status: vscode.ChatSessionStatus | undefined): ChatSessionStatus | undefined {
+		if (status === undefined) {
+			return undefined;
+		}
+		switch (status) {
+			case 0: // vscode.ChatSessionStatus.Failed
+				return ChatSessionStatus.Failed;
+			case 1: // vscode.ChatSessionStatus.Completed
+				return ChatSessionStatus.Completed;
+			case 2: // vscode.ChatSessionStatus.InProgress
+				return ChatSessionStatus.InProgress;
+			default:
+				return undefined;
+		}
+	}
+
+	private convertChatSessionItem(sessionContent: vscode.ChatSessionItem): IChatSessionItem {
+		return {
+			id: sessionContent.id,
+			label: sessionContent.label,
+			iconPath: sessionContent.iconPath,
+			description: sessionContent.description,
+			status: this.convertChatSessionStatus(sessionContent.status),
+			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip)
+		};
+	}
+
+	async $provideNewChatSessionItem(handle: number, options: { prompt?: string; history: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
+		const entry = this._chatSessionItemProviders.get(handle);
+		if (!entry || !entry.provider.provideNewChatSessionItem) {
+			throw new Error(`No provider registered for handle ${handle} or provider does not support creating sessions`);
+		}
+
+		try {
+			const chatSessionItem = await entry.provider.provideNewChatSessionItem(options, token);
+			if (!chatSessionItem || !chatSessionItem.id) {
+				throw new Error('Provider did not create session');
+			}
+			this._sessionMap.set(
+				chatSessionItem.id,
+				chatSessionItem
+			);
+			return this.convertChatSessionItem(chatSessionItem);
+		} catch (error) {
+			this._logService.error(`Error creating chat session: ${error}`);
+			throw error;
+		}
+	}
+
 	async $provideChatSessionItems(handle: number, token: vscode.CancellationToken): Promise<IChatSessionItem[]> {
 		const entry = this._chatSessionItemProviders.get(handle);
 		if (!entry) {
@@ -147,11 +196,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 					sessionContent.id,
 					sessionContent
 				);
-				response.push({
-					id: sessionContent.id,
-					label: sessionContent.label,
-					iconPath: sessionContent.iconPath
-				});
+				response.push(this.convertChatSessionItem(sessionContent));
 			}
 		}
 		return response;

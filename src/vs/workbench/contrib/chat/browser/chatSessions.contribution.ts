@@ -8,21 +8,28 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { IChatWidgetService } from '../browser/chat.js';
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
-import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { IEditableData } from '../../../common/views.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IChatEditorOptions } from './chatEditor.js';
+import { VIEWLET_ID } from './chatSessions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CHAT_CATEGORY } from './actions/chatActions.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 
 const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
 
@@ -94,7 +101,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
 	private readonly _contentProviders: Map<string, IChatSessionContentProvider> = new Map();
 	private readonly _contributions: Map<string, IChatSessionsExtensionPoint> = new Map();
-	private readonly _dynamicAgentDisposables: Map<string, IDisposable> = new Map();
+	private readonly _disposableStores: Map<string, DisposableStore> = new Map();
 	private readonly _contextKeys = new Set<string>();
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<string>());
 	readonly onDidChangeSessionItems: Event<string> = this._onDidChangeSessionItems.event;
@@ -156,14 +163,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contributions.set(contribution.type, contribution);
-
-		// Register dynamic agent if the when condition is satisfied
-		this._registerDynamicAgentIfAvailable(contribution);
+		this._evaluateAvailability();
 
 		return {
 			dispose: () => {
 				this._contributions.delete(contribution.type);
-				this._disposeDynamicAgent(contribution.type);
+				const store = this._disposableStores.get(contribution.type);
+				if (store) {
+					store.dispose();
+					this._disposableStores.delete(contribution.type);
+				}
 			}
 		};
 	}
@@ -172,61 +181,108 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (!contribution.when) {
 			return true;
 		}
-
 		const whenExpr = ContextKeyExpr.deserialize(contribution.when);
 		return !whenExpr || this._contextKeyService.contextMatchesRules(whenExpr);
 	}
 
-	private _registerDynamicAgentIfAvailable(contribution: IChatSessionsExtensionPoint): void {
-		if (this._isContributionAvailable(contribution)) {
-			const disposable = this._registerDynamicAgent(contribution);
-			this._dynamicAgentDisposables.set(contribution.type, disposable);
-		}
+	private _registerMenuItems(contribution: IChatSessionsExtensionPoint): IDisposable {
+		return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+			command: {
+				id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
+				title: localize('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
+				icon: Codicon.plus,
+			},
+			group: 'navigation',
+			order: 1,
+			when: ContextKeyExpr.and(
+				ContextKeyExpr.equals('view', `${VIEWLET_ID}.${contribution.type}`)
+			),
+		});
 	}
 
-	private _disposeDynamicAgent(contributionId: string): void {
-		const disposable = this._dynamicAgentDisposables.get(contributionId);
-		if (disposable) {
-			disposable.dispose();
-			this._dynamicAgentDisposables.delete(contributionId);
-		}
+	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
+		return registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
+					title: localize2('interactiveSession.openNewSessionEditor', "New {0} Chat Editor", contribution.displayName),
+					category: CHAT_CATEGORY,
+					icon: Codicon.plus,
+					f1: true, // Show in command palette
+					precondition: ChatContextKeys.enabled
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const chatSessionsService = accessor.get(IChatSessionsService);
+				const editorService = accessor.get(IEditorService);
+				const logService = accessor.get(ILogService);
+
+				const { type } = contribution;
+
+				try {
+
+					// Try to create a new chat session (extension must implement this)
+					const chatSessionItem = await chatSessionsService.provideNewChatSessionItem(
+						type,
+						{}, // Empty options for a blank session
+						CancellationToken.None
+					);
+
+					// Open it in an editor
+					await editorService.openEditor({
+						resource: ChatSessionUri.forSession(type, chatSessionItem.id),
+						options: {
+							override: ChatEditorInput.EditorID,
+							pinned: true
+						}
+					});
+				} catch (e) {
+					logService.error(`Failed to open new '${type}' chat session editor`, e);
+				}
+			}
+		});
 	}
 
 	private _evaluateAvailability(): void {
 		let hasChanges = false;
-
 		for (const contribution of this._contributions.values()) {
-			const isCurrentlyRegistered = this._dynamicAgentDisposables.has(contribution.type);
+			const isCurrentlyRegistered = this._disposableStores.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
-
 			if (isCurrentlyRegistered && !shouldBeRegistered) {
-				// Should be unregistered
-				this._disposeDynamicAgent(contribution.type);
+				// Disable the contribution by disposing its disposable store
+				const store = this._disposableStores.get(contribution.type);
+				if (store) {
+					store.dispose();
+					this._disposableStores.delete(contribution.type);
+				}
 				// Also dispose any cached sessions for this contribution
 				this._disposeSessionsForContribution(contribution.type);
 				hasChanges = true;
 			} else if (!isCurrentlyRegistered && shouldBeRegistered) {
-				// Should be registered
-				this._registerDynamicAgentIfAvailable(contribution);
+				// Enable the contribution by registering it
+				this._enableContribution(contribution);
 				hasChanges = true;
 			}
 		}
-
-		// Fire events to notify UI about provider availability changes
 		if (hasChanges) {
-			// Fire the main availability change event
 			this._onDidChangeAvailability.fire();
-
-			// Notify that the list of available item providers has changed
 			for (const provider of this._itemsProviders.values()) {
 				this._onDidChangeItemsProviders.fire(provider);
 			}
-
-			// Notify about session items changes for all chat session types
 			for (const contribution of this._contributions.values()) {
 				this._onDidChangeSessionItems.fire(contribution.type);
 			}
 		}
+	}
+
+	private _enableContribution(contribution: IChatSessionsExtensionPoint): void {
+		const disposableStore = new DisposableStore();
+		this._disposableStores.set(contribution.type, disposableStore);
+
+		disposableStore.add(this._registerDynamicAgent(contribution));
+		disposableStore.add(this._registerCommands(contribution));
+		disposableStore.add(this._registerMenuItems(contribution));
 	}
 
 	private _disposeSessionsForContribution(contributionId: string): void {
@@ -271,6 +327,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				isSticky: false,
 			},
 			extensionId,
+			extensionVersion: extensionDescription.version,
 			extensionDisplayName: extensionDisplayName || extensionName,
 			extensionPublisherId,
 		};
@@ -383,6 +440,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _sessions = new Map<string, ContributedChatSessionData>();
 
+	// Editable session support
+	private readonly _editableSessions = new Map<string, IEditableData>();
+
+	/**
+	 * Creates a new chat session by delegating to the appropriate provider
+	 * @param chatSessionType The type of chat session provider to use
+	 * @param options Options for the new session
+	 * @param token A cancellation token
+	 * @returns A session ID for the newly created session
+	 */
+	public async provideNewChatSessionItem(chatSessionType: string, options: {
+		prompt?: string;
+		history?: any[];
+		metadata?: any;
+	}, token: CancellationToken): Promise<IChatSessionItem> {
+		if (!(await this.canResolveItemProvider(chatSessionType))) {
+			throw Error(`Cannot find provider for ${chatSessionType}`);
+		}
+
+		const provider = this._itemsProviders.get(chatSessionType);
+		if (!provider?.provideNewChatSessionItem) {
+			throw Error(`Provider for ${chatSessionType} does not support creating sessions`);
+		}
+		const chatSessionItem = await provider.provideNewChatSessionItem(options, token);
+		this._onDidChangeSessionItems.fire(chatSessionType);
+		return chatSessionItem;
+	}
+
 	public async provideChatSessionContent(chatSessionType: string, id: string, token: CancellationToken): Promise<ChatSession> {
 		if (!(await this.canResolveContentProvider(chatSessionType))) {
 			throw Error(`Can not find provider for ${chatSessionType}`);
@@ -411,6 +496,25 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const sessionKey = `${chatSessionType}_${id}`;
 		this._sessions.delete(sessionKey);
 	}
+
+	// Implementation of editable session methods
+	public async setEditableSession(sessionId: string, data: IEditableData | null): Promise<void> {
+		if (!data) {
+			this._editableSessions.delete(sessionId);
+		} else {
+			this._editableSessions.set(sessionId, data);
+		}
+		// Trigger refresh of the session views that might need to update their rendering
+		this._onDidChangeSessionItems.fire('local');
+	}
+
+	public getEditableData(sessionId: string): IEditableData | undefined {
+		return this._editableSessions.get(sessionId);
+	}
+
+	public isEditable(sessionId: string): boolean {
+		return this._editableSessions.has(sessionId);
+	}
 }
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
@@ -425,12 +529,13 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IChatSessionsService private readonly chatSessionService: IChatSessionsService
+		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 	}
 
-	async invoke(request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: any[], token: CancellationToken): Promise<IChatAgentResult> {
+	async invoke(request: IChatAgentRequest, progress: (progress: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 		const widget = this.chatWidgetService.getWidgetBySessionId(request.sessionId);
 
 		if (!widget) {
@@ -466,18 +571,39 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		}
 
 		if (chatSession?.requestHandler) {
-			await chatSession.requestHandler(request, progress, [], token);
+			await chatSession.requestHandler(request, progress, history, token); // TODO: Revisit this function's signature in relation to its extension API (eg: 'history' is not strongly typed here)
 		} else {
-			// TODO(jospicer): Temporary while we work on API for dynamic agent to trigger a session
-			const content = new MarkdownString(
-				localize('chatSessionNotFound', "Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS),
-			);
-			progress(
-				[{
+			try {
+				const chatSessionItem = await this.chatSessionService.provideNewChatSessionItem(
+					this.chatSession.type,
+					{
+						prompt: request.message,
+					},
+					token,
+				);
+				const options: IChatEditorOptions = {
+					pinned: true,
+					preferredTitle: chatSessionItem.label,
+				};
+				await this.editorService.openEditor({
+					resource: ChatSessionUri.forSession(this.chatSession.type, chatSessionItem.id),
+					options,
+				});
+				progress([{
+					kind: 'markdownContent',
+					content: new MarkdownString(localize('continueInNewChat', 'Continue **{0}** in a new chat editor', chatSessionItem.label)),
+				}]);
+			} catch (error) {
+				// End up here if extension does not support 'provideNewChatSessionItem'
+				// TODO(jospicer): Fallback that should be removed/generalized when API stabilizes
+				const content = new MarkdownString(
+					localize('chatSessionNotFound', "Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS),
+				);
+				progress([{
 					kind: 'markdownContent',
 					content,
-				}]
-			);
+				}]);
+			}
 		}
 
 		return {};

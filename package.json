@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.104.0",
-  "distro": "1dc7c0e96002d6354d0d6e2a90cfd7d23c6ba6f3",
+  "distro": "69861287f4af04d36b926eb311cccb4b5680a018",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -118,6 +118,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.53.2",
+    "@playwright/mcp": "^0.0.33",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
@@ -139,8 +140,8 @@
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.36.0",
-    "@typescript/native-preview": "^7.0.0-dev.20250707.2",
-    "@vscode/gulp-electron": "^1.38.1",
+    "@typescript/native-preview": "^7.0.0-dev.20250812.1",
+    "@vscode/gulp-electron": "^1.38.2",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.6",
@@ -211,7 +212,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^6.0.0-dev.20250806",
+    "typescript": "^6.0.0-dev.20250812",
     "typescript-eslint": "^8.39.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",

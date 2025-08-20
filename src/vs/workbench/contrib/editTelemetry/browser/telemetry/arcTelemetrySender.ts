@@ -107,7 +107,7 @@ export class ChatArcTelemetrySender extends Disposable {
 		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
 			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
 
-			const supportedSource = new Set(['Chat.applyEdits' as ITextModelEditSourceMetadata['source']]);
+			const supportedSource = new Set(['Chat.applyEdits', 'inlineChat.applyEdits'] as ITextModelEditSourceMetadata['source'][]);
 
 			if (!edit.replacements.some(r => supportedSource.has(r.data.editSource.metadata.source))) {
 				return;
@@ -129,6 +129,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					requestId: string | undefined;
 					modelId: string | undefined;
 					languageId: string | undefined;
+					mode: string | undefined;
 
 					didBranchChange: number;
 					timeDelayMs: number;
@@ -150,6 +151,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request id.' };
 					modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
 					languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
+					mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode chat was in.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
@@ -175,6 +177,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					requestId: data.props.$$requestId,
 					modelId: data.props.$modelId,
 					languageId: data.props.$$languageId,
+					mode: data.props.$$mode,
 
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,

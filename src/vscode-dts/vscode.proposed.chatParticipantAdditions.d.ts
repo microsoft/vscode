@@ -273,7 +273,7 @@ declare module 'vscode' {
 		*/
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
-		thinkingProgress(value: string, id?: string, metadata?: string): void;
+		thinkingProgress(thinkingDelta: ThinkingDelta): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
@@ -326,6 +326,21 @@ declare module 'vscode' {
 		Partial = 2,
 		Omitted = 3
 	}
+
+	export type ThinkingDelta = {
+		text?: string;
+		id: string;
+		metadata?: string;
+	} | {
+		text?: string;
+		id?: string;
+		metadata: string;
+	} |
+	{
+		text: string;
+		id?: string;
+		metadata?: string;
+	};
 
 	export enum ChatResponseClearToPreviousToolInvocationReason {
 		NoReason = 0,

@@ -59,6 +59,7 @@ import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languag
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
+import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
 import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
 import { registerNewChatActions } from './actions/chatClearActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
@@ -235,6 +236,17 @@ configurationRegistry.registerConfiguration({
 				tags: [PolicyTag.Account, PolicyTag.Preview]
 			}
 		},
+		[ChatConfiguration.AutoApproveEdits]: {
+			default: {
+				'**/*': true,
+				'**/.vscode/*.json': false,
+			},
+			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintened side-effects, such as `**/.vscode/*.json`.\n\nFiles are matched against the glob patterns in the order they are specified."),
+			type: 'object',
+			additionalProperties: {
+				type: 'boolean',
+			}
+		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
@@ -278,7 +290,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
-			tags: ['preview'],
 		},
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
@@ -532,18 +543,35 @@ configurationRegistry.registerConfiguration({
 		'chat.todoListTool.enabled': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat. This tool allows you to use todo lists in chat."),
+			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat, which the agent uses as a tool for planning, progress tracking, and context management for complex development workflows."),
 			tags: ['experimental'],
 			experiment: {
-				mode: 'startup'
+				mode: 'auto'
 			}
+		},
+		'chat.todoListTool.writeOnly': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
+			tags: ['experimental']
 		},
 		[ChatConfiguration.ShowThinking]: {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('chat.agent.showThinking', "Controls whether to show the thinking process of the model in chat responses."),
 			tags: ['experimental'],
-		}
+		},
+		'chat.hideAIFeatures': {
+			type: 'boolean',
+			description: nls.localize('chat.hideAIFeatures', "Hide and disables the getting started UI elements for setting up AI features and Chat. This setting has no effect when Copilot extensions are installed."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			policy: {
+				name: 'ChatHideAIFeatures',
+				minimumVersion: '1.104',
+
+			}
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -775,6 +803,7 @@ registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchP
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
+registerChatAccessibilityActions();
 registerChatCopyActions();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();
@@ -827,5 +856,9 @@ registerPromptFileContributions();
 
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerAction2(ConfigureToolSets);
+
+// Register chat session actions
+import { RenameChatSessionAction } from './actions/chatSessionActions.js';
+registerAction2(RenameChatSessionAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

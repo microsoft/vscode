@@ -2709,7 +2709,7 @@ export namespace ChatResponseThinkingProgressPart {
 		};
 	}
 	export function to(part: Dto<IChatThinkingPart>): vscode.ChatResponseThinkingProgressPart {
-		return new types.ChatResponseThinkingProgressPart(part.value);
+		return new types.ChatResponseThinkingProgressPart(part.value ?? '', part.id, part.metadata);
 	}
 }
 
@@ -3432,6 +3432,25 @@ export namespace InlineCompletionEndOfLifeReason {
 		return {
 			kind: types.InlineCompletionEndOfLifeReasonKind.Rejected,
 		};
+	}
+}
+
+export namespace InlineCompletionDisplayLocationKind {
+	export function from(value: vscode.InlineCompletionDisplayLocationKind): types.InlineCompletionDisplayLocationKind {
+		if (value === types.InlineCompletionDisplayLocationKind.Label) {
+			return types.InlineCompletionDisplayLocationKind.Label;
+		} else {
+			return types.InlineCompletionDisplayLocationKind.Code;
+		}
+	}
+
+	export function to(kind: languages.InlineCompletionDisplayLocationKind): types.InlineCompletionDisplayLocationKind {
+		switch (kind) {
+			case languages.InlineCompletionDisplayLocationKind.Label:
+				return types.InlineCompletionDisplayLocationKind.Label;
+			default:
+				return types.InlineCompletionDisplayLocationKind.Code;
+		}
 	}
 }
 

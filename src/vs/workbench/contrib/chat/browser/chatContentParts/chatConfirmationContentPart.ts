@@ -11,7 +11,7 @@ import { IChatProgressRenderableResponseContent } from '../../common/chatModel.j
 import { IChatConfirmation, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
+import { SimpleChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 export class ChatConfirmationContentPart extends Disposable implements IChatContentPart {
@@ -39,7 +39,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				{ label: localize('accept', "Accept"), data: confirmation.data },
 				{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
 			];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, { title: confirmation.title, buttons, message: confirmation.message }));
+		const confirmationWidget = this._register(this.instantiationService.createInstance(SimpleChatConfirmationWidget, context.container, { title: confirmation.title, buttons, message: confirmation.message }));
 		confirmationWidget.setShowButtons(!confirmation.isUsed);
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -55,7 +55,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				options.confirmation = e.label;
 				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
 				options.userSelectedModelId = widget?.input.currentLanguageModel;
-				options.mode = widget?.input.currentModeKind;
+				options.modeInfo = widget?.input.currentModeInfo;
 				Object.assign(options, widget?.getModeRequestOptions());
 
 				if (await this.chatService.sendRequest(element.sessionId, prompt, options)) {

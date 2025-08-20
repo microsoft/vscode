@@ -27,12 +27,14 @@ import { getPwshGlobals } from './shell/pwsh';
 import { getZshGlobals } from './shell/zsh';
 import { defaultShellTypeResetChars, getTokenType, shellTypeResetChars, TokenType } from './tokens';
 import type { ICompletionResource } from './types';
+import { basename } from 'path';
 
 export const enum TerminalShellType {
 	Bash = 'bash',
 	Fish = 'fish',
 	Zsh = 'zsh',
 	PowerShell = 'pwsh',
+	WindowsPowerShell = 'powershell',
 	GitBash = 'gitbash',
 }
 
@@ -75,6 +77,7 @@ const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithS
 	// TODO: Ghost text in the command line prevents completions from working ATM for fish
 	[TerminalShellType.Fish, getFishGlobals],
 	[TerminalShellType.PowerShell, getPwshGlobals],
+	[TerminalShellType.WindowsPowerShell, getPwshGlobals],
 ]);
 
 async function getShellGlobals(
@@ -127,6 +130,12 @@ async function fetchAndCacheShellGlobals(
 	background?: boolean
 ): Promise<ICompletionResource[] | undefined> {
 	const cacheKey = getCacheKey(machineId ?? 'no-machine-id', remoteAuthority, shellType);
+
+	// Check if there's a cached entry
+	const cached = cachedGlobals.get(cacheKey);
+	if (cached) {
+		return cached.commands;
+	}
 
 	// Check if there's already an in-flight request for this cache key
 	const existingRequest = inflightRequests.get(cacheKey);
@@ -425,7 +434,24 @@ export async function getCompletionItemsFromSpecs(
 		}
 	}
 
-	const result = await getFigSuggestions(specs, terminalContext, availableCommands, currentCommandString, tokenType, shellIntegrationCwd, env, name, executeExternals ?? { executeCommand, executeCommandTimeout }, token);
+	let executeExternalsFallbackCwd = shellIntegrationCwd?.fsPath;
+	if (!executeExternalsFallbackCwd) {
+		console.error('No shellIntegrationCwd set, falling back to process.cwd()');
+		executeExternalsFallbackCwd = process.cwd();
+	}
+	const executeExternalsFallbacks: {
+		cwd: string;
+		env: Record<string, string | undefined>;
+	} = {
+		cwd: executeExternalsFallbackCwd,
+		env,
+	};
+	const executeExternalsWithFallback = executeExternals ?? {
+		executeCommand: executeCommand.bind(executeCommand, executeExternalsFallbacks),
+		executeCommandTimeout: executeCommandTimeout.bind(executeCommandTimeout, executeExternalsFallbacks),
+	};
+
+	const result = await getFigSuggestions(specs, terminalContext, availableCommands, currentCommandString, tokenType, shellIntegrationCwd, env, name, executeExternalsWithFallback, token);
 	if (result) {
 		hasCurrentArg ||= result.hasCurrentArg;
 		filesRequested ||= result.filesRequested;
@@ -505,7 +531,7 @@ function getTerminalShellType(shellType: string | undefined): TerminalShellType 
 		case 'zsh':
 			return TerminalShellType.Zsh;
 		case 'pwsh':
-			return TerminalShellType.PowerShell;
+			return basename(vscode.env.shell, '.exe') === 'powershell' ? TerminalShellType.WindowsPowerShell : TerminalShellType.PowerShell;
 		case 'fish':
 			return TerminalShellType.Fish;
 		default:
@@ -520,7 +546,7 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 	}, {});
 	const keysToRemove = [
 		/^ELECTRON_.$/,
-		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).$/,
+		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).+$/,
 		/^SNAP(|_.*)$/,
 		/^GDK_PIXBUF_.$/,
 	];

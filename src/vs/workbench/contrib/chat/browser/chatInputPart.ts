@@ -10,7 +10,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithIcon } from '../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
@@ -104,6 +104,7 @@ import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/model
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { isLocation } from '../../../../editor/common/languages.js';
+import { IChatRequestModeInfo } from '../common/chatModel.js';
 
 const $ = dom.$;
 
@@ -139,6 +140,9 @@ const GlobalLastChatModeKey = 'chat.lastChatMode';
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	private static _counter = 0;
+
+	private _workingSetCollapsed = true;
+	private _lastEditingSessionId: string | undefined;
 
 	private _onDidLoadInputState: Emitter<IChatInputState | undefined>;
 	readonly onDidLoadInputState: Event<IChatInputState | undefined>;
@@ -306,11 +310,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentModeObservable;
 	}
 
+	public get currentModeInfo(): IChatRequestModeInfo {
+		const mode = this._currentModeObservable.get();
+		return {
+			kind: this.currentModeKind,
+			isBuiltin: mode.isBuiltin,
+			instructions: mode.body?.get()
+		};
+	}
+
 	private cachedDimensions: dom.Dimension | undefined;
 	private cachedExecuteToolbarWidth: number | undefined;
 	private cachedInputToolbarWidth: number | undefined;
 
 	readonly inputUri: URI;
+
+	private _workingSetLinesAddedSpan?: HTMLElement;
+	private _workingSetLinesRemovedSpan?: HTMLElement;
 
 	private readonly _chatEditsActionsDisposables: DisposableStore;
 	private readonly _chatEditsDisposables: DisposableStore;
@@ -435,8 +451,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._register(autorun(reader => {
 			let count = 0;
-			for (const enabled of this.selectedToolsModel.enablementMap.read(reader).values()) {
-				if (enabled) { count++; }
+			const userSelectedTools = this.selectedToolsModel.userSelectedTools.read(reader);
+			for (const key in userSelectedTools) {
+				if (userSelectedTools[key] === true) {
+					count++;
+				}
 			}
 
 			chatToolCount.set(count);
@@ -464,7 +483,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.initSelectedModel();
 
 		this._register(this.onDidChangeCurrentChatMode(() => {
-			this.accessibilityService.alert(this._currentModeObservable.get().name);
+			this.accessibilityService.alert(this._currentModeObservable.get().label);
 			if (this._inputEditor) {
 				this._inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
@@ -580,6 +599,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.modeWidget?.show();
 	}
 
+	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
+		this._currentLanguageModel = model;
+
+		if (this.cachedDimensions) {
+			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
+			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+		}
+
+		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
+
+		this._onDidChangeCurrentLanguageModel.fire(model);
+	}
+
 	private checkModelSupported(): void {
 		if (this._currentLanguageModel && !this.modelSupportedForDefaultAgent(this._currentLanguageModel)) {
 			this.setCurrentLanguageModelToDefault();
@@ -643,20 +676,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (defaultModel) {
 			this.setCurrentLanguageModel(defaultModel);
 		}
-	}
-
-	private setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
-		this._currentLanguageModel = model;
-
-		if (this.cachedDimensions) {
-			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
-			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
-		}
-
-		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
-		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
-
-		this._onDidChangeCurrentLanguageModel.fire(model);
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -1494,6 +1513,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
+		if (chatEditingSession) {
+			if (chatEditingSession.chatSessionId !== this._lastEditingSessionId) {
+				this._workingSetCollapsed = true;
+			}
+			this._lastEditingSessionId = chatEditingSession.chatSessionId;
+		}
+
 		const seenEntries = new ResourceSet();
 		const entries: IChatCollapsibleListItem[] = [];
 		if (chatEditingSession) {
@@ -1504,10 +1530,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				if (!seenEntries.has(entry.modifiedURI)) {
 					seenEntries.add(entry.modifiedURI);
+					const linesAdded = entry.linesAdded?.get();
+					const linesRemoved = entry.linesRemoved?.get();
 					entries.push({
 						reference: entry.modifiedURI,
 						state: entry.state.get(),
 						kind: 'reference',
+						options: {
+							status: undefined,
+							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 }
+						}
 					});
 				}
 			}
@@ -1535,12 +1567,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
 		const overviewTitle = overviewRegion.querySelector('.working-set-title') as HTMLElement ?? dom.append(overviewRegion, $('.working-set-title'));
-		const overviewFileCount = overviewTitle.querySelector('span.working-set-count') ?? dom.append(overviewTitle, $('span.working-set-count'));
-
-		overviewFileCount.textContent = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
-
-		overviewTitle.ariaLabel = overviewFileCount.textContent;
-		overviewTitle.tabIndex = 0;
 
 		// Clear out the previous actions (if any)
 		this._chatEditsActionsDisposables.clear();
@@ -1567,6 +1593,68 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Working set
 		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-list'));
+
+		const button = this._chatEditsActionsDisposables.add(new ButtonWithIcon(overviewTitle, {
+			supportIcons: true,
+			secondary: true,
+			ariaLabel: localize('chatEditingSession.toggleWorkingSet', 'Toggle changed files.'),
+		}));
+
+		let added = 0;
+		let removed = 0;
+		if (chatEditingSession) {
+			for (const entry of chatEditingSession.entries.get()) {
+				if (entry.linesAdded && entry.linesRemoved) {
+					added += entry.linesAdded.get();
+					removed += entry.linesRemoved.get();
+				}
+			}
+		}
+
+		const baseLabel = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
+		button.label = baseLabel;
+
+		if (!this._workingSetLinesAddedSpan) {
+			this._workingSetLinesAddedSpan = dom.$('.working-set-lines-added');
+		}
+		if (!this._workingSetLinesRemovedSpan) {
+			this._workingSetLinesRemovedSpan = dom.$('.working-set-lines-removed');
+		}
+
+		const countsContainer = dom.$('.working-set-line-counts');
+		button.element.appendChild(countsContainer);
+		countsContainer.appendChild(this._workingSetLinesAddedSpan);
+		countsContainer.appendChild(this._workingSetLinesRemovedSpan);
+
+		this._workingSetLinesAddedSpan.textContent = `+${added}`;
+		this._workingSetLinesRemovedSpan.textContent = `-${removed}`;
+		button.element.setAttribute('aria-label', localize('chatEditingSession.ariaLabelWithCounts', '{0}, {1} lines added, {2} lines removed', baseLabel, added, removed));
+
+		const applyCollapseState = () => {
+			button.icon = this._workingSetCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			workingSetContainer.classList.toggle('collapsed', this._workingSetCollapsed);
+			this._onDidChangeHeight.fire();
+		};
+
+		const toggleWorkingSet = () => {
+			this._workingSetCollapsed = !this._workingSetCollapsed;
+			applyCollapseState();
+		};
+
+		this._chatEditsActionsDisposables.add(button.onDidClick(() => { toggleWorkingSet(); }));
+		this._chatEditsActionsDisposables.add(addDisposableListener(overviewRegion, 'click', e => {
+			if (e.defaultPrevented) {
+				return;
+			}
+			const target = e.target as HTMLElement;
+			if (target.closest('.monaco-button')) {
+				return;
+			}
+			toggleWorkingSet();
+		}));
+
+		applyCollapseState();
+
 		if (!this._chatEditList) {
 			this._chatEditList = this._chatEditsListPool.get();
 			const list = this._chatEditList.object;

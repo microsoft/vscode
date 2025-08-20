@@ -34,11 +34,11 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, { title: elicitation.title, subtitle: elicitation.subtitle, buttons, message: this.getMessageToRender(elicitation), toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation } }));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
-		this._register(elicitation.onDidRequestHide(() => this.domNode.remove()));
+		if (elicitation.onDidRequestHide) {
+			this._register(elicitation.onDidRequestHide(() => this.domNode.remove()));
+		}
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-
-		const messageToRender = this.getMessageToRender(elicitation);
 
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (e.data) {
@@ -48,15 +48,15 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			}
 
 			confirmationWidget.setShowButtons(false);
-			confirmationWidget.updateMessage(messageToRender);
+			confirmationWidget.updateMessage(this.getMessageToRender(elicitation));
 
 			this._onDidChangeHeight.fire();
 		}));
 
-
 		this.chatAccessibilityService.acceptElicitation(elicitation);
 		this.domNode = confirmationWidget.domNode;
 		this.domNode.tabIndex = 0;
+		const messageToRender = this.getMessageToRender(elicitation);
 		this.domNode.ariaLabel = elicitation.title + ' ' + (typeof messageToRender === 'string' ? messageToRender : messageToRender.value || '');
 	}
 

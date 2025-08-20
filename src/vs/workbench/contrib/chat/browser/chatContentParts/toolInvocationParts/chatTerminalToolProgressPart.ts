@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -13,7 +12,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
-import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
+import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
@@ -22,7 +21,7 @@ import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.
 import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
-export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubPart {
+export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
@@ -72,39 +71,47 @@ export class ChatTerminalMarkdownProgressPart extends BaseChatToolInvocationSubP
 					const [type, scopeRaw] = content.split('_');
 					switch (type) {
 						case 'settings': {
-							const scope = parseInt(scopeRaw);
-							const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
-							const options: IOpenSettingsOptions = {
-								jsonEditor: true,
-								revealSetting: {
-									key: TerminalContribSettingId.AutoApprove
-								}
-							};
-							switch (target) {
-								case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
-								case ConfigurationTarget.USER:
-								case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
-								case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
-								case ConfigurationTarget.WORKSPACE:
-								case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
-								default: {
-									// Fallback if something goes wrong
-									preferencesService.openSettings({
-										target: ConfigurationTarget.USER,
-										query: `@id:${TerminalContribSettingId.AutoApprove}`,
-									});
-									break;
+							if (scopeRaw === 'global') {
+								preferencesService.openSettings({
+									query: `@id:chat.tools.autoApprove`
+								});
+							} else {
+								const scope = parseInt(scopeRaw);
+								const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
+								const options: IOpenSettingsOptions = {
+									jsonEditor: true,
+									revealSetting: {
+										key: TerminalContribSettingId.AutoApprove
+									}
+								};
+								switch (target) {
+									case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
+									case ConfigurationTarget.USER:
+									case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
+									case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
+									case ConfigurationTarget.WORKSPACE:
+									case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
+									default: {
+										// Fallback if something goes wrong
+										preferencesService.openSettings({
+											target: ConfigurationTarget.USER,
+											query: `@id:${TerminalContribSettingId.AutoApprove}`,
+										});
+										break;
+									}
 								}
 							}
 							break;
 						}
 					}
 				},
-				disposables: new DisposableStore(),
+				disposables: this._store,
 			},
 		}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		const icon = !toolInvocation.isConfirmed ?
+		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
+			? toolInvocation.isConfirmed : toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction;
+		const icon = !isConfirmed ?
 			Codicon.error :
 			toolInvocation.isComplete ?
 				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');

@@ -153,6 +153,22 @@ suite('DomSanitize', () => {
 		assert.strictEqual(result.toString(), '<div>text1</div><div title="xyzxyz">text2</div>');
 	});
 
+	test('Attr name should clear previously set dynamic sanitizer', () => {
+		const html = '<div title="abc" other="1">text1</div><div title="xyz" other="2">text2</div>';
+		const result = sanitizeHtml(html, {
+			allowedAttributes: {
+				override: [
+					{
+						attributeName: 'title',
+						shouldKeep: () => false
+					},
+					'title' // Should allow everything since it comes after custom rule
+				]
+			}
+		});
+		assert.strictEqual(result.toString(), '<div title="abc">text1</div><div title="xyz">text2</div>');
+	});
+
 	suite('replaceWithPlaintext', () => {
 
 		test('replaces unsupported tags with plaintext representation', () => {

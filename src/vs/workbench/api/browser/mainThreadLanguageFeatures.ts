@@ -651,6 +651,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
 					id: lifetimeSummary.requestUuid,
+					opportunityId: lifetimeSummary.requestUuid,
+					correlationId: lifetimeSummary.correlationId,
 					shown: lifetimeSummary.shown,
 					shownDuration: lifetimeSummary.shownDuration,
 					shownDurationUncollapsed: lifetimeSummary.shownDurationUncollapsed,
@@ -1309,7 +1311,12 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 }
 
 type InlineCompletionEndOfLifeEvent = {
+	/**
+	 * @deprecated To be removed at one point in favor of opportunityId
+	 */
 	id: string;
+	opportunityId: string;
+	correlationId: string | undefined;
 	extensionId: string;
 	extensionVersion: string;
 	shown: boolean;
@@ -1346,6 +1353,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	owner: 'benibenj';
 	comment: 'Inline completions ended';
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the inline completion request' };
+	opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES' };
+	correlationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The correlation identifier for the inline completion' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };
 	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };

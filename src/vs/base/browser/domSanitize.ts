@@ -251,7 +251,10 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 		const allowedAttrNames = new Set(resolvedAttributes.map(attr => typeof attr === 'string' ? attr : attr.attributeName));
 		const allowedAttrPredicates = new Map<string, SanitizeAttributeRule>();
 		for (const attr of resolvedAttributes) {
-			if (typeof attr !== 'string') {
+			if (typeof attr === 'string') {
+				// New string attribute value clears previously set predicates
+				allowedAttrPredicates.delete(attr);
+			} else {
 				allowedAttrPredicates.set(attr.attributeName, attr);
 			}
 		}
