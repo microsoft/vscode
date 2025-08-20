@@ -51,7 +51,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
@@ -73,6 +73,7 @@ import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -118,6 +119,11 @@ export interface IChatViewOpenOptions {
 	 * among the available models.
 	 */
 	modelId?: string;
+
+	/**
+	 * Wait to resolve the command until the chat response reaches a terminal state (complete, error, or pending user confirmation, etc.).
+	 */
+	blockOnResponse?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -143,7 +149,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<IChatAgentResult & { type?: 'confirmation' } | undefined> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
@@ -209,13 +215,16 @@ abstract class OpenChatGlobalAction extends Action2 {
 				}
 			}
 		}
+
+		let resp: Promise<IChatResponseModel | undefined> | undefined;
+
 		if (opts?.query) {
 			if (opts.isPartialQuery) {
 				chatWidget.setInput(opts.query);
 			} else {
 				await chatWidget.waitForReady();
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
-				chatWidget.acceptInput(opts.query);
+				resp = chatWidget.acceptInput(opts.query);
 			}
 		}
 		if (opts?.toolIds && opts.toolIds.length > 0) {
@@ -235,6 +244,24 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 
 		chatWidget.focusInput();
+
+		if (opts?.blockOnResponse) {
+			const response = await resp;
+			if (response) {
+				await new Promise<void>(resolve => {
+					const d = response.onDidChange(async () => {
+						if (response.isComplete || response.isPendingConfirmation.get()) {
+							d.dispose();
+							resolve();
+						}
+					});
+				});
+
+				return { ...response.result, type: response.isPendingConfirmation.get() ? 'confirmation' : undefined };
+			}
+		}
+
+		return undefined;
 	}
 
 	private async handleSwitchToMode(switchToMode: IChatMode, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
@@ -1290,7 +1317,7 @@ export function registerChatActions() {
 			}
 
 			if (chatEntitlementService.quotas.resetDate) {
-				const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
+				const dateFormatter = chatEntitlementService.quotas.resetDateHasTime ? safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' }) : safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 				const quotaResetDate = new Date(chatEntitlementService.quotas.resetDate);
 				message = [message, localize('quotaResetDate', "The allowance will reset on {0}.", dateFormatter.value.format(quotaResetDate))].join(' ');
 			}

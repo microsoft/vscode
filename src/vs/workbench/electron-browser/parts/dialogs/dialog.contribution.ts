@@ -21,7 +21,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { createNativeAboutDialogDetails } from '../../../../platform/dialogs/electron-browser/dialog.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -43,7 +42,6 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IProductService private productService: IProductService,
 		@IClipboardService clipboardService: IClipboardService,
 		@INativeHostService private nativeHostService: INativeHostService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@IOpenerService openerService: IOpenerService
 	) {
 		super();
@@ -111,9 +109,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	}
 
 	private get useCustomDialog(): boolean {
-		return this.configurationService.getValue('window.dialogStyle') === 'custom' ||
-			// Use the custom dialog while driven so that the driver can interact with it
-			!!this.environmentService.allowDialogsWhileDriven;
+		return this.configurationService.getValue('window.dialogStyle') === 'custom';
 	}
 }
 

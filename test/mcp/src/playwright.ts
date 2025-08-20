@@ -30,8 +30,7 @@ const opts = minimist(args, {
 		'remote',
 		'web',
 		'headless',
-		'tracing',
-		'skip-dialogs'
+		'tracing'
 	],
 	default: {
 		verbose: false
@@ -44,7 +43,6 @@ const opts = minimist(args, {
 	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
-	'skip-dialogs'?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome' | undefined;
 	electronArgs?: string;
 };
@@ -360,7 +358,6 @@ export async function getServer() {
 		userDataDir,
 		extensionsPath,
 		logger,
-		allowDialogs: !opts['skip-dialogs'] && !opts.headless,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		crashesPath: path.join(crashesRootPath, 'suite_unknown'),
 		verbose: opts.verbose,

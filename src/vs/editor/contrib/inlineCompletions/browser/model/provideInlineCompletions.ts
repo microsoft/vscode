@@ -242,6 +242,7 @@ function toInlineSuggestData(
 		inlineCompletion.isInlineEdit ?? false,
 		requestInfo,
 		providerRequestInfo,
+		inlineCompletion.correlationId,
 	);
 }
 
@@ -301,6 +302,7 @@ export class InlineSuggestData {
 
 		private readonly _requestInfo: InlineSuggestRequestInfo,
 		private readonly _providerRequestInfo: InlineSuggestProviderRequestInfo,
+		private readonly _correlationId: string | undefined,
 	) {
 		this._viewData = { editorType: _requestInfo.editorType };
 	}
@@ -368,6 +370,7 @@ export class InlineSuggestData {
 		if (this.source.provider.handleEndOfLifetime) {
 			const summary: LifetimeSummary = {
 				requestUuid: this.context.requestUuid,
+				correlationId: this._correlationId,
 				partiallyAccepted: this._partiallyAcceptedCount,
 				partiallyAcceptedCountSinceOriginal: this._partiallyAcceptedSinceOriginal.count,
 				partiallyAcceptedRatioSinceOriginal: this._partiallyAcceptedSinceOriginal.ratio,

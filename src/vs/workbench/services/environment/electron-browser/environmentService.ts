@@ -120,9 +120,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get enableSmokeTestDriver(): boolean { return !!this.args['enable-smoke-test-driver']; }
 
 	@memoize
-	get allowDialogsWhileDriven(): boolean { return !!this.args['allow-dialogs-while-driven']; }
-
-	@memoize
 	get extensionEnabledProposedApi(): string[] | undefined {
 		if (Array.isArray(this.args['enable-proposed-api'])) {
 			return this.args['enable-proposed-api'];
