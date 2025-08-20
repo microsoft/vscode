@@ -8,12 +8,15 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
 import { IChatService } from '../../../../../chat/common/chatService.js';
 import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
-import { ITaskService } from '../../../../../tasks/common/taskService.js';
+import { ITaskService, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
+import { Location } from '../../../../../../../editor/common/languages.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
@@ -21,6 +24,7 @@ export const GetTaskOutputToolData: IToolData = {
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
 	modelDescription: 'Get the output of a task',
 	source: ToolDataSource.Internal,
+	when: TasksAvailableContext,
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -52,6 +56,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatService private readonly _chatService: IChatService,
+		@IMarkerService private readonly _markerService: IMarkerService
 	) {
 		super();
 	}
@@ -83,8 +88,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			return { content: [{ kind: 'text', value: `Task not found: ${args.id}` }], toolResultMessage: new MarkdownString(localize('copilotChat.taskNotFound', 'Task not found: `{0}`', args.id)) };
 		}
 
-		const resolvedDependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
-		const resources = this._tasksService.getTerminalsForTasks(resolvedDependencyTasks ?? task);
+		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
+		const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
 		const taskLabel = task._label;
 		const terminals = resources?.map(resource => this._terminalService.instances.find(t => t.resource.path === resource?.path && t.resource.scheme === resource.scheme)).filter(t => !!t);
 		if (!terminals || terminals.length === 0) {
@@ -94,17 +99,32 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			terminals,
 			task,
 			this._languageModelsService,
+			this._markerService,
 			this._chatService,
 			invocation.context!,
 			_progress,
-			token
+			token,
+			undefined,
+			dependencyTasks
 		);
-		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`).join('\n\n');
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
+		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		return {
-			content: [{
-				kind: 'text',
-				value: `Output of task \`${taskLabel}\`: ${details}`
-			}]
+			content: [{ kind: 'text', value: uniqueDetails }],
+			toolResultMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskLabel)),
+			toolResultDetails: Array.from(new Map(
+				terminalResults
+					.flatMap(r =>
+						r.resources?.filter(res => res.uri).map(res => {
+							const range = res.range;
+							const item = range !== undefined ? { uri: res.uri, range } : res.uri;
+							const key = range !== undefined
+								? `${res.uri.toString()}-${range.toString()}`
+								: `${res.uri.toString()}`;
+							return [key, item] as [string, URI | Location];
+						}) ?? []
+					)
+			).values())
 		};
 	}
 }

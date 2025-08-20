@@ -85,6 +85,7 @@ suite('InlineChatController', function () {
 
 	const agentData = {
 		extensionId: nullExtensionDescription.identifier,
+		extensionVersion: undefined,
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		extensionPublisherId: '',

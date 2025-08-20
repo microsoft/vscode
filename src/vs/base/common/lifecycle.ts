@@ -824,12 +824,13 @@ export function thenIfNotDisposed<T>(promise: Promise<T>, then: (result: T) => v
  * disposable or register it to the {@link DisposableStore}, depending on whether the store is
  * disposed or not.
  */
-export function thenRegisterOrDispose<T extends IDisposable>(promise: Promise<T>, store: DisposableStore): void {
-	promise.then(ref => {
+export function thenRegisterOrDispose<T extends IDisposable>(promise: Promise<T>, store: DisposableStore): Promise<T> {
+	return promise.then(disposable => {
 		if (store.isDisposed) {
-			ref.dispose();
+			disposable.dispose();
 		} else {
-			store.add(ref);
+			store.add(disposable);
 		}
+		return disposable;
 	});
 }

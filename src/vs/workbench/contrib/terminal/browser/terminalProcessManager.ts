@@ -207,6 +207,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._process.shutdown(immediate);
 			this._process = null;
 		}
+		if (this._processListeners) {
+			dispose(this._processListeners);
+			this._processListeners = undefined;
+		}
 		super.dispose();
 	}
 

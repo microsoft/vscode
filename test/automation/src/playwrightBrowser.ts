@@ -57,6 +57,9 @@ async function launchServer(options: LaunchOptions) {
 	if (options.verbose) {
 		args.push('--log=trace');
 	}
+	if (options.allowDialogs) {
+		args.push('--allow-dialogs-while-driven');
+	}
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
@@ -111,7 +114,7 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	}
 
 	const page = await measureAndLog(() => context.newPage(), 'context.newPage()', logger);
-	await measureAndLog(() => page.setViewportSize({ width: 1200, height: 800 }), 'page.setViewportSize', logger);
+	await measureAndLog(() => page.setViewportSize({ width: 1440, height: 900 }), 'page.setViewportSize', logger);
 
 	if (options.verbose) {
 		context.on('page', () => logger.log(`Playwright (Browser): context.on('page')`));

@@ -120,6 +120,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get enableSmokeTestDriver(): boolean { return !!this.args['enable-smoke-test-driver']; }
 
 	@memoize
+	get allowDialogsWhileDriven(): boolean { return !!this.args['allow-dialogs-while-driven']; }
+
+	@memoize
 	get extensionEnabledProposedApi(): string[] | undefined {
 		if (Array.isArray(this.args['enable-proposed-api'])) {
 			return this.args['enable-proposed-api'];
@@ -146,15 +149,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }
-
-	@memoize
-	get startupExperimentGroup(): string | undefined {
-		const group = this.args['startup-experiment-group'];
-		if (typeof group === 'string') {
-			return group;
-		}
-		return undefined;
-	}
 
 	constructor(
 		private readonly configuration: INativeWindowConfiguration,

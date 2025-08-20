@@ -728,6 +728,7 @@ export class ChatEntitlementRequests extends Disposable {
 
 	private containsInternalOrgs(organizationLogins: string[]): boolean {
 		const internalOrgs = ['github', 'microsoft'];
+
 		return organizationLogins.some(org => internalOrgs.includes(org));
 	}
 
@@ -772,7 +773,7 @@ export class ChatEntitlementRequests extends Disposable {
 	private update(state: IEntitlements): void {
 		this.state = state;
 
-		this.context.update({ entitlement: this.state.entitlement, isInternal: this.state.isInternal });
+		this.context.update({ entitlement: this.state.entitlement, isInternal: !!this.state.isInternal });
 
 		if (state.quotas) {
 			this.chatQuotasAccessor.acceptQuotas(state.quotas);
@@ -933,6 +934,7 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 export class ChatEntitlementContext extends Disposable {
 
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY = 'chat.setupContext';
+	private static readonly CHAT_HIDDEN_CONFIGURATION_KEY = 'chat.hideAIFeatures';
 
 	private readonly canSignUpContextKey: IContextKey<boolean>;
 	private readonly signedOutContextKey: IContextKey<boolean>;
@@ -943,7 +945,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly businessContextKey: IContextKey<boolean>;
 	private readonly enterpriseContextKey: IContextKey<boolean>;
 
-	private readonly internalContextKey: IContextKey<boolean>;
+	private readonly isInternalContextKey: IContextKey<boolean>;
 
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly laterContext: IContextKey<boolean>;
@@ -953,7 +955,7 @@ export class ChatEntitlementContext extends Disposable {
 
 	private _state: IChatEntitlementContextState;
 	private suspendedState: IChatEntitlementContextState | undefined = undefined;
-	get state(): IChatEntitlementContextState { return this.suspendedState ?? this._state; }
+	get state(): IChatEntitlementContextState { return this.withConfiguration(this.suspendedState ?? this._state); }
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -966,6 +968,7 @@ export class ChatEntitlementContext extends Disposable {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -976,7 +979,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.proPlusContextKey = ChatContextKeys.Entitlement.proPlus.bindTo(contextKeyService);
 		this.businessContextKey = ChatContextKeys.Entitlement.business.bindTo(contextKeyService);
 		this.enterpriseContextKey = ChatContextKeys.Entitlement.enterprise.bindTo(contextKeyService);
-		this.internalContextKey = ChatContextKeys.Entitlement.internal.bindTo(contextKeyService);
+		this.isInternalContextKey = ChatContextKeys.Entitlement.internal.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.laterContext = ChatContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
@@ -987,6 +990,27 @@ export class ChatEntitlementContext extends Disposable {
 
 		this.checkExtensionInstallation();
 		this.updateContextSync();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY)) {
+				this.updateContext();
+			}
+		}));
+	}
+
+	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
+		if (
+			state.installed ||
+			this.configurationService.getValue(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY) !== true
+		) {
+			return state; // only applicable until extension is installed or when disabled via setting
+		}
+
+		return { ...state, hidden: true };
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
@@ -1025,10 +1049,9 @@ export class ChatEntitlementContext extends Disposable {
 	update(context: { installed: boolean; disabled: boolean; untrusted: boolean }): Promise<void>;
 	update(context: { hidden: boolean }): Promise<void>;
 	update(context: { later: boolean }): Promise<void>;
-	update(context: { entitlement: ChatEntitlement; isInternal?: boolean }): Promise<void>;
+	update(context: { entitlement: ChatEntitlement; isInternal: boolean }): Promise<void>;
 	update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: boolean; later?: boolean; entitlement?: ChatEntitlement; isInternal?: boolean }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
-		this.state.isInternal = !!context.isInternal;
 
 		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean' && typeof context.untrusted === 'boolean') {
 			this._state.installed = context.installed;
@@ -1050,6 +1073,7 @@ export class ChatEntitlementContext extends Disposable {
 
 		if (typeof context.entitlement === 'number') {
 			this._state.entitlement = context.entitlement;
+			this._state.isInternal = !!context.isInternal;
 
 			if (this._state.entitlement === ChatEntitlement.Free || isProUser(this._state.entitlement)) {
 				this._state.registered = true;
@@ -1073,21 +1097,23 @@ export class ChatEntitlementContext extends Disposable {
 	}
 
 	private updateContextSync(): void {
-		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(this._state)}`);
+		const state = this.withConfiguration(this._state);
 
-		this.signedOutContextKey.set(this._state.entitlement === ChatEntitlement.Unknown);
-		this.canSignUpContextKey.set(this._state.entitlement === ChatEntitlement.Available);
-		this.freeContextKey.set(this._state.entitlement === ChatEntitlement.Free);
-		this.proContextKey.set(this._state.entitlement === ChatEntitlement.Pro);
-		this.proPlusContextKey.set(this._state.entitlement === ChatEntitlement.ProPlus);
-		this.businessContextKey.set(this._state.entitlement === ChatEntitlement.Business);
-		this.enterpriseContextKey.set(this._state.entitlement === ChatEntitlement.Enterprise);
-		this.internalContextKey.set(this._state.isInternal);
-		this.hiddenContext.set(!!this._state.hidden);
-		this.laterContext.set(!!this._state.later);
-		this.installedContext.set(!!this._state.installed);
-		this.disabledContext.set(!!this._state.disabled);
-		this.untrustedContext.set(!!this._state.untrusted);
+		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
+
+		this.signedOutContextKey.set(state.entitlement === ChatEntitlement.Unknown);
+		this.canSignUpContextKey.set(state.entitlement === ChatEntitlement.Available);
+		this.freeContextKey.set(state.entitlement === ChatEntitlement.Free);
+		this.proContextKey.set(state.entitlement === ChatEntitlement.Pro);
+		this.proPlusContextKey.set(state.entitlement === ChatEntitlement.ProPlus);
+		this.businessContextKey.set(state.entitlement === ChatEntitlement.Business);
+		this.enterpriseContextKey.set(state.entitlement === ChatEntitlement.Enterprise);
+		this.isInternalContextKey.set(state.isInternal);
+		this.hiddenContext.set(!!state.hidden);
+		this.laterContext.set(!!state.later);
+		this.installedContext.set(!!state.installed);
+		this.disabledContext.set(!!state.disabled);
+		this.untrustedContext.set(!!state.untrusted);
 
 		this._onDidChange.fire();
 	}

@@ -14,6 +14,11 @@ import { IChatService } from '../../../chat/common/chatService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../chat/common/languageModelToolsService.js';
 import type { Terminal as RawXtermTerminal, IMarker as IXtermMarker } from '@xterm/xterm';
+import { Task } from '../../../tasks/common/taskService.js';
+import { IMarker, IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { ProblemMatcher, ProblemMatcherRegistry } from '../../../tasks/common/problemMatcher.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ILinkLocation } from './taskHelpers.js';
 
 export const enum PollingConsts {
 	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
@@ -31,10 +36,11 @@ export const enum PollingConsts {
 export async function racePollingOrPrompt(
 	pollFn: () => Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }>,
 	promptFn: () => { promise: Promise<boolean>; part?: Pick<ChatElicitationRequestPart, 'hide' | 'onDidRequestHide'> },
-	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string },
+	originalResult: { terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string },
 	token: CancellationToken,
 	languageModelsService: ILanguageModelsService,
-	execution: { getOutput: () => string; isActive?: () => Promise<boolean> }
+	markerService: IMarkerService,
+	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Task; beginsPattern?: string; endsPattern?: string; dependencyTasks?: Task[] }
 ): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
 	const pollPromise = pollFn();
 	const { promise: promptPromise, part } = promptFn();
@@ -52,7 +58,6 @@ export async function racePollingOrPrompt(
 		promptResolved = true;
 		return { type: 'prompt', result };
 	});
-
 	const raceResult = await Promise.race([
 		pollPromiseWrapped,
 		promptPromiseWrapped
@@ -63,7 +68,7 @@ export async function racePollingOrPrompt(
 		const promptResult = raceResult.result as boolean;
 		if (promptResult) {
 			// User accepted, poll again (extended)
-			return await pollForOutputAndIdle(execution, true, token, languageModelsService);
+			return await pollForOutputAndIdle(execution, true, token, languageModelsService, markerService);
 		} else {
 			return originalResult; // User rejected, return the original result
 		}
@@ -95,11 +100,13 @@ export function getOutput(terminal?: Pick<RawXtermTerminal, 'buffer'>, startMark
 }
 
 export async function pollForOutputAndIdle(
-	execution: { getOutput: () => string; isActive?: () => Promise<boolean> },
+	execution: { getOutput: () => string; isActive?: () => Promise<boolean>; task?: Pick<Task, 'configurationProperties'>; dependencyTasks?: Task[] },
 	extendedPolling: boolean,
 	token: CancellationToken,
-	languageModelsService: ILanguageModelsService,
-): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
+	languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
+	markerService: Pick<IMarkerService, 'read'>,
+	knownMatchers?: ProblemMatcher[]
+): Promise<{ terminalExecutionIdleBeforeTimeout: boolean; output: string; resources?: ILinkLocation[]; pollDurationMs?: number; modelOutputEvalResponse?: string }> {
 	const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 	const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 	let currentInterval = PollingConsts.MinPollingDuration;
@@ -149,10 +156,37 @@ export async function pollForOutputAndIdle(
 				lastBufferLength = currentBufferLength;
 				continue;
 			}
-			terminalExecutionIdleBeforeTimeout = true;
-			const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
-			return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 		}
+		terminalExecutionIdleBeforeTimeout = true;
+		let resources: ILinkLocation[] | undefined;
+		if (execution.task) {
+			const problems = getProblemsForTasks(execution.task, markerService, execution.dependencyTasks, knownMatchers);
+			if (problems) {
+				// Problem matchers exist for this task
+				const problemList: string[] = [];
+				for (const [, problemArray] of problems.entries()) {
+					resources = [];
+					if (problemArray.length) {
+						for (const p of problemArray) {
+							resources.push({ uri: p.resource, range: new Range(p.startLineNumber ?? 1, p.startColumn ?? 1, p.endLineNumber ?? (p.startLineNumber ?? 1), p.endColumn ?? (p.startColumn ?? 1)) });
+							const label = p.resource ? p.resource.path.split('/').pop() ?? p.resource.toString() : '';
+							problemList.push(`Problem: ${p.message} in ${label}`);
+						}
+					}
+				}
+				if (problemList.length === 0) {
+					return { terminalExecutionIdleBeforeTimeout, output: 'The task succeeded with no problems.', pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
+				}
+				return {
+					terminalExecutionIdleBeforeTimeout,
+					output: problemList.join('\n'),
+					resources,
+					pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0)
+				};
+			}
+		}
+		const modelOutputEvalResponse = await assessOutputForErrors(buffer, token, languageModelsService);
+		return { modelOutputEvalResponse, terminalExecutionIdleBeforeTimeout, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 	}
 	return { terminalExecutionIdleBeforeTimeout: false, output: buffer, pollDurationMs: Date.now() - pollStartTime + (extendedPolling ? PollingConsts.FirstPollingMaxDuration : 0) };
 }
@@ -168,7 +202,7 @@ export function promptForMorePolling(command: string, token: CancellationToken, 
 			let part: ChatElicitationRequestPart | undefined = undefined;
 			const promise = new Promise<boolean>(resolve => {
 				const thePart = part = new ChatElicitationRequestPart(
-					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting?")),
+					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for \`{0}\`?", command)),
 					new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
 					'',
 					localize('poll.terminal.accept', 'Yes'),
@@ -192,7 +226,7 @@ export function promptForMorePolling(command: string, token: CancellationToken, 
 	return { promise: Promise.resolve(false) };
 }
 
-export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: ILanguageModelsService): Promise<string> {
+export async function assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<string> {
 	const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 	if (!models.length) {
 		return 'No models available';
@@ -206,12 +240,12 @@ export async function assessOutputForErrors(buffer: string, token: CancellationT
 		for await (const part of response.stream) {
 			if (Array.isArray(part)) {
 				for (const p of part) {
-					if (p.part.type === 'text') {
-						responseText += p.part.value;
+					if (p.type === 'text') {
+						responseText += p.value;
 					}
 				}
-			} else if (part.part.type === 'text') {
-				responseText += part.part.value;
+			} else if (part.type === 'text') {
+				responseText += part.value;
 			}
 		}
 	})();
@@ -223,3 +257,37 @@ export async function assessOutputForErrors(buffer: string, token: CancellationT
 		return 'Error occurred ' + err;
 	}
 }
+
+export function getProblemsForTasks(task: Pick<Task, 'configurationProperties'>, markerService: Pick<IMarkerService, 'read'>, dependencyTasks?: Task[], knownMatchers?: ProblemMatcher[]): Map<string, IMarker[]> | undefined {
+	const problemsMap = new Map<string, IMarker[]>();
+	let hadDefinedMatcher = false;
+
+	const collectProblems = (t: Pick<Task, 'configurationProperties'>) => {
+		const matchers = Array.isArray(t.configurationProperties.problemMatchers)
+			? t.configurationProperties.problemMatchers
+			: (t.configurationProperties.problemMatchers ? [t.configurationProperties.problemMatchers] : []);
+		for (const matcherRef of matchers) {
+			const matcher = typeof matcherRef === 'string'
+				? ProblemMatcherRegistry.get(matcherRef) ?? knownMatchers?.find(m => m.owner === matcherRef)
+				: matcherRef;
+			if (matcher?.owner) {
+				const markers = markerService.read({ owner: matcher.owner });
+				hadDefinedMatcher = true;
+				if (markers.length) {
+					problemsMap.set(matcher.owner, markers);
+				}
+			}
+		}
+	};
+
+	collectProblems(task);
+
+	if (problemsMap.size === 0 && dependencyTasks) {
+		for (const depTask of dependencyTasks) {
+			collectProblems(depTask);
+		}
+	}
+
+	return hadDefinedMatcher ? problemsMap : undefined;
+}
+

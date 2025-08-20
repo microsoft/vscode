@@ -31,6 +31,7 @@ interface IMsalFlowTriggerOptions {
 	windowHandle?: Buffer;
 	logger: LogOutputChannel;
 	uriHandler: UriEventHandler;
+	claims?: string;
 }
 
 interface IMsalFlow {
@@ -46,7 +47,7 @@ class DefaultLoopbackFlow implements IMsalFlow {
 		supportsWebWorkerExtensionHost: false
 	};
 
-	async trigger({ cachedPca, authority, scopes, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying default msal flow...');
 		return await cachedPca.acquireTokenInteractive({
 			openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
@@ -56,7 +57,8 @@ class DefaultLoopbackFlow implements IMsalFlow {
 			errorTemplate: loopbackTemplate,
 			loginHint,
 			prompt: loginHint ? undefined : 'select_account',
-			windowHandle
+			windowHandle,
+			claims
 		});
 	}
 }
@@ -68,7 +70,7 @@ class UrlHandlerFlow implements IMsalFlow {
 		supportsWebWorkerExtensionHost: false
 	};
 
-	async trigger({ cachedPca, authority, scopes, loginHint, windowHandle, logger, uriHandler }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying protocol handler flow...');
 		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, redirectUri, logger);
 		return await cachedPca.acquireTokenInteractive({
@@ -78,7 +80,8 @@ class UrlHandlerFlow implements IMsalFlow {
 			loopbackClient,
 			loginHint,
 			prompt: loginHint ? undefined : 'select_account',
-			windowHandle
+			windowHandle,
+			claims
 		});
 	}
 }

@@ -181,6 +181,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _diffEditorPool: DiffEditorPool;
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
+	private _thinkingRenderStartTime: number = 0;
+	private _activeThinkingPart: ChatThinkingContentPart | undefined;
 
 	private _currentLayoutWidth: number = 0;
 	private _isVisible = true;
@@ -276,6 +278,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
 		this.viewModel = viewModel;
+		this._thinkingRenderStartTime = 0;
+		this._activeThinkingPart = undefined;
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -702,6 +706,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
+		if (element.isComplete) {
+			this.finalizeActiveThinking();
+		}
+
 		const content: IChatRendererContent[] = [];
 		const isFiltered = !!element.errorDetails?.responseIsFiltered;
 		if (!isFiltered) {
@@ -774,6 +782,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
+		this.finalizeActiveThinking();
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
 		if (element.id === this.viewModel?.editing?.id) {
 			this._onDidRerender.fire(templateData);
@@ -897,6 +906,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		if (element.isCanceled) {
 			this.traceLayout('doNextProgressiveRender', `canceled, index=${index}`);
+			this.finalizeActiveThinking();
 			element.renderData = undefined;
 			this.renderChatResponseBasic(element, index, templateData);
 			return true;
@@ -916,6 +926,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (element.isComplete) {
 				// All content is rendered, and response is done, so do a normal render
 				this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
+				this.finalizeActiveThinking();
 				element.renderData = undefined;
 				this.renderChatResponseBasic(element, index, templateData);
 				return true;
@@ -1037,9 +1048,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					for (const nextPart of renderableResponse.slice(i + 1)) {
 						if (nextPart.kind !== 'markdownContent') {
 							i++;
-							if (nextPart.kind === 'thinking' && !nextPart.value) {
-								continue;
-							}
 							partsToRender.push(nextPart);
 						} else {
 							break;
@@ -1058,8 +1066,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 					break;
 				}
-			} else if (part.kind === 'thinking' && !part.value) {
-				continue;
 			} else {
 				partsToRender.push(part);
 			}
@@ -1359,13 +1365,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderThinking(context: IChatContentPartRenderContext, thinking: IChatThinkingPart, templateData: IChatListItemTemplate): IChatContentPart {
+		this.finalizeActiveThinking();
+		this._thinkingRenderStartTime = Date.now();
+
 		const thinkingPart = templateData.instantiationService.createInstance(
 			ChatThinkingContentPart,
 			thinking,
 			context
 		);
 
-		thinkingPart.domNode.classList.add('chat-thinking-part');
+		thinkingPart.addDisposable(thinkingPart.onDidChangeHeight(() => {
+			this.updateItemHeight(templateData);
+		}));
+
+		this._activeThinkingPart = thinkingPart;
 
 		return thinkingPart;
 	}
@@ -1391,6 +1404,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
+		this.finalizeActiveThinking();
 		const element = context.element;
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = this.getCodeBlockStartIndex(context);
@@ -1480,6 +1494,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private hoverHidden(requestHover: HTMLElement) {
 		requestHover.style.opacity = '0';
+	}
+
+	private finalizeActiveThinking() {
+		if (this._activeThinkingPart && this._thinkingRenderStartTime) {
+			const duration = Date.now() - this._thinkingRenderStartTime;
+			this._activeThinkingPart.updateInProgressHeader(duration);
+		}
+		this._activeThinkingPart = undefined;
+		this._thinkingRenderStartTime = 0;
 	}
 }
 

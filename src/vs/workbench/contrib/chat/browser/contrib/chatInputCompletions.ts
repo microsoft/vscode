@@ -1128,9 +1128,12 @@ class ToolCompletions extends Disposable {
 				const suggestions: CompletionItem[] = [];
 
 
-				const iter = widget.input.selectedToolsModel.entries.get();
+				const iter = widget.input.selectedToolsModel.entriesMap.get();
 
-				for (const item of iter) {
+				for (const [item, enabled] of iter) {
+					if (!enabled) {
+						continue;
+					}
 
 					let detail: string | undefined;
 

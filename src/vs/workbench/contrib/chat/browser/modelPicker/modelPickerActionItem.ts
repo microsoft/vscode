@@ -38,8 +38,8 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 					checked: model.identifier === delegate.getCurrentModel()?.identifier,
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
-					description: model.metadata.cost,
-					tooltip: model.metadata.description ?? model.metadata.name,
+					description: model.metadata.detail,
+					tooltip: model.metadata.tooltip ?? model.metadata.name,
 					label: model.metadata.name,
 					run: () => {
 						delegate.setModel(model);

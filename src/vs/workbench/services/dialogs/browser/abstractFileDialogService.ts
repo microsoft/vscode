@@ -146,7 +146,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			return true; // integration tests
 		}
 
-		return !!this.environmentService.enableSmokeTestDriver; // smoke tests
+		return !this.environmentService.allowDialogsWhileDriven;
 	}
 
 	private async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
