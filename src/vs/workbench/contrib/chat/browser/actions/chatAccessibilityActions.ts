@@ -14,6 +14,7 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 
 export const ACTION_ID_FOCUS_CHAT_CONFIRMATION = 'workbench.action.chat.focusConfirmation';
 
@@ -29,7 +30,8 @@ class AnnounceChatConfirmationAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.KeyA,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-					ChatContextKeys.inChatSession
+					ChatContextKeys.inChatSession,
+					CONTEXT_ACCESSIBILITY_MODE_ENABLED
 				)
 			},
 			menu: [
