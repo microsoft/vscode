@@ -37,7 +37,7 @@ export class TaskProblemMonitor extends Disposable {
 				markerData.markers.clear();
 				markerData.resources.clear();
 
-				markers.forEach((marker) => {
+				for (const marker of markers) {
 					if (marker.severity === MarkerSeverity.Error) {
 						markerData.resources.set(marker.resource.toString(), marker.resource);
 						const markersForOwner = markerData.markers.get(marker.owner);
@@ -49,7 +49,7 @@ export class TaskProblemMonitor extends Disposable {
 						markerMap.set(marker.resource.toString(), marker);
 						this.terminalMarkerMap.set(terminal.instanceId, markerData);
 					}
-				});
+				}
 			}
 		}));
 		this._register(problemMatcher.onDidRequestInvalidateLastMarker(() => {
