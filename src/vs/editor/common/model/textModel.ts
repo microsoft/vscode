@@ -2088,14 +2088,14 @@ export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions
 				tokens.forEach((range, info) => {
 					tokensToInsert.push({
 						offset,
-						text: range.substring(injectionOptions![idx].content),
+						text: range.substring(injectionOptions[idx].content),
 						tokenMetadata: info.metadata,
 					});
 				});
 			} else {
 				tokensToInsert.push({
 					offset,
-					text: injectionOptions![idx].content,
+					text: injectionOptions[idx].content,
 					tokenMetadata: LineTokens.defaultTokenMetadata,
 				});
 			}

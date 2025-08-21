@@ -9,7 +9,7 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { ITextModel } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
 import { ViewModelDecoration } from './viewModelDecoration.js';
-import { IDecorationsViewportData, IInlineDecorationsComputerContext, InlineDecorationsComputer } from './inlineDecorations.js';
+import { IDecorationsViewportData, IInlineModelDecorationsComputerContext, InlineModelDecorationsComputer } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
 import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
 
@@ -19,7 +19,7 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly configuration: IEditorConfiguration;
 	private readonly _linesCollection: IViewModelLines;
 
-	private readonly _inlineDecorationsComputer: InlineDecorationsComputer;
+	private readonly _inlineDecorationsComputer: InlineModelDecorationsComputer;
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
@@ -28,10 +28,10 @@ export class ViewModelDecorations implements IDisposable {
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this._linesCollection = linesCollection;
-		const context: IInlineDecorationsComputerContext = {
+		const context: IInlineModelDecorationsComputerContext = {
 			getModelDecorations: (range: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean) => this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations)
 		};
-		this._inlineDecorationsComputer = new InlineDecorationsComputer(context, model, coordinatesConverter);
+		this._inlineDecorationsComputer = new InlineModelDecorationsComputer(context, model, coordinatesConverter);
 		this._cachedModelDecorationsResolver = null;
 		this._cachedModelDecorationsResolverViewRange = null;
 	}

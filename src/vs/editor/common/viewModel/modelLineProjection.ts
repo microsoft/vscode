@@ -172,7 +172,7 @@ class ModelLineProjection implements IModelLineProjection {
 			getWrappedTextIndentLength: () => lineBreakData.wrappedTextIndentLength
 		};
 		const computer = new InjectedTextInlineDecorationsComputer(context);
-		const lineInlineDecorations = computer.getInlineDecorations(modelLineNumber)?.decorations;
+		const lineInlineDecorations = computer.getInlineDecorations(modelLineNumber);
 		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
 		const lineWithInjections = getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 

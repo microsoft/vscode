@@ -6,10 +6,8 @@
 import { IModelDecoration, InjectedTextOptions, ITextModel, PositionAffinity } from '../model.js';
 import { Range } from '../core/range.js';
 import { Position } from '../core/position.js';
-import { filterFontDecorations, filterValidationDecorations, IComputedEditorOptions } from '../config/editorOptions.js';
-import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
+import { ICoordinatesConverter } from '../coordinatesConverter.js';
 import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
-import { LineInjectedText } from '../textModelEvents.js';
 
 export const enum InlineDecorationType {
 	Regular = 0,
@@ -26,61 +24,51 @@ export class InlineDecoration {
 	) { }
 }
 
-class InlineDecorations {
-
-	constructor(
-		public readonly decorations: InlineDecoration[][],
-		public readonly hasVariableFonts: boolean
-	) { }
-
-	merge(other: InlineDecorations | null): InlineDecorations {
-		if (!other) {
-			return this;
-		}
-		const decorations = [...this.decorations, ...other.decorations];
-		const hasVariableFonts = this.hasVariableFonts || other.hasVariableFonts;
-		return new InlineDecorations(decorations, hasVariableFonts);
-	}
-}
-
 export interface IDecorationsViewportData {
 	/**
-	 * decorations in the viewport.
+	 * Decorations in the viewport
 	 */
 	readonly decorations: ViewModelDecoration[];
 	/**
-	 * inline decorations grouped by each line in the viewport.
+	 * Inline decorations grouped by each line in the range
 	 */
 	readonly inlineDecorations: InlineDecoration[][];
 	/**
-	 * Whether the decorations affects the fonts.
+	 * Whether the decorations affect the font
 	 */
 	readonly hasVariableFonts: boolean;
 }
 
-export interface IInlineDecorationsComputerContext {
+export interface IInlineDecorationsComputer {
 	/**
-	 * Get the model decorations from which to calculate the inline decorations
+	 * Method to get the inline decorations for a specific line number
+	 */
+	getInlineDecorations(lineNumber: number): InlineDecoration[][] | null;
+}
+
+export interface IInlineModelDecorationsComputerContext {
+	/**
+	 * get the model decorations from which to calculate the inline decorations
 	 */
 	getModelDecorations(range: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[];
 }
 
-export class InlineDecorationsComputer {
+export class InlineModelDecorationsComputer implements IInlineDecorationsComputer {
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
 
 	constructor(
-		private readonly context: IInlineDecorationsComputerContext,
+		private readonly context: IInlineModelDecorationsComputerContext,
 		private readonly model: ITextModel,
 		private readonly coordinatesConverter: ICoordinatesConverter
 	) {
 		this._decorationsCache = Object.create(null);
 	}
 
-	public getInlineDecorations(lineNumber: number): InlineDecorations {
+	public getInlineDecorations(lineNumber: number): InlineDecoration[][] {
 		const modelRange = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
 		const decorationData = this.getDecorations(modelRange, false, false);
-		return new InlineDecorations(decorationData.inlineDecorations, decorationData.hasVariableFonts);
+		return decorationData.inlineDecorations;
 	}
 
 	public getDecorations(range: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
@@ -185,28 +173,28 @@ export class InlineDecorationsComputer {
 
 export interface IInjectedTextInlineDecorationsComputerContext {
 	/**
-	 * Get the injections options for a model line number
+	 * Get the injections options for a line number
 	 */
 	getInjectionOptions(lineNumber: number): InjectedTextOptions[] | null;
 	/**
-	 * Get the injection offsets for a model line number
+	 * Get the injection offsets for a line number
 	 */
 	getInjectionOffsets(lineNumber: number): number[] | null;
 	/**
-	 * Get the break offets for a model line number
+	 * Get the break offets for a line number
 	 */
 	getBreakOffsets(lineNumber: number): number[] | null;
 	/**
-	 * Get the wrapped text indent length for a model line number
+	 * Get the wrapped text indent length for a line number
 	 */
 	getWrappedTextIndentLength(lineNumber: number): number | null;
 }
 
-export class InjectedTextInlineDecorationsComputer {
+export class InjectedTextInlineDecorationsComputer implements IInlineDecorationsComputer {
 
 	constructor(private readonly context: IInjectedTextInlineDecorationsComputerContext) { }
 
-	public getInlineDecorations(lineNumber: number): InlineDecorations | null {
+	public getInlineDecorations(lineNumber: number): InlineDecoration[][] | null {
 		const injectionOffsets = this.context.getInjectionOffsets(lineNumber);
 		if (!injectionOffsets) {
 			return null;
@@ -260,62 +248,6 @@ export class InjectedTextInlineDecorationsComputer {
 				}
 			}
 		}
-		return new InlineDecorations(lineInlineDecorations, false);
-	}
-}
-
-export class IdentityInlineDecorationsComputer {
-
-	private readonly _inlineDecorationsComputer: InlineDecorationsComputer;
-	private readonly _injectedTextInlineDecorationsComputer: InjectedTextInlineDecorationsComputer;
-
-	private readonly _decorationData: Map<number, InlineDecorations> = new Map();
-	private readonly _injectedTextData: Map<number, LineInjectedText[]> = new Map();
-
-	constructor(
-		private readonly editorId: number,
-		private readonly model: ITextModel,
-		private readonly options: IComputedEditorOptions
-	) {
-		const coordinatesConverter = new IdentityCoordinatesConverter(this.model);
-		const context: IInlineDecorationsComputerContext = {
-			getModelDecorations: (range: Range) => this.model.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.options), filterFontDecorations(this.options), false, false),
-		};
-		const injectedContext: IInjectedTextInlineDecorationsComputerContext = {
-			getInjectionOptions: (lineNumber: number) => this._getLineInjectedText(lineNumber).map(t => t.options),
-			getInjectionOffsets: (lineNumber: number) => this._getLineInjectedText(lineNumber).map(text => text.column - 1),
-			getBreakOffsets: () => null,
-			getWrappedTextIndentLength: () => null
-		};
-		this._inlineDecorationsComputer = new InlineDecorationsComputer(context, this.model, coordinatesConverter);
-		this._injectedTextInlineDecorationsComputer = new InjectedTextInlineDecorationsComputer(injectedContext);
-	}
-
-	public getLineInlineDecorations(lineNumber: number): InlineDecoration[] {
-		return this._getDecorations(lineNumber).decorations[0];
-	}
-
-	public hasVariableFonts(lineNumber: number): boolean {
-		return this._getDecorations(lineNumber).hasVariableFonts;
-	}
-
-	private _getDecorations(lineNumber: number): InlineDecorations {
-		if (this._decorationData.has(lineNumber)) {
-			return this._decorationData.get(lineNumber)!;
-		}
-		const inlineDecorations = this._inlineDecorationsComputer.getInlineDecorations(lineNumber);
-		const injectedTextInlineDecorations = this._injectedTextInlineDecorationsComputer.getInlineDecorations(lineNumber);
-		const mergedInlineDecorations = inlineDecorations.merge(injectedTextInlineDecorations);
-		this._decorationData.set(lineNumber, mergedInlineDecorations);
-		return mergedInlineDecorations;
-	}
-
-	private _getLineInjectedText(lineNumber: number): LineInjectedText[] {
-		if (this._injectedTextData.has(lineNumber)) {
-			return this._injectedTextData.get(lineNumber)!;
-		}
-		const injectedText = this.model.getLineInjectedText(lineNumber);
-		this._injectedTextData.set(lineNumber, injectedText);
-		return injectedText;
+		return lineInlineDecorations;
 	}
 }
