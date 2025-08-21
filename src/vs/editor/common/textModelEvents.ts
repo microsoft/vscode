@@ -420,12 +420,12 @@ export class ModelRawContentChangedEvent {
 
 	public resultingSelection: Selection[] | null;
 
-	constructor(changes: ModelRawChange[], versionId: number, isUndoing: boolean, isRedoing: boolean) {
+	constructor(changes: ModelRawChange[], versionId: number, isUndoing: boolean, isRedoing: boolean, resultingSelection: Selection[] | null) {
 		this.changes = changes;
 		this.versionId = versionId;
 		this.isUndoing = isUndoing;
 		this.isRedoing = isRedoing;
-		this.resultingSelection = null;
+		this.resultingSelection = resultingSelection;
 	}
 
 	public containsEvent(type: RawContentChangedType): boolean {
@@ -443,7 +443,8 @@ export class ModelRawContentChangedEvent {
 		const versionId = b.versionId;
 		const isUndoing = (a.isUndoing || b.isUndoing);
 		const isRedoing = (a.isRedoing || b.isRedoing);
-		return new ModelRawContentChangedEvent(changes, versionId, isUndoing, isRedoing);
+		const selections = [...(a.resultingSelection ?? []), ...(b.resultingSelection ?? [])];
+		return new ModelRawContentChangedEvent(changes, versionId, isUndoing, isRedoing, selections);
 	}
 }
 
