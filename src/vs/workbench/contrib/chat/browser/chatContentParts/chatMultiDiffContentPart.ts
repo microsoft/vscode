@@ -131,9 +131,9 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			actionBar.clear();
 
 			const activeEditorUri = this.editorService.activeEditor?.resource;
-			let marshalledSession: any | undefined = undefined;
+			let marshalledUri: any | undefined = undefined;
 			if (activeEditorUri) {
-				marshalledSession = {
+				marshalledUri = {
 					...activeEditorUri,
 					$mid: MarshalledId.Uri
 				};
@@ -142,7 +142,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			const actions = this.menuService.getMenuActions(
 				MenuId.ChatMultiDiffContext,
 				this.contextKeyService,
-				{ arg: marshalledSession, shouldForwardArgs: true }
+				{ arg: marshalledUri, shouldForwardArgs: true }
 			);
 			const allActions = actions.flatMap(([, actions]) => actions);
 			if (allActions.length > 0) {
