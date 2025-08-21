@@ -6,6 +6,7 @@
 import '../../platform/update/common/update.config.contribution.js';
 
 import { app, dialog } from 'electron';
+import { homedir } from 'os';
 import { unlinkSync, promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
@@ -16,9 +17,9 @@ import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanit
 import { Event } from '../../base/common/event.js';
 import { getPathLabel } from '../../base/common/labels.js';
 import { Schemas } from '../../base/common/network.js';
-import { basename, resolve } from '../../base/common/path.js';
+import { basename, resolve, isAbsolute, join } from '../../base/common/path.js';
 import { mark } from '../../base/common/performance.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh, isLinux, isWindows, OS } from '../../base/common/platform.js';
 import { cwd } from '../../base/common/process.js';
 import { rtrim, trim } from '../../base/common/strings.js';
 import { Promises as FSPromises } from '../../base/node/pfs.js';
@@ -63,6 +64,7 @@ import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../..
 import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
 import { FilePolicyService } from '../../platform/policy/common/filePolicyService.js';
+import { LinuxPolicyService } from '../../platform/policy/node/linuxPolicyService.js';
 import { DisposableStore } from '../../base/common/lifecycle.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
@@ -204,6 +206,10 @@ class CodeMain {
 			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
 		} else if (isMacintosh && productService.darwinBundleIdentifier) {
 			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		} else if (isLinux) {
+			// Use Linux-specific policy service that follows XDG Base Directory specification
+			const xdgConfigHome = process.env['XDG_CONFIG_HOME'] || join(homedir(), '.config');
+			policyService = disposables.add(new LinuxPolicyService(fileService, logService, xdgConfigHome, productService.dataFolderName));
 		} else if (environmentMainService.policyFile) {
 			policyService = disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService));
 		} else {
