@@ -321,7 +321,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!model) {
 			return Promise.resolve(undefined);
 		}
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: model });
+		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model });
 		if (!models.length) {
 			return Promise.resolve(undefined);
 		}
