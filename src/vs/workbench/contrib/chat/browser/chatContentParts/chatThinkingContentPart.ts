@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode } from '../../../../../base/browser/dom.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
@@ -16,9 +15,6 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 	readonly domNode: HTMLElement;
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private currentThinkingValue: string;
 	private readonly renderer: MarkdownRenderer;

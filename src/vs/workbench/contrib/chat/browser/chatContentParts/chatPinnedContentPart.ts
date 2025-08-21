@@ -18,7 +18,7 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		private content: HTMLElement | undefined,
 		context: IChatContentPartRenderContext,
 	) {
-		super(nls.localize('chat.pinned.thinking.header.base', "Thinking"), context);
+		super(nls.localize('chat.pinned.thinking.header.base', "Thinking..."), context);
 		this.setExpanded(true);
 		this.domNode.classList.add('chat-thinking-box');
 		this.domNode.tabIndex = 0;
@@ -49,7 +49,7 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		wrapper.setAttribute('role', 'listitem');
 		wrapper.appendChild(node);
 		this.body.appendChild(wrapper);
-		this.refreshTitle();
+		// this.refreshTitle();
 	}
 
 	private refreshTitle(elapsedTime?: number) {
@@ -58,7 +58,7 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		if (elapsedText) {
 			title = nls.localize('chat.pinned.thinking.header.count.time', "Thought for {0}", elapsedText);
 		} else {
-			title = nls.localize('chat.pinned.thinking.header.count', "Thinking...");
+			title = nls.localize('chat.pinned.thinking.header.count', "Though for a few seconds...");
 		}
 		this.setTitle(title);
 	}
@@ -67,7 +67,6 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 	public startTimer(): void {
 		this.clearTimer();
 		this.timerStartTime = Date.now();
-		this.refreshTitle();
 	}
 
 	public stopTimerAndFinalize(): void {
