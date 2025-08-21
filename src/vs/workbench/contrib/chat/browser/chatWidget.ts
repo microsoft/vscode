@@ -1491,7 +1491,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
 		if (this._lockedToCodingAgent) {
-			const placeholder = localize('chat.input.placeholder.lockedToAgent', "Follow up with {0}", this._lockedToCodingAgent);
+			const placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedToCodingAgent);
 			this.viewModel.setInputPlaceholder(placeholder);
 			this.inputEditor.updateOptions({ placeholder });
 		} else if (this.viewModel.inputPlaceholder) {
