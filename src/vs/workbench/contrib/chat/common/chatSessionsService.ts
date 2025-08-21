@@ -83,6 +83,7 @@ export interface IChatSessionsService {
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
 	readonly onDidChangeSessionItems: Event<string>;
 	readonly onDidChangeAvailability: Event<void>;
+	readonly onDidChangeInProgress: Event<void>;
 
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
@@ -94,6 +95,8 @@ export interface IChatSessionsService {
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
+	reportInProgress(chatSessionType: string, count: number): void;
+	getInProgress(): { displayName: string; count: number }[];
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;

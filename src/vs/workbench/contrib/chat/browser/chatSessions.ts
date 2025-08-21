@@ -574,6 +574,7 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly chatService: IChatService,
+		private readonly chatSessionService: IChatSessionsService,
 	) { }
 
 	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): boolean {
@@ -595,6 +596,8 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 		if (element === this.provider) {
 			try {
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
+				const inProgress = items.filter(item => item.status === ChatSessionStatus.InProgress);
+				this.chatSessionService.reportInProgress(this.provider.chatSessionType, inProgress.length);
 				return items.map(item => ({ ...item, provider: this.provider }));
 			} catch (error) {
 				return [];
@@ -1048,6 +1051,7 @@ class SessionsViewPane extends ViewPane {
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1166,7 +1170,7 @@ class SessionsViewPane extends ViewPane {
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
 		// Create the tree components
-		const dataSource = new SessionsDataSource(this.provider, this.chatService);
+		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.chatSessionService);
 		const delegate = new SessionsDelegate();
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
