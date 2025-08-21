@@ -318,7 +318,24 @@ export function isDescendant(parent: string, descendant: string): boolean {
 }
 
 export function pathEquals(a: string, b: string): boolean {
+	// Remove trailing slashes before comparison to handle cases where
+	// git.ignoredRepositories contains paths with trailing slashes
+	a = removeTrailingPathSeparators(a);
+	b = removeTrailingPathSeparators(b);
 	return normalizePath(a) === normalizePath(b);
+}
+
+function removeTrailingPathSeparators(path: string): string {
+	if (!path || path.length <= 1) {
+		return path;
+	}
+	
+	// Remove trailing forward slashes and backslashes
+	while (path.length > 1 && (path.endsWith('/') || path.endsWith('\\'))) {
+		path = path.slice(0, -1);
+	}
+	
+	return path;
 }
 
 /**
