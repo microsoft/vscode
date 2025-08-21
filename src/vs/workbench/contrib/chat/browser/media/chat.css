@@ -334,22 +334,25 @@
 }
 
 .interactive-item-container .value .rendered-markdown h1 {
-	font-size: 20px;
+	font-size: calc(var(--vscode-chat-font-size, 13px) * 1.54); /* 20px when base is 13px */
 	font-weight: 600;
 	margin: 16px 0 8px 0;
+	font-family: var(--vscode-chat-font-family, inherit);
 
 }
 
 .interactive-item-container .value .rendered-markdown h2 {
-	font-size: 16px;
+	font-size: calc(var(--vscode-chat-font-size, 13px) * 1.23); /* 16px when base is 13px */
 	font-weight: 600;
 	margin: 16px 0 8px 0;
+	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container .value .rendered-markdown h3 {
-	font-size: 14px;
+	font-size: calc(var(--vscode-chat-font-size, 13px) * 1.08); /* 14px when base is 13px */
 	font-weight: 600;
 	margin: 16px 0 8px 0;
+	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container.editing-session .value .rendered-markdown p:has(+ [data-code] > .chat-codeblock-pill-widget) {
@@ -357,7 +360,7 @@
 }
 
 .interactive-item-container.editing-session .value .rendered-markdown h3 {
-	font-size: 13px;
+	font-size: var(--vscode-chat-font-size, 13px);
 	margin: 0 0 8px 0;
 	font-weight: unset;
 }
@@ -414,7 +417,10 @@
 }
 
 .interactive-item-container .value .rendered-markdown {
+	letter-spacing: 0.01em;
 	line-height: 1.5em;
+	font-size: var(--vscode-chat-font-size, 13px);
+	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container .value > .rendered-markdown p {
@@ -568,7 +574,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.monaco-tokenized-source,
 	code {
 		font-family: var(--monaco-monospace-font);
-		font-size: 12px;
+		font-size: calc(var(--vscode-chat-font-size, 13px) * 0.92); /* 12px when base is 13px */
 		color: var(--vscode-textPreformat-foreground);
 		background-color: var(--vscode-textPreformat-background);
 		padding: 1px 3px;

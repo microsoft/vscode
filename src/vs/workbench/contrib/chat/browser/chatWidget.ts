@@ -32,7 +32,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -587,6 +587,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(scrollDownButton.onDidClick(() => {
 			this.scrollLock = true;
 			this.scrollToEnd();
+		}));
+
+		const chatFontSize = observableConfigValue<number>('chat.fontSize', 16, this.configurationService);
+		const chatFontFamily = observableConfigValue<string>('chat.fontFamily', 'default', this.configurationService);
+
+		this._register(autorun(r => {
+			const fontSize = chatFontSize.read(r);
+			const fontFamily = chatFontFamily.read(r);
+
+			this.container.style.setProperty('--vscode-chat-font-family', fontFamily === 'default' ? null : fontFamily);
+			this.container.style.setProperty('--vscode-chat-font-size', `${fontSize}px`);
 		}));
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
