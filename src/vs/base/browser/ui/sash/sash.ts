@@ -296,23 +296,23 @@ export class Sash extends Disposable {
 	/**
 	 * An event which fires whenever the user starts dragging this sash.
 	 */
-	readonly onDidStart: Event<ISashEvent> = this._onDidStart.event;
+	get onDidStart() { return this._onDidStart.event; }
 
 	/**
 	 * An event which fires whenever the user moves the mouse while
 	 * dragging this sash.
 	 */
-	readonly onDidChange: Event<ISashEvent> = this._onDidChange.event;
+	get onDidChange() { return this._onDidChange.event; }
 
 	/**
 	 * An event which fires whenever the user double clicks this sash.
 	 */
-	readonly onDidReset: Event<void> = this._onDidReset.event;
+	get onDidReset() { return this._onDidReset.event; }
 
 	/**
 	 * An event which fires whenever the user stops dragging this sash.
 	 */
-	readonly onDidEnd: Event<void> = this._onDidEnd.event;
+	get onDidEnd() { return this._onDidEnd.event; }
 
 	/**
 	 * A linked sash will be forwarded the same user interactions and events
