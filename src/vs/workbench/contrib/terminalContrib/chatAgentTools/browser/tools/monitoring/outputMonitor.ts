@@ -38,10 +38,10 @@ export interface IOutputMonitor extends Disposable {
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _isIdle = false;
+	get isIdle(): boolean { return this._isIdle; }
+
 	private _state: OutputMonitorState = OutputMonitorState.Initial;
-	get state(): OutputMonitorState {
-		return this._state;
-	}
+	get state(): OutputMonitorState { return this._state; }
 
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
@@ -49,10 +49,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	readonly onDidIdle = this._onDidIdle.event;
 	private readonly _onDidTimeout = this._register(new Emitter<void>());
 	readonly onDidTimeout = this._onDidTimeout.event;
-
-	get isIdle(): boolean {
-		return this._isIdle;
-	}
 
 	constructor(
 		private readonly _execution: IExecution,
