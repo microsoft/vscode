@@ -287,16 +287,20 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			Now, analyze this output:
 			${lastFiveLines}
 			`;
-		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
-		], {}, token);
-
-		const responseText = await getTextResponseFromStream(response);
+		let response;
+		try {
+			response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
+				{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
+			], {}, token);
+		} catch (error) {
+			console.log(error);
+		}
+		const responseText = await getTextResponseFromStream(response!);
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
 			if (match) {
 				const obj = JSON.parse(match[0]);
-				if (obj && typeof obj.prompt === 'string' && Array.isArray(obj.options)) {
+				if (obj && obj satisfies IConfirmationPrompt) {
 					return obj;
 				}
 			}
