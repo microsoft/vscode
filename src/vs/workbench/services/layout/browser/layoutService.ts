@@ -15,6 +15,7 @@ import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCus
 import { isFullscreen, isWCOEnabled } from '../../../../base/browser/browser.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { CustomErdosLayoutDescription } from '../../erdosLayout/common/erdosCustomViews.js';
 
 export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IWorkbenchLayoutService>(ILayoutService);
 
@@ -353,6 +354,8 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns the next visible view part in a given direction in the main window.
 	 */
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
+
+	enterCustomLayout(layout: CustomErdosLayoutDescription): void;
 }
 
 export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {

@@ -14,6 +14,7 @@ import { PanelPart } from './parts/panel/panelPart.js';
 import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
+import { CustomErdosLayoutDescription } from '../services/erdosLayout/common/erdosCustomViews.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
@@ -2636,6 +2637,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		super.dispose();
 
 		this.disposed = true;
+	}
+
+	enterCustomLayout(layout: CustomErdosLayoutDescription): void {
 	}
 }
 

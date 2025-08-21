@@ -16,6 +16,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { CustomErdosLayoutDescription } from '../../erdosLayout/common/erdosCustomViews.js';
 import { getViewsStateStorageId, ViewContainerModel } from '../common/viewContainerModel.js';
 import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -951,6 +952,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this.defaultViewContainerLocationContextKeys.set(defaultViewContainerLocationContextKeyId, contextKey);
 		}
 		return contextKey;
+	}
+
+	loadCustomViewDescriptor(customViewDescriptor: CustomErdosLayoutDescription): void {
 	}
 }
 
