@@ -110,7 +110,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	/**
 	 * The remote authority to use when windows are opened with either
 	 * - no workspace (empty window)
-	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 * - a workspace that is neither `file://` nor `erdos-remote://`
 	 */
 	readonly remoteAuthority?: string;
 	readonly forceProfile?: string;
@@ -150,11 +150,11 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			zoomFactor: zoomLevelToZoomFactor(windowState.zoomLevel ?? windowSettings?.zoomLevel),
 			autoplayPolicy: 'user-gesture-required',
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
-			// Refs https://github.com/microsoft/vscode/issues/140098
+			// Refs https://github.com/willnickols/erdos/issues/140098
 			enableBlinkFeatures: 'HighlightAPI',
 			sandbox: true,
 			// TODO(deepak1556): Should be removed once migration is complete
-			// https://github.com/microsoft/vscode/issues/239228
+			// https://github.com/willnickols/erdos/issues/239228
 			enableDeprecatedPaste: true,
 		},
 		experimentalDarkMode: true
@@ -356,7 +356,7 @@ export namespace WindowStateValidator {
 			logService.trace('window#validateWindowState: multi-monitor working area', displayWorkingArea);
 		} catch (error) {
 			// Electron has weird conditions under which it throws errors
-			// e.g. https://github.com/microsoft/vscode/issues/100334 when
+			// e.g. https://github.com/willnickols/erdos/issues/100334 when
 			// large numbers are passed in
 			logService.error('window#validateWindowState: error finding display for window state', error);
 		}
@@ -394,7 +394,7 @@ export namespace WindowStateValidator {
 	function getWorkingArea(display: electron.Display): electron.Rectangle | undefined {
 
 		// Prefer the working area of the display to account for taskbars on the
-		// desktop being positioned somewhere (https://github.com/microsoft/vscode/issues/50830).
+		// desktop being positioned somewhere (https://github.com/willnickols/erdos/issues/50830).
 		//
 		// Linux X11 sessions sometimes report wrong display bounds, so we validate
 		// the reported sizes are positive.

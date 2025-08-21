@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	// @alexr00 https://github.com/microsoft/vscode/issues/204484
+	// @alexr00 https://github.com/willnickols/erdos/issues/204484
 
 	export interface CommentController {
 		/**

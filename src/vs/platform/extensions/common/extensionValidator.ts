@@ -372,9 +372,9 @@ export function areApiProposalsCompatible(apiProposals: string[], arg1?: any): b
 	if (incompatibleProposals.length) {
 		if (notices) {
 			if (incompatibleProposals.length === 1) {
-				notices.push(nls.localize('apiProposalMismatch1', "This extension is using the API proposal '{0}' that is not compatible with the current version of VS Code.", incompatibleProposals[0]));
+				notices.push(nls.localize('apiProposalMismatch1', "This extension is using the API proposal '{0}' that is not compatible with the current version of Erdos.", incompatibleProposals[0]));
 			} else {
-				notices.push(nls.localize('apiProposalMismatch2', "This extension is using the API proposals {0} and '{1}' that are not compatible with the current version of VS Code.",
+				notices.push(nls.localize('apiProposalMismatch2', "This extension is using the API proposals {0} and '{1}' that are not compatible with the current version of Erdos.",
 					incompatibleProposals.slice(0, incompatibleProposals.length - 1).map(p => `'${p}'`).join(', '),
 					incompatibleProposals[incompatibleProposals.length - 1]));
 			}

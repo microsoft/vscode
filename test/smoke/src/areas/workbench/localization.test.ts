@@ -20,14 +20,14 @@ export function setup(logger: Logger) {
 		it('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
+			await app.workbench.extensions.installExtension('ms-ceintl.erdos-language-pack-de', false);
 			await app.restart({ extraArgs: ['--locale=DE'] });
 
 			const result = await app.workbench.localization.getLocalizedStrings();
 			const localeInfo = await app.workbench.localization.getLocaleInfo();
 
 			if (localeInfo.locale === undefined || localeInfo.locale.toLowerCase() !== 'de') {
-				throw new Error(`The requested locale for VS Code was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
+				throw new Error(`The requested locale for Erdos was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
 			}
 
 			if (localeInfo.language.toLowerCase() !== 'de') {

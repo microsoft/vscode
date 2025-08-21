@@ -47,7 +47,7 @@
 		".build": true,
 		".profile-oss": true,
 		"**/.DS_Store": true,
-		".vscode-test": true,
+		".erdos-test": true,
 		"cli/target": true,
 		"build/**/*.js.map": true,
 		"build/**/*.js": {
@@ -67,7 +67,7 @@
 		"out/**": true,
 		"out-build/**": true,
 		"out-vscode/**": true,
-		"out-vscode-reh/**": true,
+		"out-erdos-reh/**": true,
 		"extensions/**/dist/**": true,
 		"extensions/**/out/**": true,
 		"extensions/terminal-suggest/src/completions/upstream/**": true,
@@ -113,7 +113,7 @@
 		"@xterm/xterm",
 		"@xterm/headless",
 		"node-pty",
-		"vscode-notebook-renderer",
+		"erdos-notebook-renderer",
 		"src/vs/workbench/workbench.web.main.internal.ts"
 	],
 

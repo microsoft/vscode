@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IHTMLDataProvider, newHTMLDataProvider } from 'vscode-html-languageservice';
+import { IHTMLDataProvider, newHTMLDataProvider } from 'erdos-html-languageservice';
 import { CustomDataRequestService } from './htmlServer';
 
 export function fetchHTMLDataProviders(dataPaths: string[], requestService: CustomDataRequestService): Promise<IHTMLDataProvider[]> {

@@ -112,7 +112,7 @@
 		}
 	},
 	{
-		"c": "broken highlighting in VS Code",
+		"c": "broken highlighting in Erdos",
 		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less string.quoted.double.less",
 		"r": {
 			"dark_plus": "string: #CE9178",

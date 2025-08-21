@@ -77,7 +77,7 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 
 		assertFn(() => {
 			/*
-			// This does not hold (see https://github.com/microsoft/vscode-copilot/issues/10610)
+			// This does not hold (see https://github.com/willnickols/erdos-copilot/issues/10610)
 			// TODO@hediet the diff algorithm should just use compute a string edit that transforms the input to the output, nothing else
 
 			for (const c of changes) {

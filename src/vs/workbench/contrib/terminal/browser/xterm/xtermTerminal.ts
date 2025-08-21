@@ -938,7 +938,7 @@ interface ICursorStyleVscodeToXtermMap {
 	'cursorStyleInactive': NonNullable<ITerminalOptions['cursorInactiveStyle']>;
 }
 function vscodeToXtermCursorStyle<T extends 'cursorStyle' | 'cursorStyleInactive'>(style: ITerminalConfiguration[T]): ICursorStyleVscodeToXtermMap[T] {
-	// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
+	// 'line' is used instead of bar in Erdos to be consistent with editor.cursorStyle
 	if (style === 'line') {
 		return 'bar';
 	}

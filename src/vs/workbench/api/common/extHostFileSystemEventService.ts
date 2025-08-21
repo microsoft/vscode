@@ -68,7 +68,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		// we start to ignore events outside the workspace when only a string
 		// pattern is provided to avoid sending events to extensions that are
 		// unexpected.
-		// https://github.com/microsoft/vscode/issues/3025
+		// https://github.com/willnickols/erdos/issues/3025
 		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
 
 		// 1.84.x introduces new proposed API for a watcher to set exclude
@@ -186,7 +186,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			// such as `bar` for a exclude, will work to exclude any of
 			// `<workspace path>/bar` but will not work as include for files within
 			// `bar` unless a suffix of `/**` if added.
-			// (https://github.com/microsoft/vscode/issues/148245)
+			// (https://github.com/willnickols/erdos/issues/148245)
 			else if (!recursive) {
 				const workspaceFolder = workspace.getWorkspaceFolder(URI.revive(globPattern.baseUri));
 				if (workspaceFolder) {

@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/120173
+	// https://github.com/willnickols/erdos/issues/120173
 
 	/**
 	 * The object describing the properties of the workspace trust request

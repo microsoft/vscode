@@ -9,7 +9,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 
 /**
  * A ternary search tree that supports URI keys and query/fragment-aware substring matching, specifically for file search.
- * This is because the traditional TST does not support query and fragments https://github.com/microsoft/vscode/issues/227836
+ * This is because the traditional TST does not support query and fragments https://github.com/willnickols/erdos/issues/227836
  */
 export class FolderQuerySearchTree<FolderQueryInfo extends { folder: URI }> extends TernarySearchTree<URI, Map<string, FolderQueryInfo>> {
 	constructor(folderQueries: IFolderQuery<URI>[],

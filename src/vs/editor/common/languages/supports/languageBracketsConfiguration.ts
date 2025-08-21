@@ -53,7 +53,7 @@ export class LanguageBracketsConfiguration {
 			// If not configured: Take all brackets except `<` ... `>`
 			// Many languages set < ... > as bracket pair, even though they also use it as comparison operator.
 			// This leads to problems when colorizing this bracket, so we exclude it if not explicitly configured otherwise.
-			// https://github.com/microsoft/vscode/issues/132476
+			// https://github.com/willnickols/erdos/issues/132476
 			: bracketPairs.filter((p) => !(p[0] === '<' && p[1] === '>'));
 		for (const [open, close] of colorizedBracketPairs) {
 			const opening = openingBracketInfos.get(open);

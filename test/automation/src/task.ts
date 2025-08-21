@@ -34,7 +34,7 @@ export class Task {
 	}
 
 	async assertTasks(filter: string, expected: ITaskConfigurationProperties[], type: 'run' | 'configure') {
-		// TODO https://github.com/microsoft/vscode/issues/242535
+		// TODO https://github.com/willnickols/erdos/issues/242535
 		// Artificial delay before running non hidden tasks
 		// so that entries from configureTask show up in the quick access.
 		await wait(1000);
@@ -60,7 +60,7 @@ export class Task {
 		await this.quickinput.selectQuickInputElement(0);
 		await this.quickaccess.runCommand('editor.action.selectAll');
 		await this.code.dispatchKeybinding('Delete', async () => {
-			// TODO https://github.com/microsoft/vscode/issues/242535
+			// TODO https://github.com/willnickols/erdos/issues/242535
 			await wait(100);
 		});
 		const taskStringLines: string[] = [
@@ -84,7 +84,7 @@ export class Task {
 			await this.editor.waitForTypeInEditor('tasks.json', `${line}`);
 			if (i !== taskStringLines.length - 1) {
 				await this.code.dispatchKeybinding('Enter', async () => {
-					// TODO https://github.com/microsoft/vscode/issues/242535
+					// TODO https://github.com/willnickols/erdos/issues/242535
 					await wait(100);
 				});
 			}

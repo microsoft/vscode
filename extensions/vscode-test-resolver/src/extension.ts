@@ -329,7 +329,7 @@ export function activate(context: vscode.ExtensionContext) {
 		resolve(_authority: string): Thenable<vscode.ResolverResult> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
-				title: 'Open TestResolver Remote ([details](command:vscode-testresolver.showLog))',
+				title: 'Open TestResolver Remote ([details](command:erdos-testresolver.showLog))',
 				cancellable: false
 			}, async (progress) => {
 				const rr = await doResolve(_authority, progress);
@@ -342,19 +342,19 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(authorityResolverDisposable);
 
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindow', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.newWindow', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+test' });
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.currentWindow', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.currentWindow', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+test', reuseWindow: true });
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.currentWindowManaged', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.currentWindowManaged', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+managed', reuseWindow: true });
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindowWithError', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.newWindowWithError', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+error' });
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.killServerAndTriggerHandledError', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.killServerAndTriggerHandledError', () => {
 		authorityResolverDisposable.dispose();
 		if (extHostProcess) {
 			terminateProcess(extHostProcess, context.extensionPath);
@@ -368,7 +368,7 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		});
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.showLog', () => {
 		if (outputChannel) {
 			outputChannel.show();
 		}
@@ -376,10 +376,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const pauseStatusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
 	pauseStatusBarEntry.text = 'Remote connection paused. Click to undo';
-	pauseStatusBarEntry.command = 'vscode-testresolver.toggleConnectionPause';
+	pauseStatusBarEntry.command = 'erdos-testresolver.toggleConnectionPause';
 	pauseStatusBarEntry.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
 
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.toggleConnectionPause', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.toggleConnectionPause', () => {
 		if (!connectionPaused) {
 			connectionPaused = true;
 			pauseStatusBarEntry.show();
@@ -392,10 +392,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const slowdownStatusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
 	slowdownStatusBarEntry.text = 'Remote connection slowed down. Click to undo';
-	slowdownStatusBarEntry.command = 'vscode-testresolver.toggleConnectionSlowdown';
+	slowdownStatusBarEntry.command = 'erdos-testresolver.toggleConnectionSlowdown';
 	slowdownStatusBarEntry.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
 
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.toggleConnectionSlowdown', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.toggleConnectionSlowdown', () => {
 		if (!connectionSlowedDown) {
 			connectionSlowedDown = true;
 			slowdownStatusBarEntry.show();
@@ -406,7 +406,7 @@ export function activate(context: vscode.ExtensionContext) {
 		connectionSlowedDownEvent.fire(connectionSlowedDown);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', async () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.openTunnel', async () => {
 		const result = await vscode.window.showInputBox({
 			prompt: 'Enter the remote port for the tunnel',
 			value: '5000',
@@ -424,7 +424,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.startRemoteServer', async () => {
+	context.subscriptions.push(vscode.commands.registerCommand('erdos-testresolver.startRemoteServer', async () => {
 		const result = await vscode.window.showInputBox({
 			prompt: 'Enter the port for the remote server',
 			value: '5000',
@@ -462,7 +462,7 @@ function getActions(): ActionItem[] {
 		title: 'Ignore',
 		isCloseAffordance: true,
 		execute: async () => {
-			vscode.commands.executeCommand('vscode-testresolver.showLog'); // no need to wait
+			vscode.commands.executeCommand('erdos-testresolver.showLog'); // no need to wait
 		}
 	});
 	return actions;

@@ -352,13 +352,13 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 			const filter: IFilter = { name: languageName, extensions: distinct(extensions).slice(0, 10).map(e => trim(e, '.')) };
 
-			// https://github.com/microsoft/vscode/issues/115860
+			// https://github.com/willnickols/erdos/issues/115860
 			const extOrPlaintext = ext || PLAINTEXT_EXTENSION;
 			if (!matchingFilter && extensions.includes(extOrPlaintext)) {
 				matchingFilter = filter;
 
 				// The selected extension must be in the set of extensions that are in the filter list that is sent to the save dialog.
-				// If it isn't, add it manually. https://github.com/microsoft/vscode/issues/147657
+				// If it isn't, add it manually. https://github.com/willnickols/erdos/issues/147657
 				const trimmedExt = trim(extOrPlaintext, '.');
 				if (!filter.extensions.includes(trimmedExt)) {
 					filter.extensions.unshift(trimmedExt);
@@ -373,13 +373,13 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// We have no matching filter, e.g. because the language
 		// is unknown. We still add the extension to the list of
 		// filters though so that it can be picked
-		// (https://github.com/microsoft/vscode/issues/96283)
+		// (https://github.com/willnickols/erdos/issues/96283)
 		if (!matchingFilter && ext) {
 			matchingFilter = { name: trim(ext, '.').toUpperCase(), extensions: [trim(ext, '.')] };
 		}
 
 		// Order of filters is
-		// - All Files (we MUST do this to fix macOS issue https://github.com/microsoft/vscode/issues/102713)
+		// - All Files (we MUST do this to fix macOS issue https://github.com/willnickols/erdos/issues/102713)
 		// - File Extension Match (if any)
 		// - All Languages
 		// - No Extension

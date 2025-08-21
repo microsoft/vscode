@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/86146
+	// https://github.com/willnickols/erdos/issues/86146
 
 	// TODO: Also for custom editor
 
@@ -23,7 +23,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
-		// eslint-disable-next-line local/vscode-dts-provider-naming
+		// eslint-disable-next-line local/erdos-dts-provider-naming
 		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 	}
 }

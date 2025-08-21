@@ -80,7 +80,7 @@ export class ExtensionMemento implements vscode.Memento {
 			// Prevent the value from being as-is for until we have
 			// received the change event from the main side by emulating
 			// the treatment of values via JSON parsing and stringifying.
-			// (https://github.com/microsoft/vscode/issues/209479)
+			// (https://github.com/willnickols/erdos/issues/209479)
 			this._value![key] = JSON.parse(JSON.stringify(value));
 		} else {
 			this._value![key] = value;

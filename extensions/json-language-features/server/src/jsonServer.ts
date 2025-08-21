@@ -7,13 +7,13 @@ import {
 	Connection,
 	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic, CodeAction, CodeActionKind
-} from 'vscode-languageserver';
+} from 'erdos-languageserver';
 
 import { runSafe, runSafeAsync } from './utils/runner';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
-import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions } from 'vscode-json-languageservice';
+import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions } from 'erdos-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { Utils, URI } from 'vscode-uri';
+import { Utils, URI } from 'erdos-uri';
 import * as l10n from '@vscode/l10n';
 
 type ISchemaAssociations = Record<string, string[]>;

@@ -18,7 +18,7 @@ registerThemingParticipant((theme, collector) => {
 	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
-	// Selection (do NOT remove - https://github.com/microsoft/vscode/issues/169662)
+	// Selection (do NOT remove - https://github.com/willnickols/erdos/issues/169662)
 	const windowSelectionBackground = theme.getColor(selectionBackground);
 	if (windowSelectionBackground) {
 		collector.addRule(`.monaco-workbench ::selection { background-color: ${windowSelectionBackground}; }`);

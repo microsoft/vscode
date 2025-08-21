@@ -71,7 +71,7 @@ function generateNestedViewAllElement(outputId: string) {
 
 function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, linkOptions: LinkOptions) {
 	const container = document.createElement('div');
-	container.setAttribute('data-vscode-context', JSON.stringify({
+	container.setAttribute('data-erdos-context', JSON.stringify({
 		webviewSection: 'text',
 		outputId: id,
 		'preventDefaultContextMenuItems': true
@@ -100,7 +100,7 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 
 function scrollableArrayOfString(id: string, buffer: string[], linkOptions: LinkOptions) {
 	const element = document.createElement('div');
-	element.setAttribute('data-vscode-context', JSON.stringify({
+	element.setAttribute('data-erdos-context', JSON.stringify({
 		webviewSection: 'text',
 		outputId: id,
 		'preventDefaultContextMenuItems': true

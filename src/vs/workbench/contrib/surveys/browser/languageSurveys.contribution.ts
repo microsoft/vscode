@@ -146,7 +146,7 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 
 		// Make sure to wait for installed extensions
 		// being registered to show notifications
-		// properly (https://github.com/microsoft/vscode/issues/121216)
+		// properly (https://github.com/willnickols/erdos/issues/121216)
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
 		// Handle surveys

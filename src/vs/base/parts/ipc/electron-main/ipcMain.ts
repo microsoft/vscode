@@ -112,7 +112,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 		const sender = event.senderFrame;
 
 		const url = sender?.url;
-		// `url` can be `undefined` when running tests from playwright https://github.com/microsoft/vscode/issues/147301
+		// `url` can be `undefined` when running tests from playwright https://github.com/willnickols/erdos/issues/147301
 		// and `url` can be `about:blank` when reloading the window
 		// from performance tab of devtools https://github.com/electron/electron/issues/39427.
 		// It is fine to skip the checks in these cases.

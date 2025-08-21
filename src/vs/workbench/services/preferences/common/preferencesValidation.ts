@@ -124,7 +124,7 @@ function toRegExp(pattern: string): RegExp {
 		} catch (e) {
 			// If the pattern can't be parsed even without the 'u' flag,
 			// just log the error to avoid rendering the entire Settings editor blank.
-			// Ref https://github.com/microsoft/vscode/issues/195054
+			// Ref https://github.com/willnickols/erdos/issues/195054
 			console.error(nls.localize('regexParsingError', "Error parsing the following regex both with and without the u flag:"), pattern);
 			return /.*/;
 		}

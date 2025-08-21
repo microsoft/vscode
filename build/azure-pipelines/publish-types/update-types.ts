@@ -14,7 +14,7 @@ try {
 		.toString()
 		.trim();
 
-	const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/vscode-dts/vscode.d.ts`;
+	const dtsUri = `https://raw.githubusercontent.com/microsoft/vscode/${tag}/src/erdos-dts/vscode.d.ts`;
 	const outPath = path.resolve(process.cwd(), 'DefinitelyTyped/types/vscode/index.d.ts');
 	cp.execSync(`curl ${dtsUri} --output ${outPath}`);
 
@@ -62,19 +62,19 @@ function getNewFileHeader(tag: string) {
 	const shorttag = `${major}.${minor}`;
 
 	const header = [
-		`// Type definitions for Visual Studio Code ${shorttag}`,
-		`// Project: https://github.com/microsoft/vscode`,
-		`// Definitions by: Visual Studio Code Team, Microsoft <https://github.com/microsoft>`,
+		`// Type definitions for Erdos ${shorttag}`,
+		`// Project: https://github.com/willnickols/erdos`,
+		`// Definitions by: Erdos Team, Microsoft <https://github.com/microsoft>`,
 		`// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped`,
 		``,
 		`/*---------------------------------------------------------------------------------------------`,
 		` *  Copyright (c) Microsoft Corporation. All rights reserved.`,
 		` *  Licensed under the MIT License.`,
-		` *  See https://github.com/microsoft/vscode/blob/main/LICENSE.txt for license information.`,
+		` *  See https://github.com/willnickols/erdos/blob/main/LICENSE.txt for license information.`,
 		` *--------------------------------------------------------------------------------------------*/`,
 		``,
 		`/**`,
-		` * Type Definition for Visual Studio Code ${shorttag} Extension API`,
+		` * Type Definition for Erdos ${shorttag} Extension API`,
 		` * See https://code.visualstudio.com/api for more information`,
 		` */`
 	].join('\n');

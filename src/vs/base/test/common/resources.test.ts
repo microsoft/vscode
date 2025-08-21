@@ -66,7 +66,7 @@ suite('Resources', () => {
 		assert.strictEqual(dirname(URI.parse('foo://a/')).toString(), 'foo://a/');
 		assert.strictEqual(dirname(URI.parse('foo://a')).toString(), 'foo://a');
 
-		// does not explode (https://github.com/microsoft/vscode/issues/41987)
+		// does not explode (https://github.com/willnickols/erdos/issues/41987)
 		dirname(URI.from({ scheme: 'file', authority: '/users/someone/portal.h' }));
 
 		assert.strictEqual(dirname(URI.parse('foo://a/b/c?q')).toString(), 'foo://a/b?q');

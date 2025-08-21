@@ -206,7 +206,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Safari: there is an issue where the page can hang on load when
 		// a previous session has kept IndexedDB transactions running.
 		// The only fix seems to be to cancel any pending transactions
-		// (https://github.com/microsoft/vscode/issues/136295)
+		// (https://github.com/willnickols/erdos/issues/136295)
 		//
 		// On all other browsers, we keep the databases opened because
 		// we expect data to be written when the unload happens.
@@ -316,7 +316,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		}
 	}
 
-	private static readonly STORAGE_DATABASE_PREFIX = 'vscode-web-state-db-';
+	private static readonly STORAGE_DATABASE_PREFIX = 'erdos-web-state-db-';
 	private static readonly STORAGE_OBJECT_STORE = 'ItemTable';
 
 	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());

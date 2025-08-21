@@ -68,7 +68,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				'editor.unicodeHighlight.ambiguousCharacters': false,
 				'editor.unicodeHighlight.invisibleCharacters': false
 			},
-			// TODO: Below is a workaround for: https://github.com/microsoft/vscode/issues/240567
+			// TODO: Below is a workaround for: https://github.com/willnickols/erdos/issues/240567
 			'[go]': {
 				'editor.insertSpaces': false
 			},

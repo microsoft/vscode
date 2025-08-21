@@ -5,9 +5,9 @@
 
 import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
-import { FileRename, RequestType } from 'vscode-languageclient';
-import type * as lsp from 'vscode-languageserver-types';
-import type * as md from 'vscode-markdown-languageservice';
+import { FileRename, RequestType } from 'erdos-languageclient';
+import type * as lsp from 'erdos-languageserver-types';
+import type * as md from 'erdos-markdown-languageservice';
 
 
 export type ResolvedDocumentLinkTarget =

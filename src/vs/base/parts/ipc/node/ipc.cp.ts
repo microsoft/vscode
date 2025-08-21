@@ -198,7 +198,7 @@ export class Client implements IChannelClient, IDisposable {
 			if (forkOpts.execArgv === undefined) {
 				forkOpts.execArgv = process.execArgv			// if not set, the forked process inherits the execArgv of the parent process
 					.filter(a => !/^--inspect(-brk)?=/.test(a)) // --inspect and --inspect-brk can not be inherited as the port would conflict
-					.filter(a => !a.startsWith('--vscode-')); 	// --vscode-* arguments are unsupported by node.js and thus need to remove
+					.filter(a => !a.startsWith('--erdos-')); 	// --erdos-* arguments are unsupported by node.js and thus need to remove
 			}
 
 			removeDangerousEnvVariables(forkOpts.env);

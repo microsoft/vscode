@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri, workspace } from 'vscode';
-import { RequestType, BaseLanguageClient } from 'vscode-languageclient';
+import { RequestType, BaseLanguageClient } from 'erdos-languageclient';
 import { Runtime } from './cssClient';
 
 export namespace FsContentRequest {

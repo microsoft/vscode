@@ -100,7 +100,7 @@ suite('LanguageSelector', function () {
 
 	test('score, notebookType', function () {
 		const obj = {
-			uri: URI.parse('vscode-notebook-cell:///my/file.js#blabla'),
+			uri: URI.parse('erdos-notebook-cell:///my/file.js#blabla'),
 			langId: 'javascript',
 			notebookType: 'fooBook',
 			notebookUri: URI.parse('file:///my/file.js')
@@ -117,12 +117,12 @@ suite('LanguageSelector', function () {
 
 	test('Snippet choices lost #149363', function () {
 		const selector: LanguageSelector = {
-			scheme: 'vscode-notebook-cell',
+			scheme: 'erdos-notebook-cell',
 			pattern: '/some/path/file.py',
 			language: 'python'
 		};
 
-		const modelUri = URI.parse('vscode-notebook-cell:///some/path/file.py');
+		const modelUri = URI.parse('erdos-notebook-cell:///some/path/file.py');
 		const nbUri = URI.parse('file:///some/path/file.py');
 		assert.strictEqual(score(selector, modelUri, 'python', true, nbUri, 'jupyter'), 10);
 

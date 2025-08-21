@@ -293,7 +293,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					continue;
 				}
 			}
-			/* Update preRelease flag in the cache - https://github.com/microsoft/vscode/issues/142831 */
+			/* Update preRelease flag in the cache - https://github.com/willnickols/erdos/issues/142831 */
 			if (webExtension.metadata?.isPreReleaseVersion && !webExtension.metadata?.preRelease) {
 				webExtension.metadata.preRelease = true;
 			}

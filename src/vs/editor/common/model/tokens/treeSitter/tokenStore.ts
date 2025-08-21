@@ -110,7 +110,7 @@ function isLeaf(node: Node): node is LeafNode {
 	return (node as LeafNode).token !== undefined;
 }
 
-// Heavily inspired by https://github.com/microsoft/vscode/blob/4eb2658d592cb6114a7a393655574176cc790c5b/src/vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/concat23Trees.ts#L108-L109
+// Heavily inspired by https://github.com/willnickols/erdos/blob/4eb2658d592cb6114a7a393655574176cc790c5b/src/vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/concat23Trees.ts#L108-L109
 function append(node: Node, nodeToAppend: Node): Node {
 	let curNode = node;
 	const parents: ListNode[] = [];

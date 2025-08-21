@@ -33,7 +33,7 @@ suite('ScopeData', () => {
 		assert.deepStrictEqual(scopeData.scopesToSend, ['email', 'offline_access', 'openid', 'profile', 'User.Read']);
 	});
 
-	test('should filter out internal VS Code scopes for scopesToSend', () => {
+	test('should filter out internal Erdos scopes for scopesToSend', () => {
 		const scopeData = new ScopeData(['custom_scope', 'VSCODE_CLIENT_ID:some_id']);
 		assert.deepStrictEqual(scopeData.scopesToSend, ['custom_scope']);
 	});

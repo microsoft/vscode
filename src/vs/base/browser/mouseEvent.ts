@@ -157,7 +157,7 @@ export class StandardWheelEvent {
 			// vertical delta scroll
 			if (typeof e1.wheelDeltaY !== 'undefined') {
 				if (shouldFactorDPR) {
-					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+					// Refs https://github.com/willnickols/erdos/issues/146403#issuecomment-1854538928
 					this.deltaY = e1.wheelDeltaY / (120 * devicePixelRatio);
 				} else {
 					this.deltaY = e1.wheelDeltaY / 120;
@@ -186,7 +186,7 @@ export class StandardWheelEvent {
 				if (browser.isSafari && platform.isWindows) {
 					this.deltaX = - (e1.wheelDeltaX / 120);
 				} else if (shouldFactorDPR) {
-					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+					// Refs https://github.com/willnickols/erdos/issues/146403#issuecomment-1854538928
 					this.deltaX = e1.wheelDeltaX / (120 * devicePixelRatio);
 				} else {
 					this.deltaX = e1.wheelDeltaX / 120;
@@ -213,7 +213,7 @@ export class StandardWheelEvent {
 			// Assume a vertical scroll if nothing else worked
 			if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
 				if (shouldFactorDPR) {
-					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+					// Refs https://github.com/willnickols/erdos/issues/146403#issuecomment-1854538928
 					this.deltaY = e.wheelDelta / (120 * devicePixelRatio);
 				} else {
 					this.deltaY = e.wheelDelta / 120;

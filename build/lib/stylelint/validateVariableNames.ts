@@ -11,14 +11,14 @@ const RE_VAR_PROP = /var\(\s*(--([\w\-\.]+))/g;
 let knownVariables: Set<string> | undefined;
 function getKnownVariableNames() {
 	if (!knownVariables) {
-		const knownVariablesFileContent = readFileSync(path.join(__dirname, './vscode-known-variables.json'), 'utf8').toString();
+		const knownVariablesFileContent = readFileSync(path.join(__dirname, './erdos-known-variables.json'), 'utf8').toString();
 		const knownVariablesInfo = JSON.parse(knownVariablesFileContent);
 		knownVariables = new Set([...knownVariablesInfo.colors, ...knownVariablesInfo.others] as string[]);
 	}
 	return knownVariables;
 }
 
-const iconVariable = /^--vscode-icon-.+-(content|font-family)$/;
+const iconVariable = /^--erdos-icon-.+-(content|font-family)$/;
 
 export interface IValidator {
 	(value: string, report: (message: string) => void): void;

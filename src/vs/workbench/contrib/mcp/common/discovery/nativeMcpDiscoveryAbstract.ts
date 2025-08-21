@@ -94,7 +94,7 @@ export abstract class FilesystemMcpDiscovery extends Disposable {
 
 /**
  * Base class that discovers MCP servers on a filesystem, outside of the ones
- * defined in VS Code settings.
+ * defined in Erdos settings.
  */
 export abstract class NativeFilesystemMcpDiscovery extends FilesystemMcpDiscovery implements IMcpDiscovery {
 	private readonly adapters: readonly NativeMpcDiscoveryAdapter[];

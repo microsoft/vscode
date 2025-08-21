@@ -106,7 +106,7 @@ abstract class BaseZoomAction extends Action2 {
 		}
 
 		if (level > MAX_ZOOM_LEVEL || level < MIN_ZOOM_LEVEL) {
-			return; // https://github.com/microsoft/vscode/issues/48357
+			return; // https://github.com/willnickols/erdos/issues/48357
 		}
 
 		if (target === ApplyZoomTarget.ALL_WINDOWS) {

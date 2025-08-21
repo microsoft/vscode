@@ -19,7 +19,7 @@ import { MergeEditorModel } from '../../browser/model/mergeEditorModel.js';
 import { MergeEditorTelemetry } from '../../browser/telemetry.js';
 
 suite('merge editor model', () => {
-	// todo: renable when failing case is found https://github.com/microsoft/vscode/pull/190444#issuecomment-1678151428
+	// todo: renable when failing case is found https://github.com/willnickols/erdos/pull/190444#issuecomment-1678151428
 	// ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('prepend line', async () => {

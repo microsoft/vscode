@@ -182,7 +182,7 @@ suite('WordOperations', () => {
 
 	test('cursorWordLeft - Recognize words', function () {
 		if (isFirefox) {
-			// https://github.com/microsoft/vscode/issues/219843
+			// https://github.com/willnickols/erdos/issues/219843
 			return this.skip();
 		}
 		const EXPECTED = [
@@ -406,7 +406,7 @@ suite('WordOperations', () => {
 
 	test('cursorWordRight - Recognize words', function () {
 		if (isFirefox) {
-			// https://github.com/microsoft/vscode/issues/219843
+			// https://github.com/willnickols/erdos/issues/219843
 			return this.skip();
 		}
 		const EXPECTED = [

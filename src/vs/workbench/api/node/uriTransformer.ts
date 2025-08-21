@@ -10,35 +10,35 @@ import { UriParts, IRawURITransformer, URITransformer, IURITransformer } from '.
  * --------------------------------
  * |    UI SIDE    |  AGENT SIDE  |
  * |---------------|--------------|
- * | vscode-remote | file         |
- * | file          | vscode-local |
+ * | erdos-remote | file         |
+ * | file          | erdos-local |
  * --------------------------------
  * ```
  */
 function createRawURITransformer(remoteAuthority: string): IRawURITransformer {
 	return {
 		transformIncoming: (uri: UriParts): UriParts => {
-			if (uri.scheme === 'vscode-remote') {
+			if (uri.scheme === 'erdos-remote') {
 				return { scheme: 'file', path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
 			if (uri.scheme === 'file') {
-				return { scheme: 'vscode-local', path: uri.path, query: uri.query, fragment: uri.fragment };
+				return { scheme: 'erdos-local', path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
 			return uri;
 		},
 		transformOutgoing: (uri: UriParts): UriParts => {
 			if (uri.scheme === 'file') {
-				return { scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path, query: uri.query, fragment: uri.fragment };
+				return { scheme: 'erdos-remote', authority: remoteAuthority, path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
-			if (uri.scheme === 'vscode-local') {
+			if (uri.scheme === 'erdos-local') {
 				return { scheme: 'file', path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
 			return uri;
 		},
 		transformOutgoingScheme: (scheme: string): string => {
 			if (scheme === 'file') {
-				return 'vscode-remote';
-			} else if (scheme === 'vscode-local') {
+				return 'erdos-remote';
+			} else if (scheme === 'erdos-local') {
 				return 'file';
 			}
 			return scheme;

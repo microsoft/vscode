@@ -16,7 +16,7 @@ import {
 	Diagnostic as LSPDiagnostic,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
-} from 'vscode-languageclient';
+} from 'erdos-languageclient';
 
 
 import { hash } from './utils/hash';

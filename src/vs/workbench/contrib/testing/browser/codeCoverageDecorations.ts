@@ -185,7 +185,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 	private updateEditorStyles() {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const { style } = this.editor.getContainerDomNode();
-		style.setProperty('--vscode-testing-coverage-lineHeight', `${lineHeight}px`);
+		style.setProperty('--erdos-testing-coverage-lineHeight', `${lineHeight}px`);
 	}
 
 	private hoverInlineDecoration(model: ITextModel, position: Position) {

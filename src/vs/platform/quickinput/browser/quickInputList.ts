@@ -1127,7 +1127,7 @@ export class QuickInputList extends Disposable {
 		this._setElementsToTree(this._elementTree);
 
 		// Accessibility hack, unfortunately on next tick
-		// https://github.com/microsoft/vscode/issues/211976
+		// https://github.com/willnickols/erdos/issues/211976
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			setTimeout(() => {
 				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);

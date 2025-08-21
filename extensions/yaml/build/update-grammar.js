@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-var updateGrammar = require('vscode-grammar-updater');
+var updateGrammar = require('erdos-grammar-updater');
 
 async function updateGrammars() {
 	await updateGrammar.update('RedCMD/YAML-Syntax-Highlighter', 'syntaxes/yaml-1.0.tmLanguage.json', './syntaxes/yaml-1.0.tmLanguage.json',  undefined, 'main');

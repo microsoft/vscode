@@ -8,7 +8,7 @@ import * as extensionV1 from './extensionV1';
 import * as extensionV2 from './extensionV2';
 import { createExperimentationService } from './common/experimentation';
 import { MicrosoftAuthenticationTelemetryReporter } from './common/telemetryReporter';
-import { IExperimentationService } from 'vscode-tas-client';
+import { IExperimentationService } from 'erdos-tas-client';
 import Logger from './logger';
 
 function shouldUseMsal(expService: IExperimentationService): boolean {

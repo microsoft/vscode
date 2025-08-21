@@ -117,7 +117,7 @@ async function startPreloadWorkspaceContentsIfNeeded(context: vscode.ExtensionCo
 
 	await Promise.all(vscode.workspace.workspaceFolders.map(async folder => {
 		const workspaceUri = folder.uri;
-		if (workspaceUri.scheme !== 'vscode-vfs' || !workspaceUri.authority.startsWith('github')) {
+		if (workspaceUri.scheme !== 'erdos-vfs' || !workspaceUri.authority.startsWith('github')) {
 			logger.info(`Skipped pre loading workspace contents for repository ${workspaceUri?.toString()}`);
 			return;
 		}

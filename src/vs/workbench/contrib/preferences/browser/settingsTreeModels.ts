@@ -961,7 +961,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		}
 
 		// Sort the settings according to their relevancy.
-		// https://github.com/microsoft/vscode/issues/197773
+		// https://github.com/willnickols/erdos/issues/197773
 		filterMatches.sort((a, b) => {
 			if (a.matchType !== b.matchType) {
 				// Sort by match type if the match types are not the same.

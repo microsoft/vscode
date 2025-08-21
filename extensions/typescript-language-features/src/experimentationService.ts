@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as tas from 'vscode-tas-client';
+import * as tas from 'erdos-tas-client';
 
 import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 
@@ -42,10 +42,10 @@ export async function createTasExperimentationService(
 		case 'vscode':
 			targetPopulation = tas.TargetPopulation.Public;
 			break;
-		case 'vscode-insiders':
+		case 'erdos-insiders':
 			targetPopulation = tas.TargetPopulation.Insiders;
 			break;
-		case 'vscode-exploration':
+		case 'erdos-exploration':
 			targetPopulation = tas.TargetPopulation.Internal;
 			break;
 		case 'code-oss':

@@ -239,7 +239,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			opts.execArgv.unshift('--prof');
 		}
 
-		// Refs https://github.com/microsoft/vscode/issues/189805
+		// Refs https://github.com/willnickols/erdos/issues/189805
 		//
 		// Enable experimental network inspection
 		// inspector agent is always setup hence add this flag

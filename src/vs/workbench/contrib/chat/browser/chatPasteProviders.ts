@@ -52,7 +52,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
+		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'erdos-chat-images');
 		cleanupOldImages(this.fileService, this.logService, this.imagesFolder,);
 	}
 
@@ -308,7 +308,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			return;
 		}
 		const text = dataTransfer.get(Mimes.text);
-		const editorData = dataTransfer.get('vscode-editor-data');
+		const editorData = dataTransfer.get('erdos-editor-data');
 		const additionalEditorData = dataTransfer.get(COPY_MIME_TYPES);
 
 		if (!editorData || !text || !additionalEditorData) {

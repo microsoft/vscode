@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/59921
+	// https://github.com/willnickols/erdos/issues/59921
 
 	/**
 	 * The parameters of a query for text search.

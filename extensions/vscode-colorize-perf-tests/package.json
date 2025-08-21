@@ -1,6 +1,6 @@
 {
-  "name": "vscode-colorize-perf-tests",
-  "description": "Colorize performance tests for VS Code",
+  "name": "erdos-colorize-perf-tests",
+  "description": "Colorize performance tests for Erdos",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
@@ -14,9 +14,9 @@
   },
   "icon": "media/icon.png",
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-perf-tests ./tsconfig.json",
-    "watch": "gulp watch-extension:vscode-colorize-perf-tests",
-    "compile": "gulp compile-extension:vscode-colorize-perf-tests"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:erdos-colorize-perf-tests ./tsconfig.json",
+    "watch": "gulp watch-extension:erdos-colorize-perf-tests",
+    "compile": "gulp compile-extension:erdos-colorize-perf-tests"
   },
   "dependencies": {
     "jsonc-parser": "^3.2.0"
@@ -26,6 +26,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   }
 }

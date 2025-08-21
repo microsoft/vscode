@@ -885,8 +885,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		if (this._OS === OperatingSystem.Linux && !this._isUSStandard) {
 			// [Electron Accelerators] On Linux, Electron does not handle correctly OEM keys.
 			// when using a different keyboard layout than US Standard.
-			// See https://github.com/microsoft/vscode/issues/23706
-			// See https://github.com/microsoft/vscode/pull/134890#issuecomment-941671791
+			// See https://github.com/willnickols/erdos/issues/23706
+			// See https://github.com/willnickols/erdos/pull/134890#issuecomment-941671791
 			const isOEMKey = (
 				constantKeyCode === KeyCode.Semicolon
 				|| constantKeyCode === KeyCode.Equal
@@ -958,7 +958,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			|| (keyCode === KeyCode.Backspace)
 		) {
 			// "Dispatch" on keyCode for these key codes to workaround issues with remote desktoping software
-			// where the scan codes appear to be incorrect (see https://github.com/microsoft/vscode/issues/24107)
+			// where the scan codes appear to be incorrect (see https://github.com/willnickols/erdos/issues/24107)
 			const immutableScanCode = IMMUTABLE_KEY_CODE_TO_CODE[keyCode];
 			if (immutableScanCode !== ScanCode.DependsOnKbLayout) {
 				code = immutableScanCode;

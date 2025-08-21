@@ -17,6 +17,6 @@
 		],
 	},
 	"include": [
-		"vscode-dts/vscode.d.ts"
+		"erdos-dts/vscode.d.ts"
 	]
 }

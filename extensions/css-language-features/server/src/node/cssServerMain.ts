@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
+import { createConnection, Connection, Disposable } from 'erdos-languageserver/node';
 import { formatError } from '../utils/runner';
 import { RuntimeEnvironment, startServer } from '../cssServer';
 import { getNodeFSRequestService } from './nodeFs';

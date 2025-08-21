@@ -31,7 +31,7 @@ export const echoTestSuiteSpec: ISuiteSpec = {
 		{ input: 'echo |', expectedCompletions: allOptions },
 
 		// Duplicate option
-		// TODO: Duplicate options should not be presented https://github.com/microsoft/vscode/issues/239607
+		// TODO: Duplicate options should not be presented https://github.com/willnickols/erdos/issues/239607
 		// { input: 'echo -e -|', expectedCompletions: removeArrayEntries(allOptions, '-e') },
 		// { input: 'echo -e -E -|', expectedCompletions: removeArrayEntries(allOptions, '-e', '-E') },
 	]

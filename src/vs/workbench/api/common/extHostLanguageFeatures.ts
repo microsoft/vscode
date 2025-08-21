@@ -1163,7 +1163,7 @@ class CompletionsAdapter {
 
 		// The default insert/replace ranges. It's important to compute them
 		// before asynchronously asking the provider for its results. See
-		// https://github.com/microsoft/vscode/issues/83400#issuecomment-546851421
+		// https://github.com/willnickols/erdos/issues/83400#issuecomment-546851421
 		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
 		const insertRange = replaceRange.with({ end: pos });
 

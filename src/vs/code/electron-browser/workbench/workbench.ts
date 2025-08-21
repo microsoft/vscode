@@ -288,7 +288,7 @@
 		setupNLS<T>(configuration);
 
 		// Compute base URL and set as global
-		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
+		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'erdos-file', fallbackAuthority: 'erdos-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
 
 		// Dev only: CSS import map tricks
@@ -469,7 +469,7 @@
 				importMap.imports[cssUrl] = URL.createObjectURL(blob);
 			}
 
-			const ttp = window.trustedTypes?.createPolicy('vscode-bootstrapImportMap', { createScript(value) { return value; }, });
+			const ttp = window.trustedTypes?.createPolicy('erdos-bootstrapImportMap', { createScript(value) { return value; }, });
 			const importMapSrc = JSON.stringify(importMap, undefined, 2);
 			const importMapScript = document.createElement('script');
 			importMapScript.type = 'importmap';

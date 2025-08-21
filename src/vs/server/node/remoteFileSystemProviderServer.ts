@@ -42,7 +42,7 @@ export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystem
 	}
 
 	protected override transformIncoming(uriTransformer: IURITransformer, _resource: UriComponents, supportVSCodeResource = false): URI {
-		if (supportVSCodeResource && _resource.path === '/vscode-resource' && _resource.query) {
+		if (supportVSCodeResource && _resource.path === '/erdos-resource' && _resource.query) {
 			const requestResourcePath = JSON.parse(_resource.query).requestResourcePath;
 
 			return URI.from({ scheme: 'file', path: requestResourcePath });

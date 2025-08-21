@@ -361,7 +361,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 		// detect when base, input1, and input2 become empty and replace THIS editor with its result editor
 		// TODO@jrieken@hediet this needs a better/cleaner solution
-		// https://github.com/microsoft/vscode/issues/155940
+		// https://github.com/willnickols/erdos/issues/155940
 		const that = this;
 		this._sessionDisposables.add(new class {
 

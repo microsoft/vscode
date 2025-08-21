@@ -49,7 +49,7 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'a',
 	'img',
 
-	// TODO@roblourens when we sanitize attributes in markdown source, we can ban these elements at that step. microsoft/vscode-copilot#5091
+	// TODO@roblourens when we sanitize attributes in markdown source, we can ban these elements at that step. microsoft/erdos-copilot#5091
 	// Not in the official list, but used for codicons and other vscode markdown extensions
 	'span',
 	'div',

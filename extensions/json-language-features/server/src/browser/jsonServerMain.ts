@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'vscode-languageserver/browser';
+import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'erdos-languageserver/browser';
 import { RuntimeEnvironment, startServer } from '../jsonServer';
 
 

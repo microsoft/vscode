@@ -17,7 +17,7 @@ import { SaveStrategy, StateService } from '../../../state/node/stateService.js'
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
-const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+const ROOT = URI.file('tests').with({ scheme: 'erdos-tests' });
 
 class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	constructor(private readonly _appSettingsHome: URI) {

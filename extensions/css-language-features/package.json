@@ -27,7 +27,7 @@
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
     "test": "node ../../node_modules/mocha/bin/mocha",
-    "install-client-next": "npm install vscode-languageclient@next"
+    "install-client-next": "npm install erdos-languageclient@next"
   },
   "categories": [
     "Programming Languages"
@@ -985,7 +985,7 @@
     "jsonValidation": [
       {
         "fileMatch": "*.css-data.json",
-        "url": "https://raw.githubusercontent.com/microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
+        "url": "https://raw.githubusercontent.com/microsoft/erdos-css-languageservice/master/docs/customData.schema.json"
       },
       {
         "fileMatch": "package.json",
@@ -994,14 +994,14 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^10.0.0-next.16",
-    "vscode-uri": "^3.1.0"
+    "erdos-languageclient": "^10.0.0-next.16",
+    "erdos-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/node": "22.x"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   }
 }

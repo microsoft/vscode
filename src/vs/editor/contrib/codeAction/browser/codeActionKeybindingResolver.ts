@@ -36,7 +36,7 @@ export class CodeActionKeybindingResolver {
 			.filter(item => CodeActionKeybindingResolver.codeActionCommands.indexOf(item.command!) >= 0)
 			.filter(item => item.resolvedKeybinding)
 			.map((item): ResolveCodeActionKeybinding => {
-				// Special case these commands since they come built-in with VS Code and don't use 'commandArgs'
+				// Special case these commands since they come built-in with Erdos and don't use 'commandArgs'
 				let commandArgs = item.commandArgs;
 				if (item.command === organizeImportsCommandId) {
 					commandArgs = { kind: CodeActionKind.SourceOrganizeImports.value };

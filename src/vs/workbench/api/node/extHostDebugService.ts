@@ -152,7 +152,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			} else {
 				if (terminal.state.isInteractedWith && !terminal.shellIntegration) {
 					terminal.sendText('\u0003'); // Ctrl+C for #106743. Not part of the same command for #107969
-					await timeout(200); // mirroring https://github.com/microsoft/vscode/blob/c67ccc70ece5f472ec25464d3eeb874cfccee9f1/src/vs/workbench/contrib/terminal/browser/terminalInstance.ts#L852-L857
+					await timeout(200); // mirroring https://github.com/willnickols/erdos/blob/c67ccc70ece5f472ec25464d3eeb874cfccee9f1/src/vs/workbench/contrib/terminal/browser/terminalInstance.ts#L852-L857
 				}
 
 				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {

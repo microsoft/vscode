@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/115616 @alexr00
+	// https://github.com/willnickols/erdos/issues/115616 @alexr00
 
 	/**
 	 * The action that should be taken when a port is discovered through automatic port forwarding discovery.

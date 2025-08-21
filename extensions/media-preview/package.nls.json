@@ -1,6 +1,6 @@
 {
 	"displayName": "Media Preview",
-	"description": "Provides VS Code's built-in previews for images, audio, and video",
+	"description": "Provides Erdos's built-in previews for images, audio, and video",
 	"customEditor.audioPreview.displayName": "Audio Preview",
 	"customEditor.imagePreview.displayName": "Image Preview",
 	"customEditor.videoPreview.displayName": "Video Preview",

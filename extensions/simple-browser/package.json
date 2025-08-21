@@ -69,11 +69,11 @@
     "@vscode/extension-telemetry": "^0.9.8"
   },
   "devDependencies": {
-    "@types/vscode-webview": "^1.57.0",
+    "@types/erdos-webview": "^1.57.0",
     "@vscode/codicons": "^0.0.36"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   }
 }

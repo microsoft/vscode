@@ -457,7 +457,7 @@ export class EditorPanes extends Disposable {
 			// Clear the current input before setting new input
 			// This ensures that a slow loading input will not
 			// be visible for the duration of the new input to
-			// load (https://github.com/microsoft/vscode/issues/34697)
+			// load (https://github.com/willnickols/erdos/issues/34697)
 			editorPane.clearInput();
 
 			// Set the input to the editor pane and keep track of it

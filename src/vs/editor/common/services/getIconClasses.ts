@@ -64,7 +64,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 				classes.push(`name-file-icon`); // extra segment to increase file-name score
 				// Avoid doing an explosive combination of extensions for very long filenames
 				// (most file systems do not allow files > 255 length) with lots of `.` characters
-				// https://github.com/microsoft/vscode/issues/116199
+				// https://github.com/willnickols/erdos/issues/116199
 				if (name.length <= 255) {
 					const dotSegments = name.split('.');
 					for (let i = 1; i < dotSegments.length; i++) {

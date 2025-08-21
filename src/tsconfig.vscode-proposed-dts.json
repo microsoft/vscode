@@ -1,7 +1,7 @@
 {
-	"extends": "./tsconfig.vscode-dts.json",
+	"extends": "./tsconfig.erdos-dts.json",
 	"include": [
-		"vscode-dts/vscode.d.ts",
-		"vscode-dts/vscode.proposed.*.d.ts",
+		"erdos-dts/vscode.d.ts",
+		"erdos-dts/vscode.proposed.*.d.ts",
 	]
 }

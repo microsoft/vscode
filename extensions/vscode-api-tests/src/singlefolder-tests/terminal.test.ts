@@ -8,17 +8,17 @@ import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableMuta
 import { assertNoRpc, poll } from '../utils';
 
 // Disable terminal tests:
-// - Web https://github.com/microsoft/vscode/issues/92826
+// - Web https://github.com/willnickols/erdos/issues/92826
 (env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - terminal', () => {
 	let extensionContext: ExtensionContext;
 
 	suiteSetup(async () => {
 		// Trigger extension activation and grab the context as some tests depend on it
-		await extensions.getExtension('vscode.vscode-api-tests')?.activate();
+		await extensions.getExtension('vscode.erdos-api-tests')?.activate();
 		extensionContext = (global as any).testExtensionContext;
 
 		const config = workspace.getConfiguration('terminal.integrated');
-		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
+		// Disable conpty in integration tests because of https://github.com/willnickols/erdos/issues/76548
 		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
@@ -410,7 +410,7 @@ import { assertNoRpc, poll } from '../utils';
 		});
 
 		suite('window.onDidWriteTerminalData', () => {
-			// still flaky with retries, skipping https://github.com/microsoft/vscode/issues/193505
+			// still flaky with retries, skipping https://github.com/willnickols/erdos/issues/193505
 			test.skip('should listen to all future terminal data events', function (done) {
 				// This test has been flaky in the past but it's not clear why, possibly because
 				// events from previous tests polluting the event recording in this test. Retries
@@ -564,7 +564,7 @@ import { assertNoRpc, poll } from '../utils';
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			// TODO: Fix test, flaky in CI (local and remote) https://github.com/microsoft/vscode/issues/137155
+			// TODO: Fix test, flaky in CI (local and remote) https://github.com/willnickols/erdos/issues/137155
 			test.skip('should respect dimension overrides', async () => {
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();

@@ -20,10 +20,10 @@
 	],
 	"include": [
 		"src/**/*",
-		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.idToken.d.ts",
-		"../../src/vscode-dts/vscode.proposed.nativeWindowHandle.d.ts",
-		"../../src/vscode-dts/vscode.proposed.authIssuers.d.ts",
-		"../../src/vscode-dts/vscode.proposed.authenticationChallenges.d.ts"
+		"../../src/erdos-dts/vscode.d.ts",
+		"../../src/erdos-dts/vscode.proposed.idToken.d.ts",
+		"../../src/erdos-dts/vscode.proposed.nativeWindowHandle.d.ts",
+		"../../src/erdos-dts/vscode.proposed.authIssuers.d.ts",
+		"../../src/erdos-dts/vscode.proposed.authenticationChallenges.d.ts"
 	]
 }

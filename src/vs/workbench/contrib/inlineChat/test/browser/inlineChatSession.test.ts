@@ -513,7 +513,7 @@ suite('InlineChatSession', function () {
 			return;
 		}
 
-		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
+		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/willnickols/erdos/issues/7426#issuecomment-425093469) for more information');
 
 		this.notificationService.notify({
 			severity: Severity.Error,
@@ -536,7 +536,7 @@ suite('InlineChatSession', function () {
 
 		await makeEditAsAi([EditOperation.replace(new Range(7, 1, 7, Number.MAX_SAFE_INTEGER), `error = error.replace(
 			/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/,
-			'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information'
+			'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/willnickols/erdos/issues/7426#issuecomment-425093469) for more information'
 		);`)]);
 
 		assert.strictEqual(editor.getModel().getLineCount(), 18);

@@ -622,7 +622,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			if (viewContainer) {
 				const defaultContainer = this.getDefaultContainerById(viewId);
 				// Skip if the view is at default location
-				// https://github.com/microsoft/vscode/issues/90414
+				// https://github.com/willnickols/erdos/issues/90414
 				if (defaultContainer?.id === viewContainer.id) {
 					continue;
 				}

@@ -9,7 +9,7 @@
 	"json.format.enable.desc": "Enable/disable default JSON formatter",
 	"json.format.keepLines.desc" : "Keep all existing new lines when formatting.",
 	"json.validate.enable.desc": "Enable/disable JSON validation.",
-	"json.tracing.desc": "Traces the communication between VS Code and the JSON language server.",
+	"json.tracing.desc": "Traces the communication between Erdos and the JSON language server.",
 	"json.colorDecorators.enable.desc": "Enables or disables color decorators",
 	"json.colorDecorators.enable.deprecationMessage": "The setting `json.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`.",
 	"json.schemaResolutionErrorMessage": "Unable to resolve schema.",

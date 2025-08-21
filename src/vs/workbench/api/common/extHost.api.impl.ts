@@ -715,7 +715,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			async showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Promise<vscode.TextEditor> {
 				if (URI.isUri(documentOrUri) && documentOrUri.scheme === Schemas.vscodeRemote && !documentOrUri.authority) {
-					extHostApiDeprecation.report('workspace.showTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
+					extHostApiDeprecation.report('workspace.showTextDocument', extension, `A URI of 'erdos-remote' scheme requires an authority.`);
 				}
 				const document = await (URI.isUri(documentOrUri)
 					? Promise.resolve(workspace.openTextDocument(documentOrUri))
@@ -968,7 +968,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
 				extHostApiDeprecation.report('workspace.rootPath', extension,
-					`Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/vscode-eliminating-rootpath`);
+					`Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/erdos-eliminating-rootpath`);
 
 				return extHostWorkspace.getPath();
 			},
@@ -1076,7 +1076,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return uriPromise.then(uri => {
 					extHostLogService.trace(`openTextDocument from ${extension.identifier}`);
 					if (uri.scheme === Schemas.vscodeRemote && !uri.authority) {
-						extHostApiDeprecation.report('workspace.openTextDocument', extension, `A URI of 'vscode-remote' scheme requires an authority.`);
+						extHostApiDeprecation.report('workspace.openTextDocument', extension, `A URI of 'erdos-remote' scheme requires an authority.`);
 					}
 					return extHostDocuments.ensureDocumentData(uri, options).then(documentData => {
 						return documentData.document;

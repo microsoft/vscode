@@ -64,7 +64,7 @@ export class SignService extends AbstractSignService implements ISignService {
 			new Promise<void>((resolve, reject) => {
 				importAMDNodeModule('vsda', 'rust/web/vsda.js').then(() => resolve(), reject);
 
-				// todo@connor4312: there seems to be a bug(?) in vscode-loader with
+				// todo@connor4312: there seems to be a bug(?) in erdos-loader with
 				// require() not resolving in web once the script loads, so check manually
 				checkInterval.cancelAndSet(() => {
 					if (typeof vsda_web !== 'undefined') {

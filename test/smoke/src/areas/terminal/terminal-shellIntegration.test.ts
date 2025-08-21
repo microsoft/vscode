@@ -104,7 +104,7 @@ export function setup(options?: { skipSuite: boolean }) {
 				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
 			}
 
-			describe('VS Code sequences', () => {
+			describe('Erdos sequences', () => {
 				it('should handle the simple case', async () => {
 					await beforeEachSetup();
 					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}exitcode 0`);

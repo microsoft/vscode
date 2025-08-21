@@ -198,7 +198,7 @@ suite('ExtensionsActivator', () => {
 		disposables.dispose();
 	});
 
-	test('issue #144518: Problem with git extension and vscode-icons', async () => {
+	test('issue #144518: Problem with git extension and erdos-icons', async () => {
 		const disposables = new DisposableStore();
 		const extActivationA = new ExtensionActivationPromiseSource();
 		const extActivationB = new ExtensionActivationPromiseSource();

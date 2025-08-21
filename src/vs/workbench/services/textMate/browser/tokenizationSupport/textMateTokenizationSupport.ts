@@ -9,7 +9,7 @@ import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { LanguageId, TokenMetadata } from '../../../../../editor/common/encodedTokenAttributes.js';
 import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, IState, ITokenizationSupport, TokenizationResult } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import type { IGrammar, StateStack } from 'vscode-textmate';
+import type { IGrammar, StateStack } from 'erdos-textmate';
 
 export class TextMateTokenizationSupport extends Disposable implements ITokenizationSupport {
 	private readonly _seenLanguages: boolean[] = [];

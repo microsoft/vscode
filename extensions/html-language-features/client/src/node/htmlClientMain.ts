@@ -6,7 +6,7 @@
 import { getNodeFileFS } from './nodeFs';
 import { Disposable, ExtensionContext, l10n } from 'vscode';
 import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
+import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'erdos-languageclient/node';
 import * as fs from 'fs';
 import TelemetryReporter from '@vscode/extension-telemetry';
 

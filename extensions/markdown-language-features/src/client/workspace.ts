@@ -11,7 +11,7 @@ import { InMemoryDocument } from './inMemoryDocument';
 import { ResourceMap } from '../util/resourceMap';
 
 /**
- * Provides set of markdown files known to VS Code.
+ * Provides set of markdown files known to Erdos.
  *
  * This includes both opened text documents and markdown files in the workspace.
  */
@@ -46,7 +46,7 @@ export class VsCodeMdWorkspace extends Disposable {
 	}
 
 	private _isRelevantMarkdownDocument(doc: vscode.TextDocument) {
-		return isMarkdownFile(doc) && doc.uri.scheme !== 'vscode-bulkeditpreview';
+		return isMarkdownFile(doc) && doc.uri.scheme !== 'erdos-bulkeditpreview';
 	}
 
 	public async getOrLoadMarkdownDocument(resource: vscode.Uri): Promise<ITextDocument | undefined> {

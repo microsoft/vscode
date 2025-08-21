@@ -50,7 +50,7 @@ export class KeyboardLayoutMainService extends Disposable implements INativeKeyb
 
 		this._keyboardLayoutData = readKeyboardLayoutData(nativeKeymapMod);
 		if (!platform.isCI) {
-			// See https://github.com/microsoft/vscode/issues/152840
+			// See https://github.com/willnickols/erdos/issues/152840
 			// Do not register the keyboard layout change listener in CI because it doesn't work
 			// on the build machines and it just adds noise to the build logs.
 			nativeKeymapMod.onDidChangeKeyboardLayout(() => {

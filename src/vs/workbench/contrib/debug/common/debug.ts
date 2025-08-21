@@ -300,7 +300,7 @@ export interface IErrorMemoryRange extends IMemoryRange {
  */
 export type MemoryRange = IValidMemoryRange | IUnreadableMemoryRange | IErrorMemoryRange;
 
-export const DEBUG_MEMORY_SCHEME = 'vscode-debug-memory';
+export const DEBUG_MEMORY_SCHEME = 'erdos-debug-memory';
 
 /**
  * An IMemoryRegion corresponds to a contiguous range of memory referred to

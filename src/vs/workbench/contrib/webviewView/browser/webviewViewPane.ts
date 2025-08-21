@@ -287,7 +287,7 @@ export class WebviewViewPane extends ViewPane {
 
 	private layoutWebview(dimension?: Dimension) {
 		this.doLayoutWebview(dimension);
-		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
+		// Temporary fix for https://github.com/willnickols/erdos/issues/110450
 		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
 		clearTimeout(this._repositionTimeout);
 		this._repositionTimeout = setTimeout(() => this.doLayoutWebview(dimension), 200);

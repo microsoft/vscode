@@ -277,7 +277,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		// Open binary as text
 		if (editorId === DEFAULT_EDITOR_ASSOCIATION.id) {
 			editor.setForceOpenAsText();
-			editor.setPreferredLanguageId(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
+			editor.setPreferredLanguageId(BINARY_TEXT_FILE_MODE); // https://github.com/willnickols/erdos/issues/131076
 
 			editorOptions = { ...editorOptions, forceReload: true }; // Same pane and same input, must force reload to clear cached state
 		}

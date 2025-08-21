@@ -747,7 +747,7 @@ const Languages = {
 async function getSpecificNLS(resourceUrlTemplate, languageId, version) {
     const resource = {
         publisher: 'ms-ceintl',
-        name: `vscode-language-pack-${languageId}`,
+        name: `erdos-language-pack-${languageId}`,
         version: `${version[0]}.${version[1]}.${version[2]}`,
         path: 'extension/translations/main.i18n.json'
     };
@@ -778,10 +778,10 @@ async function queryVersions(serviceUrl, languageId) {
         headers: {
             'Accept': 'application/json;api-version=3.0-preview.1',
             'Content-Type': 'application/json',
-            'User-Agent': 'VS Code Build',
+            'User-Agent': 'Erdos Build',
         },
         body: JSON.stringify({
-            filters: [{ criteria: [{ filterType: 7, value: `ms-ceintl.vscode-language-pack-${languageId}` }] }],
+            filters: [{ criteria: [{ filterType: 7, value: `ms-ceintl.erdos-language-pack-${languageId}` }] }],
             flags: 0x1
         })
     });

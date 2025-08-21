@@ -284,13 +284,13 @@ export class GitBlameController {
 				l10n.t('{0} files changed', commitInformation.shortStat.files)}</span>`);
 
 			if (commitInformation.shortStat.insertions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${commitInformation.shortStat.insertions === 1 ?
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--erdos-scmGraph-historyItemHoverAdditionsForeground);">${commitInformation.shortStat.insertions === 1 ?
 					l10n.t('{0} insertion{1}', commitInformation.shortStat.insertions, '(+)') :
 					l10n.t('{0} insertions{1}', commitInformation.shortStat.insertions, '(+)')}</span>`);
 			}
 
 			if (commitInformation.shortStat.deletions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${commitInformation.shortStat.deletions === 1 ?
+				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--erdos-scmGraph-historyItemHoverDeletionsForeground);">${commitInformation.shortStat.deletions === 1 ?
 					l10n.t('{0} deletion{1}', commitInformation.shortStat.deletions, '(-)') :
 					l10n.t('{0} deletions{1}', commitInformation.shortStat.deletions, '(-)')}</span>`);
 			}

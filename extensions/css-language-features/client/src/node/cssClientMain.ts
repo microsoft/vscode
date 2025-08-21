@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionContext, extensions, l10n } from 'vscode';
-import { BaseLanguageClient, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { BaseLanguageClient, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'erdos-languageclient/node';
 import { LanguageClientConstructor, startClient } from '../cssClient';
 import { getNodeFSRequestService } from './nodeFs';
 import { registerDropOrPasteResourceSupport } from '../dropOrPaste/dropOrPasteResource';

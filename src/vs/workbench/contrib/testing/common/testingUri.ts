@@ -6,7 +6,7 @@
 import { assertNever } from '../../../../base/common/assert.js';
 import { URI } from '../../../../base/common/uri.js';
 
-export const TEST_DATA_SCHEME = 'vscode-test-data';
+export const TEST_DATA_SCHEME = 'erdos-test-data';
 
 export const enum TestUriType {
 	/** All console output for a task */

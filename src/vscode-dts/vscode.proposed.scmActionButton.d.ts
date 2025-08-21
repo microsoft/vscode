@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	// https://github.com/microsoft/vscode/issues/133935
+	// https://github.com/willnickols/erdos/issues/133935
 
 	export interface SourceControlActionButton {
 		command: Command & { shortTitle?: string };

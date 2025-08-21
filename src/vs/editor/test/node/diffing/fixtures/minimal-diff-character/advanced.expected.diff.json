@@ -1,10 +1,10 @@
 {
 	"original": {
-		"content": "import * as path from 'path';\nimport { Command } from 'vscode';\nimport * as nls from 'vscode-nls';\n\n\"()()()()()()()()()()()()()\"",
+		"content": "import * as path from 'path';\nimport { Command } from 'vscode';\nimport * as nls from 'erdos-nls';\n\n\"()()()()()()()()()()()()()\"",
 		"fileName": "./1.tst"
 	},
 	"modified": {
-		"content": "import * as path from 'path';\nimport { Command, commands } from 'vscode';\nimport * as nls from 'vscode-nls';\n\n\"Gallicum()est()divisa()in()partres()tres()quarum()unam()est()()()()()()()()()()()()\"",
+		"content": "import * as path from 'path';\nimport { Command, commands } from 'vscode';\nimport * as nls from 'erdos-nls';\n\n\"Gallicum()est()divisa()in()partres()tres()quarum()unam()est()()()()()()()()()()()()\"",
 		"fileName": "./2.tst"
 	},
 	"diffs": [

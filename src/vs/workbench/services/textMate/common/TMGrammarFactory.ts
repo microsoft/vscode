@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, TMScopeRegistry } from './TMScopeRegistry.js';
-import type { IGrammar, IOnigLib, IRawTheme, Registry, StateStack } from 'vscode-textmate';
+import type { IGrammar, IOnigLib, IRawTheme, Registry, StateStack } from 'erdos-textmate';
 
 interface ITMGrammarFactoryHost {
 	logTrace(msg: string): void;
@@ -34,7 +34,7 @@ export class TMGrammarFactory extends Disposable {
 	private readonly _languageToScope: Map<string, string>;
 	private readonly _grammarRegistry: Registry;
 
-	constructor(host: ITMGrammarFactoryHost, grammarDefinitions: IValidGrammarDefinition[], vscodeTextmate: typeof import('vscode-textmate'), onigLib: Promise<IOnigLib>) {
+	constructor(host: ITMGrammarFactoryHost, grammarDefinitions: IValidGrammarDefinition[], vscodeTextmate: typeof import('erdos-textmate'), onigLib: Promise<IOnigLib>) {
 		super();
 		this._host = host;
 		this._initialState = vscodeTextmate.INITIAL;

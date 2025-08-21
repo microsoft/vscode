@@ -37,7 +37,7 @@ import { TMGrammarFactory, missingTMGrammarErrorMessage } from '../common/TMGram
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from '../common/TMGrammars.js';
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from '../common/TMScopeRegistry.js';
 import { ITextMateThemingRule, IWorkbenchColorTheme, IWorkbenchThemeService } from '../../themes/common/workbenchThemeService.js';
-import type { IGrammar, IOnigLib, IRawTheme } from 'vscode-textmate';
+import type { IGrammar, IOnigLib, IRawTheme } from 'erdos-textmate';
 
 export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationService {
 	private static reportTokenizationTimeCounter = { sync: 0, async: 0 };
@@ -87,7 +87,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		this._vscodeOniguruma = null;
 
 		this._styleElement = domStylesheets.createStyleSheet();
-		this._styleElement.className = 'vscode-tokens-styles';
+		this._styleElement.className = 'erdos-tokens-styles';
 
 		grammarsExtPoint.setHandler((extensions) => this._handleGrammarsExtPoint(extensions));
 
@@ -256,7 +256,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			return this._grammarFactory;
 		}
 
-		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js'), this._getVSCodeOniguruma()]);
+		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([importAMDNodeModule<typeof import('erdos-textmate')>('erdos-textmate', 'release/main.js'), this._getVSCodeOniguruma()]);
 		const onigLib: Promise<IOnigLib> = Promise.resolve({
 			createOnigScanner: (sources: string[]) => vscodeOniguruma.createOnigScanner(sources),
 			createOnigString: (str: string) => vscodeOniguruma.createOnigString(str)
@@ -365,11 +365,11 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		return grammar;
 	}
 
-	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma')> | null;
-	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
+	private _vscodeOniguruma: Promise<typeof import('erdos-oniguruma')> | null;
+	private _getVSCodeOniguruma(): Promise<typeof import('erdos-oniguruma')> {
 		if (!this._vscodeOniguruma) {
 			this._vscodeOniguruma = (async () => {
-				const [vscodeOniguruma, wasm] = await Promise.all([importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js'), this._loadVSCodeOnigurumaWASM()]);
+				const [vscodeOniguruma, wasm] = await Promise.all([importAMDNodeModule<typeof import('erdos-oniguruma')>('erdos-oniguruma', 'release/main.js'), this._loadVSCodeOnigurumaWASM()]);
 				await vscodeOniguruma.loadWASM({
 					data: wasm,
 					print: (str: string) => {
@@ -384,15 +384,15 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private async _loadVSCodeOnigurumaWASM(): Promise<Response | ArrayBuffer> {
 		if (isWeb) {
-			const response = await fetch(resolveAmdNodeModulePath('vscode-oniguruma', 'release/onig.wasm'));
+			const response = await fetch(resolveAmdNodeModulePath('erdos-oniguruma', 'release/onig.wasm'));
 			// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 			// Otherwise, a TypeError is thrown when using the streaming compiler.
 			// We therefore use the non-streaming compiler :(.
 			return await response.arrayBuffer();
 		} else {
 			const response = await fetch(canASAR && this._environmentService.isBuilt
-				? FileAccess.asBrowserUri(`${nodeModulesAsarUnpackedPath}/vscode-oniguruma/release/onig.wasm`).toString(true)
-				: FileAccess.asBrowserUri(`${nodeModulesPath}/vscode-oniguruma/release/onig.wasm`).toString(true));
+				? FileAccess.asBrowserUri(`${nodeModulesAsarUnpackedPath}/erdos-oniguruma/release/onig.wasm`).toString(true)
+				: FileAccess.asBrowserUri(`${nodeModulesPath}/erdos-oniguruma/release/onig.wasm`).toString(true));
 			return response;
 		}
 	}

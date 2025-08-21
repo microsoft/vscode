@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import type * as markdownIt from 'markdown-it';
-import type { RendererContext } from 'vscode-notebook-renderer';
+import type { RendererContext } from 'erdos-notebook-renderer';
 
 const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
 
@@ -31,7 +31,7 @@ export async function activate(ctx: RendererContext<void>) {
 	const style = document.createElement('style');
 	style.textContent = `
 		.katex-error {
-			color: var(--vscode-editorError-foreground);
+			color: var(--erdos-editorError-foreground);
 		}
 		.katex-block {
 			counter-reset: katexEqnNo mmlEqnNo;

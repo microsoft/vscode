@@ -34,10 +34,10 @@ export class FailureTracker {
 	private logs?: ITrackedRemediation[];
 
 	constructor(storageLocation: string, private readonly rootDir: string) {
-		this.logFile = join(storageLocation, '.build/vscode-test-failures.json');
+		this.logFile = join(storageLocation, '.build/erdos-test-failures.json');
 		mkdirSync(dirname(this.logFile), { recursive: true });
 
-		const oldLogFile = join(rootDir, '.build/vscode-test-failures.json');
+		const oldLogFile = join(rootDir, '.build/erdos-test-failures.json');
 		if (existsSync(oldLogFile)) {
 			try {
 				renameSync(oldLogFile, this.logFile);

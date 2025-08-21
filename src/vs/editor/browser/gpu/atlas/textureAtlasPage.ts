@@ -84,7 +84,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		// Ensure the glyph was allocated
 		if (glyph === undefined) {
 			// TODO: undefined here can mean the glyph was too large for a slab on the page, this
-			// can lead to big problems if we don't handle it properly https://github.com/microsoft/vscode/issues/232984
+			// can lead to big problems if we don't handle it properly https://github.com/willnickols/erdos/issues/232984
 			return undefined;
 		}
 

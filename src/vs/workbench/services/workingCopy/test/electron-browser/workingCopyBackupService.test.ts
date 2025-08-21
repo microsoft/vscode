@@ -269,7 +269,7 @@ suite('WorkingCopyBackupService', () => {
 
 		test('should correctly hash the identifier for custom scheme URIs', () => {
 			const uri = URI.from({
-				scheme: 'vscode-custom',
+				scheme: 'erdos-custom',
 				path: 'somePath'
 			});
 
@@ -293,7 +293,7 @@ suite('WorkingCopyBackupService', () => {
 
 		test('should not fail for URIs without path', () => {
 			const uri = URI.from({
-				scheme: 'vscode-fragment',
+				scheme: 'erdos-fragment',
 				fragment: 'frag'
 			});
 

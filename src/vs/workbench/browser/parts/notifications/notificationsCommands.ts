@@ -75,7 +75,7 @@ export function getNotificationFromContext(listService: IListService, context?: 
 				// the notification list might have received focus
 				// via keyboard and might not have a focused element.
 				// in that case just return the first element
-				// https://github.com/microsoft/vscode/issues/191705
+				// https://github.com/willnickols/erdos/issues/191705
 				element = list.element(0);
 			}
 		}

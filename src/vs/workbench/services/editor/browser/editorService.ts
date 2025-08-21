@@ -363,7 +363,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					}
 
 					// We have received reports of users seeing delete events even though the file still
-					// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
+					// exists (network shares issue: https://github.com/willnickols/erdos/issues/13665).
 					// Since we do not want to close an editor without reason, we have to check if the
 					// file is really gone and not just a faulty file event.
 					// This only applies to external file events, so we need to check for the isExternal

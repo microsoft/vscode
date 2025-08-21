@@ -117,7 +117,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 
 	instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 
-	const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService, label: 'local', id: 'vscode-local' };
+	const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService, label: 'local', id: 'erdos-local' };
 	instantiationService.stub(IExtensionManagementServerService, {
 		get localExtensionManagementServer(): IExtensionManagementServer {
 			return localExtensionManagementServer;
@@ -2564,7 +2564,7 @@ function aPage<T>(...objects: T[]): IPager<T> {
 
 function aSingleRemoteExtensionManagementServerService(instantiationService: TestInstantiationService, remoteExtensionManagementService?: IProfileAwareExtensionManagementService): IExtensionManagementServerService {
 	const remoteExtensionManagementServer: IExtensionManagementServer = {
-		id: 'vscode-remote',
+		id: 'erdos-remote',
 		label: 'remote',
 		extensionManagementService: remoteExtensionManagementService || createExtensionManagementService(),
 	};
@@ -2588,17 +2588,17 @@ function aSingleRemoteExtensionManagementServerService(instantiationService: Tes
 
 function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IProfileAwareExtensionManagementService | null, remoteExtensionManagementService?: IProfileAwareExtensionManagementService | null, webExtensionManagementService?: IProfileAwareExtensionManagementService): IExtensionManagementServerService {
 	const localExtensionManagementServer: IExtensionManagementServer | null = localExtensionManagementService === null ? null : {
-		id: 'vscode-local',
+		id: 'erdos-local',
 		label: 'local',
 		extensionManagementService: localExtensionManagementService || createExtensionManagementService(),
 	};
 	const remoteExtensionManagementServer: IExtensionManagementServer | null = remoteExtensionManagementService === null ? null : {
-		id: 'vscode-remote',
+		id: 'erdos-remote',
 		label: 'remote',
 		extensionManagementService: remoteExtensionManagementService || createExtensionManagementService(),
 	};
 	const webExtensionManagementServer: IExtensionManagementServer | null = webExtensionManagementService ? {
-		id: 'vscode-web',
+		id: 'erdos-web',
 		label: 'web',
 		extensionManagementService: webExtensionManagementService,
 	} : null;

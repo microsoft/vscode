@@ -179,16 +179,16 @@ class ESRPReleaseService {
             owners: [{ owner: { userPrincipalName: 'jomo@microsoft.com' } }],
             approvers: [{ approver: { userPrincipalName: 'jomo@microsoft.com' }, isAutoApproved: true, isMandatory: false }],
             releaseInfo: {
-                title: 'VS Code',
+                title: 'Erdos',
                 properties: {
                     'ReleaseContentType': 'InstallPackage'
                 },
                 minimumNumberOfApprovers: 1
             },
             productInfo: {
-                name: 'VS Code',
+                name: 'Erdos',
                 version,
-                description: 'VS Code'
+                description: 'Erdos'
             },
             accessPermissionsInfo: {
                 mainPublisher: 'VSCode',

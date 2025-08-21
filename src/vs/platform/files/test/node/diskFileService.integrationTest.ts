@@ -103,7 +103,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		const res = await super.stat(resource);
 
 		if (this.invalidStatSize) {
-			(res as any).size = String(res.size) as any; // for https://github.com/microsoft/vscode/issues/72909
+			(res as any).size = String(res.size) as any; // for https://github.com/willnickols/erdos/issues/72909
 		} else if (this.smallStatSize) {
 			(res as any).size = 1;
 		} else if (this.readonly) {
@@ -357,7 +357,7 @@ flakySuite('Disk File Service', function () {
 		return testResolveDirectoryWithTarget(false);
 	});
 
-	test('resolve directory - resolveTo with a URI that has query parameter (https://github.com/microsoft/vscode/issues/128151)', () => {
+	test('resolve directory - resolveTo with a URI that has query parameter (https://github.com/willnickols/erdos/issues/128151)', () => {
 		return testResolveDirectoryWithTarget(true);
 	});
 
@@ -1631,7 +1631,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(fileProvider.totalBytesRead, 0);
 	}
 
-	test('readFile - FILE_NOT_MODIFIED_SINCE does not fire wrongly - https://github.com/microsoft/vscode/issues/72909', async () => {
+	test('readFile - FILE_NOT_MODIFIED_SINCE does not fire wrongly - https://github.com/willnickols/erdos/issues/72909', async () => {
 		fileProvider.setInvalidStatSize(true);
 
 		const resource = URI.file(join(testDir, 'index.html'));
@@ -1695,7 +1695,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_TOO_LARGE);
 	}
 
-	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('readFile - dangling symbolic link - https://github.com/microsoft/vscode/issues/116049', async () => {
+	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('readFile - dangling symbolic link - https://github.com/willnickols/erdos/issues/116049', async () => {
 		const link = URI.file(join(testDir, 'small.js-link'));
 		await promises.symlink(join(testDir, 'small.js'), link.fsPath);
 

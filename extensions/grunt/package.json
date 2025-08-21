@@ -1,8 +1,8 @@
 {
   "name": "grunt",
   "publisher": "vscode",
-  "description": "Extension to add Grunt capabilities to VS Code.",
-  "displayName": "Grunt support for VS Code",
+  "description": "Extension to add Grunt capabilities to Erdos.",
+  "displayName": "Grunt support for Erdos",
   "version": "1.0.0",
   "private": true,
   "icon": "images/grunt.png",
@@ -75,6 +75,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   }
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** Declaration module describing the VS Code debug protocol.
+/** Declaration module describing the Erdos debug protocol.
 	Auto-generated from json schema. Do not edit manually.
 */
 declare module DebugProtocol {

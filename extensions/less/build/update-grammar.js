@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-var updateGrammar = require('vscode-grammar-updater');
+var updateGrammar = require('erdos-grammar-updater');
 
 function adaptLess(grammar) {
 	grammar.name = 'Less';

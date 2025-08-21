@@ -71,7 +71,7 @@ export enum Filters {
 	ExtensionVersion = 'X-VSCode-ExtensionVersion',
 
 	/**
-	 * The language in use by VS Code
+	 * The language in use by Erdos
 	 */
 	Language = 'X-VSCode-Language',
 
@@ -93,7 +93,7 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 	/**
 	 * Returns a version string that can be parsed by the TAS client.
 	 * The tas client cannot handle suffixes lke "-insider"
-	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/vscode-tas-client/src/vscode-tas-client/VSCodeFilterProvider.ts#L35
+	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/erdos-tas-client/src/erdos-tas-client/VSCodeFilterProvider.ts#L35
 	 *
 	 * @param version Version string to be trimmed.
 	*/
@@ -115,7 +115,7 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 			case Filters.Language:
 				return platform.language;
 			case Filters.ExtensionName:
-				return 'vscode-core'; // always return vscode-core for exp service
+				return 'erdos-core'; // always return erdos-core for exp service
 			case Filters.ExtensionVersion:
 				return '999999.0'; // always return a very large number for cross-extension experimentation
 			case Filters.TargetPopulation:

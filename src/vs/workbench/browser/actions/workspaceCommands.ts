@@ -122,7 +122,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async functio
 
 		return {
 			label,
-			description: description !== label ? description : undefined, // https://github.com/microsoft/vscode/issues/183418
+			description: description !== label ? description : undefined, // https://github.com/willnickols/erdos/issues/183418
 			folder,
 			iconClasses: getIconClasses(modelService, languageService, folder.uri, FileKind.ROOT_FOLDER)
 		};

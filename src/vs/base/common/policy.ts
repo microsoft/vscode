@@ -41,7 +41,7 @@ export interface IPolicy {
 	 *
 	 * If omitted, 'false' is the assumed value.
 	 *
-	 * Note: This is unrelated to the default value of the VS Code setting itself. This specifically controls
+	 * Note: This is unrelated to the default value of the Erdos setting itself. This specifically controls
 	 * the value of an account-based feature's setting WHEN the policy is overriding it.
 	 */
 	readonly defaultValue?: string | number | boolean;

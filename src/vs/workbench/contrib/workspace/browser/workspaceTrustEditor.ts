@@ -296,7 +296,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			return null;
 		}
 
-		if (item.uri.scheme === 'vscode-vfs') {
+		if (item.uri.scheme === 'erdos-vfs') {
 			const segments = path.split(posix.sep).filter(s => s.length);
 			if (segments.length === 0 && path.startsWith(posix.sep)) {
 				return {
@@ -870,7 +870,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing.", this.productService.nameShort);
 
 		const headerDescriptionActions = append(this.headerDescription, $('div'));
-		const headerDescriptionActionsText = localize({ key: 'workspaceTrustEditorHeaderActions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[Configure your settings]({0}) or [learn more](https://aka.ms/vscode-workspace-trust).", `command:workbench.trust.configure`);
+		const headerDescriptionActionsText = localize({ key: 'workspaceTrustEditorHeaderActions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[Configure your settings]({0}) or [learn more](https://aka.ms/erdos-workspace-trust).", `command:workbench.trust.configure`);
 		for (const node of parseLinkedText(headerDescriptionActionsText).nodes) {
 			if (typeof node === 'string') {
 				append(headerDescriptionActions, document.createTextNode(node));

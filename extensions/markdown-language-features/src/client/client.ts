@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BaseLanguageClient, LanguageClientOptions, NotebookDocumentSyncRegistrationType, Range, TextEdit } from 'vscode-languageclient';
+import { BaseLanguageClient, LanguageClientOptions, NotebookDocumentSyncRegistrationType, Range, TextEdit } from 'erdos-languageclient';
 import { IMdParser } from '../markdownEngine';
 import { IDisposable } from '../util/dispose';
 import { looksLikeMarkdownPath, markdownFileExtensions, markdownLanguageIds } from '../util/file';

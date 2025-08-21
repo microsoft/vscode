@@ -35,14 +35,14 @@ suite('terminalUri', () => {
 		});
 		test('should return terminal resource when event contains one', () => {
 			deepStrictEqual(
-				getTerminalResourcesFromDragEvent(fakeDragEvent('["vscode-terminal:/1626874386474/3"]'))?.map(e => e.toString()),
-				['vscode-terminal:/1626874386474/3']
+				getTerminalResourcesFromDragEvent(fakeDragEvent('["erdos-terminal:/1626874386474/3"]'))?.map(e => e.toString()),
+				['erdos-terminal:/1626874386474/3']
 			);
 		});
 		test('should return multiple terminal resources when event contains multiple', () => {
 			deepStrictEqual(
-				getTerminalResourcesFromDragEvent(fakeDragEvent('["vscode-terminal:/foo/1","vscode-terminal:/bar/2"]'))?.map(e => e.toString()),
-				['vscode-terminal:/foo/1', 'vscode-terminal:/bar/2']
+				getTerminalResourcesFromDragEvent(fakeDragEvent('["erdos-terminal:/foo/1","erdos-terminal:/bar/2"]'))?.map(e => e.toString()),
+				['erdos-terminal:/foo/1', 'erdos-terminal:/bar/2']
 			);
 		});
 	});

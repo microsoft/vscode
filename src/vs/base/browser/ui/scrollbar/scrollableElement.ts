@@ -686,7 +686,7 @@ export class DomScrollableElement extends AbstractScrollableElement {
 		options = options || {};
 		options.mouseWheelSmoothScroll = false;
 		const scrollable = new Scrollable({
-			forceIntegerValues: false, // See https://github.com/microsoft/vscode/issues/139877
+			forceIntegerValues: false, // See https://github.com/willnickols/erdos/issues/139877
 			smoothScrollDuration: 0,
 			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(element), callback)
 		});

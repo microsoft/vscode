@@ -29,7 +29,7 @@ function update(options) {
 	}
 	let locExtFolder = idOrPath;
 	if (/^\w{2,3}(-\w+)?$/.test(idOrPath)) {
-		locExtFolder = path.join('..', 'vscode-loc', 'i18n', `vscode-language-pack-${idOrPath}`);
+		locExtFolder = path.join('..', 'erdos-loc', 'i18n', `erdos-language-pack-${idOrPath}`);
 	}
 	let locExtStat = fs.statSync(locExtFolder);
 	if (!locExtStat || !locExtStat.isDirectory) {

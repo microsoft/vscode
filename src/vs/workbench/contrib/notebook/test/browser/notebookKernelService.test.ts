@@ -97,7 +97,7 @@ suite('NotebookKernelService', () => {
 		assert.ok(info.all[1] === k1);
 	});
 
-	test('new kernel with higher affinity wins, https://github.com/microsoft/vscode/issues/122028', function () {
+	test('new kernel with higher affinity wins, https://github.com/willnickols/erdos/issues/122028', function () {
 		const notebook = URI.parse('foo:///one');
 
 		const kernel = new TestNotebookKernel();

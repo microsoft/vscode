@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import TelemetryReporter, { TelemetryEventProperties } from '@vscode/extension-telemetry';
-import { IExperimentationTelemetry } from 'vscode-tas-client';
+import { IExperimentationTelemetry } from 'erdos-tas-client';
 
 export const enum MicrosoftAccountType {
 	AAD = 'aad',

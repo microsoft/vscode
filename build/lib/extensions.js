@@ -74,7 +74,7 @@ const fetch_1 = require("./fetch");
 const vzip = require('gulp-vinyl-zip');
 const root = path_1.default.dirname(path_1.default.dirname(__dirname));
 const commit = (0, getVersion_1.getVersion)(root);
-const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+const sourceMappingURLBase = `https://main.erdos-cdn.net/sourcemaps/${commit}`;
 function minifyExtensionResources(input) {
     const jsonFilter = (0, gulp_filter_1.default)(['**/*.json', '**/*.code-snippets'], { restore: true });
     return input
@@ -318,10 +318,10 @@ const nativeExtensions = [
     'microsoft-authentication',
 ];
 const excludedExtensions = [
-    'vscode-api-tests',
-    'vscode-colorize-tests',
-    'vscode-colorize-perf-tests',
-    'vscode-test-resolver',
+    'erdos-api-tests',
+    'erdos-colorize-tests',
+    'erdos-colorize-perf-tests',
+    'erdos-test-resolver',
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
 ];
@@ -330,7 +330,7 @@ const marketplaceWebExtensionsExclude = new Set([
     'ms-vscode.node-debug2',
     'ms-vscode.js-debug-companion',
     'ms-vscode.js-debug',
-    'ms-vscode.vscode-js-profile-table'
+    'ms-vscode.erdos-js-profile-table'
 ]);
 const productJson = JSON.parse(fs_1.default.readFileSync(path_1.default.join(__dirname, '../../product.json'), 'utf8'));
 const builtInExtensions = productJson.builtInExtensions || [];

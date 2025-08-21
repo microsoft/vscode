@@ -116,7 +116,7 @@ suite('MarkdownString', () => {
 			].join('\n')}\n`);
 		});
 
-		// @see https://github.com/microsoft/vscode/issues/193746
+		// @see https://github.com/willnickols/erdos/issues/193746
 		test('escape fence', () => {
 			// fence in the first line
 			assertCodeBlock('md', '```\n```', `\n${[

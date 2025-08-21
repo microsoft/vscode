@@ -45,9 +45,9 @@ import { mainWindow } from '../../../../base/browser/window.js';
 
 // implementation
 
-const defaultThemeExtensionId = 'vscode-theme-defaults';
+const defaultThemeExtensionId = 'erdos-theme-defaults';
 
-const DEFAULT_FILE_ICON_THEME_ID = 'vscode.vscode-theme-seti-vs-seti';
+const DEFAULT_FILE_ICON_THEME_ID = 'vscode.erdos-theme-seti-vs-seti';
 const fileIconsEnabledClass = 'file-icons-enabled';
 
 const colorThemeRulesClassName = 'contributedColorTheme';

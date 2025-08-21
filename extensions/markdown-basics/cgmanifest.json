@@ -31,8 +31,8 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "microsoft/vscode-markdown-tm-grammar",
-					"repositoryUrl": "https://github.com/microsoft/vscode-markdown-tm-grammar",
+					"name": "microsoft/erdos-markdown-tm-grammar",
+					"repositoryUrl": "https://github.com/willnickols/erdos-markdown-tm-grammar",
 					"commitHash": "548ccb91ef58ba40ac745b400d889933ccd5eb4d"
 				}
 			},

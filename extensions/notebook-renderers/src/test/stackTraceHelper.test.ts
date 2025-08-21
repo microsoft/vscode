@@ -39,10 +39,10 @@ suite('StackTraceHelper', () => {
 
 		const { formattedStack, errorLocation } = formatStackTrace(stack, true);
 		const cleanStack = stripAsciiFormatting(formattedStack);
-		assert.ok(cleanStack.indexOf('Cell In[3], <a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>') > 0, 'Missing line link in ' + cleanStack);
-		assert.ok(cleanStack.indexOf('<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
+		assert.ok(cleanStack.indexOf('Cell In[3], <a href=\'erdos-notebook-cell:?execution_count=3&line=2\'>line 2</a>') > 0, 'Missing line link in ' + cleanStack);
+		assert.ok(cleanStack.indexOf('<a href=\'erdos-notebook-cell:?execution_count=3&line=2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
 		assert.ok(cleanStack.indexOf('<a href=\'C:\\venvs\\myLib.py:2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
-		assert.equal(errorLocation, '<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>');
+		assert.equal(errorLocation, '<a href=\'erdos-notebook-cell:?execution_count=3&line=2\'>line 2</a>');
 	});
 
 	test('IPython stack line numbers are linkified for IPython 9.0.0', () => {
@@ -58,12 +58,12 @@ suite('StackTraceHelper', () => {
 
 		const { formattedStack, errorLocation } = formatStackTrace(stack, true);
 		const cleanStack = stripAsciiFormatting(formattedStack);
-		assert.ok(cleanStack.indexOf('Cell In[3], <a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>') > 0, 'Missing line link in ' + cleanStack);
-		assert.ok(cleanStack.indexOf('<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
-		assert.equal(errorLocation, '<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>line 2</a>');
+		assert.ok(cleanStack.indexOf('Cell In[3], <a href=\'erdos-notebook-cell:?execution_count=3&line=2\'>line 2</a>') > 0, 'Missing line link in ' + cleanStack);
+		assert.ok(cleanStack.indexOf('<a href=\'erdos-notebook-cell:?execution_count=3&line=2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
+		assert.equal(errorLocation, '<a href=\'erdos-notebook-cell:?execution_count=3&line=2\'>line 2</a>');
 	});
 
-	test('Does not have catastrophic backtracking https://github.com/microsoft/vscode/issues/251731', () => {
+	test('Does not have catastrophic backtracking https://github.com/willnickols/erdos/issues/251731', () => {
 		const stack =
 			'\u001b[31m---------------------------------------------------------------------------\u001b[39m\n' +
 			'\u001b[31mZeroDivisionError\u001b[39m                         Traceback (most recent call last)\n' +
@@ -72,9 +72,9 @@ suite('StackTraceHelper', () => {
 
 		const { formattedStack, errorLocation } = formatStackTrace(stack, true);
 		const cleanStack = stripAsciiFormatting(formattedStack);
-		assert.ok(cleanStack.indexOf('Cell In[1], <a href=\'vscode-notebook-cell:?execution_count=1&line=2\'>line 2</a>') > 0, 'Missing line link in ' + cleanStack);
-		assert.ok(cleanStack.indexOf('<a href=\'vscode-notebook-cell:?execution_count=1&line=2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
-		assert.equal(errorLocation, '<a href=\'vscode-notebook-cell:?execution_count=1&line=2\'>line 2</a>');
+		assert.ok(cleanStack.indexOf('Cell In[1], <a href=\'erdos-notebook-cell:?execution_count=1&line=2\'>line 2</a>') > 0, 'Missing line link in ' + cleanStack);
+		assert.ok(cleanStack.indexOf('<a href=\'erdos-notebook-cell:?execution_count=1&line=2\'>2</a>') > 0, 'Missing frame link in ' + cleanStack);
+		assert.equal(errorLocation, '<a href=\'erdos-notebook-cell:?execution_count=1&line=2\'>line 2</a>');
 	});
 
 	test('Stack trace is not linkified when HTML is not trusted', () => {
@@ -116,9 +116,9 @@ suite('StackTraceHelper', () => {
 
 		const { formattedStack } = formatStackTrace(stack, true);
 		const formatted = stripAsciiFormatting(formattedStack);
-		assert.ok(formatted.indexOf('Input <a href=\'vscode-notebook-cell:?execution_count=2\'>In [2]</a>, in <cell line: 5>') > 0, 'Missing cell link in ' + formatted);
-		assert.ok(formatted.indexOf('Input <a href=\'vscode-notebook-cell:?execution_count=1\'>In [1]</a>, in myfunc()') > 0, 'Missing cell link in ' + formatted);
-		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution_count=2&line=5\'>5</a>') > 0, 'Missing frame link in ' + formatted);
+		assert.ok(formatted.indexOf('Input <a href=\'erdos-notebook-cell:?execution_count=2\'>In [2]</a>, in <cell line: 5>') > 0, 'Missing cell link in ' + formatted);
+		assert.ok(formatted.indexOf('Input <a href=\'erdos-notebook-cell:?execution_count=1\'>In [1]</a>, in myfunc()') > 0, 'Missing cell link in ' + formatted);
+		assert.ok(formatted.indexOf('<a href=\'erdos-notebook-cell:?execution_count=2&line=5\'>5</a>') > 0, 'Missing frame link in ' + formatted);
 	});
 
 	test('IPython stack trace lines without associated location are not linkified', () => {
@@ -148,7 +148,7 @@ suite('StackTraceHelper', () => {
 			'   1a  print(\n';
 
 		const formattedLines = formatStackTrace(stack, true).formattedStack.split('\n');
-		assert.ok(/<a href='vscode-notebook-cell.*>/.test(formattedLines[0]), 'line should contain a link: ' + formattedLines[0]);
+		assert.ok(/<a href='erdos-notebook-cell.*>/.test(formattedLines[0]), 'line should contain a link: ' + formattedLines[0]);
 		formattedLines.slice(1).forEach(line => assert.ok(!/<a href=.*>/.test(line), 'line should not contain a link: ' + line));
 	});
 

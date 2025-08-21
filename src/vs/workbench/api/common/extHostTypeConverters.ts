@@ -1574,7 +1574,7 @@ export namespace GlobPattern {
 		// `vscode.GlobPattern` which can be `vscode.RelativePattern` class,
 		// but given we cannot enforce classes from our vscode.d.ts, we have
 		// to probe for objects too
-		// Refs: https://github.com/microsoft/vscode/issues/140771
+		// Refs: https://github.com/willnickols/erdos/issues/140771
 		if (isRelativePatternShape(pattern) || isLegacyRelativePatternShape(pattern)) {
 			return new types.RelativePattern(pattern.baseUri ?? pattern.base, pattern.pattern).toJSON();
 		}

@@ -1,6 +1,6 @@
 {
-  "name": "vscode-api-tests",
-  "description": "API tests for VS Code",
+  "name": "erdos-api-tests",
+  "description": "API tests for Erdos",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
@@ -260,7 +260,7 @@
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:erdos-api-tests ./tsconfig.json"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
@@ -271,6 +271,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   }
 }

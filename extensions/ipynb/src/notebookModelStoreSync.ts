@@ -137,7 +137,7 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEventEx) {
 	const updates: { cell: NotebookCell; metadata: CellMetadata & { vscode?: { languageId: string } } }[] = [];
 	// When we change the language of a cell,
 	// Ensure the metadata in the notebook cell has been updated as well,
-	// Else model will be out of sync with ipynb https://github.com/microsoft/vscode/issues/207968#issuecomment-2002858596
+	// Else model will be out of sync with ipynb https://github.com/willnickols/erdos/issues/207968#issuecomment-2002858596
 	e.cellChanges.forEach(e => {
 		if (!preferredCellLanguage || e.cell.kind !== NotebookCellKind.Code) {
 			return;

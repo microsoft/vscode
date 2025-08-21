@@ -22,7 +22,7 @@ export async function getNLSConfiguration(language: string, userDataPath: string
 			resolvedLanguage: 'en',
 			defaultMessagesFile,
 
-			// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
+			// NLS: below 2 are a relic from old times only used by erdos-nls and deprecated
 			locale: 'en',
 			availableLanguages: {}
 		};

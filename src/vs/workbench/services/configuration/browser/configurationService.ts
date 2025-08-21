@@ -435,7 +435,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	 * This restriction is lifted partially for web in `MainThreadWorkspace`.
 	 * In web, we start extension host with empty `rootPath` in this case.
 	 *
-	 * Related root path issue discussion is being tracked here - https://github.com/microsoft/vscode/issues/69335
+	 * Related root path issue discussion is being tracked here - https://github.com/willnickols/erdos/issues/69335
 	 */
 	async initialize(arg: IAnyWorkspaceIdentifier): Promise<void> {
 		mark('code/willInitWorkspaceService');

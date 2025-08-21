@@ -49,8 +49,8 @@ async function findMarkdownFilesInDir(uri: Uri): Promise<Uri[]> {
  * - In the root, `docs`, or `.github` folders, called `pull_request_template.md` or `PULL_REQUEST_TEMPLATE.md`
  * - Or, in a `PULL_REQUEST_TEMPLATE` directory directly below the root, `docs`, or `.github` folders, called `*.md`
  *
- * NOTE This method is a modified copy of a method with same name at microsoft/vscode-pull-request-github repository:
- *   https://github.com/microsoft/vscode-pull-request-github/blob/0a0c3c6c21c0b9c2f4d5ffbc3f8c6a825472e9e6/src/github/folderRepositoryManager.ts#L1061
+ * NOTE This method is a modified copy of a method with same name at microsoft/erdos-pull-request-github repository:
+ *   https://github.com/willnickols/erdos-pull-request-github/blob/0a0c3c6c21c0b9c2f4d5ffbc3f8c6a825472e9e6/src/github/folderRepositoryManager.ts#L1061
  *
  */
 export async function findPullRequestTemplates(repositoryRootUri: Uri): Promise<Uri[]> {
@@ -316,7 +316,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 		const message = l10n.t('Your push to "{0}/{1}" was rejected by GitHub because push protection is enabled and one or more secrets were detected.', owner, repo);
 		const answer = await window.showWarningMessage(message, { modal: true }, learnMore);
 		if (answer === learnMore) {
-			commands.executeCommand('vscode.open', 'https://aka.ms/vscode-github-push-protection');
+			commands.executeCommand('vscode.open', 'https://aka.ms/erdos-github-push-protection');
 		}
 	}
 

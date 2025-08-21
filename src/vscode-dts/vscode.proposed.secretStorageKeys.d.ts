@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/196616
+	// https://github.com/willnickols/erdos/issues/196616
 
 	export interface SecretStorage {
 		/**

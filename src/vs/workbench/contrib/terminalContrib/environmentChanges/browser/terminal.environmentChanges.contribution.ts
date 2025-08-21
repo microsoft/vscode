@@ -15,7 +15,7 @@ import { registerActiveInstanceAction } from '../../../terminal/browser/terminal
 import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
-// TODO: The rest of the terminal environment changes feature should move here https://github.com/microsoft/vscode/issues/177241
+// TODO: The rest of the terminal environment changes feature should move here https://github.com/willnickols/erdos/issues/177241
 
 // #region Actions
 

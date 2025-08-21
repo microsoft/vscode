@@ -24,7 +24,7 @@ import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityServi
 import { FileUserDataProvider } from '../../common/fileUserDataProvider.js';
 import { IUserDataProfilesService, UserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
 
-const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+const ROOT = URI.file('tests').with({ scheme: 'erdos-tests' });
 
 class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	constructor(private readonly _appSettingsHome: URI) {

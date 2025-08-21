@@ -145,10 +145,10 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 ));
 gulp.task(bundleVSCodeTask);
 
-const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+const sourceMappingURLBase = `https://main.erdos-cdn.net/sourcemaps/${commit}`;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	bundleVSCodeTask,
-	util.rimraf('out-vscode-min'),
+	util.rimraf('out-erdos-min'),
 	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
 gulp.task(minifyVSCodeTask);
@@ -157,8 +157,8 @@ const coreCI = task.define('core-ci', task.series(
 	gulp.task('compile-build-with-mangling'),
 	task.parallel(
 		gulp.task('minify-vscode'),
-		gulp.task('minify-vscode-reh'),
-		gulp.task('minify-vscode-reh-web'),
+		gulp.task('minify-erdos-reh'),
+		gulp.task('minify-erdos-reh-web'),
 	)
 ));
 gulp.task(coreCI);
@@ -167,8 +167,8 @@ const coreCIPR = task.define('core-ci-pr', task.series(
 	gulp.task('compile-build-without-mangling'),
 	task.parallel(
 		gulp.task('minify-vscode'),
-		gulp.task('minify-vscode-reh'),
-		gulp.task('minify-vscode-reh-web'),
+		gulp.task('minify-erdos-reh'),
+		gulp.task('minify-erdos-reh-web'),
 	)
 ));
 gulp.task(coreCIPR);
@@ -279,7 +279,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const license = gulp.src([product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
 		// TODO the API should be copied to `out` during compile, not here
-		const api = gulp.src('src/vscode-dts/vscode.d.ts').pipe(rename('out/vscode-dts/vscode.d.ts'));
+		const api = gulp.src('src/erdos-dts/vscode.d.ts').pipe(rename('out/erdos-dts/vscode.d.ts'));
 
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
@@ -367,7 +367,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		let result = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
-			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
+			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/willnickols/erdos/issues/116523
 			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: false }))
 			.pipe(filter(['**', '!LICENSE', '!version'], { dot: true }));
 
@@ -394,7 +394,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(replace('@@VERSION@@', version))
 				.pipe(replace('@@COMMIT@@', commit))
 				.pipe(replace('@@APPNAME@@', product.applicationName))
-				.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.vscode-remote'))
+				.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.erdos-remote'))
 				.pipe(replace('@@QUALITY@@', quality))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 
@@ -517,7 +517,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 	if (process.platform === platform && process.arch === arch) {
 		gulp.task(task.define('vscode', task.series(vscode)));
-		gulp.task(task.define('vscode-min', task.series(vscodeMin)));
+		gulp.task(task.define('erdos-min', task.series(vscodeMin)));
 	}
 });
 
@@ -539,7 +539,7 @@ const innoSetupConfig = {
 };
 
 gulp.task(task.define(
-	'vscode-translations-export',
+	'erdos-translations-export',
 	task.series(
 		coreCI,
 		compileAllExtensionsBuildTask,
@@ -552,21 +552,21 @@ gulp.task(task.define(
 				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
-			).pipe(vfs.dest('../vscode-translations-export'));
+			).pipe(vfs.dest('../erdos-translations-export'));
 		}
 	)
 ));
 
-gulp.task('vscode-translations-import', function () {
+gulp.task('erdos-translations-import', function () {
 	const options = minimist(process.argv.slice(2), {
 		string: 'location',
 		default: {
-			location: '../vscode-translations-import'
+			location: '../erdos-translations-import'
 		}
 	});
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
 		const id = language.id;
-		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
+		return gulp.src(`${options.location}/${id}/erdos-setup/messages.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
 			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));

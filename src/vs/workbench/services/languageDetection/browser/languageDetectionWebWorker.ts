@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
+import type { ModelOperations, ModelResult } from '@vscode/erdos-languagedetection';
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
@@ -144,7 +144,7 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		}
 
 		const uri: string = await this._host.$getIndexJsUri();
-		const { ModelOperations } = await importAMDNodeModule(uri, '') as typeof import('@vscode/vscode-languagedetection');
+		const { ModelOperations } = await importAMDNodeModule(uri, '') as typeof import('@vscode/erdos-languagedetection');
 		this._modelOperations = new ModelOperations({
 			modelJsonLoaderFunc: async () => {
 				const response = await fetch(await this._host.$getModelJsonUri());
@@ -167,12 +167,12 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	}
 
 	// This adjusts the language confidence scores to be more accurate based on:
-	// * VS Code's language usage
+	// * Erdos's language usage
 	// * Languages with 'problematic' syntaxes that have caused incorrect language detection
 	private adjustLanguageConfidence(modelResult: ModelResult): ModelResult {
 		switch (modelResult.languageId) {
 			// For the following languages, we increase the confidence because
-			// these are commonly used languages in VS Code and supported
+			// these are commonly used languages in Erdos and supported
 			// by the model.
 			case 'js':
 			case 'html':
@@ -197,12 +197,12 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 			// we've had issues like #131912 that caused incorrect guesses. To enforce this, we subtract the
 			// negativeConfidenceCorrection from the confidence.
 
-			// languages that are provided by default in VS Code
+			// languages that are provided by default in Erdos
 			case 'bat':
 			case 'ini':
 			case 'makefile':
 			case 'sql':
-			// languages that aren't provided by default in VS Code
+			// languages that aren't provided by default in Erdos
 			case 'csv':
 			case 'toml':
 				// Other considerations for negativeConfidenceCorrection that

@@ -114,7 +114,7 @@ suite('TerminalCompletionModel', function () {
 		});
 
 		test('should handle many files and folders correctly', function () {
-			// This is VS Code's root directory with some python items added that have special
+			// This is Erdos's root directory with some python items added that have special
 			// sorting
 			const items = [
 				...createFolderItems(
@@ -126,7 +126,7 @@ suite('TerminalCompletionModel', function () {
 					'.github',
 					'.profile-oss',
 					'.vscode',
-					'.vscode-test',
+					'.erdos-test',
 					'build',
 					'cli',
 					'extensions',
@@ -150,7 +150,7 @@ suite('TerminalCompletionModel', function () {
 					'.mention-bot',
 					'.npmrc',
 					'.nvmrc',
-					'.vscode-test.js',
+					'.erdos-test.js',
 					'cglicenses.json',
 					'cgmanifest.json',
 					'CodeQL.yml',
@@ -210,8 +210,8 @@ suite('TerminalCompletionModel', function () {
 				'ThirdPartyNotices.txt',
 				'tsfmt.json',
 				'.vscode',
-				'.vscode-test',
-				'.vscode-test.js',
+				'.erdos-test',
+				'.erdos-test.js',
 				'__init__.py',
 				'__pycache',
 			]);

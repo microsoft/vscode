@@ -5,7 +5,7 @@
 
 import type * as MarkdownIt from 'markdown-it';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
-import type { RendererContext } from 'vscode-notebook-renderer';
+import type { RendererContext } from 'erdos-notebook-renderer';
 
 interface MarkdownItRenderer {
 	extendMarkdownIt(fn: (md: MarkdownIt) => void): void;

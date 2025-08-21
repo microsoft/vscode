@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument } from 'vscode-css-languageservice';
+import { TextDocument } from 'erdos-css-languageservice';
 
 export interface LanguageModelCache<T> {
 	get(document: TextDocument): T;

@@ -300,19 +300,19 @@ export class ReleaseNotesManager extends Disposable {
 					/* codesetting */
 
 					code:has(.codesetting) {
-						background-color: var(--vscode-textPreformat-background);
-						color: var(--vscode-textPreformat-foreground);
+						background-color: var(--erdos-textPreformat-background);
+						color: var(--erdos-textPreformat-foreground);
 						padding-left: 1px;
 						margin-right: 3px;
 						padding-right: 0px;
 					}
 
 					code:has(.codesetting):focus {
-						border: 1px solid var(--vscode-button-border, transparent);
+						border: 1px solid var(--erdos-button-border, transparent);
 					}
 
 					.codesetting {
-						color: var(--vscode-textPreformat-foreground);
+						color: var(--erdos-textPreformat-foreground);
 						padding: 0px 1px 1px 0px;
 						font-size: 0px;
 						overflow: hidden;
@@ -328,7 +328,7 @@ export class ReleaseNotesManager extends Disposable {
 						font-size: 12px;
 						text-align: center;
 						cursor: pointer;
-						border: 1px solid var(--vscode-button-secondaryBorder, transparent);
+						border: 1px solid var(--erdos-button-secondaryBorder, transparent);
 						outline: 1px solid transparent;
 						line-height: 9px;
 						margin-bottom: -5px;
@@ -354,7 +354,7 @@ export class ReleaseNotesManager extends Disposable {
 						margin-top: -3px;
 					}
 					.codesetting:hover {
-						color: var(--vscode-textPreformat-foreground) !important;
+						color: var(--erdos-textPreformat-foreground) !important;
 						text-decoration: none !important;
 					}
 					code:has(.codesetting):hover {
@@ -364,21 +364,21 @@ export class ReleaseNotesManager extends Disposable {
 					.codesetting:focus {
 						outline: 0 !important;
 						text-decoration: none !important;
-						color: var(--vscode-button-hoverForeground) !important;
+						color: var(--erdos-button-hoverForeground) !important;
 					}
 					.codesetting .separator {
 						width: 1px;
 						height: 14px;
 						margin-bottom: -3px;
 						display: inline-block;
-						background-color: var(--vscode-editor-background);
+						background-color: var(--erdos-editor-background);
 						font-size: 12px;
 						margin-right: 4px;
 					}
 
 					header { display: flex; align-items: center; padding-top: 1em; }
 
-					/* Release notes enhancements from vscode-docs */
+					/* Release notes enhancements from erdos-docs */
 					html {
 						font-size: 10px;
 						height: 100%;
@@ -400,8 +400,8 @@ export class ReleaseNotesManager extends Disposable {
 						height: 40px;
 						right: 25px;
 						bottom: 25px;
-						background-color: var(--vscode-button-background, #444);
-						border-color: var(--vscode-button-border);
+						background-color: var(--erdos-button-background, #444);
+						border-color: var(--erdos-button-border);
 						border-radius: 50%;
 						cursor: pointer;
 						box-shadow: 1px 1px 1px rgba(0,0,0,.25);
@@ -412,11 +412,11 @@ export class ReleaseNotesManager extends Disposable {
 					}
 
 					#scroll-to-top:hover {
-						background-color: var(--vscode-button-hoverBackground);
+						background-color: var(--erdos-button-hoverBackground);
 						box-shadow: 2px 2px 2px rgba(0,0,0,.25);
 					}
 
-					body.vscode-high-contrast #scroll-to-top {
+					body.erdos-high-contrast #scroll-to-top {
 						border-width: 2px;
 						border-style: solid;
 						box-shadow: none;
@@ -425,7 +425,7 @@ export class ReleaseNotesManager extends Disposable {
 					#scroll-to-top span.icon::before {
 						content: "";
 						display: block;
-						background: var(--vscode-button-foreground);
+						background: var(--erdos-button-foreground);
 						/* Chevron up icon */
 						-webkit-mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
 						mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
@@ -509,7 +509,7 @@ export class ReleaseNotesManager extends Disposable {
 					}
 
 					#toc-nav a {
-						color: var(--vscode-editor-foreground, #ccc);
+						color: var(--erdos-editor-foreground, #ccc);
 						text-decoration: none !important;
 						transition: background-color 0.2s, color 0.2s;
 						padding: 4px 6px;
@@ -520,8 +520,8 @@ export class ReleaseNotesManager extends Disposable {
 					}
 
 					#toc-nav a:hover {
-						background-color: var(--vscode-button-secondaryHoverBackground, #1177bb);
-						color: var(--vscode-button-secondaryForeground, #ffffff);
+						background-color: var(--erdos-button-secondaryHoverBackground, #1177bb);
+						color: var(--erdos-button-secondaryForeground, #ffffff);
 						cursor: pointer;
 						text-decoration: none !important;
 					}

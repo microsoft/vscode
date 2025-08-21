@@ -63,7 +63,7 @@ function main() {
     const sources = [];
     // vscode client maps (default)
     if (!base) {
-        const vs = src('out-vscode-min'); // client source-maps only
+        const vs = src('out-erdos-min'); // client source-maps only
         sources.push(vs);
         const productionDependencies = (0, dependencies_1.getProductionDependencies)(root);
         const productionDependenciesSrc = productionDependencies.map((d) => path_1.default.relative(root, d)).map((d) => `./${d}/**/*.map`);

@@ -288,8 +288,8 @@ export class MarkdownItEngine implements IMdParser {
 		const normalizeLink = md.normalizeLink;
 		md.normalizeLink = (link: string) => {
 			try {
-				// Normalize VS Code schemes to target the current version
-				if (isOfScheme(Schemes.vscode, link) || isOfScheme(Schemes['vscode-insiders'], link)) {
+				// Normalize Erdos schemes to target the current version
+				if (isOfScheme(Schemes.vscode, link) || isOfScheme(Schemes['erdos-insiders'], link)) {
 					return normalizeLink(vscode.Uri.parse(link).with({ scheme: vscode.env.uriScheme }).toString());
 				}
 
@@ -305,7 +305,7 @@ export class MarkdownItEngine implements IMdParser {
 		md.validateLink = (link: string) => {
 			return validateLink(link)
 				|| isOfScheme(Schemes.vscode, link)
-				|| isOfScheme(Schemes['vscode-insiders'], link)
+				|| isOfScheme(Schemes['erdos-insiders'], link)
 				|| /^data:image\/.*?;/.test(link);
 		};
 	}

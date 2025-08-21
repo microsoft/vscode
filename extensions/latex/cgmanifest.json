@@ -4,8 +4,8 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "jlelong/vscode-latex-basics",
-					"repositoryUrl": "https://github.com/jlelong/vscode-latex-basics",
+					"name": "jlelong/erdos-latex-basics",
+					"repositoryUrl": "https://github.com/jlelong/erdos-latex-basics",
 					"commitHash": "e5d3d4b46731ed37119a5296c12eee7669284eeb"
 				}
 			},
@@ -13,7 +13,7 @@
 			"version": "1.14.0",
 			"description": "The files in syntaxes/ were originally part of https://github.com/James-Yu/LaTeX-Workshop. They have been extracted in the hope that they can useful outside of the LaTeX-Workshop extension.",
 			"licenseDetail": [
-				"Copyright (c) vscode-latex-basics authors",
+				"Copyright (c) erdos-latex-basics authors",
 				"",
 				"If not otherwise specified (see below), files in this repository fall under the MIT License",
 				"",

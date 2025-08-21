@@ -32,7 +32,7 @@ function main(): Promise<void> {
 
 	// vscode client maps (default)
 	if (!base) {
-		const vs = src('out-vscode-min'); // client source-maps only
+		const vs = src('out-erdos-min'); // client source-maps only
 		sources.push(vs);
 
 		const productionDependencies = getProductionDependencies(root);

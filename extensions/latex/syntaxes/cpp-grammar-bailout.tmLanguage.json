@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/jlelong/vscode-latex-basics/blob/master/syntaxes/cpp-grammar-bailout.tmLanguage.json",
+		"This file has been converted from https://github.com/jlelong/erdos-latex-basics/blob/master/syntaxes/cpp-grammar-bailout.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/dfa69a16a1154dbc820dc1111d72faa6954dd1e2",
+	"version": "https://github.com/jlelong/erdos-latex-basics/commit/dfa69a16a1154dbc820dc1111d72faa6954dd1e2",
 	"name": "C++",
 	"scopeName": "source.cpp.embedded.latex",
 	"patterns": [

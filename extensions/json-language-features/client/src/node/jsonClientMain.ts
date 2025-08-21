@@ -5,7 +5,7 @@
 
 import { Disposable, ExtensionContext, LogOutputChannel, window, l10n, env, LogLevel } from 'vscode';
 import { startClient, LanguageClientConstructor, SchemaRequestService, languageServerDescription, AsyncDisposable } from '../jsonClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
+import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'erdos-languageclient/node';
 
 import { promises as fs } from 'fs';
 import * as path from 'path';

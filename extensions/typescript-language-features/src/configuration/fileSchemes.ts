@@ -16,11 +16,11 @@ export const chatEditingTextModel = 'chat-editing-text-model';
 /** Live share scheme */
 export const vsls = 'vsls';
 export const walkThroughSnippet = 'walkThroughSnippet';
-export const vscodeNotebookCell = 'vscode-notebook-cell';
+export const vscodeNotebookCell = 'erdos-notebook-cell';
 export const officeScript = 'office-script';
 
 /** Used for code blocks in chat by vs code core */
-export const chatCodeBlock = 'vscode-chat-code-block';
+export const chatCodeBlock = 'erdos-chat-code-block';
 
 export function getSemanticSupportedSchemes() {
 	const alwaysSupportedSchemes = [

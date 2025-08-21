@@ -150,7 +150,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	private static readonly PREDEFINED_EXCLUDES: { [platform: string]: string[] } = {
 		'win32': [],
 		'darwin': [
-			join(homedir(), 'Library', 'Containers') // Triggers access dialog from macOS 14 (https://github.com/microsoft/vscode/issues/208105)
+			join(homedir(), 'Library', 'Containers') // Triggers access dialog from macOS 14 (https://github.com/willnickols/erdos/issues/208105)
 		],
 		'linux': []
 	};
@@ -176,7 +176,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
 	// Reduce likelyhood of spam from file events via throttling.
-	// (https://github.com/microsoft/vscode/issues/124723)
+	// (https://github.com/willnickols/erdos/issues/124723)
 	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IFileChange>(
 		{
 			maxWorkChunkSize: 500,	// only process up to 500 changes at once before...
@@ -261,7 +261,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 		const instance = new DeferredPromise<void>();
 
-		const snapshotFile = randomPath(tmpdir(), 'vscode-watcher-snapshot');
+		const snapshotFile = randomPath(tmpdir(), 'erdos-watcher-snapshot');
 
 		// Remember as watcher instance
 		const watcher: ParcelWatcherInstance = new ParcelWatcherInstance(
@@ -582,7 +582,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// the watcher consumes so many file descriptors that
 		// we are running into a limit. We only want to warn
 		// once in this case to avoid log spam.
-		// See https://github.com/microsoft/vscode/issues/7950
+		// See https://github.com/willnickols/erdos/issues/7950
 		if (msg.indexOf('No space left on device') !== -1) {
 			if (!this.enospcErrorLogged) {
 				this.error('Inotify limit reached (ENOSPC)', request);

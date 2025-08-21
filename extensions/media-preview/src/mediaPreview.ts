@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Utils } from 'vscode-uri';
+import { Utils } from 'erdos-uri';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { Disposable } from './util/dispose';
 

@@ -1,9 +1,9 @@
 {
-  "name": "code-oss-dev",
+  "name": "erdos-dev",
   "version": "1.104.0",
   "distro": "69861287f4af04d36b926eb311cccb4b5680a018",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "Lotas Inc."
   },
   "license": "MIT",
   "main": "./out/main.js",
@@ -14,7 +14,7 @@
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",
-    "test-extension": "vscode-test",
+    "test-extension": "erdos-test",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
     "compile": "node ./node_modules/gulp/bin/gulp.js compile",
@@ -44,7 +44,7 @@
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
-    "vscode-dts-compile-check": "tsgo --project src/tsconfig.vscode-dts.json && tsgo --project src/tsconfig.vscode-proposed-dts.json",
+    "erdos-dts-compile-check": "tsgo --project src/tsconfig.erdos-dts.json && tsgo --project src/tsconfig.erdos-proposed-dts.json",
     "valid-layers-check": "node build/checker/layersChecker.js && tsgo --project build/checker/tsconfig.browser.json && tsgo --project build/checker/tsconfig.worker.json && tsgo --project build/checker/tsconfig.node.json && tsgo --project build/checker/tsconfig.electron-browser.json && tsgo --project build/checker/tsconfig.electron-main.json && tsgo --project build/checker/tsconfig.electron-utility.json",
     "define-class-fields-check": "node build/lib/propertyInitOrderChecker.js && tsc -p src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.mjs",
@@ -59,8 +59,8 @@
     "compile-build": "node ./node_modules/gulp/bin/gulp.js compile-build-with-mangling",
     "compile-extensions-build": "node ./node_modules/gulp/bin/gulp.js compile-extensions-build",
     "minify-vscode": "node ./node_modules/gulp/bin/gulp.js minify-vscode",
-    "minify-vscode-reh": "node ./node_modules/gulp/bin/gulp.js minify-vscode-reh",
-    "minify-vscode-reh-web": "node ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",
+    "minify-erdos-reh": "node ./node_modules/gulp/bin/gulp.js minify-erdos-reh",
+    "minify-erdos-reh-web": "node ./node_modules/gulp/bin/gulp.js minify-erdos-reh-web",
     "hygiene": "node ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node ./node_modules/gulp/bin/gulp.js core-ci",
     "core-ci-pr": "node ./node_modules/gulp/bin/gulp.js core-ci-pr",
@@ -83,7 +83,7 @@
     "@vscode/sqlite3": "5.1.8-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/tree-sitter-wasm": "^0.1.4",
-    "@vscode/vscode-languagedetection": "1.0.21",
+    "@vscode/erdos-languagedetection": "1.0.21",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",
     "@vscode/windows-registry": "^1.1.0",
@@ -110,9 +110,9 @@
     "open": "^10.1.2",
     "tas-client-umd": "0.2.0",
     "v8-inspect-profiler": "^0.1.1",
-    "vscode-oniguruma": "1.7.0",
-    "vscode-regexpp": "^3.1.0",
-    "vscode-textmate": "9.2.0",
+    "erdos-oniguruma": "1.7.0",
+    "erdos-regexpp": "^3.1.0",
+    "erdos-textmate": "9.2.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
@@ -131,7 +131,7 @@
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
     "@types/trusted-types": "^1.0.6",
-    "@types/vscode-notebook-renderer": "^1.72.0",
+    "@types/erdos-notebook-renderer": "^1.72.0",
     "@types/webpack": "^5.28.5",
     "@types/wicg-file-system-access": "^2020.9.6",
     "@types/windows-foreground-love": "^0.3.0",
@@ -147,7 +147,7 @@
     "@vscode/test-electron": "^2.4.0",
     "@vscode/test-web": "^0.0.62",
     "@vscode/v8-heap-parser": "^0.1.0",
-    "@vscode/vscode-perf": "^0.0.19",
+    "@vscode/erdos-perf": "^0.0.19",
     "@webgpu/types": "^0.1.44",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
@@ -229,10 +229,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "url": "https://github.com/willnickols/erdos/issues"
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"

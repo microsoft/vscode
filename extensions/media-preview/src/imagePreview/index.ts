@@ -203,11 +203,11 @@ class ImagePreview extends MediaPreview {
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; connect-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
 	<meta id="image-preview-settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
-<body class="container image scale-to-fit loading" data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
+<body class="container image scale-to-fit loading" data-erdos-context='{ "preventDefaultContextMenuItems": true }'>
 	<div class="loading-indicator"></div>
 	<div class="image-load-error">
 		<p>${vscode.l10n.t("An error occurred while loading the image.")}</p>
-		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
+		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using Erdos's standard text/binary editor?")}</a>
 	</div>
 	<script src="${escapeAttribute(this.extensionResource('media', 'imagePreview.js'))}" nonce="${nonce}"></script>
 </body>

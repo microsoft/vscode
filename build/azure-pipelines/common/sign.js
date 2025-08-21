@@ -41,7 +41,7 @@ function getParams(type) {
                     keyCode: 'CP-230012',
                     operationSetCode: 'SigntoolSign',
                     parameters: [
-                        { parameterName: 'OpusName', parameterValue: 'VS Code' },
+                        { parameterName: 'OpusName', parameterValue: 'Erdos' },
                         { parameterName: 'OpusInfo', parameterValue: 'https://code.visualstudio.com/' },
                         { parameterName: 'Append', parameterValue: '/as' },
                         { parameterName: 'FileDigest', parameterValue: '/fd "SHA256"' },
@@ -67,7 +67,7 @@ function getParams(type) {
                     keyCode: 'CP-229979',
                     operationSetCode: 'SigntoolSign',
                     parameters: [
-                        { parameterName: 'OpusName', parameterValue: 'VS Code' },
+                        { parameterName: 'OpusName', parameterValue: 'Erdos' },
                         { parameterName: 'OpusInfo', parameterValue: 'https://code.visualstudio.com/' },
                         { parameterName: 'FileDigest', parameterValue: '/fd "SHA256"' },
                         { parameterName: 'PageHash', parameterValue: '/NPH' },
@@ -163,8 +163,8 @@ function main([esrpCliPath, type, folderPath, pattern]) {
         process.env['ESRP_CLIENT_ID'],
         '-d',
         process.env['ESRP_TENANT_ID'],
-        '-k', JSON.stringify({ akv: 'vscode-esrp' }),
-        '-z', JSON.stringify({ akv: 'vscode-esrp', cert: 'esrp-sign' }),
+        '-k', JSON.stringify({ akv: 'erdos-esrp' }),
+        '-z', JSON.stringify({ akv: 'erdos-esrp', cert: 'esrp-sign' }),
         '-f', folderPath,
         '-p', patternPath,
         '-u', 'false',

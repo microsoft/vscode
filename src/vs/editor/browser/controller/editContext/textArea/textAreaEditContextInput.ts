@@ -416,7 +416,7 @@ export class TextAreaInput extends Disposable {
 		}));
 		this._register(this._textArea.onBlur(() => {
 			if (this._currentComposition) {
-				// See https://github.com/microsoft/vscode/issues/112621
+				// See https://github.com/willnickols/erdos/issues/112621
 				// where compositionend is not triggered when the editor
 				// is taken off-dom during a composition
 
@@ -454,7 +454,7 @@ export class TextAreaInput extends Disposable {
 	}
 
 	private _installSelectionChangeListener(): IDisposable {
-		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
+		// See https://github.com/willnickols/erdos/issues/27216 and https://github.com/willnickols/erdos/issues/98256
 		// When using a Braille display, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event.
 		//

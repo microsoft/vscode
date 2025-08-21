@@ -71,7 +71,7 @@ export interface IProductConfiguration {
 	readonly embedderIdentifier?: string;
 
 	readonly urlProtocol: string;
-	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
+	readonly dataFolderName: string; // location for extensions (e.g. ~/.erdos-insiders)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 	readonly walkthroughMetadata?: IProductWalkthrough[];

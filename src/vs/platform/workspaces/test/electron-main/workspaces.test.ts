@@ -60,10 +60,10 @@ flakySuite('Workspaces', () => {
 		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.file('/hello/test'), fakeStat as fs.Stats)?.id, isWindows /* slash vs backslash */ ? '9a8441e897e5174fa388bc7ef8f7a710' : '1d726b3d516dc2a6d343abf4797eaaef');
 
 		// workspace identifier (remote)
-		assert.strictEqual(getWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test')).id, '786de4f224d57691f218dc7f31ee2ee3');
+		assert.strictEqual(getWorkspaceIdentifier(URI.parse('erdos-remote:/hello/test')).id, '786de4f224d57691f218dc7f31ee2ee3');
 
 		// single folder identifier (remote)
-		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test'))?.id, '786de4f224d57691f218dc7f31ee2ee3');
+		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.parse('erdos-remote:/hello/test'))?.id, '786de4f224d57691f218dc7f31ee2ee3');
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

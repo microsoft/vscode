@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	// @CrafterKolyan https://github.com/microsoft/vscode/issues/233274
+	// @CrafterKolyan https://github.com/willnickols/erdos/issues/233274
 
 	export interface QuickPick<T> {
 		/**

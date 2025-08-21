@@ -17,7 +17,7 @@ async function createInteractiveWindow(kernel: Kernel) {
 		// Keep focus on the owning file if there is one
 		{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
 		undefined,
-		`vscode.vscode-api-tests/${kernel.controller.id}`,
+		`vscode.erdos-api-tests/${kernel.controller.id}`,
 		undefined
 	)) as unknown as INativeInteractiveWindow;
 	assert.ok(notebookEditor, 'Interactive Window was not created successfully');

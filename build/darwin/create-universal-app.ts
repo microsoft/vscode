@@ -6,7 +6,7 @@
 import path from 'path';
 import fs from 'fs';
 import minimatch from 'minimatch';
-import { makeUniversalApp } from 'vscode-universal-bundler';
+import { makeUniversalApp } from 'erdos-universal-bundler';
 
 const root = path.dirname(path.dirname(__dirname));
 

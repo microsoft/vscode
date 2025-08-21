@@ -270,7 +270,7 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 
 	if (typeof curr === 'object' && curr !== null) {
 		try {
-			curr[last] = value; // workaround https://github.com/microsoft/vscode/issues/13606
+			curr[last] = value; // workaround https://github.com/willnickols/erdos/issues/13606
 		} catch (e) {
 			conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
 		}

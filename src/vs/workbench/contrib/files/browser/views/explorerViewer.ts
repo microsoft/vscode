@@ -871,7 +871,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const updateOffsetStyles = () => {
 			const indent = this.configurationService.getValue<number>('workbench.tree.indent');
 			const offset = Math.max(22 - indent, 0); // derived via inspection
-			container.style.setProperty(`--vscode-explorer-align-offset-margin-left`, `${offset}px`);
+			container.style.setProperty(`--erdos-explorer-align-offset-margin-left`, `${offset}px`);
 		};
 
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {

@@ -146,7 +146,7 @@ export function getUriFromSource(raw: DebugProtocol.Source, path: string | undef
 		if (path && isAbsolute(path)) {
 			return uriIdentityService.asCanonicalUri(URI.file(path));
 		}
-		// path is relative: since VS Code cannot deal with this by itself
+		// path is relative: since Erdos cannot deal with this by itself
 		// create a debug url that will result in a DAP 'source' request when the url is resolved.
 		return uriIdentityService.asCanonicalUri(URI.from({
 			scheme: DEBUG_SCHEME,

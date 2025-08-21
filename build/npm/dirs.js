@@ -42,10 +42,10 @@ const dirs = [
 	'extensions/simple-browser',
 	'extensions/tunnel-forwarding',
 	'extensions/typescript-language-features',
-	'extensions/vscode-api-tests',
-	'extensions/vscode-colorize-tests',
-	'extensions/vscode-colorize-perf-tests',
-	'extensions/vscode-test-resolver',
+	'extensions/erdos-api-tests',
+	'extensions/erdos-colorize-tests',
+	'extensions/erdos-colorize-perf-tests',
+	'extensions/erdos-test-resolver',
 	'remote',
 	'remote/web',
 	'test/automation',
@@ -53,8 +53,8 @@ const dirs = [
 	'test/monaco',
 	'test/smoke',
 	'test/mcp',
-	'.vscode/extensions/vscode-selfhost-import-aid',
-	'.vscode/extensions/vscode-selfhost-test-provider',
+	'.vscode/extensions/erdos-selfhost-import-aid',
+	'.vscode/extensions/erdos-selfhost-test-provider',
 ];
 
 if (fs.existsSync(`${__dirname}/../../.build/distro/npm`)) {

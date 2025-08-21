@@ -5,7 +5,7 @@
 
 import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import * as vscode from 'vscode';
-import * as tas from 'vscode-tas-client';
+import * as tas from 'erdos-tas-client';
 
 export interface IExperimentationTelemetryReporter extends tas.IExperimentationTelemetry, vscode.Disposable {
 	postEventObj(eventName: string, props: { [prop: string]: string }): void;

@@ -62,16 +62,16 @@ const compilations = [
 	'extensions/tunnel-forwarding/tsconfig.json',
 	'extensions/typescript-language-features/web/tsconfig.json',
 	'extensions/typescript-language-features/tsconfig.json',
-	'extensions/vscode-api-tests/tsconfig.json',
-	'extensions/vscode-colorize-tests/tsconfig.json',
-	'extensions/vscode-colorize-perf-tests/tsconfig.json',
-	'extensions/vscode-test-resolver/tsconfig.json',
+	'extensions/erdos-api-tests/tsconfig.json',
+	'extensions/erdos-colorize-tests/tsconfig.json',
+	'extensions/erdos-colorize-perf-tests/tsconfig.json',
+	'extensions/erdos-test-resolver/tsconfig.json',
 
-	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
-	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
+	'.vscode/extensions/erdos-selfhost-test-provider/tsconfig.json',
+	'.vscode/extensions/erdos-selfhost-import-aid/tsconfig.json',
 ];
 
-const getBaseUrl = out => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
+const getBaseUrl = out => `https://main.erdos-cdn.net/sourcemaps/${commit}/${out}`;
 
 const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(root, tsconfigFile);

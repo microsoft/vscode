@@ -25,7 +25,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 
-const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+const ROOT = URI.file('tests').with({ scheme: 'erdos-tests' });
 
 class TestExtensionSignatureVerificationService extends mock<IExtensionSignatureVerificationService>() {
 

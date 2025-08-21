@@ -7,7 +7,7 @@ import code, { commonOptions, extensionManagementOptions, troubleshootingOptions
 const codeInsidersCompletionSpec: Fig.Spec = {
 	...code,
 	name: 'code-insiders',
-	description: 'Visual Studio Code Insiders',
+	description: 'Erdos Insiders',
 	options: [
 		...commonOptions,
 		...extensionManagementOptions('code-insiders'),

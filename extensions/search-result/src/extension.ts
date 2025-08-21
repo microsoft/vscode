@@ -131,7 +131,7 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 
 	const userDataPrefix = '(Settings) ';
 	if (path.startsWith(userDataPrefix)) {
-		return vscode.Uri.file(path.slice(userDataPrefix.length)).with({ scheme: 'vscode-userdata' });
+		return vscode.Uri.file(path.slice(userDataPrefix.length)).with({ scheme: 'erdos-userdata' });
 	}
 
 	if (pathUtils.isAbsolute(path)) {

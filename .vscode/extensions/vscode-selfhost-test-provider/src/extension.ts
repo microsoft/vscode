@@ -39,7 +39,7 @@ const browserArgs: [name: string, arg: string][] = [
 type FileChangeEvent = { uri: vscode.Uri; removed: boolean };
 
 export async function activate(context: vscode.ExtensionContext) {
-	const ctrl = vscode.tests.createTestController('selfhost-test-controller', 'VS Code Tests');
+	const ctrl = vscode.tests.createTestController('selfhost-test-controller', 'Erdos Tests');
 	const fileChangedEmitter = new vscode.EventEmitter<FileChangeEvent>();
 
 	context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
@@ -121,7 +121,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (args.includes('--browser')) {
 					coverageDir = path.join(
 						tmpdir(),
-						`vscode-test-coverage-${randomBytes(8).toString('hex')}`
+						`erdos-test-coverage-${randomBytes(8).toString('hex')}`
 					);
 					currentArgs = [
 						...currentArgs,

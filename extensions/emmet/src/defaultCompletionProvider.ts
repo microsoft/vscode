@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { Node, Stylesheet } from 'EmmetFlatNode';
 import { isValidLocationForEmmetAbbreviation, getSyntaxFromArgs } from './abbreviationActions';
 import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, getFlatNode, allowedMimeTypesInScriptTag, toLSTextDocument, getHtmlFlatNode, getEmbeddedCssNodeIfAny } from './util';
-import { Range as LSRange } from 'vscode-languageserver-textdocument';
+import { Range as LSRange } from 'erdos-languageserver-textdocument';
 import { getRootNode } from './parseDocument';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
@@ -143,7 +143,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			currentNode = getFlatNode(rootNode, offset, true);
 		}
 
-		// Fix for https://github.com/microsoft/vscode/issues/107578
+		// Fix for https://github.com/willnickols/erdos/issues/107578
 		// Validate location if syntax is of styleSheet type to ensure that location is valid for emmet abbreviation.
 		// For an html document containing a <style> node, compute the embeddedCssNode and fetch the flattened node as currentNode.
 		if (!isStyleSheet(document.languageId) && isStyleSheet(syntax) && context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
@@ -163,7 +163,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		let isNoisePromise: Thenable<boolean> = Promise.resolve(false);
 
-		// Fix for https://github.com/microsoft/vscode/issues/32647
+		// Fix for https://github.com/willnickols/erdos/issues/32647
 		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext
 		// Presence of > or * or + in the abbreviation denotes valid abbreviation that should trigger emmet
 		if (!isStyleSheet(syntax) && (document.languageId === 'javascript' || document.languageId === 'javascriptreact' || document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {

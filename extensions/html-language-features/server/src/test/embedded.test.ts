@@ -5,7 +5,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as embeddedSupport from '../modes/embeddedSupport';
-import { getLanguageService } from 'vscode-html-languageservice';
+import { getLanguageService } from 'erdos-html-languageservice';
 import { TextDocument } from '../modes/languageModes';
 
 suite('HTML Embedded Support', () => {

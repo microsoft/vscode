@@ -64,7 +64,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		nodeModules(destinationExe, destinationPdb, platform)
 	);
 
-	const setupSymbolsTask = task.define(`vscode-symbols${dashed(platform)}${dashed(arch)}`,
+	const setupSymbolsTask = task.define(`erdos-symbols${dashed(platform)}${dashed(arch)}`,
 		task.series(...tasks)
 	);
 

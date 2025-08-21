@@ -443,7 +443,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 							}
 							const hasOtherMatches = otherViewTypeFileTargets.some(target => {
 								// use the same strategy that the editor service uses to open editors
-								// https://github.com/microsoft/vscode/blob/ac1631528e67637da65ec994c6dc35d73f6e33cc/src/vs/workbench/services/editor/browser/editorResolverService.ts#L359-L366
+								// https://github.com/willnickols/erdos/blob/ac1631528e67637da65ec994c6dc35d73f6e33cc/src/vs/workbench/services/editor/browser/editorResolverService.ts#L359-L366
 								if (include.isFromSettings && !target.isFromSettings) {
 									// if the include is from the settings and target isn't, even if it matches, it's still overridden.
 									return false;
@@ -459,7 +459,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 							finalMatchedTargets.add(uri);
 						});
 					}).catch(err => {
-						// temporary fix for https://github.com/microsoft/vscode/issues/205044: don't show notebook results for remotehub repos.
+						// temporary fix for https://github.com/willnickols/erdos/issues/205044: don't show notebook results for remotehub repos.
 						if (err.code === 'ENOENT') {
 							console.warn(`Could not find notebook search results, ignoring notebook results.`);
 							return {

@@ -121,7 +121,7 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 
 	// Prevent duplicates: it is possible that we end up with the same
 	// dragged editor multiple times because multiple data transfers
-	// are being used (https://github.com/microsoft/vscode/issues/128925)
+	// are being used (https://github.com/willnickols/erdos/issues/128925)
 
 	const coalescedEditors: IDraggedResourceEditorInput[] = [];
 	const seen = new ResourceMap<boolean>();
@@ -161,7 +161,7 @@ export function createDraggedEditorInputFromRawResourcesData(rawResourcesData: s
 	if (rawResourcesData) {
 		const resourcesRaw: string[] = JSON.parse(rawResourcesData);
 		for (const resourceRaw of resourcesRaw) {
-			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
+			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/willnickols/erdos/issues/124946
 				const { selection, uri } = extractSelection(URI.parse(resourceRaw));
 				editors.push({ resource: uri, options: { selection } });
 			}

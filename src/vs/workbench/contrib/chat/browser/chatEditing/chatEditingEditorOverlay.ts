@@ -252,7 +252,7 @@ class ChatEditorOverlayWidget extends Disposable {
 
 										const r = -100 * (ctrl.remaining / ctrl.total);
 
-										this.element.style.setProperty('--vscode-action-item-auto-timeout', `${r}%`);
+										this.element.style.setProperty('--erdos-action-item-auto-timeout', `${r}%`);
 
 										this.element.classList.toggle('auto', true);
 										listener.value = addDisposableGenericMouseMoveListener(this.element, () => ctrl.cancel());
@@ -456,7 +456,7 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 			for (const group of groups) {
 
 				if (!(group instanceof EditorGroupView)) {
-					// TODO@jrieken better with https://github.com/microsoft/vscode/tree/ben/layout-group-container
+					// TODO@jrieken better with https://github.com/willnickols/erdos/tree/ben/layout-group-container
 					continue;
 				}
 

@@ -207,7 +207,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2-${1:/downcase}/}', 'Var-t');
 		assertVariableResolve2('${Foo/(.*)/${1:+Bar}/img}', 'Bar');
 
-		//https://github.com/microsoft/vscode/issues/33162
+		//https://github.com/willnickols/erdos/issues/33162
 		assertVariableResolve2('export default class ${TM_FILENAME/(\\w+)\\.js/$1/g}', 'export default class FooFile', 'FooFile.js');
 
 		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/g}', 'FARbarFARbar'); // global

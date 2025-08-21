@@ -76,11 +76,11 @@ class AudioPreview extends MediaPreview {
 	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; media-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
 	<meta id="settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
-<body class="container loading" data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
+<body class="container loading" data-erdos-context='{ "preventDefaultContextMenuItems": true }'>
 	<div class="loading-indicator"></div>
 	<div class="loading-error">
 		<p>${vscode.l10n.t("An error occurred while loading the audio file.")}</p>
-		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
+		<a href="#" class="open-file-link">${vscode.l10n.t("Open file using Erdos's standard text/binary editor?")}</a>
 	</div>
 	<script src="${escapeAttribute(this.extensionResource('media', 'audioPreview.js'))}" nonce="${nonce}"></script>
 </body>

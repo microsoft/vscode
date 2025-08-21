@@ -12,7 +12,7 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		docs: {
-			url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines#event-naming'
+			url: 'https://github.com/willnickols/erdos/wiki/Extension-API-guidelines#event-naming'
 		},
 		messages: {
 			naming: 'Event names must follow this patten: `on[Did|Will]<Verb><Subject>`',

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { LanguageClient, ServerOptions, TransportKind } from 'erdos-languageclient/node';
 import { MdLanguageClient, startClient } from './client/client';
 import { activateShared } from './extension.shared';
 import { VsCodeOutputLogger } from './logging';
@@ -31,9 +31,9 @@ function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promi
 
 	const serverModule = context.asAbsolutePath(
 		isDebugBuild
-			// For local non bundled version of vscode-markdown-languageserver
-			// ? './node_modules/vscode-markdown-languageserver/out/node/workerMain'
-			? './node_modules/vscode-markdown-languageserver/dist/node/workerMain'
+			// For local non bundled version of erdos-markdown-languageserver
+			// ? './node_modules/erdos-markdown-languageserver/out/node/workerMain'
+			? './node_modules/erdos-markdown-languageserver/dist/node/workerMain'
 			: './dist/serverWorkerMain'
 	);
 

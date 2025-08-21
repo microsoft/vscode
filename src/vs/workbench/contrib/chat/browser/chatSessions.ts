@@ -120,7 +120,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		if (location === 'view' && !this.isViewContainerRegistered) {
 			this.registerViewContainer();
 		} else if (location !== 'view' && this.isViewContainerRegistered) {
-			// Note: VS Code doesn't support unregistering view containers
+			// Note: Erdos doesn't support unregistering view containers
 			// Once registered, they remain registered for the session
 			// but you could hide them or make them conditional through 'when' clauses
 		}
@@ -258,7 +258,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		if (!(editor instanceof ChatEditorInput)) {
 			return false; // Only track ChatEditorInput instances
 		}
-		return editor.resource?.scheme === 'vscode-chat-editor';
+		return editor.resource?.scheme === 'erdos-chat-editor';
 	}
 
 	private registerGroupListeners(group: IEditorGroup): void {

@@ -92,7 +92,7 @@ export const ClipboardEventUtils = {
 	getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
 		const text = clipboardData.getData(Mimes.text);
 		let metadata: ClipboardStoredMetadata | null = null;
-		const rawmetadata = clipboardData.getData('vscode-editor-data');
+		const rawmetadata = clipboardData.getData('erdos-editor-data');
 		if (typeof rawmetadata === 'string') {
 			try {
 				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
@@ -116,6 +116,6 @@ export const ClipboardEventUtils = {
 		if (typeof html === 'string') {
 			clipboardData.setData('text/html', html);
 		}
-		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
+		clipboardData.setData('erdos-editor-data', JSON.stringify(metadata));
 	}
 };

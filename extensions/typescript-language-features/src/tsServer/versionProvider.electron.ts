@@ -68,12 +68,12 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 			return version;
 		}
 
-		vscode.window.showErrorMessage(vscode.l10n.t("VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code."));
+		vscode.window.showErrorMessage(vscode.l10n.t("Erdos\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall Erdos."));
 		throw new Error('Could not find bundled tsserver.js');
 	}
 
 	private get contributedTsNextVersion(): TypeScriptVersion | undefined {
-		return this.getContributedVersion(TypeScriptVersionSource.TsNightlyExtension, 'ms-vscode.vscode-typescript-next', ['node_modules']);
+		return this.getContributedVersion(TypeScriptVersionSource.TsNightlyExtension, 'ms-vscode.erdos-typescript-next', ['node_modules']);
 	}
 
 	private getContributedVersion(source: TypeScriptVersionSource, extensionId: string, pathToTs: readonly string[]): TypeScriptVersion | undefined {

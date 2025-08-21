@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Utils } from 'vscode-uri';
+import { Utils } from 'erdos-uri';
 import { Command } from '../commandManager';
 import { createUriListSnippet, linkEditKind } from '../languageFeatures/copyFiles/shared';
 import { mediaFileExtensions } from '../util/mimes';

@@ -193,7 +193,7 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 			// Specially handle an editor getting replaced: if the new active editor
 			// matches any of the resources from the closed editor, ignore those
 			// resources because they were actually not closed, but replaced.
-			// (see https://github.com/microsoft/vscode/issues/134299)
+			// (see https://github.com/willnickols/erdos/issues/134299)
 			if (event.context === EditorCloseContext.REPLACE) {
 				const newPrimaryResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 				const newSecondaryResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.SECONDARY });
@@ -221,7 +221,7 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 				// but only if the editor was not replaced, otherwise
 				// saving an untitled with associated resource would
 				// release the `--wait` call.
-				// (see https://github.com/microsoft/vscode/issues/141237)
+				// (see https://github.com/willnickols/erdos/issues/141237)
 				if (event.context !== EditorCloseContext.REPLACE) {
 					if (
 						(primaryResource?.scheme === Schemas.untitled && uriIdentityService.extUri.isEqual(resource, primaryResource.with({ scheme: resource.scheme }))) ||

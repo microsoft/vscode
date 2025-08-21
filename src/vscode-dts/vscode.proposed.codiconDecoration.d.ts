@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/135591 @alexr00
+	// https://github.com/willnickols/erdos/issues/135591 @alexr00
 
 	// export interface FileDecorationProvider {
 	// 	provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration | FileDecoration1>;

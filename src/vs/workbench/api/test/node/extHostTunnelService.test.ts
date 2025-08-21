@@ -121,72 +121,72 @@ const processes: { pid: number; cwd: string; cmd: string }[] = [
 	},
 	{
 		pid: 2504,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=extensionHost--transformURIs--useHostProxy=',
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: '/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=extensionHost--transformURIs--useHostProxy=',
 	},
 	{
 		pid: 2515,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=watcherService'
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: '/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=watcherService'
 	},
 	{
 		pid: 2526,
-		cwd: '/home/alex/repos/Microsoft/vscode-extension-samples/helloworld-sample',
+		cwd: '/home/alex/repos/Microsoft/erdos-extension-samples/helloworld-sample',
 		cmd: '/bin/bash'
 	}, {
 		pid: 2719,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node--max-old-space-size=3072/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/node_modules/typescript/lib/tsserver.js--serverModepartialSemantic--useInferredProjectPerProjectRoot--disableAutomaticTypingAcquisition--cancellationPipeName/tmp/vscode-typescript1000/7cfa7171c0c00aacf1ee/tscancellation-602cd80b954818b6a2f7.tmp*--logVerbosityverbose--logFile/home/alex/.vscode-server-insiders/data/logs/20201208T145954/exthost2/vscode.typescript-language-features/tsserver-log-nxBt2m/tsserver.log--globalPluginstypescript-vscode-sh-plugin--pluginProbeLocations/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/typescript-language-features--localeen--noGetErrOnBackgroundUpdate--validateDefaultNpmLocation'
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: '/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node--max-old-space-size=3072/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/node_modules/typescript/lib/tsserver.js--serverModepartialSemantic--useInferredProjectPerProjectRoot--disableAutomaticTypingAcquisition--cancellationPipeName/tmp/erdos-typescript1000/7cfa7171c0c00aacf1ee/tscancellation-602cd80b954818b6a2f7.tmp*--logVerbosityverbose--logFile/home/alex/.erdos-server-insiders/data/logs/20201208T145954/exthost2/vscode.typescript-language-features/tsserver-log-nxBt2m/tsserver.log--globalPluginstypescript-erdos-sh-plugin--pluginProbeLocations/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/typescript-language-features--localeen--noGetErrOnBackgroundUpdate--validateDefaultNpmLocation'
 	},
 	{
 		pid: 2725,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node--max-old-space-size=3072/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/node_modules/typescript/lib/tsserver.js--useInferredProjectPerProjectRoot--enableTelemetry--cancellationPipeName/tmp/vscode-typescript1000/7cfa7171c0c00aacf1ee/tscancellation-04a0b92f880c2fd535ae.tmp*--logVerbosityverbose--logFile/home/alex/.vscode-server-insiders/data/logs/20201208T145954/exthost2/vscode.typescript-language-features/tsserver-log-fqyBrs/tsserver.log--globalPluginstypescript-vscode-sh-plugin--pluginProbeLocations/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/typescript-language-features--localeen--noGetErrOnBackgroundUpdate--validateDefaultNpmLocation'
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: '/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node--max-old-space-size=3072/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/node_modules/typescript/lib/tsserver.js--useInferredProjectPerProjectRoot--enableTelemetry--cancellationPipeName/tmp/erdos-typescript1000/7cfa7171c0c00aacf1ee/tscancellation-04a0b92f880c2fd535ae.tmp*--logVerbosityverbose--logFile/home/alex/.erdos-server-insiders/data/logs/20201208T145954/exthost2/vscode.typescript-language-features/tsserver-log-fqyBrs/tsserver.log--globalPluginstypescript-erdos-sh-plugin--pluginProbeLocations/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/typescript-language-features--localeen--noGetErrOnBackgroundUpdate--validateDefaultNpmLocation'
 	},
 	{
 		pid: 2739,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/node_modules/typescript/lib/typingsInstaller.js--globalTypingsCacheLocation/home/alex/.cache/typescript/4.1--enableTelemetry--logFile/home/alex/.vscode-server-insiders/data/logs/20201208T145954/exthost2/vscode.typescript-language-features/tsserver-log-fqyBrs/ti-2725.log--typesMapLocation/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/node_modules/typescript/lib/typesMap.json--validateDefaultNpmLocation'
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: '/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/node_modules/typescript/lib/typingsInstaller.js--globalTypingsCacheLocation/home/alex/.cache/typescript/4.1--enableTelemetry--logFile/home/alex/.erdos-server-insiders/data/logs/20201208T145954/exthost2/vscode.typescript-language-features/tsserver-log-fqyBrs/ti-2725.log--typesMapLocation/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/node_modules/typescript/lib/typesMap.json--validateDefaultNpmLocation'
 	},
 	{
 		pid: 2795,
-		cwd: '/home/alex/repos/Microsoft/vscode-extension-samples/helloworld-sample',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/json-language-features/server/dist/node/jsonServerMain--node-ipc--clientProcessId=2504'
+		cwd: '/home/alex/repos/Microsoft/erdos-extension-samples/helloworld-sample',
+		cmd: '/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/json-language-features/server/dist/node/jsonServerMain--node-ipc--clientProcessId=2504'
 	},
 	{
 		pid: 286,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: 'sh-c\"$VSCODE_WSL_EXT_LOCATION/ scripts / wslServer.sh\" bc13785d3dd99b4b0e9da9aed17bb79809a50804 insider .vscode-server-insiders 0  '
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: 'sh-c\"$VSCODE_WSL_EXT_LOCATION/ scripts / wslServer.sh\" bc13785d3dd99b4b0e9da9aed17bb79809a50804 insider .erdos-server-insiders 0  '
 	},
 	{
 		pid: 287,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: 'sh/mnt/c/Users/alros/.vscode-insiders/extensions/ms-vscode-remote.remote-wsl-0.52.0/scripts/wslServer.shbc13785d3dd99b4b0e9da9aed17bb79809a50804insider.vscode-server-insiders0'
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: 'sh/mnt/c/Users/alros/.erdos-insiders/extensions/ms-erdos-remote.remote-wsl-0.52.0/scripts/wslServer.shbc13785d3dd99b4b0e9da9aed17bb79809a50804insider.erdos-server-insiders0'
 	},
 	{
 		pid: 3058,
-		cwd: '/home/alex/repos/Microsoft/vscode-extension-samples/helloworld-sample',
+		cwd: '/home/alex/repos/Microsoft/erdos-extension-samples/helloworld-sample',
 		cmd: 'npm'
 	},
 	{
 		pid: 3070,
-		cwd: '/home/alex/repos/Microsoft/vscode-extension-samples/helloworld-sample',
+		cwd: '/home/alex/repos/Microsoft/erdos-extension-samples/helloworld-sample',
 		cmd: 'sh-ctsc -watch -p ./'
 	},
 	{
 		pid: 3071,
-		cwd: '/home/alex/repos/Microsoft/vscode-extension-samples/helloworld-sample',
-		cmd: 'node/home/alex/repos/Microsoft/vscode-extension-samples/helloworld-sample/node_modules/.bin/tsc-watch-p./'
+		cwd: '/home/alex/repos/Microsoft/erdos-extension-samples/helloworld-sample',
+		cmd: 'node/home/alex/repos/Microsoft/erdos-extension-samples/helloworld-sample/node_modules/.bin/tsc-watch-p./'
 	},
 	{
 		pid: 312,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: 'sh/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/server.sh--port=0--use-host-proxy--enable-remote-auto-shutdown--print-ip-address'
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: 'sh/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/server.sh--port=0--use-host-proxy--enable-remote-auto-shutdown--print-ip-address'
 	},
 	{
 		pid: 314,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/server-main.js--port=0--use-host-proxy--enable-remote-auto-shutdown--print-ip-address'
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: '/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/server-main.js--port=0--use-host-proxy--enable-remote-auto-shutdown--print-ip-address'
 	},
 	{
 		pid: 3172,
@@ -195,23 +195,23 @@ const processes: { pid: number; cwd: string; cmd: string }[] = [
 	},
 	{
 		pid: 3610,
-		cwd: '/home/alex/repos/Microsoft/vscode-extension-samples/helloworld-sample',
+		cwd: '/home/alex/repos/Microsoft/erdos-extension-samples/helloworld-sample',
 		cmd: '/bin/bash'
 	},
 	{
 		pid: 4412,
-		cwd: '/home/alex/repos/Microsoft/vscode-extension-samples/helloworld-sample',
+		cwd: '/home/alex/repos/Microsoft/erdos-extension-samples/helloworld-sample',
 		cmd: 'http-server'
 	},
 	{
 		pid: 4496,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node--inspect-brk=0.0.0.0:6899/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=extensionHost--transformURIs--useHostProxy='
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: '/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node--inspect-brk=0.0.0.0:6899/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=extensionHost--transformURIs--useHostProxy='
 	},
 	{
 		pid: 4507,
-		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/ms-vscode.js-debug/src/hash.bundle.js'
+		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft Erdos Insiders',
+		cmd: '/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.erdos-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/extensions/ms-vscode.js-debug/src/hash.bundle.js'
 	}
 ];
 

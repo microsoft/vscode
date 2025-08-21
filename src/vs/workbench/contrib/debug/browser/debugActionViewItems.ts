@@ -124,7 +124,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			if (shouldBeSelected) {
 				this.selected = e.index;
 			} else {
-				// Some select options should not remain selected https://github.com/microsoft/vscode/issues/31526
+				// Some select options should not remain selected https://github.com/willnickols/erdos/issues/31526
 				this.selectBox.select(this.selected);
 			}
 		}));

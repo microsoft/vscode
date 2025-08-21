@@ -23,7 +23,7 @@ import { IssueReporterData as IssueReporterModelData } from '../browser/issueRep
 import { IIssueFormService, IssueReporterData, IssueType } from '../common/issue.js';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
-// ref https://github.com/microsoft/vscode/issues/159191
+// ref https://github.com/willnickols/erdos/issues/159191
 const MAX_URL_LENGTH = 7500;
 
 // Github API and issues on web has a limit of 65536. We chose 65500 to play it safe.

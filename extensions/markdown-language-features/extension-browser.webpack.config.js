@@ -16,7 +16,7 @@ export default browser({
 		new CopyPlugin({
 			patterns: [
 				{
-					from: './node_modules/vscode-markdown-languageserver/dist/browser/workerMain.js',
+					from: './node_modules/erdos-markdown-languageserver/dist/browser/workerMain.js',
 					to: 'serverWorkerMain.js',
 				}
 			],

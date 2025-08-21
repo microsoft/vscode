@@ -101,7 +101,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	}, [] as vscode.Range[]);
 
 	// Backup orginal selections and update selections
-	// Also helps with https://github.com/microsoft/vscode/issues/113930 by avoiding `editor.linkedEditing`
+	// Also helps with https://github.com/willnickols/erdos/issues/113930 by avoiding `editor.linkedEditing`
 	// execution if selection is inside an open or close tag
 	const oldSelections = editor.selections;
 	editor.selections = operationRanges.map(range => new vscode.Selection(range.start, range.end));
@@ -445,7 +445,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 		}
 
 		// Get the abbreviation right now
-		// Fixes https://github.com/microsoft/vscode/issues/74505
+		// Fixes https://github.com/willnickols/erdos/issues/74505
 		// Stylesheet abbreviations starting with @ should bring up suggestions
 		// even at outer-most level
 		const abbreviation = document.getText(new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character));
@@ -453,7 +453,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
-		// Fix for https://github.com/microsoft/vscode/issues/34162
+		// Fix for https://github.com/willnickols/erdos/issues/34162
 		// Other than sass, stylus, we can make use of the terminator tokens to validate position
 		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {
 			// Fix for upstream issue https://github.com/emmetio/css-parser/issues/3
@@ -495,7 +495,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
-		// Workaround for https://github.com/microsoft/vscode/30188
+		// Workaround for https://github.com/willnickols/erdos/30188
 		// The line above the rule selector is considered as part of the selector by the css-parser
 		// But we should assume it is a valid location for css properties under the parent rule
 		if (currentCssNode.parent
@@ -538,13 +538,13 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return false;
 		}
 
-		// Fix for https://github.com/microsoft/vscode/issues/28829
+		// Fix for https://github.com/willnickols/erdos/issues/28829
 		if (!currentHtmlNode.open || !currentHtmlNode.close ||
 			!(currentHtmlNode.open.end <= offset && offset <= currentHtmlNode.close.start)) {
 			return false;
 		}
 
-		// Fix for https://github.com/microsoft/vscode/issues/35128
+		// Fix for https://github.com/willnickols/erdos/issues/35128
 		// Find the position up till where we will backtrack looking for unescaped < or >
 		// to decide if current position is valid for emmet expansion
 		start = currentHtmlNode.open.end;
@@ -588,7 +588,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			i--;
 			continue;
 		}
-		// Fix for https://github.com/microsoft/vscode/issues/55411
+		// Fix for https://github.com/willnickols/erdos/issues/55411
 		// A space is not a valid character right after < in a tag name.
 		if (/\s/.test(char) && textToBackTrack[i] === startAngle) {
 			i--;
@@ -673,7 +673,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		expandOptions['text'] = input.textToWrap;
 
 		if (expandOptions.options) {
-			// Below fixes https://github.com/microsoft/vscode/issues/29898
+			// Below fixes https://github.com/willnickols/erdos/issues/29898
 			// With this, Emmet formats inline elements as block elements
 			// ensuring the wrapped multi line text does not get merged to a single line
 			if (!input.rangeToReplace.isSingleLine) {

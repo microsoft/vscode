@@ -44,7 +44,7 @@ export const enum ShellIntegrationOscPs {
 	 */
 	FinalTerm = 133,
 	/**
-	 * Sequences pioneered by VS Code. The number is derived from the least significant digit of
+	 * Sequences pioneered by Erdos. The number is derived from the least significant digit of
 	 * "VSC" when encoded in hex ("VSC" = 0x56, 0x53, 0x43).
 	 */
 	VSCode = 633,
@@ -91,14 +91,14 @@ const enum FinalTermOscPt {
 }
 
 /**
- * VS Code-specific shell integration sequences. Some of these are based on more common alternatives
+ * Erdos-specific shell integration sequences. Some of these are based on more common alternatives
  * like those pioneered in {@link FinalTermOscPt FinalTerm}. The decision to move to entirely custom
  * sequences was to try to improve reliability and prevent the possibility of applications confusing
- * the terminal. If multiple shell integration scripts run, VS Code will prioritize the VS
+ * the terminal. If multiple shell integration scripts run, Erdos will prioritize the VS
  * Code-specific ones.
  *
  * It's recommended that authors of shell integration scripts use the common sequences (`133`)
- * when building general purpose scripts and the VS Code-specific (`633`) when targeting only VS
+ * when building general purpose scripts and the Erdos-specific (`633`) when targeting only VS
  * Code or when there are no other alternatives (eg. {@link CommandLine `633 ; E`}). These sequences
  * support mix-and-matching.
  */
@@ -199,7 +199,7 @@ const enum VSCodeOscPt {
 	RightPromptEnd = 'I',
 
 	/**
-	 * Set the value of an arbitrary property, only known properties will be handled by VS Code.
+	 * Set the value of an arbitrary property, only known properties will be handled by Erdos.
 	 *
 	 * Format: `OSC 633 ; P ; <Property>=<Value> ST`
 	 *
@@ -214,7 +214,7 @@ const enum VSCodeOscPt {
 	 * - `HasRichCommandDetection` - Reports whether the shell has rich command line detection,
 	 *   meaning that sequences A, B, C, D and E are exactly where they're meant to be. In
 	 *   particular, {@link CommandLine} must happen immediately before {@link CommandExecuted} so
-	 *   VS Code knows the command line when the execution begins.
+	 *   Erdos knows the command line when the execution begins.
 	 *
 	 * WARNING: Any other properties may be changed and are not guaranteed to work in the future.
 	 */
@@ -397,7 +397,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		// Pass the sequence along to the capability
-		// It was considered to disable the common protocol in order to not confuse the VS Code
+		// It was considered to disable the common protocol in order to not confuse the Erdos
 		// shell integration if both happen for some reason. This doesn't work for powerlevel10k
 		// when instant prompt is enabled though. If this does end up being a problem we could pass
 		// a type flag through the capability calls

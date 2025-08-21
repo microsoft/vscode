@@ -243,10 +243,10 @@ suite('SettingsTree', () => {
 			});
 
 		testParseQuery(
-			'@ext:github.vscode-pull-request-github',
+			'@ext:github.erdos-pull-request-github',
 			<IParsedQuery>{
 				tags: [],
-				extensionFilters: ['github.vscode-pull-request-github'],
+				extensionFilters: ['github.erdos-pull-request-github'],
 				query: '',
 				featureFilters: [],
 				idFilters: [],
@@ -254,10 +254,10 @@ suite('SettingsTree', () => {
 			});
 
 		testParseQuery(
-			'@ext:github.vscode-pull-request-github,vscode.git',
+			'@ext:github.erdos-pull-request-github,vscode.git',
 			<IParsedQuery>{
 				tags: [],
-				extensionFilters: ['github.vscode-pull-request-github', 'vscode.git'],
+				extensionFilters: ['github.erdos-pull-request-github', 'vscode.git'],
 				query: '',
 				featureFilters: [],
 				idFilters: [],

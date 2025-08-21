@@ -23,7 +23,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 	private readonly _onDidRequestRichLanguageFeatures = this._register(new Emitter<string>());
 	public readonly onDidRequestRichLanguageFeatures = this._onDidRequestRichLanguageFeatures.event;
 
-	protected readonly _onDidChange = this._register(new Emitter<void>({ leakWarningThreshold: 200 /* https://github.com/microsoft/vscode/issues/119968 */ }));
+	protected readonly _onDidChange = this._register(new Emitter<void>({ leakWarningThreshold: 200 /* https://github.com/willnickols/erdos/issues/119968 */ }));
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private readonly _requestedBasicLanguages = new Set<string>();

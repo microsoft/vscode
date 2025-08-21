@@ -7529,7 +7529,7 @@ SOFTWARE.
 ---------------------------------------------------------
 
 russh fd4f608a83753f9f3e137f95600faffede71cf65
-https://github.com/microsoft/vscode-russh
+https://github.com/willnickols/erdos-russh
 
 Apache License
                            Version 2.0, January 2004
@@ -7737,7 +7737,7 @@ Apache License
 ---------------------------------------------------------
 
 russh-cryptovec fd4f608a83753f9f3e137f95600faffede71cf65
-https://github.com/microsoft/vscode-russh
+https://github.com/willnickols/erdos-russh
 
 Apache License
                            Version 2.0, January 2004
@@ -7945,7 +7945,7 @@ Apache License
 ---------------------------------------------------------
 
 russh-keys fd4f608a83753f9f3e137f95600faffede71cf65
-https://github.com/microsoft/vscode-russh
+https://github.com/willnickols/erdos-russh
 
 Apache License
                            Version 2.0, January 2004

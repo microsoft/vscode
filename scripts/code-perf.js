@@ -6,7 +6,7 @@
 // @ts-check
 
 const path = require('path');
-const perf = require('@vscode/vscode-perf');
+const perf = require('@vscode/erdos-perf');
 
 const VSCODE_FOLDER = path.join(__dirname, '..');
 

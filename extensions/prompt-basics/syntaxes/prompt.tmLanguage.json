@@ -1,6 +1,6 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/microsoft/vscode-markdown-tm-grammar/blob/master/syntaxes/markdown.tmLanguage",
+		"This file has been converted from https://github.com/willnickols/erdos-markdown-tm-grammar/blob/master/syntaxes/markdown.tmLanguage",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],

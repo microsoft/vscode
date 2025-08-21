@@ -53,8 +53,8 @@ suite('Buffer Content Tracker', () => {
 	let xterm: XtermTerminal;
 	let capabilities: TerminalCapabilityStore;
 	let bufferTracker: BufferContentTracker;
-	const prompt = 'vscode-git:(prompt/more-tests)';
-	const promptPlusData = 'vscode-git:(prompt/more-tests) ' + 'some data';
+	const prompt = 'erdos-git:(prompt/more-tests)';
+	const promptPlusData = 'erdos-git:(prompt/more-tests) ' + 'some data';
 
 	setup(async () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });

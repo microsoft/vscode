@@ -186,7 +186,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 				// Given how generic untitled resources in the system are, we
 				// need to be careful not to set our resource into the untyped
 				// editor if we want to transport contents too, because of
-				// issue https://github.com/microsoft/vscode/issues/140898
+				// issue https://github.com/willnickols/erdos/issues/140898
 				// The workaround is to simply remove the resource association
 				// if we have contents and no associated resource.
 				// In that case we can ensure that a new untitled resource is

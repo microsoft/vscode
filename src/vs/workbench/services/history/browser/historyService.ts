@@ -96,7 +96,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// if the service is created late enough that an editor is already opened
 		// make sure to trigger the onActiveEditorChanged() to track the editor
-		// properly (fixes https://github.com/microsoft/vscode/issues/59908)
+		// properly (fixes https://github.com/willnickols/erdos/issues/59908)
 		if (this.editorService.activeEditorPane) {
 			this.onDidActiveEditorChange();
 		}
@@ -205,7 +205,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Handle editor change unless the editor is transient. In that case
 		// setup a listener to see if the transient editor becomes non-transient
-		// (https://github.com/microsoft/vscode/issues/211769)
+		// (https://github.com/willnickols/erdos/issues/211769)
 		if (!activeEditorPane?.group.isTransient(activeEditorPane.input)) {
 			this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
 		} else {
@@ -736,7 +736,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		let editorPane: IEditorPane | undefined = undefined;
 		if (!this.editorGroupService.activeGroup.contains(lastClosedEditor.editor)) {
 
-			// Fix for https://github.com/microsoft/vscode/issues/107850
+			// Fix for https://github.com/willnickols/erdos/issues/107850
 			// If opening an editor fails, it is possible that we get
 			// another editor-close event as a result. But we really do
 			// want to ignore that in our list of recently closed editors
@@ -759,7 +759,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// If no editor was opened, try with the next one
 		if (!editorPane) {
 
-			// Fix for https://github.com/microsoft/vscode/issues/67882
+			// Fix for https://github.com/willnickols/erdos/issues/67882
 			// If opening of the editor fails, make sure to try the next one
 			// but make sure to remove this one from the list to prevent
 			// endless loops.
@@ -1096,7 +1096,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 					}
 				}
 			} catch (error) {
-				onUnexpectedError(error); // https://github.com/microsoft/vscode/issues/99075
+				onUnexpectedError(error); // https://github.com/willnickols/erdos/issues/99075
 			}
 		}
 
@@ -2036,7 +2036,7 @@ class EditorHelper {
 		const resource = EditorResourceAccessor.getOriginalUri(editor);
 
 		// For now, only prefer well known schemes that we control to prevent
-		// issues such as https://github.com/microsoft/vscode/issues/85204
+		// issues such as https://github.com/willnickols/erdos/issues/85204
 		// from being used as resource inputs
 		// resource inputs survive editor disposal and as such are a lot more
 		// durable across editor changes and restarts
@@ -2111,7 +2111,7 @@ class EditorHelper {
 			}
 
 			if (this.lifecycleService.phase >= LifecyclePhase.Restored && !this.fileService.hasProvider(inputResource)) {
-				return false; // make sure to only check this when workbench has restored (for https://github.com/microsoft/vscode/issues/48275)
+				return false; // make sure to only check this when workbench has restored (for https://github.com/willnickols/erdos/issues/48275)
 			}
 
 			return this.uriIdentityService.extUri.isEqual(inputResource, resource);

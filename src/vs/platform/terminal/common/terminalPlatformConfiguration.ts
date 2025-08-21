@@ -336,7 +336,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.InheritEnv]: {
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code, which may source a login shell to ensure $PATH and other development variables are initialized. This has no effect on Windows."),
+			description: localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from Erdos, which may source a login shell to ensure $PATH and other development variables are initialized. This has no effect on Windows."),
 			type: 'boolean',
 			default: true
 		},

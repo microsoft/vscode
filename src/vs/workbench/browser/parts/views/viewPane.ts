@@ -121,7 +121,7 @@ class ViewWelcomeController {
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this.disposables.add(Event.runAndSubscribe(this.delegate.onDidChangeViewWelcomeState, () => this.onDidChangeViewWelcomeState()));
-		this.disposables.add(lifecycleService.onWillShutdown(() => this.dispose())); // Fixes https://github.com/microsoft/vscode/issues/208878
+		this.disposables.add(lifecycleService.onWillShutdown(() => this.dispose())); // Fixes https://github.com/willnickols/erdos/issues/208878
 	}
 
 	layout(height: number, width: number) {

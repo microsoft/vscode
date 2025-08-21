@@ -27,7 +27,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 suite('ExtensionStorageMigration', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+	const ROOT = URI.file('tests').with({ scheme: 'erdos-tests' });
 	const workspaceStorageHome = joinPath(ROOT, 'workspaceStorageHome');
 
 	let instantiationService: TestInstantiationService;

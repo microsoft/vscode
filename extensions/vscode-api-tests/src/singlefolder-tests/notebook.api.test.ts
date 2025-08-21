@@ -222,7 +222,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 		await saveAllFilesAndCloseAll();
 		assert.strictEqual(vscode.window.activeNotebookEditor, undefined);
 
-		// BUG is that the editor opener (https://github.com/microsoft/vscode/blob/8e7877bdc442f1e83a7fec51920d82b696139129/src/vs/editor/browser/services/openerService.ts#L69)
+		// BUG is that the editor opener (https://github.com/willnickols/erdos/blob/8e7877bdc442f1e83a7fec51920d82b696139129/src/vs/editor/browser/services/openerService.ts#L69)
 		// removes the fragment if it matches something numeric. For notebooks that's not wanted...
 		// opening a cell-uri opens a notebook editor
 		await vscode.commands.executeCommand('vscode.open', cell.document.uri);

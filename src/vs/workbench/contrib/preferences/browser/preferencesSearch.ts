@@ -30,7 +30,7 @@ export interface IEndpointDetails {
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
 	declare readonly _serviceBrand: undefined;
 
-	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
+	// @ts-expect-error disable remote search for now, ref https://github.com/willnickols/erdos/issues/172411
 	private _installedExtensions: Promise<ILocalExtension[]>;
 	private _remoteSearchProvider: IRemoteSearchProvider | undefined;
 	private _aiSearchProvider: IAiSearchProvider | undefined;
@@ -130,7 +130,7 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		// Check the top key match type.
 		const topKeyMatchType = Math.max(...filterMatches.map(m => (m.matchType & SettingKeyMatchTypes)));
-		// Always allow description matches as part of https://github.com/microsoft/vscode/issues/239936.
+		// Always allow description matches as part of https://github.com/willnickols/erdos/issues/239936.
 		const alwaysAllowedMatchTypes = SettingMatchType.DescriptionOrValueMatch | SettingMatchType.LanguageTagSettingMatch;
 		const filteredMatches = filterMatches
 			.filter(m => (m.matchType & topKeyMatchType) || (m.matchType & alwaysAllowedMatchTypes) || m.matchType === SettingMatchType.ExactMatch)

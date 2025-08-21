@@ -168,7 +168,7 @@ export class DebugExtensionsContribution extends Disposable implements IWorkbenc
 					resolveSourceMapLocations: null,
 					// announces sources eagerly for the loaded scripts view:
 					eagerSources: true,
-					// source maps of published VS Code are on the CDN and can take a while to load
+					// source maps of published Erdos are on the CDN and can take a while to load
 					timeouts: {
 						sourceMapMinPause: 30_000,
 						sourceMapCumulativePause: 300_000,

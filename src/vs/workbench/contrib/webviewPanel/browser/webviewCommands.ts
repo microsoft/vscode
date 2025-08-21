@@ -16,7 +16,7 @@ import { WebviewEditor } from './webviewEditor.js';
 import { WebviewInput } from './webviewEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
-const webviewActiveContextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', WebviewEditor.ID), EditorContextKeys.focus.toNegated() /* https://github.com/microsoft/vscode/issues/58668 */)!;
+const webviewActiveContextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', WebviewEditor.ID), EditorContextKeys.focus.toNegated() /* https://github.com/willnickols/erdos/issues/58668 */)!;
 
 export class ShowWebViewEditorFindWidgetAction extends Action2 {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';

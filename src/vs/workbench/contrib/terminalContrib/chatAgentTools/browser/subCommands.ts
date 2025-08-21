@@ -14,7 +14,7 @@ function sortByStringLengthDesc(arr: string[]): string[] {
 	return [...arr].sort((a, b) => b.length - a.length);
 }
 
-// Derived from https://github.com/microsoft/vscode/blob/315b0949786b3807f05cb6acd13bf0029690a052/extensions/terminal-suggest/src/tokens.ts#L14-L18
+// Derived from https://github.com/willnickols/erdos/blob/315b0949786b3807f05cb6acd13bf0029690a052/extensions/terminal-suggest/src/tokens.ts#L14-L18
 // Some of these can match the same string, so the order matters.
 //
 // This isn't perfect, at some point it would be better off moving over to tree sitter for this

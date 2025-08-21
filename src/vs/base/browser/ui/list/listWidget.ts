@@ -527,7 +527,7 @@ class TypeNavigationController<T> implements IDisposable {
 		const focus = this.list.getFocus();
 		if (focus.length > 0 && focus[0] === this.previouslyFocused) {
 			// List: re-announce element on typing end since typed keys will interrupt aria label of focused element
-			// Do not announce if there was a focus change at the end to prevent duplication https://github.com/microsoft/vscode/issues/95961
+			// Do not announce if there was a focus change at the end to prevent duplication https://github.com/willnickols/erdos/issues/95961
 			const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(focus[0]));
 
 			if (typeof ariaLabel === 'string') {

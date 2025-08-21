@@ -62,21 +62,21 @@ export class WebviewThemeDataProvider extends Disposable {
 			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce<Record<string, string>>((colors, entry) => {
 				const color = theme.getColor(entry.id);
 				if (color) {
-					colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
+					colors['erdos-' + entry.id.replace('.', '-')] = color.toString();
 				}
 				return colors;
 			}, {});
 
 			const styles = {
-				'vscode-font-family': DEFAULT_FONT_FAMILY,
-				'vscode-font-weight': 'normal',
-				'vscode-font-size': '13px',
-				'vscode-editor-font-family': editorFontFamily,
-				'vscode-editor-font-weight': editorFontWeight,
-				'vscode-editor-font-size': editorFontSize + 'px',
+				'erdos-font-family': DEFAULT_FONT_FAMILY,
+				'erdos-font-weight': 'normal',
+				'erdos-font-size': '13px',
+				'erdos-editor-font-family': editorFontFamily,
+				'erdos-editor-font-weight': editorFontWeight,
+				'erdos-editor-font-size': editorFontSize + 'px',
 				'text-link-decoration': linkUnderlines ? 'underline' : 'none',
 				...exportedColors,
-				'vscode-editor-font-feature-settings': editorFontLigatures,
+				'erdos-editor-font-feature-settings': editorFontLigatures,
 			};
 
 			const activeTheme = ApiThemeClassName.fromTheme(theme);
@@ -93,10 +93,10 @@ export class WebviewThemeDataProvider extends Disposable {
 }
 
 enum ApiThemeClassName {
-	light = 'vscode-light',
-	dark = 'vscode-dark',
-	highContrast = 'vscode-high-contrast',
-	highContrastLight = 'vscode-high-contrast-light',
+	light = 'erdos-light',
+	dark = 'erdos-dark',
+	highContrast = 'erdos-high-contrast',
+	highContrastLight = 'erdos-high-contrast-light',
 }
 
 namespace ApiThemeClassName {

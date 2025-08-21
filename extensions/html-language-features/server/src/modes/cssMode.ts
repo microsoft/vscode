@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
-import { Stylesheet, LanguageService as CSSLanguageService } from 'vscode-css-languageservice';
+import { Stylesheet, LanguageService as CSSLanguageService } from 'erdos-css-languageservice';
 import { LanguageMode, Workspace, Color, TextDocument, Position, Range, CompletionList, DocumentContext, Diagnostic } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 

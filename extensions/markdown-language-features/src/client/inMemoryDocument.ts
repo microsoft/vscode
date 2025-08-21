@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument } from 'vscode-languageserver-textdocument';
+import { TextDocument } from 'erdos-languageserver-textdocument';
 import * as vscode from 'vscode';
 import { ITextDocument } from '../types/textDocument';
 

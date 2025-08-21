@@ -33,7 +33,7 @@ export const rmTestSuiteSpec: ISuiteSpec = {
 		{ input: 'rm |', expectedCompletions: allOptions, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 
 		// Duplicate option
-		// TODO: Duplicate options should not be presented https://github.com/microsoft/vscode/issues/239607
+		// TODO: Duplicate options should not be presented https://github.com/willnickols/erdos/issues/239607
 		// { input: `rm -${allOptions[0]} -|`, expectedCompletions: removeArrayEntries(allOptions, allOptions[0]) },
 		// { input: `rm -${allOptions[0]} -${allOptions[1]} -|`, expectedCompletions: removeArrayEntries(allOptions, allOptions[0], allOptions[1]) },
 	]

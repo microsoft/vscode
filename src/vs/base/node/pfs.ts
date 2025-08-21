@@ -420,7 +420,7 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 			}
 
 			// Flush contents (not metadata) of the file to disk
-			// https://github.com/microsoft/vscode/issues/9589
+			// https://github.com/willnickols/erdos/issues/9589
 			fs.fdatasync(fd, (syncError: Error | null) => {
 
 				// In some exotic setups it is well possible that node fails to sync
@@ -460,7 +460,7 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 
 		// Flush contents (not metadata) of the file to disk
 		try {
-			fs.fdatasyncSync(fd); // https://github.com/microsoft/vscode/issues/9589
+			fs.fdatasyncSync(fd); // https://github.com/willnickols/erdos/issues/9589
 		} catch (syncError) {
 			console.warn('[node.js fs] fdatasyncSync is now disabled for this session because it failed: ', syncError);
 			configureFlushOnWrite(false);
@@ -607,7 +607,7 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 		}
 
 		if (symbolicLink.dangling) {
-			return; // skip dangling symbolic links from here on (https://github.com/microsoft/vscode/issues/111621)
+			return; // skip dangling symbolic links from here on (https://github.com/willnickols/erdos/issues/111621)
 		}
 	}
 
@@ -680,7 +680,7 @@ export async function realcase(path: string, token?: CancellationToken): Promise
 	if (isLinux) {
 		// This method is unsupported on OS that have case sensitive
 		// file system where the same path can exist in different forms
-		// (see also https://github.com/microsoft/vscode/issues/139709)
+		// (see also https://github.com/willnickols/erdos/issues/139709)
 		return path;
 	}
 
@@ -725,7 +725,7 @@ async function realpath(path: string): Promise<string> {
 		// DO NOT USE `fs.promises.realpath` here as it internally
 		// calls `fs.native.realpath` which will result in subst
 		// drives to be resolved to their target on Windows
-		// https://github.com/microsoft/vscode/issues/118562
+		// https://github.com/willnickols/erdos/issues/118562
 		return await promisify(fs.realpath)(path);
 	} catch (error) {
 
@@ -779,7 +779,7 @@ function normalizePath(path: string): string {
  * At least `realpath` is implemented differently in the promise
  * based implementation compared to the callback based one. The
  * promise based implementation actually calls `fs.realpath.native`.
- * (https://github.com/microsoft/vscode/issues/118562)
+ * (https://github.com/willnickols/erdos/issues/118562)
  */
 export const Promises = new class {
 

@@ -27,7 +27,7 @@ const os = require('os');
 
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
-		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
+		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/willnickols/erdos/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
 		throw new Error();
 	}
 	installHeaders();

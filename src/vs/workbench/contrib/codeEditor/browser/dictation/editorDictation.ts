@@ -156,8 +156,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 		const lineHeight = position ? this.editor.getLineHeightForPosition(position) : this.editor.getOption(EditorOption.lineHeight);
 		const width = this.editor.getLayoutInfo().contentWidth * 0.7;
 
-		this.domNode.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
-		this.domNode.style.setProperty('--vscode-editor-dictation-widget-width', `${width}px`);
+		this.domNode.style.setProperty('--erdos-editor-dictation-widget-height', `${lineHeight}px`);
+		this.domNode.style.setProperty('--erdos-editor-dictation-widget-width', `${width}px`);
 
 		return null;
 	}

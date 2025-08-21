@@ -87,7 +87,7 @@ async function main(): Promise<void> {
 		}
 	});
 
-	const all = vfs.src('**', { cwd: '../vscode-web', base: '../vscode-web', dot: true })
+	const all = vfs.src('**', { cwd: '../erdos-web', base: '../erdos-web', dot: true })
 		.pipe(filter(f => !f.isDirectory()));
 
 	const compressed = all

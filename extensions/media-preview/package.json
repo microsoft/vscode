@@ -161,10 +161,10 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "vscode-uri": "^3.0.6"
+    "erdos-uri": "^3.0.6"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   }
 }

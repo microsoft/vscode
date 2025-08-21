@@ -40,7 +40,7 @@ interface Modifiers {
 	shiftKey?: boolean;
 }
 
-const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+const ROOT = URI.file('tests').with({ scheme: 'erdos-tests' });
 
 suite('KeybindingsEditing', () => {
 

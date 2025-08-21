@@ -15,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
 import { Range, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
-import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
+import { AST as ReAST, RegExpParser, RegExpVisitor } from 'erdos-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
@@ -306,7 +306,7 @@ export class RipgrepParser extends EventEmitter {
 
 		// it looks like certain regexes can match a line, but cause rg to not
 		// emit any specific submatches for that line.
-		// https://github.com/microsoft/vscode/issues/100569#issuecomment-738496991
+		// https://github.com/willnickols/erdos/issues/100569#issuecomment-738496991
 		if (data.submatches.length === 0) {
 			data.submatches.push(
 				fullText.length

@@ -98,7 +98,7 @@ export interface ICodeBlockData {
  *
  * The text of the code path should be a {@link LocalFileCodeBlockData} json object.
  */
-export const localFileLanguageId = 'vscode-local-file';
+export const localFileLanguageId = 'erdos-local-file';
 
 
 export function parseLocalFileData(text: string) {
@@ -863,7 +863,7 @@ export class CodeCompareBlockPart extends Disposable {
 			}
 
 			const listener = Event.any(diffData.original.onWillDispose, diffData.modified.onWillDispose)(() => {
-				// this a bit weird and basically duplicates https://github.com/microsoft/vscode/blob/7cbcafcbcc88298cfdcd0238018fbbba8eb6853e/src/vs/editor/browser/widget/diffEditor/diffEditorWidget.ts#L328
+				// this a bit weird and basically duplicates https://github.com/willnickols/erdos/blob/7cbcafcbcc88298cfdcd0238018fbbba8eb6853e/src/vs/editor/browser/widget/diffEditor/diffEditorWidget.ts#L328
 				// which cannot call `setModel(null)` without first complaining
 				this.diffEditor.setModel(null);
 			});

@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/234339
+	// https://github.com/willnickols/erdos/issues/234339
 
 	export interface StatusBarItem {
 

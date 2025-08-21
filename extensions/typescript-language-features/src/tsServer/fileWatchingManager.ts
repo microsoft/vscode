@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Utils } from 'vscode-uri';
+import { Utils } from 'erdos-uri';
 import { Schemes } from '../configuration/schemes';
 import { Logger } from '../logging/logger';
 import { disposeAll, IDisposable } from '../utils/dispose';

@@ -45,7 +45,7 @@ export interface IBaseOpenWindowsOptions {
 	/**
 	 * The remote authority to use when windows are opened with either
 	 * - no workspace (empty window)
-	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 * - a workspace that is neither `file://` nor `erdos-remote://`
 	 * Use 'null' for a local window.
 	 * If not set, defaults to the remote authority of the current window.
 	 */
@@ -267,7 +267,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
-			return TitlebarStyle.NATIVE; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
+			return TitlebarStyle.NATIVE; // simple fullscreen does not work well with custom title style (https://github.com/willnickols/erdos/issues/63291)
 		}
 
 		const style = configuration.titleBarStyle;

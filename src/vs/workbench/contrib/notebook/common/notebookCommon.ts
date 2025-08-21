@@ -174,7 +174,7 @@ export const enum NotebookRendererMatch {
 
 /**
  * Renderer messaging requirement. While this allows for 'optional' messaging,
- * VS Code effectively treats it the same as true right now. "Partial
+ * Erdos effectively treats it the same as true right now. "Partial
  * activation" of extensions is a very tricky problem, which could allow
  * solving this. But for now, optional is mostly only honored for aznb.
  */

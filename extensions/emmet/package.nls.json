@@ -1,5 +1,5 @@
 {
-	"description": "Emmet support for VS Code",
+	"description": "Emmet support for Erdos",
 	"command.wrapWithAbbreviation": "Wrap with Abbreviation",
 	"command.removeTag": "Remove Tag",
 	"command.updateTag": "Update Tag",

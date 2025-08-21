@@ -20,7 +20,7 @@
 		},
 		{
 			"comment": "Support legacy FrontMatter integration",
-			"//": "https://github.com/microsoft/vscode-markdown-tm-grammar/pull/162",
+			"//": "https://github.com/willnickols/erdos-markdown-tm-grammar/pull/162",
 			"begin": "(?<=^-{3,}\\s*+)\\G$",
 			"while": "^(?! {3,0}-{3,}[ \t]*+$|[ \t]*+\\.{3}$)",
 			"patterns": [

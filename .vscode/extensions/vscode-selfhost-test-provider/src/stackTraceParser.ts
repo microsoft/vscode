@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Copied from https://github.com/microsoft/vscode-js-debug/blob/1d104b5184736677ab5cc280c70bbd227403850c/src/common/stackTraceParser.ts#L18
+// Copied from https://github.com/willnickols/erdos-js-debug/blob/1d104b5184736677ab5cc280c70bbd227403850c/src/common/stackTraceParser.ts#L18
 
 // Either match lines like
 // "    at fulfilled (/Users/roblou/code/testapp-node2/out/app.js:5:58)"

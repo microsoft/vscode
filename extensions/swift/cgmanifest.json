@@ -15,8 +15,8 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "vscode-swift",
-					"repositoryUrl": "https://github.com/owensd/vscode-swift",
+					"name": "erdos-swift",
+					"repositoryUrl": "https://github.com/owensd/erdos-swift",
 					"commitHash": "cec27af6662e3799120b208e64483efdfe5521f5"
 				}
 			},
@@ -43,7 +43,7 @@
 				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 			],
 			"license": "MIT",
-			"description": "The files in the 'snippets' subfolder in this folder are based on https://github.com/owensd/vscode-swift.",
+			"description": "The files in the 'snippets' subfolder in this folder are based on https://github.com/owensd/erdos-swift.",
 			"version": "0.0.1"
 		}
 	],

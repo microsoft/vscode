@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin worlpaker/go-syntax syntaxes/go.tmLanguage.json ./syntaxes/go.tmLanguage.json"
+    "update-grammar": "node ../node_modules/erdos-grammar-updater/bin worlpaker/go-syntax syntaxes/go.tmLanguage.json ./syntaxes/go.tmLanguage.json"
   },
   "categories": ["Programming Languages"],
   "contributes": {
@@ -40,6 +40,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   }
 }

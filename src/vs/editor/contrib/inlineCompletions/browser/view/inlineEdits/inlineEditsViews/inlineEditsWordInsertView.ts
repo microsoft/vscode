@@ -82,7 +82,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 							position: 'absolute',
 							...rectToProps(reader => layout.read(reader).lowerBackground),
 							borderRadius: '4px',
-							background: 'var(--vscode-editor-background)'
+							background: 'var(--erdos-editor-background)'
 						}
 					}, []),
 					n.div({
@@ -92,7 +92,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 							borderRadius: '4px',
 							padding: '0px',
 							textAlign: 'center',
-							background: 'var(--vscode-inlineEdit-modifiedChangedTextBackground)',
+							background: 'var(--erdos-inlineEdit-modifiedChangedTextBackground)',
 							fontFamily: this._editor.getOption(EditorOption.fontFamily),
 							fontSize: this._editor.getOption(EditorOption.fontSize),
 							fontWeight: this._editor.getOption(EditorOption.fontWeight),
@@ -107,7 +107,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 							borderRadius: '4px',
 							border: `1px solid ${modifiedBorderColor}`,
 							//background: 'rgba(122, 122, 122, 0.12)', looks better
-							background: 'var(--vscode-inlineEdit-wordReplacementView-background)',
+							background: 'var(--erdos-inlineEdit-wordReplacementView-background)',
 						}
 					}, []),
 					n.svg({
@@ -124,7 +124,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 					}, [
 						n.svgElem('path', {
 							d: 'M5.06445 0H7.35759C7.35759 0 7.35759 8.47059 7.35759 11.1176C7.35759 13.7647 9.4552 18 13.4674 18C17.4795 18 -2.58445 18 0.281373 18C3.14719 18 5.06477 14.2941 5.06477 11.1176C5.06477 7.94118 5.06445 0 5.06445 0Z',
-							fill: 'var(--vscode-inlineEdit-modifiedChangedTextBackground)',
+							fill: 'var(--erdos-inlineEdit-modifiedChangedTextBackground)',
 						})
 					])
 				];

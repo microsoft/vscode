@@ -70,7 +70,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		// As long as models are pending to be saved, we prolong the shutdown
 		// until that has happened to ensure we are not shutting down in the
 		// middle of writing to the file
-		// (https://github.com/microsoft/vscode/issues/116600)
+		// (https://github.com/willnickols/erdos/issues/116600)
 		while ((modelsPendingToSave = this.files.models.filter(model => model.hasState(TextFileEditorModelState.PENDING_SAVE))).length > 0) {
 			await Promises.settled(modelsPendingToSave.map(model => model.joinState(TextFileEditorModelState.PENDING_SAVE)));
 		}

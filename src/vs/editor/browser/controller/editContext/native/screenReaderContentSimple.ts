@@ -110,7 +110,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	}
 
 	private _setSelectionChangeListener(): IDisposable {
-		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
+		// See https://github.com/willnickols/erdos/issues/27216 and https://github.com/willnickols/erdos/issues/98256
 		// When using a Braille display or NVDA for example, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 

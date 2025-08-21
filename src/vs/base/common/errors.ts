@@ -83,7 +83,7 @@ export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) =>
  * Returns if the error is a SIGPIPE error. SIGPIPE errors should generally be
  * logged at most once, to avoid a loop.
  *
- * @see https://github.com/microsoft/vscode-remote-release/issues/6481
+ * @see https://github.com/willnickols/erdos-remote-release/issues/6481
  */
 export function isSigPipeError(e: unknown): e is Error {
 	if (!e || typeof e !== 'object') {

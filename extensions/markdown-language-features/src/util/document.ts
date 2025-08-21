@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Schemes } from './schemes';
-import { Utils } from 'vscode-uri';
+import { Utils } from 'erdos-uri';
 
 export function getDocumentDir(uri: vscode.Uri): vscode.Uri | undefined {
 	const docUri = getParentDocumentUri(uri);

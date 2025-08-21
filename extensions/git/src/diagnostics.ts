@@ -23,7 +23,7 @@ export class GitCommitInputBoxDiagnosticsManager {
 
 		this.migrateInputValidationSettings()
 			.then(() => {
-				mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'vscode-scm'), e => e.document)(this.onDidChangeTextDocument, this, this.disposables);
+				mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'erdos-scm'), e => e.document)(this.onDidChangeTextDocument, this, this.disposables);
 				filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.inputValidation') || e.affectsConfiguration('git.inputValidationLength') || e.affectsConfiguration('git.inputValidationSubjectLength'))(this.onDidChangeConfiguration, this, this.disposables);
 			});
 	}
@@ -105,7 +105,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 	private readonly disposables: Disposable[] = [];
 
 	constructor(private readonly diagnosticsManager: GitCommitInputBoxDiagnosticsManager) {
-		this.disposables.push(languages.registerCodeActionsProvider({ scheme: 'vscode-scm' }, this));
+		this.disposables.push(languages.registerCodeActionsProvider({ scheme: 'erdos-scm' }, this));
 	}
 
 	provideCodeActions(document: TextDocument, range: Range | Selection): CodeAction[] {

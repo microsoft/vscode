@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
-import { Utils } from 'vscode-uri';
+import { Utils } from 'erdos-uri';
 
 export function getCustomDataSource(toDispose: Disposable[]) {
 	let pathsInWorkspace = getCustomDataPathsInAllWorkspaces();

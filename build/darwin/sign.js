@@ -68,21 +68,21 @@ async function main(buildDir) {
             '-insert',
             'NSAppleEventsUsageDescription',
             '-string',
-            'An application in Visual Studio Code wants to use AppleScript.',
+            'An application in Erdos wants to use AppleScript.',
             `${infoPlistPath}`
         ]);
         await (0, cross_spawn_promise_1.spawn)('plutil', [
             '-replace',
             'NSMicrophoneUsageDescription',
             '-string',
-            'An application in Visual Studio Code wants to use the Microphone.',
+            'An application in Erdos wants to use the Microphone.',
             `${infoPlistPath}`
         ]);
         await (0, cross_spawn_promise_1.spawn)('plutil', [
             '-replace',
             'NSCameraUsageDescription',
             '-string',
-            'An application in Visual Studio Code wants to use the Camera.',
+            'An application in Erdos wants to use the Camera.',
             `${infoPlistPath}`
         ]);
     }

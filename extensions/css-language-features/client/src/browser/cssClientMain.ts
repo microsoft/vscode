@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionContext, Uri, l10n } from 'vscode';
-import { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient';
+import { BaseLanguageClient, LanguageClientOptions } from 'erdos-languageclient';
 import { startClient, LanguageClientConstructor } from '../cssClient';
-import { LanguageClient } from 'vscode-languageclient/browser';
+import { LanguageClient } from 'erdos-languageclient/browser';
 import { registerDropOrPasteResourceSupport } from '../dropOrPaste/dropOrPasteResource';
 
 let client: BaseLanguageClient | undefined;

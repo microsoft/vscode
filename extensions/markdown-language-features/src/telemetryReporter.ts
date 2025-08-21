@@ -48,7 +48,7 @@ export function loadDefaultTelemetryReporter(): TelemetryReporter {
 }
 
 function getPackageInfo(): IPackageInfo | null {
-	const extension = vscode.extensions.getExtension('Microsoft.vscode-markdown');
+	const extension = vscode.extensions.getExtension('Microsoft.erdos-markdown');
 	if (extension?.packageJSON) {
 		return {
 			name: extension.packageJSON.name,

@@ -222,7 +222,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//
 			// Patterns that are considered dangerous as they may lead to inline command execution.
 			// These will just get blocked outright to be on the safe side, at least until there's a
-			// real parser https://github.com/microsoft/vscode/issues/261794
+			// real parser https://github.com/willnickols/erdos/issues/261794
 
 			// `(command)` many shells execute commands inside parentheses
 			'/\\(.+\\)/': { approve: false, matchCommandLine: true },

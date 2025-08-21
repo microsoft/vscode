@@ -34,7 +34,7 @@ function gulpstylelint(reporter) {
 		this.emit('data', file);
 	}, function () {
 		if (errorCount > 0) {
-			reporter('All valid variable names are in `build/lib/stylelint/vscode-known-variables.json`\nTo update that file, run `./scripts/test-documentation.sh|bat.`', false);
+			reporter('All valid variable names are in `build/lib/stylelint/erdos-known-variables.json`\nTo update that file, run `./scripts/test-documentation.sh|bat.`', false);
 		}
 		this.emit('end');
 	}

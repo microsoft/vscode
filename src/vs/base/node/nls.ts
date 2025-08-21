@@ -97,7 +97,7 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 				corruptMarkerFile: languagePackCorruptMarkerFile
 			},
 
-			// NLS: below properties are a relic from old times only used by vscode-nls and deprecated
+			// NLS: below properties are a relic from old times only used by erdos-nls and deprecated
 			locale: userLocale,
 			availableLanguages: { '*': resolvedLanguage },
 			_languagePackId: languagePackId,
@@ -207,7 +207,7 @@ function defaultNLSConfiguration(userLocale: string, osLocale: string, nlsMetada
 		resolvedLanguage: 'en',
 		defaultMessagesFile: join(nlsMetadataPath, 'nls.messages.json'),
 
-		// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
+		// NLS: below 2 are a relic from old times only used by erdos-nls and deprecated
 		locale: userLocale,
 		availableLanguages: {}
 	};

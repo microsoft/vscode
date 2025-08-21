@@ -19,7 +19,7 @@ export default withDefaults({
 		new CopyPlugin({
 			patterns: [
 				{
-					from: './node_modules/vscode-markdown-languageserver/dist/node/workerMain.js',
+					from: './node_modules/erdos-markdown-languageserver/dist/node/workerMain.js',
 					to: 'serverWorkerMain.js',
 				}
 			],

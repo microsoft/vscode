@@ -109,7 +109,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 			case PConst.Kind.constructorImplementation:
 			case PConst.Kind.memberVariable:
 				// Don't show if child and parent have same start
-				// For https://github.com/microsoft/vscode/issues/90396
+				// For https://github.com/willnickols/erdos/issues/90396
 				if (parent &&
 					typeConverters.Position.fromLocation(parent.spans[0].start).isEqual(typeConverters.Position.fromLocation(item.spans[0].start))
 				) {

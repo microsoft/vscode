@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as lsp from 'vscode-languageserver-types';
+import type * as lsp from 'erdos-languageserver-types';
 import { MdLanguageClient } from '../client/client';
 import { Command, CommandManager } from '../commandManager';
 

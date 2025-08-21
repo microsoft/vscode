@@ -51,7 +51,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 		// macOS: behave like other native apps that have documents
 		// but can run without a document opened and allow to close
 		// the window when the last document is closed
-		// (https://github.com/microsoft/vscode/issues/126042)
+		// (https://github.com/willnickols/erdos/issues/126042)
 		KeybindingsRegistry.registerKeybindingRule({
 			id: CloseWindowAction.ID,
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -435,11 +435,11 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			},
 			'disable-chromium-sandbox': {
 				type: 'boolean',
-				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running VS Code as elevated on Linux and running under Applocker on Windows.")
+				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running Erdos as elevated on Linux and running under Applocker on Windows.")
 			},
 			'use-inmemory-secretstorage': {
 				type: 'boolean',
-				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running VS Code extension tests or when you're experiencing difficulties with the credential store.")
+				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running Erdos extension tests or when you're experiencing difficulties with the credential store.")
 			},
 			'remote-debugging-port': {
 				type: 'string',

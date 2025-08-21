@@ -23,7 +23,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 				id: MenuId.CommandPalette
 			},
 			metadata: {
-				description: localize2('configureLocaleDescription', "Changes the locale of VS Code based on installed language packs. Common languages include French, Chinese, Spanish, Japanese, German, Korean, and more.")
+				description: localize2('configureLocaleDescription', "Changes the locale of Erdos based on installed language packs. Common languages include French, Chinese, Spanish, Japanese, German, Korean, and more.")
 			}
 		});
 	}

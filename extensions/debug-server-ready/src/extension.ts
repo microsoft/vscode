@@ -34,7 +34,7 @@ const CONTROL_SEQUENCES = new RegExp('(?:' + [
 
 /**
  * Froms vs/base/common/strings.ts in core
- * @see https://github.com/microsoft/vscode/blob/22a2a0e833175c32a2005b977d7fbd355582e416/src/vs/base/common/strings.ts#L736
+ * @see https://github.com/willnickols/erdos/blob/22a2a0e833175c32a2005b977d7fbd355582e416/src/vs/base/common/strings.ts#L736
  */
 function removeAnsiEscapeCodes(str: string): string {
 	if (str) {

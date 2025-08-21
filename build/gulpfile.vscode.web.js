@@ -120,11 +120,11 @@ const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
 };
 exports.createVSCodeWebFileContentMapper = createVSCodeWebFileContentMapper;
 
-const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
-	util.rimraf('out-vscode-web'),
+const bundleVSCodeWebTask = task.define('bundle-erdos-web', task.series(
+	util.rimraf('out-erdos-web'),
 	optimize.bundleTask(
 		{
-			out: 'out-vscode-web',
+			out: 'out-erdos-web',
 			esm: {
 				src: 'out-build',
 				entryPoints: vscodeWebEntryPoints,
@@ -135,10 +135,10 @@ const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
 	)
 ));
 
-const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
+const minifyVSCodeWebTask = task.define('minify-erdos-web', task.series(
 	bundleVSCodeWebTask,
-	util.rimraf('out-vscode-web-min'),
-	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
+	util.rimraf('out-erdos-web-min'),
+	optimize.minifyTask('out-erdos-web', `https://main.erdos-cdn.net/sourcemaps/${commit}/core`)
 ));
 gulp.task(minifyVSCodeWebTask);
 
@@ -222,10 +222,10 @@ gulp.task(compileWebExtensionsBuildTask);
 const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 
 ['', 'min'].forEach(minified => {
-	const sourceFolderName = `out-vscode-web${dashed(minified)}`;
-	const destinationFolderName = `vscode-web`;
+	const sourceFolderName = `out-erdos-web${dashed(minified)}`;
+	const destinationFolderName = `erdos-web`;
 
-	const vscodeWebTaskCI = task.define(`vscode-web${dashed(minified)}-ci`, task.series(
+	const vscodeWebTaskCI = task.define(`erdos-web${dashed(minified)}-ci`, task.series(
 		compileWebExtensionsBuildTask,
 		minified ? minifyVSCodeWebTask : bundleVSCodeWebTask,
 		util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
@@ -233,7 +233,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 	));
 	gulp.task(vscodeWebTaskCI);
 
-	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
+	const vscodeWebTask = task.define(`erdos-web${dashed(minified)}`, task.series(
 		compileBuildWithManglingTask,
 		vscodeWebTaskCI
 	));

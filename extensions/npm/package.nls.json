@@ -1,6 +1,6 @@
 {
 	"description": "Extension to add task support for npm scripts.",
-	"displayName": "NPM support for VS Code",
+	"displayName": "NPM support for Erdos",
 	"workspaceTrust": "This extension executes tasks, which require trust to run.",
 	"virtualWorkspaces": "Functionality that requires running the 'npm' command is not available in virtual workspaces.",
 	"config.npm.autoDetect": "Controls whether npm scripts should be automatically detected.",

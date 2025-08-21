@@ -109,7 +109,7 @@ function knownExcludeCmdline(command: string): boolean {
 	if (command.length > 500) {
 		return false;
 	}
-	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
+	return !!command.match(/.*\.erdos-server-[a-zA-Z]+\/bin.*/)
 		|| (command.indexOf('out/server-main.js') !== -1)
 		|| (command.indexOf('_productName=VSCode') !== -1);
 }

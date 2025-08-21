@@ -5,10 +5,10 @@
 	},
 	"exclude": [
 		"node_modules",
-		".vscode-test"
+		".erdos-test"
 	],
 	"include": [
 		"src/**/*",
-		"../../src/vscode-dts/vscode.d.ts"
+		"../../src/erdos-dts/vscode.d.ts"
 	]
 }

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { URI } from 'vscode-uri';
+import { URI } from 'erdos-uri';
 
 export class PathMapper {
 
@@ -104,8 +104,8 @@ function filePathToResourceUri(filepath: string): URI | undefined {
 }
 
 export function mapUri(uri: URI, mappedScheme: string): URI {
-	if (uri.scheme === 'vscode-global-typings') {
-		throw new Error('can\'t map vscode-global-typings');
+	if (uri.scheme === 'erdos-global-typings') {
+		throw new Error('can\'t map erdos-global-typings');
 	}
 	if (!uri.authority) {
 		uri = uri.with({ authority: 'ts-nul-authority' });

@@ -127,7 +127,7 @@ function buildWin32Setup(arch, target) {
  */
 function defineWin32SetupTasks(arch, target) {
 	const cleanTask = util.rimraf(setupDir(arch, target));
-	gulp.task(task.define(`vscode-win32-${arch}-${target}-setup`, task.series(cleanTask, buildWin32Setup(arch, target))));
+	gulp.task(task.define(`erdos-win32-${arch}-${target}-setup`, task.series(cleanTask, buildWin32Setup(arch, target))));
 }
 
 defineWin32SetupTasks('x64', 'system');
@@ -155,5 +155,5 @@ function updateIcon(executablePath) {
 	};
 }
 
-gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
-gulp.task(task.define('vscode-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), updateIcon(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));
+gulp.task(task.define('erdos-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
+gulp.task(task.define('erdos-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), updateIcon(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));

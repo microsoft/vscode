@@ -47,8 +47,8 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 // A custom typescript checker that ensure constructor properties are NOT used to initialize
 // defined properties. This is needed for the times when `useDefineForClassFields` is gone.
 //
-// see https://github.com/microsoft/vscode/issues/243049, https://github.com/microsoft/vscode/issues/186726,
-// https://github.com/microsoft/vscode/pull/241544
+// see https://github.com/willnickols/erdos/issues/243049, https://github.com/willnickols/erdos/issues/186726,
+// https://github.com/willnickols/erdos/pull/241544
 //
 // #############################################################################################
 //

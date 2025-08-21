@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/226562
+	// https://github.com/willnickols/erdos/issues/226562
 
 	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
 		id: string;

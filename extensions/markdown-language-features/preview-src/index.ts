@@ -33,7 +33,7 @@ if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resour
 	state.scrollProgress = 0;
 }
 
-// Make sure to sync VS Code state here
+// Make sure to sync Erdos state here
 vscode.setState(state);
 
 const messaging = createPosterForVsCode(vscode, settings);
@@ -83,7 +83,7 @@ onceDocumentLoaded(() => {
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount += 1;
-			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
+			// Always set scroll of at least 1 to prevent Erdos's webview code from auto scrolling us
 			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
 			window.scrollTo(0, scrollToY);
 		});
@@ -151,7 +151,7 @@ function addImageContexts() {
 		const imageSource = img.getAttribute('data-src');
 		const isLocalFile = imageSource && !(isOfScheme(Schemes.http, imageSource) || isOfScheme(Schemes.https, imageSource));
 		const webviewSection = isLocalFile ? 'localImage' : 'image';
-		img.setAttribute('data-vscode-context', JSON.stringify({ webviewSection, id: img.id, 'preventDefaultContextMenuItems': true, resource: documentResource, imageSource }));
+		img.setAttribute('data-erdos-context', JSON.stringify({ webviewSection, id: img.id, 'preventDefaultContextMenuItems': true, resource: documentResource, imageSource }));
 	}
 }
 
@@ -318,7 +318,7 @@ document.addEventListener('dblclick', event => {
 	}
 });
 
-const passThroughLinkSchemes = ['http:', 'https:', 'mailto:', 'vscode:', 'vscode-insiders:'];
+const passThroughLinkSchemes = ['http:', 'https:', 'mailto:', 'vscode:', 'erdos-insiders:'];
 
 document.addEventListener('click', event => {
 	if (!event) {
@@ -341,7 +341,7 @@ document.addEventListener('click', event => {
 				}
 			}
 
-			// If original link doesn't look like a url, delegate back to VS Code to resolve
+			// If original link doesn't look like a url, delegate back to Erdos to resolve
 			if (!/^[a-z\-]+:/i.test(hrefText)) {
 				messaging.postMessage('openLink', { href: hrefText });
 				event.preventDefault();

@@ -198,7 +198,7 @@ function getAssociationByPath(path: string, filename: string, associations: ILan
 	let extensionMatch: ILanguageAssociationItem | undefined = undefined;
 
 	// We want to prioritize associations based on the order they are registered so that the last registered
-	// association wins over all other. This is for https://github.com/microsoft/vscode/issues/20074
+	// association wins over all other. This is for https://github.com/willnickols/erdos/issues/20074
 	for (let i = associations.length - 1; i >= 0; i--) {
 		const association = associations[i];
 
@@ -254,7 +254,7 @@ function getAssociationByFirstline(firstLine: string): ILanguageAssociationItem 
 	if (firstLine.length > 0) {
 
 		// We want to prioritize associations based on the order they are registered so that the last registered
-		// association wins over all other. This is for https://github.com/microsoft/vscode/issues/20074
+		// association wins over all other. This is for https://github.com/willnickols/erdos/issues/20074
 		for (let i = registeredAssociations.length - 1; i >= 0; i--) {
 			const association = registeredAssociations[i];
 			if (!association.firstline) {

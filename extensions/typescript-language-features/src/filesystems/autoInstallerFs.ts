@@ -6,7 +6,7 @@
 import { PackageManager, ResolvedProject } from '@vscode/ts-package-manager';
 import { basename, join } from 'path';
 import * as vscode from 'vscode';
-import { URI } from 'vscode-uri';
+import { URI } from 'erdos-uri';
 import { Disposable } from '../utils/dispose';
 import { MemFs } from './memFs';
 import { Logger } from '../logging/logger';

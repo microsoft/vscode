@@ -79,7 +79,7 @@
   "dependencies": {
     "node-fetch": "2.6.7",
     "@vscode/extension-telemetry": "^0.9.8",
-    "vscode-tas-client": "^0.1.84"
+    "erdos-tas-client": "^0.1.84"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
@@ -88,6 +88,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   }
 }

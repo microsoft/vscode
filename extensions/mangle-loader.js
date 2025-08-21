@@ -42,7 +42,7 @@ module.exports = async function (source, sourceMap, meta) {
 		return source;
 	}
 	if (true) {
-		// disable mangling for now, SEE https://github.com/microsoft/vscode/issues/204692
+		// disable mangling for now, SEE https://github.com/willnickols/erdos/issues/204692
 		return source;
 	}
 	const options = this.getOptions();

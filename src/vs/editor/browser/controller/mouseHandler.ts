@@ -93,7 +93,7 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(mouseEvents.onMouseMove(this.viewHelper.viewDomNode, (e) => {
 			this._onMouseMove(e);
 
-			// See https://github.com/microsoft/vscode/issues/138789
+			// See https://github.com/willnickols/erdos/issues/138789
 			// When moving the mouse really quickly, the browser sometimes forgets to
 			// send us a `mouseleave` or `mouseout` event. We therefore install here
 			// a global `mousemove` listener to manually recover if the mouse goes outside
@@ -125,7 +125,7 @@ export class MouseHandler extends ViewEventHandler {
 		// The `pointerup` listener registered by `GlobalEditorPointerMoveMonitor` does not get invoked 100% of the times.
 		// I speculate that this is because the `pointerup` listener is only registered during the `mousedown` event, and perhaps
 		// the `pointerup` event is already queued for dispatching, which makes it that the new listener doesn't get fired.
-		// See https://github.com/microsoft/vscode/issues/146486 for repro steps.
+		// See https://github.com/willnickols/erdos/issues/146486 for repro steps.
 		// To compensate for that, we simply register here a `pointerup` listener and just communicate it.
 		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.POINTER_UP, (e: PointerEvent) => {
 			this._mouseDownOperation.onPointerUp();

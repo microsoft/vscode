@@ -40,7 +40,7 @@ export interface ITestResultStorage {
 export const ITestResultStorage = createDecorator('ITestResultStorage');
 
 /**
- * Data revision this version of VS Code deals with. Should be bumped whenever
+ * Data revision this version of Erdos deals with. Should be bumped whenever
  * a breaking change is made to the stored results, which will cause previous
  * revisions to be discarded.
  */

@@ -56,7 +56,7 @@ const root = path_1.default.dirname(path_1.default.dirname(__dirname));
 const productjson = JSON.parse(fs_1.default.readFileSync(path_1.default.join(__dirname, '../../product.json'), 'utf8'));
 const builtInExtensions = productjson.builtInExtensions || [];
 const webBuiltInExtensions = productjson.webBuiltInExtensions || [];
-const controlFilePath = path_1.default.join(os_1.default.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+const controlFilePath = path_1.default.join(os_1.default.homedir(), '.erdos-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 function log(...messages) {
     if (ENABLE_LOGGING) {

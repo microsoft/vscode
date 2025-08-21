@@ -143,7 +143,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						hideEmptyCodeblock.style.display = 'none';
 						return hideEmptyCodeblock;
 					}
-					if (languageId === 'vscode-extensions') {
+					if (languageId === 'erdos-extensions') {
 						const chatExtensions = this._register(instantiationService.createInstance(ChatExtensionsContentPart, { kind: 'extensions', extensions: text.split(',') }));
 						this._register(chatExtensions.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 						return chatExtensions.domNode;

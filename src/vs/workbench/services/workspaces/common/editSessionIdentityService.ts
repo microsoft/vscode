@@ -71,7 +71,7 @@ export class EditSessionIdentityService implements IEditSessionIdentityService {
 	}
 
 	private async activateProvider(scheme: string) {
-		const transformedScheme = scheme === 'vscode-remote' ? 'file' : scheme;
+		const transformedScheme = scheme === 'erdos-remote' ? 'file' : scheme;
 
 		const provider = this._editSessionIdentifierProviders.get(scheme);
 		if (provider) {

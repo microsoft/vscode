@@ -40,7 +40,7 @@ export function startWorkerSession(
 
 		constructor() {
 			const cancellationToken = new WasmCancellationToken();
-			const typingsInstaller = options.disableAutomaticTypingAcquisition || !fs ? ts.server.nullTypingsInstaller : new WebTypingsInstallerClient(host, '/vscode-global-typings/ts-nul-authority/projects');
+			const typingsInstaller = options.disableAutomaticTypingAcquisition || !fs ? ts.server.nullTypingsInstaller : new WebTypingsInstallerClient(host, '/erdos-global-typings/ts-nul-authority/projects');
 
 			super({
 				host,

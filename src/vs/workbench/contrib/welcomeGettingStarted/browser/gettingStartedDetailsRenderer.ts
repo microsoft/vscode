@@ -85,13 +85,13 @@ export class GettingStartedDetailsRenderer {
 						box-sizing: border-box;
 					}
 					checkbox.checked > img {
-						outline: 2px solid var(--vscode-focusBorder);
+						outline: 2px solid var(--erdos-focusBorder);
 						outline-offset: 4px;
 						border-radius: 4px;
 					}
 					.theme-picker-link {
 						margin-top: 16px;
-						color: var(--vscode-textLink-foreground);
+						color: var(--erdos-textLink-foreground);
 					}
 					blockquote > p:first-child {
 						margin-top: 0;

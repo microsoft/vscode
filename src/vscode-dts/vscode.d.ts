@@ -3003,7 +3003,7 @@ declare module 'vscode' {
 		 * that appear in the markdown text. This means you can only use markdown syntax for rendering.
 		 *
 		 * When `supportHtml` is true, the markdown render will also allow a safe subset of html tags
-		 * and attributes to be rendered. See https://github.com/microsoft/vscode/blob/6d2920473c6f13759c978dd89104c4270a83422d/src/vs/base/browser/markdownRenderer.ts#L296
+		 * and attributes to be rendered. See https://github.com/willnickols/erdos/blob/6d2920473c6f13759c978dd89104c4270a83422d/src/vs/base/browser/markdownRenderer.ts#L296
 		 * for a list of all supported tags and attributes.
 		 */
 		supportHtml?: boolean;
@@ -9911,7 +9911,7 @@ declare module 'vscode' {
 		 * Keep in mind that even though webviews are sandboxed, they still allow running scripts and loading arbitrary content,
 		 * so extensions must follow all standard web security best practices when working with webviews. This includes
 		 * properly sanitizing all untrusted input (including content from the workspace) and
-		 * setting a [content security policy](https://aka.ms/vscode-api-webview-csp).
+		 * setting a [content security policy](https://aka.ms/erdos-api-webview-csp).
 		 */
 		html: string;
 
@@ -10682,7 +10682,7 @@ declare module 'vscode' {
 	export namespace env {
 
 		/**
-		 * The application name of the editor, like 'VS Code'.
+		 * The application name of the editor, like 'Erdos'.
 		 */
 		export const appName: string;
 
@@ -14645,7 +14645,7 @@ declare module 'vscode' {
 		 * match('*', doc); // 5
 		 *
 		 * // notebook cell document
-		 * doc.uri; // `vscode-notebook-cell:///my/notebook.ipynb#gl65s2pmha`;
+		 * doc.uri; // `erdos-notebook-cell:///my/notebook.ipynb#gl65s2pmha`;
 		 * doc.languageId; // 'python'
 		 * match({ notebookType: 'jupyter-notebook' }, doc) // 10
 		 * match({ notebookType: 'fooNotebook', language: 'python' }, doc) // 0
@@ -18014,7 +18014,7 @@ declare module 'vscode' {
 	 * Namespace for localization-related functionality in the extension API. To use this properly,
 	 * you must have `l10n` defined in your extension manifest and have bundle.l10n.<language>.json files.
 	 * For more information on how to generate bundle.l10n.<language>.json files, check out the
-	 * [vscode-l10n repo](https://github.com/microsoft/vscode-l10n).
+	 * [erdos-l10n repo](https://github.com/willnickols/erdos-l10n).
 	 *
 	 * Note: Built-in extensions (for example, Git, TypeScript Language Features, GitHub Authentication)
 	 * are excluded from the `l10n` property requirement. In other words, they do not need to specify

@@ -254,20 +254,20 @@ suite('Parsing .gitignore files', () => {
 		assertIgnoreMatch(i, '/', '/inner/more/myFile.js');
 	});
 
-	test('real world example: vscode-js-debug', () => {
+	test('real world example: erdos-js-debug', () => {
 		const i = `.cache/
 			.profile/
 			.cdp-profile/
 			.headless-profile/
-			.vscode-test/
+			.erdos-test/
 			.DS_Store
 			node_modules/
 			out/
 			dist
 			/coverage
 			/.nyc_output
-			demos/web-worker/vscode-pwa-dap.log
-			demos/web-worker/vscode-pwa-cdp.log
+			demos/web-worker/erdos-pwa-dap.log
+			demos/web-worker/erdos-pwa-cdp.log
 			.dynamic-testWorkspace
 			**/test/**/*.actual
 			/testWorkspace/web/tmp
@@ -281,8 +281,8 @@ suite('Parsing .gitignore files', () => {
 			'/inner/coverage',
 			'/inner/.nyc_output',
 
-			'/inner/demos/web-worker/vscode-pwa-dap.log',
-			'/inner/demos/web-worker/vscode-pwa-cdp.log',
+			'/inner/demos/web-worker/erdos-pwa-dap.log',
+			'/inner/demos/web-worker/erdos-pwa-cdp.log',
 
 			'/testWorkspace/webview/win/true',
 
@@ -300,8 +300,8 @@ suite('Parsing .gitignore files', () => {
 			'/coverage',
 			'/.nyc_output',
 
-			'/demos/web-worker/vscode-pwa-dap.log',
-			'/demos/web-worker/vscode-pwa-cdp.log',
+			'/demos/web-worker/erdos-pwa-dap.log',
+			'/demos/web-worker/erdos-pwa-cdp.log',
 
 			'/.dynamic-testWorkspace',
 			'/inner/.dynamic-testWorkspace',

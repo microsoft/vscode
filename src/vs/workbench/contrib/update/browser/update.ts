@@ -219,7 +219,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 								toAction({
 									id: '',
 									label: nls.localize('learn more', "Learn More"),
-									run: () => this.openerService.open('https://aka.ms/vscode-windows-setup')
+									run: () => this.openerService.open('https://aka.ms/erdos-windows-setup')
 								})
 							]
 						},
@@ -282,7 +282,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			return;
 		}
 
-		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
+		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/willnickols/erdos/issues/7426#issuecomment-425093469) for more information');
 
 		this.notificationService.notify({
 			severity: Severity.Error,
@@ -581,8 +581,8 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 							type: 'info',
 							message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
 							detail: newQuality === 'insider' ?
-								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the Insiders version of VS Code.") :
-								nls.localize('relaunchDetailStable', "Press the reload button to switch to the Stable version of VS Code."),
+								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the Insiders version of Erdos.") :
+								nls.localize('relaunchDetailStable', "Press the reload button to switch to the Stable version of Erdos."),
 							primaryButton: nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")
 						});
 
@@ -617,7 +617,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					const { result } = await dialogService.prompt<UserDataSyncStoreType>({
 						type: Severity.Info,
 						message: nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
-						detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
+						detail: nls.localize('selectSyncService.detail', "The Insiders version of Erdos will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
 						buttons: [
 							{
 								label: nls.localize({ key: 'use insiders', comment: ['&& denotes a mnemonic'] }, "&&Insiders"),

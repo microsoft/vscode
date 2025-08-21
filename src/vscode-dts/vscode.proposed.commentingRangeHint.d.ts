@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// @alexr00 https://github.com/microsoft/vscode/issues/185551
+	// @alexr00 https://github.com/willnickols/erdos/issues/185551
 
 	/**
 	 * Commenting range provider for a {@link CommentController comment controller}.

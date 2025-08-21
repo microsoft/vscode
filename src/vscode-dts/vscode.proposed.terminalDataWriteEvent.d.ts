@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/78502
+	// https://github.com/willnickols/erdos/issues/78502
 	//
 	// This API is still proposed but we don't intent on promoting it to stable due to problems
 	// around performance. See #145234 for a more likely API to get stabilized.

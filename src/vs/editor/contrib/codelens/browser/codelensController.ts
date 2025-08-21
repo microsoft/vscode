@@ -99,13 +99,13 @@ export class CodeLensContribution implements IEditorContribution {
 
 		const { style } = this._editor.getContainerDomNode();
 
-		style.setProperty('--vscode-editorCodeLens-lineHeight', `${codeLensHeight}px`);
-		style.setProperty('--vscode-editorCodeLens-fontSize', `${fontSize}px`);
-		style.setProperty('--vscode-editorCodeLens-fontFeatureSettings', editorFontInfo.fontFeatureSettings);
+		style.setProperty('--erdos-editorCodeLens-lineHeight', `${codeLensHeight}px`);
+		style.setProperty('--erdos-editorCodeLens-fontSize', `${fontSize}px`);
+		style.setProperty('--erdos-editorCodeLens-fontFeatureSettings', editorFontInfo.fontFeatureSettings);
 
 		if (fontFamily) {
-			style.setProperty('--vscode-editorCodeLens-fontFamily', fontFamily);
-			style.setProperty('--vscode-editorCodeLens-fontFamilyDefault', EDITOR_FONT_DEFAULTS.fontFamily);
+			style.setProperty('--erdos-editorCodeLens-fontFamily', fontFamily);
+			style.setProperty('--erdos-editorCodeLens-fontFamilyDefault', EDITOR_FONT_DEFAULTS.fontFamily);
 		}
 
 		//

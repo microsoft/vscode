@@ -48,7 +48,7 @@ import { IUserDataProfileService } from '../../../userDataProfile/common/userDat
 import { IBrowserWorkbenchEnvironmentService } from '../../../environment/browser/environmentService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
-const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+const ROOT = URI.file('tests').with({ scheme: 'erdos-tests' });
 
 class ConfigurationCache implements IConfigurationCache {
 	needsCaching(resource: URI): boolean { return false; }

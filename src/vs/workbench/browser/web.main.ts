@@ -272,7 +272,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IProductService, productService);
 
 		// Environment
-		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-log' });
+		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'erdos-log' });
 		const environmentService = new BrowserWorkbenchEnvironmentService(workspace.id, logsPath, this.configuration, productService);
 		serviceCollection.set(IBrowserWorkbenchEnvironmentService, environmentService);
 
@@ -452,11 +452,11 @@ export class BrowserMain extends Disposable {
 
 		// IndexedDB is used for logging and user data
 		let indexedDB: IndexedDB | undefined;
-		const userDataStore = 'vscode-userdata-store';
-		const logsStore = 'vscode-logs-store';
-		const handlesStore = 'vscode-filehandles-store';
+		const userDataStore = 'erdos-userdata-store';
+		const logsStore = 'erdos-logs-store';
+		const handlesStore = 'erdos-filehandles-store';
 		try {
-			indexedDB = await IndexedDB.create('vscode-web-db', 3, [userDataStore, logsStore, handlesStore]);
+			indexedDB = await IndexedDB.create('erdos-web-db', 3, [userDataStore, logsStore, handlesStore]);
 
 			// Close onWillShutdown
 			this.onWillShutdownDisposables.add(toDisposable(() => indexedDB?.close()));

@@ -1,6 +1,6 @@
 {
 	"servers": {
-		"vscode-playwright-mcp": {
+		"erdos-playwright-mcp": {
 			"type": "stdio",
 			"command": "npm",
 			// Look at the [README](../test/mcp/README.md) to see what arguments are supported

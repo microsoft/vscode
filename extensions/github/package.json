@@ -76,7 +76,7 @@
         "when": "github.hasGitHubRepo",
         "qualifiedName": "Continue Working in vscode.dev",
         "category": "Remote Repositories",
-        "remoteGroup": "virtualfs_44_vscode-vfs_2_web@2"
+        "remoteGroup": "virtualfs_44_erdos-vfs_2_web@2"
       }
     ],
     "menus": {
@@ -239,6 +239,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/willnickols/erdos.git"
   }
 }

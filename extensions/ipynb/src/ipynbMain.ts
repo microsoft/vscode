@@ -69,9 +69,9 @@ export function activate(context: vscode.ExtensionContext, serializer: vscode.No
 	vscode.languages.registerCodeLensProvider({ pattern: '**/*.ipynb' }, {
 		provideCodeLenses: (document) => {
 			if (
-				document.uri.scheme === 'vscode-notebook-cell' ||
-				document.uri.scheme === 'vscode-notebook-cell-metadata' ||
-				document.uri.scheme === 'vscode-notebook-cell-output'
+				document.uri.scheme === 'erdos-notebook-cell' ||
+				document.uri.scheme === 'erdos-notebook-cell-metadata' ||
+				document.uri.scheme === 'erdos-notebook-cell-output'
 			) {
 				return [];
 			}

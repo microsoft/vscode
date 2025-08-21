@@ -777,7 +777,7 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('runtime stable, type-def changed', function () {
-		// see https://github.com/microsoft/vscode/issues/231938
+		// see https://github.com/willnickols/erdos/issues/231938
 		const m = new types.LanguageModelChatMessage(types.LanguageModelChatMessageRole.User, []);
 		assert.deepStrictEqual(m.content, []);
 		m.content = 'Hello';

@@ -12,7 +12,7 @@ import { ITelemetryService } from './telemetry.js';
 
 type ErrorEventFragment = {
 	owner: 'lramos15, sbatten';
-	comment: 'Whenever an error in VS Code is thrown.';
+	comment: 'Whenever an error in Erdos is thrown.';
 	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
 	msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The message of the error. Normally the first line int the callstack.' };
 	file?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The file the error originated from.' };

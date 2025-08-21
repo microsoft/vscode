@@ -95,8 +95,8 @@ class NodeModuleAliasingModuleFactory implements IAlternativeModuleProvider {
 	 * renamed without breaking extensions. In the form "original -> new name".
 	 */
 	private static readonly aliased: ReadonlyMap<string, string> = new Map([
-		['vscode-ripgrep', '@vscode/ripgrep'],
-		['vscode-windows-registry', '@vscode/windows-registry'],
+		['erdos-ripgrep', '@vscode/ripgrep'],
+		['erdos-windows-registry', '@vscode/windows-registry'],
 	]);
 
 	private readonly re?: RegExp;
@@ -142,7 +142,7 @@ class NodeModuleAliasingModuleFactory implements IAlternativeModuleProvider {
 
 //#endregion
 
-//#region --- vscode-module
+//#region --- erdos-module
 
 class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName = 'vscode';

@@ -26,7 +26,7 @@ CONSTANT_VALUES.set('isFirefox', isFirefox);
 CONSTANT_VALUES.set('isChrome', isChrome);
 CONSTANT_VALUES.set('isSafari', isSafari);
 
-/** allow register constant context keys that are known only after startup; requires running `substituteConstants` on the context key - https://github.com/microsoft/vscode/issues/174218#issuecomment-1437972127 */
+/** allow register constant context keys that are known only after startup; requires running `substituteConstants` on the context key - https://github.com/willnickols/erdos/issues/174218#issuecomment-1437972127 */
 export function setConstant(key: string, value: boolean) {
 	if (CONSTANT_VALUES.get(key) !== undefined) { throw illegalArgument('contextkey.setConstant(k, v) invoked with already set constant `k`'); }
 

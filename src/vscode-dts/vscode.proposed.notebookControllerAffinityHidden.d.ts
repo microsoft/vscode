@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	// https://github.com/microsoft/vscode/issues/161144
+	// https://github.com/willnickols/erdos/issues/161144
 	export enum NotebookControllerAffinity2 {
 		Default = 1,
 		Preferred = 2,

@@ -12,7 +12,7 @@
 	},
 	"typeAcquisition": {
 		"include": [
-			"@types/vscode-webview"
+			"@types/erdos-webview"
 		]
 	}
 }

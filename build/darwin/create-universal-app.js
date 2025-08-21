@@ -10,7 +10,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const minimatch_1 = __importDefault(require("minimatch"));
-const vscode_universal_bundler_1 = require("vscode-universal-bundler");
+const vscode_universal_bundler_1 = require("erdos-universal-bundler");
 const root = path_1.default.dirname(path_1.default.dirname(__dirname));
 async function main(buildDir) {
     const arch = process.env['VSCODE_ARCH'];

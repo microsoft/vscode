@@ -64,7 +64,7 @@ export interface IPathService {
 	 * Figures out if the provided resource has a valid file name
 	 * for the operating system the file is saved to.
 	 *
-	 * Note: this currently only supports `file` and `vscode-file`
+	 * Note: this currently only supports `file` and `erdos-file`
 	 * protocols where we know the limits of the file systems behind
 	 * these OS. Other remotes are not supported and this method
 	 * will always return `true` for them.

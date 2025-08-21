@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
+import type { ActivationFunction, OutputItem, RendererContext } from 'erdos-notebook-renderer';
 import { createOutputContent, appendOutput, scrollableClass } from './textHelper';
 import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, OutputWithAppend, RenderOptions } from './rendererTypes';
 import { ttPolicy } from './htmlHelper';
@@ -38,7 +38,7 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 	if (alt) {
 		image.alt = alt;
 	}
-	image.setAttribute('data-vscode-context', JSON.stringify({
+	image.setAttribute('data-erdos-context', JSON.stringify({
 		webviewSection: 'image',
 		outputId: outputInfo.id,
 		'preventDefaultContextMenuItems': true
@@ -95,7 +95,7 @@ function fixUpSvgElement(outputInfo: OutputItem, element: HTMLElement) {
 		if (svgElement) {
 			svgElement.classList.add('output-image');
 
-			svgElement.setAttribute('data-vscode-context', JSON.stringify({
+			svgElement.setAttribute('data-erdos-context', JSON.stringify({
 				webviewSection: 'image',
 				outputId: outputInfo.id,
 				'preventDefaultContextMenuItems': true
@@ -466,7 +466,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		max-height: var(--notebook-cell-output-max-height);
 	}
 	#container div.output .scrollable.scrollbar-visible {
-		border-color: var(--vscode-editorWidget-border);
+		border-color: var(--erdos-editorWidget-border);
 	}
 	#container div.output .scrollable.scrollbar-visible:focus {
 		border-color: var(--theme-input-focus-border-color);
@@ -483,7 +483,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		cursor: pointer;
 	}
 	#container div.output .scrollable.more-above {
-		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
+		box-shadow: var(--erdos-scrollbar-shadow) 0 6px 6px -6px inset
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
@@ -516,10 +516,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		height: 20px;
 		display: inline-flex;
 		cursor: pointer;
-		border: solid 1px var(--vscode-notebook-cellToolbarSeparator);
+		border: solid 1px var(--erdos-notebook-cellToolbarSeparator);
 	}
 	#container .error-output-actions li.hover {
-		background-color: var(--vscode-toolbar-hoverBackground);
+		background-color: var(--erdos-toolbar-hoverBackground);
 	}
 	#container .error-output-actions li:focus-within {
 		border-color: var(--theme-input-focus-border-color);
@@ -528,7 +528,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		outline: 0;
 	}
 	#container .error-output-actions li a {
-		color: var(--vscode-foreground);
+		color: var(--erdos-foreground);
 		text-decoration: none;
 	}
 	#container .error-output-header a {

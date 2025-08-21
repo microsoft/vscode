@@ -150,7 +150,7 @@ class WorkerServerProcess implements TsServerProcess {
 		);
 
 		const connection = new ServiceConnection<Requests>(syncChannel.port2);
-		new ApiService('vscode-wasm-typescript', connection);
+		new ApiService('erdos-wasm-typescript', connection);
 		connection.signalReady();
 	}
 

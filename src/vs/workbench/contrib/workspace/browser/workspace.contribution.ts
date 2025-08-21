@@ -114,7 +114,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
 					localize('openLooseFileWorkspaceDetails', "You are trying to open untrusted files in a workspace which is trusted.") :
 					localize('openLooseFileWindowDetails', "You are trying to open untrusted files in a window which is trusted."),
-				localize('openLooseFileLearnMore', "If you don't want to open untrusted files, we recommend to open them in Restricted Mode in a new window as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
+				localize('openLooseFileLearnMore', "If you don't want to open untrusted files, we recommend to open them in Restricted Mode in a new window as the files may be malicious. See [our docs](https://aka.ms/erdos-workspace-trust) to learn more.")
 			];
 
 			// Dialog
@@ -179,7 +179,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					icon: Codicon.shield,
 					markdownDetails: [
 						{ markdown: new MarkdownString(details) },
-						{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
+						{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/erdos-workspace-trust) to learn more.")) }
 					]
 				},
 				buttons: buttons.filter(b => b.type !== 'Cancel').map(button => {
@@ -352,7 +352,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 					!isSingleFolderWorkspace ?
 						localize('workspaceStartupTrustDetails', "{0} provides features that may automatically execute files in this workspace.", this.productService.nameShort) :
 						localize('folderStartupTrustDetails', "{0} provides features that may automatically execute files in this folder.", this.productService.nameShort),
-					learnMoreString ?? localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more."),
+					learnMoreString ?? localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/erdos-workspace-trust) to learn more."),
 					!isEmptyWindow ?
 						`\`${this.labelService.getWorkspaceLabel(workspaceIdentifier, { verbose: Verbosity.LONG })}\`` : '',
 				],
@@ -505,7 +505,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				},
 				{
 					label: localize('restrictedModeBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-workspace-trust'
+					href: 'https://aka.ms/erdos-workspace-trust'
 				}
 			];
 
@@ -731,7 +731,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',
 				default: true,
-				description: localize('workspace.trust.description', "Controls whether or not Workspace Trust is enabled within VS Code."),
+				description: localize('workspace.trust.description', "Controls whether or not Workspace Trust is enabled within Erdos."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 			},
@@ -777,7 +777,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_EMPTY_WINDOW]: {
 				type: 'boolean',
 				default: true,
-				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code. When used with `#{0}#`, you can enable the full functionality of VS Code without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
+				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within Erdos. When used with `#{0}#`, you can enable the full functionality of Erdos without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION
 			}

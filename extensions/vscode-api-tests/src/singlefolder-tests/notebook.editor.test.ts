@@ -66,7 +66,7 @@ import * as utils from '../utils';
 	});
 
 	// #138683
-	// TODO@rebornix https://github.com/microsoft/vscode/issues/170072
+	// TODO@rebornix https://github.com/willnickols/erdos/issues/170072
 	test.skip('Opening a notebook should fire activeNotebook event changed only once', utils.withVerboseLogs(async function () {
 		const openedEditor = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
@@ -76,7 +76,7 @@ import * as utils from '../utils';
 		assert.strictEqual(editor.notebook.uri.toString(), resource.toString());
 	}));
 
-	// TODO@rebornix https://github.com/microsoft/vscode/issues/173125
+	// TODO@rebornix https://github.com/willnickols/erdos/issues/173125
 	test.skip('Active/Visible Editor', async function () {
 		const firstEditorOpen = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
