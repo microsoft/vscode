@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import * as os from 'os';
+import * as playwright from 'playwright';
 import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
@@ -14,6 +15,8 @@ import { teardown } from './processes';
 import { Quality } from './application';
 
 export interface LaunchOptions {
+	// Allows you to override the Playwright instance
+	playwright?: typeof playwright;
 	codePath?: string;
 	readonly workspacePath: string;
 	userDataDir: string;

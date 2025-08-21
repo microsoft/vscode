@@ -182,7 +182,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		restricted: true,
 		markdownDescription: localize('suggest.upArrowNavigatesHistory', "Determines whether the up arrow key navigates the command history when focus is on the first suggestion and navigation has not yet occurred. When set to false, the up arrow will move focus to the last suggestion instead."),
 		type: 'boolean',
-		default: false,
+		default: true,
 		tags: ['preview']
 	},
 

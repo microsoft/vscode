@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import {
 	IToolData,
 	IToolImpl,
@@ -232,33 +231,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			throw new Error('chatSessionId undefined');
 		}
 
-		const currentTodoItems = this.chatTodoListService.getTodos(chatSessionId);
-		let message: string | undefined;
-
-		// In write-only mode, we always treat it as a write operation
-		if (this.writeOnly && !args.chatSessionId) {
-			if (args.todoList) {
-				message = this.generatePastTenseMessage(currentTodoItems, args.todoList);
-			}
-		} else {
-			// Regular mode: check operation
-			switch (args.operation) {
-				case 'write': {
-					if (args.todoList) {
-						message = this.generatePastTenseMessage(currentTodoItems, args.todoList);
-					}
-					break;
-				}
-				case 'read': {
-					message = 'Read todo list';
-					break;
-				}
-				default:
-					break;
-			}
-		}
-
-		const items = args.todoList ?? currentTodoItems;
+		const items = args.todoList ?? this.chatTodoListService.getTodos(chatSessionId);
 		const todoList = items.map(todo => ({
 			id: todo.id.toString(),
 			title: todo.title,
@@ -267,7 +240,6 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		}));
 
 		return {
-			pastTenseMessage: new MarkdownString(message ?? 'Updated todo list'),
 			toolSpecificData: {
 				kind: 'todoList',
 				sessionId: chatSessionId,
@@ -276,50 +248,6 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		};
 	}
 
-	private generatePastTenseMessage(currentTodos: IChatTodo[], newTodos: IManageTodoListToolInputParams['todoList']): string {
-		// If no current todos, this is creating new ones
-		if (currentTodos.length === 0) {
-			return `Created ${newTodos.length} todo${newTodos.length === 1 ? '' : 's'}`;
-		}
-
-		// Create map for easier comparison
-		const currentTodoMap = new Map(currentTodos.map(todo => [todo.id, todo]));
-
-		// Check for newly started todos (marked as in-progress) - highest priority
-		const startedTodos = newTodos.filter(newTodo => {
-			const currentTodo = currentTodoMap.get(newTodo.id);
-			return currentTodo && currentTodo.status !== 'in-progress' && newTodo.status === 'in-progress';
-		});
-
-		if (startedTodos.length > 0) {
-			const startedTodo = startedTodos[0]; // Should only be one in-progress at a time
-			const totalTodos = newTodos.length;
-			const currentPosition = newTodos.findIndex(todo => todo.id === startedTodo.id) + 1;
-			return `Starting (${currentPosition}/${totalTodos}) *${startedTodo.title}*`;
-		}
-
-		// Check for newly completed todos
-		const completedTodos = newTodos.filter(newTodo => {
-			const currentTodo = currentTodoMap.get(newTodo.id);
-			return currentTodo && currentTodo.status !== 'completed' && newTodo.status === 'completed';
-		});
-
-		if (completedTodos.length > 0) {
-			const completedTodo = completedTodos[0]; // Get the first completed todo for the message
-			const totalTodos = newTodos.length;
-			const currentPosition = newTodos.findIndex(todo => todo.id === completedTodo.id) + 1;
-			return `Completed (${currentPosition}/${totalTodos}) *${completedTodo.title}*`;
-		}
-
-		// Check for new todos added
-		const addedTodos = newTodos.filter(newTodo => !currentTodoMap.has(newTodo.id));
-		if (addedTodos.length > 0) {
-			return `Added ${addedTodos.length} todo${addedTodos.length === 1 ? '' : 's'}`;
-		}
-
-		// Default message for other updates
-		return 'Updated todo list';
-	}
 
 	private handleRead(todoItems: IChatTodo[], sessionId: string): string {
 		if (todoItems.length === 0) {

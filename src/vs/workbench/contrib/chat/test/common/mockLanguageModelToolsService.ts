@@ -36,7 +36,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	}
 
-	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'memory' | 'never' {
+	getToolAutoConfirmation(toolId: string): 'never' {
 		return 'never';
 	}
 

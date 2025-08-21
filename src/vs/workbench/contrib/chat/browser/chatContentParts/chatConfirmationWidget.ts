@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -21,7 +21,6 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -77,7 +76,6 @@ export class ChatQueryTitlePart extends Disposable {
 		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
 		private readonly _renderer: MarkdownRenderer,
-		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
@@ -91,7 +89,6 @@ export class ChatQueryTitlePart extends Disposable {
 			const str = this.toMdString(subtitle);
 			const renderedTitle = this._register(_renderer.render(str, {
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-				actionHandler: { callback: link => openLinkFromMarkdown(this._openerService, link, str.isTrusted), disposables: this._store },
 			}));
 			const wrapper = document.createElement('small');
 			wrapper.appendChild(renderedTitle.element);
