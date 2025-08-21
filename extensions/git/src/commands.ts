@@ -3434,17 +3434,33 @@ export class CommandCenter {
 			return;
 		}
 
+		const worktreeChangedFilePaths = [
+			...worktreeRepository.workingTreeGroup.resourceStates,
+			...worktreeRepository.untrackedGroup.resourceStates
+		].map(resource => path.relative(worktreeRepository.root, resource.resourceUri.fsPath));
+
+		const targetChangedFilePaths = [
+			...repository.workingTreeGroup.resourceStates,
+			...repository.untrackedGroup.resourceStates
+		].map(resource => path.relative(repository.root, resource.resourceUri.fsPath));
+
+		// Detect overlapping unstaged files in worktree stash and target repository
+		const conflicts = worktreeChangedFilePaths.filter(path => targetChangedFilePaths.includes(path));
+
+		if (conflicts.length > 0) {
+			const fileList = conflicts.join('\n- ');
+			const message = l10n.t('Your local changes to the following files would be overwritten by merge:\n- {0}\n\nPlease stage, commit, or stash your changes before migrating changes.', fileList);
+			window.showErrorMessage(message, { modal: true });
+			return;
+		}
+
+		await worktreeRepository.createStash(undefined, true);
+		const stashes = await worktreeRepository.getStashes();
 		try {
-			await worktreeRepository.createStash(undefined, true);
-			const stashes = await worktreeRepository.getStashes();
-			try {
-				await repository.applyStash(stashes[0].index);
-			} catch (err) {
-				if (err.gitErrorCode !== GitErrorCodes.LocalChangesOverwritten) {
-					throw err;
-				}
-				const message = l10n.t('Your local changes to the following files would be overwritten. Please stage or commit your changes in the current repository.');
-				window.showErrorMessage(message, { modal: true });
+			await repository.applyStash(stashes[0].index);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.StashConflict && err.gitErrorCode !== GitErrorCodes.LocalChangesOverwritten) {
+				throw err;
 			}
 		} finally {
 			await worktreeRepository.popStash();
