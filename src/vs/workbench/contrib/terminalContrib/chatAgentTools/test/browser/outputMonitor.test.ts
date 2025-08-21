@@ -10,6 +10,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { IChatService } from '../../../../chat/common/chatService.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,6 +30,30 @@ suite('OutputMonitor', () => {
 			}
 		};
 		instantiationService = new TestInstantiationService();
+
+		instantiationService.stub(
+			ILanguageModelsService,
+			{
+				selectLanguageModels: async () => []
+			}
+		);
+		instantiationService.stub(
+			IChatService,
+			{
+				getSession: () => ({
+					sessionId: '1',
+					onDidDispose: { event: () => { }, dispose: () => { } },
+					onDidChange: { event: () => { }, dispose: () => { } },
+					initialLocation: undefined,
+					requests: [],
+					responses: [],
+					addRequest: () => { },
+					addResponse: () => { },
+					dispose: () => { }
+				} as any)
+			}
+		);
+
 		cts = new CancellationTokenSource();
 	});
 
