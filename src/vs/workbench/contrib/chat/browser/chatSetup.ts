@@ -1151,13 +1151,28 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	private registerListeners(): void {
+	private async registerListeners(): Promise<void> {
+
+		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (!e.affectsConfiguration(CHAT_DISABLED_CONFIGURATION_KEY)) {
 				return;
 			}
 
 			this.handleChatDisabled(true);
+		}));
+
+		// Extension installation
+		await this.extensionsWorkbenchService.queryLocal();
+		this._register(this.extensionsWorkbenchService.onChange((e) => {
+			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.extensionId)) {
+				return; // unrelated event
+			}
+
+			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
+			if (defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
+				this.configurationService.updateValue(CHAT_DISABLED_CONFIGURATION_KEY, false);
+			}
 		}));
 	}
 
