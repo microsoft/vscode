@@ -8,12 +8,6 @@
 	background-color: var(--vscode-sideBarSectionHeader-background) !important;
 }
 
-/* Add padding to chat session item icons */
-/* .chat-sessions-tree .chat-session-item .monaco-icon-label-iconpath {
-	margin-right: 4px;
-	margin-left: 4px;
-} */
-
 /* Style for empty state message */
 .chat-sessions-message {
 	padding: 20px;
@@ -28,10 +22,6 @@
 	gap: 8px;
 	font-style: italic;
 }
-
-/* .chat-sessions-message .no-sessions-message .codicon {
-	opacity: 0.7;
-} */
 
 /* Simple approach - directly style the edit container for chat sessions */
 .chat-sessions-tree-container .explorer-item.explorer-item-edited {
@@ -83,7 +73,6 @@
 /* Hide actions by default, show on hover and focus */
 .chat-sessions-tree-container .chat-session-item .actions .monaco-action-bar .action-label {
 	opacity: 0;
-	/* transition: opacity 0.2s ease-in-out; */
 }
 
 .chat-sessions-tree-container .chat-session-item:hover .actions .monaco-action-bar .action-label,
@@ -105,58 +94,12 @@
 	min-width: 0; /* Allow text to truncate */
 }
 
-/* Multi-line description support - DISABLED for single-line layout */
-/* .chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-label-container {
-	flex-direction: column !important;
-	align-items: flex-start !important;
-	gap: 1px;
-}
-
-.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-name-container {
-	display: flex;
-	align-items: center;
-	width: 100%;
-}
-
-.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-description-container {
-	width: 100%;
-	padding-left: 0;
-}
-
-.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-description-container > .label-description {
-	margin-left: 0 !important;
-	margin-top: 0;
-	opacity: 0.6;
-	font-size: 0.9em;
-	color: var(--vscode-descriptionForeground);
-	white-space: normal !important;
-	word-wrap: break-word;
-	line-height: 1.3;
-	display: block;
-} */
-
-/* Hide twisties for all entries except "Show history..." */
-/* .chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
-	display: none !important;
-} */
-
-/* .chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie.codicon.codicon-tree-item-expanded { */
-	/* display: inline-block !important; */
-/* } */
-
-/* Show twistie only for "Show history..." node */
-/* .chat-sessions-tree .monaco-list-row[data-id*="show-history"] .monaco-tl-twistie {
-	display: block;
-} */
-
 /* Hide twisties for elements that don't have children */
-/* Alternative approach: Hide twisties for all individual chat session items */
 .chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
 	visibility: hidden;
 	width: 0;
 	padding: 0;
 	margin: 0;
-	/* display: none !important; */
 }
 
 /* Show twistie only for collapsible items (like "Show history...") */
@@ -166,7 +109,6 @@
 	padding-left: 0px;
 	padding-right: 6px;
 	margin: initial;
-	/* display: inline-block !important; */
 }
 
 /* History items styling */
