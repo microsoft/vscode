@@ -396,25 +396,16 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		this._stickyScrollOverlay.open(this._element);
 
-		// After opening the xterm overlay, make all its internal elements non-focusable
-		// This is crucial to prevent tab navigation from getting stuck
-		const makeElementsNonFocusable = () => {
-			const xtermElements = this._element?.querySelectorAll('*');
-			if (xtermElements) {
-				xtermElements.forEach(el => {
-					if (isHTMLElement(el)) {
-						el.setAttribute('tabindex', '-1');
-						// Remove any existing focus handlers from xterm elements
-						el.style.pointerEvents = 'none';
-					}
-				});
-				// Re-enable pointer events on the hover overlay so clicks still work
-				hoverOverlay.style.pointerEvents = 'auto';
+		// Prevent tab navigation from getting stuck in sticky scroll
+		this._element.querySelectorAll('*').forEach(el => {
+			if (isHTMLElement(el)) {
+				el.tabIndex = -1;
+				// Remove any existing focus handlers from xterm elements
+				el.style.pointerEvents = 'none';
 			}
-		};
-
-		// Apply immediately and after a short delay to catch dynamically created elements
-		makeElementsNonFocusable();
+		});
+		// Re-enable pointer events on the hover overlay so clicks still work
+		hoverOverlay.style.pointerEvents = 'auto';
 
 		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
 			if (this._store.isDisposed || !this._stickyScrollOverlay) {
