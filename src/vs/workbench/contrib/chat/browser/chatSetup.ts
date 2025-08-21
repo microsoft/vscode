@@ -1175,7 +1175,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-
 	private async maybeEnableOrDisableExtension(state: EnablementState): Promise<void> {
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 		if (!defaultChatExtension) {
