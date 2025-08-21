@@ -420,8 +420,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let outputMonitor: OutputMonitor | undefined = undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
+				const sessionId = invocation.context?.sessionId;
+				if (!sessionId) {
+					throw new Error('Session ID is required');
+				}
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, sessionId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, undefined);
@@ -482,6 +485,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalExecutionIdleBeforeTimeout: outputAndIdle?.state === OutputMonitorState.Idle,
 					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
 					pollDurationMs: outputAndIdle?.pollDurationMs,
+					autoReplyCount: outputAndIdle?.autoReplyCount ?? 0,
 					inputUserChars,
 					inputUserSigint,
 				});
@@ -807,7 +811,8 @@ class BackgroundTerminalExecution extends Disposable {
 	constructor(
 		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,
-		private readonly _commandLine: string
+		private readonly _commandLine: string,
+		readonly sessionId: string
 	) {
 		super();
 

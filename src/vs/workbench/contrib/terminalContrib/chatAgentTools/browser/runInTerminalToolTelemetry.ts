@@ -25,6 +25,26 @@ export class RunInTerminalToolTelemetry {
 			if (!commandAllowList.has(commandName)) {
 				if (/[\\\/]/.test(commandName)) {
 					commandName = '(unknown:path)';
+				} else if (/^(?:[A-Z][a-z0-9]+)+(?:-(?:[A-Z][a-z0-9]+))*$/.test(commandName)) {
+					commandName = '(unknown:pwsh)';
+				} else if (/^[a-z0-9_-]+$/i.test(commandName)) {
+					const properties: string[] = [];
+					if (/[a-z]/.test(commandName)) {
+						properties.push('alpha_lowercase');
+					}
+					if (/[A-Z]/.test(commandName)) {
+						properties.push('alpha_uppercase');
+					}
+					if (/[0-9]/.test(commandName)) {
+						properties.push('numeric');
+					}
+					if (commandName.includes('-')) {
+						properties.push('hyphen');
+					}
+					if (commandName.includes('_')) {
+						properties.push('underscore');
+					}
+					commandName = `(unknown:${properties.join(',')})`;
 				} else {
 					commandName = '(unknown)';
 				}
@@ -75,6 +95,7 @@ export class RunInTerminalToolTelemetry {
 		pollDurationMs?: number;
 		terminalExecutionIdleBeforeTimeout?: boolean;
 		exitCode: number | undefined;
+		autoReplyCount?: number;
 		inputUserChars: number;
 		inputUserSigint: boolean;
 	}) {
@@ -94,6 +115,7 @@ export class RunInTerminalToolTelemetry {
 			pollDurationMs: number;
 			timingExecuteMs: number;
 			terminalExecutionIdleBeforeTimeout: boolean;
+			autoReplyCount: number;
 
 			inputUserChars: number;
 			inputUserSigint: boolean;
@@ -117,6 +139,7 @@ export class RunInTerminalToolTelemetry {
 			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to execute the command' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
 			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
+			autoReplyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the tool automatically replied to the terminal requesting user input.' };
 
 			inputUserChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters the user input manually, a single key stroke could map to several characters. Focus in/out sequences are not counted as part of this' };
 			inputUserSigint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user input the SIGINT signal' };
@@ -137,6 +160,7 @@ export class RunInTerminalToolTelemetry {
 			timingExecuteMs: state.timingExecuteMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
 			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
+			autoReplyCount: state.autoReplyCount ?? 0,
 
 			inputUserChars: state.inputUserChars,
 			inputUserSigint: state.inputUserSigint,
@@ -146,10 +170,28 @@ export class RunInTerminalToolTelemetry {
 
 
 const commandAllowList: ReadonlySet<string> = new Set([
+	// Special chars/scripting
+	'!',
+	'@',
+	'#',
+	'$',
+	'%',
+	'^',
+	'&',
+	'*',
+	'(',
+	')',
+	'~',
+	'{',
+	'}',
+	'<',
+	'>',
+
 	// Utils
 	'.',
 	'7z',
 	'alias',
+	'assoc',
 	'attrib',
 	'awk',
 	'basename',
@@ -160,11 +202,16 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'cat',
 	'cd',
 	'certutil',
+	'chkdsk',
 	'chmod',
 	'chown',
+	'cipher',
+	'clear',
+	'cls',
 	'cmp',
 	'column',
 	'comm',
+	'compact',
 	'compress',
 	'copy',
 	'cp',
@@ -179,6 +226,7 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'dir',
 	'dirname',
 	'diskpart',
+	'dism',
 	'disown',
 	'du',
 	'echo',
@@ -196,9 +244,13 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'fmt',
 	'fold',
 	'forfiles',
+	'format',
 	'free',
+	'fsck',
 	'git',
+	'gpupdate',
 	'grep',
+	'groupadd',
 	'groups',
 	'gunzip',
 	'gzip',
@@ -226,13 +278,16 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'lsblk',
 	'lscpu',
 	'lsof',
+	'man',
 	'mkdir',
 	'mklink',
 	'more',
 	'mount',
 	'move',
 	'mv',
+	'nbtstat',
 	'nc/netcat',
+	'net',
 	'netstat',
 	'nice',
 	'nl',
@@ -240,19 +295,24 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'nslookup',
 	'nslookup',
 	'od',
+	'passwd',
 	'paste',
 	'pathping',
+	'pause',
 	'pgrep',
 	'ping',
 	'pkill',
+	'powercfg',
 	'pr',
 	'printenv',
 	'ps',
 	'pwd',
+	'query',
 	'rar',
 	'readlink',
 	'realpath',
 	'reg',
+	'rem',
 	'ren',
 	'rename',
 	'renice',
@@ -262,10 +322,13 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'robocopy',
 	'route',
 	'rsync',
+	'sc',
 	'schtasks',
 	'scp',
 	'sed',
 	'seq',
+	'set',
+	'setx',
 	'sfc',
 	'shred',
 	'shuf',
@@ -278,6 +341,8 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'ssh',
 	'stat',
 	'strings',
+	'su',
+	'subst',
 	'sudo',
 	'systeminfo',
 	'tac',
@@ -308,7 +373,10 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'unrar',
 	'unzip',
 	'uptime',
+	'useradd',
+	'usermod',
 	'vmstat',
+	'vol',
 	'watch',
 	'wc',
 	'wget',
@@ -341,9 +409,12 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'p4',
 
 	// Devtools, languages, package manager
+	'ansible',
 	'apk',
 	'apt-get',
 	'apt',
+	'aws',
+	'az',
 	'brew',
 	'bundle',
 	'cargo',
@@ -354,21 +425,36 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'conan',
 	'conda',
 	'dnf',
+	'docker-compose',
 	'docker',
 	'dotnet',
+	'emacs',
+	'esbuild',
+	'eslint',
 	'flatpak',
+	'flutter',
+	'fnm',
 	'g++',
 	'gcc',
+	'gcloud',
 	'go',
 	'gradle',
+	'helm',
 	'java',
 	'javac',
+	'jest',
+	'julia',
 	'kotlin',
 	'kubectl',
+	'lua',
 	'make',
+	'mocha',
 	'mvn',
+	'n',
+	'nano',
 	'node',
 	'npm',
+	'nvm',
 	'pacman',
 	'perl',
 	'php',
@@ -377,26 +463,29 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'pipenv',
 	'pnpm',
 	'pod',
+	'podman',
 	'poetry',
 	'python',
+	'r',
+	'rollup',
 	'ruby',
 	'rustc',
+	'rustup',
 	'snap',
 	'swift',
+	'terraform',
+	'tsc',
+	'tslint',
+	'vagrant',
 	'vcpkg',
+	'vi',
+	'vim',
+	'vite',
+	'vitest',
+	'webpack',
 	'yarn',
 	'yum',
 	'zypper',
-	'tsc',
-	'eslint',
-	'tslint',
-	'jest',
-	'mocha',
-	'vitest',
-	'webpack',
-	'vite',
-	'rollup',
-	'esbuild',
 
 	// Misc Windows executables
 	'taskkill',
