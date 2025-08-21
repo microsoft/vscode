@@ -64,6 +64,15 @@ export class ChatDragAndDrop extends Themable {
 		this.updateStyles();
 	}
 
+	override dispose(): void {
+		for (const { overlay, disposable } of this.overlays.values()) {
+			overlay.remove();
+			disposable.dispose();
+		}
+		this.overlays.clear();
+		super.dispose();
+	}
+
 	addOverlay(target: HTMLElement, overlayContainer: HTMLElement): void {
 		this.removeOverlay(target);
 

@@ -846,6 +846,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.container;
 	}
 
+	override dispose(): void {
+		this.chatInputOverlay.remove();
+		super.dispose();
+	}
+
 	async showPreviousValue(): Promise<void> {
 		const inputState = this.getInputState();
 		if (this.history.isAtEnd()) {
