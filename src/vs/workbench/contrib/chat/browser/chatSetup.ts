@@ -796,7 +796,7 @@ class ChatSetup {
 }
 
 const CHAT_HIDDEN_CONFIGURATION_KEY = 'chat.disableAIFeatures';
-const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for free...");
+const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with GitHub Copilot for free...");
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
