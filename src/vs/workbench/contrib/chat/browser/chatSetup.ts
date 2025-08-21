@@ -795,7 +795,7 @@ class ChatSetup {
 	}
 }
 
-const CHAT_HIDDEN_CONFIGURATION_KEY = 'chat.disableAIFeatures';
+const CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
 const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with GitHub Copilot for free...");
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
@@ -879,7 +879,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 	private registerActions(context: ChatEntitlementContext, requests: ChatEntitlementRequests, controller: Lazy<ChatSetupController>): void {
 		const chatSetupTriggerContext = ContextKeyExpr.and(
-			ContextKeyExpr.not(`config.${CHAT_HIDDEN_CONFIGURATION_KEY}`),
+			ContextKeyExpr.not(`config.${CHAT_DISABLED_CONFIGURATION_KEY}`),
 			ContextKeyExpr.or(
 				ChatContextKeys.Setup.installed.negate(),
 				ChatContextKeys.Entitlement.canSignUp
@@ -1136,30 +1136,29 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}
 
 		this.registerListeners();
-		this.checkExtensionEnablement(context);
 		this.registerActions(context);
-	}
 
-	private async checkExtensionEnablement(context: ChatEntitlementContext): Promise<void> {
-		if (context.state.installed && !context.state.disabled && !context.state.untrusted) {
-			this.configurationService.updateValue(CHAT_HIDDEN_CONFIGURATION_KEY, false);
-		}
+		this.handleChatDisabled(false);
 	}
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(CHAT_HIDDEN_CONFIGURATION_KEY)) {
+			if (!e.affectsConfiguration(CHAT_DISABLED_CONFIGURATION_KEY)) {
 				return;
 			}
 
-			const value = this.configurationService.getValue(CHAT_HIDDEN_CONFIGURATION_KEY);
-			if (value === true) {
-				this.maybeDisableExtension();
-				this.maybeHideAuxiliaryBar();
-			} else if (value === false) {
-				this.maybeEnableExtension();
-			}
+			this.handleChatDisabled(true);
 		}));
+	}
+
+	private handleChatDisabled(fromEvent: boolean): void {
+		const chatDisabled = this.configurationService.getValue(CHAT_DISABLED_CONFIGURATION_KEY);
+		if (chatDisabled === true) {
+			this.maybeDisableExtension();
+			this.maybeHideAuxiliaryBar();
+		} else if (chatDisabled === false && fromEvent /* do not enable extensions unless its an explicit settings change */) {
+			this.maybeEnableExtension();
+		}
 	}
 
 	private async maybeDisableExtension(): Promise<void> {
