@@ -427,7 +427,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, undefined);
 				store.add(outputMonitor);
 
-				outputAndIdle = await outputMonitor.startMonitoring(this._chatService, command, invocation.context!, token);
+				outputAndIdle = await outputMonitor.startMonitoring(command, invocation.context!, token);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
