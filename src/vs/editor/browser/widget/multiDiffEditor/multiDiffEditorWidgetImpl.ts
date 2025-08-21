@@ -15,6 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -87,35 +88,31 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			smoothScrollDuration: 100,
 		}));
 
-		// Get editor scroll sensitivity settings to ensure consistent scroll behavior
-		const mouseWheelScrollSensitivity = this._configurationService.getValue<number>('editor.mouseWheelScrollSensitivity') ?? 1;
-		const fastScrollSensitivity = this._configurationService.getValue<number>('editor.fastScrollSensitivity') ?? 5;
-		const scrollPredominantAxis = this._configurationService.getValue<boolean>('editor.scrollPredominantAxis') ?? true;
+		// Create observables for editor scroll sensitivity settings to ensure consistent scroll behavior
+		const mouseWheelScrollSensitivity = observableConfigValue('editor.mouseWheelScrollSensitivity', 1, this._configurationService);
+		const fastScrollSensitivity = observableConfigValue('editor.fastScrollSensitivity', 5, this._configurationService);
+		const scrollPredominantAxis = observableConfigValue('editor.scrollPredominantAxis', true, this._configurationService);
 
 		this._scrollableElement = this._register(new SmoothScrollableElement(this._scrollableElements.root, {
 			vertical: ScrollbarVisibility.Auto,
 			horizontal: ScrollbarVisibility.Auto,
 			useShadows: false,
-			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
-			fastScrollSensitivity: fastScrollSensitivity,
-			scrollPredominantAxis: scrollPredominantAxis,
+			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity.get(),
+			fastScrollSensitivity: fastScrollSensitivity.get(),
+			scrollPredominantAxis: scrollPredominantAxis.get(),
 		}, this._scrollable));
 
-		// Listen for configuration changes to update scroll sensitivity settings
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.mouseWheelScrollSensitivity') ||
-				e.affectsConfiguration('editor.fastScrollSensitivity') ||
-				e.affectsConfiguration('editor.scrollPredominantAxis')) {
-				const mouseWheelScrollSensitivity = this._configurationService.getValue<number>('editor.mouseWheelScrollSensitivity') ?? 1;
-				const fastScrollSensitivity = this._configurationService.getValue<number>('editor.fastScrollSensitivity') ?? 5;
-				const scrollPredominantAxis = this._configurationService.getValue<boolean>('editor.scrollPredominantAxis') ?? true;
-				
-				this._scrollableElement.updateOptions({
-					mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
-					fastScrollSensitivity: fastScrollSensitivity,
-					scrollPredominantAxis: scrollPredominantAxis,
-				});
-			}
+		// React to configuration changes and update scroll options
+		this._register(autorun((reader) => {
+			const newMouseWheelScrollSensitivity = mouseWheelScrollSensitivity.read(reader);
+			const newFastScrollSensitivity = fastScrollSensitivity.read(reader);
+			const newScrollPredominantAxis = scrollPredominantAxis.read(reader);
+			
+			this._scrollableElement.updateOptions({
+				mouseWheelScrollSensitivity: newMouseWheelScrollSensitivity,
+				fastScrollSensitivity: newFastScrollSensitivity,
+				scrollPredominantAxis: newScrollPredominantAxis,
+			});
 		}));
 
 		this._elements = h('div.monaco-component.multiDiffEditor', {}, [
