@@ -226,7 +226,20 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(autorun(reader => {
 			const isFocused = this._focusIsInEditorOrMenu.read(reader);
+			const model = this.model.get();
 			if (isFocused) {
+				// If this model already has an NES for another editor, then leave as is
+				// Else stop other models.
+				const state = model?.state?.get();
+				if (!state || state.kind !== 'inlineEdit' || !state.nextEditUri) {
+					transaction(tx => {
+						for (const ctrl of InlineCompletionsController._instances) {
+							if (ctrl !== this) {
+								ctrl.model.get()?.stop('automatic', tx);
+							}
+						}
+					});
+				}
 				return;
 			}
 
@@ -238,7 +251,6 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
-			const model = this.model.get();
 			if (!model) { return; }
 			if (model.state.get()?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.get()) {
 				// dont hide inline edits on blur when requested explicitly
@@ -390,7 +402,7 @@ export class InlineCompletionsController extends Disposable {
 				if (this._focusIsInEditorOrMenu.get()) {
 					for (const ctrl of InlineCompletionsController._instances) {
 						if (ctrl !== this) {
-							ctrl.model.get()?.stop('automatic');
+							ctrl.model.get()?.stop('automatic', tx);
 						}
 					}
 				}

@@ -768,19 +768,13 @@ export class CellOutputContainer extends CellContentPart {
 			supportThemeIcons: true
 		};
 
-		const rendered = renderMarkdown(md, {
-			actionHandler: {
-				callback: (content) => {
-					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellOutputUriWithId(this.notebookEditor.textModel!.uri));
-					}
-
-					return;
-				},
-				disposables
-			}
-		});
-		disposables.add(rendered);
+		const rendered = disposables.add(renderMarkdown(md, {
+			actionHandler: (content) => {
+				if (content === 'command:workbench.action.openLargeOutput') {
+					this.openerService.open(CellUri.generateCellOutputUriWithId(this.notebookEditor.textModel!.uri));
+				}
+			},
+		}));
 
 		rendered.element.classList.add('output-show-more');
 		return rendered.element;

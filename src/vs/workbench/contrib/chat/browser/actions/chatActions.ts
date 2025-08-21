@@ -51,7 +51,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
+import { IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
@@ -72,6 +72,8 @@ import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -111,6 +113,35 @@ export interface IChatViewOpenOptions {
 	 * The mode ID or name to open the chat in.
 	 */
 	mode?: ChatModeKind | string;
+
+	/**
+	 * The language model selector to use for the chat.
+	 * An Error will be thrown if there's no match. If there are multiple
+	 * matches, the first match will be used.
+	 *
+	 * Examples:
+	 *
+	 * ```
+	 * {
+	 *   id: 'claude-sonnet-4',
+	 *   vendor: 'copilot'
+	 * }
+	 * ```
+	 *
+	 * Use `claude-sonnet-4` from any vendor:
+	 *
+	 * ```
+	 * {
+	 *   id: 'claude-sonnet-4',
+	 * }
+	 * ```
+	 */
+	modelSelector?: ILanguageModelChatSelector;
+
+	/**
+	 * Wait to resolve the command until the chat response reaches a terminal state (complete, error, or pending user confirmation, etc.).
+	 */
+	blockOnResponse?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -136,7 +167,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<IChatAgentResult & { type?: 'confirmation' } | undefined> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
@@ -149,6 +180,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const chatModeService = accessor.get(IChatModeService);
 		const fileService = accessor.get(IFileService);
+		const languageModelService = accessor.get(ILanguageModelsService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -164,6 +196,21 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const switchToMode = (opts?.mode ? chatModeService.findModeByName(opts?.mode) : undefined) ?? this.mode;
 		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
+		}
+
+		if (opts?.modelSelector) {
+			const ids = await languageModelService.selectLanguageModels(opts.modelSelector, false);
+			const id = ids.sort().at(0);
+			if (!id) {
+				throw new Error(`No language models found matching selector: ${JSON.stringify(opts.modelSelector)}.`);
+			}
+
+			const model = languageModelService.lookupLanguageModel(id);
+			if (!model) {
+				throw new Error(`Language model not loaded: ${id}.`);
+			}
+
+			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
 		}
 
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
@@ -184,13 +231,16 @@ abstract class OpenChatGlobalAction extends Action2 {
 				}
 			}
 		}
+
+		let resp: Promise<IChatResponseModel | undefined> | undefined;
+
 		if (opts?.query) {
 			if (opts.isPartialQuery) {
 				chatWidget.setInput(opts.query);
 			} else {
 				await chatWidget.waitForReady();
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
-				chatWidget.acceptInput(opts.query);
+				resp = chatWidget.acceptInput(opts.query);
 			}
 		}
 		if (opts?.toolIds && opts.toolIds.length > 0) {
@@ -210,6 +260,24 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 
 		chatWidget.focusInput();
+
+		if (opts?.blockOnResponse) {
+			const response = await resp;
+			if (response) {
+				await new Promise<void>(resolve => {
+					const d = response.onDidChange(async () => {
+						if (response.isComplete || response.isPendingConfirmation.get()) {
+							d.dispose();
+							resolve();
+						}
+					});
+				});
+
+				return { ...response.result, type: response.isPendingConfirmation.get() ? 'confirmation' : undefined };
+			}
+		}
+
+		return undefined;
 	}
 
 	private async handleSwitchToMode(switchToMode: IChatMode, chatWidget: IChatWidget, instaService: IInstantiationService, commandService: ICommandService): Promise<void> {
@@ -1635,5 +1703,65 @@ registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
 
 		const currentValue = configurationService.getValue<'hidden' | unknown>('workbench.secondarySideBar.defaultVisibility');
 		configurationService.updateValue('workbench.secondarySideBar.defaultVisibility', currentValue !== 'hidden' ? 'hidden' : 'visible');
+	}
+});
+
+registerAction2(class EditToolApproval extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.editToolApproval',
+			title: localize2('chat.editToolApproval.label', "Edit Tool Approval"),
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, toolId: string): Promise<void> {
+		if (!toolId) {
+			return;
+		}
+
+		const quickInputService = accessor.get(IQuickInputService);
+		const toolsService = accessor.get(ILanguageModelToolsService);
+		const tool = toolsService.getTool(toolId);
+		if (!tool) {
+			return;
+		}
+
+		const currentState = toolsService.getToolAutoConfirmation(toolId);
+
+		interface TItem extends IQuickPickItem {
+			id: 'session' | 'workspace' | 'profile' | 'never';
+		}
+
+		const items: TItem[] = [
+			{ id: 'never', label: localize('chat.toolApproval.manual', "Always require manual approval") },
+			{ id: 'session', label: localize('chat.toolApproval.session', "Auto-approve for this session") },
+			{ id: 'workspace', label: localize('chat.toolApproval.workspace', "Auto-approve for this workspace") },
+			{ id: 'profile', label: localize('chat.toolApproval.profile', "Auto-approve globally") }
+		];
+
+		const quickPick = quickInputService.createQuickPick<TItem>();
+		quickPick.placeholder = localize('chat.editToolApproval.title', "Approval setting for {0}", tool.displayName ?? tool.id);
+		quickPick.items = items;
+		quickPick.canSelectMany = false;
+		quickPick.activeItems = items.filter(item => item.id === currentState);
+
+		const selection = await new Promise<TItem | undefined>((resolve) => {
+			quickPick.onDidAccept(() => {
+				const selected = quickPick.selectedItems[0];
+				resolve(selected);
+			});
+			quickPick.onDidHide(() => {
+				resolve(undefined);
+
+			});
+			quickPick.show();
+		});
+
+		quickPick.dispose();
+
+		if (selection) {
+			toolsService.setToolAutoConfirmation(toolId, selection.id);
+		}
 	}
 });
