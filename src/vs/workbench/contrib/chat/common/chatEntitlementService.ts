@@ -1010,14 +1010,12 @@ export class ChatEntitlementContext extends Disposable {
 	}
 
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
-		if (
-			state.installed ||
-			this.configurationService.getValue(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) !== true
-		) {
-			return state; // only applicable until extension is installed or when disabled via setting
+		if (this.configurationService.getValue(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) === true) {
+			// Setting always wins: if AI is disabled, set `hidden: true`
+			return { ...state, hidden: true };
 		}
 
-		return { ...state, hidden: true };
+		return state;
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
