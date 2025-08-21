@@ -7,7 +7,7 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
-import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { throttle } from '../../../../../base/common/decorators.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -395,6 +395,27 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 
 		this._stickyScrollOverlay.open(this._element);
+
+		// After opening the xterm overlay, make all its internal elements non-focusable
+		// This is crucial to prevent tab navigation from getting stuck
+		const makeElementsNonFocusable = () => {
+			const xtermElements = this._element?.querySelectorAll('*');
+			if (xtermElements) {
+				xtermElements.forEach(el => {
+					if (isHTMLElement(el)) {
+						el.setAttribute('tabindex', '-1');
+						// Remove any existing focus handlers from xterm elements
+						el.style.pointerEvents = 'none';
+					}
+				});
+				// Re-enable pointer events on the hover overlay so clicks still work
+				hoverOverlay.style.pointerEvents = 'auto';
+			}
+		};
+
+		// Apply immediately and after a short delay to catch dynamically created elements
+		makeElementsNonFocusable();
+		setTimeout(makeElementsNonFocusable, 0);
 
 		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
 			if (this._store.isDisposed || !this._stickyScrollOverlay) {
