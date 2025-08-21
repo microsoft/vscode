@@ -1717,7 +1717,6 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 			inputBox.onDidChange(e => {
 				template.onChange?.(e);
 			}));
-		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		inputBox.inputElement.tabIndex = 0;
 
@@ -1926,7 +1925,6 @@ class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRend
 			inputBox.onDidChange(e => {
 				template.onChange?.(e);
 			}));
-		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		inputBox.inputElement.tabIndex = 0;
 

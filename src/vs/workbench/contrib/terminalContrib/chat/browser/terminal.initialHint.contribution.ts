@@ -174,7 +174,6 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		if (!this._decoration) {
 			return;
 		}
-		this._register(this._decoration);
 		this._register(this._decoration.onRender((e) => {
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalGroupService.instances.length + this._terminalEditorService.instances.length === 1) {
 				const terminalAgents = this._chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Terminal));

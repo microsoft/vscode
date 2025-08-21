@@ -752,7 +752,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 		this.treeDisposables.add(renderer.onDidChangeMenuContext(e => e.forEach(e => this.tree?.rerender(e))));
 
-		this.treeDisposables.add(this.tree);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
 		const actionRunner = this.treeDisposables.add(new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection()));

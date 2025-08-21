@@ -307,7 +307,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}));
 
 		let prevFileIconId: string | undefined = undefined;
-		this._register(this._register(this.fileIconThemeRegistry.onDidChange(async event => {
+		this._register(this.fileIconThemeRegistry.onDidChange(async event => {
 			updateFileIconThemeConfigurationSchemas(event.themes);
 			if (await this.restoreFileIconTheme()) { // checks if theme from settings exists and is set
 				// restore theme
@@ -323,7 +323,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				await this.setFileIconTheme(DEFAULT_FILE_ICON_THEME_ID, 'auto');
 			}
 
-		})));
+		}));
 
 		let prevProductIconId: string | undefined = undefined;
 		this._register(this.productIconThemeRegistry.onDidChange(async event => {

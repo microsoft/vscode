@@ -136,7 +136,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	//#region Registration
 
 	override registerPart(part: EditorPart): IDisposable {
-		const disposables = this._register(new DisposableStore());
+		const disposables = new DisposableStore();
 		disposables.add(super.registerPart(part));
 
 		this.registerEditorPartListeners(part, disposables);

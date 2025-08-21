@@ -104,8 +104,6 @@ export class FilterWidget extends Widget {
 
 		this.element = DOM.$('.viewpane-filter');
 		[this.filterInputBox, this.focusTracker] = this.createInput(this.element);
-		this._register(this.filterInputBox);
-		this._register(this.focusTracker);
 
 		const controlsContainer = DOM.append(this.element, DOM.$('.viewpane-filter-controls'));
 		this.filterBadge = this.createBadge(controlsContainer);

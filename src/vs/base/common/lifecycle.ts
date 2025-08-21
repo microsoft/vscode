@@ -448,6 +448,12 @@ export class DisposableStore implements IDisposable {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 
+		if (!DisposableStore.DISABLE_DISPOSED_WARNING) {
+			if (this._toDispose.has(o)) {
+				console.warn('Adding disposable that is already registered with this store. This typically indicates unclear lifecycle management.');
+			}
+		}
+
 		setParentOfDisposable(o, this);
 		if (this._isDisposed) {
 			if (!DisposableStore.DISABLE_DISPOSED_WARNING) {
