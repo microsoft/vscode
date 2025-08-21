@@ -136,7 +136,7 @@ export class GitHubServer implements IGitHubServer {
 					callbackUri,
 					nonce,
 					signInProvider,
-					extraAuthorizeParameters: extraAuthorizeParameters,
+					extraAuthorizeParameters,
 					baseUri: this.baseUri,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
