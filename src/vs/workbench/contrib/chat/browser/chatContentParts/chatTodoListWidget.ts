@@ -312,20 +312,48 @@ export class ChatTodoListWidget extends Disposable {
 		const completedTodos = todoList.filter(todo => todo.status === 'completed');
 		const lastCompletedTodo = completedTodos.length > 0 ? completedTodos[completedTodos.length - 1] : undefined;
 
-		const progressText = dom.$('span');
 		if (totalCount === 0) {
+			const progressText = dom.$('span');
 			progressText.textContent = localize('chat.todoList.title', 'Todos');
+			titleElement.appendChild(progressText);
 		} else {
-			// Use new "Task name (id/all)" format
+			// Use new "Task name (id/all)" format with status icon
 			const activeTodo = this.getCurrentActiveTodo(todoList);
 			if (activeTodo) {
+				// Add status icon
+				const statusIcon = dom.$('.codicon');
+				statusIcon.classList.add(this.getStatusIconClass(activeTodo.status));
+				statusIcon.style.color = this.getStatusIconColor(activeTodo.status);
+				statusIcon.style.marginRight = '4px';
+				statusIcon.style.verticalAlign = 'middle';
+				titleElement.appendChild(statusIcon);
+
 				const taskIndex = todoList.indexOf(activeTodo) + 1; // 1-based index
+				const progressText = dom.$('span');
 				progressText.textContent = `${activeTodo.title} (${taskIndex}/${totalCount})`;
+				progressText.style.verticalAlign = 'middle';
+				titleElement.appendChild(progressText);
 			} else {
-				progressText.textContent = localize('chat.todoList.noActiveTasks', 'No Active Tasks');
+				// Check if all tasks are completed
+				if (completedCount === totalCount) {
+					// Add check icon for "Done" state
+					const doneIcon = dom.$('.codicon.codicon-check');
+					doneIcon.style.color = 'var(--vscode-charts-green)';
+					doneIcon.style.marginRight = '4px';
+					doneIcon.style.verticalAlign = 'middle';
+					titleElement.appendChild(doneIcon);
+
+					const doneText = dom.$('span');
+					doneText.textContent = localize('chat.todoList.done', 'Done ({0}/{1})', completedCount, totalCount);
+					doneText.style.verticalAlign = 'middle';
+					titleElement.appendChild(doneText);
+				} else {
+					const progressText = dom.$('span');
+					progressText.textContent = localize('chat.todoList.noActiveTasks', 'No Active Tasks');
+					titleElement.appendChild(progressText);
+				}
 			}
 		}
-		titleElement.appendChild(progressText);
 
 		if (!this._isExpanded) {
 			if (!firstInProgressTodo) {
