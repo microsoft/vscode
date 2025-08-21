@@ -46,10 +46,8 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 
 	private appendItem(node: HTMLElement) {
 		const wrapper = $('.chat-thinking-item');
-		wrapper.setAttribute('role', 'listitem');
 		wrapper.appendChild(node);
 		this.body.appendChild(wrapper);
-		// this.refreshTitle();
 	}
 
 	private refreshTitle(elapsedTime?: number) {
