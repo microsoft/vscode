@@ -379,7 +379,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		// Add "Show history..." node at the end
 		const historyNode: IChatSessionItem = {
 			id: 'show-history',
-			label: nls.localize('chat.sessions.showHistory', "Show history..."),
+			label: nls.localize('chat.sessions.showHistory', "History"),
 		};
 		sessions.push(historyNode);
 
