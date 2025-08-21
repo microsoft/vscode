@@ -23,6 +23,7 @@ import { getOutput } from './tools/monitoring/getOutputHelper.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -156,7 +157,7 @@ export async function collectTerminalResults(
 	for (const instance of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
 		const execution = {
-			getOutput: () => getOutput(instance.xterm?.raw) ?? '',
+			getOutput: () => getOutput(instance.xterm?.raw, taskService.getTaskStartMarker(instance.instanceId) as IXtermMarker) ?? '',
 			isActive,
 			task,
 			instance,

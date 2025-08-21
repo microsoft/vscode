@@ -10,7 +10,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from './tasks.js';
-import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from './taskSystem.js';
+import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo, ITaskStartMarker } from './taskSystem.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { RawContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -110,6 +110,7 @@ export interface ITaskService {
 	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
 
 	getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined;
+	getTaskStartMarker(instanceId: number): ITaskStartMarker | undefined;
 }
 
 export interface ITaskTerminalStatus {

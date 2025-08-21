@@ -26,6 +26,11 @@ export const enum TaskErrors {
 	UnknownError
 }
 
+export interface ITaskStartMarker {
+	id: number;
+	line: number;
+}
+
 export class VerifiedTask {
 	readonly task: Task;
 	readonly resolver: ITaskResolver;
@@ -155,6 +160,7 @@ export interface ITaskSystem {
 	getTerminalsForTasks(tasks: Task | Task[]): URI[] | undefined;
 	getFirstInstance(task: Task): Task | undefined;
 	getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined;
+	getTaskStartMarker(instanceId: number): ITaskStartMarker | undefined;
 	get lastTask(): VerifiedTask | undefined;
 	set lastTask(task: VerifiedTask);
 }

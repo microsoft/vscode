@@ -367,14 +367,11 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 				dom.h('.chat-buttons@buttons'),
 			]),
 		]);
-
 		const container = createAccessibilityContainer(title, message);
 		container.appendChild(elements.root);
 		this._domNode = container;
 		this._buttonsDomNode = elements.buttons;
-
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
@@ -382,11 +379,8 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 			subtitle,
 			this.markdownRenderer,
 		));
-
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-
 		this.messageElement = elements.message;
-
 		this.updateButtons(buttons);
 
 		// Create toolbar if actions are provided
