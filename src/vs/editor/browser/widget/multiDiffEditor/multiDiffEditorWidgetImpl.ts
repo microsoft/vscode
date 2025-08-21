@@ -100,6 +100,24 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			fastScrollSensitivity: fastScrollSensitivity,
 			scrollPredominantAxis: scrollPredominantAxis,
 		}, this._scrollable));
+
+		// Listen for configuration changes to update scroll sensitivity settings
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.mouseWheelScrollSensitivity') ||
+				e.affectsConfiguration('editor.fastScrollSensitivity') ||
+				e.affectsConfiguration('editor.scrollPredominantAxis')) {
+				const mouseWheelScrollSensitivity = this._configurationService.getValue<number>('editor.mouseWheelScrollSensitivity') ?? 1;
+				const fastScrollSensitivity = this._configurationService.getValue<number>('editor.fastScrollSensitivity') ?? 5;
+				const scrollPredominantAxis = this._configurationService.getValue<boolean>('editor.scrollPredominantAxis') ?? true;
+				
+				this._scrollableElement.updateOptions({
+					mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
+					fastScrollSensitivity: fastScrollSensitivity,
+					scrollPredominantAxis: scrollPredominantAxis,
+				});
+			}
+		}));
+
 		this._elements = h('div.monaco-component.multiDiffEditor', {}, [
 			h('div', {}, [this._scrollableElement.getDomNode()]),
 			h('div.placeholder@placeholder', {}, [h('div')]),
