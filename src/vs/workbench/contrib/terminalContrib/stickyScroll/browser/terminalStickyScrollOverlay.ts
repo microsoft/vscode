@@ -415,7 +415,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Apply immediately and after a short delay to catch dynamically created elements
 		makeElementsNonFocusable();
-		setTimeout(makeElementsNonFocusable, 0);
 
 		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
 			if (this._store.isDisposed || !this._stickyScrollOverlay) {
