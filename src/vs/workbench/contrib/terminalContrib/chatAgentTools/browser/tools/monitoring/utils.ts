@@ -5,7 +5,7 @@
 
 import { ILanguageModelChatResponse } from '../../../../../chat/common/languageModels.js';
 
-export async function getResponseFromStream(response: ILanguageModelChatResponse): Promise<string> {
+export async function getTextResponseFromStream(response: ILanguageModelChatResponse): Promise<string> {
 	let responseText = '';
 	const streaming = (async () => {
 		if (!response || !response.stream) {

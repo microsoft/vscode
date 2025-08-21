@@ -45,9 +45,6 @@ import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from
 import { Event } from '../../../../../../base/common/event.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { ITaskService } from '../../../../tasks/common/taskService.js';
 
 const enum TerminalToolStorageKeysInternal {
 	TerminalSession = 'chat.terminalSessions'
@@ -174,10 +171,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IChatService private readonly _chatService: IChatService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@ITaskService private readonly _taskService: ITaskService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatService private readonly _chatService: IChatService
 	) {
 		super();
 
@@ -430,7 +424,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, this._languageModelsService, this._taskService, this._chatWidgetService, undefined);
+				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, undefined);
 				store.add(outputMonitor);
 
 				outputAndIdle = await outputMonitor.startMonitoring(this._chatService, command, invocation.context!, token);

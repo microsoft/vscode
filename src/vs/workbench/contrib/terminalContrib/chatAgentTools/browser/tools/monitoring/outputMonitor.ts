@@ -19,7 +19,7 @@ import { IToolInvocationContext } from '../../../../../chat/common/languageModel
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { PollingConsts } from '../../bufferOutputPolling.js';
 import { IPollingResult, OutputMonitorState, IExecution, IRacePollingOrPromptResult } from './types.js';
-import { getResponseFromStream } from './utils.js';
+import { getTextResponseFromStream } from './utils.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly isIdle: boolean;
@@ -52,10 +52,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	constructor(
 		private readonly _execution: IExecution,
+		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ITaskService private readonly _taskService: ITaskService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		private readonly _pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
 	) {
 		super();
 	}
@@ -239,7 +239,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
 
 		try {
-			const responseFromStream = getResponseFromStream(response);
+			const responseFromStream = getTextResponseFromStream(response);
 			await Promise.all([response.result, responseFromStream]);
 			return await responseFromStream;
 		} catch (err) {
