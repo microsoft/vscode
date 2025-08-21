@@ -2574,6 +2574,28 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 14px;
 }
 
+.chat-todo-list-widget .todo-status-icon-header {
+	margin-right: 4px;
+	vertical-align: middle;
+	flex-shrink: 0;
+}
+
+.chat-todo-list-widget .todo-status-icon-completed {
+	color: var(--vscode-charts-green);
+}
+
+.chat-todo-list-widget .todo-status-icon-in-progress {
+	color: var(--vscode-charts-blue);
+}
+
+.chat-todo-list-widget .todo-status-icon-not-started {
+	color: var(--vscode-foreground);
+}
+
+.chat-todo-list-widget .todo-header-text {
+	vertical-align: middle;
+}
+
 .chat-todo-list-widget .todo-content {
 	color: var(--vscode-foreground);
 	flex-grow: 1;

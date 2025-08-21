@@ -176,7 +176,7 @@ export class ChatTodoListWidget extends Disposable {
 
 			const statusIcon = dom.$('.todo-status-icon.codicon');
 			statusIcon.classList.add(this.getStatusIconClass(todo.status));
-			statusIcon.style.color = this.getStatusIconColor(todo.status);
+			statusIcon.classList.add(this.getStatusIconColorClass(todo.status));
 
 			const todoContent = dom.$('.todo-content');
 
@@ -323,29 +323,27 @@ export class ChatTodoListWidget extends Disposable {
 				// Add status icon
 				const statusIcon = dom.$('.codicon');
 				statusIcon.classList.add(this.getStatusIconClass(activeTodo.status));
-				statusIcon.style.color = this.getStatusIconColor(activeTodo.status);
-				statusIcon.style.marginRight = '4px';
-				statusIcon.style.verticalAlign = 'middle';
+				statusIcon.classList.add('todo-status-icon-header');
+				statusIcon.classList.add(this.getStatusIconColorClass(activeTodo.status));
 				titleElement.appendChild(statusIcon);
 
 				const taskIndex = todoList.indexOf(activeTodo) + 1; // 1-based index
 				const progressText = dom.$('span');
+				progressText.classList.add('todo-header-text');
 				progressText.textContent = `${activeTodo.title} (${taskIndex}/${totalCount})`;
-				progressText.style.verticalAlign = 'middle';
 				titleElement.appendChild(progressText);
 			} else {
 				// Check if all tasks are completed
 				if (completedCount === totalCount) {
 					// Add check icon for "Done" state
 					const doneIcon = dom.$('.codicon.codicon-check');
-					doneIcon.style.color = 'var(--vscode-charts-green)';
-					doneIcon.style.marginRight = '4px';
-					doneIcon.style.verticalAlign = 'middle';
+					doneIcon.classList.add('todo-status-icon-header');
+					doneIcon.classList.add('todo-status-icon-completed');
 					titleElement.appendChild(doneIcon);
 
 					const doneText = dom.$('span');
+					doneText.classList.add('todo-header-text');
 					doneText.textContent = localize('chat.todoList.done', 'Done ({0}/{1})', completedCount, totalCount);
-					doneText.style.verticalAlign = 'middle';
 					titleElement.appendChild(doneText);
 				} else {
 					const progressText = dom.$('span');
@@ -406,15 +404,15 @@ export class ChatTodoListWidget extends Disposable {
 		}
 	}
 
-	private getStatusIconColor(status: string): string {
+	private getStatusIconColorClass(status: string): string {
 		switch (status) {
 			case 'completed':
-				return 'var(--vscode-charts-green)';
+				return 'todo-status-icon-completed';
 			case 'in-progress':
-				return 'var(--vscode-charts-blue)';
+				return 'todo-status-icon-in-progress';
 			case 'not-started':
 			default:
-				return 'var(--vscode-foreground)';
+				return 'todo-status-icon-not-started';
 		}
 	}
 }
