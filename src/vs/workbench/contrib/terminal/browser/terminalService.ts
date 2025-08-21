@@ -374,11 +374,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._onDidChangeActiveInstance.fire(instance);
 	}
 
-	setActiveInstance(value: ITerminalInstance | undefined) {
-		// TODO@meganrogge: Is this the right logic for when instance is undefined?
-		if (!value) {
-			return;
-		}
+	setActiveInstance(value: ITerminalInstance) {
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal group
 		if (value.shellLaunchConfig.hideFromUser) {
@@ -1005,8 +1001,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 				cwd: shellLaunchConfig.cwd,
 			});
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
-			// TODO@meganrogge: This returns undefined in the remote & web smoke tests but the function
-			// does not return undefined. This should be handled correctly.
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
 			await instance?.focusWhenReady();
 			this._terminalHasBeenCreated.set(true);

@@ -32,7 +32,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IKeybindingRule, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, InAutomationContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
 import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { ICommandActionTitle } from '../../../../platform/action/common/action.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -1962,25 +1962,6 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 
 		historyService.openPreviouslyUsedEditor(editorGroupsService.activeGroup.id);
-	}
-}
-
-export class ClearEditorHistoryWithoutConfirmAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.clearEditorHistoryWithoutConfirm',
-			title: localize2('clearEditorHistoryWithoutConfirm', 'Clear Editor History without Confirmation'),
-			f1: true,
-			precondition: InAutomationContext
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const historyService = accessor.get(IHistoryService);
-
-		// Clear editor history
-		historyService.clear();
 	}
 }
 

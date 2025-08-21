@@ -1708,9 +1708,8 @@ export function shrinkWorkspaceFolderCwdPairs(pairs: WorkspaceFolderCwdPair[]): 
 	return selectedPairsInOrder;
 }
 
-async function focusActiveTerminal(instance: ITerminalInstance | undefined, c: ITerminalServicesCollection): Promise<void> {
-	// TODO@meganrogge: Is this the right logic for when instance is undefined?
-	if (instance?.target === TerminalLocation.Editor) {
+async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServicesCollection): Promise<void> {
+	if (instance.target === TerminalLocation.Editor) {
 		await c.editorService.revealActiveEditor();
 		await instance.focusWhenReady(true);
 	} else {
