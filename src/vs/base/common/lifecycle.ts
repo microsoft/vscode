@@ -441,7 +441,7 @@ export class DisposableStore implements IDisposable {
 	 * Add a new {@link IDisposable disposable} to the collection.
 	 */
 	public add<T extends IDisposable>(o: T): T {
-		if (!o) {
+		if (!o || o === Disposable.None) {
 			return o;
 		}
 		if ((o as unknown as DisposableStore) === this) {

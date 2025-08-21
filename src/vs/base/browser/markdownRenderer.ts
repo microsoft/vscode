@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../common/errors.js';
-import { Event } from '../common/event.js';
 import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
@@ -21,7 +20,6 @@ import { URI } from '../common/uri.js';
 import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
-import { DomEmitter } from './event.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
@@ -205,15 +203,15 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Add event listeners for links
 	if (options.actionHandler) {
-		const onClick = disposables.add(new DomEmitter(outElement, 'click'));
-		const onAuxClick = disposables.add(new DomEmitter(outElement, 'auxclick'));
-		disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
+		const clickCb = (e: PointerEvent) => {
 			const mouseEvent = new StandardMouseEvent(DOM.getWindow(outElement), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
 			}
 			activateLink(markdown, options, mouseEvent);
-		}));
+		};
+		disposables.add(DOM.addDisposableListener(outElement, 'click', clickCb));
+		disposables.add(DOM.addDisposableListener(outElement, 'auxclick', clickCb));
 
 		disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
