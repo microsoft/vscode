@@ -1141,16 +1141,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		this.handleChatDisabled(false);
 	}
 
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(CHAT_DISABLED_CONFIGURATION_KEY)) {
-				return;
-			}
-
-			this.handleChatDisabled(true);
-		}));
-	}
-
 	private handleChatDisabled(fromEvent: boolean): void {
 		const chatDisabled = this.configurationService.getValue(CHAT_DISABLED_CONFIGURATION_KEY);
 		if (chatDisabled === true) {
@@ -1159,6 +1149,16 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		} else if (chatDisabled === false && fromEvent /* do not enable extensions unless its an explicit settings change */) {
 			this.maybeEnableExtension();
 		}
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(CHAT_DISABLED_CONFIGURATION_KEY)) {
+				return;
+			}
+
+			this.handleChatDisabled(true);
+		}));
 	}
 
 	private async maybeDisableExtension(): Promise<void> {
