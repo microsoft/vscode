@@ -19,14 +19,16 @@ suite('OutputMonitor', () => {
 	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText'> };
 	let cts: CancellationTokenSource;
 	let instantiationService: TestInstantiationService;
+	let sendTextCalled: boolean;
 
 	setup(() => {
+		sendTextCalled = false;
 		execution = {
 			getOutput: () => 'test output',
 			isActive: async () => true,
 			instance: {
 				instanceId: 1,
-				sendText: async () => { }
+				sendText: async () => { sendTextCalled = true; }
 			}
 		};
 		instantiationService = new TestInstantiationService();
@@ -63,14 +65,24 @@ suite('OutputMonitor', () => {
 
 	test('startMonitoring returns immediately when polling succeeds', async () => {
 		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
-
 		const result = await monitor.startMonitoring(
 			'test command',
 			{ sessionId: '1' },
 			cts.token
 		);
-
 		assert.strictEqual(result.state, OutputMonitorState.Idle);
 		assert.strictEqual(result.output, 'test output');
+		assert.strictEqual(sendTextCalled, false, 'sendText should not be called');
+	});
+
+	test('startMonitoring returns cancelled when token is cancelled', async () => {
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
+		cts.cancel();
+		const result = await monitor.startMonitoring(
+			'test command',
+			{ sessionId: '1' },
+			cts.token
+		);
+		assert.strictEqual(result.state, OutputMonitorState.Cancelled);
 	});
 });
