@@ -43,7 +43,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _state: OutputMonitorState = OutputMonitorState.Initial;
 	get state(): OutputMonitorState { return this._state; }
 
-	private _lastOptionRan: string | undefined;
+	private _lastAutoReply: string | undefined;
 
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
@@ -332,9 +332,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (selectedOption) {
 			// Validate that the selectedOption matches one of the original options
 			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
-			if (selectedOption && validOption && validOption !== this._lastOptionRan) {
+			if (selectedOption && validOption && validOption !== this._lastAutoReply) {
 				await execution.instance.sendText(validOption, true);
-				this._lastOptionRan = validOption;
+				this._lastAutoReply = validOption;
 				return Promise.resolve(validOption);
 			}
 		}
