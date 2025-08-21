@@ -1164,8 +1164,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 		// Extension installation
 		await this.extensionsWorkbenchService.queryLocal();
-		this._register(this.extensionsWorkbenchService.onChange((e) => {
-			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.extensionId)) {
+		this._register(this.extensionsWorkbenchService.onChange(e => {
+			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.chatExtensionId)) {
 				return; // unrelated event
 			}
 
@@ -1495,7 +1495,7 @@ class ChatSetupController extends Disposable {
 	}
 
 	private async doInstall(): Promise<void> {
-		await this.extensionsWorkbenchService.install(defaultChat.extensionId, {
+		await this.extensionsWorkbenchService.install(defaultChat.chatExtensionId, {
 			enable: true,
 			isApplicationScoped: true, 	// install into all profiles
 			isMachineScoped: false,		// do not ask to sync
