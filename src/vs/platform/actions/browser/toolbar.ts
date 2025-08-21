@@ -10,7 +10,7 @@ import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedCla
 import { coalesceInPlace } from '../../../base/common/arrays.js';
 import { intersection } from '../../../base/common/collections.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Emitter } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
@@ -335,7 +335,7 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
 export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 
 	private readonly _onDidChangeMenuItems = this._store.add(new Emitter<this>());
-	get onDidChangeMenuItems(): Event<this> { return this._onDidChangeMenuItems.event; }
+	get onDidChangeMenuItems() { return this._onDidChangeMenuItems.event; }
 
 	constructor(
 		container: HTMLElement,
