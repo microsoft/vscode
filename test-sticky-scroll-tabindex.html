@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Tab Focus with Sticky Scroll</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { margin: 10px; padding: 10px; }
+        .test-container { border: 1px solid #ccc; padding: 20px; margin: 20px 0; }
+        .sticky-scroll-simulator {
+            position: relative;
+            background: #f0f0f0;
+            padding: 10px;
+            margin: 10px;
+        }
+        .hover-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 0, 0, 0.1);
+            cursor: pointer;
+        }
+        .hover-overlay.fixed {
+            /* This simulates the fix */
+            /* tabIndex: -1; /* This would be set in JavaScript */
+        }
+        .focus-indicator:focus {
+            outline: 2px solid blue;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Tab Focus Behavior with Sticky Scroll</h1>
+    
+    <div class="test-container">
+        <h2>Test Case 1: Without Fix (problematic)</h2>
+        <button class="focus-indicator">Button 1</button>
+        
+        <div class="sticky-scroll-simulator">
+            Sticky Scroll Content
+            <div class="hover-overlay focus-indicator" id="hover1" tabindex="0">
+                <!-- This hover overlay will capture focus and not handle Tab properly -->
+            </div>
+        </div>
+        
+        <button class="focus-indicator">Button 2</button>
+        <button class="focus-indicator">Button 3</button>
+    </div>
+    
+    <div class="test-container">
+        <h2>Test Case 2: With Fix (should work correctly)</h2>
+        <button class="focus-indicator">Button A</button>
+        
+        <div class="sticky-scroll-simulator">
+            Sticky Scroll Content
+            <div class="hover-overlay focus-indicator fixed" id="hover2" tabindex="-1">
+                <!-- This hover overlay won't receive focus during Tab navigation -->
+            </div>
+        </div>
+        
+        <button class="focus-indicator">Button B</button>
+        <button class="focus-indicator">Button C</button>
+    </div>
+    
+    <p><strong>Test Instructions:</strong></p>
+    <ol>
+        <li>Press Tab to navigate through the first test case. Notice how focus gets stuck on the red overlay.</li>
+        <li>Press Tab to navigate through the second test case. Focus should skip the red overlay and go directly from Button A to Button B.</li>
+    </ol>
+    
+    <p><strong>Expected behavior:</strong> In "Tab moves focus" mode, pressing Tab should skip non-interactive elements like the sticky scroll overlay.</p>
+</body>
+</html>

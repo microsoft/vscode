@@ -367,6 +367,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const overlay = this._stickyScrollOverlay;
 
 		const hoverOverlay = $('.hover-overlay');
+		hoverOverlay.tabIndex = -1; // Prevent focus from getting stuck during tab navigation
 		this._element = $('.terminal-sticky-scroll', undefined, hoverOverlay);
 		this._xterm.raw.element.parentElement.append(this._element);
 		this._register(toDisposable(() => this._element?.remove()));
