@@ -30,6 +30,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 
 const $ = dom.$;
 
@@ -128,10 +129,20 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		}));
 		const setupActionBar = () => {
 			actionBar.clear();
+
+			const activeEditorUri = this.editorService.activeEditor?.resource;
+			let marshalledSession: any | undefined = undefined;
+			if (activeEditorUri) {
+				marshalledSession = {
+					...activeEditorUri,
+					$mid: MarshalledId.Uri
+				};
+			}
+
 			const actions = this.menuService.getMenuActions(
 				MenuId.ChatMultiDiffContext,
 				this.contextKeyService,
-				{ arg: {}, shouldForwardArgs: true }
+				{ arg: marshalledSession, shouldForwardArgs: true }
 			);
 			const allActions = actions.flatMap(([, actions]) => actions);
 			if (allActions.length > 0) {
