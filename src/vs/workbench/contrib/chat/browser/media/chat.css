@@ -2599,34 +2599,3 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin: 0;
 	}
 }
-
-/* Chat Multi-Diff Contributed Buttons */
-.chat-multidiff-contributed-buttons {
-	display: flex;
-	gap: 4px;
-	margin-left: 8px;
-}
-
-.chat-multidiff-action-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	height: 16px;
-	border: none;
-	background: transparent;
-	cursor: pointer;
-	border-radius: 3px;
-	color: var(--vscode-icon-foreground);
-	opacity: 0.8;
-	transition: opacity 0.1s ease-in-out, background-color 0.1s ease-in-out;
-}
-
-.chat-multidiff-action-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	opacity: 1;
-}
-
-.chat-multidiff-action-button:active {
-	background-color: var(--vscode-toolbar-activeBackground);
-}

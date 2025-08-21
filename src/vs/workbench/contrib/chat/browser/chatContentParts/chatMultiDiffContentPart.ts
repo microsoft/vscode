@@ -29,6 +29,7 @@ import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 
 const $ = dom.$;
 
@@ -122,31 +123,22 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 	private renderContributedButtons(container: HTMLElement): IDisposable {
 		const buttonsContainer = container.appendChild($('.chat-multidiff-contributed-buttons'));
 		const disposables = new DisposableStore();
-
-		const menu = this.menuService.getMenuActions(MenuId.ChatMultiDiffContext, this.contextKeyService, {
-			arg: {
-				multiDiffData: this.content.multiDiffData,
-				resources: this.content.multiDiffData.resources
+		const actionBar = disposables.add(new ActionBar(buttonsContainer, {
+			orientation: ActionsOrientation.HORIZONTAL
+		}));
+		const setupActionBar = () => {
+			actionBar.clear();
+			const actions = this.menuService.getMenuActions(
+				MenuId.ChatMultiDiffContext,
+				this.contextKeyService,
+				{ arg: {}, shouldForwardArgs: true }
+			);
+			const allActions = actions.flatMap(([, actions]) => actions);
+			if (allActions.length > 0) {
+				actionBar.push(allActions, { icon: true, label: false });
 			}
-		});
-		const actions = menu.flatMap(([, actions]) => actions);
-
-		for (const action of actions) {
-			const button = buttonsContainer.appendChild($('.chat-multidiff-action-button'));
-			const icon = action.class ? ThemeIcon.fromString(action.class) || Codicon.gear : Codicon.gear;
-			button.classList.add(...ThemeIcon.asClassNameArray(icon));
-			button.title = action.tooltip || action.label;
-
-			disposables.add(dom.addDisposableListener(button, 'click', async (e) => {
-				dom.EventHelper.stop(e, true);
-				try {
-					await action.run();
-				} catch (error) {
-					console.error('Error running contributed action:', error);
-				}
-			}));
-		}
-
+		};
+		setupActionBar();
 		return disposables;
 	}
 
