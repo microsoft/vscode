@@ -36,7 +36,6 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	'user-data-dir': OPTIONS['user-data-dir'],
 	'enable-smoke-test-driver': OPTIONS['enable-smoke-test-driver'],
-	'allow-dialogs-while-driven': OPTIONS['allow-dialogs-while-driven'],
 	'disable-telemetry': OPTIONS['disable-telemetry'],
 	'disable-experiments': OPTIONS['disable-experiments'],
 	'disable-workspace-trust': OPTIONS['disable-workspace-trust'],
@@ -160,7 +159,6 @@ export interface ServerParsedArgs {
 	'user-data-dir'?: string;
 
 	'enable-smoke-test-driver'?: boolean;
-	'allow-dialogs-while-driven'?: boolean;
 
 	'disable-telemetry'?: boolean;
 	'disable-experiments'?: boolean;

@@ -142,11 +142,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	private skipDialogs(): boolean {
-		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
-			return true; // integration tests
-		}
-		// driver automation (like smoke tests)
-		return !!this.environmentService.enableSmokeTestDriver && !this.environmentService.allowDialogsWhileDriven;
+		// integration tests
+		return this.environmentService.isExtensionDevelopment && !!this.environmentService.extensionTestsLocationURI;
 	}
 
 	private async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {

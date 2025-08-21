@@ -15,9 +15,6 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	// Resolve electron config and update
 	const { electronPath, args, env } = await resolveElectronConfiguration(options);
 	args.push('--enable-smoke-test-driver');
-	if (options.allowDialogs) {
-		args.push('--allow-dialogs-while-driven');
-	}
 
 	// Launch electron via playwright
 	const { electron, context, page } = await launchElectron({ electronPath, args, env }, options);

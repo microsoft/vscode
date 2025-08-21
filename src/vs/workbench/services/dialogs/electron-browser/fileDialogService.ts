@@ -65,10 +65,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	private shouldUseSimplified(schema: string): { useSimplified: boolean; isSetting: boolean } {
 		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
 		const newWindowSetting = (this.configurationService.getValue('window.openFilesInNewWindow') === 'on');
-		// driver automation (like smoke tests) can use the simple file dialog so if it's enabled we can use that
-		const allowedDialogsWhileDriven = !!this.environmentService.enableSmokeTestDriver && !!this.environmentService.allowDialogsWhileDriven;
 		return {
-			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.vscodeUserData)) || setting || allowedDialogsWhileDriven,
+			// - Only real files can be shown in the native file picker
+			// - If the simple file dialog is enabled
+			// - driver automation (like smoke tests) can use the simple file dialog but not native
+			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.vscodeUserData)) || setting || !!this.environmentService.enableSmokeTestDriver,
 			isSetting: newWindowSetting
 		};
 	}

@@ -113,7 +113,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	private get useCustomDialog(): boolean {
 		return this.configurationService.getValue('window.dialogStyle') === 'custom' ||
 			// Use the custom dialog while driven so that the driver can interact with it
-			!!this.environmentService.allowDialogsWhileDriven;
+			!!this.environmentService.enableSmokeTestDriver;
 	}
 }
 

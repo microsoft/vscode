@@ -29,12 +29,8 @@ export class DialogService extends Disposable implements IDialogService {
 	}
 
 	private skipDialogs(): boolean {
-		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
-			return true; // integration tests
-		}
-
-		// driver automation (like smoke tests)
-		return !!this.environmentService.enableSmokeTestDriver && !this.environmentService.allowDialogsWhileDriven;
+		// integration tests
+		return this.environmentService.isExtensionDevelopment && !!this.environmentService.extensionTestsLocationURI;
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {

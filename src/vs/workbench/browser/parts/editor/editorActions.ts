@@ -1965,6 +1965,24 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action2 {
 	}
 }
 
+export class ClearEditorHistoryWithoutConfirmAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.clearEditorHistoryWithoutConfirm',
+			title: localize2('clearEditorHistoryWithoutConfirm', 'Clear Editor History without Confirmation'),
+			f1: false
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		// Clear editor history
+		historyService.clear();
+	}
+}
+
 export class ClearEditorHistoryAction extends Action2 {
 
 	constructor() {
