@@ -70,6 +70,7 @@ import { IExtensionGalleryManifestService } from '../../platform/extensionManage
 import { ExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
+import { INpmPackageManagementService, NpmPackageService } from '../../platform/mcp/node/npmPackageService.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
@@ -233,6 +234,7 @@ class CliMain extends Disposable {
 		services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService, undefined, true));
 		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
 		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService, undefined, true));
+		services.set(INpmPackageManagementService, new SyncDescriptor(NpmPackageService, undefined, true));
 		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
 
 		// Telemetry

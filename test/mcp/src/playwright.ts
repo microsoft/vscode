@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createConnection } from '@playwright/mcp';
+import * as playwright from 'playwright';
 import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog } from '../../automation';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -30,8 +31,7 @@ const opts = minimist(args, {
 		'remote',
 		'web',
 		'headless',
-		'tracing',
-		'skip-dialogs'
+		'tracing'
 	],
 	default: {
 		verbose: false
@@ -44,7 +44,6 @@ const opts = minimist(args, {
 	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
-	'skip-dialogs'?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome' | undefined;
 	electronArgs?: string;
 };
@@ -353,6 +352,9 @@ export async function getServer() {
 
 	await setup();
 	const application = createApp({
+		// Pass the alpha version of Playwright down... This is a hack since Playwright MCP
+		// doesn't play nice with Playwright Test: https://github.com/microsoft/playwright-mcp/issues/917
+		playwright: playwright as any,
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
@@ -360,7 +362,6 @@ export async function getServer() {
 		userDataDir,
 		extensionsPath,
 		logger,
-		allowDialogs: !opts['skip-dialogs'] && !opts.headless,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		crashesPath: path.join(crashesRootPath, 'suite_unknown'),
 		verbose: opts.verbose,

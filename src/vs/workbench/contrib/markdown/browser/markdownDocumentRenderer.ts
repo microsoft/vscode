@@ -160,7 +160,6 @@ pre code {
 const defaultAllowedLinkProtocols = Object.freeze([
 	Schemas.http,
 	Schemas.https,
-	Schemas.command,
 ]);
 
 function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSanitizerConfig | undefined): TrustedHTML {
@@ -200,7 +199,7 @@ interface MarkdownDocumentSanitizerConfig {
 }
 
 interface IRenderMarkdownDocumentOptions {
-	readonly sanitizerConfig?: 'skipSanitization' | MarkdownDocumentSanitizerConfig;
+	readonly sanitizerConfig?: MarkdownDocumentSanitizerConfig;
 	readonly markedExtensions?: readonly marked.MarkedExtension[];
 }
 
@@ -239,11 +238,7 @@ export async function renderMarkdownDocument(
 	);
 
 	const raw = await raceCancellationError(m.parse(text, { async: true }), token ?? CancellationToken.None);
-	if (options?.sanitizerConfig === 'skipSanitization') {
-		return raw;
-	} else {
-		return sanitize(raw, options?.sanitizerConfig) as any as string;
-	}
+	return sanitize(raw, options?.sanitizerConfig) as any as string;
 }
 
 namespace MarkedHighlight {

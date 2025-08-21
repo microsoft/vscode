@@ -32,6 +32,8 @@ import { ChatWidget, IChatViewState } from './chatWidget.js';
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
 	preferredTitle?: string;
+	chatSessionType?: string;
+	fromHistory?: boolean; // Marker to indicate this session was opened from history
 }
 
 export class ChatEditor extends EditorPane {
@@ -127,12 +129,12 @@ export class ChatEditor extends EditorPane {
 		}
 
 		let isContributedChatSession = false;
-		if (input.resource.scheme === Schemas.vscodeChatSession) {
-			const identifier = ChatSessionUri.parse(input.resource);
-			if (identifier) {
-				await this.chatSessionsService.canResolveContentProvider(input.resource.authority);
+		if (options?.chatSessionType || input.resource.scheme === Schemas.vscodeChatSession) {
+			const chatSessionType = options?.chatSessionType ?? ChatSessionUri.parse(input.resource)?.chatSessionType;
+			if (chatSessionType) {
+				await this.chatSessionsService.canResolveContentProvider(chatSessionType);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
-				const contribution = contributions.find(c => c.type === identifier.chatSessionType);
+				const contribution = contributions.find(c => c.type === chatSessionType);
 				if (contribution) {
 					this.widget.lockToCodingAgent(contribution.name, contribution.displayName);
 					isContributedChatSession = true;

@@ -54,7 +54,7 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 	/** @sealed */
 	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 	public map<TNew>(owner: DebugOwner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(fnOrOwner: DebugOwner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+	public map<TNew>(fnOrOwner: DebugOwner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew, debugLocation: DebugLocation = DebugLocation.ofCaller()): IObservable<TNew> {
 		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as DebugOwner;
 		const fn = fnOrUndefined === undefined ? fnOrOwner as (value: T, reader: IReader) => TNew : fnOrUndefined;
 
@@ -80,7 +80,8 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 				},
 				debugReferenceFn: fn,
 			},
-			(reader) => fn(this.read(reader), reader)
+			(reader) => fn(this.read(reader), reader),
+			debugLocation,
 		);
 	}
 

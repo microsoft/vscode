@@ -53,7 +53,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,
-		history: [],
+		history: any[],
 		token: CancellationToken
 	) => Promise<void>;
 
@@ -155,7 +155,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 				this.requestHandler = async (
 					request: IChatAgentRequest,
 					progress: (progress: IChatProgress[]) => void,
-					history: [],
+					history: any[],
 					token: CancellationToken
 				) => {
 					// Clear previous progress and mark as active

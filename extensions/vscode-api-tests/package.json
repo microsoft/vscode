@@ -87,6 +87,17 @@
         "commands": []
       }
     ],
+    "languageModelTools": [
+			{
+				"name": "requires_confirmation_tool",
+				"toolReferenceName": "requires_confirmation_tool",
+				"displayName": "Requires Confirmation Tool",
+				"modelDescription": "A noop tool to trigger confirmation.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(files)",
+				"inputSchema": {}
+			}
+    ],
     "configuration": {
       "type": "object",
       "title": "Test Config",

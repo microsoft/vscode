@@ -87,6 +87,7 @@ import { IExtensionGalleryManifestService } from '../../platform/extensionManage
 import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
+import { INpmPackageManagementService, NpmPackageService } from '../../platform/mcp/node/npmPackageService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpManagementChannel } from '../../platform/mcp/common/mcpManagementIpc.js';
@@ -224,6 +225,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
 	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));
 	services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService));
+	services.set(INpmPackageManagementService, new SyncDescriptor(NpmPackageService));
 	services.set(IMcpManagementService, new SyncDescriptor(McpManagementService));
 
 	instantiationService.invokeFunction(accessor => {
