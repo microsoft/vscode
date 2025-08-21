@@ -873,10 +873,16 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 	}
 
 	private renderInputBox(container: HTMLElement, session: IChatSessionItem, editableData: IEditableData): DisposableStore {
-		// Hide the existing resource label element
+		// Hide the existing resource label element and session content
 		const existingResourceLabelElement = container.querySelector('.monaco-icon-label') as HTMLElement;
 		if (existingResourceLabelElement) {
 			existingResourceLabelElement.style.display = 'none';
+		}
+
+		// Hide the session content container to avoid layout conflicts
+		const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
+		if (sessionContentElement) {
+			sessionContentElement.style.display = 'none';
 		}
 
 		// Create a simple container that mimics the file explorer's structure
@@ -923,6 +929,12 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			// Restore the original resource label
 			if (existingResourceLabelElement) {
 				existingResourceLabelElement.style.display = '';
+			}
+
+			// Restore the session content container
+			const sessionContentElement = container.querySelector('.session-content') as HTMLElement;
+			if (sessionContentElement) {
+				sessionContentElement.style.display = '';
 			}
 
 			if (finishEditing) {
@@ -1035,6 +1047,7 @@ class SessionsViewPane extends ViewPane {
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1333,13 +1346,19 @@ class SessionsViewPane extends ViewPane {
 			$mid: MarshalledId.ChatSessionContext
 		};
 
-		this.contextMenuService.showContextMenu({
-			menuId: MenuId.ChatSessionsMenu,
-			menuActionOptions: { shouldForwardArgs: true },
-			contextKeyService: contextKeyService,
+		// Create menu for this session item to get actions
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService);
+
+		// Get actions and filter for context menu (all actions that are NOT inline)
+		const actions = menu.getActions({ arg: marshalledSession, shouldForwardArgs: true });
+
+		const { secondary } = getActionBarActions(actions, 'inline'); this.contextMenuService.showContextMenu({
+			getActions: () => secondary,
 			getAnchor: () => e.anchor,
 			getActionsContext: () => marshalledSession,
 		});
+
+		menu.dispose();
 	}
 }
 
