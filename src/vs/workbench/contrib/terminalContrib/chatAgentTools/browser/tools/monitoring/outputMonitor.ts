@@ -205,11 +205,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				lastBufferLength = currentBufferLength;
 			}
 
-			const isInactive = execution.isActive && ((await execution.isActive()) === false);
-			const isActive = execution.isActive && ((await execution.isActive()) === true);
 			const noNewData = noNewDataCount >= PollingConsts.MinNoDataEvents;
+			const isInactive = noNewData || execution.isActive && ((await execution.isActive()) === false);
+			const isActive = execution.isActive && ((await execution.isActive()) === true);
 
-			if (noNewData || isInactive) {
+			if (isInactive) {
 				this._state = OutputMonitorState.Idle;
 				break;
 			}
