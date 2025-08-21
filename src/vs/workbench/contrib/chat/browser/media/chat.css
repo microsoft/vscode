@@ -2583,6 +2583,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
+.interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
+	color: var(--vscode-descriptionForeground);
+}
 
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;

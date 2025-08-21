@@ -1396,11 +1396,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
-		if (this._finishedThinking) {
-			this._currentlyPinnedPart = undefined;
-		}
-
-		if (!this._currentlyPinnedPart) {
+		if (this._finishedThinking || !this._currentlyPinnedPart) {
 			this._currentlyPinnedPart = templateData.instantiationService.createInstance(ChatPinnedContentPart, newDomPart, context);
 			this._currentlyPinnedPart.addDisposable(this._currentlyPinnedPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			this._finishedThinking = false;
