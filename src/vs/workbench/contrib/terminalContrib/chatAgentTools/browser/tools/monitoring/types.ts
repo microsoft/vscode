@@ -17,6 +17,7 @@ export interface IExecution {
 	isActive?: () => Promise<boolean>;
 	task?: Task | Pick<Task, 'configurationProperties'>;
 	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId'>;
+	sessionId: string;
 }
 
 export interface IPollingResult {
