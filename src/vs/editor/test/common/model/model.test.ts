@@ -15,7 +15,7 @@ import { ILanguageService } from '../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../common/languages/nullTokenize.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { InternalModelContentChangeEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../../../common/textModelEvents.js';
+import { IModelContentChange } from '../../../common/textModelEvents.js';
 import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
 
 // --------- utils
@@ -107,43 +107,40 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text without newline eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
+		let e: IModelContentChange[] | null = null;
 		const disposable = thisModel.onDidChangeContent((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+			e = _e.changes;
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
-			[
-				new ModelRawLineChanged(1, 1)
-			],
-			2,
-			false,
-			false
-		));
+		if (!e) {
+			assert.fail('should be defined');
+		}
+		assert.deepStrictEqual(e[0], {
+			range: new Range(1, 1, 1, 1),
+			rangeLength: 0,
+			text: "foo ",
+			rangeOffset: 0,
+			forceMoveMarkers: true
+		});
 		disposable.dispose();
 	});
 
 	test('model insert text with one newline eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
+		let e: IModelContentChange[] | null = null;
 		const disposable = thisModel.onDidChangeContent((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+			e = _e.changes;
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
-			[
-				new ModelRawLineChanged(1, 1),
-				new ModelRawLinesInserted(2, 2, 2, 2),
-			],
-			2,
-			false,
-			false
-		));
+		if (!e) {
+			assert.fail('should be defined');
+		}
+		assert.deepStrictEqual(e[0], {
+			range: new Range(1, 3, 1, 3),
+			rangeLength: 0,
+			text: " new line\nNo longer",
+			rangeOffset: 2,
+			forceMoveMarkers: true
+		});
 		disposable.dispose();
 	});
 
@@ -206,84 +203,78 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from one line eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
+		let e: IModelContentChange[] | null = null;
 		const disposable = thisModel.onDidChangeContent((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+			e = _e.changes;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
-			[
-				new ModelRawLineChanged(1, 1),
-			],
-			2,
-			false,
-			false
-		));
+		if (!e) {
+			assert.fail('should be defined');
+		}
+		assert.deepStrictEqual(e[0], {
+			range: new Range(1, 1, 1, 2),
+			rangeLength: 1,
+			text: "",
+			rangeOffset: 0,
+			forceMoveMarkers: false
+		});
 		disposable.dispose();
 	});
 
 	test('model delete all text from a line eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
+		let e: IModelContentChange[] | null = null;
 		const disposable = thisModel.onDidChangeContent((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+			e = _e.changes;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
-			[
-				new ModelRawLineChanged(1, 1),
-			],
-			2,
-			false,
-			false
-		));
+		if (!e) {
+			assert.fail('should be defined');
+		}
+		assert.deepStrictEqual(e[0], {
+			range: new Range(1, 1, 1, 14),
+			rangeLength: 13,
+			text: "",
+			rangeOffset: 0,
+			forceMoveMarkers: false
+		});
 		disposable.dispose();
 	});
 
 	test('model delete text from two lines eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
+		let e: IModelContentChange[] | null = null;
 		const disposable = thisModel.onDidChangeContent((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+			e = _e.changes;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
-			[
-				new ModelRawLineChanged(1, 1),
-				new ModelRawLinesDeleted(2, 2),
-			],
-			2,
-			false,
-			false
-		));
+		if (!e) {
+			assert.fail('should be defined');
+		}
+		assert.deepStrictEqual(e[0], {
+			range: new Range(1, 4, 2, 6),
+			rangeLength: 16,
+			text: "",
+			rangeOffset: 3,
+			forceMoveMarkers: false
+		});
 		disposable.dispose();
 	});
 
 	test('model delete text from many lines eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
+		let e: IModelContentChange[] | null = null;
 		const disposable = thisModel.onDidChangeContent((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+			e = _e.changes;
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
-			[
-				new ModelRawLineChanged(1, 1),
-				new ModelRawLinesDeleted(2, 3),
-			],
-			2,
-			false,
-			false
-		));
+		if (!e) {
+			assert.fail('should be defined');
+		}
+		assert.deepStrictEqual(e[0], {
+			range: new Range(1, 4, 3, 5),
+			rangeLength: 32,
+			text: "",
+			rangeOffset: 3,
+			forceMoveMarkers: false
+		});
 		disposable.dispose();
 	});
 
@@ -319,22 +310,20 @@ suite('Editor Model - Model', () => {
 
 	// --------- setValue
 	test('setValue eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
+		let e: IModelContentChange[] | null = null;
 		const disposable = thisModel.onDidChangeContent((_e) => {
-			if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
-				assert.fail('Unexpected assertion error');
-			}
-			e = _e.rawContentChangedEvent;
+			e = _e.changes;
 		});
 		thisModel.setValue('new value');
-		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
-			[
-				new ModelRawFlush()
-			],
-			2,
-			false,
-			false
-		));
+		if (!e) {
+			assert.fail('should be defined');
+		}
+		assert.deepStrictEqual(e[0], {
+			range: new Range(1, 1, 5, 2),
+			rangeLength: 48,
+			text: "new value",
+			rangeOffset: 0
+		});
 		disposable.dispose();
 	});
 
