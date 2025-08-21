@@ -850,7 +850,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return {
 				title: localize('codingAgentTitle', "Chat with {0}", this._codingAgentPrefix),
 				message: new MarkdownString(localize('codingAgentMessage', "This chat session will be forwarded to the {0} coding agent", this._codingAgentPrefix)),
-				icon: Codicon.cloud,
+				icon: Codicon.sendToRemoteAgent,
 				additionalMessage,
 			};
 		}
