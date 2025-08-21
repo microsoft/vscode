@@ -453,7 +453,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			}
 		}
 
-		// send DTOs to Erdos
+		// send DTOs to VS Code
 		return this._debugServiceProxy.$registerBreakpoints(dtos);
 	}
 
@@ -464,7 +464,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		// send notification
 		this.fireBreakpointChanges([], breakpoints, []);
 
-		// unregister with Erdos
+		// unregister with VS Code
 		const ids = breakpoints.filter(bp => bp instanceof SourceBreakpoint).map(bp => bp.id);
 		const fids = breakpoints.filter(bp => bp instanceof FunctionBreakpoint).map(bp => bp.id);
 		const dids = breakpoints.filter(bp => bp instanceof DataBreakpoint).map(bp => bp.id);
@@ -657,7 +657,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 							tracker.onDidSendMessage(message);
 						}
 
-						// DA -> Erdos
+						// DA -> VS Code
 						try {
 							// Try to catch details for #233167
 							message = convertToVSCPaths(message, true);
@@ -694,7 +694,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 
 	public $sendDAMessage(debugAdapterHandle: number, message: DebugProtocol.ProtocolMessage): void {
 
-		// Erdos -> DA
+		// VS Code -> DA
 		message = convertToDAPaths(message, false);
 
 		const tracker = this._debugAdaptersTrackers.get(debugAdapterHandle);	// TODO@AW: same handle?

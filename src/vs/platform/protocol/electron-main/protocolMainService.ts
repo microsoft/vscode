@@ -24,7 +24,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
-	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4', '.otf', '.ttf']); // https://github.com/willnickols/erdos/issues/119384
+	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4', '.otf', '.ttf']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -36,7 +36,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		// Define an initial set of roots we allow loading from
 		// - appRoot	: all files installed as part of the app
 		// - extensions : all files shipped from extensions
-		// - storage    : all files in global and workspace storage (https://github.com/willnickols/erdos/issues/116735)
+		// - storage    : all files in global and workspace storage (https://github.com/microsoft/vscode/issues/116735)
 		this.addValidFileRoot(environmentService.appRoot);
 		this.addValidFileRoot(environmentService.extensionsPath);
 		this.addValidFileRoot(userDataProfilesService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath);
@@ -49,7 +49,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	private handleProtocols(): void {
 		const { defaultSession } = session;
 
-		// Register erdos-file:// handler
+		// Register vscode-file:// handler
 		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback));
 
 		// Block any file:// access
@@ -89,7 +89,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	//#endregion
 
-	//#region erdos-file://
+	//#region vscode-file://
 
 	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
 		const path = this.requestToNormalizedFilePath(request);
@@ -105,7 +105,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		}
 
 		// In OSS, evict resources from the memory cache in the renderer process
-		// Refs https://github.com/willnickols/erdos/issues/148541#issuecomment-2670891511
+		// Refs https://github.com/microsoft/vscode/issues/148541#issuecomment-2670891511
 		if (!this.environmentService.isBuilt) {
 			headers = {
 				...headers,
@@ -146,7 +146,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		const requestUri = URI.parse(request.url);
 
 		// 2.) Use `FileAccess.asFileUri` to convert back from a
-		//     `erdos-file:` URI to a `file:` URI.
+		//     `vscode-file:` URI to a `file:` URI.
 		const unnormalizedFileUri = FileAccess.uriToFileUri(requestUri);
 
 		// 3.) Strip anything from the URI that could result in

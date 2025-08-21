@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Utils } from 'erdos-uri';
+import { Utils } from 'vscode-uri';
 
 export const Schemes = Object.freeze({
 	file: 'file',
-	notebookCell: 'erdos-notebook-cell',
+	notebookCell: 'vscode-notebook-cell',
 	untitled: 'untitled',
 });
 

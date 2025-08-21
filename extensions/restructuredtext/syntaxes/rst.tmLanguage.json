@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/trond-snekvik/erdos-rst/blob/master/syntaxes/rst.tmLanguage.json",
+		"This file has been converted from https://github.com/trond-snekvik/vscode-rst/blob/master/syntaxes/rst.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/trond-snekvik/erdos-rst/commit/7f2d6bb4e20642b60f2979afcb594cfe4b48117a",
+	"version": "https://github.com/trond-snekvik/vscode-rst/commit/7f2d6bb4e20642b60f2979afcb594cfe4b48117a",
 	"scopeName": "source.rst",
 	"patterns": [
 		{

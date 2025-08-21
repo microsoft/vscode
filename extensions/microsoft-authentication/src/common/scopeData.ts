@@ -15,7 +15,7 @@ export class ScopeData {
 	/**
 	 * The full list of scopes including:
 	 * * the original scopes passed to the constructor
-	 * * internal Erdos scopes (e.g. `VSCODE_CLIENT_ID:...`)
+	 * * internal VS Code scopes (e.g. `VSCODE_CLIENT_ID:...`)
 	 * * the default scopes (`openid`, `email`, `profile`, `offline_access`)
 	 */
 	readonly allScopes: string[];
@@ -26,7 +26,7 @@ export class ScopeData {
 	readonly scopeStr: string;
 
 	/**
-	 * The list of scopes to send to the token endpoint. This is the same as `scopes` but without the internal Erdos scopes.
+	 * The list of scopes to send to the token endpoint. This is the same as `scopes` but without the internal VS Code scopes.
 	 */
 	readonly scopesToSend: string[];
 

@@ -345,10 +345,10 @@ function stripComments(content: string): string {
 }
 
 function processCoreBundleFormat(base: string, fileHeader: string, languages: Language[], json: NLSKeysFormat, emitter: ThroughStream) {
-	const languageDirectory = path.join(REPO_ROOT_PATH, '..', 'erdos-loc', 'i18n');
+	const languageDirectory = path.join(REPO_ROOT_PATH, '..', 'vscode-loc', 'i18n');
 	if (!fs.existsSync(languageDirectory)) {
-		log(`No Erdos localization repository found. Looking at ${languageDirectory}`);
-		log(`To bundle translations please check out the erdos-loc repository as a sibling of the vscode repository.`);
+		log(`No VS Code localization repository found. Looking at ${languageDirectory}`);
+		log(`To bundle translations please check out the vscode-loc repository as a sibling of the vscode repository.`);
 	}
 	const sortedLanguages = sortLanguages(languages);
 	sortedLanguages.forEach((language) => {
@@ -357,7 +357,7 @@ function processCoreBundleFormat(base: string, fileHeader: string, languages: La
 		}
 
 		const languageFolderName = language.translationId || language.id;
-		const i18nFile = path.join(languageDirectory, `erdos-language-pack-${languageFolderName}`, 'translations', 'main.i18n.json');
+		const i18nFile = path.join(languageDirectory, `vscode-language-pack-${languageFolderName}`, 'translations', 'main.i18n.json');
 		let allMessages: I18nFormat | undefined;
 		if (fs.existsSync(i18nFile)) {
 			const content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
@@ -402,11 +402,11 @@ export function processNlsFiles(opts: { out: string; fileHeader: string; languag
 	});
 }
 
-const editorProject: string = 'erdos-editor',
-	workbenchProject: string = 'erdos-workbench',
-	extensionsProject: string = 'erdos-extensions',
-	setupProject: string = 'erdos-setup',
-	serverProject: string = 'erdos-server';
+const editorProject: string = 'vscode-editor',
+	workbenchProject: string = 'vscode-workbench',
+	extensionsProject: string = 'vscode-extensions',
+	setupProject: string = 'vscode-setup',
+	serverProject: string = 'vscode-server';
 
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
@@ -489,8 +489,8 @@ function createL10nBundleForExtension(extensionFolderName: string, prefixWithBui
 		.src([
 			// For source code of extensions
 			`${prefix}extensions/${extensionFolderName}/{src,client,server}/**/*.{ts,tsx}`,
-			// // For any dependencies pulled in (think erdos-css-languageservice or @vscode/emmet-helper)
-			`${prefix}extensions/${extensionFolderName}/**/node_modules/{@vscode,erdos-*}/**/*.{js,jsx}`,
+			// // For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
+			`${prefix}extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/*.{js,jsx}`,
 			// // For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
 			`${prefix}extensions/${extensionFolderName}/**/bundle.l10n.json`,
 		])
@@ -550,7 +550,7 @@ function createL10nBundleForExtension(extensionFolderName: string, prefixWithBui
 export const EXTERNAL_EXTENSIONS = [
 	'ms-vscode.js-debug',
 	'ms-vscode.js-debug-companion',
-	'ms-vscode.erdos-js-profile-table',
+	'ms-vscode.vscode-js-profile-table',
 ];
 
 export function createXlfFilesForExtensions(): ThroughStream {
@@ -747,7 +747,7 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	const errors: any[] = [];
 	return through(function (this: ThroughStream, xlf: File) {
 		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
-		// strip `-new` since erdos-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
+		// strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
 		const resource = path.basename(path.basename(xlf.relative, '.xlf'), '-new');
 		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
 			project = extensionsProject;

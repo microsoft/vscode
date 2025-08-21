@@ -67,7 +67,7 @@ function isLoadMoreCommand(item: TreeElement | undefined): item is LoadMoreComma
 }
 
 function isTimelineItem(item: TreeElement | undefined): item is TimelineItem {
-	return !!item && !item.handle.startsWith('erdos-command:');
+	return !!item && !item.handle.startsWith('vscode-command:');
 }
 
 function updateRelativeTime(item: TimelineItem, lastRelativeTime: string | undefined): string | undefined {
@@ -192,7 +192,7 @@ class TimelineAggregate {
 }
 
 class LoadMoreCommand {
-	readonly handle = 'erdos-command:loadMore';
+	readonly handle = 'vscode-command:loadMore';
 	readonly timestamp = 0;
 	readonly description = undefined;
 	readonly tooltip = undefined;

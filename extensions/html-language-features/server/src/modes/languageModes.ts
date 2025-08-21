@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getCSSLanguageService } from 'erdos-css-languageservice';
+import { getCSSLanguageService } from 'vscode-css-languageservice';
 import {
 	DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, ClientCapabilities
-} from 'erdos-html-languageservice';
+} from 'vscode-html-languageservice';
 import {
 	SelectionRange,
 	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
 	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextEdit,
 	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
 	WorkspaceFolder
-} from 'erdos-languageserver';
-import { DocumentUri, TextDocument } from 'erdos-languageserver-textdocument';
+} from 'vscode-languageserver';
+import { DocumentUri, TextDocument } from 'vscode-languageserver-textdocument';
 
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getCSSMode } from './cssMode';
@@ -30,11 +30,11 @@ export {
 	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
 	SignatureInformation, ParameterInformation, DiagnosticSeverity,
 	SelectionRange, TextDocumentIdentifier
-} from 'erdos-languageserver';
+} from 'vscode-languageserver';
 
-export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration, TokenType } from 'erdos-html-languageservice';
+export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration, TokenType } from 'vscode-html-languageservice';
 
-export { TextDocument, DocumentUri } from 'erdos-languageserver-textdocument';
+export { TextDocument, DocumentUri } from 'vscode-languageserver-textdocument';
 
 export interface Settings {
 	readonly css?: any;

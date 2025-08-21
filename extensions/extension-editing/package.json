@@ -34,7 +34,7 @@
     "jsonValidation": [
       {
         "fileMatch": "package.json",
-        "url": "vscode://schemas/erdos-extensions"
+        "url": "vscode://schemas/vscode-extensions"
       },
       {
         "fileMatch": "*language-configuration.json",
@@ -71,6 +71,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

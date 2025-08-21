@@ -28,42 +28,42 @@
 		"name": "*question",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We closed this issue because it is a question about using Erdos rather than an issue or feature request. Please search for help on [StackOverflow](https://aka.ms/vscodestackoverflow), where the community has already answered thousands of similar questions. You may find their [guide on asking a new question](https://aka.ms/vscodestackoverflowquestion) helpful if your question has not already been asked. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
+		"comment": "We closed this issue because it is a question about using VS Code rather than an issue or feature request. Please search for help on [StackOverflow](https://aka.ms/vscodestackoverflow), where the community has already answered thousands of similar questions. You may find their [guide on asking a new question](https://aka.ms/vscodestackoverflowquestion) helpful if your question has not already been asked. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*dev-question",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We have a great extension developer community over on [GitHub discussions](https://github.com/willnickols/erdos-discussions/discussions) and [Slack](https://erdos-dev-community.slack.com/) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
+		"comment": "We have a great extension developer community over on [GitHub discussions](https://github.com/microsoft/vscode-discussions/discussions) and [Slack](https://vscode-dev-community.slack.com/) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*extension-candidate",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We try to keep Erdos lean and we think the functionality you're asking for is great for a Erdos extension. Maybe you can already find one that suits you in the [Erdos Marketplace](https://aka.ms/vscodemarketplace). Just in case, in a few simple steps you can get started [writing your own extension](https://aka.ms/vscodewritingextensions). See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
+		"comment": "We try to keep VS Code lean and we think the functionality you're asking for is great for a VS Code extension. Maybe you can already find one that suits you in the [VS Code Marketplace](https://aka.ms/vscodemarketplace). Just in case, in a few simple steps you can get started [writing your own extension](https://aka.ms/vscodewritingextensions). See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*not-reproducible",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We closed this issue because we are unable to reproduce the problem with the steps you describe. Chances are we've already fixed your problem in a recent version of Erdos. If not, please ask us to reopen the issue and provide us with more detail. Our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) might help you with that.\n\nHappy Coding!"
+		"comment": "We closed this issue because we are unable to reproduce the problem with the steps you describe. Chances are we've already fixed your problem in a recent version of VS Code. If not, please ask us to reopen the issue and provide us with more detail. Our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) might help you with that.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
 		"name": "*out-of-scope",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We closed this issue because we [don't plan to address it](https://aka.ms/erdos-out-of-scope) in the foreseeable future. If you disagree and feel that this issue is crucial: we are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nThanks for your understanding, and happy coding!"
+		"comment": "We closed this issue because we [don't plan to address it](https://aka.ms/vscode-out-of-scope) in the foreseeable future. If you disagree and feel that this issue is crucial: we are happy to listen and to reconsider.\n\nIf you wonder what we are up to, please see our [roadmap](https://aka.ms/vscoderoadmap) and [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nThanks for your understanding, and happy coding!"
 	},
 	{
 		"type": "label",
 		"name": "wont-fix",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "We closed this issue because we [don't plan to address it](https://github.com/willnickols/erdos/wiki/Issue-Grooming#wont-fix-bugs).\n\nThanks for your understanding, and happy coding!"
+		"comment": "We closed this issue because we [don't plan to address it](https://github.com/microsoft/vscode/wiki/Issue-Grooming#wont-fix-bugs).\n\nThanks for your understanding, and happy coding!"
 	},
 	{
 		"type": "comment",
@@ -82,7 +82,7 @@
 		"name": "*caused-by-extension",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in Erdos or the [marketplace](https://aka.ms/vscodemarketplace) for Erdos. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). If you don't know which extension is causing the problem, you can run `Help: Start extension bisect` from the command palette (F1) to help identify the problem extension.\n\nHappy Coding!"
+		"comment": "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). If you don't know which extension is causing the problem, you can run `Help: Start extension bisect` from the command palette (F1) to help identify the problem extension.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -178,14 +178,14 @@
 			"IllusionMH"
 		],
 		"addLabel": "info-needed",
-		"comment": "Thanks for creating this issue regarding performance! Please follow this guide to help us diagnose performance issues: https://github.com/willnickols/erdos/wiki/Performance-Issues \n\nHappy Coding!"
+		"comment": "Thanks for creating this issue regarding performance! Please follow this guide to help us diagnose performance issues: https://github.com/microsoft/vscode/wiki/Performance-Issues \n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
 		"name": "jsDebugLogs",
 		"action": "updateLabels",
 		"addLabel": "info-needed",
-		"comment": "Please collect trace logs using the following instructions:\n\n> If you're able to, add `\"trace\": true` to your `launch.json` and reproduce the issue. The location of the log file on your disk will be written to the Debug Console. Share that with us.\n>\n> ⚠️ This log file will not contain source code, but will contain file paths. You can drop it into https://microsoft.github.io/erdos-pwa-analyzer/index.html to see what it contains. If you'd rather not share the log publicly, you can email it to connor@xbox.com"
+		"comment": "Please collect trace logs using the following instructions:\n\n> If you're able to, add `\"trace\": true` to your `launch.json` and reproduce the issue. The location of the log file on your disk will be written to the Debug Console. Share that with us.\n>\n> ⚠️ This log file will not contain source code, but will contain file paths. You can drop it into https://microsoft.github.io/vscode-pwa-analyzer/index.html to see what it contains. If you'd rather not share the log publicly, you can email it to connor@xbox.com"
 	},
 	{
 		"type": "comment",
@@ -247,7 +247,7 @@
 		"action": "close",
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Python extension. Please file the issue to the [Python extension repository](https://github.com/willnickols/erdos-python). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Python extension. Please file the issue to the [Python extension repository](https://github.com/microsoft/vscode-python). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -261,7 +261,7 @@
 		"action": "close",
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Jupyter extension. Please file the issue to the [Jupyter extension repository](https://github.com/willnickols/erdos-jupyter). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Jupyter extension. Please file the issue to the [Jupyter extension repository](https://github.com/microsoft/vscode-jupyter). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -275,7 +275,7 @@
 		"action": "close",
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C extension. Please file the issue to the [C extension repository](https://github.com/willnickols/erdos-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C extension. Please file the issue to the [C extension repository](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -289,7 +289,7 @@
 		"action": "close",
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C++ extension. Please file the issue to the [C++ extension repository](https://github.com/willnickols/erdos-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C++ extension. Please file the issue to the [C++ extension repository](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -303,7 +303,7 @@
 		"action": "close",
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the C++ extension. Please file the issue to the [C++ extension repository](https://github.com/willnickols/erdos-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the C++ extension. Please file the issue to the [C++ extension repository](https://github.com/microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -358,7 +358,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Go extension. Please file the issue to the [Go extension repository](https://github.com/golang/erdos-go). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Go extension. Please file the issue to the [Go extension repository](https://github.com/golang/vscode-go). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -372,7 +372,7 @@
 		"action": "close",
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the PowerShell extension. Please file the issue to the [PowerShell extension repository](https://github.com/PowerShell/erdos-powershell). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the PowerShell extension. Please file the issue to the [PowerShell extension repository](https://github.com/PowerShell/vscode-powershell). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -400,7 +400,7 @@
 		"action": "close",
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Docker extension. Please file the issue to the [Docker extension repository](https://github.com/willnickols/erdos-docker). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Docker extension. Please file the issue to the [Docker extension repository](https://github.com/microsoft/vscode-docker). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -414,7 +414,7 @@
 		"action": "close",
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Java extension. Please file the issue to the [Java extension repository](https://github.com/redhat-developer/erdos-java). Make sure to check their [troubleshooting instructions](https://github.com/redhat-developer/erdos-java/wiki/Troubleshooting) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Java extension. Please file the issue to the [Java extension repository](https://github.com/redhat-developer/vscode-java). Make sure to check their [troubleshooting instructions](https://github.com/redhat-developer/vscode-java/wiki/Troubleshooting) and provide relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -428,7 +428,7 @@
 		"action": "close",
 		"reason": "not_planned",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Java Debugger extension. Please file the issue to the [Java Debugger repository](https://github.com/willnickols/erdos-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Java Debugger extension. Please file the issue to the [Java Debugger repository](https://github.com/microsoft/vscode-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting) for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -505,7 +505,7 @@
 		"name": "*workspace-trust-docs",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue appears to be the result of the new workspace trust feature shipped in June 2021. This security-focused feature has major impact on the functionality of Erdos. Due to the volume of issues, we ask that you take some time to review our [comprehensive documentation](https://aka.ms/erdos-workspace-trust) on the feature. If your issue is still not resolved, please let us know."
+		"comment": "This issue appears to be the result of the new workspace trust feature shipped in June 2021. This security-focused feature has major impact on the functionality of VS Code. Due to the volume of issues, we ask that you take some time to review our [comprehensive documentation](https://aka.ms/vscode-workspace-trust) on the feature. If your issue is still not resolved, please let us know."
 	},
 	{
 		"type": "label",
@@ -521,7 +521,7 @@
 		"action": "updateLabels",
 		"addLabel": "info-needed",
 		"removeLabel": "~info-needed",
-		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nFor Copilot Issues, be sure to visit our [Copilot-specific guidelines](https://github.com/willnickols/erdos/wiki/Copilot-Issues) page for details on the necessary information.\n\nHappy Coding!"
+		"comment": "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting guidelines](https://aka.ms/vscodeissuereporting). Please take the time to review these and update the issue.\n\nFor Copilot Issues, be sure to visit our [Copilot-specific guidelines](https://github.com/microsoft/vscode/wiki/Copilot-Issues) page for details on the necessary information.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -545,7 +545,7 @@
 		"removeLabel": "~chat-rate-limiting",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/willnickols/erdos/issues/253124. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253124. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -553,7 +553,7 @@
 		"removeLabel": "~chat-request-failed",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/willnickols/erdos/issues/253136. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253136. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -561,7 +561,7 @@
 		"removeLabel": "~chat-rai-content-filters",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/willnickols/erdos/issues/253130. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253130. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -569,7 +569,7 @@
 		"removeLabel": "~chat-public-code-blocking",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/willnickols/erdos/issues/253129. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253129. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -577,7 +577,7 @@
 		"removeLabel": "~chat-lm-unavailable",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "This issue is a duplicate of https://github.com/willnickols/erdos/issues/253137. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253137. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -585,7 +585,7 @@
 		"removeLabel": "~chat-authentication",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "Please look at the following meta issue: https://github.com/willnickols/erdos/issues/253132, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253132, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
 		"assign": ["TylerLeonhardt"]
 	},
 	{
@@ -594,7 +594,7 @@
 		"removeLabel": "~chat-no-response-returned",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "Please look at the following meta issue: https://github.com/willnickols/erdos/issues/253126. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253126. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -603,7 +603,7 @@
 		"addLabel":"chat-billing",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "Please look at the following meta issue: https://github.com/willnickols/erdos/issues/252230. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/252230. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -612,7 +612,7 @@
 		"addLabel":"chat-infinite-response-loop",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "Please look at the following meta issue: https://github.com/willnickols/erdos/issues/253134. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253134. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",
@@ -621,7 +621,7 @@
 		"addLabel": "spam",
 		"action": "close",
 		"reason": "not_planned",
-		"comment": "Thank you for your submission. This issue has been closed as it doesn't meet our community guidelines or appears to be spam.\n\n**If you believe this was closed in error:**\n- Please review our [Code of Conduct](https://opensource.microsoft.com/codeofconduct/)\n- Ensure your issue contains a clear description of the problem or feature request\n- Feel free to open a new issue with appropriate detail if this was a legitimate concern\n\n**For legitimate issues, please include:**\n- Clear description of the problem\n- Steps to reproduce (for bugs)\n- Expected vs actual behavior\n- Erdos version and environment details\n\nThank you for helping us maintain a welcoming and productive community."
+		"comment": "Thank you for your submission. This issue has been closed as it doesn't meet our community guidelines or appears to be spam.\n\n**If you believe this was closed in error:**\n- Please review our [Code of Conduct](https://opensource.microsoft.com/codeofconduct/)\n- Ensure your issue contains a clear description of the problem or feature request\n- Feel free to open a new issue with appropriate detail if this was a legitimate concern\n\n**For legitimate issues, please include:**\n- Clear description of the problem\n- Steps to reproduce (for bugs)\n- Expected vs actual behavior\n- VS Code version and environment details\n\nThank you for helping us maintain a welcoming and productive community."
 	},
 	{
 		"type": "label",

@@ -117,7 +117,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 			if (options?.remoteAuthority === undefined) {
 				// set the remoteAuthority of the window the request came from.
-				// It will be used when the input is neither file nor erdos-remote.
+				// It will be used when the input is neither file nor vscode-remote.
 				options = options ? { ...options, remoteAuthority } : { remoteAuthority };
 			}
 		}

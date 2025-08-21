@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/jlelong/erdos-latex-basics/blob/master/syntaxes/Bibtex.tmLanguage.json",
+		"This file has been converted from https://github.com/jlelong/vscode-latex-basics/blob/master/syntaxes/Bibtex.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/erdos-latex-basics/commit/0fcf9283828cab2aa611072f54feb1e7d501c2b4",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/0fcf9283828cab2aa611072f54feb1e7d501c2b4",
 	"name": "BibTeX",
 	"scopeName": "text.bibtex",
 	"comment": "Grammar based on description from https://github.com/aclements/biblib",

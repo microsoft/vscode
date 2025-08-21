@@ -51,44 +51,44 @@ export namespace Schemas {
 
 	export const command = 'command';
 
-	export const vscodeRemote = 'erdos-remote';
+	export const vscodeRemote = 'vscode-remote';
 
-	export const vscodeRemoteResource = 'erdos-remote-resource';
+	export const vscodeRemoteResource = 'vscode-remote-resource';
 
-	export const vscodeManagedRemoteResource = 'erdos-managed-remote-resource';
+	export const vscodeManagedRemoteResource = 'vscode-managed-remote-resource';
 
-	export const vscodeUserData = 'erdos-userdata';
+	export const vscodeUserData = 'vscode-userdata';
 
-	export const vscodeCustomEditor = 'erdos-custom-editor';
+	export const vscodeCustomEditor = 'vscode-custom-editor';
 
-	export const vscodeNotebookCell = 'erdos-notebook-cell';
-	export const vscodeNotebookCellMetadata = 'erdos-notebook-cell-metadata';
-	export const vscodeNotebookCellMetadataDiff = 'erdos-notebook-cell-metadata-diff';
-	export const vscodeNotebookCellOutput = 'erdos-notebook-cell-output';
-	export const vscodeNotebookCellOutputDiff = 'erdos-notebook-cell-output-diff';
-	export const vscodeNotebookMetadata = 'erdos-notebook-metadata';
-	export const vscodeInteractiveInput = 'erdos-interactive-input';
+	export const vscodeNotebookCell = 'vscode-notebook-cell';
+	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
+	export const vscodeNotebookCellMetadataDiff = 'vscode-notebook-cell-metadata-diff';
+	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
+	export const vscodeNotebookCellOutputDiff = 'vscode-notebook-cell-output-diff';
+	export const vscodeNotebookMetadata = 'vscode-notebook-metadata';
+	export const vscodeInteractiveInput = 'vscode-interactive-input';
 
-	export const vscodeSettings = 'erdos-settings';
+	export const vscodeSettings = 'vscode-settings';
 
-	export const vscodeWorkspaceTrust = 'erdos-workspace-trust';
+	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
 
-	export const vscodeTerminal = 'erdos-terminal';
+	export const vscodeTerminal = 'vscode-terminal';
 
 	/** Scheme used for code blocks in chat. */
-	export const vscodeChatCodeBlock = 'erdos-chat-code-block';
+	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
 
 	/** Scheme used for LHS of code compare (aka diff) blocks in chat. */
-	export const vscodeChatCodeCompareBlock = 'erdos-chat-code-compare-block';
+	export const vscodeChatCodeCompareBlock = 'vscode-chat-code-compare-block';
 
 	/** Scheme used for the chat input editor. */
-	export const vscodeChatEditor = 'erdos-chat-editor';
+	export const vscodeChatEditor = 'vscode-chat-editor';
 
 	/** Scheme used for the chat input part */
 	export const vscodeChatInput = 'chatSessionInput';
 
 	/** Scheme for chat session content */
-	export const vscodeChatSession = 'erdos-chat-session';
+	export const vscodeChatSession = 'vscode-chat-session';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -98,7 +98,7 @@ export namespace Schemas {
 	/**
 	 * Scheme used for loading the wrapper html and script in webviews.
 	 */
-	export const vscodeWebview = 'erdos-webview';
+	export const vscodeWebview = 'vscode-webview';
 
 	/**
 	 * Scheme used for extension pages
@@ -109,7 +109,7 @@ export namespace Schemas {
 	 * Scheme used as a replacement of `file` scheme to load
 	 * files with our custom protocol handler (desktop only).
 	 */
-	export const vscodeFileResource = 'erdos-file';
+	export const vscodeFileResource = 'vscode-file';
 
 	/**
 	 * Scheme used for temporary resources
@@ -124,7 +124,7 @@ export namespace Schemas {
 	/**
 	 * Scheme used for the Source Control commit input's text document
 	 */
-	export const vscodeSourceControl = 'erdos-scm';
+	export const vscodeSourceControl = 'vscode-scm';
 
 	/**
 	 * Scheme used for input box for creating comments.
@@ -165,7 +165,7 @@ export function matchesSomeScheme(target: URI | string, ...schemes: string[]): b
 	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
-export const connectionTokenCookieName = 'erdos-tkn';
+export const connectionTokenCookieName = 'vscode-tkn';
 export const connectionTokenQueryName = 'tkn';
 
 class RemoteAuthoritiesImpl {
@@ -260,7 +260,7 @@ export const nodeModulesPath: AppResourcePath = 'vs/../../node_modules';
 export const nodeModulesAsarPath: AppResourcePath = 'vs/../../node_modules.asar';
 export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modules.asar.unpacked';
 
-export const VSCODE_AUTHORITY = 'erdos-app';
+export const VSCODE_AUTHORITY = 'vscode-app';
 
 class FileAccessImpl {
 
@@ -289,7 +289,7 @@ class FileAccessImpl {
 			return RemoteAuthorities.rewrite(uri);
 		}
 
-		// Convert to `erdos-file` resource..
+		// Convert to `vscode-file` resource..
 		if (
 			// ...only ever for `file` resources
 			uri.scheme === Schemas.file &&
@@ -329,7 +329,7 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	uriToFileUri(uri: URI): URI {
-		// Only convert the URI if it is `erdos-file:` scheme
+		// Only convert the URI if it is `vscode-file:` scheme
 		if (uri.scheme === Schemas.vscodeFileResource) {
 			return uri.with({
 				scheme: Schemas.file,
@@ -387,10 +387,10 @@ export namespace COI {
 
 	export const CoopAndCoep = Object.freeze(coiHeaders.get('3'));
 
-	const coiSearchParamName = 'erdos-coi';
+	const coiSearchParamName = 'vscode-coi';
 
 	/**
-	 * Extract desired headers from `erdos-coi` invocation
+	 * Extract desired headers from `vscode-coi` invocation
 	 */
 	export function getHeadersFromQuery(url: string | URI | URL): Record<string, string> | undefined {
 		let params: URLSearchParams | undefined;
@@ -409,7 +409,7 @@ export namespace COI {
 	}
 
 	/**
-	 * Add the `erdos-coi` query attribute based on wanting `COOP` and `COEP`. Will be a noop when `crossOriginIsolated`
+	 * Add the `vscode-coi` query attribute based on wanting `COOP` and `COEP`. Will be a noop when `crossOriginIsolated`
 	 * isn't enabled the current context
 	 */
 	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {

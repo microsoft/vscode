@@ -1,5 +1,5 @@
 {
-  "name": "erdos-reh",
+  "name": "vscode-reh",
   "version": "0.0.0",
   "private": true,
   "dependencies": {
@@ -12,7 +12,7 @@
     "@vscode/ripgrep": "^1.15.13",
     "@vscode/spdlog": "^0.15.2",
     "@vscode/tree-sitter-wasm": "^0.1.4",
-    "@vscode/erdos-languagedetection": "1.0.21",
+    "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/windows-process-tree": "^0.6.0",
     "@vscode/windows-registry": "^1.1.0",
     "@xterm/addon-clipboard": "^0.2.0-beta.95",
@@ -34,9 +34,9 @@
     "native-watchdog": "^1.4.1",
     "node-pty": "^1.1.0-beta33",
     "tas-client-umd": "0.2.0",
-    "erdos-oniguruma": "1.7.0",
-    "erdos-regexpp": "^3.1.0",
-    "erdos-textmate": "9.2.0",
+    "vscode-oniguruma": "1.7.0",
+    "vscode-regexpp": "^3.1.0",
+    "vscode-textmate": "9.2.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },

@@ -55,7 +55,7 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 						type: 'string',
 						markdownDescription: nls.localize('externalUriOpeners.uri', "Map URI pattern to an opener id.\nExample patterns: \n{0}", exampleUriPatterns),
 						enum: [defaultExternalUriOpenerId],
-						enumDescriptions: [nls.localize('externalUriOpeners.defaultId', "Open using Erdos's standard opener.")],
+						enumDescriptions: [nls.localize('externalUriOpeners.defaultId', "Open using VS Code's standard opener.")],
 					},
 					externalUriOpenerIdSchemaAddition
 				]

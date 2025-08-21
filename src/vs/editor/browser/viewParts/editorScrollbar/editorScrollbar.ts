@@ -17,7 +17,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 
 /**
- * The editor scrollbar built on Erdos's scrollable element that sits beside
+ * The editor scrollbar built on VS Code's scrollable element that sits beside
  * the minimap.
  */
 export class EditorScrollbar extends ViewPart {

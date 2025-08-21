@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/84899
+	// https://github.com/microsoft/vscode/issues/84899
 
 	/**
 	 * The contiguous set of modified lines in a diff.

@@ -591,16 +591,16 @@ export class McpServer extends Disposable implements IMcpServer {
 			let docsLink: string | undefined;
 			switch (cnx.launchDefinition.command) {
 				case 'uvx':
-					docsLink = `https://aka.ms/erdos-mcp-install/uvx`;
+					docsLink = `https://aka.ms/vscode-mcp-install/uvx`;
 					break;
 				case 'npx':
-					docsLink = `https://aka.ms/erdos-mcp-install/npx`;
+					docsLink = `https://aka.ms/vscode-mcp-install/npx`;
 					break;
 				case 'dnx':
-					docsLink = `https://aka.ms/erdos-mcp-install/dnx`;
+					docsLink = `https://aka.ms/vscode-mcp-install/dnx`;
 					break;
 				case 'dotnet':
-					docsLink = `https://aka.ms/erdos-mcp-install/dotnet`;
+					docsLink = `https://aka.ms/vscode-mcp-install/dotnet`;
 					break;
 			}
 
@@ -612,7 +612,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			if (cnx.definition.devMode?.debug?.type === 'debugpy' && debug) {
 				this._notificationService.prompt(Severity.Error, localize('mcpDebugPyHelp', 'The command "{0}" was not found. You can specify the path to debugpy in the `dev.debug.debugpyPath` option.', cnx.launchDefinition.command, cnx.definition.label), [...options, {
 					label: localize('mcpViewDocs', 'View Docs'),
-					run: () => this._openerService.open(URI.parse('https://aka.ms/erdos-mcp-install/debugpy')),
+					run: () => this._openerService.open(URI.parse('https://aka.ms/vscode-mcp-install/debugpy')),
 				}]);
 				return;
 			}

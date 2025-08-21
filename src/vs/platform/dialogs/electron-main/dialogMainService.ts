@@ -237,7 +237,7 @@ export class DialogMainService implements IDialogMainService {
 		// If a window is provided, only allow a single dialog
 		// at the same time because dialogs are modal and we
 		// do not want to open one dialog after the other
-		// (https://github.com/willnickols/erdos/issues/114432)
+		// (https://github.com/microsoft/vscode/issues/114432)
 		// we figure this out by `hashing` the configuration
 		// options for the dialog to prevent duplicates
 

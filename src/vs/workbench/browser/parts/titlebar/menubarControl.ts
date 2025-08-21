@@ -372,7 +372,7 @@ export abstract class MenubarControl extends Disposable {
 	}
 }
 
-// This is a bit complex due to the issue https://github.com/willnickols/erdos/issues/205836
+// This is a bit complex due to the issue https://github.com/microsoft/vscode/issues/205836
 let focusMenuBarEmitter: Emitter<void> | undefined = undefined;
 function enableFocusMenuBarAction(): Emitter<void> {
 	if (!focusMenuBarEmitter) {

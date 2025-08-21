@@ -114,7 +114,7 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 				// to normalize this path first before passing it on
 				// because we will compare it against `Uri.fsPath`
 				// which uses platform specific separators.
-				// Refs: https://github.com/willnickols/erdos/issues/99938
+				// Refs: https://github.com/microsoft/vscode/issues/99938
 				normalizedPattern = { ...pattern, base: normalize(pattern.base) };
 			}
 

@@ -347,7 +347,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		// Just save if target is same as working copies own resource
 		// and we are not saving an untitled file working copy
 		if (this.fileService.hasProvider(source) && isEqual(source, target)) {
-			return this.doSave(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/willnickols/erdos/issues/99619) */ });
+			return this.doSave(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 		}
 
 		// If the target is different but of same identity, we
@@ -406,7 +406,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		// Confirm to overwrite if we have an untitled file working copy with associated path where
 		// the file actually exists on disk and we are instructed to save to that file path.
 		// This can happen if the file was created after the untitled file was opened.
-		// See https://github.com/willnickols/erdos/issues/67946
+		// See https://github.com/microsoft/vscode/issues/67946
 		if (
 			sourceWorkingCopy instanceof UntitledFileWorkingCopy &&
 			sourceWorkingCopy.hasAssociatedFilePath &&
@@ -434,7 +434,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		const success = await targetStoredFileWorkingCopy.save({
 			...options,
 			from: source,
-			force: true  /* force to save, even if not dirty (https://github.com/willnickols/erdos/issues/99619) */
+			force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */
 		});
 		if (!success) {
 			return undefined;

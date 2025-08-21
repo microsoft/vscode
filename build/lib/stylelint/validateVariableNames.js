@@ -14,13 +14,13 @@ const RE_VAR_PROP = /var\(\s*(--([\w\-\.]+))/g;
 let knownVariables;
 function getKnownVariableNames() {
     if (!knownVariables) {
-        const knownVariablesFileContent = (0, fs_1.readFileSync)(path_1.default.join(__dirname, './erdos-known-variables.json'), 'utf8').toString();
+        const knownVariablesFileContent = (0, fs_1.readFileSync)(path_1.default.join(__dirname, './vscode-known-variables.json'), 'utf8').toString();
         const knownVariablesInfo = JSON.parse(knownVariablesFileContent);
         knownVariables = new Set([...knownVariablesInfo.colors, ...knownVariablesInfo.others]);
     }
     return knownVariables;
 }
-const iconVariable = /^--erdos-icon-.+-(content|font-family)$/;
+const iconVariable = /^--vscode-icon-.+-(content|font-family)$/;
 function getVariableNameValidator() {
     const allVariables = getKnownVariableNames();
     return (value, report) => {

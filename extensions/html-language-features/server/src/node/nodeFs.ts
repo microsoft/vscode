@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FileSystemProvider } from '../requests';
-import { URI as Uri } from 'erdos-uri';
+import { URI as Uri } from 'vscode-uri';
 
 import * as fs from 'fs';
-import { FileType } from 'erdos-css-languageservice';
+import { FileType } from 'vscode-css-languageservice';
 
 export function getNodeFileFS(): FileSystemProvider {
 	function ensureFileUri(location: string) {

@@ -28,10 +28,10 @@ import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from './languag
 
 const TOP_LANG_COUNTS = 12;
 
-const regexpModuleLocation: AppResourcePath = `${nodeModulesPath}/erdos-regexp-languagedetection`;
-const regexpModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/erdos-regexp-languagedetection`;
-const moduleLocation: AppResourcePath = `${nodeModulesPath}/@vscode/erdos-languagedetection`;
-const moduleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/@vscode/erdos-languagedetection`;
+const regexpModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-regexp-languagedetection`;
+const regexpModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-regexp-languagedetection`;
+const moduleLocation: AppResourcePath = `${nodeModulesPath}/@vscode/vscode-languagedetection`;
+const moduleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/@vscode/vscode-languagedetection`;
 
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
@@ -71,7 +71,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			modelService,
 			languageService,
 			telemetryService,
-			// TODO See if it's possible to bundle erdos-languagedetection
+			// TODO See if it's possible to bundle vscode-languagedetection
 			useAsar
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`).toString(true)
 				: FileAccess.asBrowserUri(`${moduleLocation}/dist/lib/index.js`).toString(true),

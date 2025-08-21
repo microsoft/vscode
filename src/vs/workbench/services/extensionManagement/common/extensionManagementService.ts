@@ -863,7 +863,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
 			run: () => {
 				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'learn', extensionId: untrustedExtensions.map(e => e.identifier.id).join(',') });
-				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('vscode.open', URI.parse('https://aka.ms/erdos-extension-security')));
+				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('vscode.open', URI.parse('https://aka.ms/vscode-extension-security')));
 				throw new CancellationError();
 			}
 		};
@@ -872,7 +872,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			return publisherLink ? `[${publisherDisplayName}](${publisherLink})` : publisherDisplayName;
 		};
 
-		const unverifiedLink = 'https://aka.ms/erdos-verify-publisher';
+		const unverifiedLink = 'https://aka.ms/vscode-verify-publisher';
 
 		const title = allPublishers.length === 1
 			? localize('checkTrustedPublisherTitle', "Do you trust the publisher \"{0}\"?", allPublishers[0].publisherDisplayName)
@@ -1042,7 +1042,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			}
 		}
 
-		const productName = localize('Erdos for Web', "{0} for the Web", this.productService.nameLong);
+		const productName = localize('VS Code for Web', "{0} for the Web", this.productService.nameLong);
 		const virtualWorkspaceSupport = this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(manifest);
 		const virtualWorkspaceSupportReason = getWorkspaceSupportTypeMessage(manifest.capabilities?.virtualWorkspaces);
 		const hasLimitedSupport = virtualWorkspaceSupport === 'limited' || !!virtualWorkspaceSupportReason;

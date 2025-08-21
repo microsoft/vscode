@@ -51,7 +51,7 @@ function getSha(filename) {
     return hash.digest('hex');
 }
 function getVSCodeSysrootChecksum(expectedName) {
-    const checksums = fs_1.default.readFileSync(path_1.default.join(REPO_ROOT, 'build', 'checksums', 'erdos-sysroot.txt'), 'utf8');
+    const checksums = fs_1.default.readFileSync(path_1.default.join(REPO_ROOT, 'build', 'checksums', 'vscode-sysroot.txt'), 'utf8');
     for (const line of checksums.split('\n')) {
         const [checksum, name] = line.split(/\s+/);
         if (name === expectedName) {
@@ -71,7 +71,7 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
         const timeout = setTimeout(() => controller.abort(), 30 * 1000);
         const version = '20250407-330404';
         try {
-            const response = await fetch(`https://api.github.com/repos/Microsoft/erdos-linux-build-agent/releases/tags/v${version}`, {
+            const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
                 headers: ghApiHeaders,
                 signal: controller.signal /* Typings issue with lib.dom.d.ts */
             });
@@ -80,7 +80,7 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
                 const contents = Buffer.from(await response.arrayBuffer());
                 const asset = JSON.parse(contents.toString()).assets.find((a) => a.name === options.assetName);
                 if (!asset) {
-                    throw new Error(`Could not find asset in release of Microsoft/erdos-linux-build-agent @ ${version}`);
+                    throw new Error(`Could not find asset in release of Microsoft/vscode-linux-build-agent @ ${version}`);
                 }
                 console.log(`Found asset ${options.assetName} @ ${asset.url}.`);
                 const assetResponse = await fetch(asset.url, {
@@ -147,7 +147,7 @@ async function getVSCodeSysroot(arch, isMusl = false) {
     if (!checksumSha256) {
         throw new Error(`Could not find checksum for ${expectedName}`);
     }
-    const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path_1.default.join((0, os_1.tmpdir)(), `erdos-${arch}-sysroot`);
+    const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path_1.default.join((0, os_1.tmpdir)(), `vscode-${arch}-sysroot`);
     const stamp = path_1.default.join(sysroot, '.stamp');
     let result = `${sysroot}/${triple}/${triple}/sysroot`;
     if (isMusl) {

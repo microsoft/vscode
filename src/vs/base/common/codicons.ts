@@ -16,7 +16,7 @@ export function getAllCodicons(): ThemeIcon[] {
 
 /**
  * Derived icons, that could become separate icons.
- * These mappings should be moved into the mapping file in the erdos-codicons repo at some point.
+ * These mappings should be moved into the mapping file in the vscode-codicons repo at some point.
  */
 export const codiconsDerived = {
 	dialogError: register('dialog-error', 'error'),
@@ -51,9 +51,9 @@ export const codiconsDerived = {
 } as const;
 
 /**
- * The Codicon library is a set of default icons that are built-in in Erdos.
+ * The Codicon library is a set of default icons that are built-in in VS Code.
  *
- * In the product (outside of base) Codicons should only be used as defaults. In order to have all icons in Erdos
+ * In the product (outside of base) Codicons should only be used as defaults. In order to have all icons in VS Code
  * themeable, component should define new, UI component specific icons using `iconRegistry.registerIcon`.
  * In that call a Codicon can be named as default.
  */

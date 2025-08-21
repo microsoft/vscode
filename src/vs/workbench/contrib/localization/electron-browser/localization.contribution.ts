@@ -125,7 +125,7 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 			}
 		}
 
-		const extensionToInstall = tagResult.total === 1 ? tagResult.firstPage[0] : tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('erdos-language-pack'));
+		const extensionToInstall = tagResult.total === 1 ? tagResult.firstPage[0] : tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack'));
 		const extensionToFetchTranslationsFrom = extensionToInstall ?? tagResult.firstPage[0];
 
 		if (!extensionToFetchTranslationsFrom.assets.manifest) {

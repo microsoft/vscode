@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as URI from 'erdos-uri';
+import * as URI from 'vscode-uri';
 import { ITextDocument } from '../../types/textDocument';
 import { getDocumentDir } from '../../util/document';
 import { Schemes } from '../../util/schemes';

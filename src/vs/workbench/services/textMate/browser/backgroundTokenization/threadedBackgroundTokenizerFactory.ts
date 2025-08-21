@@ -21,7 +21,7 @@ import { ICreateData, StateDeltas, TextMateTokenizationWorker } from './worker/t
 import { TextMateWorkerHost } from './worker/textMateWorkerHost.js';
 import { TextMateWorkerTokenizerController } from './textMateWorkerTokenizerController.js';
 import { IValidGrammarDefinition } from '../../common/TMScopeRegistry.js';
-import type { IRawTheme } from 'erdos-textmate';
+import type { IRawTheme } from 'vscode-textmate';
 import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
 import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
 
@@ -126,8 +126,8 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	}
 
 	private async _createWorkerProxy(): Promise<Proxied<TextMateTokenizationWorker> | null> {
-		const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/erdos-oniguruma`;
-		const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/erdos-oniguruma`;
+		const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
+		const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
 		const useAsar = canASAR && this._environmentService.isBuilt && !isWeb;
 		const onigurumaLocation: AppResourcePath = useAsar ? onigurumaModuleLocationAsar : onigurumaModuleLocation;

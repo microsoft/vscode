@@ -15,7 +15,7 @@ suite('XLF Parser Tests', () => {
 	const translatedMessages = { key1: 'Кнопка #1', key2: 'Кнопка #2 &' };
 
 	test('Keys & messages to XLF conversion', () => {
-		const xlf = new i18n.XLF('erdos-workbench');
+		const xlf = new i18n.XLF('vscode-workbench');
 		xlf.addFile(name, keys, messages);
 		const xlfString = xlf.toString();
 
@@ -30,8 +30,8 @@ suite('XLF Parser Tests', () => {
 	});
 
 	test('JSON file source path to Transifex resource match', () => {
-		const editorProject: string = 'erdos-editor',
-			workbenchProject: string = 'erdos-workbench';
+		const editorProject: string = 'vscode-editor',
+			workbenchProject: string = 'vscode-workbench';
 
 		const platform: i18n.Resource = { name: 'vs/platform', project: editorProject },
 			editorContrib = { name: 'vs/editor/contrib', project: editorProject },

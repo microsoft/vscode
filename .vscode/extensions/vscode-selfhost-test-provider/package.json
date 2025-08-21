@@ -1,7 +1,7 @@
 {
-  "name": "erdos-selfhost-test-provider",
-  "displayName": "Erdos Selfhost Test Provider",
-  "description": "Test provider for the Erdos project",
+  "name": "vscode-selfhost-test-provider",
+  "displayName": "VS Code Selfhost Test Provider",
+  "description": "Test provider for the VS Code project",
   "enabledApiProposals": [
     "testObserver",
     "testRelatedCode"
@@ -68,12 +68,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   },
   "license": "MIT",
   "scripts": {
-    "compile": "gulp compile-extension:erdos-selfhost-test-provider",
-    "watch": "gulp watch-extension:erdos-selfhost-test-provider",
+    "compile": "gulp compile-extension:vscode-selfhost-test-provider",
+    "watch": "gulp watch-extension:vscode-selfhost-test-provider",
     "test": "npx mocha --ui tdd 'out/*.test.js'"
   },
   "devDependencies": {

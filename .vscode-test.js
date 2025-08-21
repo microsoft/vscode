@@ -38,8 +38,8 @@ const extensions = [
 		mocha: { timeout: 60_000 }
 	},
 	{
-		label: 'erdos-colorize-tests',
-		workspaceFolder: `extensions/erdos-colorize-tests/test`,
+		label: 'vscode-colorize-tests',
+		workspaceFolder: `extensions/vscode-colorize-tests/test`,
 		mocha: { timeout: 60_000 }
 	},
 	{
@@ -48,8 +48,8 @@ const extensions = [
 		mocha: { timeout: 60_000 }
 	},
 	{
-		label: 'erdos-colorize-perf-tests',
-		workspaceFolder: `extensions/erdos-colorize-perf-tests/test`,
+		label: 'vscode-colorize-perf-tests',
+		workspaceFolder: `extensions/vscode-colorize-perf-tests/test`,
 		mocha: { timeout: 6000_000 }
 	},
 	{
@@ -67,18 +67,18 @@ const extensions = [
 		mocha: { timeout: 60_000 }
 	},
 	{
-		label: 'erdos-api-tests-folder',
-		extensionDevelopmentPath: `extensions/erdos-api-tests`,
-		workspaceFolder: `extensions/erdos-api-tests/testWorkspace`,
+		label: 'vscode-api-tests-folder',
+		extensionDevelopmentPath: `extensions/vscode-api-tests`,
+		workspaceFolder: `extensions/vscode-api-tests/testWorkspace`,
 		mocha: { timeout: 60_000 },
-		files: 'extensions/erdos-api-tests/out/singlefolder-tests/**/*.test.js',
+		files: 'extensions/vscode-api-tests/out/singlefolder-tests/**/*.test.js',
 	},
 	{
-		label: 'erdos-api-tests-workspace',
-		extensionDevelopmentPath: `extensions/erdos-api-tests`,
-		workspaceFolder: `extensions/erdos-api-tests/testworkspace.code-workspace`,
+		label: 'vscode-api-tests-workspace',
+		extensionDevelopmentPath: `extensions/vscode-api-tests`,
+		workspaceFolder: `extensions/vscode-api-tests/testworkspace.code-workspace`,
 		mocha: { timeout: 60_000 },
-		files: 'extensions/erdos-api-tests/out/workspace-tests/**/*.test.js',
+		files: 'extensions/vscode-api-tests/out/workspace-tests/**/*.test.js',
 	}
 ];
 

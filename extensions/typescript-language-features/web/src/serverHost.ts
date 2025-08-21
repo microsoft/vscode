@@ -11,7 +11,7 @@ import { FileWatcherManager } from './fileWatcherManager';
 import { Logger } from './logging';
 import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
 import { findArgument, hasArgument } from './util/args';
-import { URI } from 'erdos-uri';
+import { URI } from 'vscode-uri';
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
@@ -135,7 +135,7 @@ function createServerHost(
 					return undefined;
 				}
 				try {
-					contents = fs.readFile(mapUri(uri, 'erdos-node-modules'));
+					contents = fs.readFile(mapUri(uri, 'vscode-node-modules'));
 				} catch (e) {
 					return undefined;
 				}
@@ -156,7 +156,7 @@ function createServerHost(
 			} catch (_error) {
 				if (enabledExperimentalTypeAcquisition) {
 					try {
-						ret = fs.stat(mapUri(uri, 'erdos-node-modules')).size;
+						ret = fs.stat(mapUri(uri, 'vscode-node-modules')).size;
 					} catch (_error) {
 					}
 				}
@@ -184,8 +184,8 @@ function createServerHost(
 			try {
 				fs.writeFile(uri, encoded);
 				const name = basename(uri.path);
-				if (uri.scheme !== 'erdos-global-typings' && (name === 'package.json' || name === 'package-lock.json' || name === 'package-lock.kdl')) {
-					fs.writeFile(mapUri(uri, 'erdos-node-modules'), encoded);
+				if (uri.scheme !== 'vscode-global-typings' && (name === 'package.json' || name === 'package-lock.json' || name === 'package-lock.kdl')) {
+					fs.writeFile(mapUri(uri, 'vscode-node-modules'), encoded);
 				}
 			} catch (error) {
 				console.error('fs.writeFile', { path, error });
@@ -221,7 +221,7 @@ function createServerHost(
 			} catch (_error) {
 				if (enabledExperimentalTypeAcquisition) {
 					try {
-						ret = fs.stat(mapUri(uri, 'erdos-node-modules')).type === FileType.File;
+						ret = fs.stat(mapUri(uri, 'vscode-node-modules')).type === FileType.File;
 					} catch (_error) {
 					}
 				}
@@ -248,7 +248,7 @@ function createServerHost(
 			} catch (_error) {
 				if (enabledExperimentalTypeAcquisition) {
 					try {
-						stat = fs.stat(mapUri(uri, 'erdos-node-modules'));
+						stat = fs.stat(mapUri(uri, 'vscode-node-modules'));
 					} catch (_error) {
 					}
 				}
@@ -306,7 +306,7 @@ function createServerHost(
 			} catch (_e) {
 				if (enabledExperimentalTypeAcquisition) {
 					try {
-						s = fs.stat(mapUri(uri, 'erdos-node-modules'));
+						s = fs.stat(mapUri(uri, 'vscode-node-modules'));
 					} catch (_e) {
 					}
 				}
@@ -345,8 +345,8 @@ function createServerHost(
 		}
 
 		const isNm = looksLikeNodeModules(path)
-			&& !path.startsWith('/erdos-global-typings/')
-			// Handle the case where a local folder has been opened in Erdos
+			&& !path.startsWith('/vscode-global-typings/')
+			// Handle the case where a local folder has been opened in VS Code
 			// In these cases we do not want to use the mapped node_module
 			&& !path.startsWith('/file/');
 
@@ -363,7 +363,7 @@ function createServerHost(
 		}
 
 		if (isNm) {
-			uri = mapUri(uri, 'erdos-node-modules');
+			uri = mapUri(uri, 'vscode-node-modules');
 		}
 		const out = [uri.scheme];
 		if (uri.authority) { out.push(uri.authority); }
@@ -396,7 +396,7 @@ function createServerHost(
 			entries = fs.readDirectory(uri);
 		} catch (_e) {
 			try {
-				entries = fs.readDirectory(mapUri(uri, 'erdos-node-modules'));
+				entries = fs.readDirectory(mapUri(uri, 'vscode-node-modules'));
 			} catch (_e) {
 			}
 		}

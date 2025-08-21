@@ -6,7 +6,7 @@
 import type { IV8Profile, IV8ProfileNode } from './profiling.js';
 
 // #region
-// https://github.com/willnickols/erdos-js-profile-visualizer/blob/6e7401128ee860be113a916f80fcfe20ac99418e/packages/erdos-js-profile-core/src/cpu/model.ts#L4
+// https://github.com/microsoft/vscode-js-profile-visualizer/blob/6e7401128ee860be113a916f80fcfe20ac99418e/packages/vscode-js-profile-core/src/cpu/model.ts#L4
 
 export interface IProfileModel {
 	nodes: ReadonlyArray<IComputedNode>;

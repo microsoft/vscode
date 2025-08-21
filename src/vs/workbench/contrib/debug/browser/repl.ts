@@ -402,10 +402,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				}
 			`;
 			const cssFontFamily = this.replOptions.replConfiguration.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : this.replOptions.replConfiguration.fontFamily;
-			this.container.style.setProperty(`--erdos-repl-font-family`, cssFontFamily);
-			this.container.style.setProperty(`--erdos-repl-font-size`, `${this.replOptions.replConfiguration.fontSize}px`);
-			this.container.style.setProperty(`--erdos-repl-font-size-for-twistie`, `${this.replOptions.replConfiguration.fontSizeForTwistie}px`);
-			this.container.style.setProperty(`--erdos-repl-line-height`, this.replOptions.replConfiguration.cssLineHeight);
+			this.container.style.setProperty(`--vscode-repl-font-family`, cssFontFamily);
+			this.container.style.setProperty(`--vscode-repl-font-size`, `${this.replOptions.replConfiguration.fontSize}px`);
+			this.container.style.setProperty(`--vscode-repl-font-size-for-twistie`, `${this.replOptions.replConfiguration.fontSizeForTwistie}px`);
+			this.container.style.setProperty(`--vscode-repl-line-height`, this.replOptions.replConfiguration.cssLineHeight);
 
 			this.tree?.rerender();
 

@@ -598,8 +598,8 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "erdos-codicons",
-					"repositoryUrl": "https://github.com/willnickols/erdos-codicons",
+					"name": "vscode-codicons",
+					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
 					"commitHash": "ccdcf91d57d3a5a1d6b620d95d518bab4d75984d"
 				}
 			},
@@ -646,8 +646,8 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "erdos-win32-app-container-tokens",
-					"repositoryUrl": "https://github.com/willnickols/erdos-win32-app-container-tokens",
+					"name": "vscode-win32-app-container-tokens",
+					"repositoryUrl": "https://github.com/microsoft/vscode-win32-app-container-tokens",
 					"commitHash": "5b871f95fd9cb8efa8ee9a80600510d5e5339137"
 				}
 			},

@@ -15,7 +15,7 @@ import * as nls from '../../../nls.js';
 import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings, ITerminalForPlatform } from '../common/externalTerminal.js';
 import { ITerminalEnvironment } from '../../terminal/common/terminal.js';
 
-const TERMINAL_TITLE = nls.localize('console.title', "Erdos Console");
+const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
 abstract class ExternalTerminalService {
 	public _serviceBrand: undefined;

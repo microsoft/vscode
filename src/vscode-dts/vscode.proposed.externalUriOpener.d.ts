@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/109277
+	// https://github.com/microsoft/vscode/issues/109277
 
 	/**
 	 * Details if an `ExternalUriOpener` can open a uri.

@@ -101,7 +101,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
 
 	// A map of scheduled pending backup operations for working copies
-	// Given https://github.com/willnickols/erdos/issues/158038, we explicitly
+	// Given https://github.com/microsoft/vscode/issues/158038, we explicitly
 	// do not store `IWorkingCopy` but the identifier in the map, since it
 	// looks like GC is not running for the working copy otherwise.
 	protected readonly pendingBackupOperations = new Map<IWorkingCopyIdentifier, { disposable: IDisposable; cancel: () => void }>();

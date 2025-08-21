@@ -122,7 +122,7 @@ export function getRandomUserDataDir(options: ApplicationOptions): string {
 
 	// Pick a random user data dir suffix that is not
 	// too long to not run into max path length issues
-	// https://github.com/willnickols/erdos/issues/34988
+	// https://github.com/microsoft/vscode/issues/34988
 	const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
 
 	return options.userDataDir.concat(`-${userDataPathSuffix}`);

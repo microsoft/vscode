@@ -9,7 +9,7 @@
     "vscode": "0.10.x"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/erdos-grammar-updater/bin textmate/diff.tmbundle Syntaxes/Diff.plist ./syntaxes/diff.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/diff.tmbundle Syntaxes/Diff.plist ./syntaxes/diff.tmLanguage.json"
   },
   "categories": ["Programming Languages"],
   "contributes": {

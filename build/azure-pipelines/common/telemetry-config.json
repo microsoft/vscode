@@ -18,13 +18,13 @@
 	{
 		"eventPrefix": "extension-telemetry/",
 		"sourceDirs": [
-			"erdos-extension-telemetry"
+			"vscode-extension-telemetry"
 		],
 		"excludedDirs": [],
 		"applyEndpoints": true
 	},
 	{
-		"eventPrefix": "erdos-markdown/",
+		"eventPrefix": "vscode-markdown/",
 		"sourceDirs": [
 			"../../s/extensions/markdown-language-features"
 		],
@@ -35,7 +35,7 @@
 		"eventPrefix": "html-language-features/",
 		"sourceDirs": [
 			"../../s/extensions/html-language-features",
-			"erdos-html-languageservice"
+			"vscode-html-languageservice"
 		],
 		"excludedDirs": [],
 		"applyEndpoints": true
@@ -44,7 +44,7 @@
 		"eventPrefix": "json-language-features/",
 		"sourceDirs": [
 			"../../s/extensions/json-language-features",
-			"erdos-json-languageservice"
+			"vscode-json-languageservice"
 		],
 		"excludedDirs": [],
 		"applyEndpoints": true
@@ -52,8 +52,8 @@
 	{
 		"eventPrefix": "ms-vscode.node/",
 		"sourceDirs": [
-			"erdos-chrome-debug-core",
-			"erdos-node-debug"
+			"vscode-chrome-debug-core",
+			"vscode-node-debug"
 		],
 		"excludedDirs": [],
 		"applyEndpoints": true,

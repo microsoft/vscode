@@ -159,16 +159,16 @@
         "url": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json"
       },
       {
-        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-erdos-remote.remote-containers/nameConfigs/*.json",
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/nameConfigs/*.json",
         "url": "./schemas/attachContainer.schema.json"
       },
       {
-        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-erdos-remote.remote-containers/imageConfigs/*.json",
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
         "url": "./schemas/attachContainer.schema.json"
       },
       {
         "fileMatch": "**/quality/*/product.json",
-        "url": "vscode://schemas/erdos-product"
+        "url": "vscode://schemas/vscode-product"
       }
     ]
   },
@@ -177,6 +177,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

@@ -717,7 +717,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	private installModelListeners(model: M): void {
 
-		// See https://github.com/willnickols/erdos/issues/30189
+		// See https://github.com/microsoft/vscode/issues/30189
 		// This code has been extracted to a different method because it caused a memory leak
 		// where `value` was captured in the content change listener closure scope.
 
@@ -737,7 +737,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		// Remember when the user changed the model through a undo/redo operation.
 		// We need this information to throttle save participants to fix
-		// https://github.com/willnickols/erdos/issues/102542
+		// https://github.com/microsoft/vscode/issues/102542
 		if (isUndoingOrRedoing) {
 			this.lastContentChangeFromUndoRedo = Date.now();
 		}
@@ -970,7 +970,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 					// - this will undo the save participant change but trigger the save participant right after
 					// - the user has no chance to undo over the save participant
 					//
-					// Reported as: https://github.com/willnickols/erdos/issues/102542
+					// Reported as: https://github.com/microsoft/vscode/issues/102542
 					if (options.reason === SaveReason.AUTO && typeof this.lastContentChangeFromUndoRedo === 'number') {
 						const timeFromUndoRedoToSave = Date.now() - this.lastContentChangeFromUndoRedo;
 						if (timeFromUndoRedoToSave < StoredFileWorkingCopy.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD) {
@@ -1007,7 +1007,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			// was triggerd followed by a dispose() operation right after without waiting. Typically we cannot
 			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
-			// saving contents to disk that are stale (see https://github.com/willnickols/erdos/issues/50942).
+			// saving contents to disk that are stale (see https://github.com/microsoft/vscode/issues/50942).
 			// To fix this issue, we will not store the contents to disk when we got disposed.
 			if (this.isDisposed()) {
 				return;

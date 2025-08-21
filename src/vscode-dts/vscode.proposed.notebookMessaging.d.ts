@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/123601
+	// https://github.com/microsoft/vscode/issues/123601
 
 	/**
 	 * Represents a script that is loaded into the notebook renderer before rendering output. This allows

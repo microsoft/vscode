@@ -9,7 +9,7 @@ import * as playwright from '@playwright/test';
 import * as url from 'url';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
-import { URI } from 'erdos-uri';
+import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import * as minimist from 'minimist';
 import { promisify } from 'util';
@@ -43,7 +43,7 @@ const args = minimist(process.argv.slice(2), {
 });
 
 if (args.help) {
-	console.error(`Integration test runner for Erdos in the browser
+	console.error(`Integration test runner for VS Code in the browser
 	Usage: node integration-tests-browser/out/index.js [options]
 
 	--workspacePath <path>             Path to the workspace (folder or *.code-workspace file) to open in the test
@@ -126,7 +126,7 @@ async function runTestsInBrowser(browserType: BrowserType, browserChannel: Brows
 	});
 
 	const host = endpoint.host;
-	const protocol = 'erdos-remote';
+	const protocol = 'vscode-remote';
 
 	const testWorkspacePath = URI.file(path.resolve(args.workspacePath)).path;
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(args.extensionDevelopmentPath)).path, protocol, host, slashes: true });

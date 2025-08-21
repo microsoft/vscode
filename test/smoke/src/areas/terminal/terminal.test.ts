@@ -36,7 +36,7 @@ export function setup(logger: Logger) {
 			await terminal.runCommand(TerminalCommandId.KillAll);
 		});
 
-		// https://github.com/willnickols/erdos/issues/216564
+		// https://github.com/microsoft/vscode/issues/216564
 		// The pty host can crash on Linux in smoke tests for an unknown reason. We need more user
 		// reports to investigate
 		setupTerminalEditorsTests({ skipSuite: process.platform === 'linux' });
@@ -46,7 +46,7 @@ export function setup(logger: Logger) {
 		setupTerminalTabsTests({ skipSuite: process.platform === 'linux' });
 		setupTerminalShellIntegrationTests({ skipSuite: process.platform === 'linux' });
 		setupTerminalStickyScrollTests({ skipSuite: true });
-		// https://github.com/willnickols/erdos/pull/141974
+		// https://github.com/microsoft/vscode/pull/141974
 		// Windows is skipped here as well as it was never enabled from the start
 		setupTerminalSplitCwdTests({ skipSuite: process.platform === 'linux' || process.platform === 'win32' });
 	});

@@ -54,7 +54,7 @@ suite('Link protection domain matching', () => {
 		linkAllowedByRules('https://a.x.org', ['*.x.org']);
 		linkAllowedByRules('https://a.b.x.org', ['*.x.org']);
 		linkAllowedByRules('https://x.org', ['*.x.org']);
-		// https://github.com/willnickols/erdos/issues/249353
+		// https://github.com/microsoft/vscode/issues/249353
 		linkAllowedByRules('https://x.org:3000', ['*.x.org:3000']);
 	});
 
@@ -111,12 +111,12 @@ suite('Link protection domain matching', () => {
 	});
 
 	test('case normalization', () => {
-		// https://github.com/willnickols/erdos/issues/99294
-		linkAllowedByRules('https://github.com/willnickols/erdos/issues/new', ['https://github.com/microsoft']);
-		linkAllowedByRules('https://github.com/willnickols/erdos/issues/new', ['https://github.com/microsoft']);
+		// https://github.com/microsoft/vscode/issues/99294
+		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
+		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
 	});
 
-	test('ignore query & fragment - https://github.com/willnickols/erdos/issues/156839', () => {
+	test('ignore query & fragment - https://github.com/microsoft/vscode/issues/156839', () => {
 		linkAllowedByRules('https://github.com/login/oauth/authorize?foo=4', ['https://github.com/login/oauth/authorize']);
 		linkAllowedByRules('https://github.com/login/oauth/authorize#foo', ['https://github.com/login/oauth/authorize']);
 	});

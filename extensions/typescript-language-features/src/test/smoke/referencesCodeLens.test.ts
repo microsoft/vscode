@@ -93,7 +93,7 @@ suite('TypeScript References', () => {
 		assert.strictEqual(codeLenses?.length, 0);
 	});
 
-	test.skip('Should not show duplicate references on ES5 class (https://github.com/willnickols/erdos/issues/90396)', async () => {
+	test.skip('Should not show duplicate references on ES5 class (https://github.com/microsoft/vscode/issues/90396)', async () => {
 		const testDocumentUri = vscode.Uri.parse('untitled:test3.js');
 		await createTestEditor(testDocumentUri,
 			`function A() {`,

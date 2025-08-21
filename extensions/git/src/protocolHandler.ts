@@ -80,7 +80,7 @@ export class GitProtocolHandler implements UriHandler {
 			const downloadGit = l10n.t('Download Git');
 
 			if (await window.showErrorMessage(errorMessage, { modal: true }, downloadGit) === downloadGit) {
-				commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/erdos-download-git'));
+				commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 			}
 
 			return;

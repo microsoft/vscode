@@ -219,12 +219,12 @@ export function gitCreatePr(): ITerminalQuickFixInternalOptions {
 		// ...
 		// 10: remote:
 		// 9:  remote: Create a pull request for 'my_branch' on GitHub by visiting:
-		// 8:  remote:      https://github.com/willnickols/erdos/pull/new/my_branch
+		// 8:  remote:      https://github.com/microsoft/vscode/pull/new/my_branch
 		// 7:  remote:
 		// 6:  remote: GitHub found x vulnerabilities on microsoft/vscode's default branch (...). To find out more, visit:
-		// 5:  remote:      https://github.com/willnickols/erdos/security/dependabot
+		// 5:  remote:      https://github.com/microsoft/vscode/security/dependabot
 		// 4:  remote:
-		// 3:  To https://github.com/willnickols/erdos
+		// 3:  To https://github.com/microsoft/vscode
 		// 2:  * [new branch]              my_branch -> my_branch
 		// 1:  Branch 'my_branch' set up to track remote branch 'my_branch' from 'origin'.
 		// 0:

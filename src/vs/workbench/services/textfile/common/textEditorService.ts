@@ -319,4 +319,4 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 	//#endregion
 }
 
-registerSingleton(ITextEditorService, TextEditorService, InstantiationType.Eager /* do not change: https://github.com/willnickols/erdos/issues/137675 */);
+registerSingleton(ITextEditorService, TextEditorService, InstantiationType.Eager /* do not change: https://github.com/microsoft/vscode/issues/137675 */);

@@ -93,7 +93,7 @@ export interface IBaseWorkspace {
 	 * once, e.g. a window reload of a transient workspace will
 	 * open an empty window.
 	 *
-	 * See: https://github.com/willnickols/erdos/issues/119695
+	 * See: https://github.com/microsoft/vscode/issues/119695
 	 */
 	readonly transient?: boolean;
 }

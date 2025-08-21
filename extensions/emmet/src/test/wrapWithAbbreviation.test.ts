@@ -82,7 +82,7 @@ const wrapMultiLineAbbrExpected = `
 `;
 
 // technically a bug, but also a feature (requested behaviour)
-// https://github.com/willnickols/erdos/issues/78015
+// https://github.com/microsoft/vscode/issues/78015
 const wrapInlineElementExpectedFormatFalse = `
 	<ul class="nav main">
 		<h1>

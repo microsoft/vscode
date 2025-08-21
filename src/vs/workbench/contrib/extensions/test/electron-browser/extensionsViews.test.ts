@@ -113,7 +113,7 @@ suite('ExtensionsViews Tests', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IMenuService, new TestMenuService());
 
-		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService, label: 'local', id: 'erdos-local' };
+		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService, label: 'local', id: 'vscode-local' };
 		instantiationService.stub(IExtensionManagementServerService, {
 			get localExtensionManagementServer(): IExtensionManagementServer {
 				return localExtensionManagementServer;

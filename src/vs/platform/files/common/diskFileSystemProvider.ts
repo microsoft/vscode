@@ -250,7 +250,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		// Ensure to have any trailing path separators removed, otherwise
 		// we may believe the path is not "real" and will convert every
 		// event back to this form, which is not warranted.
-		// See also https://github.com/willnickols/erdos/issues/210517
+		// See also https://github.com/microsoft/vscode/issues/210517
 		return removeTrailingPathSeparator(filePath);
 	}
 }

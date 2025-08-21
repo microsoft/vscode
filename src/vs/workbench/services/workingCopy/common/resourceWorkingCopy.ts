@@ -88,7 +88,7 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 			if (newInOrphanModeGuess) {
 
 				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/willnickols/erdos/issues/13665).
+				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
 				// Since we do not want to mark the working copy as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
 				await timeout(100, CancellationToken.None);

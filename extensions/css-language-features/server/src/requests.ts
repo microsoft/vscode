@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RequestType, Connection } from 'erdos-languageserver';
+import { RequestType, Connection } from 'vscode-languageserver';
 import { RuntimeEnvironment } from './cssServer';
 
 export namespace FsContentRequest {

@@ -379,8 +379,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					// to prevent issues when saving hidden files or preserving alternate data
 					// streams.
 					// Related issues:
-					// - https://github.com/willnickols/erdos/issues/931
-					// - https://github.com/willnickols/erdos/issues/6363
+					// - https://github.com/microsoft/vscode/issues/931
+					// - https://github.com/microsoft/vscode/issues/6363
 					fd = await Promises.open(filePath, 'r+');
 
 					// The flag 'r+' will not truncate the file, so we have to do this manually
@@ -455,7 +455,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// lock, so we must ensure to dispose the previous lock
 			// before storing a new one for the same handle, other
 			// wise we end up in a deadlock situation
-			// https://github.com/willnickols/erdos/issues/142462
+			// https://github.com/microsoft/vscode/issues/142462
 			if (previousLock) {
 				this.traceLock(`[Disk FileSystemProvider]: open() - disposing a previous lock that was still stored on same handle ${fd} (${filePath})`);
 				previousLock.dispose();
@@ -484,7 +484,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// to flush the contents to disk if possible.
 			if (this.writeHandles.delete(fd) && DiskFileSystemProvider.canFlush) {
 				try {
-					await Promises.fdatasync(fd); // https://github.com/willnickols/erdos/issues/9589
+					await Promises.fdatasync(fd); // https://github.com/microsoft/vscode/issues/9589
 				} catch (error) {
 					// In some exotic setups it is well possible that node fails to sync
 					// In that case we disable flushing and log the error to our logger
@@ -529,7 +529,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		// When calling fs.read/write we try to avoid passing in the "pos" argument and
 		// rather prefer to pass in "null" because this avoids an extra seek(pos)
 		// call that in some cases can even fail (e.g. when opening a file over FTP -
-		// see https://github.com/willnickols/erdos/issues/73884).
+		// see https://github.com/microsoft/vscode/issues/73884).
 		//
 		// as such, we compare the passed in position argument with our last known
 		// position for the file descriptor and use "null" if they match.

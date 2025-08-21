@@ -148,11 +148,11 @@ export interface IRemoteAuthorityResolverService {
 	resolveAuthority(authority: string): Promise<ResolverResult>;
 	getConnectionData(authority: string): IRemoteConnectionData | null;
 	/**
-	 * Get the canonical URI for a `erdos-remote://` URI.
+	 * Get the canonical URI for a `vscode-remote://` URI.
 	 *
 	 * **NOTE**: This can throw e.g. in cases where there is no resolver installed for the specific remote authority.
 	 *
-	 * @param uri The `erdos-remote://` URI
+	 * @param uri The `vscode-remote://` URI
 	 */
 	getCanonicalURI(uri: URI): Promise<URI>;
 

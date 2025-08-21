@@ -149,7 +149,7 @@ function getMultiSelectContext(editorContext: IEditorCommandsContext, isListActi
 		}
 
 		if (selection.length === 0) {
-			// TODO@benibenj workaround for https://github.com/willnickols/erdos/issues/224050
+			// TODO@benibenj workaround for https://github.com/microsoft/vscode/issues/224050
 			// Explainer: the `isListAction` flag can be a false positive in certain cases because
 			// it will be `true` if the active element is a `List` even if it is part of the editor
 			// area. The workaround here is to fallback to `isListAction: false` if the list is not

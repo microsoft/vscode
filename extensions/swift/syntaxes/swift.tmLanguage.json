@@ -258,7 +258,7 @@
 		"builtin-properties": {
 			"patterns": [
 				{
-					"comment": "The simpler (?<=\\bProcess\\.|\\bCommandLine\\.) breaks Erdos / Atom, see https://github.com/textmate/swift.tmbundle/issues/29",
+					"comment": "The simpler (?<=\\bProcess\\.|\\bCommandLine\\.) breaks VS Code / Atom, see https://github.com/textmate/swift.tmbundle/issues/29",
 					"name": "support.variable.swift",
 					"match": "(?<=^Process\\.|\\WProcess\\.|^CommandLine\\.|\\WCommandLine\\.)(arguments|argc|unsafeArgv)"
 				},
@@ -1586,7 +1586,7 @@
 					"name": "entity.name.function.operator.swift"
 				},
 				"4": {
-					"comment": "workaround for https://github.com/willnickols/erdos-textmate/issues/140#issuecomment-1793610346",
+					"comment": "workaround for https://github.com/microsoft/vscode-textmate/issues/140#issuecomment-1793610346",
 					"name": "entity.name.function.operator.swift",
 					"patterns": [
 						{
@@ -3144,7 +3144,7 @@
 			]
 		},
 		"literals-regular-expression-literal-backreference-or-subpattern": {
-			"comment": "These patterns are separated to work around issues like https://github.com/willnickols/erdos-textmate/issues/164",
+			"comment": "These patterns are separated to work around issues like https://github.com/microsoft/vscode-textmate/issues/164",
 			"patterns": [
 				{
 					"comment": "'\\g{' NamedOrNumberRef '}'",

@@ -1418,7 +1418,7 @@ Focus on discovering the essential knowledge that would help an AI agents be imm
 
 Source existing AI conventions from \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\` (do one glob search).
 
-Guidelines (read more at https://aka.ms/erdos-instructions-docs):
+Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
 - Write concise, actionable instructions (~20-50 lines) using markdown structure
 - Include specific examples from the codebase when describing patterns

@@ -304,7 +304,7 @@ export class WorkbenchLanguageService extends LanguageService {
 				if (typeof langId !== 'string') {
 					this.logService.warn(`Ignoring configured 'files.associations' for '${pattern}' because its type is not a string but '${typeof langId}'`);
 
-					return; // https://github.com/willnickols/erdos/issues/147284
+					return; // https://github.com/microsoft/vscode/issues/147284
 				}
 
 				const mimeType = this.getMimeType(langId) || `text/x-${langId}`;

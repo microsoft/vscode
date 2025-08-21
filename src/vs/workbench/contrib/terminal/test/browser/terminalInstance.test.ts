@@ -413,7 +413,7 @@ suite('Workbench - TerminalInstance', () => {
 			mockPathService = {
 				fileURI: async (path: string) => {
 					if (options.remoteAuthority) {
-						return URI.parse(`erdos-remote://${options.remoteAuthority}${path}`);
+						return URI.parse(`vscode-remote://${options.remoteAuthority}${path}`);
 					}
 					return URI.file(path);
 				}
@@ -481,7 +481,7 @@ suite('Workbench - TerminalInstance', () => {
 			});
 
 			const result = await instance.getCwdResource();
-			strictEqual(result?.scheme, 'erdos-remote');
+			strictEqual(result?.scheme, 'vscode-remote');
 			strictEqual(result?.authority, 'test-remote');
 			strictEqual(result?.path, testCwd);
 		});

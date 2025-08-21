@@ -269,7 +269,7 @@ export async function createTerminalEnvironment(
 			}
 		}
 
-		// Workaround for https://github.com/willnickols/erdos/issues/204005
+		// Workaround for https://github.com/microsoft/vscode/issues/204005
 		// We should restore the following environment variables when a user
 		// launches the application using the CLI so that integrated terminal
 		// can still inherit these variables.
@@ -289,7 +289,7 @@ export async function createTerminalEnvironment(
 			}
 		}
 
-		// Sanitize the environment, removing any undesirable Erdos and Electron environment
+		// Sanitize the environment, removing any undesirable VS Code and Electron environment
 		// variables
 		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
 

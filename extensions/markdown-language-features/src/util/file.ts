@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as URI from 'erdos-uri';
+import * as URI from 'vscode-uri';
 import { Schemes } from './schemes';
 
 export const markdownFileExtensions = Object.freeze<string[]>([

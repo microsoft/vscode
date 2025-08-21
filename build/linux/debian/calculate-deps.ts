@@ -86,7 +86,7 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromi
 	//
 	// Remove kerberos native module related dependencies as the versions
 	// computed from sysroot will not satisfy the minimum supported distros
-	// Refs https://github.com/willnickols/erdos/issues/188881.
+	// Refs https://github.com/microsoft/vscode/issues/188881.
 	// TODO(deepak1556): remove this workaround in favor of computing the
 	// versions from build container for native modules.
 	const filteredDeps = depsStr.split(', ').filter(dependency => {

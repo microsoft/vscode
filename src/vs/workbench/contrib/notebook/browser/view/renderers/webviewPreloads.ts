@@ -7,7 +7,7 @@ import type { Event } from '../../../../../../base/common/event.js';
 import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type * as webviewMessages from './webviewMessages.js';
 import type { NotebookCellMetadata } from '../../../common/notebookCommon.js';
-import type * as rendererApi from 'erdos-notebook-renderer';
+import type * as rendererApi from 'vscode-notebook-renderer';
 import type { NotebookCellOutputTransferData } from '../../../../../../platform/dnd/browser/dnd.js';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
@@ -683,7 +683,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				deltaX: event.deltaX,
 				deltaY: event.deltaY,
 				deltaZ: event.deltaZ,
-				// Refs https://github.com/willnickols/erdos/issues/146403#issuecomment-1854538928
+				// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
 				wheelDelta: event.wheelDelta && isChrome ? (event.wheelDelta / window.devicePixelRatio) : event.wheelDelta,
 				wheelDeltaX: event.wheelDeltaX && isChrome ? (event.wheelDeltaX / window.devicePixelRatio) : event.wheelDeltaX,
 				wheelDeltaY: event.wheelDeltaY && isChrome ? (event.wheelDeltaY / window.devicePixelRatio) : event.wheelDeltaY,
@@ -2461,7 +2461,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 			const trustedHtml = ttPolicy?.createHTML(html) ?? html;
-			el.innerHTML = trustedHtml as string; // CodeQL [SM03712] The rendered content comes from Erdos's tokenizer and is considered safe
+			el.innerHTML = trustedHtml as string; // CodeQL [SM03712] The rendered content comes from VS Code's tokenizer and is considered safe
 			const root = el.getRootNode();
 			if (root instanceof ShadowRoot) {
 				if (!root.adoptedStyleSheets.includes(tokenizationStyle)) {
@@ -2473,8 +2473,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public static requestHighlightCodeBlock(root: HTMLElement | ShadowRoot) {
 			const codeBlocks: Array<{ value: string; lang: string; id: string }> = [];
 			let i = 0;
-			for (const el of root.querySelectorAll('.erdos-code-block')) {
-				const lang = el.getAttribute('data-erdos-code-block-lang');
+			for (const el of root.querySelectorAll('.vscode-code-block')) {
+				const lang = el.getAttribute('data-vscode-code-block-lang');
 				if (el.textContent && lang) {
 					const id = `${Date.now()}-${i++}`;
 					codeBlocks.push({ value: el.textContent, lang: lang, id });
@@ -2842,7 +2842,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		) {
 			this.element = document.createElement('div');
 			this.element.classList.add('output_container');
-			this.element.setAttribute('data-erdos-context', JSON.stringify({ 'preventDefaultContextMenuItems': true }));
+			this.element.setAttribute('data-vscode-context', JSON.stringify({ 'preventDefaultContextMenuItems': true }));
 			this.element.style.position = 'absolute';
 			this.element.style.overflow = 'hidden';
 		}

@@ -206,7 +206,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			this._onDidCreateInstance.fire(instance);
 		}));
 
-		// Hide the panel if there are no more instances, provided that Erdos is not shutting
+		// Hide the panel if there are no more instances, provided that VS Code is not shutting
 		// down. When shutting down the panel is locked in place so that it is restored upon next
 		// launch.
 		this._register(this._terminalGroupService.onDidChangeActiveInstance(instance => {

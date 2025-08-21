@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 
 /**
-* @deprecated do not use this, https://github.com/willnickols/erdos/issues/248366
+* @deprecated do not use this, https://github.com/microsoft/vscode/issues/248366
  */
 export abstract class ObservableDisposable extends Disposable {
 	/**
@@ -66,12 +66,12 @@ export abstract class ObservableDisposable extends Disposable {
 }
 
 /**
- * @deprecated do not use this, https://github.com/willnickols/erdos/issues/248366
+ * @deprecated do not use this, https://github.com/microsoft/vscode/issues/248366
  */
 type TNotDisposed<TObject extends { isDisposed: boolean }> = TObject & { isDisposed: false };
 
 /**
- * @deprecated do not use this, https://github.com/willnickols/erdos/issues/248366
+ * @deprecated do not use this, https://github.com/microsoft/vscode/issues/248366
  */
 export function assertNotDisposed<TObject extends { isDisposed: boolean }>(
 	object: TObject,

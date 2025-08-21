@@ -417,7 +417,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.strictEqual(didResolve, true);
 	});
 
-	test('file change events trigger reload (after a model is resolved: https://github.com/willnickols/erdos/issues/132765)', async () => {
+	test('file change events trigger reload (after a model is resolved: https://github.com/microsoft/vscode/issues/132765)', async () => {
 		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/path/index.txt');
 

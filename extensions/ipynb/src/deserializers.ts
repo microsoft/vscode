@@ -78,7 +78,7 @@ function sortOutputItemsBasedOnDisplayOrder(outputItems: NotebookCellOutputItem[
 			let index = orderOfMimeTypes.findIndex((mime) => isMimeTypeMatch(mime, item.mime));
 			// Sometimes we can have mime types with empty data, e.g. when using holoview we can have `application/vnd.holoviews_load.v0+json` with empty value.
 			// & in these cases we have HTML/JS and those take precedence.
-			// https://github.com/willnickols/erdos-jupyter/issues/6109
+			// https://github.com/microsoft/vscode-jupyter/issues/6109
 			if (isEmptyVendoredMimeType(item)) {
 				index = -1;
 			}
@@ -129,7 +129,7 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 			return NotebookCellOutputItem.text(stringValue, mime);
 		} else if (mime.startsWith('image/') && typeof value === 'string' && mime !== 'image/svg+xml') {
 			// Images in Jupyter are stored in base64 encoded format.
-			// Erdos expects bytes when rendering images.
+			// VS Code expects bytes when rendering images.
 			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
 				return new NotebookCellOutputItem(Buffer.from(value, 'base64'), mime);
 			} else {
@@ -352,7 +352,7 @@ function createNotebookCellDataFromJupyterCell(
 }
 
 /**
- * Converts a NotebookModel into Erdos format.
+ * Converts a NotebookModel into VS Code format.
  */
 export function jupyterNotebookModelToNotebookData(
 	notebookContent: Partial<nbformat.INotebookContent>,

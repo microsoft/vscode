@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	// https://github.com/willnickols/erdos/issues/185269
+	// https://github.com/microsoft/vscode/issues/185269
 
 	export interface SourceControl {
 		historyProvider?: SourceControlHistoryProvider;

@@ -288,7 +288,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 				const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, extensionPath)).toString());
 				return !isUIExtension(manifest);
 			}).map((extensionPath) => path.basename(path.dirname(extensionPath)))
-			.filter(name => name !== 'erdos-api-tests' && name !== 'erdos-test-resolver'); // Do not ship the test extensions
+			.filter(name => name !== 'vscode-api-tests' && name !== 'vscode-test-resolver'); // Do not ship the test extensions
 		const marketplaceExtensions = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'product.json'), 'utf8')).builtInExtensions
 			.filter(entry => !entry.platforms || new Set(entry.platforms).has(platform))
 			.filter(entry => !entry.clientOnly)
@@ -431,11 +431,11 @@ function tweakProductForServerWeb(product) {
 }
 
 ['reh', 'reh-web'].forEach(type => {
-	const bundleTask = task.define(`bundle-erdos-${type}`, task.series(
-		util.rimraf(`out-erdos-${type}`),
+	const bundleTask = task.define(`bundle-vscode-${type}`, task.series(
+		util.rimraf(`out-vscode-${type}`),
 		optimize.bundleTask(
 			{
-				out: `out-erdos-${type}`,
+				out: `out-vscode-${type}`,
 				esm: {
 					src: 'out-build',
 					entryPoints: [
@@ -449,10 +449,10 @@ function tweakProductForServerWeb(product) {
 		)
 	));
 
-	const minifyTask = task.define(`minify-erdos-${type}`, task.series(
+	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		bundleTask,
-		util.rimraf(`out-erdos-${type}-min`),
-		optimize.minifyTask(`out-erdos-${type}`, `https://main.erdos-cdn.net/sourcemaps/${commit}/core`)
+		util.rimraf(`out-vscode-${type}-min`),
+		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 	));
 	gulp.task(minifyTask);
 
@@ -462,10 +462,10 @@ function tweakProductForServerWeb(product) {
 		const arch = buildTarget.arch;
 
 		['', 'min'].forEach(minified => {
-			const sourceFolderName = `out-erdos-${type}${dashed(minified)}`;
-			const destinationFolderName = `erdos-${type}${dashed(platform)}${dashed(arch)}`;
+			const sourceFolderName = `out-vscode-${type}${dashed(minified)}`;
+			const destinationFolderName = `vscode-${type}${dashed(platform)}${dashed(arch)}`;
 
-			const serverTaskCI = task.define(`erdos-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
 				compileNativeExtensionsBuildTask,
 				gulp.task(`node-${platform}-${arch}`),
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
@@ -473,7 +473,7 @@ function tweakProductForServerWeb(product) {
 			));
 			gulp.task(serverTaskCI);
 
-			const serverTask = task.define(`erdos-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				compileBuildWithManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,

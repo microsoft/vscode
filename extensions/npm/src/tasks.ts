@@ -11,11 +11,11 @@ import {
 import * as path from 'path';
 import * as fs from 'fs';
 import minimatch from 'minimatch';
-import { Utils } from 'erdos-uri';
+import { Utils } from 'vscode-uri';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
 
-const excludeRegex = new RegExp('^(node_modules|.erdos-test)$', 'i');
+const excludeRegex = new RegExp('^(node_modules|.vscode-test)$', 'i');
 
 export interface INpmTaskDefinition extends TaskDefinition {
 	script: string;
@@ -193,7 +193,7 @@ async function* findNpmPackages(): AsyncGenerator<Uri> {
 	for (const folder of folders) {
 		if (isAutoDetectionEnabled(folder) && !excludeRegex.test(Utils.basename(folder.uri))) {
 			const relativePattern = new RelativePattern(folder, '**/package.json');
-			const paths = await workspace.findFiles(relativePattern, '**/{node_modules,.erdos-test}/**');
+			const paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
 			for (const path of paths) {
 				if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
 					yield path;

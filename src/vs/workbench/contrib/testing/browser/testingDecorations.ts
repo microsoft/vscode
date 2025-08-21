@@ -104,7 +104,7 @@ class CachedDecorations {
 		this.runByIdKey.set(key, d);
 	}
 
-	/** Finds an extension by Erdos event ID */
+	/** Finds an extension by VS Code event ID */
 	public getById(decorationId: string) {
 		for (const d of this.runByIdKey.values()) {
 			if (d.id === decorationId) {

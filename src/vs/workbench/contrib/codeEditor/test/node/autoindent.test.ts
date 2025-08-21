@@ -174,8 +174,8 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			}
 		}
 
-		walkDirectoryAndReindent('/Users/aiday/Desktop/Test/erdos-test', 'ts-test');
-		const output = execSync('cd /Users/aiday/Desktop/Test/erdos-test && git diff --shortstat', { encoding: 'utf-8' });
+		walkDirectoryAndReindent('/Users/aiday/Desktop/Test/vscode-test', 'ts-test');
+		const output = execSync('cd /Users/aiday/Desktop/Test/vscode-test && git diff --shortstat', { encoding: 'utf-8' });
 		console.log('\ngit diff --shortstat:\n', output);
 	});
 
@@ -200,8 +200,8 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	 */
 
 	test('Issue #25437', () => {
-		// issue: https://github.com/willnickols/erdos/issues/25437
-		// fix: https://github.com/willnickols/erdos/commit/8c82a6c6158574e098561c28d470711f1b484fc8
+		// issue: https://github.com/microsoft/vscode/issues/25437
+		// fix: https://github.com/microsoft/vscode/commit/8c82a6c6158574e098561c28d470711f1b484fc8
 		// explanation: var foo = `{`; should not increase indentation
 
 		// increaseIndentPattern: /^.*\{[^}"']*$/ -> /^.*\{[^}"'`]*$/
@@ -245,7 +245,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	test('Enriching the hover', () => {
 		// issue: -
-		// fix: https://github.com/willnickols/erdos/commit/19ae0932c45b1096443a8c1335cf1e02eb99e16d
+		// fix: https://github.com/microsoft/vscode/commit/19ae0932c45b1096443a8c1335cf1e02eb99e16d
 		// explanation:
 		//  - decrease indent on ) and ] also
 		//  - increase indent on ( and [ also
@@ -289,8 +289,8 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	});
 
 	test('Issue #86176', () => {
-		// issue: https://github.com/willnickols/erdos/issues/86176
-		// fix: https://github.com/willnickols/erdos/commit/d89e2e17a5d1ba37c99b1d3929eb6180a5bfc7a8
+		// issue: https://github.com/microsoft/vscode/issues/86176
+		// fix: https://github.com/microsoft/vscode/commit/d89e2e17a5d1ba37c99b1d3929eb6180a5bfc7a8
 		// explanation: When quotation marks are present on the first line of an if statement or for loop, following line should not be indented
 
 		// increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/ -> /^((?!\/\/).)*(\{([^}"'`]*|(\t|[ ])*\/\/.*)|\([^)"'`]*|\[[^\]"'`]*)$/
@@ -317,8 +317,8 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	test('Issue #141816', () => {
 
-		// issue: https://github.com/willnickols/erdos/issues/141816
-		// fix: https://github.com/willnickols/erdos/pull/141997/files
+		// issue: https://github.com/microsoft/vscode/issues/141816
+		// fix: https://github.com/microsoft/vscode/pull/141997/files
 		// explanation: if (, [, {, is followed by a forward slash then assume we are in a regex pattern, and do not indent
 
 		// increaseIndentPattern: /^((?!\/\/).)*(\{([^}"'`]*|(\t|[ ])*\/\/.*)|\([^)"'`]*|\[[^\]"'`]*)$/ -> /^((?!\/\/).)*(\{([^}"'`/]*|(\t|[ ])*\/\/.*)|\([^)"'`/]*|\[[^\]"'`/]*)$/
@@ -363,8 +363,8 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 	});
 
 	test('Issue #29886', () => {
-		// issue: https://github.com/willnickols/erdos/issues/29886
-		// fix: https://github.com/willnickols/erdos/commit/7910b3d7bab8a721aae98dc05af0b5e1ea9d9782
+		// issue: https://github.com/microsoft/vscode/issues/29886
+		// fix: https://github.com/microsoft/vscode/commit/7910b3d7bab8a721aae98dc05af0b5e1ea9d9782
 
 		// decreaseIndentPattern: /^(.*\*\/)?\s*[\}\]\)].*$/ -> /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/
 		// -> Final current decrease indent pattern at the time of writing
@@ -385,7 +385,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	test('Issue #209859: do not do reindentation for tokens inside of a string', () => {
 
-		// issue: https://github.com/willnickols/erdos/issues/209859
+		// issue: https://github.com/microsoft/vscode/issues/209859
 
 		const tokens: StandardTokenTypeData[][] = [
 			[
@@ -438,7 +438,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	test.skip('Issue #56275', () => {
 
-		// issue: https://github.com/willnickols/erdos/issues/56275
+		// issue: https://github.com/microsoft/vscode/issues/56275
 		// explanation: If */ was not before the }, the regex does not allow characters before the }, so there would not be an indent
 		// Here since there is */ before the }, the regex allows all the characters before, hence there is a deindent
 
@@ -463,8 +463,8 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	test.skip('Issue #116843', () => {
 
-		// issue: https://github.com/willnickols/erdos/issues/116843
-		// related: https://github.com/willnickols/erdos/issues/43244
+		// issue: https://github.com/microsoft/vscode/issues/116843
+		// related: https://github.com/microsoft/vscode/issues/43244
 		// explanation: When you have an arrow function, you don't have { or }, but you would expect indentation to still be done in that way
 
 		// TODO: requires exploring indent/outdent pairs instead
@@ -480,7 +480,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	test.skip('Issue #185252', () => {
 
-		// issue: https://github.com/willnickols/erdos/issues/185252
+		// issue: https://github.com/microsoft/vscode/issues/185252
 		// explanation: Reindenting the comment correctly
 
 		const fileContents = [
@@ -495,7 +495,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	test.skip('Issue 43244: incorrect indentation when signature of function call spans several lines', () => {
 
-		// issue: https://github.com/willnickols/erdos/issues/43244
+		// issue: https://github.com/microsoft/vscode/issues/43244
 
 		const fileContents = [
 			'function callSomeOtherFunction(one: number, two: number) { }',

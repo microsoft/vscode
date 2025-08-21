@@ -6,7 +6,7 @@
 import * as jsonc from 'jsonc-parser';
 import { isAbsolute, posix } from 'path';
 import * as vscode from 'vscode';
-import { Utils } from 'erdos-uri';
+import { Utils } from 'vscode-uri';
 import { coalesce } from '../utils/arrays';
 import { exists, looksLikeAbsoluteWindowsPath } from '../utils/fs';
 

@@ -19,7 +19,7 @@ Firstly, make sure you install all dependencies (`npm i`) at the root of the rep
 
 Then, open the Command Palette and run:
 ```
-MCP: List Servers → erdos-playwright-mcp → Start Server
+MCP: List Servers → vscode-playwright-mcp → Start Server
 ```
 or open [mcp.json](../../.vscode/mcp.json) and start it from there.
 
@@ -43,7 +43,7 @@ Getting started with the MCP server is simple - just run the pre-configured Code
 
    Open the Command Palette and run:
    ```
-   MCP: List Servers → erdos-playwright-mcp → Start Server
+   MCP: List Servers → vscode-playwright-mcp → Start Server
    ```
    or open [mcp.json](../../.vscode/mcp.json) and start it from there.
 
@@ -63,7 +63,7 @@ Open the [mcp.json](../../.vscode/mcp.json) and modify the `args`:
 
 You can modify the mcp.json to debug the server:
 ```JSON
-"erdos-playwright-mcp": {
+"vscode-playwright-mcp": {
 	"type": "stdio",
 	"command": "node",
 	"args": ["./out/stdio.js"],

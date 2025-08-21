@@ -63,9 +63,9 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		service = new FileService(logService);
 		disposables.add(service);
 
-		const indexedDB = await IndexedDB.create('erdos-web-db-test', 1, ['erdos-userdata-store', 'erdos-logs-store']);
+		const indexedDB = await IndexedDB.create('vscode-web-db-test', 1, ['vscode-userdata-store', 'vscode-logs-store']);
 
-		userdataFileProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, 'erdos-userdata-store', true);
+		userdataFileProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, 'vscode-userdata-store', true);
 		disposables.add(service.registerProvider(Schemas.vscodeUserData, userdataFileProvider));
 		disposables.add(userdataFileProvider);
 	};

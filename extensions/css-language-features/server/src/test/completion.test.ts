@@ -5,10 +5,10 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
-import { URI } from 'erdos-uri';
-import { TextDocument, CompletionList, TextEdit } from 'erdos-languageserver-types';
-import { WorkspaceFolder } from 'erdos-languageserver-protocol';
-import { getCSSLanguageService, LanguageServiceOptions, getSCSSLanguageService } from 'erdos-css-languageservice';
+import { URI } from 'vscode-uri';
+import { TextDocument, CompletionList, TextEdit } from 'vscode-languageserver-types';
+import { WorkspaceFolder } from 'vscode-languageserver-protocol';
+import { getCSSLanguageService, LanguageServiceOptions, getSCSSLanguageService } from 'vscode-css-languageservice';
 import { getNodeFSRequestService } from '../node/nodeFs';
 import { getDocumentContext } from '../utils/documentContext';
 

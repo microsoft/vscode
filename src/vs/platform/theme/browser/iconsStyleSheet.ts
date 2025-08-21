@@ -41,8 +41,8 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 				}
 
 				const fontContribution = definition.font;
-				const fontFamilyVar = css.inline`--erdos-icon-${css.className(contribution.id)}-font-family`;
-				const contentVar = css.inline`--erdos-icon-${css.className(contribution.id)}-content`;
+				const fontFamilyVar = css.inline`--vscode-icon-${css.className(contribution.id)}-font-family`;
+				const contentVar = css.inline`--vscode-icon-${css.className(contribution.id)}-content`;
 				if (fontContribution) {
 					usedFontIds[fontContribution.id] = fontContribution.definition;
 					rootAttribs.push(

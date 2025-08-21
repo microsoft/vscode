@@ -129,7 +129,7 @@ export class TerminalFontMetrics extends Disposable {
 
 		// Always fallback to AppleBraille on macOS, otherwise braille will render with filled and
 		// empty circles in all 8 positions, instead of just filled circles
-		// See https://github.com/willnickols/erdos/issues/174521
+		// See https://github.com/microsoft/vscode/issues/174521
 		if (isMacintosh) {
 			fontFamily += ', AppleBraille';
 		}

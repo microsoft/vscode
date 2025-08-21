@@ -56,7 +56,7 @@ class NativeLocaleService implements ILocaleService {
 			const content = await this.textFileService.read(this.environmentService.argvResource, { encoding: 'utf8' });
 
 			// This is the same logic that we do where argv.json is parsed so mirror that:
-			// https://github.com/willnickols/erdos/blob/32d40cf44e893e87ac33ac4f08de1e5f7fe077fc/src/main.js#L238-L246
+			// https://github.com/microsoft/vscode/blob/32d40cf44e893e87ac33ac4f08de1e5f7fe077fc/src/main.js#L238-L246
 			parse(content.value);
 		} catch (error) {
 			this.notificationService.notify({

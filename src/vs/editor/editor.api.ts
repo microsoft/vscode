@@ -49,16 +49,16 @@ if (monacoEnvironment?.globalAPI || (typeof (globalThis as any).define === 'func
 if (typeof (globalThis as any).require !== 'undefined' && typeof (globalThis as any).require.config === 'function') {
 	(globalThis as any).require.config({
 		ignoreDuplicateModules: [
-			'erdos-languageserver-types',
-			'erdos-languageserver-types/main',
-			'erdos-languageserver-textdocument',
-			'erdos-languageserver-textdocument/main',
-			'erdos-nls',
-			'erdos-nls/erdos-nls',
+			'vscode-languageserver-types',
+			'vscode-languageserver-types/main',
+			'vscode-languageserver-textdocument',
+			'vscode-languageserver-textdocument/main',
+			'vscode-nls',
+			'vscode-nls/vscode-nls',
 			'jsonc-parser',
 			'jsonc-parser/main',
-			'erdos-uri',
-			'erdos-uri/index',
+			'vscode-uri',
+			'vscode-uri/index',
 			'vs/basic-languages/typescript/typescript'
 		]
 	});

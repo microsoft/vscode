@@ -16,7 +16,7 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		// Refs https://github.com/willnickols/erdos/issues/225250
+		// Refs https://github.com/microsoft/vscode/issues/225250
 		// Pty spawning fails with invalid fd error in product CI while development CI
 		// works fine, we need additional logging to investigate.
 		setupTaskQuickPickTests({ skipSuite: process.platform === 'linux' });

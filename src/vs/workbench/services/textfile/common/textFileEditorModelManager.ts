@@ -289,7 +289,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 							// From this moment on, only operate on the canonical resource
 							// to fix a potential data loss issue:
-							// https://github.com/willnickols/erdos/issues/211374
+							// https://github.com/microsoft/vscode/issues/211374
 							const target = this.uriIdentityService.asCanonicalUri(modelToRestore.target);
 
 							// restore the model at the target. if we have previous dirty content, we pass it
@@ -308,14 +308,14 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 								// an explicitly set language is restored via `setLanguageId`
 								// to preserve it as explicitly set by the user.
-								// (https://github.com/willnickols/erdos/issues/203648)
+								// (https://github.com/microsoft/vscode/issues/203648)
 								if (modelToRestore.language.explicit) {
 									restoredModel.setLanguageId(modelToRestore.language.id);
 								}
 
 								// otherwise, a model language is applied via lower level
 								// APIs to not confuse it with an explicitly set language.
-								// (https://github.com/willnickols/erdos/issues/125795)
+								// (https://github.com/microsoft/vscode/issues/125795)
 								else if (restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID && extname(target) !== PLAINTEXT_EXTENSION) {
 									restoredModel.updateTextEditorModel(undefined, modelToRestore.language.id);
 								}
@@ -448,7 +448,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			// Automatically dispose the model if we created it
 			// because we cannot dispose a model we do not own
-			// https://github.com/willnickols/erdos/issues/138850
+			// https://github.com/microsoft/vscode/issues/138850
 			if (didCreateModel) {
 				model.dispose();
 			}

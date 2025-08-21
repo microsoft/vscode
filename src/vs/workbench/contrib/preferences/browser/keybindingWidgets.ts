@@ -205,7 +205,7 @@ export class DefineKeybindingWidget extends Widget {
 				dom.clearNode(this._showExistingKeybindingsNode);
 
 				// Input is not getting focus without timeout in safari
-				// https://github.com/willnickols/erdos/issues/108817
+				// https://github.com/microsoft/vscode/issues/108817
 				await timeout(0);
 
 				this._keybindingInputWidget.focus();

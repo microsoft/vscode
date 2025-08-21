@@ -172,12 +172,12 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		if (!this._tunnelCommand) {
 			let binParentLocation;
 			if (isMacintosh) {
-				// appRoot = /Applications/Erdos - Insiders.app/Contents/Resources/app
-				// bin = /Applications/Erdos - Insiders.app/Contents/Resources/app/bin
+				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
+				// bin = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin
 				binParentLocation = this.environmentService.appRoot;
 			} else {
-				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft Erdos Insiders\resources\app
-				// bin = C:\Users\<name>\AppData\Local\Programs\Microsoft Erdos Insiders\bin
+				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
+				// bin = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bin
 				// appRoot = /usr/share/code-insiders/resources/app
 				// bin = /usr/share/code-insiders/bin
 				binParentLocation = dirname(dirname(this.environmentService.appRoot));

@@ -137,7 +137,7 @@ export class ClientCapabilities {
 export interface ITypeScriptServiceClient {
 
 	/**
-	 * Convert a (Erdos) resource to a path that TypeScript server understands.
+	 * Convert a (VS Code) resource to a path that TypeScript server understands.
 	 */
 	toTsFilePath(resource: vscode.Uri): string | undefined;
 

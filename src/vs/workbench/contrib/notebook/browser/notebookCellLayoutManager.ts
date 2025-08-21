@@ -73,7 +73,7 @@ export class NotebookCellLayoutManager extends Disposable {
 
 				if (!this.notebookWidget.hasEditorFocus()) {
 					// Do not scroll inactive notebook
-					// https://github.com/willnickols/erdos/issues/145340
+					// https://github.com/microsoft/vscode/issues/145340
 					const cellIndex = this.notebookWidget.viewModel?.getCellIndex(cell);
 					const visibleRanges = this.notebookWidget.visibleRanges;
 					if (cellIndex !== undefined

@@ -19,7 +19,7 @@ function makeRandomHexString(length: number): string {
 }
 
 const rootTempDir = new Lazy(() => {
-	const filename = `erdos-typescript${process.platform !== 'win32' && process.getuid ? process.getuid() : ''}`;
+	const filename = `vscode-typescript${process.platform !== 'win32' && process.getuid ? process.getuid() : ''}`;
 	return path.join(os.tmpdir(), filename);
 });
 

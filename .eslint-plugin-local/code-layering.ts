@@ -19,7 +19,7 @@ export = new class implements eslint.Rule.RuleModule {
 			layerbreaker: 'Bad layering. You are not allowed to access {{from}} from here, allowed layers are: [{{allowed}}]'
 		},
 		docs: {
-			url: 'https://github.com/willnickols/erdos/wiki/Source-Code-Organization'
+			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
 		},
 		schema: [
 			{

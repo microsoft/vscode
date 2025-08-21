@@ -1,4 +1,4 @@
-# erdos-wasm-typescript
+# vscode-wasm-typescript
 
 Language server host for typescript using vscode's sync-api in the browser.
 
@@ -10,15 +10,15 @@ To test this out, you'll need three shells:
 2. `npm run watch-web` for the web side
 3. `node <root>/scripts/code-web.js --coi`
 
-The last command will open a browser window. You'll want to add `?erdos-coi=`
+The last command will open a browser window. You'll want to add `?vscode-coi=`
 to the end. This is for enabling shared array buffers. So, for example:
-`http://localhost:8080/?erdos-coi=`.
+`http://localhost:8080/?vscode-coi=`.
 
 ### Working on type acquisition
 
 In order to work with web's new type acquisition, you'll need to enable
 `TypeScript > Experimental > Tsserver > Web: Enable Project Wide Intellisense`
-in your Erdos options (`Ctrl-,`), you may need to reload the page.
+in your VS Code options (`Ctrl-,`), you may need to reload the page.
 
 This happens when working in a regular `.js` file on a dependency without
 declared types. You should be able to open `file.js` and write something like
@@ -26,7 +26,7 @@ declared types. You should be able to open `file.js` and write something like
 types and other intellisense features (like Go To Def/Source Def) working as
 expected. This scenario works off Tsserver's own Automatic Type Acquisition
 capabilities, and simulates a "global" types cache stored at
-`/erdos-global-typings/ts-nul-authority/project`, which is backed by an
+`/vscode-global-typings/ts-nul-authority/project`, which is backed by an
 in-memory `MemFs` `FileSystemProvider`.
 
 ### Simulated `node_modules`
@@ -41,5 +41,5 @@ across any project in the workspace, and will use the "real" `package.json`
 A fallback is then set up such that when a URI like
 `memfs:/path/to/node_modules/lodash/lodash.d.ts` is accessed, that gets
 redirected to
-`erdos-node-modules:/ts-nul-authority/memfs/ts-nul-authority/path/to/node_modules/lodash/lodash.d.ts`,
+`vscode-node-modules:/ts-nul-authority/memfs/ts-nul-authority/path/to/node_modules/lodash/lodash.d.ts`,
 which will be sent to the `AutoInstallerFs`.

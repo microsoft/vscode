@@ -16,7 +16,7 @@ import { ContiguousMultilineTokensBuilder } from '../../../../../../editor/commo
 import { LineTokens } from '../../../../../../editor/common/tokens/lineTokens.js';
 import { TextMateTokenizationSupport } from '../../tokenizationSupport/textMateTokenizationSupport.js';
 import { TokenizationSupportWithLineLimit } from '../../tokenizationSupport/tokenizationSupportWithLineLimit.js';
-import type { StackDiff, StateStack, diffStateStacksRefEq } from 'erdos-textmate';
+import type { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmate';
 import { ICreateGrammarResult } from '../../../common/TMGrammarFactory.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -115,7 +115,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 		}
 
 		if (!this._diffStateStacksRefEqFn) {
-			const { diffStateStacksRefEq } = await importAMDNodeModule<typeof import('erdos-textmate')>('erdos-textmate', 'release/main.js');
+			const { diffStateStacksRefEq } = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
 			this._diffStateStacksRefEqFn = diffStateStacksRefEq;
 		}
 

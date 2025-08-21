@@ -99,7 +99,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		// Our RPC mechanism use JSON to serialize data which does
 		// not support `Infinity` so we need to fill in the number
 		// equivalent as close as possible.
-		// https://github.com/willnickols/erdos/issues/133317
+		// https://github.com/microsoft/vscode/issues/133317
 
 		if (priority === Number.POSITIVE_INFINITY) {
 			return Number.MAX_VALUE;

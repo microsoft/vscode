@@ -5,7 +5,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
-import { URI } from 'erdos-uri';
+import { URI } from 'vscode-uri';
 import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes';
 import { getNodeFileFS } from '../node/nodeFs';
 import { getDocumentContext } from '../utils/documentContext';

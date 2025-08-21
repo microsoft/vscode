@@ -9,11 +9,11 @@
 	},
 	"include": [
 		"src/**/*",
-		"../../src/erdos-dts/vscode.d.ts",
-		"../../src/erdos-dts/vscode.proposed.codeActionAI.d.ts",
-		"../../src/erdos-dts/vscode.proposed.codeActionRanges.d.ts",
-		"../../src/erdos-dts/vscode.proposed.multiDocumentHighlightProvider.d.ts",
-		"../../src/erdos-dts/vscode.proposed.workspaceTrust.d.ts",
-		"../../src/erdos-dts/vscode.proposed.editorHoverVerbosityLevel.d.ts",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.codeActionAI.d.ts",
+		"../../src/vscode-dts/vscode.proposed.codeActionRanges.d.ts",
+		"../../src/vscode-dts/vscode.proposed.multiDocumentHighlightProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts",
+		"../../src/vscode-dts/vscode.proposed.editorHoverVerbosityLevel.d.ts",
 	]
 }

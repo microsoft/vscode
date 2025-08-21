@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/REditorSupport/erdos-R-syntax/blob/master/syntaxes/r.json",
+		"This file has been converted from https://github.com/REditorSupport/vscode-R-syntax/blob/master/syntaxes/r.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/REditorSupport/erdos-R-syntax/commit/b199996070723eefbe7a61e0384b2ae4768eb7f0",
+	"version": "https://github.com/REditorSupport/vscode-R-syntax/commit/b199996070723eefbe7a61e0384b2ae4768eb7f0",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [

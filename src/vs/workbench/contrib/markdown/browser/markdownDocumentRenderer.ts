@@ -102,11 +102,11 @@ pre {
 }
 
 pre code {
-	font-family: var(--erdos-editor-font-family);
-	font-weight: var(--erdos-editor-font-weight);
-	font-size: var(--erdos-editor-font-size);
+	font-family: var(--vscode-editor-font-family);
+	font-weight: var(--vscode-editor-font-weight);
+	font-size: var(--vscode-editor-font-size);
 	line-height: 1.5;
-	color: var(--erdos-editor-foreground);
+	color: var(--vscode-editor-foreground);
 	tab-size: 4;
 }
 
@@ -117,30 +117,30 @@ pre code {
 /** Theming */
 
 .pre {
-	background-color: var(--erdos-textCodeBlock-background);
+	background-color: var(--vscode-textCodeBlock-background);
 }
 
-.erdos-high-contrast h1 {
+.vscode-high-contrast h1 {
 	border-color: rgb(0, 0, 0);
 }
 
-.erdos-light th {
+.vscode-light th {
 	border-color: rgba(0, 0, 0, 0.69);
 }
 
-.erdos-dark th {
+.vscode-dark th {
 	border-color: rgba(255, 255, 255, 0.69);
 }
 
-.erdos-light h1,
-.erdos-light hr,
-.erdos-light td {
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light td {
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
-.erdos-dark h1,
-.erdos-dark hr,
-.erdos-dark td {
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);
 }
 
@@ -206,7 +206,7 @@ interface IRenderMarkdownDocumentOptions {
 /**
  * Renders a string of markdown for use in an external document context.
  *
- * Uses Erdos's syntax highlighting code blocks. Also does not attach all the hooks and customization that normal
+ * Uses VS Code's syntax highlighting code blocks. Also does not attach all the hooks and customization that normal
  * markdown renderer.
  */
 export async function renderMarkdownDocument(

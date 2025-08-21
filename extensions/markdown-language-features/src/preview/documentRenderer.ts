@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as uri from 'erdos-uri';
+import * as uri from 'vscode-uri';
 import { ILogger } from '../logging';
 import { MarkdownItEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
@@ -95,7 +95,7 @@ export class MdDocumentRenderer {
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(csp)}">
-				<meta id="erdos-markdown-preview-data"
+				<meta id="vscode-markdown-preview-data"
 					data-settings="${escapeAttribute(JSON.stringify(initialData))}"
 					data-strings="${escapeAttribute(JSON.stringify(previewStrings))}"
 					data-state="${escapeAttribute(JSON.stringify(state || {}))}"
@@ -104,7 +104,7 @@ export class MdDocumentRenderer {
 				${this._getStyles(resourceProvider, sourceUri, config, imageInfo)}
 				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
 			</head>
-			<body class="erdos-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
+			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${this._getScripts(resourceProvider, nonce)}
 			</body>
 			</html>`;
@@ -131,7 +131,7 @@ export class MdDocumentRenderer {
 		const body = vscode.l10n.t('{0} cannot be found', resourcePath);
 		return `<!DOCTYPE html>
 			<html>
-			<body class="erdos-body">
+			<body class="vscode-body">
 				${body}
 			</body>
 			</html>`;

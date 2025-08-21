@@ -174,7 +174,7 @@ export async function getExperimentalExtensionToggleData(
 				if (extensions?.length === 1) {
 					recommendedExtensionsGalleryInfo[key] = extensions[0];
 				} else {
-					// same as network connection fail. we do not want a blank settings page: https://github.com/willnickols/erdos/issues/195722
+					// same as network connection fail. we do not want a blank settings page: https://github.com/microsoft/vscode/issues/195722
 					// so instead of returning partial data we return undefined here
 					return undefined;
 				}

@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/206587
+	// https://github.com/microsoft/vscode/issues/206587
 
 	export interface AuthenticationGetSessionPresentationOptions {
 		/**

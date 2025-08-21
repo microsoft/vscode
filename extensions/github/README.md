@@ -1,10 +1,10 @@
-# GitHub for Erdos
+# GitHub for Visual Studio Code
 
-**Notice:** This extension is bundled with Erdos. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 
 ## Features
 
-This extension provides the following GitHub-related features for Erdos:
+This extension provides the following GitHub-related features for VS Code:
 
 - `Publish to GitHub` command
 - `Clone from GitHub` participant to the `Git: Clone` command

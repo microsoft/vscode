@@ -74,7 +74,7 @@ class SimpleBrowserOverlayWidget {
 			}
 		}));
 
-		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'erdos-chat-images');
+		this.imagesFolder = joinPath(this.environmentService.workspaceStorageHome, 'vscode-chat-images');
 		cleanupOldImages(this.fileService, this.logService, this.imagesFolder);
 
 		this._domNode = document.createElement('div');
@@ -454,7 +454,7 @@ export class SimpleBrowserOverlay implements IWorkbenchContribution {
 			for (const group of groups) {
 
 				if (!(group instanceof EditorGroupView)) {
-					// TODO@jrieken better with https://github.com/willnickols/erdos/tree/ben/layout-group-container
+					// TODO@jrieken better with https://github.com/microsoft/vscode/tree/ben/layout-group-container
 					continue;
 				}
 

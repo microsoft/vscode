@@ -13,7 +13,7 @@ import {
 import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, Position as LspPosition, NotificationType, BaseLanguageClient
-} from 'erdos-languageclient';
+} from 'vscode-languageclient';
 import { FileSystemProvider, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
 import { activateAutoInsertion } from './autoInsertion';
@@ -107,7 +107,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					context.globalState.update(promptForLinkedEditingKey, false);
 					activeEditorListener.dispose();
 					const configure = l10n.t('Configure');
-					const res = await window.showInformationMessage(l10n.t('Erdos now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+					const res = await window.showInformationMessage(l10n.t('VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
 					if (res === configure) {
 						commands.executeCommand('workbench.action.openSettings', SettingIds.linkedEditing);
 					}

@@ -187,7 +187,7 @@ suite('vscode API - editors', () => {
 
 			await commands.executeCommand('undo');
 			if (doc.getText() === 'hello world!') {
-				// see https://github.com/willnickols/erdos/issues/109131
+				// see https://github.com/microsoft/vscode/issues/109131
 				// it looks like an undo stop was inserted in between these two edits
 				// it is unclear why this happens, but it can happen for a multitude of reasons
 				await commands.executeCommand('undo');

@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
-import { TextDocumentEdit } from 'erdos-languageclient';
+import { TextDocumentEdit } from 'vscode-languageclient';
 import { MdLanguageClient } from '../client/client';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';

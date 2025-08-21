@@ -9,8 +9,8 @@
 	},
 	"include": [
 		"src/**/*",
-		"../../src/erdos-dts/vscode.d.ts",
-		"../../src/erdos-dts/vscode.proposed.resolvers.d.ts",
-		"../../src/erdos-dts/vscode.proposed.tunnelFactory.d.ts"
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.resolvers.d.ts",
+		"../../src/vscode-dts/vscode.proposed.tunnelFactory.d.ts"
 	]
 }

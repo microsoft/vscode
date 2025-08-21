@@ -115,7 +115,7 @@ if (crashReporterDirectory) {
 }
 
 if (!args.dev) {
-	app.setPath('userData', path.join(tmpdir(), `erdos-tests-${Date.now()}`));
+	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}`));
 }
 
 function deserializeSuite(suite) {
@@ -221,7 +221,7 @@ class IPCRunner extends events.EventEmitter {
 app.on('ready', () => {
 
 	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
-	session.defaultSession.protocol.registerFileProtocol('erdos-file', (request, callback) => {
+	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
 		const path = new URL(request.url).pathname;
 		callback({ path });
 	});
@@ -236,14 +236,14 @@ app.on('ready', () => {
 	// We need to provide a basic `ISandboxConfiguration`
 	// for our preload script to function properly because
 	// some of our types depend on it (e.g. product.ts).
-	ipcMain.handle('vscode:test-erdos-window-config', async () => {
+	ipcMain.handle('vscode:test-vscode-window-config', async () => {
 		return {
 			product: {
 				version: '1.x.y',
 				nameShort: 'Code - OSS Dev',
 				nameLong: 'Code - OSS Dev',
 				applicationName: 'code-oss',
-				dataFolderName: '.erdos-oss',
+				dataFolderName: '.vscode-oss',
 				urlProtocol: 'code-oss',
 			}
 		};
@@ -258,7 +258,7 @@ app.on('ready', () => {
 		show: false,
 		webPreferences: {
 			preload: path.join(__dirname, 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
-			additionalArguments: [`--erdos-window-config=vscode:test-erdos-window-config`],
+			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
 			contextIsolation: false,
 			enableWebSQL: false,

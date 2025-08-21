@@ -12,7 +12,7 @@ import { IWorkbenchThemeService, IWorkbenchColorTheme } from '../../../services/
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { ITextMateTokenizationService } from '../../../services/textMate/browser/textMateTokenizationFeature.js';
-import type { IGrammar, StateStack } from 'erdos-textmate';
+import type { IGrammar, StateStack } from 'vscode-textmate';
 import { TokenizationRegistry } from '../../../../editor/common/languages.js';
 import { TokenMetadata } from '../../../../editor/common/encodedTokenAttributes.js';
 import { ThemeRule, findMatchingThemeRule } from '../../../services/textMate/common/TMHelper.js';
@@ -198,7 +198,7 @@ class Snapper {
 		const currentTheme = this.themeService.getColorTheme();
 
 		const getThemeName = (id: string) => {
-			const part = 'erdos-theme-defaults-themes-';
+			const part = 'vscode-theme-defaults-themes-';
 			const startIdx = id.indexOf(part);
 			if (startIdx !== -1) {
 				return id.substring(startIdx + part.length, id.length - 5);
@@ -229,7 +229,7 @@ class Snapper {
 		const currentTheme = this.themeService.getColorTheme();
 
 		const getThemeName = (id: string) => {
-			const part = 'erdos-theme-defaults-themes-';
+			const part = 'vscode-theme-defaults-themes-';
 			const startIdx = id.indexOf(part);
 			if (startIdx !== -1) {
 				return id.substring(startIdx + part.length, id.length - 5);

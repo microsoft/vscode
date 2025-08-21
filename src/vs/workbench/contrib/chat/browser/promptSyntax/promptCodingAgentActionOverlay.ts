@@ -38,8 +38,8 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 			title: localize('runPromptWithCodingAgent', "Run prompt file in a remote coding agent")
 		}));
 
-		this._button.element.style.background = 'var(--erdos-button-background)';
-		this._button.element.style.color = 'var(--erdos-button-foreground)';
+		this._button.element.style.background = 'var(--vscode-button-background)';
+		this._button.element.style.color = 'var(--vscode-button-foreground)';
 		this._button.label = localize('runWithCodingAgent.label', "{0} Delegate to Copilot coding agent", '$(cloud-upload)');
 
 		this._register(this._button.onDidClick(async () => {

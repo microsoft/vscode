@@ -244,7 +244,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual('1.1.0', actual.version);
 		assert.strictEqual('1.1.0', actual.latestVersion);
 		assert.strictEqual('localDescription1', actual.description);
-		assert.ok(actual.iconUrl === 'file:///localPath1/localIcon1' || actual.iconUrl === 'erdos-file://erdos-app/localPath1/localIcon1');
+		assert.ok(actual.iconUrl === 'file:///localPath1/localIcon1' || actual.iconUrl === 'vscode-file://vscode-app/localPath1/localIcon1');
 		assert.ok(actual.iconUrlFallback === undefined);
 		assert.strictEqual(undefined, actual.licenseUrl);
 		assert.strictEqual(ExtensionState.Installed, actual.state);
@@ -1687,12 +1687,12 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IProfileAwareExtensionManagementService, remoteExtensionManagementService?: IProfileAwareExtensionManagementService): IExtensionManagementServerService {
 		const localExtensionManagementServer: IExtensionManagementServer = {
-			id: 'erdos-local',
+			id: 'vscode-local',
 			label: 'local',
 			extensionManagementService: localExtensionManagementService || createExtensionManagementService(),
 		};
 		const remoteExtensionManagementServer: IExtensionManagementServer = {
-			id: 'erdos-remote',
+			id: 'vscode-remote',
 			label: 'remote',
 			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService(),
 		};

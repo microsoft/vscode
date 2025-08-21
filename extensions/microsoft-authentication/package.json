@@ -148,13 +148,13 @@
     "@azure/msal-node-extensions": "^1.5.0",
     "@vscode/extension-telemetry": "^0.9.8",
     "keytar": "file:./packageMocks/keytar",
-    "erdos-tas-client": "^0.1.84"
+    "vscode-tas-client": "^0.1.84"
   },
   "overrides": {
     "@azure/msal-node-runtime": "^0.18.2"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

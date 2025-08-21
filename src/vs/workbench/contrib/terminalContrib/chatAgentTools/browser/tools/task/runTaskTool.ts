@@ -163,7 +163,7 @@ export const RunTaskToolData: IToolData = {
 	id: 'run_task',
 	toolReferenceName: 'runTask',
 	displayName: localize('runInTerminalTool.displayName', 'Run Task'),
-	modelDescription: 'Runs a Erdos task.\n\n- If you see that an appropriate task exists for building or running code, prefer to use this tool to run the task instead of using the run_in_terminal tool.\n- Make sure that any appropriate build or watch task is running before trying to run tests or execute code.\n- If the user asks to run a task, use this tool to do so.',
+	modelDescription: 'Runs a VS Code task.\n\n- If you see that an appropriate task exists for building or running code, prefer to use this tool to run the task instead of using the run_in_terminal tool.\n- Make sure that any appropriate build or watch task is running before trying to run tests or execute code.\n- If the user asks to run a task, use this tool to do so.',
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running tasks in the workspace'),
 	icon: Codicon.tools,
 	source: ToolDataSource.Internal,

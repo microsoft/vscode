@@ -110,7 +110,7 @@ export interface IStartupMetrics {
 	readonly didUseCachedData: boolean;
 
 	/**
-	 * How/why the window was created. See https://github.com/willnickols/erdos/blob/d1f57d871722f4d6ba63e4ef6f06287121ceb045/src/vs/platform/lifecycle/common/lifecycle.ts#L50
+	 * How/why the window was created. See https://github.com/microsoft/vscode/blob/d1f57d871722f4d6ba63e4ef6f06287121ceb045/src/vs/platform/lifecycle/common/lifecycle.ts#L50
 	 */
 	readonly windowKind: number;
 

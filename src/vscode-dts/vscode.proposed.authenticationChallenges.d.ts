@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/260156
+	// https://github.com/microsoft/vscode/issues/260156
 
 	/**********
 	 * "Extension asking for auth" API

@@ -1,6 +1,6 @@
 
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
-For Microsoft erdos-theme-seti
+For Microsoft vscode-theme-seti
 
 This file is based on or incorporates material from the projects listed below ("Third Party OSS"). The original copyright
 notice and the license under which Microsoft received such Third Party OSS, are set forth below. Such licenses and notice

@@ -378,7 +378,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 							afterLineNumber: diffEntry.modified.startLineNumber - 1,
 							heightInLines: result.heightInLines,
 							domNode,
-							ordinal: 50000 + 2 // more than https://github.com/willnickols/erdos/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
+							ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
 						};
 
 						this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));

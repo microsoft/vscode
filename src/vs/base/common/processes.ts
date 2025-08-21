@@ -99,7 +99,7 @@ export interface ProcessItem {
 }
 
 /**
- * Sanitizes a Erdos process environment by removing all Electron/Erdos-related values.
+ * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
  */
 export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve: string[]): void {
 	const set = preserve.reduce<Record<string, boolean>>((set, key) => {
@@ -137,12 +137,12 @@ export function removeDangerousEnvVariables(env: IProcessEnvironment | undefined
 	}
 
 	// Unset `DEBUG`, as an invalid value might lead to process crashes
-	// See https://github.com/willnickols/erdos/issues/130072
+	// See https://github.com/microsoft/vscode/issues/130072
 	delete env['DEBUG'];
 
 	if (isLinux) {
 		// Unset `LD_PRELOAD`, as it might lead to process crashes
-		// See https://github.com/willnickols/erdos/issues/134177
+		// See https://github.com/microsoft/vscode/issues/134177
 		delete env['LD_PRELOAD'];
 	}
 }

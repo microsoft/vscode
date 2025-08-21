@@ -112,7 +112,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		if (this.window.document.activeElement && this.window.document.activeElement !== this.element) {
-			// looks like https://github.com/willnickols/erdos/issues/132641
+			// looks like https://github.com/microsoft/vscode/issues/132641
 			// where the focus is actually not in the `<iframe>`
 			return false;
 		}
@@ -428,7 +428,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
-			'erdos-resource-base-authority': webviewRootResourceAuthority,
+			'vscode-resource-base-authority': webviewRootResourceAuthority,
 			parentOrigin: targetWindow.origin,
 		};
 
@@ -839,7 +839,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			// noop
 		}
 
-		// Workaround for https://github.com/willnickols/erdos/issues/75209
+		// Workaround for https://github.com/microsoft/vscode/issues/75209
 		// Focusing the inner webview is async so for a sequence of actions such as:
 		//
 		// 1. Open webview

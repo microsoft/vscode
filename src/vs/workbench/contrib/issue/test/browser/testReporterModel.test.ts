@@ -33,7 +33,7 @@ Type: <b>Bug</b>
 
 undefined
 
-Erdos version: undefined
+VS Code version: undefined
 OS version: undefined
 Modes:
 
@@ -64,7 +64,7 @@ Type: <b>Bug</b>
 
 undefined
 
-Erdos version: undefined
+VS Code version: undefined
 OS version: undefined
 Modes:
 
@@ -108,7 +108,7 @@ Type: <b>Bug</b>
 
 undefined
 
-Erdos version: undefined
+VS Code version: undefined
 OS version: undefined
 Modes:
 
@@ -163,7 +163,7 @@ Type: <b>Bug</b>
 
 undefined
 
-Erdos version: undefined
+VS Code version: undefined
 OS version: undefined
 Modes:
 
@@ -220,7 +220,7 @@ Type: <b>Bug</b>
 
 undefined
 
-Erdos version: undefined
+VS Code version: undefined
 OS version: undefined
 Modes:
 Remote OS version: Linux x64 4.18.0
@@ -269,7 +269,7 @@ Type: <b>Bug</b>
 
 undefined
 
-Erdos version: undefined
+VS Code version: undefined
 OS version: undefined
 Modes:
 
@@ -300,7 +300,7 @@ Type: <b>Bug</b>
 
 undefined
 
-Erdos version: undefined
+VS Code version: undefined
 OS version: undefined
 Modes: Restricted, Unsupported
 

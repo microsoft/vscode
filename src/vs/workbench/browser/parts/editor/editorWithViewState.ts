@@ -207,7 +207,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	 * should be used as a way to ensure the view state in the
 	 * editor control is matching the resource expected, for example
 	 * by comparing with the underlying model (this was a fix for
-	 * https://github.com/willnickols/erdos/issues/40114).
+	 * https://github.com/microsoft/vscode/issues/40114).
 	 */
 	protected abstract computeEditorViewState(resource: URI): T | undefined;
 

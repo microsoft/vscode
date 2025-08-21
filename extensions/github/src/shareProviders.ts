@@ -102,7 +102,7 @@ export class VscodeDevShareProvider implements vscode.ShareProvider, vscode.Disp
 }
 
 function getRangeSegment(item: vscode.ShareableItem) {
-	if (item.resourceUri.scheme === 'erdos-notebook-cell') {
+	if (item.resourceUri.scheme === 'vscode-notebook-cell') {
 		const notebookEditor = vscode.window.visibleNotebookEditors.find(editor => editor.notebook.uri.fsPath === item.resourceUri.fsPath);
 		const cell = notebookEditor?.notebook.getCells().find(cell => cell.document.uri.fragment === item.resourceUri?.fragment);
 		const cellIndex = cell?.index ?? notebookEditor?.selection.start;

@@ -5,7 +5,7 @@
 
 import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
-import { Utils } from 'erdos-uri';
+import { Utils } from 'vscode-uri';
 import { getParentDocumentUri } from '../../util/document';
 import { CopyFileConfiguration, getCopyFileConfiguration, parseGlob, resolveCopyDestination } from './copyFiles';
 

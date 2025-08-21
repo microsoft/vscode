@@ -3,7 +3,7 @@
 		{
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--enable-proposed-api=ms-vscode.erdos-selfhost-import-aid"
+				"--enable-proposed-api=ms-vscode.vscode-selfhost-import-aid"
 			],
 			"name": "Launch Extension",
 			"outFiles": [

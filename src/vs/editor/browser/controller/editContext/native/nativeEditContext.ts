@@ -335,7 +335,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._focusTracker.refreshFocusState();
 	}
 
-	// TODO: added as a workaround fix for https://github.com/willnickols/erdos/issues/229825
+	// TODO: added as a workaround fix for https://github.com/microsoft/vscode/issues/229825
 	// When this issue will be fixed the following should be removed.
 	public setEditContextOnDomNode(): void {
 		const targetWindow = getWindow(this.domNode.domNode);

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { activate } from '..';
-import { RendererApi } from 'erdos-notebook-renderer';
+import { RendererApi } from 'vscode-notebook-renderer';
 import { IDisposable, IRichRenderContext, OutputWithAppend, RenderOptions } from '../rendererTypes';
 import { JSDOM } from "jsdom";
 import { LinkDetector } from '../linkify';

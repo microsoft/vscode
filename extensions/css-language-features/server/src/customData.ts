@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICSSDataProvider, newCSSDataProvider } from 'erdos-css-languageservice';
+import { ICSSDataProvider, newCSSDataProvider } from 'vscode-css-languageservice';
 import { RequestService } from './requests';
 
 export function fetchDataProviders(dataPaths: string[], requestService: RequestService): Promise<ICSSDataProvider[]> {

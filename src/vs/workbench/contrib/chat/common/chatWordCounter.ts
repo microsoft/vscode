@@ -17,7 +17,7 @@ const r = String.raw;
 /**
  * Matches `[text](link title?)` or `[text](<link> title?)`
  *
- * Taken from erdos-markdown-languageservice
+ * Taken from vscode-markdown-languageservice
  */
 const linkPattern =
 	r`(?<!\\)` + // Must not start with escape

@@ -236,7 +236,7 @@ export class LinkDetector implements ILinkDetector {
 		this.decorateLink(link, uri, fulltext, hoverBehavior, async () => {
 
 			if (uri.scheme === Schemas.file) {
-				// Just using fsPath here is unsafe: https://github.com/willnickols/erdos/issues/109076
+				// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
 				const fsPath = uri.fsPath;
 				const path = await this.pathService.path;
 				const fileUrl = osPath.normalize(((path.sep === osPath.posix.sep) && platform.isWindows) ? fsPath.replace(/\\/g, osPath.posix.sep) : fsPath);

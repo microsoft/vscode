@@ -240,7 +240,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 	}
 
 	private analyzeMissingAttachments(document: vscode.TextDocument): void {
-		if (document.uri.scheme !== 'erdos-notebook-cell') {
+		if (document.uri.scheme !== 'vscode-notebook-cell') {
 			// not notebook
 			return;
 		}

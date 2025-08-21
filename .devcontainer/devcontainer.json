@@ -14,8 +14,8 @@
 	"privileged": true,
 	"mounts": [
 		{
-			"source": "erdos-dev",
-			"target": "/erdos-dev",
+			"source": "vscode-dev",
+			"target": "/vscode-dev",
 			"type": "volume"
 		}
 	],
@@ -27,11 +27,11 @@
 				"resmon.show.cpufreq": false
 			},
 			"extensions": [
-				"dbaeumer.erdos-eslint",
+				"dbaeumer.vscode-eslint",
 				"EditorConfig.EditorConfig",
-				"GitHub.erdos-pull-request-github",
-				"ms-vscode.erdos-github-issue-notebooks",
-				"ms-vscode.erdos-selfhost-test-provider",
+				"GitHub.vscode-pull-request-github",
+				"ms-vscode.vscode-github-issue-notebooks",
+				"ms-vscode.vscode-selfhost-test-provider",
 				"mutantdino.resourcemonitor"
 			]
 		}

@@ -84,7 +84,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 				this._extHosts.delete(id);
 			});
 
-			// See https://github.com/willnickols/erdos/issues/194477
+			// See https://github.com/microsoft/vscode/issues/194477
 			// We have observed that sometimes the process sends an exit
 			// event, but does not really exit and is stuck in an endless
 			// loop. In these cases we kill the process forcefully after

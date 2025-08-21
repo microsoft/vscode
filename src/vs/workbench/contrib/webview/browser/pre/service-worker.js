@@ -10,7 +10,7 @@ const sw = /** @type {any} */ (self);
 
 const VERSION = 4;
 
-const resourceCacheName = `erdos-resource-cache-${VERSION}`;
+const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
 const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
@@ -24,7 +24,7 @@ let outerIframeMessagePort;
 /**
  * Origin used for resources
  */
-const resourceBaseAuthority = searchParams.get('erdos-resource-base-authority');
+const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
 /**
  * @param {string} name
@@ -200,7 +200,7 @@ sw.addEventListener('fetch', (event) => {
 	}
 
 	// If we're making a request against the remote authority, we want to go
-	// through Erdos itself so that we are authenticated properly.  If the
+	// through VS Code itself so that we are authenticated properly.  If the
 	// service worker is hosted on the same origin we will have cookies and
 	// authentication will not be an issue.
 	if (requestUrl.origin !== sw.origin && requestUrl.host === remoteAuthority) {
@@ -263,7 +263,7 @@ async function processResourceRequest(
 
 	const webviewId = getWebviewIdForClient(client);
 
-	// Refs https://github.com/willnickols/erdos/issues/244143
+	// Refs https://github.com/microsoft/vscode/issues/244143
 	// With PlzDedicatedWorker, worker subresources and blob wokers
 	// will use clients different from the window client.
 	// Since we cannot different a worker main resource from a worker subresource
@@ -355,7 +355,7 @@ async function processResourceRequest(
 		}
 
 		// support COI requests, see network.ts#COI.getHeadersFromQuery(...)
-		const coiRequest = new URL(event.request.url).searchParams.get('erdos-coi');
+		const coiRequest = new URL(event.request.url).searchParams.get('vscode-coi');
 		if (coiRequest === '3') {
 			headers['Cross-Origin-Opener-Policy'] = 'same-origin';
 			headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
@@ -436,7 +436,7 @@ async function processLocalhostRequest(
 		return fetch(event.request);
 	}
 	const webviewId = getWebviewIdForClient(client);
-	// Refs https://github.com/willnickols/erdos/issues/244143
+	// Refs https://github.com/microsoft/vscode/issues/244143
 	// With PlzDedicatedWorker, worker subresources and blob wokers
 	// will use clients different from the window client.
 	// Since we cannot different a worker main resource from a worker subresource

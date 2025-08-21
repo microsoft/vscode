@@ -207,8 +207,8 @@ export interface INLSConfiguration {
 
 	/**
 	 * Below properties are deprecated and only there to continue support
-	 * for `erdos-nls` module that depends on them.
-	 * Refs https://github.com/willnickols/erdos-nls/blob/main/src/node/main.ts#L36-L46
+	 * for `vscode-nls` module that depends on them.
+	 * Refs https://github.com/microsoft/vscode-nls/blob/main/src/node/main.ts#L36-L46
 	 */
 	/** @deprecated */
 	readonly locale: string;

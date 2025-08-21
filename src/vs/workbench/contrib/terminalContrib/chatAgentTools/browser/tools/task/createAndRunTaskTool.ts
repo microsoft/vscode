@@ -252,7 +252,7 @@ export const CreateAndRunTaskToolData: IToolData = {
 					},
 					'problemMatcher': {
 						'type': 'array',
-						'description': `The problem matcher to use to parse task output for errors and warnings. Can be a predefined matcher like '$tsc' (TypeScript), '$eslint - stylish', '$gcc', etc., or a custom pattern defined in tasks.json. This helps Erdos display errors in the Problems panel and enables quick navigation to error locations.`,
+						'description': `The problem matcher to use to parse task output for errors and warnings. Can be a predefined matcher like '$tsc' (TypeScript), '$eslint - stylish', '$gcc', etc., or a custom pattern defined in tasks.json. This helps VS Code display errors in the Problems panel and enables quick navigation to error locations.`,
 						'items': {
 							'type': 'string'
 						}

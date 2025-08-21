@@ -85,7 +85,7 @@ async function main() {
             cacheControl: 'max-age=31536000, public'
         }
     });
-    const all = vinyl_fs_1.default.src('**', { cwd: '../erdos-web', base: '../erdos-web', dot: true })
+    const all = vinyl_fs_1.default.src('**', { cwd: '../vscode-web', base: '../vscode-web', dot: true })
         .pipe((0, gulp_filter_1.default)(f => !f.isDirectory()));
     const compressed = all
         .pipe((0, gulp_filter_1.default)(f => MimeTypesToCompress.has(mime_1.default.lookup(f.path))))

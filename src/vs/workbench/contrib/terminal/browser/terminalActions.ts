@@ -130,7 +130,7 @@ export class TerminalLaunchHelpAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this._openerService.open('https://aka.ms/erdos-troubleshoot-terminal-launch');
+		this._openerService.open('https://aka.ms/vscode-troubleshoot-terminal-launch');
 	}
 }
 
@@ -408,7 +408,7 @@ export function registerTerminalActions() {
 				secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow]
 			},
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.splitTerminalActive),
-			// Should win over send sequence commands https://github.com/willnickols/erdos/issues/259326
+			// Should win over send sequence commands https://github.com/microsoft/vscode/issues/259326
 			weight: KeybindingWeight.WorkbenchContrib + 1
 		},
 		precondition: sharedWhenClause.terminalAvailable,
@@ -429,7 +429,7 @@ export function registerTerminalActions() {
 				secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow]
 			},
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.splitTerminalActive),
-			// Should win over send sequence commands https://github.com/willnickols/erdos/issues/259326
+			// Should win over send sequence commands https://github.com/microsoft/vscode/issues/259326
 			weight: KeybindingWeight.WorkbenchContrib + 1
 		},
 		precondition: sharedWhenClause.terminalAvailable,
@@ -1195,7 +1195,7 @@ export function registerTerminalActions() {
 			// of prompt shell binding
 			primary: 0,
 			// Technically this doesn't need to be here as it will fall back to this
-			// behavior anyway when handed to xterm.js, having this handled by Erdos
+			// behavior anyway when handed to xterm.js, having this handled by VS Code
 			// makes it easier for users to see how it works though.
 			mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyA },
 			weight: KeybindingWeight.WorkbenchContrib,

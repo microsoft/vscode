@@ -63,7 +63,7 @@ export class ExtHostStorage implements ExtHostStorageShape {
 			return JSON.parse(value);
 		} catch (error) {
 			// Do not fail this call but log it for diagnostics
-			// https://github.com/willnickols/erdos/issues/132777
+			// https://github.com/microsoft/vscode/issues/132777
 			this._logService.error(`[extHostStorage] unexpected error parsing storage contents (extensionId: ${key}, global: ${shared}): ${error}`);
 		}
 

@@ -307,19 +307,19 @@ const BUILD_TARGETS = [
 
 BUILD_TARGETS.forEach(({ arch }) => {
 	const debArch = getDebPackageArch(arch);
-	const prepareDebTask = task.define(`erdos-linux-${arch}-prepare-deb`, task.series(rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
+	const prepareDebTask = task.define(`vscode-linux-${arch}-prepare-deb`, task.series(rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
 	gulp.task(prepareDebTask);
-	const buildDebTask = task.define(`erdos-linux-${arch}-build-deb`, buildDebPackage(arch));
+	const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, buildDebPackage(arch));
 	gulp.task(buildDebTask);
 
 	const rpmArch = getRpmPackageArch(arch);
-	const prepareRpmTask = task.define(`erdos-linux-${arch}-prepare-rpm`, task.series(rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
+	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
 	gulp.task(prepareRpmTask);
-	const buildRpmTask = task.define(`erdos-linux-${arch}-build-rpm`, buildRpmPackage(arch));
+	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, buildRpmPackage(arch));
 	gulp.task(buildRpmTask);
 
-	const prepareSnapTask = task.define(`erdos-linux-${arch}-prepare-snap`, task.series(rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
+	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
 	gulp.task(prepareSnapTask);
-	const buildSnapTask = task.define(`erdos-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));
+	const buildSnapTask = task.define(`vscode-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));
 	gulp.task(buildSnapTask);
 });

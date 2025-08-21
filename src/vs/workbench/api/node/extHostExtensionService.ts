@@ -147,7 +147,7 @@ class NodeModuleESMInterceptor extends RequireInterceptor {
 
 		port1LayerCheckerWorkaround.onmessage = (e: { data: Message }) => {
 
-			// Get the erdos-module factory - which is the same logic that's also used by
+			// Get the vscode-module factory - which is the same logic that's also used by
 			// the CommonJS require interceptor
 			if (!apiModuleFactory) {
 				apiModuleFactory = this._factories.get('vscode');

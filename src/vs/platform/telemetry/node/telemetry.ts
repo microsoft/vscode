@@ -46,10 +46,10 @@ export async function buildTelemetryMessage(appRoot: string, extensionsPath?: st
 	}
 
 	let contents = (await fs.promises.readFile(join(appRoot, 'telemetry-core.json'))).toString();
-	mergeTelemetry(contents, 'erdos-core');
+	mergeTelemetry(contents, 'vscode-core');
 
 	contents = (await fs.promises.readFile(join(appRoot, 'telemetry-extensions.json'))).toString();
-	mergeTelemetry(contents, 'erdos-extensions');
+	mergeTelemetry(contents, 'vscode-extensions');
 
 	return JSON.stringify(mergedTelemetry, null, 4);
 }

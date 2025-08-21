@@ -54,7 +54,7 @@ export const CSS_STYLES = {
 		`background-color: ${asCssVariable(INACTIVE_BACKGROUND_COLOR)};`,
 	],
 	[CssClassNames.InlineInactive]: [
-		'color: var(--erdos-disabledForeground);',
+		'color: var(--vscode-disabledForeground);',
 	],
 	...FrontMatterMarkerDecoration.cssStyles,
 };

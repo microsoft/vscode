@@ -1546,10 +1546,10 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jlelong/erdos-latex-basics 1.14.0 - MIT
-https://github.com/jlelong/erdos-latex-basics
+jlelong/vscode-latex-basics 1.14.0 - MIT
+https://github.com/jlelong/vscode-latex-basics
 
-Copyright (c) erdos-latex-basics authors
+Copyright (c) vscode-latex-basics authors
 
 If not otherwise specified (see below), files in this repository fall under the MIT License
 
@@ -2034,8 +2034,8 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-microsoft/erdos-css 0.0.0 - MIT License
-https://github.com/willnickols/erdos-css
+microsoft/vscode-css 0.0.0 - MIT License
+https://github.com/microsoft/vscode-css
 
 MIT License
 
@@ -2074,10 +2074,10 @@ suitability for any purpose.
 
 ---------------------------------------------------------
 
-microsoft/erdos-JSON.tmLanguage 0.0.0 - MIT
-https://github.com/willnickols/erdos-JSON.tmLanguage
+microsoft/vscode-JSON.tmLanguage 0.0.0 - MIT
+https://github.com/microsoft/vscode-JSON.tmLanguage
 
-erdos-JSON.tmLanguage
+vscode-JSON.tmLanguage
 
 Copyright (c) Microsoft Corporation
 
@@ -2100,8 +2100,8 @@ CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFT
 
 ---------------------------------------------------------
 
-microsoft/erdos-markdown-tm-grammar 1.0.0 - MIT
-https://github.com/willnickols/erdos-markdown-tm-grammar
+microsoft/vscode-markdown-tm-grammar 1.0.0 - MIT
+https://github.com/microsoft/vscode-markdown-tm-grammar
 
 The MIT License (MIT)
 
@@ -2128,11 +2128,11 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-microsoft/erdos-mssql 1.34.0 - MIT
-https://github.com/willnickols/erdos-mssql
+microsoft/vscode-mssql 1.34.0 - MIT
+https://github.com/microsoft/vscode-mssql
 
 ------------------------------------------ START OF LICENSE -----------------------------------------
-erdos-mssql
+vscode-mssql
 Copyright (c) Microsoft Corporation
 All rights reserved.
 MIT License
@@ -2235,8 +2235,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---------------------------------------------------------
 
-redhat-developer/erdos-java 1.26.0 - MIT
-https://github.com/redhat-developer/erdos-java
+redhat-developer/vscode-java 1.26.0 - MIT
+https://github.com/redhat-developer/vscode-java
 
 The MIT License (MIT)
 
@@ -2275,8 +2275,8 @@ suitability for any purpose.
 
 ---------------------------------------------------------
 
-REditorSupport/erdos-R 0.1.1 - MIT
-https://github.com/REditorSupport/erdos-R-syntax
+REditorSupport/vscode-R 0.1.1 - MIT
+https://github.com/REditorSupport/vscode-R-syntax
 
 MIT License
 
@@ -2440,10 +2440,10 @@ languages/erb.json.
 
 Copyright (c) 2016 Peng Lv
 Copyright (c) 2017-2019 Stafford Brunk
-https://github.com/rubyide/erdos-ruby
+https://github.com/rubyide/vscode-ruby
 
     Released under the MIT license
-    https://github.com/rubyide/erdos-ruby/blob/main/LICENSE.txt
+    https://github.com/rubyide/vscode-ruby/blob/main/LICENSE.txt
 
 Copyright (c) 2014 GitHub Inc.
 https://github.com/atom/language-ruby
@@ -2686,8 +2686,8 @@ to the base-name name of the original file, and an extension of txt, html, or si
 
 ---------------------------------------------------------
 
-trond-snekvik/erdos-rst 1.5.3 - MIT
-https://github.com/trond-snekvik/erdos-rst
+trond-snekvik/vscode-rst 1.5.3 - MIT
+https://github.com/trond-snekvik/vscode-rst
 
 The MIT License (MIT)
 
@@ -2794,8 +2794,8 @@ written authorization of the copyright holder.
 
 ---------------------------------------------------------
 
-erdos-codicons 0.0.14 - MIT and Creative Commons Attribution 4.0
-https://github.com/willnickols/erdos-codicons
+vscode-codicons 0.0.14 - MIT and Creative Commons Attribution 4.0
+https://github.com/microsoft/vscode-codicons
 
 Attribution 4.0 International
 
@@ -3196,8 +3196,8 @@ Creative Commons may be contacted at creativecommons.org.
 
 ---------------------------------------------------------
 
-erdos-logfile-highlighter 3.4.0 - MIT
-https://github.com/emilast/erdos-logfile-highlighter
+vscode-logfile-highlighter 3.4.0 - MIT
+https://github.com/emilast/vscode-logfile-highlighter
 
 The MIT License (MIT)
 
@@ -3224,8 +3224,8 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-erdos-swift 0.0.1 - MIT
-https://github.com/owensd/erdos-swift
+vscode-swift 0.0.1 - MIT
+https://github.com/owensd/vscode-swift
 
 The MIT License (MIT)
 
@@ -3251,8 +3251,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 
 ---------------------------------------------------------
 
-erdos-win32-app-container-tokens
-https://github.com/willnickols/erdos-win32-app-container-tokens
+vscode-win32-app-container-tokens
+https://github.com/microsoft/vscode-win32-app-container-tokens
 
 MIT License
 

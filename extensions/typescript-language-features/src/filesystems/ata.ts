@@ -20,13 +20,13 @@ export function registerAtaSupport(logger: Logger): vscode.Disposable {
 	], () => {
 		return vscode.Disposable.from(
 			// Ata
-			vscode.workspace.registerFileSystemProvider('erdos-global-typings', new MemFs('global-typings', logger), {
+			vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs('global-typings', logger), {
 				isCaseSensitive: true,
 				isReadonly: false,
 			}),
 
 			// Read accesses to node_modules
-			vscode.workspace.registerFileSystemProvider('erdos-node-modules', new AutoInstallerFs(logger), {
+			vscode.workspace.registerFileSystemProvider('vscode-node-modules', new AutoInstallerFs(logger), {
 				isCaseSensitive: true,
 				isReadonly: false
 			}));

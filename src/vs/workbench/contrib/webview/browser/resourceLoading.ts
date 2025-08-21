@@ -119,7 +119,7 @@ function normalizeResourcePath(resource: URI): URI {
 		return URI.from({
 			scheme: Schemas.vscodeRemote,
 			authority: resource.authority,
-			path: '/erdos-resource',
+			path: '/vscode-resource',
 			query: JSON.stringify({
 				requestResourcePath: resource.path
 			})

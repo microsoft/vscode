@@ -91,9 +91,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof ripgrep.rgPath === 'string', testErrorMessage('@vscode/ripgrep'));
 	});
 
-	test('erdos-regexpp', async () => {
-		const regexpp = await import('erdos-regexpp');
-		assert.ok(typeof regexpp.RegExpParser === 'function', testErrorMessage('erdos-regexpp'));
+	test('vscode-regexpp', async () => {
+		const regexpp = await import('vscode-regexpp');
+		assert.ok(typeof regexpp.RegExpParser === 'function', testErrorMessage('vscode-regexpp'));
 	});
 
 	test('@vscode/sqlite3', async () => {

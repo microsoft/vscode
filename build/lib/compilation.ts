@@ -306,7 +306,7 @@ function generateApiProposalNames() {
 			const version = versionMatch ? versionMatch[1] : undefined;
 
 			proposals.set(proposalName, {
-				proposal: `https://raw.githubusercontent.com/microsoft/vscode/main/src/erdos-dts/vscode.proposed.${proposalName}.d.ts`,
+				proposal: `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${proposalName}.d.ts`,
 				version: version ? parseInt(version) : undefined
 			});
 		}, function () {
@@ -343,18 +343,18 @@ function generateApiProposalNames() {
 const apiProposalNamesReporter = createReporter('api-proposal-names');
 
 export const compileApiProposalNamesTask = task.define('compile-api-proposal-names', () => {
-	return gulp.src('src/erdos-dts/**')
+	return gulp.src('src/vscode-dts/**')
 		.pipe(generateApiProposalNames())
 		.pipe(gulp.dest('src'))
 		.pipe(apiProposalNamesReporter.end(true));
 });
 
 export const watchApiProposalNamesTask = task.define('watch-api-proposal-names', () => {
-	const task = () => gulp.src('src/erdos-dts/**')
+	const task = () => gulp.src('src/vscode-dts/**')
 		.pipe(generateApiProposalNames())
 		.pipe(apiProposalNamesReporter.end(true));
 
-	return watch('src/erdos-dts/**', { readDelay: 200 })
+	return watch('src/vscode-dts/**', { readDelay: 200 })
 		.pipe(util.debounce(task))
 		.pipe(gulp.dest('src'));
 });

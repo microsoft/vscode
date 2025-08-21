@@ -117,7 +117,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 	private onTitleAuxClick(e: MouseEvent): void {
 		if (e.button === 1 /* Middle Button */ && this.tabsModel.activeEditor) {
-			EventHelper.stop(e, true /* for https://github.com/willnickols/erdos/issues/56715 */);
+			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 			if (!preventEditorClose(this.tabsModel, this.tabsModel.activeEditor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
 				this.groupView.closeEditor(this.tabsModel.activeEditor);
@@ -130,7 +130,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// We only want to open the quick access picker when
 		// the tap occurred over the editor label, so we need
 		// to check on the target
-		// (https://github.com/willnickols/erdos/issues/107543)
+		// (https://github.com/microsoft/vscode/issues/107543)
 		const target = e.initialTarget;
 		if (!(isHTMLElement(target)) || !this.editorLabel || !isAncestor(target, this.editorLabel.element)) {
 			return;

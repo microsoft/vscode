@@ -330,7 +330,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// list to get symbols from. If we would simply trigger editor symbol
 		// search without prior filtering, you could not paste a file name
 		// including the `@` character to open it (e.g. /some/file@path)
-		// refs: https://github.com/willnickols/erdos/issues/93845
+		// refs: https://github.com/microsoft/vscode/issues/93845
 		return this.doGetPicks(
 			filter,
 			{

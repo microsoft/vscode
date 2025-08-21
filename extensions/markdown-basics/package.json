@@ -104,10 +104,10 @@
     }
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/erdos-grammar-updater/bin microsoft/erdos-markdown-tm-grammar syntaxes/markdown.tmLanguage ./syntaxes/markdown.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin microsoft/vscode-markdown-tm-grammar syntaxes/markdown.tmLanguage ./syntaxes/markdown.tmLanguage.json"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

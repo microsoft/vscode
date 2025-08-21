@@ -297,7 +297,7 @@ export function truncate(value: string, maxLength = 20, ellipsis = true): string
 
 function normalizePath(path: string): string {
 	// Windows & Mac are currently being handled
-	// as case insensitive file systems in Erdos.
+	// as case insensitive file systems in VS Code.
 	if (isWindows || isMacintosh) {
 		return path.toLowerCase();
 	}

@@ -236,7 +236,7 @@ registerTerminalAction({
 		when: TerminalContextKeys.suggestWidgetVisible
 	},
 	run: (c, accessor) => {
-		(accessor.get(IOpenerService)).open('https://aka.ms/erdos-terminal-intellisense');
+		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
 	}
 });
 

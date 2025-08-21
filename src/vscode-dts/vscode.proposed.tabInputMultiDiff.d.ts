@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// https://github.com/willnickols/erdos/issues/206411
+// https://github.com/microsoft/vscode/issues/206411
 
 declare module 'vscode' {
 

@@ -35,7 +35,7 @@ suite('MultiplexPolicyService', () => {
 	let policyConfiguration: PolicyConfiguration;
 	const logService = new NullLogService();
 
-	const policyFile = URI.file('policyFile').with({ scheme: 'erdos-tests' });
+	const policyFile = URI.file('policyFile').with({ scheme: 'vscode-tests' });
 	const policyConfigurationNode: IConfigurationNode = {
 		'id': 'policyConfiguration',
 		'order': 1,

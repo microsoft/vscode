@@ -342,7 +342,7 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	try {
 		guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
 	} catch (error) {
-		return null; // jschardet throws for unknown encodings (https://github.com/willnickols/erdos/issues/239928)
+		return null; // jschardet throws for unknown encodings (https://github.com/microsoft/vscode/issues/239928)
 	}
 
 	if (!guessed || !guessed.encoding) {

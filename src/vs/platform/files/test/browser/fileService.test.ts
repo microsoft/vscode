@@ -195,11 +195,11 @@ suite('File Service', () => {
 		assert.strictEqual(watcher2Events.length, 2);
 	});
 
-	test('error from readFile bubbles through (https://github.com/willnickols/erdos/issues/118060) - async', async () => {
+	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060) - async', async () => {
 		testReadErrorBubbles(true);
 	});
 
-	test('error from readFile bubbles through (https://github.com/willnickols/erdos/issues/118060)', async () => {
+	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060)', async () => {
 		testReadErrorBubbles(false);
 	});
 
@@ -271,7 +271,7 @@ suite('File Service', () => {
 		}
 	}
 
-	test('readFile/readFileStream supports cancellation (https://github.com/willnickols/erdos/issues/138805)', async () => {
+	test('readFile/readFileStream supports cancellation (https://github.com/microsoft/vscode/issues/138805)', async () => {
 		const service = disposables.add(new FileService(new NullLogService()));
 
 		let readFileStreamReady: DeferredPromise<void> | undefined = undefined;

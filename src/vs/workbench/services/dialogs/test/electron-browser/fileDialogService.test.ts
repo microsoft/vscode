@@ -123,7 +123,7 @@ suite('FileDialogService', function () {
 		}
 
 		instantiationService.stub(IPathService, new class {
-			defaultUriScheme: string = 'erdos-virtual-test';
+			defaultUriScheme: string = 'vscode-virtual-test';
 			userHome = async () => URI.file('/user/home');
 		} as IPathService);
 		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());

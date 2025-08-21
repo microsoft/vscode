@@ -8,9 +8,9 @@ import { LanguageSelector } from '../../../../../editor/common/languageSelector.
 /**
  * Documentation link for the reusable prompts feature.
  */
-export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/erdos-ghcp-prompt-snippets';
-export const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/erdos-ghcp-custom-instructions';
-export const MODE_DOCUMENTATION_URL = 'https://aka.ms/erdos-ghcp-custom-chat-modes'; // todo
+export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+export const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-instructions';
+export const MODE_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-chat-modes'; // todo
 
 /**
  * Language ID for the reusable prompt syntax.

@@ -152,7 +152,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 /**
  * Creates a terminal language virtual URI.
  */
-// TODO: Make this [OS generic](https://github.com/willnickols/erdos/issues/249477)
+// TODO: Make this [OS generic](https://github.com/microsoft/vscode/issues/249477)
 export function createTerminalLanguageVirtualUri(terminalId: number, languageExtension: string): URI {
 	return URI.from({
 		scheme: Schemas.vscodeTerminal,

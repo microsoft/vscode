@@ -67,7 +67,7 @@ class ConfigurationCache implements IConfigurationCache {
 	async remove(): Promise<void> { }
 }
 
-const ROOT = URI.file('tests').with({ scheme: 'erdos-tests' });
+const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 suite('WorkspaceContextService - Folder', () => {
 

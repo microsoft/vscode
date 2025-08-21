@@ -228,7 +228,7 @@ export class ComputeAutomaticInstructions {
 			return entries;
 		}
 
-		const toolName = 'read_file'; // workaround https://github.com/willnickols/erdos/issues/252167
+		const toolName = 'read_file'; // workaround https://github.com/microsoft/vscode/issues/252167
 		return [
 			'Here is a list of instruction files that contain rules for modifying or creating new code.',
 			'These files are important for ensuring that the code is modified or created correctly.',

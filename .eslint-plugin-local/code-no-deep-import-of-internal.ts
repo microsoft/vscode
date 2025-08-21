@@ -14,7 +14,7 @@ export = new class implements eslint.Rule.RuleModule {
 			noDeepImportOfInternal: 'No deep import of internal modules allowed! Use a re-export from a non-internal module instead. Internal modules can only be imported by direct parents (any module in {{parentDir}}).'
 		},
 		docs: {
-			url: 'https://github.com/willnickols/erdos/wiki/Source-Code-Organization'
+			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
 		},
 		schema: [
 			{

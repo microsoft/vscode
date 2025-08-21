@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/59924
+	// https://github.com/microsoft/vscode/issues/59924
 
 	export interface FindTextInFilesOptions2 {
 		/**

@@ -29,8 +29,8 @@
 		"./*.ts",
 		"./typings",
 		"./vs/**/*.ts",
-		"./erdos-dts/vscode.proposed.*.d.ts",
-		"./erdos-dts/vscode.d.ts"
+		"./vscode-dts/vscode.proposed.*.d.ts",
+		"./vscode-dts/vscode.d.ts"
 	],
 	"exclude": [
 		"vs/workbench/contrib/webview/browser/pre/service-worker.js"

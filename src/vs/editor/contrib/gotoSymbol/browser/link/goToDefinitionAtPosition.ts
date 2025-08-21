@@ -83,7 +83,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 
 	async startFindDefinitionFromCursor(position: Position) {
-		// For issue: https://github.com/willnickols/erdos/issues/46257
+		// For issue: https://github.com/microsoft/vscode/issues/46257
 		// equivalent to mouse move with meta/ctrl key
 
 		// First find the definition and add decorations

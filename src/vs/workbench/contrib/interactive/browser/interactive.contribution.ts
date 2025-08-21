@@ -103,7 +103,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeInteractiveInput}:/**`,
 			{
-				id: 'erdos-interactive-input',
+				id: 'vscode-interactive-input',
 				label: 'Interactive Editor',
 				priority: RegisteredEditorPriority.exclusive
 			},

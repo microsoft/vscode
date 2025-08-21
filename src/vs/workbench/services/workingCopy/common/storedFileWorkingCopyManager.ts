@@ -232,7 +232,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 		// As long as stored file working copies are pending to be saved, we prolong the shutdown
 		// until that has happened to ensure we are not shutting down in the middle of
-		// writing to the working copy (https://github.com/willnickols/erdos/issues/116600).
+		// writing to the working copy (https://github.com/microsoft/vscode/issues/116600).
 		while ((pendingSavedWorkingCopies = this.workingCopies.filter(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))).length > 0) {
 			await Promises.settled(pendingSavedWorkingCopies.map(workingCopy => workingCopy.joinState(StoredFileWorkingCopyState.PENDING_SAVE)));
 		}
@@ -415,7 +415,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 							// From this moment on, only operate on the canonical resource
 							// to fix a potential data loss issue:
-							// https://github.com/willnickols/erdos/issues/211374
+							// https://github.com/microsoft/vscode/issues/211374
 							const target = this.uriIdentityService.asCanonicalUri(workingCopyToRestore.target);
 
 							// Restore the working copy at the target. if we have previous dirty content, we pass it
@@ -566,7 +566,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 			// Automatically dispose the working copy if we created
 			// it because we cannot dispose a working copy we do not
-			// own (https://github.com/willnickols/erdos/issues/138850)
+			// own (https://github.com/microsoft/vscode/issues/138850)
 			if (didCreateWorkingCopy) {
 				workingCopy.dispose();
 			}

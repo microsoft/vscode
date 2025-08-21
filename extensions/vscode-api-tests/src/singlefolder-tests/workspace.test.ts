@@ -929,7 +929,7 @@ suite('vscode API - workspace', () => {
 		}
 	});
 
-	// TODO: below test is flaky and commented out, see https://github.com/willnickols/erdos/issues/238837
+	// TODO: below test is flaky and commented out, see https://github.com/microsoft/vscode/issues/238837
 	test.skip('workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735 (with opened editor)', async function () {
 		await test77735(true);
 	});
@@ -1137,7 +1137,7 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(e.files[1].toString(), file2.toString());
 	});
 
-	test.skip('issue #107739 - Redo of rename Java Class name has no effect', async () => { // https://github.com/willnickols/erdos/issues/254042
+	test.skip('issue #107739 - Redo of rename Java Class name has no effect', async () => { // https://github.com/microsoft/vscode/issues/254042
 		const file = await createRandomFile('hello');
 		const fileName = basename(file.fsPath);
 
@@ -1514,7 +1514,7 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(updatedText, text);
 	});
 
-	test('encoding: utf8bom does not explode (https://github.com/willnickols/erdos/issues/242132)', async function () {
+	test('encoding: utf8bom does not explode (https://github.com/microsoft/vscode/issues/242132)', async function () {
 		const buffer = [0xEF, 0xBB, 0xBF, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100];
 		const uri = await createRandomFile(new Uint8Array(buffer) /* UTF-8 with BOM */);
 

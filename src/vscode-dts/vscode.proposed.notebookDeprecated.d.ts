@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/106744
+	// https://github.com/microsoft/vscode/issues/106744
 
 	export interface NotebookCellOutput {
 		/**

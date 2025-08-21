@@ -127,7 +127,7 @@ class AbstractNewPromptFileAction extends Action2 {
 				{
 					label: localize('learnMore.capitalized', "Learn More"),
 					run: () => {
-						openerService.open(URI.parse('https://aka.ms/erdos-settings-sync-help'));
+						openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help'));
 					},
 				},
 			],

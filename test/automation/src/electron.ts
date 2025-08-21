@@ -6,7 +6,7 @@
 import { join } from 'path';
 import * as fs from 'fs';
 import { copyExtension } from './extensions';
-import { URI } from 'erdos-uri';
+import { URI } from 'vscode-uri';
 import { measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
 
@@ -44,13 +44,13 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 
 	if (remote) {
 		// Replace workspace path with URI
-		args[0] = `--${workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=erdos-remote://test+test/${URI.file(workspacePath).path}`;
+		args[0] = `--${workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(workspacePath).path}`;
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			await measureAndLog(() => copyExtension(root, extensionsPath, 'erdos-test-resolver'), 'copyExtension(erdos-test-resolver)', logger);
+			await measureAndLog(() => copyExtension(root, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
 		}
-		args.push('--enable-proposed-api=vscode.erdos-test-resolver');
+		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${userDataDir}-server`;
 		fs.mkdirSync(remoteDataDir, { recursive: true });
 

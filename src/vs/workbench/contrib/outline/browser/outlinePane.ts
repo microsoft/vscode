@@ -202,7 +202,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		this._editorPaneDisposables.clear();
 
 		if (pane) {
-			// react to control changes from within pane (https://github.com/willnickols/erdos/issues/134008)
+			// react to control changes from within pane (https://github.com/microsoft/vscode/issues/134008)
 			this._editorPaneDisposables.add(pane.onDidChangeControl(() => {
 				this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 			}));
@@ -314,7 +314,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 			const myId = ++idPool;
 			const isDoubleClick = e.browserEvent?.type === 'dblclick';
 			if (!isDoubleClick) {
-				// workaround for https://github.com/willnickols/erdos/issues/206424
+				// workaround for https://github.com/microsoft/vscode/issues/206424
 				await timeout(150);
 				if (myId !== idPool) {
 					return;

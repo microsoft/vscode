@@ -315,11 +315,11 @@ export interface IMcpServer extends IDisposable {
 }
 
 /**
- * A representation of an MCP resource. The `uri` is namespaced to Erdos and
+ * A representation of an MCP resource. The `uri` is namespaced to VS Code and
  * can be used in filesystem APIs.
  */
 export interface IMcpResource {
-	/** Identifier for the file in Erdos and operable with filesystem API */
+	/** Identifier for the file in VS Code and operable with filesystem API */
 	readonly uri: URI;
 	/** Identifier of the file as given from the MCP server. */
 	readonly mcpUri: string;

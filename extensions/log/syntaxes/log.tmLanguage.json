@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/emilast/erdos-logfile-highlighter/blob/master/syntaxes/log.tmLanguage",
+		"This file has been converted from https://github.com/emilast/vscode-logfile-highlighter/blob/master/syntaxes/log.tmLanguage",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/erdos-logfile-highlighter/commit/396c8552ff99d0e07142fdd940d75dae212dd28c",
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/396c8552ff99d0e07142fdd940d75dae212dd28c",
 	"name": "Log file",
 	"scopeName": "text.log",
 	"patterns": [

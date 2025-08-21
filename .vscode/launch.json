@@ -78,7 +78,7 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "Erdos Emmet Tests",
+			"name": "VS Code Emmet Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"${workspaceFolder}/extensions/emmet/test-workspace",
@@ -96,7 +96,7 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "Erdos Configuration Editing Tests",
+			"name": "VS Code Configuration Editing Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/configuration-editing",
@@ -113,7 +113,7 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "Erdos Git Tests",
+			"name": "VS Code Git Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"/tmp/my4g9l",
@@ -131,7 +131,7 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "Erdos Github Tests",
+			"name": "VS Code Github Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"${workspaceFolder}/extensions/github/testWorkspace",
@@ -149,17 +149,17 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "Erdos API Tests (single folder)",
+			"name": "VS Code API Tests (single folder)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				// "${workspaceFolder}", // Uncomment for running out of sources.
-				"${workspaceFolder}/extensions/erdos-api-tests/testWorkspace",
-				"--extensionDevelopmentPath=${workspaceFolder}/extensions/erdos-api-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/erdos-api-tests/out/singlefolder-tests",
+				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests",
 				"--disable-extensions"
 			],
 			"outFiles": [
-				"${workspaceFolder}/extensions/erdos-api-tests/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -169,15 +169,15 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "Erdos API Tests (workspace)",
+			"name": "VS Code API Tests (workspace)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/erdos-api-tests/testworkspace.code-workspace",
-				"--extensionDevelopmentPath=${workspaceFolder}/extensions/erdos-api-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/erdos-api-tests/out/workspace-tests"
+				"${workspaceFolder}/extensions/vscode-api-tests/testworkspace.code-workspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/workspace-tests"
 			],
 			"outFiles": [
-				"${workspaceFolder}/extensions/erdos-api-tests/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -187,12 +187,12 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "Erdos Tokenizer Tests",
+			"name": "VS Code Tokenizer Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/erdos-colorize-tests/test",
-				"--extensionDevelopmentPath=${workspaceFolder}/extensions/erdos-colorize-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/erdos-colorize-tests/out"
+				"${workspaceFolder}/extensions/vscode-colorize-tests/test",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-colorize-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-colorize-tests/out"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -205,12 +205,12 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "Erdos Tokenizer Performance Tests",
+			"name": "VS Code Tokenizer Performance Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/erdos-colorize-perf-tests/test",
-				"--extensionDevelopmentPath=${workspaceFolder}/extensions/erdos-colorize-perf-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/erdos-colorize-perf-tests/out"
+				"${workspaceFolder}/extensions/vscode-colorize-perf-tests/test",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-colorize-perf-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-colorize-perf-tests/out"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -223,7 +223,7 @@
 		{
 			"type": "chrome",
 			"request": "attach",
-			"name": "Attach to Erdos",
+			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
 			"port": 9222,
 			"outFiles": [
@@ -237,7 +237,7 @@
 		{
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch Erdos Internal",
+			"name": "Launch VS Code Internal",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -260,11 +260,11 @@
 				"--inspect-brk=5875",
 				"--no-cached-data",
 				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
-				// for general runtime freezes: https://github.com/willnickols/erdos/issues/127861#issuecomment-904144910
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
-				"--disable-extension=vscode.erdos-api-tests"
+				"--disable-extension=vscode.vscode-api-tests"
 			],
-			"userDataDir": "${userHome}/.erdos-oss-dev",
+			"userDataDir": "${userHome}/.vscode-oss-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
@@ -282,7 +282,7 @@
 			// To debug observables you also need the extension "ms-vscode.debug-value-editor"
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch Erdos Internal (Dev Debug)",
+			"name": "Launch VS Code Internal (Dev Debug)",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -305,11 +305,11 @@
 				"--inspect-brk=5875",
 				"--no-cached-data",
 				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
-				// for general runtime freezes: https://github.com/willnickols/erdos/issues/127861#issuecomment-904144910
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
-				"--disable-extension=vscode.erdos-api-tests"
+				"--disable-extension=vscode.vscode-api-tests"
 			],
-			"userDataDir": "${userHome}/.erdos-oss-dev",
+			"userDataDir": "${userHome}/.vscode-oss-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
@@ -326,7 +326,7 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Erdos Server (Web)",
+			"name": "VS Code Server (Web)",
 			"runtimeExecutable": "${workspaceFolder}/scripts/code-server.sh",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat",
@@ -366,7 +366,7 @@
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
-			"name": "Erdos Server (Web, Chrome)",
+			"name": "VS Code Server (Web, Chrome)",
 			"url": "http://localhost:8080?tkn=dev-token",
 			"preLaunchTask": "Run code server",
 			"presentation": {
@@ -379,7 +379,7 @@
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
-			"name": "Erdos Server (Web, Edge)",
+			"name": "VS Code Server (Web, Edge)",
 			"url": "http://localhost:8080?tkn=dev-token",
 			"pauseForSourceMap": false,
 			"preLaunchTask": "Run code server",
@@ -393,7 +393,7 @@
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
-			"name": "Erdos Web (Chrome)",
+			"name": "VS Code Web (Chrome)",
 			"url": "http://localhost:8080",
 			"preLaunchTask": "Run code web",
 			"presentation": {
@@ -406,7 +406,7 @@
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
-			"name": "Erdos Web (Edge)",
+			"name": "VS Code Web (Edge)",
 			"url": "http://localhost:8080",
 			"pauseForSourceMap": false,
 			"preLaunchTask": "Run code web",
@@ -517,7 +517,7 @@
 				"${workspaceFolder}/out/**/*.js"
 			],
 			"cascadeTerminateToConfigurations": [
-				"Attach to Erdos"
+				"Attach to VS Code"
 			],
 			"env": {
 				"MOCHA_COLORS": "true"
@@ -539,7 +539,7 @@
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
 			},
 			"cascadeTerminateToConfigurations": [
-				"Attach to Erdos"
+				"Attach to VS Code"
 			],
 			"outputCapture": "std",
 			"args": [
@@ -601,10 +601,10 @@
 	],
 	"compounds": [
 		{
-			"name": "Erdos",
+			"name": "VS Code",
 			"stopAll": true,
 			"configurations": [
-				"Launch Erdos Internal",
+				"Launch VS Code Internal",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
@@ -616,10 +616,10 @@
 			}
 		},
 		{
-			"name": "Erdos (Debug Observables)",
+			"name": "VS Code (Debug Observables)",
 			"stopAll": true,
 			"configurations": [
-				"Launch Erdos Internal (Dev Debug)",
+				"Launch VS Code Internal (Dev Debug)",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
@@ -633,7 +633,7 @@
 		{
 			"name": "Search, Renderer, and Main processes",
 			"configurations": [
-				"Launch Erdos Internal",
+				"Launch VS Code Internal",
 				"Attach to Main Process",
 				"Attach to Search Process"
 			],
@@ -645,7 +645,7 @@
 		{
 			"name": "Renderer, Extension Host, and Main processes",
 			"configurations": [
-				"Launch Erdos Internal",
+				"Launch VS Code Internal",
 				"Attach to Main Process",
 				"Attach to Extension Host"
 			],
@@ -657,7 +657,7 @@
 		{
 			"name": "Debug Unit Tests",
 			"configurations": [
-				"Attach to Erdos",
+				"Attach to VS Code",
 				"Run Unit Tests"
 			],
 			"presentation": {
@@ -668,7 +668,7 @@
 		{
 			"name": "Debug Unit Tests (Current File)",
 			"configurations": [
-				"Attach to Erdos",
+				"Attach to VS Code",
 				"Run Unit Tests For Current File"
 			],
 			"presentation": {
@@ -680,7 +680,7 @@
 			"name": "Renderer and Main processes",
 			"stopAll": true,
 			"configurations": [
-				"Launch Erdos Internal",
+				"Launch VS Code Internal",
 				"Attach to Main Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"

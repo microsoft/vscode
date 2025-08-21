@@ -409,7 +409,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private withServices(fn: (accessor: ServicesAccessor) => unknown): void {
 		// Host service is used in a lot of contexts and some services
 		// need to be resolved dynamically to avoid cyclic dependencies
-		// (https://github.com/willnickols/erdos/issues/108522)
+		// (https://github.com/microsoft/vscode/issues/108522)
 		this.instantiationService.invokeFunction(accessor => fn(accessor));
 	}
 
@@ -504,7 +504,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 					localize('unableToOpenExternalWorkspace', "The browser blocked opening a new tab or window for '{0}'. Press 'Retry' to try again.", this.getRecentLabel(workspace)) :
 					localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
 				custom: {
-					markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-erdos-popup'), true) }]
+					markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
 				},
 				buttons: [
 					{

@@ -1,5 +1,5 @@
 {
-  "name": "erdos-theme-seti",
+  "name": "vscode-theme-seti",
   "private": true,
   "version": "1.0.0",
   "displayName": "%displayName%",
@@ -25,6 +25,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

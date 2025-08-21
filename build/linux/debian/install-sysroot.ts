@@ -59,7 +59,7 @@ function getSha(filename: fs.PathLike): string {
 }
 
 function getVSCodeSysrootChecksum(expectedName: string) {
-	const checksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'erdos-sysroot.txt'), 'utf8');
+	const checksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'vscode-sysroot.txt'), 'utf8');
 	for (const line of checksums.split('\n')) {
 		const [checksum, name] = line.split(/\s+/);
 		if (name === expectedName) {
@@ -80,7 +80,7 @@ async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000)
 		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
 		const version = '20250407-330404';
 		try {
-			const response = await fetch(`https://api.github.com/repos/Microsoft/erdos-linux-build-agent/releases/tags/v${version}`, {
+			const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
 				headers: ghApiHeaders,
 				signal: controller.signal as any /* Typings issue with lib.dom.d.ts */
 			});
@@ -89,7 +89,7 @@ async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000)
 				const contents = Buffer.from(await response.arrayBuffer());
 				const asset = JSON.parse(contents.toString()).assets.find((a: { name: string }) => a.name === options.assetName);
 				if (!asset) {
-					throw new Error(`Could not find asset in release of Microsoft/erdos-linux-build-agent @ ${version}`);
+					throw new Error(`Could not find asset in release of Microsoft/vscode-linux-build-agent @ ${version}`);
 				}
 				console.log(`Found asset ${options.assetName} @ ${asset.url}.`);
 				const assetResponse = await fetch(asset.url, {
@@ -160,7 +160,7 @@ export async function getVSCodeSysroot(arch: DebianArchString, isMusl: boolean =
 	if (!checksumSha256) {
 		throw new Error(`Could not find checksum for ${expectedName}`);
 	}
-	const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path.join(tmpdir(), `erdos-${arch}-sysroot`);
+	const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path.join(tmpdir(), `vscode-${arch}-sysroot`);
 	const stamp = path.join(sysroot, '.stamp');
 	let result = `${sysroot}/${triple}/${triple}/sysroot`;
 	if (isMusl) {

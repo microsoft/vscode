@@ -112,11 +112,11 @@
   },
   "devDependencies": {
     "@types/markdown-it": "^0.0.0",
-    "@types/erdos-notebook-renderer": "^1.60.0"
+    "@types/vscode-notebook-renderer": "^1.60.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   },
   "dependencies": {
     "@vscode/markdown-it-katex": "^1.1.2"

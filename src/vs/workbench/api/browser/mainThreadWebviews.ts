@@ -26,7 +26,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		Schemas.https,
 		Schemas.mailto,
 		Schemas.vscode,
-		'erdos-insider',
+		'vscode-insider',
 	]);
 
 	private readonly _proxy: extHostProtocol.ExtHostWebviewsShape;

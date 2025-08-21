@@ -1157,7 +1157,7 @@ declare namespace Fig {
 		 */
 		script?:
 		| string[]
-		| Function<string[], string[] | undefined> // <-- Erdos edit to make results correct
+		| Function<string[], string[] | undefined> // <-- VS Code edit to make results correct
 		| ExecuteCommandInput
 		| Function<string[], ExecuteCommandInput>;
 		/**
@@ -1174,7 +1174,7 @@ declare namespace Fig {
 		 * @returns An array of `Suggestion` objects.
 		 *
 		 */
-		postProcess?: (out: string, tokens: string[]) => (Suggestion | null)[] | undefined; // <-- Erdos edit to make results correct
+		postProcess?: (out: string, tokens: string[]) => (Suggestion | null)[] | undefined; // <-- VS Code edit to make results correct
 		/**
 		 * Syntactic sugar for `postProcess` function
 		 *
@@ -1279,7 +1279,7 @@ declare namespace Fig {
 			tokens: string[],
 			executeCommand: ExecuteCommandFunction,
 			generatorContext: GeneratorContext
-		) => Promise<(Suggestion | null)[] | undefined>; // <-- Erdos edit to make results correct
+		) => Promise<(Suggestion | null)[] | undefined>; // <-- VS Code edit to make results correct
 		/**
 		 *
 		 * Cache the response of generators for a specific period time and optionally by directory the commands were executed in.

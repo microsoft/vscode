@@ -22,7 +22,7 @@ class DependencyList {
 	/** Gets whether any of the 'available' dependencies match the ones in this list */
 	public matches(available: ReadonlyArray<string>) {
 		// For now this is simple, but this may expand to support globs later
-		// @see https://github.com/willnickols/erdos/issues/119899
+		// @see https://github.com/microsoft/vscode/issues/119899
 		return available.some(v => this.value.has(v));
 	}
 }

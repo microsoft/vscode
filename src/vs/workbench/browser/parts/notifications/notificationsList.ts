@@ -272,6 +272,6 @@ export class NotificationAccessibilityProvider implements IListAccessibilityProv
 	}
 
 	getRole(): AriaRole {
-		return 'dialog'; // https://github.com/willnickols/erdos/issues/82728
+		return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
 	}
 }

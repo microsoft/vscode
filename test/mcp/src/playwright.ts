@@ -121,8 +121,8 @@ function getTestTypeSuffix(): string {
 	}
 }
 
-const testRepoUrl = 'https://github.com/willnickols/erdos-smoketest-express';
-const workspacePath = path.join(testDataPath, `erdos-smoketest-express-${getTestTypeSuffix()}`);
+const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
+const workspacePath = path.join(testDataPath, `vscode-smoketest-express-${getTestTypeSuffix()}`);
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 fs.mkdirSync(extensionsPath, { recursive: true });
 
@@ -219,7 +219,7 @@ else {
 	quality = parseQuality();
 }
 
-logger.log(`Erdos product quality: ${quality}.`);
+logger.log(`VS Code product quality: ${quality}.`);
 
 const userDataDir = path.join(testDataPath, 'd');
 
@@ -269,7 +269,7 @@ async function ensureStableCode(): Promise<void> {
 			throw new Error(`Could not find suitable stable version for ${version}`);
 		}
 
-		logger.log(`Found Erdos v${version}, downloading previous Erdos version ${stableVersion}...`);
+		logger.log(`Found VS Code v${version}, downloading previous VS Code version ${stableVersion}...`);
 
 		let lastProgressMessage: string | undefined = undefined;
 		let lastProgressReportedAt = 0;
@@ -306,7 +306,7 @@ async function ensureStableCode(): Promise<void> {
 		}));
 
 		if (process.platform === 'darwin') {
-			// Erdos.app/Contents/MacOS/Electron
+			// Visual Studio Code.app/Contents/MacOS/Electron
 			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
 		} else {
 			// VSCode/Code.exe (Windows) | VSCode/code (Linux)

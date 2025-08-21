@@ -45,8 +45,8 @@
     "@vscode/ts-package-manager": "^0.0.2",
     "jsonc-parser": "^3.2.0",
     "semver": "7.5.2",
-    "erdos-tas-client": "^0.1.84",
-    "erdos-uri": "^3.0.3"
+    "vscode-tas-client": "^0.1.84",
+    "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
     "@types/node": "22.x",
@@ -1803,6 +1803,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

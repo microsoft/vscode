@@ -89,7 +89,7 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: net.Socket, 
  * ends. For unix domain sockets, the close event may not fire consistently
  * due to what appears to be a Node.js bug.
  *
- * @see https://github.com/willnickols/erdos/issues/211462#issuecomment-2155471996
+ * @see https://github.com/microsoft/vscode/issues/211462#issuecomment-2155471996
  */
 const socketEndTimeoutMs = 30_000;
 
@@ -838,7 +838,7 @@ function unmask(buffer: VSBuffer, mask: number): void {
 }
 
 // Read this before there's any chance it is overwritten
-// Related to https://github.com/willnickols/erdos/issues/30624
+// Related to https://github.com/microsoft/vscode/issues/30624
 export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {
@@ -851,13 +851,13 @@ export function createRandomIPCHandle(): string {
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\erdos-ipc-${randomSuffix}-sock`;
+		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
 	}
 
 	// Mac & Unix: Use socket file
 	// Unix: Prefer XDG_RUNTIME_DIR over user data path
 	const basePath = process.platform !== 'darwin' && XDG_RUNTIME_DIR ? XDG_RUNTIME_DIR : tmpdir();
-	const result = join(basePath, `erdos-ipc-${randomSuffix}.sock`);
+	const result = join(basePath, `vscode-ipc-${randomSuffix}.sock`);
 
 	// Validate length
 	validateIPCHandleLength(result);
@@ -884,7 +884,7 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 
 	let result: string;
 	if (process.platform !== 'darwin' && XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
-		result = join(XDG_RUNTIME_DIR, `erdos-${scopeForSocket}-${versionForSocket}-${typeForSocket}.sock`);
+		result = join(XDG_RUNTIME_DIR, `vscode-${scopeForSocket}-${versionForSocket}-${typeForSocket}.sock`);
 	} else {
 		result = join(directoryPath, `${versionForSocket}-${typeForSocket}.sock`);
 	}

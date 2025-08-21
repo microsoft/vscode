@@ -223,7 +223,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 
 	private loadAuthSessionFromElement(): Record<string, string> {
 		let authSessionInfo: (AuthenticationSessionInfo & { scopes: string[][] }) | undefined;
-		const authSessionElement = mainWindow.document.getElementById('erdos-workbench-auth-session');
+		const authSessionElement = mainWindow.document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
 		if (authSessionElementAttribute) {
 			try {
@@ -317,21 +317,21 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 	create(options: Partial<UriComponents> = {}): URI {
 		const id = ++LocalStorageURLCallbackProvider.REQUEST_ID;
-		const queryParams: string[] = [`erdos-reqid=${id}`];
+		const queryParams: string[] = [`vscode-reqid=${id}`];
 
 		for (const key of LocalStorageURLCallbackProvider.QUERY_KEYS) {
 			const value = options[key];
 
 			if (value) {
-				queryParams.push(`erdos-${key}=${encodeURIComponent(value)}`);
+				queryParams.push(`vscode-${key}=${encodeURIComponent(value)}`);
 			}
 		}
 
 		// TODO@joao remove eventually
-		// https://github.com/willnickols/erdos-dev/issues/62
-		// https://github.com/willnickols/erdos/blob/159479eb5ae451a66b5dac3c12d564f32f454796/extensions/github-authentication/src/githubServer.ts#L50-L50
+		// https://github.com/microsoft/vscode-dev/issues/62
+		// https://github.com/microsoft/vscode/blob/159479eb5ae451a66b5dac3c12d564f32f454796/extensions/github-authentication/src/githubServer.ts#L50-L50
 		if (!(options.authority === 'vscode.github-authentication' && options.path === '/dummy')) {
-			const key = `erdos-web.url-callbacks[${id}]`;
+			const key = `vscode-web.url-callbacks[${id}]`;
 			localStorage.removeItem(key);
 
 			this.pendingCallbacks.add(id);
@@ -373,7 +373,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 		let pendingCallbacks: Set<number> | undefined;
 
 		for (const id of this.pendingCallbacks) {
-			const key = `erdos-web.url-callbacks[${id}]`;
+			const key = `vscode-web.url-callbacks[${id}]`;
 			const result = localStorage.getItem(key);
 
 			if (result !== null) {
@@ -423,7 +423,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 					if (config.remoteAuthority && value.startsWith(posix.sep)) {
 						// when connected to a remote and having a value
 						// that is a path (begins with a `/`), assume this
-						// is a erdos-remote resource as simplified URL.
+						// is a vscode-remote resource as simplified URL.
 						workspace = { folderUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
 					} else {
 						workspace = { folderUri: URI.parse(value) };
@@ -436,7 +436,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 					if (config.remoteAuthority && value.startsWith(posix.sep)) {
 						// when connected to a remote and having a value
 						// that is a path (begins with a `/`), assume this
-						// is a erdos-remote resource as simplified URL.
+						// is a vscode-remote resource as simplified URL.
 						workspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
 					} else {
 						workspace = { workspaceUri: URI.parse(value) };
@@ -597,13 +597,13 @@ function readCookie(name: string): string | undefined {
 (function () {
 
 	// Find config by checking for DOM
-	const configElement = mainWindow.document.getElementById('erdos-workbench-web-configuration');
+	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
 	if (!configElement || !configElementAttribute) {
 		throw new Error('Missing web configuration element');
 	}
 	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents; callbackRoute: string } = JSON.parse(configElementAttribute);
-	const secretStorageKeyPath = readCookie('erdos-secret-key-path');
+	const secretStorageKeyPath = readCookie('vscode-secret-key-path');
 	const secretStorageCrypto = secretStorageKeyPath && ServerKeyedAESCrypto.supported()
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 

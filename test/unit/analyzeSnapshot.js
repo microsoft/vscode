@@ -18,7 +18,7 @@ if (!workerData) {
 
 	exports.takeSnapshotAndCountClasses = async (/** @type string */currentTest, /** @type string[] */ classes) => {
 		const cleanTitle = currentTest.replace(/[^\w]+/g, '-');
-		const file = join(tmpdir(), `erdos-test-snap-${cleanTitle}.heapsnapshot`);
+		const file = join(tmpdir(), `vscode-test-snap-${cleanTitle}.heapsnapshot`);
 
 		if (typeof process.takeHeapSnapshot !== 'function') {
 			// node.js:

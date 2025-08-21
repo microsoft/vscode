@@ -625,11 +625,11 @@ suite('URI', () => {
 		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/foo/bazz', false);
 		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/foo/bazz', false);
 
-		//https://github.com/willnickols/erdos/issues/93831
+		//https://github.com/microsoft/vscode/issues/93831
 		assertJoined('file:///c:/foo/bar', './other/foo.img', 'file:///c:/foo/bar/other/foo.img', false);
 	});
 
-	test('erdos-uri: URI.toString() wrongly encode IPv6 literals #154048', function () {
+	test('vscode-uri: URI.toString() wrongly encode IPv6 literals #154048', function () {
 		assert.strictEqual(URI.parse('http://[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
 
 		assert.strictEqual(URI.parse('http://user@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://user@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');

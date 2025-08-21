@@ -455,7 +455,7 @@ suite('ExtHostSearch', () => {
 				]);
 		});
 
-		// https://github.com/willnickols/erdos-remotehub/issues/255
+		// https://github.com/microsoft/vscode-remotehub/issues/255
 		test('include, sibling exclude, and subfolder', async () => {
 			const reportedResults = [
 				'foo/file1.ts',

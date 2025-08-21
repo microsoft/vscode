@@ -133,7 +133,7 @@ suite('ModelSemanticColoring', () => {
 		});
 	});
 
-	test('issue #149412: Erdos hangs when bad semantic token data is received', async () => {
+	test('issue #149412: VS Code hangs when bad semantic token data is received', async () => {
 		await runWithFakedTimers({}, async () => {
 
 			disposables.add(languageService.registerLanguage({ id: 'testMode' }));

@@ -111,7 +111,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 		let resource: URI | undefined = undefined;
 		if (uri.scheme === LocalHistoryFileSystemProvider.SCHEMA) {
-			// `erdos-local-history`: convert back to the associated resource
+			// `vscode-local-history`: convert back to the associated resource
 			resource = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri).associatedResource;
 		} else if (uri.scheme === this.pathService.defaultUriScheme || uri.scheme === Schemas.vscodeUserData) {
 			// default-scheme / settings: keep as is

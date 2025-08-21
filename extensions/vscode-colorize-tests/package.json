@@ -1,6 +1,6 @@
 {
-  "name": "erdos-colorize-tests",
-  "description": "Colorize tests for Erdos",
+  "name": "vscode-colorize-tests",
+  "description": "Colorize tests for VS Code",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
@@ -14,9 +14,9 @@
   },
   "icon": "media/icon.png",
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:erdos-colorize-tests ./tsconfig.json",
-    "watch": "gulp watch-extension:erdos-colorize-tests",
-    "compile": "gulp compile-extension:erdos-colorize-tests"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json",
+    "watch": "gulp watch-extension:vscode-colorize-tests",
+    "compile": "gulp compile-extension:vscode-colorize-tests"
   },
   "dependencies": {
     "jsonc-parser": "^3.2.0"
@@ -57,6 +57,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

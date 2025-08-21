@@ -20,7 +20,7 @@ export class UrlFinder extends Disposable {
 	private static readonly localUrlRegex = /\b\w{0,20}(?::\/\/)?(?:localhost|127\.0\.0\.1|0\.0\.0\.0|:\d{2,5})[\w\-\.\~:\/\?\#[\]\@!\$&\(\)\*\+\,\;\=]*/gim;
 	private static readonly extractPortRegex = /(localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{1,5})/;
 	/**
-	 * https://github.com/willnickols/erdos-remote-release/issues/3949
+	 * https://github.com/microsoft/vscode-remote-release/issues/3949
 	 */
 	private static readonly localPythonServerRegex = /HTTP\son\s(127\.0\.0\.1|0\.0\.0\.0)\sport\s(\d+)/;
 

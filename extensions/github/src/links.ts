@@ -63,7 +63,7 @@ function getFileAndPosition(context: LinkContext): IFilePosition | INotebookPosi
 	const uri = fileUri ?? vscode.window.activeTextEditor?.document.uri;
 
 	if (uri) {
-		if (uri.scheme === 'erdos-notebook-cell' && vscode.window.activeNotebookEditor?.notebook.uri.fsPath === uri.fsPath) {
+		if (uri.scheme === 'vscode-notebook-cell' && vscode.window.activeNotebookEditor?.notebook.uri.fsPath === uri.fsPath) {
 			// if the active editor is a notebook editor and the focus is inside any a cell text editor
 			// generate deep link for text selection for the notebook cell.
 			const cell = vscode.window.activeNotebookEditor.notebook.getCells().find(cell => cell.document.uri.fragment === uri?.fragment);

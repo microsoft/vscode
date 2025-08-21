@@ -28,12 +28,12 @@ export interface ColorContribution {
 
 /**
  * Returns the css variable name for the given color identifier. Dots (`.`) are replaced with hyphens (`-`) and
- * everything is prefixed with `--erdos-`.
+ * everything is prefixed with `--vscode-`.
  *
- * @sample `editorSuggestWidget.background` is `--erdos-editorSuggestWidget-background`.
+ * @sample `editorSuggestWidget.background` is `--vscode-editorSuggestWidget-background`.
  */
 export function asCssVariableName(colorIdent: ColorIdentifier): string {
-	return `--erdos-${colorIdent.replace(/\./g, '-')}`;
+	return `--vscode-${colorIdent.replace(/\./g, '-')}`;
 }
 
 export function asCssVariable(color: ColorIdentifier): string {

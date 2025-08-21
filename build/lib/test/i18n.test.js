@@ -50,7 +50,7 @@ suite('XLF Parser Tests', () => {
     const messages = ['Key #1', 'Key #2 &'];
     const translatedMessages = { key1: 'Кнопка #1', key2: 'Кнопка #2 &' };
     test('Keys & messages to XLF conversion', () => {
-        const xlf = new i18n.XLF('erdos-workbench');
+        const xlf = new i18n.XLF('vscode-workbench');
         xlf.addFile(name, keys, messages);
         const xlfString = xlf.toString();
         assert_1.default.strictEqual(xlfString.replace(/\s{2,}/g, ''), sampleXlf);
@@ -62,7 +62,7 @@ suite('XLF Parser Tests', () => {
         });
     });
     test('JSON file source path to Transifex resource match', () => {
-        const editorProject = 'erdos-editor', workbenchProject = 'erdos-workbench';
+        const editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench';
         const platform = { name: 'vs/platform', project: editorProject }, editorContrib = { name: 'vs/editor/contrib', project: editorProject }, editor = { name: 'vs/editor', project: editorProject }, base = { name: 'vs/base', project: editorProject }, code = { name: 'vs/code', project: workbenchProject }, workbenchParts = { name: 'vs/workbench/contrib/html', project: workbenchProject }, workbenchServices = { name: 'vs/workbench/services/textfile', project: workbenchProject }, workbench = { name: 'vs/workbench', project: workbenchProject };
         assert_1.default.deepStrictEqual(i18n.getResource('vs/platform/actions/browser/menusExtensionPoint'), platform);
         assert_1.default.deepStrictEqual(i18n.getResource('vs/editor/contrib/clipboard/browser/clipboard'), editorContrib);

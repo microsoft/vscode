@@ -1,5 +1,5 @@
 {
-  "name": "erdos-css-languageserver",
+  "name": "vscode-css-languageserver",
   "description": "CSS/LESS/SCSS language server",
   "version": "1.0.0",
   "author": "Microsoft Corporation",
@@ -11,9 +11,9 @@
   "browser": "./dist/browser/cssServerMain",
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
-    "erdos-css-languageservice": "^6.3.7",
-    "erdos-languageserver": "^10.0.0-next.13",
-    "erdos-uri": "^3.1.0"
+    "vscode-css-languageservice": "^6.3.7",
+    "vscode-languageserver": "^10.0.0-next.13",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
@@ -22,10 +22,10 @@
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-server",
-    "install-service-next": "npm install erdos-css-languageservice",
-    "install-service-local": "npm link erdos-css-languageservice",
-    "install-server-next": "npm install erdos-languageserver@next",
-    "install-server-local": "npm install erdos-languageserver",
+    "install-service-next": "npm install vscode-css-languageservice",
+    "install-service-local": "npm link vscode-css-languageservice",
+    "install-server-next": "npm install vscode-languageserver@next",
+    "install-server-local": "npm install vscode-languageserver",
     "test": "node ./test/index.js"
   }
 }

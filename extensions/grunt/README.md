@@ -1,10 +1,10 @@
 # Grunt - The JavaScript Task Runner
 
-**Notice:** This extension is bundled with Erdos. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 
 ## Features
 
-This extension supports running [Grunt](https://gruntjs.com/) tasks defined in a `gruntfile.js` file as [Erdos tasks](https://code.visualstudio.com/docs/editor/tasks). Grunt tasks with the name 'build', 'compile', or 'watch' are treated as build tasks.
+This extension supports running [Grunt](https://gruntjs.com/) tasks defined in a `gruntfile.js` file as [VS Code tasks](https://code.visualstudio.com/docs/editor/tasks). Grunt tasks with the name 'build', 'compile', or 'watch' are treated as build tasks.
 
 To run Grunt tasks, use the **Tasks** menu.
 

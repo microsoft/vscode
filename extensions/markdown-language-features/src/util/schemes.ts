@@ -10,8 +10,8 @@ export const Schemes = Object.freeze({
 	untitled: 'untitled',
 	mailto: 'mailto',
 	vscode: 'vscode',
-	'erdos-insiders': 'erdos-insiders',
-	notebookCell: 'erdos-notebook-cell',
+	'vscode-insiders': 'vscode-insiders',
+	notebookCell: 'vscode-notebook-cell',
 });
 
 export function isOfScheme(scheme: string, link: string): boolean {

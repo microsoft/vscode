@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as ts from 'typescript/lib/tsserverlibrary';
-import { URI } from 'erdos-uri';
+import { URI } from 'vscode-uri';
 import { Logger } from './logging';
 import { PathMapper, fromResource, looksLikeLibDtsPath, looksLikeNodeModules, mapUri } from './pathMapper';
 
@@ -53,9 +53,9 @@ export class FileWatcherManager {
 		this.watchFiles.set(path, { callback, pollingInterval, options });
 		const watchIds = [++this.watchId];
 		this.watchPort.postMessage({ type: 'watchFile', uri: uri, id: watchIds[0] });
-		if (this.enabledExperimentalTypeAcquisition && looksLikeNodeModules(path) && uri.scheme !== 'erdos-global-typings') {
+		if (this.enabledExperimentalTypeAcquisition && looksLikeNodeModules(path) && uri.scheme !== 'vscode-global-typings') {
 			watchIds.push(++this.watchId);
-			this.watchPort.postMessage({ type: 'watchFile', uri: mapUri(uri, 'erdos-global-typings'), id: watchIds[1] });
+			this.watchPort.postMessage({ type: 'watchFile', uri: mapUri(uri, 'vscode-global-typings'), id: watchIds[1] });
 		}
 		return {
 			close: () => {

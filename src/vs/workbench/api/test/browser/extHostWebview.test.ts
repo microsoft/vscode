@@ -111,31 +111,31 @@ suite('ExtHostWebview', () => {
 
 		assert.strictEqual(
 			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			`https://file%2B.erdos-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
+			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
 			'Unix basic'
 		);
 
 		assert.strictEqual(
 			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html#frag')).toString()),
-			`https://file%2B.erdos-resource.${webviewResourceBaseHost}/Users/codey/file.html#frag`,
+			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html#frag`,
 			'Unix should preserve fragment'
 		);
 
 		assert.strictEqual(
 			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/f%20ile.html')).toString()),
-			`https://file%2B.erdos-resource.${webviewResourceBaseHost}/Users/codey/f%20ile.html`,
+			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/Users/codey/f%20ile.html`,
 			'Unix with encoding'
 		);
 
 		assert.strictEqual(
 			(webview.webview.asWebviewUri(URI.parse('file://localhost/Users/codey/file.html')).toString()),
-			`https://file%2Blocalhost.erdos-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
+			`https://file%2Blocalhost.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
 			'Unix should preserve authority'
 		);
 
 		assert.strictEqual(
 			(webview.webview.asWebviewUri(URI.parse('file:///c:/codey/file.txt')).toString()),
-			`https://file%2B.erdos-resource.${webviewResourceBaseHost}/c%3A/codey/file.txt`,
+			`https://file%2B.vscode-resource.${webviewResourceBaseHost}/c%3A/codey/file.txt`,
 			'Windows C drive'
 		);
 	});
@@ -145,7 +145,7 @@ suite('ExtHostWebview', () => {
 
 		assert.strictEqual(
 			(webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString()),
-			`https://erdos-remote%2Bremote.erdos-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
+			`https://vscode-remote%2Bremote.vscode-resource.${webviewResourceBaseHost}/Users/codey/file.html`,
 			'Unix basic'
 		);
 	});
@@ -155,7 +155,7 @@ suite('ExtHostWebview', () => {
 		const authority = 'ssh-remote+localhost=foo/bar';
 
 		const sourceUri = URI.from({
-			scheme: 'erdos-remote',
+			scheme: 'vscode-remote',
 			authority: authority,
 			path: '/Users/cody/x.png'
 		});
@@ -163,12 +163,12 @@ suite('ExtHostWebview', () => {
 		const webviewUri = webview.webview.asWebviewUri(sourceUri);
 		assert.strictEqual(
 			webviewUri.toString(),
-			`https://erdos-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.erdos-resource.erdos-cdn.net/Users/cody/x.png`,
+			`https://vscode-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.vscode-resource.vscode-cdn.net/Users/cody/x.png`,
 			'Check transform');
 
 		assert.strictEqual(
 			decodeAuthority(webviewUri.authority),
-			`erdos-remote+${authority}.erdos-resource.erdos-cdn.net`,
+			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
 			'Check decoded authority'
 		);
 	});
@@ -178,7 +178,7 @@ suite('ExtHostWebview', () => {
 		const authority = 'localhost:8080';
 
 		const sourceUri = URI.from({
-			scheme: 'erdos-remote',
+			scheme: 'vscode-remote',
 			authority: authority,
 			path: '/Users/cody/x.png'
 		});
@@ -186,12 +186,12 @@ suite('ExtHostWebview', () => {
 		const webviewUri = webview.webview.asWebviewUri(sourceUri);
 		assert.strictEqual(
 			webviewUri.toString(),
-			`https://erdos-remote%2Blocalhost-003a8080.erdos-resource.erdos-cdn.net/Users/cody/x.png`,
+			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.vscode-cdn.net/Users/cody/x.png`,
 			'Check transform');
 
 		assert.strictEqual(
 			decodeAuthority(webviewUri.authority),
-			`erdos-remote+${authority}.erdos-resource.erdos-cdn.net`,
+			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
 			'Check decoded authority'
 		);
 	});

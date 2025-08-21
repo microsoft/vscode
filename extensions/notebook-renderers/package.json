@@ -20,7 +20,7 @@
 			{
 				"id": "vscode.builtin-renderer",
 				"entrypoint": "./renderer-out/index.js",
-				"displayName": "Erdos Builtin Notebook Output Renderer",
+				"displayName": "VS Code Builtin Notebook Output Renderer",
 				"requiresMessaging": "never",
 				"mimeTypes": [
 					"image/gif",
@@ -49,11 +49,11 @@
 	"dependencies": {},
 	"devDependencies": {
 		"@types/jsdom": "^21.1.0",
-		"@types/erdos-notebook-renderer": "^1.60.0",
+		"@types/vscode-notebook-renderer": "^1.60.0",
 		"jsdom": "^21.1.1"
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/willnickols/erdos.git"
+		"url": "https://github.com/microsoft/vscode.git"
 	}
 }

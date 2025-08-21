@@ -8,7 +8,7 @@ import { LanguageId } from '../../../../../../editor/common/encodedTokenAttribut
 import { IModelChangedEvent } from '../../../../../../editor/common/model/mirrorTextModel.js';
 import { ICreateGrammarResult, TMGrammarFactory } from '../../../common/TMGrammarFactory.js';
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from '../../../common/TMScopeRegistry.js';
-import type { IOnigLib, IRawTheme, StackDiff } from 'erdos-textmate';
+import type { IOnigLib, IRawTheme, StackDiff } from 'vscode-textmate';
 import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../../../base/common/worker/webWorker.js';
@@ -71,8 +71,8 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 	}
 
 	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[], onigurumaWASMUri: string): Promise<TMGrammarFactory> {
-		const vscodeTextmate = await importAMDNodeModule<typeof import('erdos-textmate')>('erdos-textmate', 'release/main.js');
-		const vscodeOniguruma = await importAMDNodeModule<typeof import('erdos-oniguruma')>('erdos-oniguruma', 'release/main.js');
+		const vscodeTextmate = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
+		const vscodeOniguruma = await importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js');
 		const response = await fetch(onigurumaWASMUri);
 
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.

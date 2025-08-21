@@ -1,8 +1,8 @@
 # VSCode JSON Language Server
 
-[![NPM Version](https://img.shields.io/npm/v/erdos-json-languageserver.svg)](https://npmjs.org/package/erdos-json-languageserver)
-[![NPM Downloads](https://img.shields.io/npm/dm/erdos-json-languageserver.svg)](https://npmjs.org/package/erdos-json-languageserver)
-[![NPM Version](https://img.shields.io/npm/l/erdos-json-languageserver.svg)](https://npmjs.org/package/erdos-json-languageserver)
+[![NPM Version](https://img.shields.io/npm/v/vscode-json-languageserver.svg)](https://npmjs.org/package/vscode-json-languageserver)
+[![NPM Downloads](https://img.shields.io/npm/dm/vscode-json-languageserver.svg)](https://npmjs.org/package/vscode-json-languageserver)
+[![NPM Version](https://img.shields.io/npm/l/vscode-json-languageserver.svg)](https://npmjs.org/package/vscode-json-languageserver)
 
 The JSON Language server provides language-specific smarts for editing, validating and understanding JSON documents. It runs as a separate executable and implements the [language server protocol](https://microsoft.github.io/language-server-protocol/overview) to be connected by any code editor or IDE.
 
@@ -206,38 +206,38 @@ If the setting `jsonFoldingLimit` or `jsoncFoldingLimit` is set, the JSON langua
 
 ## Try
 
-The JSON language server is shipped with [Erdos](https://code.visualstudio.com/) as part of the built-in VSCode extension `json-language-features`. The server is started when the first JSON file is opened. The [VSCode JSON documentation](https://code.visualstudio.com/docs/languages/json) for detailed information on the user experience and has more information on how to configure the language support.
+The JSON language server is shipped with [Visual Studio Code](https://code.visualstudio.com/) as part of the built-in VSCode extension `json-language-features`. The server is started when the first JSON file is opened. The [VSCode JSON documentation](https://code.visualstudio.com/docs/languages/json) for detailed information on the user experience and has more information on how to configure the language support.
 
 ## Integrate
 
 If you plan to integrate the JSON language server into an editor and IDE, check out [this page](https://microsoft.github.io/language-server-protocol/implementors/tools/) if there's already an LSP client integration available.
 
 You can also launch the language server as a command and connect to it.
-For that, install the `erdos-json-languageserver` npm module:
+For that, install the `vscode-json-languageserver` npm module:
 
-`npm install -g erdos-json-languageserver`
+`npm install -g vscode-json-languageserver`
 
-Start the language server with the `erdos-json-languageserver` command. Use a command line argument to specify the preferred communication channel:
+Start the language server with the `vscode-json-languageserver` command. Use a command line argument to specify the preferred communication channel:
 
 ```
-erdos-json-languageserver --node-ipc
-erdos-json-languageserver --stdio
-erdos-json-languageserver --socket=<port>
+vscode-json-languageserver --node-ipc
+vscode-json-languageserver --stdio
+vscode-json-languageserver --socket=<port>
 ```
 
 To connect to the server from NodeJS, see Remy Suen's great write-up on [how to communicate with the server](https://github.com/rcjsuen/dockerfile-language-server-nodejs#communicating-with-the-server) through the available communication channels.
 
 ## Participate
 
-The source code of the JSON language server can be found in the [VSCode repository](https://github.com/willnickols/erdos) at [extensions/json-language-features/server](https://github.com/willnickols/erdos/tree/master/extensions/json-language-features/server).
+The source code of the JSON language server can be found in the [VSCode repository](https://github.com/microsoft/vscode) at [extensions/json-language-features/server](https://github.com/microsoft/vscode/tree/master/extensions/json-language-features/server).
 
-File issues and pull requests in the [VSCode GitHub Issues](https://github.com/willnickols/erdos/issues). See the document [How to Contribute](https://github.com/willnickols/erdos/wiki/How-to-Contribute) on how to build and run from source.
+File issues and pull requests in the [VSCode GitHub Issues](https://github.com/microsoft/vscode/issues). See the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) on how to build and run from source.
 
 Most of the functionality of the server is located in libraries:
 
 - [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) contains the JSON parser and scanner.
-- [erdos-json-languageservice](https://github.com/willnickols/erdos-json-languageservice) contains the implementation of all features as a re-usable library.
-- [erdos-languageserver-node](https://github.com/willnickols/erdos-languageserver-node) contains the implementation of language server for NodeJS.
+- [vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice) contains the implementation of all features as a re-usable library.
+- [vscode-languageserver-node](https://github.com/microsoft/vscode-languageserver-node) contains the implementation of language server for NodeJS.
 
 Help on any of these projects is very welcome.
 
@@ -249,4 +249,4 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 
 Copyright (c) Microsoft Corporation. All rights reserved.
 
-Licensed under the [MIT](https://github.com/willnickols/erdos/blob/master/LICENSE.txt) License.
+Licensed under the [MIT](https://github.com/microsoft/vscode/blob/master/LICENSE.txt) License.

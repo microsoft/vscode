@@ -17,7 +17,7 @@ suite('Decoration Render Options', () => {
 	const themeServiceMock = new TestThemeService();
 
 	const options: IDecorationRenderOptions = {
-		gutterIconPath: URI.parse('https://github.com/willnickols/erdos/blob/main/resources/linux/code.png'),
+		gutterIconPath: URI.parse('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png'),
 		gutterIconSize: 'contain',
 		backgroundColor: 'red',
 		borderColor: 'yellow'
@@ -44,7 +44,7 @@ suite('Decoration Render Options', () => {
 		const styleSheet = s.globalStyleSheet;
 		store.add(s.registerDecorationType('test', 'example', options));
 		const sheet = readStyleSheet(styleSheet);
-		assert(sheet.indexOf(`{background:url('${CSS.escape('https://github.com/willnickols/erdos/blob/main/resources/linux/code.png')}') center center no-repeat;background-size:contain;}`) >= 0);
+		assert(sheet.indexOf(`{background:url('${CSS.escape('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png')}') center center no-repeat;background-size:contain;}`) >= 0);
 		assert(sheet.indexOf(`{background-color:red;border-color:yellow;box-sizing: border-box;}`) >= 0);
 	});
 
@@ -125,22 +125,22 @@ suite('Decoration Render Options', () => {
 		if (platform.isWindows) {
 			// windows file path (used as string)
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('c:\\files\\miles\\more.png') });
-			assertBackground(CSS.escape('file:///c:/files/miles/more.png'), CSS.escape('erdos-file://erdos-app/c:/files/miles/more.png'));
+			assertBackground(CSS.escape('file:///c:/files/miles/more.png'), CSS.escape('vscode-file://vscode-app/c:/files/miles/more.png'));
 			s.removeDecorationType('example');
 
 			// single quote must always be escaped/encoded
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('c:\\files\\foo\\b\'ar.png') });
-			assertBackground(CSS.escape('file:///c:/files/foo/b\'ar.png'), CSS.escape('erdos-file://erdos-app/c:/files/foo/b\'ar.png'));
+			assertBackground(CSS.escape('file:///c:/files/foo/b\'ar.png'), CSS.escape('vscode-file://vscode-app/c:/files/foo/b\'ar.png'));
 			s.removeDecorationType('example');
 		} else {
 			// unix file path (used as string)
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('/Users/foo/bar.png') });
-			assertBackground(CSS.escape('file:///Users/foo/bar.png'), CSS.escape('erdos-file://erdos-app/Users/foo/bar.png'));
+			assertBackground(CSS.escape('file:///Users/foo/bar.png'), CSS.escape('vscode-file://vscode-app/Users/foo/bar.png'));
 			s.removeDecorationType('example');
 
 			// single quote must always be escaped/encoded
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('/Users/foo/b\'ar.png') });
-			assertBackground(CSS.escape('file:///Users/foo/b\'ar.png'), CSS.escape('erdos-file://erdos-app/Users/foo/b\'ar.png'));
+			assertBackground(CSS.escape('file:///Users/foo/b\'ar.png'), CSS.escape('vscode-file://vscode-app/Users/foo/b\'ar.png'));
 			s.removeDecorationType('example');
 		}
 

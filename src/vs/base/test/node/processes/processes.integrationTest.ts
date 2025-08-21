@@ -25,7 +25,7 @@ function fork(id: string): cp.ChildProcess {
 suite('Processes', () => {
 	test('buffered sending - simple data', function (done: () => void) {
 		if (process.env['VSCODE_PID']) {
-			return done(); // this test fails when run from within Erdos
+			return done(); // this test fails when run from within VS Code
 		}
 
 		const child = fork('vs/base/test/node/processes/fixtures/fork');

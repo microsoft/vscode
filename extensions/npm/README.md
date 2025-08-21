@@ -1,6 +1,6 @@
 # Node npm
 
-**Notice:** This extension is bundled with Erdos. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 
 ## Features
 

@@ -363,7 +363,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				type: Severity.Warning,
 				message: localize('unableToOpenWindow', "The browser blocked opening a new window. Press 'Retry' to try again."),
 				custom: {
-					markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-erdos-popup'), true) }]
+					markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
 				},
 				buttons: [
 					{

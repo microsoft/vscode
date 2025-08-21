@@ -67,7 +67,7 @@ suite('Notebook Document', function () {
 
 		const p = new Promise<void>((resolve, reject) => {
 			const sub = vscode.workspace.onDidOpenTextDocument(doc => {
-				if (doc.uri.scheme !== 'erdos-notebook-cell') {
+				if (doc.uri.scheme !== 'vscode-notebook-cell') {
 					// ignore other open events
 					return;
 				}
@@ -349,7 +349,7 @@ suite('Notebook Document', function () {
 		assert.strictEqual(document.isDirty, false);
 	});
 
-	test.skip('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () { // TODO@rebornix https://github.com/willnickols/erdos/issues/157222
+	test.skip('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/157222
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		let counter = 0;
 		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(nb => {

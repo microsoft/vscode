@@ -120,13 +120,13 @@ suite('platform - terminalEnvironment', async () => {
 			suite('zsh', async () => {
 				suite('should override args', async () => {
 					const username = userInfo().username;
-					const expectedDir = new RegExp(`.+\/${username}-erdos-zsh`);
+					const expectedDir = new RegExp(`.+\/${username}-vscode-zsh`);
 					const customZdotdir = '/custom/zsh/dotdir';
 					const expectedDests = [
-						new RegExp(`.+\\/${username}-erdos-zsh\\/\\.zshrc`),
-						new RegExp(`.+\\/${username}-erdos-zsh\\/\\.zprofile`),
-						new RegExp(`.+\\/${username}-erdos-zsh\\/\\.zshenv`),
-						new RegExp(`.+\\/${username}-erdos-zsh\\/\\.zlogin`)
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zshrc`),
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zprofile`),
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zshenv`),
+						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zlogin`)
 					];
 					const expectedSources = [
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-rc.zsh/,

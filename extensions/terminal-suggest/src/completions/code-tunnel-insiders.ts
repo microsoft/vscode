@@ -8,7 +8,7 @@ import codeTunnelCompletionSpec from './code-tunnel';
 const codeTunnelInsidersCompletionSpec: Fig.Spec = {
 	...codeTunnelCompletionSpec,
 	name: 'code-tunnel-insiders',
-	description: 'Erdos Insiders',
+	description: 'Visual Studio Code Insiders',
 	subcommands: [...codeTunnelSubcommands, extTunnelSubcommand],
 	options: [
 		...commonOptions,

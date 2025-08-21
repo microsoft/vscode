@@ -15,7 +15,7 @@ import { Emitter } from '../common/event.js';
 
 // Reuse the trusted types policy defined from worker bootstrap
 // when available.
-// Refs https://github.com/willnickols/erdos/issues/222193
+// Refs https://github.com/microsoft/vscode/issues/222193
 let ttPolicy: ReturnType<typeof createTrustedTypesPolicy>;
 if (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope' && (globalThis as any).workerttPolicy !== undefined) {
 	ttPolicy = (globalThis as any).workerttPolicy;
@@ -90,7 +90,7 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string): string {
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
 		`await import(ttPolicy?.createScriptURL(${JSON.stringify(workerScriptUrl)}) ?? ${JSON.stringify(workerScriptUrl)});`,
-		`globalThis.postMessage({ type: 'erdos-worker-ready' });`,
+		`globalThis.postMessage({ type: 'vscode-worker-ready' });`,
 		`/*${label}*/`
 	]).join('')], { type: 'application/javascript' });
 	return URL.createObjectURL(blob);
@@ -99,7 +99,7 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string): string {
 function whenESMWorkerReady(worker: Worker): Promise<Worker> {
 	return new Promise<Worker>((resolve, reject) => {
 		worker.onmessage = function (e) {
-			if (e.data.type === 'erdos-worker-ready') {
+			if (e.data.type === 'vscode-worker-ready') {
 				worker.onmessage = null;
 				resolve(worker);
 			}

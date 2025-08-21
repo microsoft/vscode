@@ -234,7 +234,7 @@ suite('EditorService', () => {
 		visibleEditorChangeListener.dispose();
 	});
 
-	test('openEditor() - same input does not cancel previous one - https://github.com/willnickols/erdos/issues/136684', async () => {
+	test('openEditor() - same input does not cancel previous one - https://github.com/microsoft/vscode/issues/136684', async () => {
 		const [, service] = await createEditorService();
 
 		let input = createTestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
@@ -2685,7 +2685,7 @@ suite('EditorService', () => {
 		assert.strictEqual(foundEditors.length, 1);
 	});
 
-	test('side by side editor is not matching all other editors (https://github.com/willnickols/erdos/issues/132859)', async () => {
+	test('side by side editor is not matching all other editors (https://github.com/microsoft/vscode/issues/132859)', async () => {
 		const [part, service] = await createEditorService();
 
 		const rootGroup = part.activeGroup;

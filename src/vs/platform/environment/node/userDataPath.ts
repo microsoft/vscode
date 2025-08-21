@@ -34,7 +34,7 @@ export function getUserDataPath(cliArgs: NativeParsedArgs, productName: string):
 	// current working directory. We cannot use the
 	// node.js `path.resolve()` logic because it will
 	// not pick up our `VSCODE_CWD` environment variable
-	// (https://github.com/willnickols/erdos/issues/120269)
+	// (https://github.com/microsoft/vscode/issues/120269)
 	if (!isAbsolute(userDataPath)) {
 		pathsToResolve.unshift(cwd);
 	}

@@ -7,7 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import { getFoldingRanges } from '../modes/htmlFolding';
 import { TextDocument, getLanguageModes } from '../modes/languageModes';
-import { ClientCapabilities } from 'erdos-css-languageservice';
+import { ClientCapabilities } from 'vscode-css-languageservice';
 import { getNodeFileFS } from '../node/nodeFs';
 
 interface ExpectedIndentRange {

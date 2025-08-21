@@ -12,7 +12,7 @@ const enum ShellIntegrationOscPs {
 	 */
 	FinalTerm = 133,
 	/**
-	 * Sequences pioneered by Erdos. The number is derived from the least significant digit of
+	 * Sequences pioneered by VS Code. The number is derived from the least significant digit of
 	 * "VSC" when encoded in hex ("VSC" = 0x56, 0x53, 0x43).
 	 */
 	VSCode = 633,
@@ -23,7 +23,7 @@ const enum ShellIntegrationOscPs {
 }
 
 /**
- * Erdos-specific shell integration sequences. Some of these are based on common alternatives like
+ * VS Code-specific shell integration sequences. Some of these are based on common alternatives like
  * those pioneered in FinalTerm. The decision to move to entirely custom sequences was to try to
  * improve reliability and prevent the possibility of applications confusing the terminal.
  */

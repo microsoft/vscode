@@ -344,7 +344,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			// The user might have meanwhile removed items from the jump list and we have to respect that
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
-			// by the user! See https://github.com/willnickols/erdos/issues/15052
+			// by the user! See https://github.com/microsoft/vscode/issues/15052
 			const toRemove: URI[] = [];
 			for (const item of app.getJumpListSettings().removedItems) {
 				const args = item.args;
@@ -374,7 +374,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 				return {
 					type: 'task',
 					title: title.substr(0, 255), 				// Windows seems to be picky around the length of entries
-					description: description.substr(0, 255),	// (see https://github.com/willnickols/erdos/issues/111177)
+					description: description.substr(0, 255),	// (see https://github.com/microsoft/vscode/issues/111177)
 					program: process.execPath,
 					args,
 					iconPath: 'explorer.exe', // simulate folder icon
@@ -490,7 +490,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		// On top of that, the maximum number of documents can be configured by the user (defaults to 10). To ensure that
 		// we are not failing to show the most recent entries, we start by adding files first (in reverse order of recency)
 		// and then add folders (in reverse order of recency). Given that strategy, we can ensure that the most recent
-		// N folders are always appearing, even if the limit is low (https://github.com/willnickols/erdos/issues/74788)
+		// N folders are always appearing, even if the limit is low (https://github.com/microsoft/vscode/issues/74788)
 		fileEntries.reverse().forEach(fileEntry => app.addRecentDocument(fileEntry));
 		workspaceEntries.reverse().forEach(workspaceEntry => app.addRecentDocument(workspaceEntry));
 	}

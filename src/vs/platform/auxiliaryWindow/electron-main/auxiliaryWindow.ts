@@ -89,7 +89,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			// Disable Menu
 			window.setMenu(null);
 			if ((isWindows || isLinux) && hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */)) {
-				window.setAutoHideMenuBar(true); // Fix for https://github.com/willnickols/erdos/issues/200615
+				window.setAutoHideMenuBar(true); // Fix for https://github.com/microsoft/vscode/issues/200615
 			}
 
 			// Lifecycle

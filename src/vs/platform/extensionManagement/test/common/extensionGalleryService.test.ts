@@ -39,7 +39,7 @@ suite('Extension Gallery Service', () => {
 	let fileService: IFileService, environmentService: IEnvironmentService, storageService: IStorageService, productService: IProductService, configurationService: IConfigurationService;
 
 	setup(() => {
-		const serviceMachineIdResource = joinPath(URI.file('tests').with({ scheme: 'erdos-tests' }), 'machineid');
+		const serviceMachineIdResource = joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid');
 		environmentService = new EnvironmentServiceMock(serviceMachineIdResource);
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());

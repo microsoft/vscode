@@ -988,7 +988,7 @@ export class Repository implements Disposable {
 			this.disposables.push(trustDisposable);
 		}
 
-		// https://github.com/willnickols/erdos/issues/39039
+		// https://github.com/microsoft/vscode/issues/39039
 		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation.kind === OperationKind.Push && !e.error);
 		onSuccessfulPush(() => {
 			const gitConfig = workspace.getConfiguration('git');
@@ -1529,7 +1529,7 @@ export class Repository implements Disposable {
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
 		return this.run(Operation.DeleteBranch, async () => {
 			await this.repository.deleteBranch(name, force);
-			await this.repository.config('unset', 'local', `branch.${name}.erdos-merge-base`);
+			await this.repository.config('unset', 'local', `branch.${name}.vscode-merge-base`);
 		});
 	}
 
@@ -1586,7 +1586,7 @@ export class Repository implements Disposable {
 		const branch = await this.getBranch(ref);
 
 		// Git config
-		const mergeBaseConfigKey = `branch.${branch.name}.erdos-merge-base`;
+		const mergeBaseConfigKey = `branch.${branch.name}.vscode-merge-base`;
 
 		try {
 			const mergeBase = await this.getConfig(mergeBaseConfigKey);

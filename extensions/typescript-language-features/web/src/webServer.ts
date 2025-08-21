@@ -5,7 +5,7 @@
 /// <reference lib='webworker' />
 
 import ts from 'typescript/lib/tsserverlibrary';
-import { URI } from 'erdos-uri';
+import { URI } from 'vscode-uri';
 import { FileWatcherManager } from './fileWatcherManager';
 import { Logger, parseLogLevel } from './logging';
 import { PathMapper } from './pathMapper';

@@ -51,7 +51,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			// diff editor.
 			// Since `openInternal` can only ever be selected from the
 			// active editor of the group, this is a safe assumption.
-			// (https://github.com/willnickols/erdos/issues/124222)
+			// (https://github.com/microsoft/vscode/issues/124222)
 			const activeEditor = this.group.activeEditor;
 			const untypedActiveEditor = activeEditor?.toUntyped();
 			if (!untypedActiveEditor) {
@@ -79,7 +79,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 				for (const editor of resolvedEditor.editor instanceof DiffEditorInput ? [resolvedEditor.editor.original, resolvedEditor.editor.modified] : [resolvedEditor.editor]) {
 					if (editor instanceof FileEditorInput) {
 						editor.setForceOpenAsText();
-						editor.setPreferredLanguageId(BINARY_TEXT_FILE_MODE); // https://github.com/willnickols/erdos/issues/131076
+						editor.setPreferredLanguageId(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
 					}
 				}
 			}

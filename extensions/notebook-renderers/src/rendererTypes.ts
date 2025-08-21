@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OutputItem, RendererContext } from 'erdos-notebook-renderer';
+import { OutputItem, RendererContext } from 'vscode-notebook-renderer';
 import { Event } from 'vscode';
 
 export interface IDisposable {

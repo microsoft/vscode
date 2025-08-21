@@ -20,7 +20,7 @@
 	"markdown.styles.dec": "A list of URLs or local paths to CSS style sheets to use from the Markdown preview. Relative paths are interpreted relative to the folder open in the Explorer. If there is no open folder, they are interpreted relative to the location of the Markdown file. All '\\' need to be written as '\\\\'.",
 	"markdown.showPreviewSecuritySelector.title": "Change Preview Security Settings",
 	"markdown.trace.extension.desc": "Enable debug logging for the Markdown extension.",
-	"markdown.trace.server.desc": "Traces the communication between Erdos and the Markdown language server.",
+	"markdown.trace.server.desc": "Traces the communication between VS Code and the Markdown language server.",
 	"markdown.server.log.desc": "Controls the logging level of the Markdown language server.",
 	"markdown.preview.refresh.title": "Refresh Preview",
 	"markdown.preview.toggleLock.title": "Toggle Preview Locking",
@@ -74,7 +74,7 @@
 	"configuration.markdown.copyFiles.destination": {
 		"message": "Configures the path and file name of files created by copy/paste or drag and drop. This is a map of globs that match against a Markdown document path to the destination path where the new file should be created.\n\nThe destination path may use the following variables:\n\n- `${documentDirName}` — Absolute parent directory path of the Markdown document, e.g. `/Users/me/myProject/docs`.\n- `${documentRelativeDirName}` — Relative parent directory path of the Markdown document, e.g. `docs`. This is the same as `${documentDirName}` if the file is not part of a workspace.\n- `${documentFileName}` — The full filename of the Markdown document, e.g. `README.md`.\n- `${documentBaseName}` — The basename of the Markdown document, e.g. `README`.\n- `${documentExtName}` — The extension of the Markdown document, e.g. `md`.\n- `${documentFilePath}` — Absolute path of the Markdown document, e.g. `/Users/me/myProject/docs/README.md`.\n- `${documentRelativeFilePath}` — Relative path of the Markdown document, e.g. `docs/README.md`. This is the same as `${documentFilePath}` if the file is not part of a workspace.\n- `${documentWorkspaceFolder}` — The workspace folder for the Markdown document, e.g. `/Users/me/myProject`. This is the same as `${documentDirName}` if the file is not part of a workspace.\n- `${fileName}` — The file name of the dropped file, e.g. `image.png`.\n- `${fileExtName}` — The extension of the dropped file, e.g. `png`.\n- `${unixTime}` — The current Unix timestamp in milliseconds.\n- `${isoTime}` — The current time in ISO 8601 format, e.g. '2025-06-06T08:40:32.123Z'.",
 		"comment": [
-			"This setting is use the user drops or pastes image data into the editor. In this case, Erdos automatically creates a new image file in the workspace containing the dropped/pasted image.",
+			"This setting is use the user drops or pastes image data into the editor. In this case, VS Code automatically creates a new image file in the workspace containing the dropped/pasted image.",
 			"It's easier to explain this setting with an example. For example, let's say the setting value was:",
 			"",
 			"{ 'docs/*.md': '${documentDirName}/images/${fileName}' }",

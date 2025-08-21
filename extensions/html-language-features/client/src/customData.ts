@@ -5,7 +5,7 @@
 
 import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
 import { Runtime } from './htmlClient';
-import { Utils } from 'erdos-uri';
+import { Utils } from 'vscode-uri';
 
 
 export function getCustomDataSource(runtime: Runtime, toDispose: Disposable[]) {

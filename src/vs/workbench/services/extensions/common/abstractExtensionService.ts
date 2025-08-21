@@ -1266,7 +1266,7 @@ class ExtensionHostCollection extends Disposable {
 	}
 
 	public async stopAllInReverse(): Promise<void> {
-		// See https://github.com/willnickols/erdos/issues/152204
+		// See https://github.com/microsoft/vscode/issues/152204
 		// Dispose extension hosts in reverse creation order because the local extension host
 		// might be critical in sustaining a connection to the remote extension host
 		for (let i = this._extensionHostManagers.length - 1; i >= 0; i--) {

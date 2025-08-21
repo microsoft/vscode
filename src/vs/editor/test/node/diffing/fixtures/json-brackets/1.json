@@ -2,477 +2,477 @@
 	"editor": [
 		{
 			"name": "vs/platform",
-			"project": "erdos-editor"
+			"project": "vscode-editor"
 		},
 		{
 			"name": "vs/editor/contrib",
-			"project": "erdos-editor"
+			"project": "vscode-editor"
 		},
 		{
 			"name": "vs/editor",
-			"project": "erdos-editor"
+			"project": "vscode-editor"
 		},
 		{
 			"name": "vs/base",
-			"project": "erdos-editor"
+			"project": "vscode-editor"
 		}
 	],
 	"workbench": [
 		{
 			"name": "vs/code",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/api/common",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/bulkEdit",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/cli",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/codeEditor",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/callHierarchy",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/typeHierarchy",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/codeActions",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/comments",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/debug",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/dialogs",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/emmet",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/experiments",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/extensions",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/externalTerminal",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/feedback",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/files",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/html",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/issue",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/inlayHints",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/interactive",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/languageStatus",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/keybindings",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/markers",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/mergeEditor",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/localization",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/logs",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/output",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/performance",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/preferences",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/notebook",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/quickaccess",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/userData",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/remote",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/relauncher",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/sash",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/scm",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/search",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/searchEditor",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/snippets",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/format",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/tags",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/surveys",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/tasks",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/testing",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/terminal",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/themes",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/trust",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/update",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/url",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/watermark",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/webview",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/webviewPanel",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/workspace",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/workspaces",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/customEditor",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/externalUriOpener",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/welcomeGettingStarted",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/welcomeOverlay",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/welcomePage",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/welcomeViews",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/welcomeWalkthrough",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/outline",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/userDataSync",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/editSessions",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/views",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/languageDetection",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/audioCues",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/deprecatedExtensionMigrator",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/offline",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/actions",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/authToken",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/backup",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/bulkEdit",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/clipboard",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/commands",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/configuration",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/configurationResolver",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/dialogs",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/editor",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/extensions",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/extensionManagement",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/files",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/history",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/log",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/integrity",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/keybinding",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/lifecycle",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/language",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/progress",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/remote",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/search",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/textfile",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/themes",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/textMate",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/workingCopy",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/workspaces",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/decorations",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/label",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/preferences",
-			"project": "erdos-preferences"
+			"project": "vscode-preferences"
 		},
 		{
 			"name": "vs/workbench/services/notification",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/userData",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/userDataSync",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/editSessions",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/views",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/timeline",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/localHistory",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/authentication",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/extensionRecommendations",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/gettingStarted",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/services/host",
-			"project": "erdos-workbench"
+			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/userDataProfile",
-			"project": "erdos-profiles"
+			"project": "vscode-profiles"
 		},
 		{
 			"name": "vs/workbench/services/userDataProfile",
-			"project": "erdos-profiles"
+			"project": "vscode-profiles"
 		}
 	]
 }

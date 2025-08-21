@@ -524,7 +524,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 	public async $OnDidEndTask(execution: tasks.ITaskExecutionDTO): Promise<void> {
 		if (!this._taskExecutionPromises.has(execution.id)) {
 			// Event already fired by the main thread
-			// See https://github.com/willnickols/erdos/commit/aaf73920aeae171096d205efb2c58804a32b6846
+			// See https://github.com/microsoft/vscode/commit/aaf73920aeae171096d205efb2c58804a32b6846
 			return;
 		}
 		const _execution = await this.getTaskExecution(execution);

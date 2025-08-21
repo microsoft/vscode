@@ -69,7 +69,7 @@ function linkifyStack(stack: string): { formattedStack: string; errorLocation?: 
 		} else if (cellRegex.test(original)) {
 			fileOrCell = {
 				kind: 'cell',
-				path: stripFormatting(original.replace(cellRegex, 'erdos-notebook-cell:?execution_count=$<executionCount>'))
+				path: stripFormatting(original.replace(cellRegex, 'vscode-notebook-cell:?execution_count=$<executionCount>'))
 			};
 			const link = original.replace(cellRegex, `<a href=\'${fileOrCell.path}&line=$<lineNumber>\'>line $<lineNumber></a>`);
 			lines[i] = original.replace(cellRegex, `$<prefix>${link}`);
@@ -79,7 +79,7 @@ function linkifyStack(stack: string): { formattedStack: string; errorLocation?: 
 		} else if (inputRegex.test(original)) {
 			fileOrCell = {
 				kind: 'cell',
-				path: stripFormatting(original.replace(inputRegex, 'erdos-notebook-cell:?execution_count=$<executionCount>'))
+				path: stripFormatting(original.replace(inputRegex, 'vscode-notebook-cell:?execution_count=$<executionCount>'))
 			};
 			const link = original.replace(inputRegex, `<a href=\'${fileOrCell.path}\'>$<cellLabel></a>`);
 			lines[i] = original.replace(inputRegex, `Input ${link}$<postfix>`);

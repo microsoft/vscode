@@ -1165,7 +1165,7 @@ export class DebugSession implements IDebugSession {
 				const container = new ExpressionContainer(this, undefined, event.body.variablesReference, generateUuid());
 				const children = container.getChildren();
 				// we should put appendToRepl into queue to make sure the logs to be displayed in correct order
-				// see https://github.com/willnickols/erdos/issues/126967#issuecomment-874954269
+				// see https://github.com/microsoft/vscode/issues/126967#issuecomment-874954269
 				outputQueue.queue(async () => {
 					const resolved = await children;
 					// For single logged variables, try to use the output if we can so
@@ -1311,7 +1311,7 @@ export class DebugSession implements IDebugSession {
 		}));
 		this.rawListeners.add(this.raw.onDidInvalidated(async event => {
 			const areas = event.body.areas || ['all'];
-			// If invalidated event only requires to update variables or watch, do that, otherwise refetch threads https://github.com/willnickols/erdos/issues/106745
+			// If invalidated event only requires to update variables or watch, do that, otherwise refetch threads https://github.com/microsoft/vscode/issues/106745
 			if (areas.includes('threads') || areas.includes('stacks') || areas.includes('all')) {
 				this.cancelAllRequests();
 				this.model.clearThreads(this.getId(), true);

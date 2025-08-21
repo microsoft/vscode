@@ -40,7 +40,7 @@ export function getStdinFilePath(): string {
 
 async function createStdInFile(targetPath: string) {
 	await fs.promises.appendFile(targetPath, '');
-	await fs.promises.chmod(targetPath, 0o600); // Ensure the file is only read/writable by the user: https://github.com/willnickols/erdos-remote-release/issues/9048
+	await fs.promises.chmod(targetPath, 0o600); // Ensure the file is only read/writable by the user: https://github.com/microsoft/vscode-remote-release/issues/9048
 }
 
 export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?: Function): Promise<void> {
@@ -48,7 +48,7 @@ export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?
 	let [encoding, iconv] = await Promise.all([
 		resolveTerminalEncoding(verbose),		// respect terminal encoding when piping into file
 		import('@vscode/iconv-lite-umd'),		// lazy load encoding module for usage
-		createStdInFile(targetPath) 			// make sure file exists right away (https://github.com/willnickols/erdos/issues/155341)
+		createStdInFile(targetPath) 			// make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
 	]);
 
 	if (!iconv.default.encodingExists(encoding)) {
@@ -60,7 +60,7 @@ export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?
 	// which helps file watchers to be aware of the
 	// changes because each append closes the underlying
 	// file descriptor.
-	// (https://github.com/willnickols/erdos/issues/148952)
+	// (https://github.com/microsoft/vscode/issues/148952)
 
 	const appendFileQueue = new Queue();
 

@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 
 export async function provideInstalledExtensionProposals(existing: string[], additionalText: string, range: vscode.Range, includeBuiltinExtensions: boolean): Promise<vscode.CompletionItem[] | vscode.CompletionList> {
 	if (Array.isArray(existing)) {
-		const extensions = includeBuiltinExtensions ? vscode.extensions.all : vscode.extensions.all.filter(e => !(e.id.startsWith('vscode.') || e.id === 'Microsoft.erdos-markdown'));
+		const extensions = includeBuiltinExtensions ? vscode.extensions.all : vscode.extensions.all.filter(e => !(e.id.startsWith('vscode.') || e.id === 'Microsoft.vscode-markdown'));
 		const knownExtensionProposals = extensions.filter(e => existing.indexOf(e.id) === -1);
 		if (knownExtensionProposals.length) {
 			return knownExtensionProposals.map(e => {

@@ -1,7 +1,7 @@
 {
-  "name": "erdos-automation",
+  "name": "vscode-automation",
   "version": "1.71.0",
-  "description": "Erdos UI automation driver",
+  "description": "VS Code UI automation driver",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -21,7 +21,7 @@
     "ncp": "^2.0.0",
     "tmp": "0.2.4",
     "tree-kill": "1.2.2",
-    "erdos-uri": "3.0.2"
+    "vscode-uri": "3.0.2"
   },
   "devDependencies": {
     "@types/ncp": "2.0.1",

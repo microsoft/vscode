@@ -24,7 +24,7 @@ export function setup(options?: { skipSuite: boolean }) {
 		});
 
 		describe('detach/attach', () => {
-			// https://github.com/willnickols/erdos/issues/137799
+			// https://github.com/microsoft/vscode/issues/137799
 			it('should support basic reconnection', async () => {
 				await terminal.createTerminal();
 				// TODO: Handle passing in an actual regex, not string

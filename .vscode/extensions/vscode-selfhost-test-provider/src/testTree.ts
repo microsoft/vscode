@@ -19,7 +19,7 @@ export const itemData = new WeakMap<vscode.TestItem, VSCodeTest>();
 export const clearFileDiagnostics = (uri: vscode.Uri) => diagnosticCollection.delete(uri);
 
 /**
- * Tries to guess which workspace folder Erdos is in.
+ * Tries to guess which workspace folder VS Code is in.
  */
 export const guessWorkspaceFolder = async () => {
 	if (!vscode.workspace.workspaceFolders) {

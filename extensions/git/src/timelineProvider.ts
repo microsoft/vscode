@@ -77,13 +77,13 @@ export class GitTimelineItem extends TimelineItem {
 
 			const labels: string[] = [];
 			if (shortStat.insertions) {
-				labels.push(`<span style="color:var(--erdos-scmGraph-historyItemHoverAdditionsForeground);">${shortStat.insertions === 1 ?
+				labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${shortStat.insertions === 1 ?
 					l10n.t('{0} insertion{1}', shortStat.insertions, '(+)') :
 					l10n.t('{0} insertions{1}', shortStat.insertions, '(+)')}</span>`);
 			}
 
 			if (shortStat.deletions) {
-				labels.push(`<span style="color:var(--erdos-scmGraph-historyItemHoverDeletionsForeground);">${shortStat.deletions === 1 ?
+				labels.push(`<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${shortStat.deletions === 1 ?
 					l10n.t('{0} deletion{1}', shortStat.deletions, '(-)') :
 					l10n.t('{0} deletions{1}', shortStat.deletions, '(-)')}</span>`);
 			}
@@ -328,7 +328,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 	private ensureProviderRegistration() {
 		if (this.providerDisposable === undefined) {
-			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'erdos-remote', 'erdos-local-history'], this);
+			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'vscode-local-history'], this);
 		}
 	}
 

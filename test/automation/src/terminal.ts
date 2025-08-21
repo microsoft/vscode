@@ -121,13 +121,13 @@ export class Terminal {
 		} else if (commandId === TerminalCommandIdWithValue.Rename) {
 			// Reset
 			await this.code.dispatchKeybinding('Backspace', async () => {
-				// TODO https://github.com/willnickols/erdos/issues/242535
+				// TODO https://github.com/microsoft/vscode/issues/242535
 				await wait(100);
 			});
 		}
 		await this.code.wait(100);
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter', async () => {
-			// TODO https://github.com/willnickols/erdos/issues/242535
+			// TODO https://github.com/microsoft/vscode/issues/242535
 			await wait(100);
 		});
 		await this.quickinput.waitForQuickInputClosed();
@@ -140,7 +140,7 @@ export class Terminal {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
 		if (!skipEnter) {
 			await this.code.dispatchKeybinding('enter', async () => {
-				// TODO https://github.com/willnickols/erdos/issues/242535
+				// TODO https://github.com/microsoft/vscode/issues/242535
 				await wait(100);
 			});
 		}

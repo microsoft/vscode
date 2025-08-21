@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/willnickols/erdos-mssql/blob/master/syntaxes/SQL.plist",
+		"This file has been converted from https://github.com/microsoft/vscode-mssql/blob/master/syntaxes/SQL.plist",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/willnickols/erdos-mssql/commit/ff0c7d3b3582100856fe5b839663b2a8704dc4e4",
+	"version": "https://github.com/microsoft/vscode-mssql/commit/ff0c7d3b3582100856fe5b839663b2a8704dc4e4",
 	"name": "SQL",
 	"scopeName": "source.sql",
 	"patterns": [

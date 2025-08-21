@@ -362,7 +362,7 @@ suite('NotebookCell#Document', function () {
 	});
 
 
-	test('Opening a notebook results in Erdos firing the event onDidChangeActiveNotebookEditor twice #118470', function () {
+	test('Opening a notebook results in VS Code firing the event onDidChangeActiveNotebookEditor twice #118470', function () {
 		let count = 0;
 		disposables.add(extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1));
 

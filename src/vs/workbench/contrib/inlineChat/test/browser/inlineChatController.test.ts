@@ -674,7 +674,7 @@ suite('InlineChatController', function () {
 		await r;
 	});
 
-	// TODO@jrieken https://github.com/willnickols/erdos/issues/251429
+	// TODO@jrieken https://github.com/microsoft/vscode/issues/251429
 	test.skip('Clicking "re-run without /doc" while a request is in progress closes the widget #5997', async function () {
 
 		model.setValue('');

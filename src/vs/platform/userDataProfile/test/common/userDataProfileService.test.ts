@@ -17,7 +17,7 @@ import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityServi
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Event } from '../../../../base/common/event.js';
 
-const ROOT = URI.file('tests').with({ scheme: 'erdos-tests' });
+const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	constructor(private readonly _appSettingsHome: URI) {

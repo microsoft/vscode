@@ -46,7 +46,7 @@ export class FrontMatterMarkerDecoration extends ReactiveDecorationBase<FrontMat
 	public static get cssStyles(): TDecorationStyles {
 		return {
 			[CssClassNames.Inline]: [
-				'color: var(--erdos-disabledForeground);',
+				'color: var(--vscode-disabledForeground);',
 			],
 			[CssClassNames.InlineInactive]: [
 				'opacity: 0.25;',

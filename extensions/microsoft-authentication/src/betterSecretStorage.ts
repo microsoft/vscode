@@ -28,7 +28,7 @@ export class BetterTokenStorage<T> {
 	/**
 	 *
 	 * @param keylistKey The key in the secret storage that will hold the list of keys associated with this instance of BetterTokenStorage
-	 * @param context the vscode Context used to register disposables and retreive the vscode.SecretStorage for this instance of Erdos
+	 * @param context the vscode Context used to register disposables and retreive the vscode.SecretStorage for this instance of VS Code
 	 */
 	constructor(private keylistKey: string, context: ExtensionContext) {
 		this._secretStorage = context.secrets;
@@ -183,7 +183,7 @@ export class BetterTokenStorage<T> {
 	}
 
 	// This is a crucial function that handles whether or not the token has changed in
-	// a different window of Erdos and sends the necessary event if it has.
+	// a different window of VS Code and sends the necessary event if it has.
 	// Scenarios this should cover:
 	// * Added in another window
 	// * Updated in another window
@@ -194,7 +194,7 @@ export class BetterTokenStorage<T> {
 	private async handleSecretChange(e: SecretStorageChangeEvent) {
 		const key = e.key;
 
-		// The KeyList is only a list of keys to aid initial start up of Erdos to know which
+		// The KeyList is only a list of keys to aid initial start up of VS Code to know which
 		// Keys are associated with this handler.
 		if (key === this.keylistKey) {
 			return;

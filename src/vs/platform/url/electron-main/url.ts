@@ -36,7 +36,7 @@ export interface IProtocolUrl {
  * and the latter are of the form
  *
  * ```
- * <protocol>:/<file | erdos-remote>/<path>
+ * <protocol>:/<file | vscode-remote>/<path>
  * ```
  *
  * On top of that, protocol URLs can indicate to be handled in
@@ -50,7 +50,7 @@ export interface IProtocolUrl {
  * - `openables` are windows that should open for the protocol URLs
  *
  * The decision is made as follows:
- * - a URL with authority `file` or `erdos-remote` becomes an `IWindowOpenable`
+ * - a URL with authority `file` or `vscode-remote` becomes an `IWindowOpenable`
  *   and will not be included in the `urls` array because it was fully handled
  * - a URL with any other authority will be added to the `urls` array
  */

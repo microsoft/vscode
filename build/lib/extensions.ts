@@ -29,7 +29,7 @@ const vzip = require('gulp-vinyl-zip');
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = getVersion(root);
-const sourceMappingURLBase = `https://main.erdos-cdn.net/sourcemaps/${commit}`;
+const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 
 function minifyExtensionResources(input: Stream): Stream {
 	const jsonFilter = filter(['**/*.json', '**/*.code-snippets'], { restore: true });
@@ -317,10 +317,10 @@ const nativeExtensions = [
 ];
 
 const excludedExtensions = [
-	'erdos-api-tests',
-	'erdos-colorize-tests',
-	'erdos-colorize-perf-tests',
-	'erdos-test-resolver',
+	'vscode-api-tests',
+	'vscode-colorize-tests',
+	'vscode-colorize-perf-tests',
+	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
 ];
@@ -330,7 +330,7 @@ const marketplaceWebExtensionsExclude = new Set([
 	'ms-vscode.node-debug2',
 	'ms-vscode.js-debug-companion',
 	'ms-vscode.js-debug',
-	'ms-vscode.erdos-js-profile-table'
+	'ms-vscode.vscode-js-profile-table'
 ]);
 
 const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));

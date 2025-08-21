@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Resolves variables in a Erdos snippet style string
+ * Resolves variables in a VS Code snippet style string
  */
 export function resolveSnippet(snippetString: string, vars: ReadonlyMap<string, string>): string {
 	return snippetString.replaceAll(/(?<escape>\\\$)|(?<!\\)\$\{(?<name>\w+)(?:\/(?<pattern>(?:\\\/|[^\}])+?)\/(?<replacement>(?:\\\/|[^\}])+?)\/)?\}/g, (match, _escape, name, pattern, replacement, _offset, _str, groups) => {

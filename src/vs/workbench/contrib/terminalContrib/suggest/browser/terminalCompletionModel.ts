@@ -102,7 +102,7 @@ const compareCompletionsFn = (leadingLineContent: string, a: TerminalCompletionI
 		}
 	}
 
-	// Sort by folder depth (eg. `vscode/` should come before `erdos-.../`)
+	// Sort by folder depth (eg. `vscode/` should come before `vscode-.../`)
 	if (a.completion.kind === TerminalCompletionItemKind.Folder && b.completion.kind === TerminalCompletionItemKind.Folder) {
 		if (a.labelLowNormalizedPath && b.labelLowNormalizedPath) {
 			// Directories

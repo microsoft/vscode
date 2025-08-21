@@ -756,7 +756,7 @@
 										"Funky wrapper function",
 										"The `end` pattern clears the parent `\\G` anchor",
 										"Affectively forcing this rule to only match at most once",
-										"https://github.com/willnickols/erdos-textmate/issues/114"
+										"https://github.com/microsoft/vscode-textmate/issues/114"
 									],
 									"begin": "\\G(?!$)(?=( *+))",
 									"end": "\\G(?!\\1)(?=[\t ]*+#)",

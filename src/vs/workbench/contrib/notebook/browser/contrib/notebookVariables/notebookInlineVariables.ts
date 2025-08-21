@@ -122,7 +122,7 @@ export class NotebookInlineVariablesController extends Disposable implements INo
 		const inlineDecorations: IModelDeltaDecoration[] = [];
 
 		if (hasInlineValueProvider) {
-			// use extension based provider, borrowed from https://github.com/willnickols/erdos/blob/main/src/vs/workbench/contrib/debug/browser/debugEditorContribution.ts#L679
+			// use extension based provider, borrowed from https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/debug/browser/debugEditorContribution.ts#L679
 			const lastLine = model.getLineCount();
 			const lastColumn = model.getLineMaxColumn(lastLine);
 			const ctx: InlineValueContext = {

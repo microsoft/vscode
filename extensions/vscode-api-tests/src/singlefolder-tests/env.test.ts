@@ -53,7 +53,7 @@ suite('vscode API - env', () => {
 	});
 
 	test('env.uiKind', async function () {
-		const uri = Uri.parse(`${env.uriScheme}:://vscode.erdos-api-tests/path?key=value&other=false`);
+		const uri = Uri.parse(`${env.uriScheme}:://vscode.vscode-api-tests/path?key=value&other=false`);
 		const result = await env.asExternalUri(uri);
 
 		const kind = env.uiKind;
@@ -65,7 +65,7 @@ suite('vscode API - env', () => {
 	});
 
 	test('env.asExternalUri - with env.uriScheme', async function () {
-		const uri = Uri.parse(`${env.uriScheme}:://vscode.erdos-api-tests/path?key=value&other=false`);
+		const uri = Uri.parse(`${env.uriScheme}:://vscode.vscode-api-tests/path?key=value&other=false`);
 		const result = await env.asExternalUri(uri);
 		assert.ok(result);
 

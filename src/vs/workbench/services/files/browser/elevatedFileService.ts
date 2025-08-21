@@ -16,7 +16,7 @@ export class BrowserElevatedFileService implements IElevatedFileService {
 	isSupported(resource: URI): boolean {
 		// Saving elevated is currently not supported in web for as
 		// long as we have no generic support from the file service
-		// (https://github.com/willnickols/erdos/issues/48659)
+		// (https://github.com/microsoft/vscode/issues/48659)
 		return false;
 	}
 

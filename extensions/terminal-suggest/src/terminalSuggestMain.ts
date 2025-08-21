@@ -113,7 +113,7 @@ async function getShellGlobals(
 				// are up to date, but this ends up launching way too many processes. Especially on
 				// Windows where this caused significant performance issues as processes can block
 				// the extension host for several seconds
-				// (https://github.com/willnickols/erdos/issues/259343).
+				// (https://github.com/microsoft/vscode/issues/259343).
 				return cached.commands;
 			}
 		}

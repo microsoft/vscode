@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-var updateGrammar = require('erdos-grammar-updater');
+var updateGrammar = require('vscode-grammar-updater');
 
 function adaptJSON(grammar, name, replacementScope, replaceeScope = 'json') {
 	grammar.name = name;
@@ -31,7 +31,7 @@ function adaptJSON(grammar, name, replacementScope, replaceeScope = 'json') {
 	}
 }
 
-var tsGrammarRepo = 'microsoft/erdos-JSON.tmLanguage';
+var tsGrammarRepo = 'microsoft/vscode-JSON.tmLanguage';
 updateGrammar.update(tsGrammarRepo, 'JSON.tmLanguage', './syntaxes/JSON.tmLanguage.json');
 updateGrammar.update(tsGrammarRepo, 'JSON.tmLanguage', './syntaxes/JSONC.tmLanguage.json', grammar => adaptJSON(grammar, 'JSON with Comments', '.json.comments'));
 updateGrammar.update(tsGrammarRepo, 'JSON.tmLanguage', './syntaxes/JSONL.tmLanguage.json', grammar => adaptJSON(grammar, 'JSON Lines', '.json.lines'));

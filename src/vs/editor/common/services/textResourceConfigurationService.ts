@@ -110,7 +110,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 					return true;
 				}
 				if (overrideIdentifier) {
-					//TODO@sandy081 workaround for https://github.com/willnickols/erdos/issues/240410
+					//TODO@sandy081 workaround for https://github.com/microsoft/vscode/issues/240410
 					return configurationChangeEvent.affectedKeys.has(`[${overrideIdentifier}]`);
 				}
 				return false;

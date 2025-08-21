@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/55718
+	// https://github.com/microsoft/vscode/issues/55718
 
 	/**
 	 * An {@link Event} which fires when a {@link Terminal}'s dimensions change.

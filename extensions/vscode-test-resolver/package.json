@@ -1,6 +1,6 @@
 {
-  "name": "erdos-test-resolver",
-  "description": "Test resolver for Erdos",
+  "name": "vscode-test-resolver",
+  "description": "Test resolver for VS Code",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
@@ -18,17 +18,17 @@
   ],
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:erdos-test-resolver"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-test-resolver"
   },
   "activationEvents": [
     "onResolveRemoteAuthority:test",
-    "onCommand:erdos-testresolver.newWindow",
-    "onCommand:erdos-testresolver.currentWindow",
-    "onCommand:erdos-testresolver.newWindowWithError",
-    "onCommand:erdos-testresolver.showLog",
-    "onCommand:erdos-testresolver.openTunnel",
-    "onCommand:erdos-testresolver.startRemoteServer",
-    "onCommand:erdos-testresolver.toggleConnectionPause"
+    "onCommand:vscode-testresolver.newWindow",
+    "onCommand:vscode-testresolver.currentWindow",
+    "onCommand:vscode-testresolver.newWindowWithError",
+    "onCommand:vscode-testresolver.showLog",
+    "onCommand:vscode-testresolver.openTunnel",
+    "onCommand:vscode-testresolver.startRemoteServer",
+    "onCommand:vscode-testresolver.toggleConnectionPause"
   ],
   "main": "./out/extension",
   "browser": "./dist/browser/testResolverMain",
@@ -44,7 +44,7 @@
   "contributes": {
     "resourceLabelFormatters": [
       {
-        "scheme": "erdos-remote",
+        "scheme": "vscode-remote",
         "authority": "test+*",
         "formatting": {
           "label": "${path}",
@@ -59,92 +59,92 @@
       {
         "title": "New TestResolver Window",
         "category": "Remote-TestResolver",
-        "command": "erdos-testresolver.newWindow"
+        "command": "vscode-testresolver.newWindow"
       },
       {
         "title": "Connect to TestResolver in Current Window",
         "category": "Remote-TestResolver",
-        "command": "erdos-testresolver.currentWindow"
+        "command": "vscode-testresolver.currentWindow"
       },
       {
         "title": "Connect to TestResolver in Current Window with Managed Connection",
         "category": "Remote-TestResolver",
-        "command": "erdos-testresolver.currentWindowManaged"
+        "command": "vscode-testresolver.currentWindowManaged"
       },
       {
         "title": "Show TestResolver Log",
         "category": "Remote-TestResolver",
-        "command": "erdos-testresolver.showLog"
+        "command": "vscode-testresolver.showLog"
       },
       {
         "title": "Kill Remote Server and Trigger Handled Error",
         "category": "Remote-TestResolver",
-        "command": "erdos-testresolver.killServerAndTriggerHandledError"
+        "command": "vscode-testresolver.killServerAndTriggerHandledError"
       },
       {
         "title": "Open Tunnel...",
         "category": "Remote-TestResolver",
-        "command": "erdos-testresolver.openTunnel"
+        "command": "vscode-testresolver.openTunnel"
       },
       {
         "title": "Open a Remote Port...",
         "category": "Remote-TestResolver",
-        "command": "erdos-testresolver.startRemoteServer"
+        "command": "vscode-testresolver.startRemoteServer"
       },
       {
         "title": "Pause Connection (Test Reconnect)",
         "category": "Remote-TestResolver",
-        "command": "erdos-testresolver.toggleConnectionPause"
+        "command": "vscode-testresolver.toggleConnectionPause"
       },
       {
         "title": "Slowdown Connection (Test Slow Down Indicator)",
         "category": "Remote-TestResolver",
-        "command": "erdos-testresolver.toggleConnectionSlowdown"
+        "command": "vscode-testresolver.toggleConnectionSlowdown"
       }
     ],
     "menus": {
       "commandPalette": [
         {
-          "command": "erdos-testresolver.openTunnel",
+          "command": "vscode-testresolver.openTunnel",
           "when": "remoteName == test"
         },
         {
-          "command": "erdos-testresolver.startRemoteServer",
+          "command": "vscode-testresolver.startRemoteServer",
           "when": "remoteName == test"
         },
         {
-          "command": "erdos-testresolver.toggleConnectionPause",
+          "command": "vscode-testresolver.toggleConnectionPause",
           "when": "remoteName == test"
         }
       ],
       "statusBar/remoteIndicator": [
         {
-          "command": "erdos-testresolver.newWindow",
+          "command": "vscode-testresolver.newWindow",
           "when": "!remoteName && !virtualWorkspace",
           "group": "remote_90_test_1_local@2"
         },
         {
-          "command": "erdos-testresolver.showLog",
+          "command": "vscode-testresolver.showLog",
           "when": "remoteName == test",
           "group": "remote_90_test_1_open@3"
         },
         {
-          "command": "erdos-testresolver.newWindow",
+          "command": "vscode-testresolver.newWindow",
           "when": "remoteName == test",
           "group": "remote_90_test_1_open@1"
         },
         {
-          "command": "erdos-testresolver.openTunnel",
+          "command": "vscode-testresolver.openTunnel",
           "when": "remoteName == test",
           "group": "remote_90_test_2_more@4"
         },
         {
-          "command": "erdos-testresolver.startRemoteServer",
+          "command": "vscode-testresolver.startRemoteServer",
           "when": "remoteName == test",
           "group": "remote_90_test_2_more@5"
         },
         {
-          "command": "erdos-testresolver.toggleConnectionPause",
+          "command": "vscode-testresolver.toggleConnectionPause",
           "when": "remoteName == test",
           "group": "remote_90_test_2_more@6"
         }
@@ -172,6 +172,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/willnickols/erdos.git"
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

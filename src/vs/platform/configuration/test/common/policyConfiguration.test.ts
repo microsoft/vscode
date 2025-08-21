@@ -27,7 +27,7 @@ suite('PolicyConfiguration', () => {
 	let testObject: PolicyConfiguration;
 	let fileService: IFileService;
 	let policyService: IPolicyService;
-	const policyFile = URI.file('policyFile').with({ scheme: 'erdos-tests' });
+	const policyFile = URI.file('policyFile').with({ scheme: 'vscode-tests' });
 	const policyConfigurationNode: IConfigurationNode = {
 		'id': 'policyConfiguration',
 		'order': 1,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	// https://github.com/willnickols/erdos/issues/199291
+	// https://github.com/microsoft/vscode/issues/199291
 
 	export interface SourceControlResourceState {
 		/**

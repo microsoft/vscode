@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/162950
+	// https://github.com/microsoft/vscode/issues/162950
 
 	export type SingleOrMany<T> = T[] | T;
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { Utils } from 'erdos-uri';
+import { Utils } from 'vscode-uri';
 
 type OverwriteBehavior = 'overwrite' | 'nameIncrementally';
 

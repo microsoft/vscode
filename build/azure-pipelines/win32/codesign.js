@@ -46,21 +46,21 @@ async function main() {
     // Package server
     if (process.env['BUILT_SERVER']) {
         (0, codesign_1.printBanner)('Package server');
-        const serverArchivePath = `.build/win32-${arch}/erdos-server-win32-${arch}.zip`;
-        await (0, zx_1.$) `7z.exe a -tzip ${serverArchivePath} ../erdos-server-win32-${arch}`.pipe(process.stdout);
+        const serverArchivePath = `.build/win32-${arch}/vscode-server-win32-${arch}.zip`;
+        await (0, zx_1.$) `7z.exe a -tzip ${serverArchivePath} ../vscode-server-win32-${arch}`.pipe(process.stdout);
         await (0, zx_1.$) `7z.exe l ${serverArchivePath}`.pipe(process.stdout);
     }
     // Package server (web)
     if (process.env['BUILT_WEB']) {
         (0, codesign_1.printBanner)('Package server (web)');
-        const webArchivePath = `.build/win32-${arch}/erdos-server-win32-${arch}-web.zip`;
-        await (0, zx_1.$) `7z.exe a -tzip ${webArchivePath} ../erdos-server-win32-${arch}-web`.pipe(process.stdout);
+        const webArchivePath = `.build/win32-${arch}/vscode-server-win32-${arch}-web.zip`;
+        await (0, zx_1.$) `7z.exe a -tzip ${webArchivePath} ../vscode-server-win32-${arch}-web`.pipe(process.stdout);
         await (0, zx_1.$) `7z.exe l ${webArchivePath}`.pipe(process.stdout);
     }
     // Sign setup
     if (process.env['BUILT_CLIENT']) {
         (0, codesign_1.printBanner)('Sign setup packages (system, user)');
-        const task = (0, zx_1.$) `npm exec -- npm-run-all -lp "gulp erdos-win32-${arch}-system-setup -- --sign" "gulp erdos-win32-${arch}-user-setup -- --sign"`;
+        const task = (0, zx_1.$) `npm exec -- npm-run-all -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`;
         await (0, codesign_1.streamProcessOutputAndCheckResult)('Sign setup packages (system, user)', task);
     }
 }

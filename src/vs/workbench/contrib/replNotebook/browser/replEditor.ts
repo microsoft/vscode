@@ -234,24 +234,24 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		if (focusIndicator === 'gutter') {
 			styleSheets.push(`
 				.interactive-editor .input-cell-container:focus-within .input-focus-indicator::before {
-					border-color: var(--erdos-notebook-focusedCellBorder) !important;
+					border-color: var(--vscode-notebook-focusedCellBorder) !important;
 				}
 				.interactive-editor .input-focus-indicator::before {
-					border-color: var(--erdos-notebook-inactiveFocusedCellBorder) !important;
+					border-color: var(--vscode-notebook-inactiveFocusedCellBorder) !important;
 				}
 				.interactive-editor .input-cell-container .input-focus-indicator {
 					display: block;
 					top: ${INPUT_CELL_VERTICAL_PADDING}px;
 				}
 				.interactive-editor .input-cell-container {
-					border-top: 1px solid var(--erdos-notebook-inactiveFocusedCellBorder);
+					border-top: 1px solid var(--vscode-notebook-inactiveFocusedCellBorder);
 				}
 			`);
 		} else {
 			// border
 			styleSheets.push(`
 				.interactive-editor .input-cell-container {
-					border-top: 1px solid var(--erdos-notebook-inactiveFocusedCellBorder);
+					border-top: 1px solid var(--vscode-notebook-inactiveFocusedCellBorder);
 				}
 				.interactive-editor .input-cell-container .input-focus-indicator {
 					display: none;

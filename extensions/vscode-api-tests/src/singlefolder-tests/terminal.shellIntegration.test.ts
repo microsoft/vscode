@@ -8,9 +8,9 @@ import { platform } from 'os';
 import { env, TerminalShellExecutionCommandLineConfidence, UIKind, window, workspace, type Disposable, type Terminal, type TerminalShellExecution, type TerminalShellExecutionCommandLine, type TerminalShellExecutionEndEvent, type TerminalShellIntegration } from 'vscode';
 import { assertNoRpc } from '../utils';
 
-// Terminal integration tests are disabled on web https://github.com/willnickols/erdos/issues/92826
+// Terminal integration tests are disabled on web https://github.com/microsoft/vscode/issues/92826
 // Windows images will often not have functional shell integration
-// TODO: Linux https://github.com/willnickols/erdos/issues/221399
+// TODO: Linux https://github.com/microsoft/vscode/issues/221399
 (env.uiKind === UIKind.Web || platform() === 'win32' || platform() === 'linux' ? suite.skip : suite)('vscode API - Terminal.shellIntegration', () => {
 	const disposables: Disposable[] = [];
 

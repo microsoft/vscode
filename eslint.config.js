@@ -247,15 +247,15 @@ export default tseslint.config(
 					'message': 'Use Array<...> for arrays of union types.'
 				},
 			],
-			'local/erdos-dts-create-func': 'warn',
-			'local/erdos-dts-literal-or-types': 'warn',
-			'local/erdos-dts-string-type-literals': 'warn',
-			'local/erdos-dts-interface-naming': 'warn',
-			'local/erdos-dts-cancellation': 'warn',
-			'local/erdos-dts-use-export': 'warn',
-			'local/erdos-dts-use-thenable': 'warn',
-			'local/erdos-dts-erdos-in-comments': 'warn',
-			'local/erdos-dts-provider-naming': [
+			'local/vscode-dts-create-func': 'warn',
+			'local/vscode-dts-literal-or-types': 'warn',
+			'local/vscode-dts-string-type-literals': 'warn',
+			'local/vscode-dts-interface-naming': 'warn',
+			'local/vscode-dts-cancellation': 'warn',
+			'local/vscode-dts-use-export': 'warn',
+			'local/vscode-dts-use-thenable': 'warn',
+			'local/vscode-dts-vscode-in-comments': 'warn',
+			'local/vscode-dts-provider-naming': [
 				'warn',
 				{
 					'allowed': [
@@ -270,7 +270,7 @@ export default tseslint.config(
 					]
 				}
 			],
-			'local/erdos-dts-event-naming': [
+			'local/vscode-dts-event-naming': [
 				'warn',
 				{
 					'allowed': [
@@ -781,7 +781,7 @@ export default tseslint.config(
 					'allow': [
 						'@parcel/watcher',
 						'@vscode/sqlite3',
-						'@vscode/erdos-languagedetection',
+						'@vscode/vscode-languagedetection',
 						'@vscode/ripgrep',
 						'@vscode/iconv-lite-umd',
 						'@vscode/policy-watcher',
@@ -817,8 +817,8 @@ export default tseslint.config(
 						'url',
 						'util',
 						'v8-inspect-profiler',
-						'erdos-regexpp',
-						'erdos-textmate',
+						'vscode-regexpp',
+						'vscode-textmate',
 						'worker_threads',
 						'@xterm/addon-clipboard',
 						'@xterm/addon-image',
@@ -1018,8 +1018,8 @@ export default tseslint.config(
 							'pattern': 'vs/workbench/contrib/*/~'
 						}, // TODO@layers
 						'tas-client-umd', // node module allowed even in /common/
-						'erdos-textmate', // node module allowed even in /common/
-						'@vscode/erdos-languagedetection', // node module allowed even in /common/
+						'vscode-textmate', // node module allowed even in /common/
+						'@vscode/vscode-languagedetection', // node module allowed even in /common/
 						'@vscode/tree-sitter-wasm', // type import
 						{
 							'when': 'hasBrowser',
@@ -1040,7 +1040,7 @@ export default tseslint.config(
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminalContribChatExports*',
 						'vs/workbench/contrib/terminal/terminalContribExports*',
-						'erdos-notebook-renderer', // Type only import
+						'vscode-notebook-renderer', // Type only import
 						'@vscode/tree-sitter-wasm', // type import
 						{
 							'when': 'hasBrowser',
@@ -1052,7 +1052,7 @@ export default tseslint.config(
 						}, // node module allowed even in /browser/
 						{
 							'when': 'hasBrowser',
-							'pattern': 'erdos-textmate'
+							'pattern': 'vscode-textmate'
 						} // node module allowed even in /browser/
 					]
 				},
@@ -1070,7 +1070,7 @@ export default tseslint.config(
 						// Only allow terminalContrib to import from itself, this works because
 						// terminalContrib is one extra folder deep
 						'vs/workbench/contrib/terminalContrib/*/~',
-						'erdos-notebook-renderer', // Type only import
+						'vscode-notebook-renderer', // Type only import
 						{
 							'when': 'hasBrowser',
 							'pattern': '@xterm/xterm'
@@ -1081,7 +1081,7 @@ export default tseslint.config(
 						}, // node module allowed even in /browser/
 						{
 							'when': 'hasBrowser',
-							'pattern': 'erdos-textmate'
+							'pattern': 'vscode-textmate'
 						}, // node module allowed even in /browser/
 						'@xterm/headless' // node module allowed even in /common/ and /browser/
 					]
@@ -1227,7 +1227,7 @@ export default tseslint.config(
 					'restrictions': []
 				},
 				{
-					'target': 'src/erdos-dts/**',
+					'target': 'src/vscode-dts/**',
 					'restrictions': []
 				},
 				{

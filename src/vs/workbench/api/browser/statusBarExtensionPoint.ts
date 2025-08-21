@@ -125,8 +125,8 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 				// We cannot enforce unique priorities across all extensions, so we
 				// use the extension identifier as a secondary sort key to reduce
 				// the likelyhood of collisions.
-				// See https://github.com/willnickols/erdos/issues/177835
-				// See https://github.com/willnickols/erdos/issues/123827
+				// See https://github.com/microsoft/vscode/issues/177835
+				// See https://github.com/microsoft/vscode/issues/123827
 				entryPriority = { primary: priority, secondary: hash(extensionId) };
 			} else {
 				entryPriority = priority;

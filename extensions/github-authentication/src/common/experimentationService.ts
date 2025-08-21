@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { getExperimentationService, IExperimentationService, IExperimentationTelemetry, TargetPopulation } from 'erdos-tas-client';
+import { getExperimentationService, IExperimentationService, IExperimentationTelemetry, TargetPopulation } from 'vscode-tas-client';
 
 export class ExperimentationTelemetry implements IExperimentationTelemetry {
 	private sharedProperties: Record<string, string> = {};
@@ -19,10 +19,10 @@ export class ExperimentationTelemetry implements IExperimentationTelemetry {
 			case 'vscode':
 				targetPopulation = TargetPopulation.Public;
 				break;
-			case 'erdos-insiders':
+			case 'vscode-insiders':
 				targetPopulation = TargetPopulation.Insiders;
 				break;
-			case 'erdos-exploration':
+			case 'vscode-exploration':
 				targetPopulation = TargetPopulation.Internal;
 				break;
 			case 'code-oss':

@@ -36,7 +36,7 @@ export const mkdirTestSuiteSpec: ISuiteSpec = {
 		{ input: 'mkdir |', expectedCompletions: allOptions, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
 
 		// Duplicate option
-		// TODO: Duplicate options should not be presented https://github.com/willnickols/erdos/issues/239607
+		// TODO: Duplicate options should not be presented https://github.com/microsoft/vscode/issues/239607
 		// { input: 'mkdir -Z -|', expectedCompletions: removeArrayEntries(allOptions, '-z') },
 		// { input: 'mkdir -Z -m -|', expectedCompletions: removeArrayEntries(allOptions, '-z', '-m') },
 	]

@@ -129,7 +129,7 @@ export class InlineAnchorWidget extends Disposable {
 			const label = labelService.getUriBasenameLabel(location.uri);
 			iconText = location.range && this.data.kind !== 'symbol' ?
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
-				location.uri.scheme === 'erdos-notebook-cell' && this.data.kind !== 'symbol' ?
+				location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol' ?
 					`${label} • cell${this.getCellIndex(location.uri)}` :
 					label;
 

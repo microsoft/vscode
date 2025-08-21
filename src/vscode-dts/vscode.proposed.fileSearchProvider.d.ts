@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/73524
+	// https://github.com/microsoft/vscode/issues/73524
 
 	/**
 	 * The parameters of a query for file search.

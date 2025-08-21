@@ -14,7 +14,7 @@ import { fromNow } from './date';
 
 const LIMIT = 40;
 
-const USER_AGENT = 'Erdos';
+const USER_AGENT = 'Visual Studio Code';
 
 export class PackageJSONContribution implements IJSONContribution {
 

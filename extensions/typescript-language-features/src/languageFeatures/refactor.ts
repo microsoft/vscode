@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { Utils } from 'erdos-uri';
+import { Utils } from 'vscode-uri';
 import { Command, CommandManager } from '../commands/commandManager';
 import { LearnMoreAboutRefactoringsCommand } from '../commands/learnMoreAboutRefactorings';
 import { DocumentSelector } from '../configuration/documentSelector';
@@ -392,7 +392,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 		}
 
 		if (response.body.renameLocation) {
-			// Disable renames in interactive playground https://github.com/willnickols/erdos/issues/75137
+			// Disable renames in interactive playground https://github.com/microsoft/vscode/issues/75137
 			if (this.document.uri.scheme !== fileSchemes.walkThroughSnippet) {
 				this.command = {
 					command: CompositeCommand.ID,

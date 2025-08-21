@@ -65,7 +65,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		if (tsEntry.source && tsEntry.hasAction && client.apiVersion.lt(API.v490)) {
 			// De-prioritze auto-imports
-			// https://github.com/willnickols/erdos/issues/40311
+			// https://github.com/microsoft/vscode/issues/40311
 			this.sortText = '\uffff' + tsEntry.sortText;
 		} else {
 			this.sortText = tsEntry.sortText;
@@ -219,7 +219,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 					const { snippet, parameterCount } = snippetForFunctionCall({ ...this, label: this.textLabel }, detail.displayParts);
 					this.insertText = snippet;
 					if (parameterCount > 0) {
-						//Fix for https://github.com/willnickols/erdos/issues/104059
+						//Fix for https://github.com/microsoft/vscode/issues/104059
 						//Don't show parameter hints if "editor.parameterHints.enabled": false
 						if (vscode.workspace.getConfiguration('editor.parameterHints').get('enabled')) {
 							commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
@@ -297,7 +297,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		const line = document.lineAt(position.line);
 		// Don't complete function call if there is already something that looks like a function call
-		// https://github.com/willnickols/erdos/issues/18131
+		// https://github.com/microsoft/vscode/issues/18131
 
 		const after = line.text.slice(position.character);
 		if (after.match(/^[a-z_$0-9]*\s*\(/gi)) {

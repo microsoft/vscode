@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/124024 @hediet
+	// https://github.com/microsoft/vscode/issues/124024 @hediet
 
 	export namespace languages {
 		/**
@@ -88,27 +88,27 @@ declare module 'vscode' {
 		 * @param completionItem The completion item that was shown.
 		 * @param updatedInsertText The actual insert text (after brackets were fixed).
 		 */
-		// eslint-disable-next-line local/erdos-dts-provider-naming
+		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidShowCompletionItem?(completionItem: InlineCompletionItem, updatedInsertText: string): void;
 
 		/**
 		 * Is called when an inline completion item was accepted partially.
 		 * @param info Additional info for the partial accepted trigger.
 		 */
-		// eslint-disable-next-line local/erdos-dts-provider-naming
+		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, info: PartialAcceptInfo): void;
 
 		/**
 		 * Is called when an inline completion item is no longer being used.
 		 * Provides a reason of why it is not used anymore.
 		*/
-		// eslint-disable-next-line local/erdos-dts-provider-naming
+		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleEndOfLifetime?(completionItem: InlineCompletionItem, reason: InlineCompletionEndOfLifeReason): void;
 
 		/**
 		 * Is called when an inline completion list is no longer being used (same reference as the list returned by provideInlineEditsForRange).
 		*/
-		// eslint-disable-next-line local/erdos-dts-provider-naming
+		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
 
 		onDidChange?: Event<void>;
@@ -120,14 +120,14 @@ declare module 'vscode' {
 		 * @param acceptedLength The length of the substring of the inline completion that was accepted already.
 		 * @deprecated Use `handleDidPartiallyAcceptCompletionItem` with `PartialAcceptInfo` instead.
 		 */
-		// eslint-disable-next-line local/erdos-dts-provider-naming
+		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
 
 		/**
 		 * @param completionItem The completion item that was rejected.
 		 * @deprecated Use {@link handleEndOfLifetime} instead.
 		*/
-		// eslint-disable-next-line local/erdos-dts-provider-naming
+		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
 
 		// #endregion

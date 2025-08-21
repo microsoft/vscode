@@ -115,7 +115,7 @@ export function generateUuid(): string {
  *  The MIT License (MIT)
  *  Copyright (c) 2023-present, Simon Siefke
  *
- *  This code is derived from https://github.com/SimonSiefke/erdos-memory-leak-finder
+ *  This code is derived from https://github.com/SimonSiefke/vscode-memory-leak-finder
  *--------------------------------------------------------------------------------------------*/
 
 const getInstances = async (driver: PlaywrightDriver, classNames: string[]): Promise<{ [key: string]: number }> => {

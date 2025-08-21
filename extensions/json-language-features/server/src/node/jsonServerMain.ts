@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createConnection, Connection, Disposable } from 'erdos-languageserver/node';
+import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
 import { formatError } from '../utils/runner';
 import { RequestService, RuntimeEnvironment, startServer } from '../jsonServer';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
-import { URI as Uri } from 'erdos-uri';
+import { URI as Uri } from 'vscode-uri';
 import { promises as fs } from 'fs';
 import * as l10n from '@vscode/l10n';
 

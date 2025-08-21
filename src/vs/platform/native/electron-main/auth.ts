@@ -83,7 +83,7 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 		// Compute a hash over the authentication info to be used
 		// with the credentials store to return the right credentials
 		// given the properties of the auth request
-		// (see https://github.com/willnickols/erdos/issues/109497)
+		// (see https://github.com/microsoft/vscode/issues/109497)
 		const authInfoHash = String(hash({ scheme: authInfo.scheme, host: authInfo.host, port: authInfo.port }));
 
 		let credentials: Credentials | undefined = undefined;

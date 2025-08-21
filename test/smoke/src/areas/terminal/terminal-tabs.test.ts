@@ -36,7 +36,7 @@ export function setup(options?: { skipSuite: boolean }) {
 			await terminal.assertSingleTab({ name });
 		});
 
-		// DEBT: Flaky https://github.com/willnickols/erdos/issues/216564
+		// DEBT: Flaky https://github.com/microsoft/vscode/issues/216564
 		it.skip('should reset the tab name to the default value when no name is provided', async () => {
 			await terminal.createTerminal();
 			const defaultName = await terminal.getSingleTabName();

@@ -281,10 +281,10 @@ function stripComments(content) {
     return result;
 }
 function processCoreBundleFormat(base, fileHeader, languages, json, emitter) {
-    const languageDirectory = path_1.default.join(REPO_ROOT_PATH, '..', 'erdos-loc', 'i18n');
+    const languageDirectory = path_1.default.join(REPO_ROOT_PATH, '..', 'vscode-loc', 'i18n');
     if (!fs_1.default.existsSync(languageDirectory)) {
-        log(`No Erdos localization repository found. Looking at ${languageDirectory}`);
-        log(`To bundle translations please check out the erdos-loc repository as a sibling of the vscode repository.`);
+        log(`No VS Code localization repository found. Looking at ${languageDirectory}`);
+        log(`To bundle translations please check out the vscode-loc repository as a sibling of the vscode repository.`);
     }
     const sortedLanguages = sortLanguages(languages);
     sortedLanguages.forEach((language) => {
@@ -292,7 +292,7 @@ function processCoreBundleFormat(base, fileHeader, languages, json, emitter) {
             log(`Generating nls bundles for: ${language.id}`);
         }
         const languageFolderName = language.translationId || language.id;
-        const i18nFile = path_1.default.join(languageDirectory, `erdos-language-pack-${languageFolderName}`, 'translations', 'main.i18n.json');
+        const i18nFile = path_1.default.join(languageDirectory, `vscode-language-pack-${languageFolderName}`, 'translations', 'main.i18n.json');
         let allMessages;
         if (fs_1.default.existsSync(i18nFile)) {
             const content = stripComments(fs_1.default.readFileSync(i18nFile, 'utf8'));
@@ -334,7 +334,7 @@ function processNlsFiles(opts) {
         this.queue(file);
     });
 }
-const editorProject = 'erdos-editor', workbenchProject = 'erdos-workbench', extensionsProject = 'erdos-extensions', setupProject = 'erdos-setup', serverProject = 'erdos-server';
+const editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench', extensionsProject = 'vscode-extensions', setupProject = 'vscode-setup', serverProject = 'vscode-server';
 function getResource(sourceFile) {
     let resource;
     if (/^vs\/platform/.test(sourceFile)) {
@@ -421,8 +421,8 @@ function createL10nBundleForExtension(extensionFolderName, prefixWithBuildFolder
         .src([
         // For source code of extensions
         `${prefix}extensions/${extensionFolderName}/{src,client,server}/**/*.{ts,tsx}`,
-        // // For any dependencies pulled in (think erdos-css-languageservice or @vscode/emmet-helper)
-        `${prefix}extensions/${extensionFolderName}/**/node_modules/{@vscode,erdos-*}/**/*.{js,jsx}`,
+        // // For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
+        `${prefix}extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/*.{js,jsx}`,
         // // For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
         `${prefix}extensions/${extensionFolderName}/**/bundle.l10n.json`,
     ])
@@ -477,7 +477,7 @@ function createL10nBundleForExtension(extensionFolderName, prefixWithBuildFolder
 exports.EXTERNAL_EXTENSIONS = [
     'ms-vscode.js-debug',
     'ms-vscode.js-debug-companion',
-    'ms-vscode.erdos-js-profile-table',
+    'ms-vscode.vscode-js-profile-table',
 ];
 function createXlfFilesForExtensions() {
     let counter = 0;
@@ -648,7 +648,7 @@ function prepareI18nPackFiles(resultingTranslationPaths) {
     const errors = [];
     return (0, event_stream_1.through)(function (xlf) {
         let project = path_1.default.basename(path_1.default.dirname(path_1.default.dirname(xlf.relative)));
-        // strip `-new` since erdos-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
+        // strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
         const resource = path_1.default.basename(path_1.default.basename(xlf.relative, '.xlf'), '-new');
         if (exports.EXTERNAL_EXTENSIONS.find(e => e === resource)) {
             project = extensionsProject;

@@ -400,7 +400,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		}
 
 		try {
-			// Send out a setExpression for debug extensions that do not support set variables https://github.com/willnickols/erdos/issues/124679#issuecomment-869844437
+			// Send out a setExpression for debug extensions that do not support set variables https://github.com/microsoft/vscode/issues/124679#issuecomment-869844437
 			if (this.session.capabilities.supportsSetExpression && !this.session.capabilities.supportsSetVariable && this.evaluateName) {
 				return this.setExpression(value, stackFrame);
 			}

@@ -134,8 +134,8 @@ class WebActiveLanguagePackService implements IActiveLanguagePackService {
 		try {
 			const tagResult = await this.galleryService.query({ text: `tag:lp-${language}` }, CancellationToken.None);
 
-			// Only install extensions that are published by Microsoft and start with erdos-language-pack for extra certainty
-			const extensionToInstall = tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('erdos-language-pack'));
+			// Only install extensions that are published by Microsoft and start with vscode-language-pack for extra certainty
+			const extensionToInstall = tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack'));
 			if (extensionToInstall) {
 				localeStorage.setExtensionId(extensionToInstall.identifier.id);
 				return extensionToInstall.identifier.id;

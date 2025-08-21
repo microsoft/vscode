@@ -239,7 +239,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tabsContainer.style.setProperty('--tab-sizing-fixed-min-width', `${options.tabSizingFixedMinWidth}px`);
 			tabsContainer.style.setProperty('--tab-sizing-fixed-max-width', `${options.tabSizingFixedMaxWidth}px`);
 
-			// For https://github.com/willnickols/erdos/issues/40290 we want to
+			// For https://github.com/microsoft/vscode/issues/40290 we want to
 			// preserve the current tab widths as long as the mouse is over the
 			// tabs so that you can quickly close them via mouse click. For that
 			// we track mouse movements over the tabs container.
@@ -326,14 +326,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}));
 		}
 
-		// Prevent auto-scrolling (https://github.com/willnickols/erdos/issues/16690)
+		// Prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, e => {
 			if (e.button === 1) {
 				e.preventDefault();
 			}
 		}));
 
-		// Prevent auto-pasting (https://github.com/willnickols/erdos/issues/201696)
+		// Prevent auto-pasting (https://github.com/microsoft/vscode/issues/201696)
 		if (isLinux) {
 			this._register(addDisposableListener(tabsContainer, EventType.MOUSE_UP, e => {
 				if (e.button === 1) {
@@ -425,7 +425,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 			}
 
-			// Ignore event if the last one happened too recently (https://github.com/willnickols/erdos/issues/96409)
+			// Ignore event if the last one happened too recently (https://github.com/microsoft/vscode/issues/96409)
 			// The restriction is relaxed according to the absolute value of `deltaX` and `deltaY`
 			// to support discrete (mouse wheel) and contiguous scrolling (touchpad) equally well
 			const now = Date.now();
@@ -891,7 +891,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			if (isMouseEvent(e) && (e.button !== 0 /* middle/right mouse button */ || (isMacintosh && e.ctrlKey /* macOS context menu */))) {
 				if (e.button === 1) {
-					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/willnickols/erdos/issues/16690)
+					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 				}
 
 				return;
@@ -975,7 +975,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Close on mouse middle click
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, e => {
 			if (e.button === 1 /* Middle Button*/) {
-				EventHelper.stop(e, true /* for https://github.com/willnickols/erdos/issues/56715 */);
+				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (editor) {
@@ -1082,7 +1082,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (editor) {
 				this.onTabContextMenu(editor, e, tab);
 			}
-		}, true /* use capture to fix https://github.com/willnickols/erdos/issues/19145 */));
+		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
 
 		// Drag & Drop support
 		let lastDragEvent: DragEvent | undefined = undefined;
@@ -1215,7 +1215,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		if (e.dataTransfer && e.dataTransfer.types.length > 0) {
-			return true; // optimistically allow external data (// see https://github.com/willnickols/erdos/issues/25789)
+			return true; // optimistically allow external data (// see https://github.com/microsoft/vscode/issues/25789)
 		}
 
 		return false;
@@ -1625,7 +1625,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		if (tabLabel.ariaLabel) {
 			tabContainer.setAttribute('aria-label', tabLabel.ariaLabel);
 			// Set aria-description to empty string so that screen readers would not read the title as well
-			// More details https://github.com/willnickols/erdos/issues/95378
+			// More details https://github.com/microsoft/vscode/issues/95378
 			tabContainer.setAttribute('aria-description', '');
 		}
 
@@ -1907,7 +1907,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarContainer.offsetWidth - dimensions.available.width;
 				if (lastTabOverlapWithToolbarWidth > 1) {
 					// Allow for slight rounding errors related to zooming here
-					// https://github.com/willnickols/erdos/issues/116385
+					// https://github.com/microsoft/vscode/issues/116385
 					return false;
 				}
 
@@ -1922,7 +1922,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// We already check here if the last tab would fit when wrapped given the
 			// editor toolbar will also show right next to it. This ensures we are not
 			// enabling wrapping only to disable it again in the code below (this fixes
-			// flickering issue https://github.com/willnickols/erdos/issues/115050)
+			// flickering issue https://github.com/microsoft/vscode/issues/115050)
 			if (tabsWrapMultiLine || (allTabsWidth > visibleTabsWidth && lastTabFitsWrapped())) {
 				updateTabsWrapping(true);
 			}
@@ -2085,7 +2085,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			typeof activeTabPosX !== 'number' ||					// invalid dimension
 			typeof activeTabWidth !== 'number' ||					// invalid dimension
 			activeTabPositionStatic ||								// static tab (sticky)
-			(!dimensionsChanged && !options?.forceRevealActiveTab) 	// dimensions did not change and we have low layout priority (https://github.com/willnickols/erdos/issues/133631)
+			(!dimensionsChanged && !options?.forceRevealActiveTab) 	// dimensions did not change and we have low layout priority (https://github.com/microsoft/vscode/issues/133631)
 		) {
 			this.blockRevealActiveTab = false;
 			return;
@@ -2444,8 +2444,8 @@ registerThemingParticipant((theme, collector) => {
 	// Fade out styles via linear gradient (when tabs are set to shrink or fixed)
 	// But not when:
 	// - in high contrast theme
-	// - if we have a contrast border (which draws an outline - https://github.com/willnickols/erdos/issues/109117)
-	// - on Safari (https://github.com/willnickols/erdos/issues/108996)
+	// - if we have a contrast border (which draws an outline - https://github.com/microsoft/vscode/issues/109117)
+	// - on Safari (https://github.com/microsoft/vscode/issues/108996)
 	if (!isHighContrast(theme.type) && !isSafari && !activeContrastBorderColor) {
 		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 		const editorBackgroundColor = theme.getColor(editorBackground);

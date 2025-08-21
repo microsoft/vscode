@@ -234,8 +234,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			// file is read we want to cancel the read
 			// instantly.
 			// Refs:
-			// - https://github.com/willnickols/erdos/issues/138805
-			// - https://github.com/willnickols/erdos/issues/132771
+			// - https://github.com/microsoft/vscode/issues/138805
+			// - https://github.com/microsoft/vscode/issues/132771
 			cts.dispose(true);
 
 			// special treatment for streams that are binary
@@ -407,7 +407,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Just save if target is same as models own resource
 		if (isEqual(source, target)) {
-			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/willnickols/erdos/issues/99619) */ });
+			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 		}
 
 		// If the target is different but of same identity, we
@@ -547,7 +547,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Confirm to overwrite if we have an untitled file with associated file where
 		// the file actually exists on disk and we are instructed to save to that file
 		// path. This can happen if the file was created after the untitled file was opened.
-		// See https://github.com/willnickols/erdos/issues/67946
+		// See https://github.com/microsoft/vscode/issues/67946
 		let write: boolean;
 		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme))) {
 			write = await this.confirmOverwrite(target);

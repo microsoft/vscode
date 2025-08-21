@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { LanguageClient, LanguageClientOptions } from 'erdos-languageclient/browser';
+import { LanguageClient, LanguageClientOptions } from 'vscode-languageclient/browser';
 import { MdLanguageClient, startClient } from './client/client';
 import { activateShared } from './extension.shared';
 import { VsCodeOutputLogger } from './logging';

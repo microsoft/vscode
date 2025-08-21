@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 import { flakySuite } from './testUtils.js';
 
 flakySuite('Ports', () => {
-	(process.env['VSCODE_PID'] ? test.skip /* this test fails when run from within Erdos */ : test)('Finds a free port (no timeout)', function (done) {
+	(process.env['VSCODE_PID'] ? test.skip /* this test fails when run from within VS Code */ : test)('Finds a free port (no timeout)', function (done) {
 
 		// get an initial freeport >= 7000
 		ports.findFreePort(7000, 100, 300000).then(initialPort => {

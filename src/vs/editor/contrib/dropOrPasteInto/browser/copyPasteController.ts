@@ -232,7 +232,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const dataTransfer = toVSDataTransfer(e.clipboardData);
 		const providerCopyMimeTypes = providers.flatMap(x => x.copyMimeTypes ?? []);
 
-		// Save off a handle pointing to data that Erdos maintains.
+		// Save off a handle pointing to data that VS Code maintains.
 		const handle = id ?? generateUuid();
 		this.setCopyMetadata(e.clipboardData, {
 			id: handle,

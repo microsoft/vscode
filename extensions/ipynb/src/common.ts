@@ -6,7 +6,7 @@
 import type * as nbformat from '@jupyterlab/nbformat';
 
 /**
- * Metadata we store in Erdos cell output items.
+ * Metadata we store in VS Code cell output items.
  * This contains the original metadata from the Jupyter outputs.
  */
 export interface CellOutputMetadata {
@@ -43,7 +43,7 @@ export interface CellOutputMetadata {
 
 
 /**
- * Metadata we store in Erdos cells.
+ * Metadata we store in VS Code cells.
  * This contains the original metadata from the Jupyter cells.
  */
 export interface CellMetadata {

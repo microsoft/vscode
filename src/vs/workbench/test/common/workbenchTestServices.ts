@@ -34,7 +34,7 @@ import { IProgress, IProgressStep } from '../../../platform/progress/common/prog
 
 export class TestLoggerService extends AbstractLoggerService {
 	constructor(logsHome?: URI) {
-		super(LogLevel.Info, logsHome ?? URI.file('tests').with({ scheme: 'erdos-tests' }));
+		super(LogLevel.Info, logsHome ?? URI.file('tests').with({ scheme: 'vscode-tests' }));
 	}
 	protected doCreateLogger(): ILogger { return new NullLogger(); }
 }

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, ExtensionContext, Uri, l10n, window } from 'vscode';
-import { LanguageClientOptions } from 'erdos-languageclient';
+import { LanguageClientOptions } from 'vscode-languageclient';
 import { startClient, LanguageClientConstructor, SchemaRequestService, AsyncDisposable, languageServerDescription } from '../jsonClient';
-import { LanguageClient } from 'erdos-languageclient/browser';
+import { LanguageClient } from 'vscode-languageclient/browser';
 
 let client: AsyncDisposable | undefined;
 

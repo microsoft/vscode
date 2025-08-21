@@ -298,7 +298,7 @@ suite('CommandLineAutoApprover', () => {
 			ok(!isAutoApproved('Echo hello'));
 		});
 
-		// https://github.com/willnickols/erdos/issues/252411
+		// https://github.com/microsoft/vscode/issues/252411
 		test('should handle string-based values with special regex characters', () => {
 			setAutoApprove({
 				"pwsh.exe -File D:\\foo.bar\\a-script.ps1": true

@@ -76,7 +76,7 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			// substitute with constants that are registered after startup - https://github.com/willnickols/erdos/issues/174218#issuecomment-1437972127
+			// substitute with constants that are registered after startup - https://github.com/microsoft/vscode/issues/174218#issuecomment-1437972127
 			const when = k.when?.substituteConstants();
 
 			if (when && when.type === ContextKeyExprType.False) {

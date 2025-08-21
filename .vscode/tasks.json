@@ -58,7 +58,7 @@
 			}
 		},
 		{
-			"label": "Erdos - Build",
+			"label": "VS Code - Build",
 			"dependsOn": [
 				"Core - Build",
 				"Ext - Build"
@@ -94,7 +94,7 @@
 			"problemMatcher": "$tsc"
 		},
 		{
-			"label": "Kill Erdos - Build",
+			"label": "Kill VS Code - Build",
 			"dependsOn": [
 				"Kill Core - Build",
 				"Kill Ext - Build"
@@ -103,21 +103,21 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Restart Erdos - Build",
+			"label": "Restart VS Code - Build",
 			"dependsOn": [
-				"Kill Erdos - Build",
-				"Erdos - Build"
+				"Kill VS Code - Build",
+				"VS Code - Build"
 			],
 			"group": "build",
 			"dependsOrder": "sequence",
 			"problemMatcher": []
 		},
 		{
-			"label": "Kill Erdos - Build, Npm, Erdos - Build",
+			"label": "Kill VS Code - Build, Npm, VS Code - Build",
 			"dependsOn": [
-				"Kill Erdos - Build",
+				"Kill VS Code - Build",
 				"npm: install",
-				"Erdos - Build"
+				"VS Code - Build"
 			],
 			"group": "build",
 			"dependsOrder": "sequence",

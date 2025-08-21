@@ -67,7 +67,7 @@
 			],
 			"license": "MIT",
 			"version": "1.0.0",
-			"description": "The original JSON grammars were derived from https://github.com/willnickols/erdos/blob/e95c74c4c7af876e79ec58df262464467c06df28/extensions/git-base/syntaxes/git-commit.tmLanguage.json. That file was originally copied from https://github.com/textmate/git.tmbundle."
+			"description": "The original JSON grammars were derived from https://github.com/microsoft/vscode/blob/e95c74c4c7af876e79ec58df262464467c06df28/extensions/git-base/syntaxes/git-commit.tmLanguage.json. That file was originally copied from https://github.com/textmate/git.tmbundle."
 		}
 	],
 	"version": 1

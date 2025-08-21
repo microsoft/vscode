@@ -923,7 +923,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		await timeout(500);
 	}
 	if (!view) {
-		// Can happen in empty workspace case (https://github.com/willnickols/erdos/issues/100604)
+		// Can happen in empty workspace case (https://github.com/microsoft/vscode/issues/100604)
 
 		if (isFolder) {
 			throw new Error('Open a folder or workspace first.');

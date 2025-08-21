@@ -47,7 +47,7 @@ suite('EnvironmentService', () => {
 		assert.deepStrictEqual(parse(['--inspect-extensions=1234', '--inspect-brk-extensions=5678', '--debugId=7']), { port: 5678, break: true, env: undefined, debugId: '7' });
 	});
 
-	// https://github.com/willnickols/erdos/issues/78440
+	// https://github.com/microsoft/vscode/issues/78440
 	test('careful with boolean file names', function () {
 		let actual = parseArgs(['-r', 'arg.txt'], OPTIONS);
 		assert(actual['reuse-window']);

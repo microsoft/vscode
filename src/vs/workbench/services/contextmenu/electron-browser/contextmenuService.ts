@@ -172,7 +172,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 				// Shift macOS menus by a few pixels below elements
 				// to account for extra padding on top of native menu
-				// https://github.com/willnickols/erdos/issues/84231
+				// https://github.com/microsoft/vscode/issues/84231
 				if (isMacintosh) {
 					y += 4 / zoom;
 				}
@@ -241,7 +241,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 					// To preserve pre-electron-2.x behaviour, we first trigger
 					// the onHide callback and then the action.
-					// Fixes https://github.com/willnickols/erdos/issues/45601
+					// Fixes https://github.com/microsoft/vscode/issues/45601
 					onHide();
 
 					// Run action which will close the menu

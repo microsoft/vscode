@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/willnickols/erdos/issues/190909
+	// https://github.com/microsoft/vscode/issues/190909
 
 	export enum RelatedInformationType {
 		SymbolInformation = 1,

@@ -188,7 +188,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			pattern: contentPattern,
 		};
 		this.searchModel.searchResult.toggleHighlights(false);
-		const charsPerLine = content.isRegExp ? 10000 : 1000; // from https://github.com/willnickols/erdos/blob/e7ad5651ac26fa00a40aa1e4010e81b92f655569/src/vs/workbench/contrib/search/browser/searchView.ts#L1508
+		const charsPerLine = content.isRegExp ? 10000 : 1000; // from https://github.com/microsoft/vscode/blob/e7ad5651ac26fa00a40aa1e4010e81b92f655569/src/vs/workbench/contrib/search/browser/searchView.ts#L1508
 
 		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));
 
@@ -336,7 +336,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			selection: options.selection
 		};
 
-		// from https://github.com/willnickols/erdos/blob/f40dabca07a1622b2a0ae3ee741cfc94ab964bef/src/vs/workbench/contrib/search/browser/anythingQuickAccess.ts#L1037
+		// from https://github.com/microsoft/vscode/blob/f40dabca07a1622b2a0ae3ee741cfc94ab964bef/src/vs/workbench/contrib/search/browser/anythingQuickAccess.ts#L1037
 		const targetGroup = options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
 		await this._editorService.openEditor({

@@ -344,7 +344,7 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 
 	test.skip('issue #63388: perserve correct indentation on tab 1', () => {
 
-		// https://github.com/willnickols/erdos/issues/63388
+		// https://github.com/microsoft/vscode/issues/63388
 
 		const model = createTextModel([
 			'/*',
@@ -366,7 +366,7 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 
 	test.skip('issue #63388: perserve correct indentation on tab 2', () => {
 
-		// https://github.com/willnickols/erdos/issues/63388
+		// https://github.com/microsoft/vscode/issues/63388
 
 		const model = createTextModel([
 			'switch (something) {',
@@ -495,7 +495,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	test('issue #29803: do not indent when pasting text with only one line', () => {
 
-		// https://github.com/willnickols/erdos/issues/29803
+		// https://github.com/microsoft/vscode/issues/29803
 
 		const model = createTextModel([
 			'const linkHandler = new Class(a, b, c,',
@@ -518,7 +518,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	test('issue #29753: incorrect indentation after comment', () => {
 
-		// https://github.com/willnickols/erdos/issues/29753
+		// https://github.com/microsoft/vscode/issues/29753
 
 		const model = createTextModel([
 			'class A {',
@@ -549,7 +549,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	test('issue #29753: incorrect indentation of header comment', () => {
 
-		// https://github.com/willnickols/erdos/issues/29753
+		// https://github.com/microsoft/vscode/issues/29753
 
 		const model = createTextModel('', languageId, {});
 		disposables.add(model);
@@ -570,8 +570,8 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	test('issue #209859: do not do change indentation when pasted inside of a string', () => {
 
-		// issue: https://github.com/willnickols/erdos/issues/209859
-		// issue: https://github.com/willnickols/erdos/issues/209418
+		// issue: https://github.com/microsoft/vscode/issues/209859
+		// issue: https://github.com/microsoft/vscode/issues/209418
 
 		const initialText = [
 			'const foo = "some text',
@@ -608,7 +608,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	test.skip('issue #181065: Incorrect paste of object within comment', () => {
 
-		// https://github.com/willnickols/erdos/issues/181065
+		// https://github.com/microsoft/vscode/issues/181065
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -655,7 +655,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	test.skip('issue #86301: preserve cursor at inserted indentation level', () => {
 
-		// https://github.com/willnickols/erdos/issues/86301
+		// https://github.com/microsoft/vscode/issues/86301
 
 		const model = createTextModel([
 			'() => {',
@@ -695,7 +695,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	test.skip('issue #85781: indent line with extra white space', () => {
 
-		// https://github.com/willnickols/erdos/issues/85781
+		// https://github.com/microsoft/vscode/issues/85781
 		// note: still to determine whether this is a bug or not
 
 		const model = createTextModel([
@@ -730,7 +730,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	test.skip('issue #29589: incorrect indentation of closing brace on paste', () => {
 
-		// https://github.com/willnickols/erdos/issues/29589
+		// https://github.com/microsoft/vscode/issues/29589
 
 		const model = createTextModel('', languageId, {});
 		disposables.add(model);
@@ -758,7 +758,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	test.skip('issue #201420: incorrect indentation when first line is comment', () => {
 
-		// https://github.com/willnickols/erdos/issues/201420
+		// https://github.com/microsoft/vscode/issues/201420
 
 		const model = createTextModel([
 			'function bar() {',
@@ -848,7 +848,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #208215: indent after arrow function', () => {
 
-		// https://github.com/willnickols/erdos/issues/208215
+		// https://github.com/microsoft/vscode/issues/208215
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -865,7 +865,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #208215: indent after arrow function 2', () => {
 
-		// https://github.com/willnickols/erdos/issues/208215
+		// https://github.com/microsoft/vscode/issues/208215
 
 		const model = createTextModel([
 			'const array = [1, 2, 3, 4, 5];',
@@ -888,7 +888,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #116843: indent after arrow function', () => {
 
-		// https://github.com/willnickols/erdos/issues/116843
+		// https://github.com/microsoft/vscode/issues/116843
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -909,7 +909,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #29755: do not add indentation on enter if indentation is already valid', () => {
 
-		//https://github.com/willnickols/erdos/issues/29755
+		//https://github.com/microsoft/vscode/issues/29755
 
 		const model = createTextModel([
 			'function f() {',
@@ -934,7 +934,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #36090', () => {
 
-		// https://github.com/willnickols/erdos/issues/36090
+		// https://github.com/microsoft/vscode/issues/36090
 
 		const model = createTextModel([
 			'class ItemCtrl {',
@@ -970,7 +970,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #115304: indent block comment onEnter', () => {
 
-		// https://github.com/willnickols/erdos/issues/115304
+		// https://github.com/microsoft/vscode/issues/115304
 
 		const model = createTextModel([
 			'/** */',
@@ -995,7 +995,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #43244: indent when lambda arrow function is detected, outdent when end is reached', () => {
 
-		// https://github.com/willnickols/erdos/issues/43244
+		// https://github.com/microsoft/vscode/issues/43244
 
 		const model = createTextModel([
 			'const array = [1, 2, 3, 4, 5];',
@@ -1017,7 +1017,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #43244: incorrect indentation after if/for/while without braces', () => {
 
-		// https://github.com/willnickols/erdos/issues/43244
+		// https://github.com/microsoft/vscode/issues/43244
 
 		const model = createTextModel([
 			'function f() {',
@@ -1050,7 +1050,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #208232: incorrect indentation inside of comments', () => {
 
-		// https://github.com/willnickols/erdos/issues/208232
+		// https://github.com/microsoft/vscode/issues/208232
 
 		const model = createTextModel([
 			'/**',
@@ -1079,7 +1079,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test('issue #209802: allman style braces in JavaScript', () => {
 
-		// https://github.com/willnickols/erdos/issues/209802
+		// https://github.com/microsoft/vscode/issues/209802
 
 		const model = createTextModel([
 			'if (/*condition*/)',
@@ -1113,7 +1113,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #43244: indent after equal sign is detected', () => {
 
-		// https://github.com/willnickols/erdos/issues/43244
+		// https://github.com/microsoft/vscode/issues/43244
 		// issue: Should indent after an equal sign is detected followed by whitespace characters.
 		// This should be outdented when a semi-colon is detected indicating the end of the assignment.
 
@@ -1136,7 +1136,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #43244: indent after dot detected after object/array signifying a method call', () => {
 
-		// https://github.com/willnickols/erdos/issues/43244
+		// https://github.com/microsoft/vscode/issues/43244
 		// issue: When a dot is written, we should detect that this is a method call and indent accordingly
 
 		// TODO: requires exploring indent/outdent pairs instead
@@ -1160,7 +1160,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #43244: indent after dot detected on a subsequent line after object/array signifying a method call', () => {
 
-		// https://github.com/willnickols/erdos/issues/43244
+		// https://github.com/microsoft/vscode/issues/43244
 		// issue: When a dot is written, we should detect that this is a method call and indent accordingly
 
 		// TODO: requires exploring indent/outdent pairs instead
@@ -1183,7 +1183,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #43244: keep indentation when methods called on object/array', () => {
 
-		// https://github.com/willnickols/erdos/issues/43244
+		// https://github.com/microsoft/vscode/issues/43244
 		// Currently passes, but should pass with all the tests above too
 
 		// TODO: requires exploring indent/outdent pairs instead
@@ -1207,7 +1207,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #43244: keep indentation when chained methods called on object/array', () => {
 
-		// https://github.com/willnickols/erdos/issues/43244
+		// https://github.com/microsoft/vscode/issues/43244
 		// When the call chain is not finished yet, and we type a dot, we do not want to change the indentation
 
 		// TODO: requires exploring indent/outdent pairs instead
@@ -1232,7 +1232,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #43244: outdent when a semi-color is detected indicating the end of the assignment', () => {
 
-		// https://github.com/willnickols/erdos/issues/43244
+		// https://github.com/microsoft/vscode/issues/43244
 
 		// TODO: requires exploring indent/outdent pairs instead
 
@@ -1256,7 +1256,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #40115: keep indentation when added', () => {
 
-		// https://github.com/willnickols/erdos/issues/40115
+		// https://github.com/microsoft/vscode/issues/40115
 
 		const model = createTextModel('function foo() {}', languageId, {});
 		disposables.add(model);
@@ -1282,7 +1282,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #193875: incorrect indentation on enter', () => {
 
-		// https://github.com/willnickols/erdos/issues/193875
+		// https://github.com/microsoft/vscode/issues/193875
 
 		const model = createTextModel([
 			'{',
@@ -1308,7 +1308,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #67678: indent on typing curly brace', () => {
 
-		// https://github.com/willnickols/erdos/issues/67678
+		// https://github.com/microsoft/vscode/issues/67678
 
 		const model = createTextModel([
 			'if (true) {',
@@ -1332,7 +1332,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #46401: outdent when encountering bracket on line - allman style indentation', () => {
 
-		// https://github.com/willnickols/erdos/issues/46401
+		// https://github.com/microsoft/vscode/issues/46401
 
 		const model = createTextModel([
 			'if (true)',
@@ -1360,7 +1360,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	test.skip('issue #125261: typing closing brace does not keep the current indentation', () => {
 
-		// https://github.com/willnickols/erdos/issues/125261
+		// https://github.com/microsoft/vscode/issues/125261
 
 		const model = createTextModel([
 			'foo {',
@@ -1407,7 +1407,7 @@ suite('Auto Indent On Type - Ruby', () => {
 
 	test('issue #198350: in or when incorrectly match non keywords for Ruby', () => {
 
-		// https://github.com/willnickols/erdos/issues/198350
+		// https://github.com/microsoft/vscode/issues/198350
 
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
@@ -1431,7 +1431,7 @@ suite('Auto Indent On Type - Ruby', () => {
 
 	test.skip('issue #199846: in or when incorrectly match non keywords for Ruby', () => {
 
-		// https://github.com/willnickols/erdos/issues/199846
+		// https://github.com/microsoft/vscode/issues/199846
 		// explanation: happening because the # is detected probably as a comment
 
 		const model = createTextModel("", languageId, {});
@@ -1476,7 +1476,7 @@ suite('Auto Indent On Type - PHP', () => {
 
 	test('issue #199050: should not indent after { detected in a string', () => {
 
-		// https://github.com/willnickols/erdos/issues/199050
+		// https://github.com/microsoft/vscode/issues/199050
 
 		const model = createTextModel("preg_replace('{');", languageId, {});
 		disposables.add(model);
@@ -1532,7 +1532,7 @@ suite('Auto Indent On Paste - Go', () => {
 
 	test.skip('issue #199050: should not indent after { detected in a string', () => {
 
-		// https://github.com/willnickols/erdos/issues/199050
+		// https://github.com/microsoft/vscode/issues/199050
 
 		const model = createTextModel([
 			'var s = `',
@@ -1590,7 +1590,7 @@ suite('Auto Indent On Type - CPP', () => {
 
 	test.skip('issue #178334: incorrect outdent of } when signature spans multiple lines', () => {
 
-		// https://github.com/willnickols/erdos/issues/178334
+		// https://github.com/microsoft/vscode/issues/178334
 
 		const model = createTextModel([
 			'int WINAPI WinMain(bool instance,',
@@ -1612,7 +1612,7 @@ suite('Auto Indent On Type - CPP', () => {
 
 	test.skip('issue #118929: incorrect indent when // follows curly brace', () => {
 
-		// https://github.com/willnickols/erdos/issues/118929
+		// https://github.com/microsoft/vscode/issues/118929
 
 		const model = createTextModel([
 			'if (true) { // jaja',
@@ -1633,7 +1633,7 @@ suite('Auto Indent On Type - CPP', () => {
 
 	test.skip('issue #111265: auto indentation set to "none" still changes the indentation', () => {
 
-		// https://github.com/willnickols/erdos/issues/111265
+		// https://github.com/microsoft/vscode/issues/111265
 
 		const model = createTextModel([
 			'int func() {',
@@ -1685,7 +1685,7 @@ suite('Auto Indent On Type - HTML', () => {
 
 	test.skip('issue #61510: incorrect indentation after // in html file', () => {
 
-		// https://github.com/willnickols/erdos/issues/178334
+		// https://github.com/microsoft/vscode/issues/178334
 
 		const model = createTextModel([
 			'<pre>',
@@ -1739,7 +1739,7 @@ suite('Auto Indent On Type - Visual Basic', () => {
 
 	test.skip('issue #118932: no indentation in visual basic files', () => {
 
-		// https://github.com/willnickols/erdos/issues/118932
+		// https://github.com/microsoft/vscode/issues/118932
 
 		const model = createTextModel([
 			'if True then',
@@ -1793,7 +1793,7 @@ suite('Auto Indent On Type - Latex', () => {
 
 	test.skip('issue #178075: no auto closing pair when indentation done', () => {
 
-		// https://github.com/willnickols/erdos/issues/178075
+		// https://github.com/microsoft/vscode/issues/178075
 
 		const model = createTextModel([
 			'\\begin{theorem}',
@@ -1844,7 +1844,7 @@ suite('Auto Indent On Type - Lua', () => {
 
 	test.skip('issue #178075: no auto closing pair when indentation done', () => {
 
-		// https://github.com/willnickols/erdos/issues/178075
+		// https://github.com/microsoft/vscode/issues/178075
 
 		const model = createTextModel([
 			'print("asdf function asdf")',

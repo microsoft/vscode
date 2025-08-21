@@ -31,7 +31,7 @@ export const MINIMUM_LETTER_SPACING = -5;
 // HACK: On Linux it's common for fonts to include an underline that is rendered lower than the
 // bottom of the cell which causes it to be cut off due to `overflow:hidden` in the DOM renderer.
 // See:
-// - https://github.com/willnickols/erdos/issues/211933
+// - https://github.com/microsoft/vscode/issues/211933
 // - https://github.com/xtermjs/xterm.js/issues/4067
 export const DEFAULT_LINE_HEIGHT = isLinux ? 1.1 : 1;
 
@@ -323,7 +323,7 @@ export const enum ProcessState {
 	// The process was killed during launch, likely as a result of bad shell and
 	// args.
 	KilledDuringLaunch = 4,
-	// The process was killed by the user (the event originated from Erdos).
+	// The process was killed by the user (the event originated from VS Code).
 	KilledByUser = 5,
 	// The process was killed by itself, for example the shell crashed or `exit`
 	// was run.
