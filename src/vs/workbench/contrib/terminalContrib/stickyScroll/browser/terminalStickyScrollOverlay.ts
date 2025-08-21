@@ -400,8 +400,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._element.querySelectorAll('*').forEach(el => {
 			if (isHTMLElement(el)) {
 				el.tabIndex = -1;
-				// Remove any existing focus handlers from xterm elements
-				el.style.pointerEvents = 'none';
 			}
 		});
 		// Re-enable pointer events on the hover overlay so clicks still work
