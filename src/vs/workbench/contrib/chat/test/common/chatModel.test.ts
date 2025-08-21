@@ -123,8 +123,8 @@ suite('Response', () => {
 	test('consolidated edit summary', async () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Some content before edits'), kind: 'markdownContent' });
-		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined });
-		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file2.ts'), edits: [], state: undefined });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined, done: true });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file2.ts'), edits: [], state: undefined, done: true });
 		response.updateContent({ content: new MarkdownString('Some content after edits'), kind: 'markdownContent' });
 
 		// Should have single "Made changes." at the end instead of multiple entries
@@ -150,10 +150,10 @@ suite('Response', () => {
 	test('consolidated edit summary with clear operation', async () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Initial content'), kind: 'markdownContent' });
-		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined, done: true });
 		response.updateContent({ kind: 'clearToPreviousToolInvocation', reason: 1 });
 		response.updateContent({ content: new MarkdownString('Content after clear'), kind: 'markdownContent' });
-		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file2.ts'), edits: [], state: undefined });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file2.ts'), edits: [], state: undefined, done: true });
 
 		// Should only show "Made changes." for edits after the clear operation
 		const responseString = response.toString();
