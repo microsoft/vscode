@@ -254,6 +254,15 @@ export class ChatViewWelcomePart extends Disposable {
 		}
 	}
 
+	public needsRerender(content: IChatViewWelcomeContent): boolean {
+		// Heuristic based on content that changes between states
+		return this.content.title !== content.title ||
+			this.content.isExperimental !== content.isExperimental ||
+			this.content.message.value !== content.message.value ||
+			this.content.additionalMessage !== content.additionalMessage ||
+			this.content.tips?.value !== content.tips?.value;
+	}
+
 	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {
 		const messageResult = this._register(renderer.render(content));
 		const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
