@@ -941,7 +941,7 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 export class ChatEntitlementContext extends Disposable {
 
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY = 'chat.setupContext';
-	private static readonly CHAT_HIDDEN_CONFIGURATION_KEY = 'chat.hideAIFeatures';
+	private static readonly CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
 
 	private readonly canSignUpContextKey: IContextKey<boolean>;
 	private readonly signedOutContextKey: IContextKey<boolean>;
@@ -1003,7 +1003,7 @@ export class ChatEntitlementContext extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY)) {
+			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY)) {
 				this.updateContext();
 			}
 		}));
@@ -1012,7 +1012,7 @@ export class ChatEntitlementContext extends Disposable {
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
 		if (
 			state.installed ||
-			this.configurationService.getValue(ChatEntitlementContext.CHAT_HIDDEN_CONFIGURATION_KEY) !== true
+			this.configurationService.getValue(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) !== true
 		) {
 			return state; // only applicable until extension is installed or when disabled via setting
 		}
@@ -1027,11 +1027,11 @@ export class ChatEntitlementContext extends Disposable {
 
 		// Listen to extensions change and process extensions once
 		this._register(Event.runAndSubscribe<IExtension | undefined>(this.extensionsWorkbenchService.onChange, e => {
-			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.extensionId)) {
+			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.chatExtensionId)) {
 				return; // unrelated event
 			}
 
-			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
+			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 			const installed = !!defaultChatExtension?.local;
 
 			let disabled: boolean;
