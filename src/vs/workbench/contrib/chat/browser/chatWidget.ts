@@ -589,7 +589,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.scrollToEnd();
 		}));
 
-		const chatFontSize = observableConfigValue<number>('chat.fontSize', 16, this.configurationService);
+		const chatFontSize = observableConfigValue<number>('chat.fontSize', 13, this.configurationService);
 		const chatFontFamily = observableConfigValue<string>('chat.fontFamily', 'default', this.configurationService);
 
 		this._register(autorun(r => {
