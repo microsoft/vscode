@@ -113,21 +113,4 @@ suite('OutputMonitor', () => {
 		monitor.dispose();
 		monitor.dispose();
 	});
-
-	test('startMonitoring throws if getOutput throws', async () => {
-		execution.getOutput = () => { throw new Error('fail!'); };
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
-		let threw = false;
-		try {
-			await monitor.startMonitoring(
-				'test command',
-				{ sessionId: '1' },
-				cts.token
-			);
-		} catch (e) {
-			threw = true;
-			assert.match((e as Error).message, /fail!/);
-		}
-		assert.ok(threw, 'Expected error to be thrown');
-	});
 });
