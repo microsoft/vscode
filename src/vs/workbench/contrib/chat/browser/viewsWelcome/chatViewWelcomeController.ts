@@ -256,12 +256,12 @@ export class ChatViewWelcomePart extends Disposable {
 
 	public needsRerender(content: IChatViewWelcomeContent): boolean {
 		// Heuristic based on content that changes between states
-		return content.isExperimental ||
-			this.content.title !== content.title ||
+		return this.content.title !== content.title ||
 			this.content.isExperimental !== content.isExperimental ||
 			this.content.message.value !== content.message.value ||
 			this.content.additionalMessage !== content.additionalMessage ||
-			this.content.tips?.value !== content.tips?.value;
+			this.content.tips?.value !== content.tips?.value ||
+			this.content.inputPart !== content.inputPart;
 	}
 
 	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {

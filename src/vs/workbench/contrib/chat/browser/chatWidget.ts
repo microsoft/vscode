@@ -487,6 +487,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			]))) {
 				// reset the input in welcome view if it was rendered in experimental mode
 				if (this.container.classList.contains('experimental-welcome-view')) {
+					this.welcomePart.value = undefined;
 					this.container.classList.remove('experimental-welcome-view');
 					const renderFollowups = this.viewOptions.renderFollowups ?? false;
 					const renderStyle = this.viewOptions.renderStyle;
@@ -718,7 +719,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 			// reset the input in welcome view if it was rendered in experimental mode
-			if (this.container.classList.contains('experimental-welcome-view')) {
+			if (treeItems.length > 0 && this.container.classList.contains('experimental-welcome-view')) {
 				this.container.classList.remove('experimental-welcome-view');
 				const renderFollowups = this.viewOptions.renderFollowups ?? false;
 				const renderStyle = this.viewOptions.renderStyle;
