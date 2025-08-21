@@ -314,6 +314,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return Promise.resolve(undefined);
 		}
 		const model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)[0]?.input.currentLanguageModel;
+		if (!model) {
+			return Promise.resolve(undefined);
+		}
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: model });
 		if (!models.length) {
 			return Promise.resolve(undefined);
