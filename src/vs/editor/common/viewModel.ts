@@ -16,12 +16,12 @@ import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
 import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, TextDirection } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
-import { InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent } from './textModelEvents.js';
+import { InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from './textModelEvents.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
-import { InlineDecoration } from './viewModel/inlineDecorations.js';
+import { InlineDecoration, SingleLineInlineDecoration } from './viewModel/inlineDecorations.js';
 
 export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 
@@ -83,7 +83,6 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
 
 	onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
-	onFontChanged(e: ModelFontChangedEvent): void;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 
@@ -274,7 +273,7 @@ export class ViewLineData {
 	/**
 	 * Additional inline decorations for this line.
 	*/
-	public readonly inlineDecorations: readonly InlineDecoration[];
+	public readonly inlineDecorations: readonly SingleLineInlineDecoration[] | null;
 
 	constructor(
 		content: string,
@@ -283,7 +282,7 @@ export class ViewLineData {
 		maxColumn: number,
 		startVisibleColumn: number,
 		tokens: IViewLineTokens,
-		inlineDecorations: readonly InlineDecoration[]
+		inlineDecorations: readonly SingleLineInlineDecoration[] | null
 	) {
 		this.content = content;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;

@@ -46,11 +46,10 @@ import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
-import { LineTokens, TokenArray } from '../tokens/lineTokens.js';
+import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
-import { InjectedTextOptions } from '../model.js';
 import { IViewModel } from '../viewModel.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -835,14 +834,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._buffer.getLineContent(lineNumber);
 	}
 
-	public getLineTokens(lineNumber: number): LineTokens {
-		const lineTokens = this.tokenization.getLineTokens(lineNumber);
-		const lineInjectedText = this.getLineInjectedText(lineNumber);
-		const injectionOptions = lineInjectedText.map(t => t.options);
-		const injectionOffsets = lineInjectedText.map(text => text.column - 1);
-		return getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
-	}
-
 	public getLineLength(lineNumber: number): number {
 		this._assertNotDisposed();
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
@@ -1601,21 +1592,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLines = Array.from(affectedFontLines);
 			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.lineNumber));
-			const modelFontChangedEvent = new ModelFontChangedEvent(fontChangeEvent);
-			this._onDidChangeFont.fire(modelFontChangedEvent);
-			this.onFontChanged(modelFontChangedEvent);
+			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
 		}
 	}
 
 	private onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
 		for (const viewModel of this._viewModels) {
 			viewModel.onDidChangeContentOrInjectedText(e);
-		}
-	}
-
-	private onFontChanged(e: ModelFontChangedEvent): void {
-		for (const viewModel of this._viewModels) {
-			viewModel.onFontChanged(e);
 		}
 	}
 
@@ -2072,36 +2055,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public override toString(): string {
 		return `TextModel(${this.uri.toString()})`;
 	}
-}
-
-export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
-	let lineTokens: LineTokens;
-	if (injectionOptions && injectionOffsets) {
-		const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
-		for (let idx = 0; idx < injectionOffsets.length; idx++) {
-			const offset = injectionOffsets[idx];
-			const tokens = injectionOptions[idx].tokens;
-			if (tokens) {
-				tokens.forEach((range, info) => {
-					tokensToInsert.push({
-						offset,
-						text: range.substring(injectionOptions![idx].content),
-						tokenMetadata: info.metadata,
-					});
-				});
-			} else {
-				tokensToInsert.push({
-					offset,
-					text: injectionOptions![idx].content,
-					tokenMetadata: LineTokens.defaultTokenMetadata,
-				});
-			}
-		}
-		lineTokens = tokens.withInserted(tokensToInsert);
-	} else {
-		lineTokens = tokens;
-	}
-	return lineTokens;
 }
 
 export function indentOfLine(line: string): number {

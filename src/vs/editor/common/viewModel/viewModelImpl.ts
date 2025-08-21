@@ -69,7 +69,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		editorId: number,
 		configuration: IEditorConfiguration,
 		model: ITextModel,
-		lineBreaksComputer: ILineBreaksComputerFactory,
+		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
@@ -94,12 +95,26 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._lines = new ViewModelLinesFromModelAsIs(this.model);
 
 		} else {
+			const options = this._configuration.options;
+			const fontInfo = options.get(EditorOption.fontInfo);
+			const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
+			const wrappingInfo = options.get(EditorOption.wrappingInfo);
+			const wrappingIndent = options.get(EditorOption.wrappingIndent);
+			const wordBreak = options.get(EditorOption.wordBreak);
+			const wrapOnEscapedLineFeeds = options.get(EditorOption.wrapOnEscapedLineFeeds);
+
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
-				lineBreaksComputer,
-				this._configuration,
+				domLineBreaksComputerFactory,
+				monospaceLineBreaksComputerFactory,
+				fontInfo,
 				this.model.getOptions().tabSize,
+				wrappingStrategy,
+				wrappingInfo.wrappingColumn,
+				wrappingIndent,
+				wordBreak,
+				wrapOnEscapedLineFeeds
 			);
 		}
 
@@ -252,8 +267,14 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _onConfigurationChanged(eventsCollector: ViewModelEventsCollector, e: ConfigurationChangedEvent): void {
 		const stableViewport = this._captureStableViewport();
+		const options = this._configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
+		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const wrappingIndent = options.get(EditorOption.wrappingIndent);
+		const wordBreak = options.get(EditorOption.wordBreak);
 
-		if (this._lines.setWrappingSettings(e)) {
+		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent, wordBreak)) {
 			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
@@ -284,39 +305,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
 			this._cursor.updateConfiguration(this.cursorConfig);
 		}
-	}
-
-	onFontChanged(e: textModelEvents.ModelFontChangedEvent): void {
-		try {
-			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			const lineBreaksComputer = this._lines.createLineBreaksComputer();
-			for (const change of e.changes) {
-				lineBreaksComputer.addRequest(change.lineNumber, null);
-			}
-			const lineBreaks = lineBreaksComputer.finalize();
-			const lineBreakQueue = new ArrayQueue(lineBreaks);
-			let lineMappingHasChanged = false;
-			for (const change of e.changes) {
-				const changedLineBreakData = lineBreakQueue.dequeue()!;
-				const [lineMappingChanged, linesChangedEvent] = this._lines.onModelFontChanged(change.lineNumber, changedLineBreakData);
-				lineMappingHasChanged = lineMappingChanged;
-				if (linesChangedEvent) {
-					eventsCollector.emitViewEvent(linesChangedEvent);
-				}
-			}
-			this.viewLayout.onHeightMaybeChanged();
-			if (lineMappingHasChanged) {
-				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-				this._cursor.onLineMappingChanged(eventsCollector);
-				this._decorations.onLineMappingChanged();
-				this.viewLayout.onFlushed(this.getLineCount(), this._getCustomLineHeights());
-			}
-		} finally {
-			this._eventDispatcher.endEmitViewEvents();
-		}
-		this._updateConfigurationViewLineCountNow();
-		this._handleVisibleLinesChanged();
 	}
 
 	onDidChangeContentOrInjectedText(e: textModelEvents.InternalModelContentChangeEvent | textModelEvents.ModelInjectedTextChangedEvent): void {
@@ -849,7 +837,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
 				...inlineDecorations,
-				...lineData.inlineDecorations
+				...lineData.inlineDecorations.map(d =>
+					d.toInlineDecoration(lineNumber)
+				)
 			];
 		}
 

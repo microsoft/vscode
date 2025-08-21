@@ -31,7 +31,6 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { DiffEditorOptions } from '../../diffEditorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
-import { ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -165,30 +164,25 @@ export class DiffEditorViewZones extends Disposable {
 
 			const renderSideBySide = this._options.renderSideBySide.read(reader);
 
-			let lineBreakData: (ModelLineProjectionData | null)[] = [];
-			if (!renderSideBySide) {
-				const modifiedViewModel = this._editors.modified._getViewModel();
-				if (modifiedViewModel) {
-					const originalEditor = this._editors.original;
-					const originalModel = originalEditor.getModel()!;
-					const deletedCodeLineBreaksComputer = modifiedViewModel.createLineBreaksComputer();
-					for (const a of alignmentsVal) {
-						if (a.diff) {
-							for (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {
-								// `i` can be out of bound when the diff has not been updated yet.
-								// In this case, we do an early return.
-								// TODO@hediet: Fix this by applying the edit directly to the diff model, so that the diff is always valid.
-								if (i > originalModel.getLineCount()) {
-									return { orig: origViewZones, mod: modViewZones };
-								}
-								deletedCodeLineBreaksComputer?.addRequest(i, null);
+			const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer() : undefined;
+			if (deletedCodeLineBreaksComputer) {
+				const originalModel = this._editors.original.getModel()!;
+				for (const a of alignmentsVal) {
+					if (a.diff) {
+						for (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {
+							// `i` can be out of bound when the diff has not been updated yet.
+							// In this case, we do an early return.
+							// TODO@hediet: Fix this by applying the edit directly to the diff model, so that the diff is always valid.
+							if (i > originalModel.getLineCount()) {
+								return { orig: origViewZones, mod: modViewZones };
 							}
+							deletedCodeLineBreaksComputer?.addRequest(i, null);
 						}
 					}
-					lineBreakData = deletedCodeLineBreaksComputer.finalize();
 				}
 			}
 
+			const lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? [];
 			let lineBreakDataIdx = 0;
 
 			const modLineHeight = this._editors.modified.getOption(EditorOption.lineHeight);

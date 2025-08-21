@@ -19,7 +19,7 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 	const model = createTextModel(text.join('\n'));
 	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
 	const testLanguageConfigurationService = new TestLanguageConfigurationService();
-	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, null!, testLanguageConfigurationService, new TestThemeService(), {
+	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, testLanguageConfigurationService, new TestThemeService(), {
 		setVisibleLines(visibleLines, stabilized) {
 		},
 	}, {

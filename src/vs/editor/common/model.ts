@@ -23,7 +23,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
-import { LineTokens, TokenArray } from './tokens/lineTokens.js';
+import { TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
 import { TextModelEditSource } from './textModelEditSource.js';
 import { TextEdit } from './core/edits/textEdit.js';
@@ -854,12 +854,6 @@ export interface ITextModel {
 	 * Get the text for a certain line.
 	 */
 	getLineContent(lineNumber: number): string;
-
-	/**
-	 * Get the line tokens for a certain line, including the injected text.
-	 * @internal
-	 */
-	getLineTokens(lineNumber: number, ownerId?: number): LineTokens;
 
 	/**
 	 * Get the line injected text for a certain line.

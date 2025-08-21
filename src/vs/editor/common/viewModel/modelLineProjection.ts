@@ -10,8 +10,7 @@ import { EndOfLinePreference, ITextModel, PositionAffinity } from '../model.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { InjectedText, ModelLineProjectionData } from '../modelLineProjectionData.js';
 import { ViewLineData } from '../viewModel.js';
-import { IInjectedTextInlineDecorationsComputerContext, InjectedTextInlineDecorationsComputer, InlineDecoration } from './inlineDecorations.js';
-import { getLineTokensWithInjections } from '../model/textModel.js';
+import { SingleLineInlineDecoration } from './inlineDecorations.js';
 
 export interface IModelLineProjection {
 	isVisible(): boolean;
@@ -165,16 +164,82 @@ class ModelLineProjection implements IModelLineProjection {
 		const injectionOffsets = lineBreakData.injectionOffsets;
 		const injectionOptions = lineBreakData.injectionOptions;
 
-		const context: IInjectedTextInlineDecorationsComputerContext = {
-			getInjectionOptions: () => injectionOptions,
-			getInjectionOffsets: () => injectionOffsets,
-			getBreakOffsets: () => lineBreakData.breakOffsets,
-			getWrappedTextIndentLength: () => lineBreakData.wrappedTextIndentLength
-		};
-		const computer = new InjectedTextInlineDecorationsComputer(context);
-		const lineInlineDecorations = computer.getInlineDecorations(modelLineNumber)?.decorations;
-		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
-		const lineWithInjections = getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
+		let inlineDecorationsPerOutputLine: SingleLineInlineDecoration[][] | null = null;
+
+		if (injectionOffsets) {
+			inlineDecorationsPerOutputLine = [];
+			let totalInjectedTextLengthBefore = 0;
+			let currentInjectedOffset = 0;
+
+			for (let outputLineIndex = 0; outputLineIndex < lineBreakData.getOutputLineCount(); outputLineIndex++) {
+				const inlineDecorations = new Array<SingleLineInlineDecoration>();
+				inlineDecorationsPerOutputLine[outputLineIndex] = inlineDecorations;
+
+				const lineStartOffsetInInputWithInjections = outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
+				const lineEndOffsetInInputWithInjections = lineBreakData.breakOffsets[outputLineIndex];
+
+				while (currentInjectedOffset < injectionOffsets.length) {
+					const length = injectionOptions![currentInjectedOffset].content.length;
+					const injectedTextStartOffsetInInputWithInjections = injectionOffsets[currentInjectedOffset] + totalInjectedTextLengthBefore;
+					const injectedTextEndOffsetInInputWithInjections = injectedTextStartOffsetInInputWithInjections + length;
+
+					if (injectedTextStartOffsetInInputWithInjections > lineEndOffsetInInputWithInjections) {
+						// Injected text only starts in later wrapped lines.
+						break;
+					}
+
+					if (lineStartOffsetInInputWithInjections < injectedTextEndOffsetInInputWithInjections) {
+						// Injected text ends after or in this line (but also starts in or before this line).
+						const options = injectionOptions![currentInjectedOffset];
+						if (options.inlineClassName) {
+							const offset = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
+							const start = offset + Math.max(injectedTextStartOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, 0);
+							const end = offset + Math.min(injectedTextEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections, lineEndOffsetInInputWithInjections - lineStartOffsetInInputWithInjections);
+							if (start !== end) {
+								inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!));
+							}
+						}
+					}
+
+					if (injectedTextEndOffsetInInputWithInjections <= lineEndOffsetInInputWithInjections) {
+						totalInjectedTextLengthBefore += length;
+						currentInjectedOffset++;
+					} else {
+						// injected text breaks into next line, process it again
+						break;
+					}
+				}
+			}
+		}
+
+		let lineWithInjections: LineTokens;
+		if (injectionOffsets) {
+			const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+
+			for (let idx = 0; idx < injectionOffsets.length; idx++) {
+				const offset = injectionOffsets[idx];
+				const tokens = injectionOptions![idx].tokens;
+				if (tokens) {
+					tokens.forEach((range, info) => {
+						tokensToInsert.push({
+							offset,
+							text: range.substring(injectionOptions![idx].content),
+							tokenMetadata: info.metadata,
+						});
+					});
+				} else {
+					tokensToInsert.push({
+						offset,
+						text: injectionOptions![idx].content,
+						tokenMetadata: LineTokens.defaultTokenMetadata,
+					});
+				}
+			}
+
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber).withInserted(tokensToInsert);
+		} else {
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber);
+		}
 
 		for (let outputLineIndex = outputLineIdx; outputLineIndex < outputLineIdx + lineCount; outputLineIndex++) {
 			const globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;
@@ -182,11 +247,11 @@ class ModelLineProjection implements IModelLineProjection {
 				result[globalIndex] = null;
 				continue;
 			}
-			result[globalIndex] = this._getViewLineData(lineWithInjections, lineInlineDecorations ? lineInlineDecorations[outputLineIndex] : [], outputLineIndex);
+			result[globalIndex] = this._getViewLineData(lineWithInjections, inlineDecorationsPerOutputLine ? inlineDecorationsPerOutputLine[outputLineIndex] : null, outputLineIndex);
 		}
 	}
 
-	private _getViewLineData(lineWithInjections: LineTokens, inlineDecorations: InlineDecoration[], outputLineIndex: number): ViewLineData {
+	private _getViewLineData(lineWithInjections: LineTokens, inlineDecorations: null | SingleLineInlineDecoration[], outputLineIndex: number): ViewLineData {
 		this._assertVisible();
 		const lineBreakData = this._projectionData;
 		const deltaStartIndex = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
@@ -304,7 +369,7 @@ class IdentityModelLineProjection implements IModelLineProjection {
 			lineContent.length + 1,
 			0,
 			lineTokens.inflate(),
-			[]
+			null
 		);
 	}
 
