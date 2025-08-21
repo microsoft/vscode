@@ -10,7 +10,6 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
-import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/chatModel.js';
 import { IChatService } from '../../../../../chat/common/chatService.js';
@@ -29,7 +28,6 @@ export interface IOutputMonitor extends Disposable {
 	readonly onDidTimeout: Event<void>;
 
 	startMonitoring(
-		chatService: IChatService,
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
@@ -55,13 +53,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ITaskService private readonly _taskService: ITaskService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatService private readonly _chatService: IChatService
 	) {
 		super();
 	}
 
 	async startMonitoring(
-		chatService: IChatService,
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
@@ -69,12 +66,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		const pollStartTime = Date.now();
 
-		let result = await this._pollForOutputAndIdle(this._execution, false, token, this._languageModelsService, this._chatWidgetService, this._taskService, this._pollFn);
+		let result = await this._pollForOutputAndIdle(this._execution, false, token, this._pollFn);
 
 		if (this._state === OutputMonitorState.Timeout) {
 			result = await this._racePollingOrPrompt(
-				() => this._pollForOutputAndIdle(this._execution, true, token, this._languageModelsService, this._chatWidgetService, this._taskService, this._pollFn),
-				() => this._promptForMorePolling(command, token, invocationContext, chatService),
+				() => this._pollForOutputAndIdle(this._execution, true, token, this._pollFn),
+				() => this._promptForMorePolling(command, token, invocationContext),
 				result,
 			);
 		}
@@ -120,12 +117,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 
-	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext, chatService: IChatService): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
+	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };
 		}
 		this._state = OutputMonitorState.Prompting;
-		const chatModel = chatService.getSession(context.sessionId);
+		const chatModel = this._chatService.getSession(context.sessionId);
 		if (chatModel instanceof ChatModel) {
 			const request = chatModel.getRequests().at(-1);
 			if (request) {
@@ -163,9 +160,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		execution: IExecution,
 		extendedPolling: boolean,
 		token: CancellationToken,
-		languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>,
-		chatWidgetService: Pick<IChatWidgetService, 'getWidgetsByLocations'>,
-		taskService: ITaskService,
 		pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined> | undefined,
 		recursionDepth: number = 0
 	): Promise<IPollingResult> {
@@ -221,22 +215,22 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 		}
 
-		const customPollingResult = await pollFn?.(execution, token, taskService);
+		const customPollingResult = await pollFn?.(execution, token, this._taskService);
 		if (customPollingResult) {
 			return customPollingResult;
 		}
-		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token, languageModelsService);
+		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token);
 		return { state: this._state, modelOutputEvalResponse, output: buffer, autoReplyCount: recursionDepth };
 	}
 
 
-	private async _assessOutputForErrors(buffer: string, token: CancellationToken, languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): Promise<string> {
-		const models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
+	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string> {
+		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 		if (!models.length) {
 			return 'No models available';
 		}
 
-		const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
+		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
 
 		try {
 			const responseFromStream = getTextResponseFromStream(response);
