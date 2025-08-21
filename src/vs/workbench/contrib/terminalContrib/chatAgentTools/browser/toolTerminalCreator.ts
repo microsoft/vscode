@@ -13,6 +13,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 
 const enum ShellLaunchType {
 	Unknown = 0,
@@ -44,8 +45,8 @@ export class ToolTerminalCreator {
 	) {
 	}
 
-	async createTerminal(token: CancellationToken): Promise<IToolTerminal> {
-		const instance = await this._createCopilotTerminal();
+	async createTerminal(shell: string, token: CancellationToken): Promise<IToolTerminal> {
+		const instance = await this._createCopilotTerminal(shell);
 		const toolTerminal: IToolTerminal = {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
@@ -55,12 +56,21 @@ export class ToolTerminalCreator {
 		// integration injection is enabled. Note that it's possible for the fallback case to happen
 		// and then for SI to activate again later in the session.
 		const siInjectionEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
+
+		// Get the configurable timeout to wait for shell integration
+		const configuredTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout) as number | undefined;
+		let waitTime: number;
+		if (configuredTimeout === undefined || typeof configuredTimeout !== 'number' || configuredTimeout < 0) {
+			waitTime = siInjectionEnabled ? 5000 : (instance.isRemote ? 3000 : 2000);
+		} else {
+			// There's an absolute minimum is 500ms
+			waitTime = Math.max(configuredTimeout, 500);
+		}
+
 		if (
 			ToolTerminalCreator._lastSuccessfulShell !== ShellLaunchType.Fallback ||
 			siInjectionEnabled
 		) {
-			// Use a reasonable wait time depending on whether the injection setting is set
-			const waitTime = siInjectionEnabled ? 5000 : (instance.isRemote ? 3000 : 2000);
 			const shellIntegrationQuality = await this._waitForShellIntegration(instance, waitTime);
 			if (token.isCancellationRequested) {
 				instance.dispose();
@@ -98,9 +108,10 @@ export class ToolTerminalCreator {
 		}
 	}
 
-	private _createCopilotTerminal() {
+	private _createCopilotTerminal(shell: string) {
 		return this._terminalService.createTerminal({
 			config: {
+				executable: shell,
 				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 				hideFromUser: true,
 				env: {

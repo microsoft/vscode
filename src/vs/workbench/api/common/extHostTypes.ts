@@ -1872,6 +1872,11 @@ export enum InlineCompletionEndOfLifeReasonKind {
 	Ignored = 2,
 }
 
+export enum InlineCompletionDisplayLocationKind {
+	Code = 1,
+	Label = 2
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -4680,7 +4685,7 @@ export class ChatResponseCommandButtonPart {
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location } | string;
 	iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
-	options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } };
+	options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind }; diffMeta?: { added: number; removed: number } };
 	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location } | string, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }, options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } }) {
 		this.value = value;
 		this.iconPath = iconPath;

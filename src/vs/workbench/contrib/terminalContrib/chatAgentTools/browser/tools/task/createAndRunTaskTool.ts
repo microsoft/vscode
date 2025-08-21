@@ -19,6 +19,7 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
+import { toolResultDetailsFromResponse } from './taskHelpers.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
@@ -155,11 +156,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
 			toolResultMessage: new MarkdownString(resultSummary),
-			toolResultDetails: Array.from(new Map(
-				terminalResults
-					.flatMap(r => r.resources?.filter(res => res.uri && res.range).map(res => ({ uri: res.uri, range: res.range })) ?? [])
-					.map(item => [`${item.uri.toString()}-${item.range.toString()}`, item])
-			).values())
+			toolResultDetails: toolResultDetailsFromResponse(terminalResults)
 		};
 	}
 

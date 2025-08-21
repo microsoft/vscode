@@ -502,7 +502,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
 			whenNotInProgress,
 			ChatContextKeys.remoteJobCreating.negate(),
 		);
@@ -547,21 +546,25 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (!session) {
 				return;
 			}
-
-
 			const chatModel = widget.viewModel?.model;
 			if (!chatModel) {
 				return;
 			}
 
-			const userPrompt = widget.getInput();
+			const chatRequests = chatModel.getRequests();
+			let userPrompt = widget.getInput();
 			if (!userPrompt) {
-				return;
+
+				if (!chatRequests.length) {
+					// Nothing to do
+					return;
+				}
+
+				userPrompt = 'implement this.';
 			}
 
 			widget.input.acceptInput(true);
 
-			const chatRequests = chatModel.getRequests();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
 			// Complete implementation of adding request back into chat stream

@@ -5,13 +5,9 @@
 
 .chat-pull-request-content-part {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 4px;
-}
-
-.chat-pull-request-content-part .container {
-	padding: 12px 12px 8px;
-	display: flex;
-	flex-direction: row;
+	border-radius: 6px;
+	margin: 4px 0;
+	overflow: hidden;
 }
 
 .chat-pull-request-content-part .container .icon {
@@ -24,49 +20,50 @@
 	flex-direction: column;
 }
 
-.chat-pull-request-content-part .title-container {
-	flex-direction: row;
-	display: flex;
-	gap: 4px;
-	font-size: large;
-	padding-bottom: 2px;
-	margin: unset;
-}
-
 .chat-pull-request-content-part .title-container .link {
 	color: var(--vscode-textLink-foreground);
 	flex-shrink: 0;
 	white-space: nowrap;
 }
 
-.chat-pull-request-content-part .title-container .icon.codicon {
-	font-size: large;
-}
+.chat-pull-request-content-part {
 
-.chat-pull-request-content-part .author {
-	padding-bottom: 8px;
-}
+	.title-container {
+		display: flex;
+		font-size: 13px;
+		padding: 8px 12px;
+		border-bottom: 1px solid var(--vscode-chat-requestBorder);
+	}
 
-.chat-pull-request-content-part .description {
-	display: -webkit-box;
-	line-clamp: 2;
-	-webkit-line-clamp: 2;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-	position: relative;
-}
+	.description .see-more {
+		display: none;
+		position: absolute;
+		right: 12px;
+		top: 26px;
 
-.chat-pull-request-content-part .description::after {
-	content: "";
-	position: absolute;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	height: 4em;
-	/* Adjust as needed */
-	pointer-events: none;
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
-	background: linear-gradient(to bottom, rgba(255, 255, 255, 0), var(--vscode-sideBar-background));
+		a {
+			color: var(--vscode-textLink-foreground);
+			text-decoration: underline;
+			cursor: pointer;
+		}
+	}
 
+	.description {
+		position: relative;
+		padding: 8px 12px;
+		background: var(--vscode-editor-background);
+
+		.description-wrapper {
+			/* This mask fades out the end of the second line of text so the "see more" message can be displayed over it. */
+			mask-image:
+				linear-gradient(to right, rgba(0, 0, 0, 1) calc(100% - 80px), rgba(0, 0, 0, 0) calc(100% - 57px)), linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 20px, rgba(0, 0, 0, 1) 2px, rgba(0, 0, 0, 1) 100%);
+			mask-repeat: no-repeat, no-repeat;
+			pointer-events: none;
+			max-height: 40px;
+		}
+
+		.see-more {
+			display: block;
+		}
+	}
 }

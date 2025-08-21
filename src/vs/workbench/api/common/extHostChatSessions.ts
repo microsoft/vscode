@@ -144,6 +144,39 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 	}
 
+	private convertChatSessionItem(sessionContent: vscode.ChatSessionItem): IChatSessionItem {
+		return {
+			id: sessionContent.id,
+			label: sessionContent.label,
+			iconPath: sessionContent.iconPath,
+			description: sessionContent.description,
+			status: this.convertChatSessionStatus(sessionContent.status),
+			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip)
+		};
+	}
+
+	async $provideNewChatSessionItem(handle: number, options: { prompt?: string; history: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
+		const entry = this._chatSessionItemProviders.get(handle);
+		if (!entry || !entry.provider.provideNewChatSessionItem) {
+			throw new Error(`No provider registered for handle ${handle} or provider does not support creating sessions`);
+		}
+
+		try {
+			const chatSessionItem = await entry.provider.provideNewChatSessionItem(options, token);
+			if (!chatSessionItem || !chatSessionItem.id) {
+				throw new Error('Provider did not create session');
+			}
+			this._sessionMap.set(
+				chatSessionItem.id,
+				chatSessionItem
+			);
+			return this.convertChatSessionItem(chatSessionItem);
+		} catch (error) {
+			this._logService.error(`Error creating chat session: ${error}`);
+			throw error;
+		}
+	}
+
 	async $provideChatSessionItems(handle: number, token: vscode.CancellationToken): Promise<IChatSessionItem[]> {
 		const entry = this._chatSessionItemProviders.get(handle);
 		if (!entry) {
@@ -163,14 +196,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 					sessionContent.id,
 					sessionContent
 				);
-				response.push({
-					id: sessionContent.id,
-					label: sessionContent.label,
-					iconPath: sessionContent.iconPath,
-					description: sessionContent.description,
-					status: this.convertChatSessionStatus(sessionContent.status),
-					tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip)
-				});
+				response.push(this.convertChatSessionItem(sessionContent));
 			}
 		}
 		return response;

@@ -107,7 +107,7 @@ export class ChatArcTelemetrySender extends Disposable {
 		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
 			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
 
-			const supportedSource = new Set(['Chat.applyEdits' as ITextModelEditSourceMetadata['source']]);
+			const supportedSource = new Set(['Chat.applyEdits', 'inlineChat.applyEdits'] as ITextModelEditSourceMetadata['source'][]);
 
 			if (!edit.replacements.some(r => supportedSource.has(r.data.editSource.metadata.source))) {
 				return;
