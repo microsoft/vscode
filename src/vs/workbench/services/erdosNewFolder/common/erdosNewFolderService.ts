@@ -3,27 +3,24 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { CreateEnvironmentResult, CreatePyprojectTomlResult, IErdosNewFolderService, NewFolderConfiguration, NewFolderStartupPhase, NewFolderTask, FolderTemplate, ERDOS_NEW_FOLDER_CONFIG_STORAGE_KEY } from './erdosNewFolder.js';
+import { IErdosNewFolderService, NewFolderConfiguration, NewFolderStartupPhase, NewFolderTask, FolderTemplate, ERDOS_NEW_FOLDER_CONFIG_STORAGE_KEY } from './erdosNewFolder.js';
 import { Event } from '../../../../base/common/event.js';
 import { Barrier } from '../../../../base/common/async.js';
-import { ILanguageRuntimeMetadata, LanguageRuntimeSessionMode } from '../../languageRuntime/common/languageRuntimeService.js';
+import { ILanguageRuntimeMetadata } from '../../languageRuntime/common/languageRuntimeService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { joinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
-import { IRuntimeSessionService, RuntimeStartMode } from '../../runtimeSession/common/runtimeSessionService.js';
-import { INotebookEditorService } from '../../../contrib/notebook/browser/services/notebookEditorService.js';
-import { INotebookKernel, INotebookKernelService } from '../../../contrib/notebook/common/notebookKernelService.js';
-import { INotebookTextModel } from '../../../contrib/notebook/common/notebookCommon.js';
+
 
 export class ErdosNewFolderService extends Disposable implements IErdosNewFolderService {
 	declare readonly _serviceBrand: undefined;
@@ -45,16 +42,13 @@ export class ErdosNewFolderService extends Disposable implements IErdosNewFolder
 
 	private _runtimeMetadata: ILanguageRuntimeMetadata | undefined;
 
-	private readonly _nbLogPrefix = '[New folder notebook]';
+
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
-		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,

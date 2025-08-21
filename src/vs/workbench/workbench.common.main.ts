@@ -193,6 +193,18 @@ import './contrib/preferences/browser/preferencesSearch.js';
 // Performance
 import './contrib/performance/browser/performance.contribution.js';
 
+// Erdos Dev Tools (Phase 1.1 Testing)
+import './contrib/erdosDevTools/browser/erdosDevTools.js';
+
+// Erdos Console (Phase 2.1 Core UI)
+import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
+
+// Erdos Runtime Sessions (Phase 2.2 Core UI)
+import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
+
+// Erdos Plots (Phase 2.3 Core UI)
+import './contrib/erdosPlots/browser/erdosPlots.contribution.js';
+
 // Context Menus
 import './contrib/contextmenu/browser/contextmenu.contribution.js';
 

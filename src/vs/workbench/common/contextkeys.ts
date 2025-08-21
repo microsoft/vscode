@@ -298,6 +298,13 @@ export class ResourceContextKey {
 
 //#endregion
 
+//#region < --- Erdos --- >
+
+export const ErdosConsoleFocused = new RawContextKey<boolean>('erdosConsoleFocused', false, localize('erdosConsoleFocused', "Whether Erdos Console has keyboard focus"));
+export const ErdosConsoleInstancesExistContext = new RawContextKey<boolean>('erdosConsoleInstancesExist', false, localize('erdosConsoleInstancesExist', "Whether any Erdos console instances exist"));
+
+//#endregion
+
 export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService): void {
 	if (!editor) {
 		contextKey.set('');

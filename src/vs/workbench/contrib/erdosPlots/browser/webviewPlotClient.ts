@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IErdosPlotClient, IExtendedErdosPlotMetadata } from './erdosPlots.js';
+import { IErdosPlotClient, IExtendedErdosPlotMetadata } from '../../../services/erdosPlots/common/erdosPlots.js';
 
 /**
- * StaticPlotClient - represents a static plot image
+ * WebviewPlotClient class - placeholder implementation
  */
-export class StaticPlotClient extends Disposable implements IErdosPlotClient {
+export class WebviewPlotClient extends Disposable implements IErdosPlotClient {
 	constructor(
 		public readonly id: string,
 		public readonly metadata: IExtendedErdosPlotMetadata

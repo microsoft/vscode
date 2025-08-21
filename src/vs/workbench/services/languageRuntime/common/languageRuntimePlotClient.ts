@@ -6,6 +6,8 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { IRenderedPlot } from './erdosPlotRenderQueue.js';
+import { ZoomLevel } from '../../erdosPlots/common/erdosPlots.js';
+import { PlotUnit } from './erdosPlotComm.js';
 
 export const FreezeSlowPlotsConfigKey = 'erdos.plots.freezeSlowPlots';
 
@@ -27,6 +29,8 @@ export interface IErdosPlotMetadata {
 	created: number;
 	parent_id?: string;
 	code?: string;
+	session_id?: string;
+	zoom_level?: ZoomLevel;
 }
 
 interface IErdosPlotClient {
@@ -44,11 +48,6 @@ interface IZoomablePlotClient {
 	zoomIn(): void;
 	zoomOut(): void;
 	zoomToFit(): void;
-}
-
-enum ZoomLevel {
-	Fit = 'fit',
-	Custom = 'custom'
 }
 
 export class PlotClientInstance extends Disposable implements IErdosPlotClient, IZoomablePlotClient {
@@ -91,18 +90,23 @@ export class PlotClientInstance extends Disposable implements IErdosPlotClient, 
 		return this._zoomLevel;
 	}
 
+	get intrinsicSize(): { width: number; height: number; source: string; unit: PlotUnit } | undefined {
+		// Return undefined for now - this can be implemented later
+		return undefined;
+	}
+
 	close(): void {
 		this._onDidClose.fire();
 		this.dispose();
 	}
 
 	zoomIn(): void {
-		this._zoomLevel = ZoomLevel.Custom;
+		this._zoomLevel = ZoomLevel.OneHundred;
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
 	zoomOut(): void {
-		this._zoomLevel = ZoomLevel.Custom;
+		this._zoomLevel = ZoomLevel.OneHundred;
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 

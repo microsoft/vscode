@@ -16,6 +16,7 @@ import { Event, Emitter } from '../../../base/common/event.js';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
 import { IConfigurationService, ConfigurationTarget, IConfigurationValue } from '../../../platform/configuration/common/configuration.js';
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPosition } from '../../services/layout/browser/layoutService.js';
+import { CustomErdosLayoutDescription } from '../../services/erdosLayout/common/erdosCustomViews.js';
 import { TextModelResolverService } from '../../services/textmodelResolver/common/textModelResolverService.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { IEditorOptions, IResourceEditorInput, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from '../../../platform/editor/common/editor.js';
@@ -685,6 +686,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isWindowMaximized(targetWindow: Window) { return false; }
 	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
+	enterCustomLayout(layout: CustomErdosLayoutDescription): void { }
 	focus() { }
 }
 

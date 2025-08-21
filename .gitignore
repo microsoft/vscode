@@ -22,3 +22,39 @@ product.overrides.json
 *.snap.actual
 *.tsbuildinfo
 .vscode-test
+# Positron files - preserve locally but never commit
+src/vs/base/common/ansiOutput.ts
+src/vs/platform/ephemeralState/
+# Console service files from Positron
+src/vs/workbench/services/erdosConsole/
+# Layout, IPyWidgets, and other Positron services
+src/vs/workbench/services/erdosIPyWidgets/
+src/vs/workbench/services/erdosLayout/
+src/vs/workbench/services/erdosNewFolder/
+src/vs/workbench/services/erdosNotebook/
+src/vs/workbench/services/erdosTopActionBar/
+src/vs/workbench/services/erdosWebviewPreloads/
+src/vs/workbench/services/runtimeStartup/
+# Positron plot files (keep our Lotas ones)
+src/vs/workbench/services/erdosPlots/common/erdosPlots.ts
+src/vs/workbench/services/erdosPlots/common/sizingPolicy.ts
+src/vs/workbench/services/erdosPlots/common/sizingPolicyCustom.ts
+src/vs/workbench/services/erdosPlots/common/sizingPolicyFill.ts
+src/vs/workbench/services/erdosPlots/common/sizingPolicyFixedAspectRatio.ts
+src/vs/workbench/services/erdosPlots/common/sizingPolicyLandscape.ts
+src/vs/workbench/services/erdosPlots/common/sizingPolicyPortrait.ts
+src/vs/workbench/services/erdosPlots/common/sizingPolicySquare.ts
+src/vs/workbench/services/erdosPlots/test/
+# Positron test files
+src/vs/workbench/test/browser/positronWorkbenchTestServices.ts
+src/vs/workbench/test/common/positronWorkbenchTestServices.ts
+# Documentation files with Positron references
+frontend-dev-guide-updated.md
+infrastructure-dev-guide-updated.md
+# CSS files for Erdos components (can be regenerated)
+src/vs/workbench/contrib/erdosConsole/browser/erdosConsoleView.css
+src/vs/workbench/contrib/erdosPlots/browser/components/actionBars.css
+src/vs/workbench/contrib/erdosPlots/browser/components/plotsContainer.css
+src/vs/workbench/contrib/erdosPlots/browser/erdosPlots.css
+src/vs/workbench/contrib/erdosPlots/browser/erdosPlotsView.css
+src/vs/workbench/contrib/erdosRuntimeSessions/browser/erdosRuntimeSessionsView.css
