@@ -26,8 +26,6 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		if (this.content) {
 			this.appendItem(this.content);
 		}
-
-		this._register({ dispose: () => this.clearTimer() });
 	}
 
 	protected override initContent(): HTMLElement {
