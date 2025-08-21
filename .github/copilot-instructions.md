@@ -46,6 +46,13 @@ Each extension follows the standard VS Code extension structure with `package.js
 3. **Follow imports**: Check what files import the problematic module
 4. **Check test files**: Often reveal usage patterns and expected behavior
 
+## Validate Changes
+
+- **Build, Lint, and Typecheck**
+  - Reported in VS Code's problems/error tools (avoid slower checks like eslint, tsc, or typecheck, tsec-compile-check)
+  - Incremental builds (tasks `Core - Build (vscode)` and `Ext - Build (vscode)`, or CLI: `npm run watch`) - will watch for file changes, compile those changes incrementally
+3. **Tests** - VS Code's runTests tool or the CLI `./scripts/test.sh`
+
 ## Coding Guidelines
 
 ### Indentation
