@@ -13,6 +13,7 @@ import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived,
 import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,6 +23,7 @@ import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate.js';
@@ -67,6 +69,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._scrollableElements = h('div.scrollContent', [
@@ -83,10 +86,19 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			scheduleAtNextAnimationFrame: (cb) => scheduleAtNextAnimationFrame(getWindow(this._element), cb),
 			smoothScrollDuration: 100,
 		}));
+
+		// Get editor scroll sensitivity settings to ensure consistent scroll behavior
+		const mouseWheelScrollSensitivity = this._configurationService.getValue<number>('editor.mouseWheelScrollSensitivity') ?? 1;
+		const fastScrollSensitivity = this._configurationService.getValue<number>('editor.fastScrollSensitivity') ?? 5;
+		const scrollPredominantAxis = this._configurationService.getValue<boolean>('editor.scrollPredominantAxis') ?? true;
+
 		this._scrollableElement = this._register(new SmoothScrollableElement(this._scrollableElements.root, {
 			vertical: ScrollbarVisibility.Auto,
 			horizontal: ScrollbarVisibility.Auto,
 			useShadows: false,
+			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
+			fastScrollSensitivity: fastScrollSensitivity,
+			scrollPredominantAxis: scrollPredominantAxis,
 		}, this._scrollable));
 		this._elements = h('div.monaco-component.multiDiffEditor', {}, [
 			h('div', {}, [this._scrollableElement.getDomNode()]),
