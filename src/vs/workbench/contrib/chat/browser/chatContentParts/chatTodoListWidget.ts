@@ -315,8 +315,11 @@ export class ChatTodoListWidget extends Disposable {
 		titleElement.appendChild(progressText);
 
 		if (!this._isExpanded) {
+			let currentTodo: IChatTodo | undefined;
+
 			if (!firstInProgressTodo) {
 				if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
+					currentTodo = lastCompletedTodo;
 					// Add separator
 					const separator = dom.$('span');
 					separator.textContent = ' - ';
@@ -335,6 +338,7 @@ export class ChatTodoListWidget extends Disposable {
 					titleElement.appendChild(completedText);
 				}
 			} else {
+				currentTodo = firstInProgressTodo;
 				const separator = dom.$('span');
 				separator.textContent = ' - ';
 				titleElement.appendChild(separator);
@@ -350,6 +354,11 @@ export class ChatTodoListWidget extends Disposable {
 				inProgressText.style.verticalAlign = 'middle';
 				titleElement.appendChild(inProgressText);
 			}
+			if (currentTodo && currentTodo.description && currentTodo.description.trim()) {
+				this.expandoElement.title = currentTodo.description;
+			}
+		} else {
+			this.expandoElement.title = progressText.textContent || '';
 		}
 	}
 
