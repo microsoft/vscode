@@ -21,7 +21,7 @@ declare module 'vscode' {
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
 		 * and need to be looked up in the respective documentation.
 		 */
-		readonly modelOptions: { readonly [name: string]: any };
+		readonly modelOptions?: { readonly [name: string]: any };
 
 		/**
 		 * An optional list of tools that are available to the language model. These could be registered tools available via
