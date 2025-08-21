@@ -13884,7 +13884,7 @@ declare module 'vscode' {
 		 * symbolic link as it was provided for watching and not the target.
 		 *
 		 * *Note* that file events from deleting a folder may not include events for contained files. If possible
-		 * events will be aggregated to reduce the overal number of emitted events.
+		 * events will be aggregated to reduce the overall number of emitted events.
 		 *
 		 * ### Examples
 		 *
@@ -16318,7 +16318,7 @@ declare module 'vscode' {
 
 		/**
 		 * Whether the {@link SourceControlResourceState source control resource state} should
-		 * be striked-through in the UI.
+		 * be struck-through in the UI.
 		 */
 		readonly strikeThrough?: boolean;
 
