@@ -201,7 +201,7 @@ export interface IToggleChatModeArgs {
 }
 
 type ChatModeChangeClassification = {
-	owner: 'aeschli';
+	owner: 'digitarald';
 	comment: 'Reporting when Chat mode is switched between different modes';
 	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat mode' };
 	toMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat mode' };
