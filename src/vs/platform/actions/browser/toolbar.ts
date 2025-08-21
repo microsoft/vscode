@@ -335,7 +335,7 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
 export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 
 	private readonly _onDidChangeMenuItems = this._store.add(new Emitter<this>());
-	readonly onDidChangeMenuItems: Event<this> = this._onDidChangeMenuItems.event;
+	get onDidChangeMenuItems(): Event<this> { return this._onDidChangeMenuItems.event; }
 
 	constructor(
 		container: HTMLElement,
