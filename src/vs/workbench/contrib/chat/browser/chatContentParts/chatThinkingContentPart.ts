@@ -4,15 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode } from '../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IChatThinkingPart } from '../../common/chatService.js';
-import { IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { MarkdownRenderer, IMarkdownRenderResult } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
-import { localize } from '../../../../../nls.js';
 
-export class ChatThinkingContentPart extends ChatCollapsibleContentPart {
+export class ChatThinkingContentPart extends Disposable implements IChatContentPart {
+	readonly domNode: HTMLElement;
+	public readonly codeblocks: undefined;
+	public readonly codeblocksPartId: undefined;
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private currentThinkingValue: string;
 	private readonly renderer: MarkdownRenderer;
@@ -24,15 +30,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart {
 		_context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(localize('thinkingHeader', "Thinking..."), _context);
+		super();
 
 		this.renderer = instantiationService.createInstance(MarkdownRenderer, {});
 		this.currentThinkingValue = this.parseContent(content.value || '');
 
-		this.domNode.classList.add('chat-thinking-box');
+		this.domNode = $('.chat-thinking-box');
 		this.domNode.tabIndex = 0;
-
-		this.setExpanded(false);
+		this.renderContent();
 	}
 
 	private parseContent(content: string): string {
@@ -40,6 +45,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart {
 		return content
 			.replace(/<\|im_sep\|>\*{4,}/g, '')
 			.trim();
+	}
+
+	private renderContent(): void {
+		this.textContainer = $('.chat-thinking-text.markdown-content');
+		this.domNode.appendChild(this.textContainer);
+
+		if (this.currentThinkingValue) {
+			this.renderMarkdown(this.currentThinkingValue);
+		}
 	}
 
 	private renderMarkdown(content: string): void {
@@ -56,23 +70,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart {
 		clearNode(this.textContainer);
 		this.markdownResult = this.renderer.render(new MarkdownString(cleanedContent));
 		this.textContainer.appendChild(this.markdownResult.element);
-	}
-
-	protected override initContent(): HTMLElement {
-		const container = $('.chat-used-context-list chat-thinking-content');
-		this.textContainer = $('.chat-thinking-text.markdown-content');
-		container.appendChild(this.textContainer);
-		if (this.currentThinkingValue) {
-			this.renderMarkdown(this.currentThinkingValue);
-		}
-		return container;
-	}
-
-	updateInProgressHeader(elapsedMs: number) {
-		const seconds = Math.max(1, Math.floor(elapsedMs / 1000));
-		this.setTitle(seconds === 1
-			? localize('thinkingSingular', "Thought for 1 second")
-			: localize('thinkingPlural', "Thought for {0} seconds", seconds));
 	}
 
 	hasSameContent(other: any): boolean {
