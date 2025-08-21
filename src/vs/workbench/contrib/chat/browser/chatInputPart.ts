@@ -522,10 +522,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			persistedSelection = persistedSelection.replace('github.copilot-chat/', 'copilot/');
 			this.storageService.store(this.getSelectedModelStorageKey(), persistedSelection, StorageScope.APPLICATION, StorageTarget.USER);
 		}
-		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedSelection === 'copilot/gpt-4.1');
+
+		// Use the model metadata (isDefault) when deciding whether the persisted selection
+		// was the default at the time of storing. Previously this used a hard-coded
+		// check for 'copilot/gpt-4.1' which prevented other included models from being
+		// restored as defaults.
+		const persistedModel = persistedSelection ? this.languageModelsService.lookupLanguageModel(persistedSelection) : undefined;
+		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, persistedModel?.isDefault ?? false);
 
 		if (persistedSelection) {
-			const model = this.languageModelsService.lookupLanguageModel(persistedSelection);
+			const model = persistedModel;
 			if (model) {
 				// Only restore the model if it wasn't the default at the time of storing or it is now the default
 				if (!persistedAsDefault || model.isDefault) {
