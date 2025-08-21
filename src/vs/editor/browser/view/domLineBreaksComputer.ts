@@ -147,10 +147,11 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 
 	const result: (ModelLineProjectionData | null)[] = [];
 	for (let i = 0; i < lineNumbers.length; i++) {
+		const lineNumber = lineNumbers[i];
 		const lineDomNode = lineDomNodes[i];
 		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, renderLineContents[i], allCharOffsets[i]);
 		if (breakOffsets === null) {
-			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
+			result[i] = createEmptyLineBreakWithPossiblyInjectedText(lineNumber);
 			continue;
 		}
 
@@ -172,7 +173,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 
 		let injectionOptions: InjectedTextOptions[] | null;
 		let injectionOffsets: number[] | null;
-		const curInjectedTexts = context.getLineInjectedText(lineNumbers[i]);
+		const curInjectedTexts = context.getLineInjectedText(lineNumber);
 		if (curInjectedTexts) {
 			injectionOptions = curInjectedTexts.map(t => t.options);
 			injectionOffsets = curInjectedTexts.map(text => text.column - 1);

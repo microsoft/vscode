@@ -308,7 +308,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	onDidChangeContentOrInjectedText(e: textModelEvents.InternalModelContentChangeEvent | textModelEvents.ModelInjectedTextChangedEvent): void {
-		console.log('onDidChangeContentOrInjectedText');
 
 		try {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
