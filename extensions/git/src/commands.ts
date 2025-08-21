@@ -3407,6 +3407,50 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.migrateWorktreeChanges', { repository: true, repositoryFilter: ['repository', 'submodule'] })
+	async migrateWorktreeChanges(repository: Repository): Promise<void> {
+		const worktreePicks = async (): Promise<WorktreeItem[] | QuickPickItem[]> => {
+			const worktrees = await repository.getWorktrees();
+			return worktrees.length === 0
+				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
+				: worktrees.map(worktree => new WorktreeItem(worktree));
+		};
+
+		const placeHolder = l10n.t('Select a worktree to migrate changes from');
+		const choice = await this.pickRef<WorktreeItem | QuickPickItem>(worktreePicks(), placeHolder);
+
+		if (!choice || !(choice instanceof WorktreeItem)) {
+			return;
+		}
+
+		const worktreeRepository = this.model.getRepository(choice.worktree.path);
+		if (!worktreeRepository) {
+			return;
+		}
+
+		if (worktreeRepository.workingTreeGroup.resourceStates.length === 0 &&
+			worktreeRepository.untrackedGroup.resourceStates.length === 0) {
+			window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
+			return;
+		}
+
+		try {
+			await worktreeRepository.createStash(undefined, true);
+			const stashes = await worktreeRepository.getStashes();
+			try {
+				await repository.applyStash(stashes[0].index);
+			} catch (err) {
+				if (err.gitErrorCode !== GitErrorCodes.LocalChangesOverwritten) {
+					throw err;
+				}
+				const message = l10n.t('Your local changes to the following files would be overwritten. Please stage or commit your changes in the current repository.');
+				window.showErrorMessage(message, { modal: true });
+			}
+		} finally {
+			await worktreeRepository.popStash();
+		}
+	}
+
 	@command('git.createWorktree')
 	async createWorktree(repository: any): Promise<void> {
 		repository = this.model.getRepository(repository);
