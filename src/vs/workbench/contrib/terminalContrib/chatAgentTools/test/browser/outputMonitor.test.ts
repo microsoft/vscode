@@ -85,4 +85,49 @@ suite('OutputMonitor', () => {
 		);
 		assert.strictEqual(result.state, OutputMonitorState.Cancelled);
 	});
+	test('startMonitoring returns idle when isActive is false', async () => {
+		execution.isActive = async () => false;
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
+		const result = await monitor.startMonitoring(
+			'test command',
+			{ sessionId: '1' },
+			cts.token
+		);
+		assert.strictEqual(result.state, OutputMonitorState.Idle);
+	});
+
+	test('startMonitoring works when isActive is undefined', async () => {
+		delete execution.isActive;
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
+		const result = await monitor.startMonitoring(
+			'test command',
+			{ sessionId: '1' },
+			cts.token
+		);
+		assert.strictEqual(result.state, OutputMonitorState.Idle);
+	});
+
+	test('monitor can be disposed twice without error', async () => {
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
+		await monitor.startMonitoring('test command', { sessionId: '1' }, cts.token);
+		monitor.dispose();
+		monitor.dispose();
+	});
+
+	test('startMonitoring throws if getOutput throws', async () => {
+		execution.getOutput = () => { throw new Error('fail!'); };
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
+		let threw = false;
+		try {
+			await monitor.startMonitoring(
+				'test command',
+				{ sessionId: '1' },
+				cts.token
+			);
+		} catch (e) {
+			threw = true;
+			assert.match((e as Error).message, /fail!/);
+		}
+		assert.ok(threw, 'Expected error to be thrown');
+	});
 });
