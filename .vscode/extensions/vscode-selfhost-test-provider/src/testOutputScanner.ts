@@ -351,8 +351,8 @@ export async function scanTestOutput(
 		if (coverageDir) {
 			try {
 				await istanbulCoverageContext.apply(task, coverageDir, {
-					mapFileUri: uri => store.getSourceFile(uri.toString()),
-					mapLocation: (uri, position) =>
+					mapFileUri: (uri: vscode.Uri) => store.getSourceFile(uri.toString()),
+					mapLocation: (uri: vscode.Uri, position: vscode.Position) =>
 						store.getSourceLocation(uri.toString(), position.line, position.character),
 				});
 			} catch (e) {

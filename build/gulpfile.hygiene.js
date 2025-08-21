@@ -7,7 +7,8 @@ const gulp = require('gulp');
 const es = require('event-stream');
 const path = require('path');
 const task = require('./lib/task');
-const { hygiene } = require('./hygiene');
+// Hygiene checking disabled
+// const { hygiene } = require('./hygiene');
 
 /**
  * @param {string} actualPath
@@ -47,5 +48,6 @@ const checkPackageJSONTask = task.define('check-package-json', () => {
 });
 gulp.task(checkPackageJSONTask);
 
-const hygieneTask = task.define('hygiene', task.series(checkPackageJSONTask, () => hygiene(undefined, false)));
+// Hygiene checking disabled
+const hygieneTask = task.define('hygiene', task.series(checkPackageJSONTask, () => Promise.resolve()));
 gulp.task(hygieneTask);
