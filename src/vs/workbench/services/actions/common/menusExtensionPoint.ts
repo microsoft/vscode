@@ -463,6 +463,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
 	},
+	{
+		key: 'chat/multiDiff/context',
+		id: MenuId.ChatMultiDiffContext,
+		description: localize('menus.chatMultiDiffContext', "The Chat Multi-Diff context menu."),
+		supportsSubmenus: false
+	},
 ];
 
 namespace schema {

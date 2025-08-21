@@ -27,6 +27,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
 const $ = dom.$;
 
@@ -50,11 +52,13 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 	constructor(
 		private readonly content: IChatMultiDiffData,
-		element: ChatTreeItem,
+		_element: ChatTreeItem,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -89,6 +93,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			setExpansionState();
 		}));
 		disposables.add(this.renderViewAllFileChangesButton(viewListButton.element));
+		disposables.add(this.renderContributedButtons(viewListButton.element));
 		return toDisposable(() => disposables.dispose());
 	}
 
@@ -112,6 +117,37 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			this.editorGroupsService.activeGroup.openEditor(input);
 			dom.EventHelper.stop(e, true);
 		});
+	}
+
+	private renderContributedButtons(container: HTMLElement): IDisposable {
+		const buttonsContainer = container.appendChild($('.chat-multidiff-contributed-buttons'));
+		const disposables = new DisposableStore();
+
+		const menu = this.menuService.getMenuActions(MenuId.ChatMultiDiffContext, this.contextKeyService, {
+			arg: {
+				multiDiffData: this.content.multiDiffData,
+				resources: this.content.multiDiffData.resources
+			}
+		});
+		const actions = menu.flatMap(([, actions]) => actions);
+
+		for (const action of actions) {
+			const button = buttonsContainer.appendChild($('.chat-multidiff-action-button'));
+			const icon = action.class ? ThemeIcon.fromString(action.class) || Codicon.gear : Codicon.gear;
+			button.classList.add(...ThemeIcon.asClassNameArray(icon));
+			button.title = action.tooltip || action.label;
+
+			disposables.add(dom.addDisposableListener(button, 'click', async (e) => {
+				dom.EventHelper.stop(e, true);
+				try {
+					await action.run();
+				} catch (error) {
+					console.error('Error running contributed action:', error);
+				}
+			}));
+		}
+
+		return disposables;
 	}
 
 	private renderFilesList(container: HTMLElement): IDisposable {
