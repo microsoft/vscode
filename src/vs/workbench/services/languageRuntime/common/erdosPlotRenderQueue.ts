@@ -9,17 +9,14 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { Event } from '../../../../base/common/event.js';
 import { RuntimeState } from './languageRuntimeService.js';
 
-interface IPlotSize {
-	width: number;
-	height: number;
-}
+
 
 interface ILanguageRuntimeSession {
 	sessionId: string;
 	onDidChangeRuntimeState: Event<void>;
 	getRuntimeState(): RuntimeState;
 }
-import { PlotRenderFormat, ErdosPlotComm, IntrinsicSize } from './erdosPlotComm.js';
+import { RenderFormat, ErdosPlotComm, IntrinsicSize, PlotSize } from './erdosPlotComm.js';
 
 export enum OperationType {
 	Render = 'render',
@@ -29,7 +26,7 @@ export enum OperationType {
 export type PlotOperationResult = IRenderedPlot | IntrinsicSize | undefined;
 
 export interface IRenderedPlot {
-	size?: IPlotSize;
+	size?: PlotSize;
 	pixel_ratio: number;
 	uri: string;
 	renderTimeMs: number;
@@ -37,15 +34,15 @@ export interface IRenderedPlot {
 
 export interface PlotOperationRequest {
 	type: OperationType;
-	size?: IPlotSize;
+	size?: PlotSize;
 	pixel_ratio?: number;
-	format?: PlotRenderFormat;
+	format?: RenderFormat;
 }
 
 export interface RenderRequest {
-	size?: IPlotSize;
+	size?: PlotSize;
 	pixel_ratio: number;
-	format: PlotRenderFormat;
+	format: RenderFormat;
 }
 
 export class DeferredPlotOperation {

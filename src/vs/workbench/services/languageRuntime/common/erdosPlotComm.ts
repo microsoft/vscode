@@ -1,7 +1,10 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (C) 2025 Lotas Inc. All rights reserved.
- *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
+
+//
+// AUTO-GENERATED from plot.json; do not edit.
+//
 
 import { Event } from '../../../../base/common/event.js';
 import { ErdosBaseComm, ErdosCommOptions } from './erdosBaseComm.js';
@@ -9,31 +12,51 @@ import { IRuntimeClientInstance } from './languageRuntimeClientInstance.js';
 
 export interface IntrinsicSize {
 	width: number;
+
 	height: number;
+
 	unit: PlotUnit;
+
 	source: string;
+
 }
 
-export interface PlotResult {
+export interface RenderResult {
 	data: string;
+
 	mime_type: string;
-	settings?: PlotRenderSettings;
+
 }
 
 export interface PlotSize {
-	height: number;
 	width: number;
+
+	height: number;
+
+	unit: PlotUnit;
+
 }
 
 export interface PlotRenderSettings {
 	size: PlotSize;
+
 	pixel_ratio: number;
+
 	format: PlotRenderFormat;
+
+}
+
+export enum RenderFormat {
+	Png = 'png',
+	Svg = 'svg',
+	Pdf = 'pdf',
+	Jpeg = 'jpeg'
 }
 
 export enum PlotUnit {
 	Pixels = 'pixels',
-	Inches = 'inches'
+	Inches = 'inches',
+	Cm = 'cm'
 }
 
 export enum PlotRenderFormat {
@@ -46,19 +69,57 @@ export enum PlotRenderFormat {
 
 export interface RenderParams {
 	size?: PlotSize;
-	pixel_ratio: number;
-	format: PlotRenderFormat;
+
+	pixel_ratio?: number;
+
+	format: RenderFormat;
 }
 
-export interface UpdateEvent {
+export interface ShowPlotParams {
+	id: string;
+
+	parent_id?: string;
+
+	data: string;
+
+	mime_type: string;
 }
 
-export interface ShowEvent {
+export interface UpdatePlotParams {
+	id: string;
+
+	data: string;
+
+	mime_type: string;
+}
+
+export interface ShowPlotEvent {
+	id: string;
+
+	parent_id?: string;
+
+	data: string;
+
+	mime_type: string;
+
+}
+
+export interface UpdatePlotEvent {
+	id: string;
+
+	data: string;
+
+	mime_type: string;
+
+}
+
+export interface ClearPlotsEvent {
 }
 
 export enum PlotFrontendEvent {
-	Update = 'update',
-	Show = 'show'
+	ShowPlot = 'show_plot',
+	UpdatePlot = 'update_plot',
+	ClearPlots = 'clear_plots'
 }
 
 export enum PlotBackendRequest {
@@ -72,18 +133,22 @@ export class ErdosPlotComm extends ErdosBaseComm {
 		options?: ErdosCommOptions<PlotBackendRequest>,
 	) {
 		super(instance, options);
-		this.onDidUpdate = super.createEventEmitter('update', []);
-		this.onDidShow = super.createEventEmitter('show', []);
+		this.onDidShowPlot = super.createEventEmitter('show_plot', ['id', 'parent_id', 'data', 'mime_type']);
+		this.onDidUpdatePlot = super.createEventEmitter('update_plot', ['id', 'data', 'mime_type']);
+		this.onDidClearPlots = super.createEventEmitter('clear_plots', []);
 	}
 
 	getIntrinsicSize(): Promise<IntrinsicSize | undefined> {
 		return super.performRpc('get_intrinsic_size', [], []);
 	}
 
-	render(size: PlotSize | undefined, pixelRatio: number, format: PlotRenderFormat): Promise<PlotResult> {
+	render(size: PlotSize | undefined, pixelRatio: number | undefined, format: RenderFormat): Promise<RenderResult> {
 		return super.performRpc('render', ['size', 'pixel_ratio', 'format'], [size, pixelRatio, format]);
 	}
 
-	onDidUpdate: Event<UpdateEvent>;
-	onDidShow: Event<ShowEvent>;
+
+	onDidShowPlot: Event<ShowPlotEvent>;
+	onDidUpdatePlot: Event<UpdatePlotEvent>;
+	onDidClearPlots: Event<ClearPlotsEvent>;
 }
+

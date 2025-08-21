@@ -6,9 +6,8 @@
 import { IPyWidgetClientInstance } from '../../common/languageRuntimeIPyWidgetClient.js';
 import { TestRuntimeClientInstance } from './testRuntimeClientInstance.js';
 import { TestIPyWidgetsWebviewMessaging } from './testIPyWidgetsWebviewMessaging.js';
-import { RuntimeClientType } from '../../common/languageRuntimeClientInstance.js';
+import { RuntimeClientType, RuntimeClientState } from '../../common/languageRuntimeClientInstance.js';
 
-// Simple test log service
 class TestLogService {
 	trace() { }
 	debug() { }
@@ -23,6 +22,8 @@ suite('IPyWidgetClientInstance', () => {
 		const messaging = new TestIPyWidgetsWebviewMessaging();
 		const logService = new TestLogService();
 		const rpcMethods = ['test_method'];
+
+		client.rpcHandler = async () => ({ data: { result: 'success' } });
 
 		const ipyClient = new IPyWidgetClientInstance(client, messaging, logService as any, rpcMethods);
 
@@ -52,6 +53,6 @@ suite('IPyWidgetClientInstance', () => {
 			done();
 		});
 
-		client.dispose();
+		client.setClientState(RuntimeClientState.Closed);
 	});
 });

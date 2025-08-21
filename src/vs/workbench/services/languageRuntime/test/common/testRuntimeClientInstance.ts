@@ -61,31 +61,23 @@ export class TestRuntimeClientInstance extends Disposable implements IRuntimeCli
 		super.dispose();
 	}
 
-	// Test helpers
-
 	private readonly _sendMessageEmitter = new Emitter<{ data: any; buffers?: VSBuffer[] }>();
 	private readonly _disposeEmitter = new Emitter<void>();
 
-	/** Emitted when the sendMessage method is called. */
 	readonly onDidSendMessage = this._sendMessageEmitter.event;
 
-	/** Emitted when the dispose method is called. */
 	readonly onDidDispose = this._disposeEmitter.event;
 
-	/** Fire the onDidReceiveData event. */
 	receiveData(data: IRuntimeClientOutput<any>): void {
 		this._dataEmitter.fire(data);
 	}
 
-	/** Invoked when the performRpc method is called. */
 	rpcHandler: typeof this.performRpc | undefined;
 
-	/** Set the client's state. */
 	setClientState(state: RuntimeClientState): void {
 		this.clientState.set(state, undefined);
 	}
 
 	updatePendingRpcState(message: ILanguageRuntimeMessageState): void {
-		// No-op
 	}
 }

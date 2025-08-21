@@ -1,0 +1,7 @@
+{
+  "name": "comm-generator",
+  "version": "1.0.0",
+  "devDependencies": {
+    "json-schema-to-typescript": "^13.1.1"
+  }
+}

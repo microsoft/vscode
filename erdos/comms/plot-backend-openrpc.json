@@ -1,0 +1,143 @@
+{
+	"openrpc": "1.3.0",
+	"info": {
+		"title": "Plot Backend",
+		"version": "1.0.0"
+	},
+	"methods": [
+		{
+			"name": "get_intrinsic_size",
+			"summary": "Get plot's natural size",
+			"description": "Returns plot size without constraints",
+			"params": [],
+			"result": {
+				"required": false,
+				"schema": {
+					"name": "intrinsic_size",
+					"description": "Natural plot dimensions",
+					"type": "object",
+					"properties": {
+						"width": {
+							"type": "number",
+							"description": "Plot width"
+						},
+						"height": {
+							"type": "number",
+							"description": "Plot height"
+						},
+						"unit": {
+							"description": "Dimension unit",
+							"$ref": "#/components/schemas/plot_unit"
+						},
+						"source": {
+							"type": "string",
+							"description": "Size source identifier"
+						}
+					},
+					"required": ["width", "height", "unit", "source"]
+				}
+			}
+		},
+		{
+			"name": "render",
+			"summary": "Render plot output",
+			"description": "Generates plot in specified format",
+			"params": [
+				{
+					"name": "size",
+					"description": "Requested plot size",
+					"schema": {
+						"$ref": "#/components/schemas/plot_size"
+					},
+					"required": false
+				},
+				{
+					"name": "pixel_ratio",
+					"description": "Device pixel ratio",
+					"schema": {
+						"type": "number"
+					},
+					"required": false
+				},
+				{
+					"name": "format",
+					"description": "Output format",
+					"schema": {
+						"type": "string",
+						"enum": ["png", "svg", "pdf", "jpeg"]
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"name": "render_result",
+					"description": "Rendered plot data",
+					"type": "object",
+					"properties": {
+						"data": {
+							"type": "string",
+							"description": "Base64 encoded plot"
+						},
+						"mime_type": {
+							"type": "string", 
+							"description": "Content MIME type"
+						}
+					},
+					"required": ["data", "mime_type"]
+				}
+			}
+		}
+	],
+	"components": {
+		"schemas": {
+			"plot_unit": {
+				"type": "string",
+				"enum": ["pixels", "inches", "cm"],
+				"description": "Measurement unit for plot dimensions"
+			},
+			"plot_size": {
+				"type": "object",
+				"description": "Plot size specification",
+				"properties": {
+					"width": {
+						"type": "number",
+						"description": "Width value"
+					},
+					"height": {
+						"type": "number",
+						"description": "Height value"
+					},
+					"unit": {
+						"description": "Unit of measurement",
+						"$ref": "#/components/schemas/plot_unit"
+					}
+				},
+				"required": ["width", "height", "unit"]
+			},
+			"plot_render_format": {
+				"description": "Plot output format",
+				"type": "string",
+				"enum": ["png", "jpeg", "svg", "pdf", "tiff"]
+			},
+			"plot_render_settings": {
+				"type": "object",
+				"description": "Settings for plot rendering",
+				"properties": {
+					"size": {
+						"description": "Plot size for rendering",
+						"$ref": "#/components/schemas/plot_size"
+					},
+					"pixel_ratio": {
+						"description": "Display device pixel ratio",
+						"type": "number"
+					},
+					"format": {
+						"description": "Plot render format",
+						"$ref": "#/components/schemas/plot_render_format"
+					}
+				},
+				"required": ["size", "pixel_ratio", "format"]
+			}
+		}
+	}
+}

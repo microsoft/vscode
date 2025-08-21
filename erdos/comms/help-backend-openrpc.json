@@ -1,0 +1,29 @@
+{
+	"openrpc": "1.3.0",
+	"info": {
+		"title": "Help Backend",
+		"version": "1.0.0"
+	},
+	"methods": [
+		{
+			"name": "show_help_topic",
+			"summary": "Find and display help topic",
+			"description": "Searches for help topic and displays if found",
+			"params": [
+				{
+					"name": "topic",
+					"description": "Help topic identifier",
+					"schema": {
+						"type": "string"
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"type": "boolean",
+					"description": "Topic found and displayed successfully"
+				}
+			}
+		}
+	]
+}

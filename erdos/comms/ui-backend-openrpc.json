@@ -1,0 +1,89 @@
+{
+	"openrpc": "1.3.0",
+	"info": {
+		"title": "UI Backend",
+		"version": "1.0.0"
+	},
+	"methods": [
+		{
+			"name": "did_change_plots_render_settings",
+			"summary": "Plot render settings changed",
+			"description": "Notifies that plot rendering settings have changed",
+			"params": [
+				{
+					"name": "settings",
+					"description": "Updated plot render settings",
+					"schema": {
+						"$ref": "plot-backend-openrpc.json#/components/schemas/plot_render_settings"
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"type": "null",
+					"description": "No return value"
+				}
+			}
+		},
+		{
+			"name": "call_method",
+			"summary": "Execute interpreter method",
+			"description": "Calls runtime-specific method with dynamic parameters",
+			"params": [
+				{
+					"name": "method",
+					"description": "Target method name",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "params",
+					"description": "Method parameters",
+					"schema": {
+						"type": "array",
+						"items": {
+							"name": "param",
+							"type": "object",
+							"properties": {},
+							"additionalProperties": true
+						}
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"name": "call_method_result",
+					"description": "Method execution result",
+					"type": "object",
+					"properties": {},
+					"additionalProperties": true
+				}
+			}
+		},
+		{
+			"name": "get_state",
+			"summary": "Retrieve runtime state",
+			"description": "Gets current runtime configuration and status",
+			"params": [],
+			"result": {
+				"schema": {
+					"name": "get_state_result",
+					"description": "Runtime state information",
+					"type": "object",
+					"properties": {
+						"busy": {
+							"type": "boolean",
+							"description": "Runtime busy status"
+						},
+						"session_id": {
+							"type": "string",
+							"description": "Current session identifier"
+						}
+					},
+					"required": ["busy", "session_id"]
+				}
+			}
+		}
+	]
+}

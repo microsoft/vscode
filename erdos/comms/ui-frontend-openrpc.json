@@ -1,0 +1,311 @@
+{
+	"openrpc": "1.3.0",
+	"info": {
+		"title": "UI Frontend",
+		"version": "1.0.0"
+	},
+	"methods": [
+		{
+			"name": "busy",
+			"summary": "Runtime busy state changed",
+			"description": "Signals computation engine state changes",
+			"params": [
+				{
+					"name": "busy",
+					"description": "Computation engine busy status",
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			]
+		},
+		{
+			"name": "clear_console",
+			"summary": "Clear console output",
+			"description": "Clears all console content",
+			"params": []
+		},
+		{
+			"name": "open_editor",
+			"summary": "Open file in editor",
+			"description": "Opens file at specified location",
+			"params": [
+				{
+					"name": "file",
+					"description": "File path to open",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "line",
+					"description": "Target line number",
+					"schema": {
+						"type": "integer"
+					}
+				},
+				{
+					"name": "column",
+					"description": "Target column position",
+					"schema": {
+						"type": "integer"
+					}
+				}
+			]
+		},
+		{
+			"name": "new_document",
+			"summary": "Create new document",
+			"description": "Creates document with specified content",
+			"params": [
+				{
+					"name": "contents",
+					"description": "Initial document text",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "language_id",
+					"description": "Document language mode",
+					"schema": {
+						"type": "string"
+					}
+				}
+			],
+			"result": {}
+		},
+		{
+			"name": "show_message",
+			"summary": "Display user message",
+			"description": "Shows notification to user",
+			"params": [
+				{
+					"name": "message",
+					"description": "Message text to display",
+					"schema": {
+						"type": "string"
+					}
+				}
+			]
+		},
+		{
+			"name": "execute_code",
+			"summary": "Execute code snippet",
+			"description": "Runs code in active runtime",
+			"params": [
+				{
+					"name": "language_id",
+					"description": "Code language identifier",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "code",
+					"description": "Code text to execute",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "focus",
+					"description": "Focus console on execution",
+					"schema": {
+						"type": "boolean"
+					}
+				},
+				{
+					"name": "allow_incomplete",
+					"description": "Allow incomplete code blocks",
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			],
+			"result": {}
+		},
+		{
+			"name": "prompt_state",
+			"summary": "Runtime prompt state changed",
+			"description": "Signals changes to command prompts",
+			"params": [
+				{
+					"name": "input_prompt",
+					"description": "Primary input prompt",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "continuation_prompt",
+					"description": "Continuation prompt for incomplete input",
+					"schema": {
+						"type": "string"
+					}
+				}
+			]
+		},
+		{
+			"name": "working_directory",
+			"summary": "Working directory changed",
+			"description": "Signals working directory updates",
+			"params": [
+				{
+					"name": "directory",
+					"description": "New working directory path",
+					"schema": {
+						"type": "string"
+					}
+				}
+			]
+		},
+		{
+			"name": "open_workspace",
+			"summary": "Open workspace request",
+			"description": "Opens workspace at specified path",
+			"params": [
+				{
+					"name": "path",
+					"description": "Workspace path to open",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "new_window",
+					"description": "Open in new window",
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			]
+		},
+		{
+			"name": "set_editor_selections",
+			"summary": "Set editor cursor selections",
+			"description": "Updates editor selection ranges",
+			"params": [
+				{
+					"name": "selections",
+					"description": "Selection ranges to set",
+					"schema": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/range"
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "show_html_file",
+			"summary": "Display HTML file",
+			"description": "Shows HTML file in viewer",
+			"params": [
+				{
+					"name": "path",
+					"description": "HTML file path",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "title",
+					"description": "Display title",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "is_plot",
+					"description": "Whether file contains plot",
+					"schema": {
+						"type": "boolean"
+					}
+				},
+				{
+					"name": "height",
+					"description": "Viewer height in pixels",
+					"schema": {
+						"type": "integer"
+					}
+				}
+			]
+		},
+		{
+			"name": "open_with_system",
+			"summary": "Open with system application",
+			"description": "Opens file with default system app",
+			"params": [
+				{
+					"name": "path",
+					"description": "File path to open",
+					"schema": {
+						"type": "string"
+					}
+				}
+			]
+		},
+		{
+			"name": "clear_webview_preloads",
+			"summary": "Clear webview cache",
+			"description": "Clears cached webview preloads",
+			"params": []
+		},
+		{
+			"name": "show_url",
+			"summary": "Display URL in viewer",
+			"description": "Opens URL in integrated viewer",
+			"params": [
+				{
+					"name": "url",
+					"description": "URL to display",
+					"schema": {
+						"type": "string"
+					}
+				}
+			]
+		}
+	],
+	"components": {
+		"schemas": {
+			"position": {
+				"type": "object",
+				"description": "Line and character position",
+				"properties": {
+					"character": {
+						"type": "integer",
+						"description": "Zero-based character offset"
+					},
+					"line": {
+						"type": "integer",
+						"description": "Zero-based line number"
+					}
+				},
+				"required": [
+					"character",
+					"line"
+				]
+			},
+			"range": {
+				"type": "object",
+				"description": "Text selection range",
+				"properties": {
+					"start": {
+						"description": "Range start position",
+						"$ref": "#/components/schemas/position"
+					},
+					"end": {
+						"description": "Range end position",
+						"$ref": "#/components/schemas/position"
+					}
+				},
+				"required": [
+					"start",
+					"end"
+				]
+			}
+		}
+	}
+}

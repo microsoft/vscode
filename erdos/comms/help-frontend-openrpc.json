@@ -1,0 +1,42 @@
+{
+	"openrpc": "1.3.0",
+	"info": {
+		"title": "Help Frontend",
+		"version": "1.0.0"
+	},
+	"methods": [
+		{
+			"name": "show_help",
+			"summary": "Display help content",
+			"description": "Shows help in the help pane",
+			"params": [
+				{
+					"name": "content",
+					"description": "Help content to display",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "kind",
+					"description": "Content format type",
+					"schema": {
+						"type": "string",
+						"enum": [
+							"html",
+							"markdown",
+							"url"
+						]
+					}
+				},
+				{
+					"name": "focus",
+					"description": "Focus help pane on display",
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			]
+		}
+	]
+}
