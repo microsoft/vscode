@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pushMany } from '../../../base/common/arrays.js';
+import { ArrayQueue, pushMany } from '../../../base/common/arrays.js';
 import { VSBuffer, VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { Color } from '../../../base/common/color.js';
 import { BugIndicatingError, illegalArgument, onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, combinedDisposable } from '../../../base/common/lifecycle.js';
 import { listenStream } from '../../../base/common/stream.js';
 import * as strings from '../../../base/common/strings.js';
 import { ThemeColor } from '../../../base/common/themables.js';
@@ -51,7 +51,6 @@ import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
 import { InjectedTextOptions } from '../model.js';
-import { IViewModel } from '../viewModel.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -232,6 +231,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _onDidChangeAttached: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeAttached: Event<void> = this._onDidChangeAttached.event;
 
+	private readonly _onDidChangeInjectedText: Emitter<ModelInjectedTextChangedEvent> = this._register(new Emitter<ModelInjectedTextChangedEvent>());
+
 	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>());
 	public readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeLineHeight.event;
 
@@ -241,6 +242,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
 		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+	}
+	public onDidChangeContentOrInjectedText(listener: (e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent) => void): IDisposable {
+		return combinedDisposable(
+			this._eventEmitter.fastEvent(e => listener(e)),
+			this._onDidChangeInjectedText.event(e => listener(e))
+		);
 	}
 	//#endregion
 
@@ -296,7 +303,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public get guides(): IGuidesTextModelPart { return this._guidesTextModelPart; }
 
 	private readonly _attachedViews = new AttachedViews();
-	private readonly _viewModels = new Set<IViewModel>();
 
 	constructor(
 		source: string | model.ITextBufferFactory,
@@ -417,6 +423,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			|| this._tokenizationTextModelPart._hasListeners()
 			|| this._onDidChangeOptions.hasListeners()
 			|| this._onDidChangeAttached.hasListeners()
+			|| this._onDidChangeInjectedText.hasListeners()
 			|| this._onDidChangeLineHeight.hasListeners()
 			|| this._onDidChangeFont.hasListeners()
 			|| this._eventEmitter.hasListeners()
@@ -427,14 +434,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (this._isDisposed) {
 			throw new BugIndicatingError('Model is disposed!');
 		}
-	}
-
-	public registerViewModel(viewModel: IViewModel): void {
-		this._viewModels.add(viewModel);
-	}
-
-	public unregisterViewModel(viewModel: IViewModel): void {
-		this._viewModels.delete(viewModel);
 	}
 
 	public equalsTextBuffer(other: model.ITextBuffer): boolean {
@@ -454,9 +453,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		this._tokenizationTextModelPart.handleDidChangeContent(change);
 		this._bracketPairs.handleDidChangeContent(change);
-		const contentChangeEvent = new InternalModelContentChangeEvent(rawChange, change);
-		this._eventEmitter.fire(contentChangeEvent);
-		this.onDidChangeContentOrInjectedText(contentChangeEvent);
+		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
 	public setValue(value: string | model.ITextSnapshot, reason = EditSources.setValue()): void {
@@ -833,14 +830,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 
 		return this._buffer.getLineContent(lineNumber);
-	}
-
-	public getLineTokens(lineNumber: number): LineTokens {
-		const lineTokens = this.tokenization.getLineTokens(lineNumber);
-		const lineInjectedText = this.getLineInjectedText(lineNumber);
-		const injectionOptions = lineInjectedText.map(t => t.options);
-		const injectionOffsets = lineInjectedText.map(text => text.column - 1);
-		return getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 	}
 
 	public getLineLength(lineNumber: number): number {
@@ -1505,15 +1494,32 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const changeLineCountDelta = (insertingLinesCnt - deletingLinesCnt);
 
 				const currentEditStartLineNumber = newLineCount - lineCount - changeLineCountDelta + startLineNumber;
+				const firstEditLineNumber = currentEditStartLineNumber;
+				const lastInsertedLineNumber = currentEditStartLineNumber + insertingLinesCnt;
+
+				const decorationsWithInjectedTextInEditedRange = this._decorationsTree.getInjectedTextInInterval(
+					this,
+					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
+					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),
+					0
+				);
+
+
+				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
+				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 
 				for (let j = editingLinesCnt; j >= 0; j--) {
 					const editLineNumber = startLineNumber + j;
 					const currentEditLineNumber = currentEditStartLineNumber + j;
 
+					injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
+					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
+
 					rawContentChanges.push(
 						new ModelRawLineChanged(
 							editLineNumber,
-							currentEditLineNumber
+							this.getLineContent(currentEditLineNumber),
+							decorationsInCurrentLine
 						));
 				}
 
@@ -1524,16 +1530,27 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				}
 
 				if (editingLinesCnt < insertingLinesCnt) {
+					const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 					// Must insert some lines
 					const spliceLineNumber = startLineNumber + editingLinesCnt;
 					const cnt = insertingLinesCnt - editingLinesCnt;
 					const fromLineNumber = newLineCount - lineCount - cnt + spliceLineNumber + 1;
+					const injectedTexts: (LineInjectedText[] | null)[] = [];
+					const newLines: string[] = [];
+					for (let i = 0; i < cnt; i++) {
+						const lineNumber = fromLineNumber + i;
+						newLines[i] = this.getLineContent(lineNumber);
+
+						injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber);
+						injectedTexts[i] = injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
+					}
+
 					rawContentChanges.push(
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
 							startLineNumber + insertingLinesCnt,
-							fromLineNumber,
-							fromLineNumber + cnt - 1
+							newLines,
+							injectedTexts
 						)
 					);
 				}
@@ -1590,8 +1607,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
-			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber));
-			this.onDidChangeContentOrInjectedText(new ModelInjectedTextChangedEvent(lineChangeEvents));
+			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this.getLineInjectedText(lineNumber)));
+			this._onDidChangeInjectedText.fire(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
 		if (affectedLineHeights && affectedLineHeights.size > 0) {
 			const affectedLines = Array.from(affectedLineHeights);
@@ -1601,21 +1618,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (affectedFontLines && affectedFontLines.size > 0) {
 			const affectedLines = Array.from(affectedFontLines);
 			const fontChangeEvent = affectedLines.map(fontChange => new ModelFontChanged(fontChange.ownerId, fontChange.lineNumber));
-			const modelFontChangedEvent = new ModelFontChangedEvent(fontChangeEvent);
-			this._onDidChangeFont.fire(modelFontChangedEvent);
-			this.onFontChanged(modelFontChangedEvent);
-		}
-	}
-
-	private onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
-		for (const viewModel of this._viewModels) {
-			viewModel.onDidChangeContentOrInjectedText(e);
-		}
-	}
-
-	private onFontChanged(e: ModelFontChangedEvent): void {
-		for (const viewModel of this._viewModels) {
-			viewModel.onFontChanged(e);
+			this._onDidChangeFont.fire(new ModelFontChangedEvent(fontChangeEvent));
 		}
 	}
 

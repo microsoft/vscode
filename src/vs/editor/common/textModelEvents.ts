@@ -270,15 +270,20 @@ export class ModelRawLineChanged {
 	/**
 	 * The line that has changed.
 	 */
-	public readonly oldLineNumber: number;
+	public readonly lineNumber: number;
 	/**
-	 * The new line number the old one is mapped to
+	 * The new value of the line.
 	 */
-	public readonly newLineNumber: number;
+	public readonly detail: string;
+	/**
+	 * The injected text on the line.
+	 */
+	public readonly injectedText: LineInjectedText[] | null;
 
-	constructor(lineNumber: number, newLineNumber: number) {
-		this.oldLineNumber = lineNumber;
-		this.newLineNumber = newLineNumber;
+	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
+		this.lineNumber = lineNumber;
+		this.detail = detail;
+		this.injectedText = injectedText;
 	}
 }
 
@@ -363,25 +368,25 @@ export class ModelRawLinesInserted {
 	/**
 	 * Before what line did the insertion begin
 	 */
-	public readonly oldFromLineNumber: number;
+	public readonly fromLineNumber: number;
 	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	public readonly oldToLineNumber: number;
+	public readonly toLineNumber: number;
 	/**
-	 * The new from line number of the inserted lines.
+	 * The text that was inserted
 	 */
-	public readonly newFromLineNumber: number;
+	public readonly detail: string[];
 	/**
-	 * The new to line number of the inserted lines.
+	 * The injected texts for every inserted line.
 	 */
-	public readonly newToLineNumber: number;
+	public readonly injectedTexts: (LineInjectedText[] | null)[];
 
-	constructor(oldFromLineNumber: number, oldToLineNumber: number, newFromLineNumber: number, newToLineNumber: number) {
-		this.oldFromLineNumber = oldFromLineNumber;
-		this.oldToLineNumber = oldToLineNumber;
-		this.newFromLineNumber = newFromLineNumber;
-		this.newToLineNumber = newToLineNumber;
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
+		this.injectedTexts = injectedTexts;
+		this.fromLineNumber = fromLineNumber;
+		this.toLineNumber = toLineNumber;
+		this.detail = detail;
 	}
 }
 
