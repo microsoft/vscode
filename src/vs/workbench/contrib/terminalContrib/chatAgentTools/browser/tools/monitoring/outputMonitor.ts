@@ -350,8 +350,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (request) {
 				const userPrompt = new Promise<boolean>(resolve => {
 					const thePart = this._register(new ChatElicitationRequestPart(
-						new MarkdownString(localize('poll.terminal.confirmRun', "Run \"{0}\" in the terminal?", selectedOption)),
-						new MarkdownString(localize('poll.terminal.confirmRunDetail', "The terminal output appears to require a response. Do you want to send \"{0}\" to the terminal?", selectedOption)),
+						new MarkdownString(localize('poll.terminal.confirmRun', "Run \`{0}\` in the terminal?", selectedOption)),
+						new MarkdownString(localize('poll.terminal.confirmRunDetail', "The terminal output appears to require a response. Do you want to send \`{0}\` to the terminal?", selectedOption)),
 						'',
 						localize('poll.terminal.acceptRun', 'Yes'),
 						localize('poll.terminal.rejectRun', 'No'),
