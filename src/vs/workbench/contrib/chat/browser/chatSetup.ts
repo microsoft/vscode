@@ -48,7 +48,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../common/v
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extensions/browser/extensionUrlHandler.js';
-import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
@@ -1124,7 +1124,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
@@ -1144,10 +1143,10 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	private handleChatDisabled(fromEvent: boolean): void {
 		const chatDisabled = this.configurationService.getValue(CHAT_DISABLED_CONFIGURATION_KEY);
 		if (chatDisabled === true) {
-			this.maybeDisableExtension();
+			this.maybeEnableOrDisableExtension(EnablementState.DisabledGlobally);
 			this.maybeHideAuxiliaryBar();
 		} else if (chatDisabled === false && fromEvent /* do not enable extensions unless its an explicit settings change */) {
-			this.maybeEnableExtension();
+			this.maybeEnableOrDisableExtension(EnablementState.EnabledGlobally);
 		}
 	}
 
@@ -1176,30 +1175,15 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async maybeDisableExtension(): Promise<void> {
+
+	private async maybeEnableOrDisableExtension(state: EnablementState): Promise<void> {
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
-		if (!defaultChatExtension?.local || !this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
+		if (!defaultChatExtension) {
 			return;
 		}
 
-		await this.extensionsWorkbenchService.setEnablement(defaultChatExtension, EnablementState.DisabledGlobally);
-		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason.disable', "Disabling AI features"));
-		if (stopped) {
-			this.extensionService.startExtensionHosts();
-		}
-	}
-
-	private async maybeEnableExtension(): Promise<void> {
-		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
-		if (!defaultChatExtension?.local || this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
-			return;
-		}
-
-		await this.extensionEnablementService.setEnablement([defaultChatExtension.local], EnablementState.EnabledGlobally);
-		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason.enable', "Enabling AI features"));
-		if (stopped) {
-			this.extensionService.startExtensionHosts();
-		}
+		await this.extensionsWorkbenchService.setEnablement([defaultChatExtension], state);
+		await this.extensionsWorkbenchService.updateRunningExtensions(state === EnablementState.EnabledGlobally ? localize('restartExtensionHost.reason.enable', "Enabling AI features") : localize('restartExtensionHost.reason.disable', "Disabling AI features"));
 	}
 
 	private maybeHideAuxiliaryBar(): void {
