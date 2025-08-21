@@ -231,8 +231,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (recursionDepth >= PollingConsts.MaxRecursionCount) {
 				return { state: OutputMonitorState.Timeout, modelOutputEvalResponse, output: buffer };
 			}
-			await this._confirmRunInTerminal(selectedOption, execution);
-			return this._pollForOutputAndIdle(execution, true, token, pollFn, recursionDepth + 1);
+			const confirmed = await this._confirmRunInTerminal(selectedOption, execution);
+			if (confirmed) {
+				return this._pollForOutputAndIdle(execution, true, token, pollFn, recursionDepth + 1);
+			}
 		}
 		return { state: this._state, modelOutputEvalResponse, output: buffer, autoReplyCount: recursionDepth };
 	}
