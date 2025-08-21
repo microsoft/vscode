@@ -296,6 +296,12 @@ export class ChatTodoListWidget extends Disposable {
 		this.domNode.classList.toggle('scrolled', this.todoListContainer.scrollTop > 0);
 	}
 
+	private getCurrentActiveTodo(todoList: IChatTodo[]): IChatTodo | undefined {
+		// Find first in-progress, then first not-started
+		return todoList.find(todo => todo.status === 'in-progress') ||
+			   todoList.find(todo => todo.status === 'not-started');
+	}
+
 	private updateTitleElement(titleElement: HTMLElement, todoList: IChatTodo[]): void {
 		titleElement.textContent = '';
 
@@ -310,7 +316,14 @@ export class ChatTodoListWidget extends Disposable {
 		if (totalCount === 0) {
 			progressText.textContent = localize('chat.todoList.title', 'Todos');
 		} else {
-			progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
+			// Use new "Task name (id/all)" format
+			const activeTodo = this.getCurrentActiveTodo(todoList);
+			if (activeTodo) {
+				const taskIndex = todoList.indexOf(activeTodo) + 1; // 1-based index
+				progressText.textContent = `${activeTodo.title} (${taskIndex}/${totalCount})`;
+			} else {
+				progressText.textContent = localize('chat.todoList.noActiveTasks', 'No Active Tasks');
+			}
 		}
 		titleElement.appendChild(progressText);
 
