@@ -98,6 +98,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _inlineEditsShowCollapsedEnabled;
 	private readonly _triggerCommandOnProviderChange;
 	private readonly _minShowDelay;
+	private readonly _showOnSuggestConflict;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -120,14 +121,20 @@ export class InlineCompletionsModel extends Disposable {
 		this.lastTriggerKind = this._source.inlineCompletions.map(this, v => v?.request?.context.triggerKind);
 
 		this._editorObs = observableCodeEditor(this._editor);
-		this._suggestPreviewEnabled = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
-		this._suggestPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
-		this._inlineSuggestMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
-		this._suppressedInlineCompletionGroupIds = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => new Set(v.experimental.suppressInlineSuggestions.split(',')));
-		this._inlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.enabled);
-		this._inlineEditsShowCollapsedEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.edits.showCollapsed);
-		this._triggerCommandOnProviderChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.experimental.triggerCommandOnProviderChange);
-		this._minShowDelay = this._editorObs.getOption(EditorOption.inlineSuggest).map(s => s.minShowDelay);
+
+		const suggest = this._editorObs.getOption(EditorOption.suggest);
+		this._suggestPreviewEnabled = suggest.map(v => v.preview);
+		this._suggestPreviewMode = suggest.map(v => v.previewMode);
+
+		const inlineSuggest = this._editorObs.getOption(EditorOption.inlineSuggest);
+		this._inlineSuggestMode = inlineSuggest.map(v => v.mode);
+		this._suppressedInlineCompletionGroupIds = inlineSuggest.map(v => new Set(v.experimental.suppressInlineSuggestions.split(',')));
+		this._inlineEditsEnabled = inlineSuggest.map(v => !!v.edits.enabled);
+		this._inlineEditsShowCollapsedEnabled = inlineSuggest.map(s => s.edits.showCollapsed);
+		this._triggerCommandOnProviderChange = inlineSuggest.map(s => s.experimental.triggerCommandOnProviderChange);
+		this._minShowDelay = inlineSuggest.map(s => s.minShowDelay);
+		this._showOnSuggestConflict = inlineSuggest.map(s => s.experimental.showOnSuggestConflict);
+
 		this._typing = this._register(new TypingInterval(this.textModel));
 
 		this._register(this._inlineCompletionsService.onDidChangeIsSnoozing((isSnoozing) => {
@@ -349,7 +356,10 @@ export class InlineCompletionsModel extends Disposable {
 		this._textModelVersionId.read(reader); // Refetch on text change
 
 		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.get();
-		const suggestItem = this._selectedSuggestItem.read(reader);
+		let suggestItem = this._selectedSuggestItem.read(reader);
+		if (this._shouldShowOnSuggestConflict.get()) {
+			suggestItem = undefined;
+		}
 		if (suggestWidgetInlineCompletions && !suggestItem) {
 			this._source.seedInlineCompletionsWithSuggestWidget();
 		}
@@ -526,6 +536,24 @@ export class InlineCompletionsModel extends Disposable {
 
 	private readonly _hasVisiblePeekWidgets = derived(this, reader => this._editorObs.openedPeekWidgets.read(reader) > 0);
 
+	private readonly _shouldShowOnSuggestConflict = derived(this, reader => {
+		const showOnSuggestConflict = this._showOnSuggestConflict.read(reader);
+		if (showOnSuggestConflict !== 'never') {
+			const hasInlineCompletion = !!this.selectedInlineCompletion.read(reader);
+			if (hasInlineCompletion) {
+				const item = this._selectedSuggestItem.read(reader);
+				if (!item) {
+					return false;
+				}
+				if (showOnSuggestConflict === 'whenSuggestListIsIncomplete') {
+					return item.listIncomplete;
+				}
+				return true;
+			}
+		}
+		return false;
+	});
+
 	public readonly state = derivedOpts<{
 		kind: 'ghostText';
 		edits: readonly TextReplacement[];
@@ -579,7 +607,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const suggestItem = this._selectedSuggestItem.read(reader);
-		if (suggestItem) {
+		if (!this._shouldShowOnSuggestConflict.read(reader) && suggestItem) {
 			const suggestCompletionEdit = singleTextRemoveCommonPrefix(suggestItem.getSingleTextEdit(), model);
 			const augmentation = this._computeAugmentation(suggestCompletionEdit, reader);
 

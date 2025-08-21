@@ -162,7 +162,7 @@ export interface IExtensionsWorkbenchService {
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
-	updateRunningExtensions(): Promise<void>;
+	updateRunningExtensions(message?: string): Promise<void>;
 
 	readonly onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
 	getExtensionsNotification(): IExtensionsNotification | undefined;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -13,6 +14,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -21,9 +23,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
-import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 
 const $ = dom.$;
 
@@ -252,6 +252,16 @@ export class ChatViewWelcomePart extends Disposable {
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}
+	}
+
+	public needsRerender(content: IChatViewWelcomeContent): boolean {
+		// Heuristic based on content that changes between states
+		return content.isExperimental ||
+			this.content.title !== content.title ||
+			this.content.isExperimental !== content.isExperimental ||
+			this.content.message.value !== content.message.value ||
+			this.content.additionalMessage !== content.additionalMessage ||
+			this.content.tips?.value !== content.tips?.value;
 	}
 
 	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {
