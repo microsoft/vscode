@@ -479,7 +479,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile, ChatContextKeys.sessionHasRequests),
 			whenNotInProgress,
 			ChatContextKeys.remoteJobCreating.negate(),
 		);
@@ -531,14 +531,19 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				return;
 			}
 
-			const userPrompt = widget.getInput();
-			if (!userPrompt) {
+			const chatRequests = chatModel.getRequests();
+			let userPrompt = widget.getInput();
+			
+			// If there's no user prompt but there are chat requests, use a hardcoded prompt
+			if (!userPrompt && chatRequests.length > 0) {
+				userPrompt = 'implement this';
+			} else if (!userPrompt) {
+				// If there's no user prompt and no chat history, do nothing
 				return;
 			}
 
 			widget.input.acceptInput(true);
 
-			const chatRequests = chatModel.getRequests();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
 			// Complete implementation of adding request back into chat stream

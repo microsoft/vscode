@@ -194,6 +194,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
+	private sessionHasRequests: IContextKey<boolean>;
 	private currentRequest: Promise<void> | undefined;
 
 
@@ -328,6 +329,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
+		this.sessionHasRequests = ChatContextKeys.sessionHasRequests.bindTo(contextKeyService);
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -1519,6 +1521,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.requestInProgress.set(this.viewModel.requestInProgress);
+			this.sessionHasRequests.set(this.viewModel.model.getRequests().length > 0);
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
