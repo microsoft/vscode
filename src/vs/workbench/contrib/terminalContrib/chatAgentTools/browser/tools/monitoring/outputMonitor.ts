@@ -131,7 +131,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (request) {
 				let part: ChatElicitationRequestPart | undefined = undefined;
 				const promise = new Promise<boolean>(resolve => {
-					const thePart = part = new ChatElicitationRequestPart(
+					const thePart = part = this._register(new ChatElicitationRequestPart(
 						new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for \`{0}\`?", command)),
 						new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
 						'',
@@ -149,8 +149,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							this._state = OutputMonitorState.Cancelled;
 							resolve(false);
 						}
-					);
-					this._register(thePart);
+					));
 					chatModel.acceptResponseProgress(request, thePart);
 				});
 
