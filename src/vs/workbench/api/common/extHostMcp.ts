@@ -409,31 +409,10 @@ class McpHTTPHandle extends Disposable {
 	}
 
 	private async _getAuthorizationServerMetadata(authorizationServer: string, addtionalHeaders: Record<string, string>): Promise<IAuthorizationServerMetadata> {
-		// Special handling for Microsoft Entra ID v1.0 endpoints
-		// For efficiency, try the known working OpenID Connect discovery URL first for Microsoft endpoints
-		const authorizationServerUrl = new URL(authorizationServer);
-		if (authorizationServerUrl.hostname === 'login.microsoftonline.com' && !authorizationServerUrl.pathname.includes('/v2.0')) {
-			// For v1.0 endpoints, try OpenID Connect discovery directly first
-			const openidUrl = URI.joinPath(URI.parse(authorizationServer), OPENID_CONNECT_DISCOVERY_PATH).toString(true);
-			const response = await this._fetch(openidUrl, {
-				method: 'GET',
-				headers: {
-					...addtionalHeaders,
-					'Accept': 'application/json',
-					'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-				}
-			});
-			if (response.status === 200) {
-				const body = await response.json();
-				if (isAuthorizationServerMetadata(body)) {
-					return body;
-				}
-			}
-		}
-
 		// For the oauth server metadata discovery path, we _INSERT_
 		// the well known path after the origin and before the path.
 		// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+		const authorizationServerUrl = new URL(authorizationServer);
 		const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 		const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
 		let authServerMetadataResponse = await this._fetch(pathToFetch, {

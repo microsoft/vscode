@@ -108,10 +108,4 @@ suite('ScopeData', () => {
 		const scopeData = new ScopeData(['custom_scope'], undefined, authorizationServer);
 		assert.strictEqual(scopeData.tenant, 'tenant123');
 	});
-
-	test('should extract tenant from v1.0 common authorization server URL', () => {
-		const authorizationServer = Uri.parse('https://login.microsoftonline.com/common');
-		const scopeData = new ScopeData(['custom_scope'], undefined, authorizationServer);
-		assert.strictEqual(scopeData.tenant, 'common');
-	});
 });
