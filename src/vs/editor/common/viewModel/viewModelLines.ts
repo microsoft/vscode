@@ -315,7 +315,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			},
 			getLineInjectedText: (lineNumber: number): LineInjectedText[] => {
 				return this.model.getLineInjectedText(lineNumber, this._editorId);
-			},
+			}
 		};
 		return lineBreaksComputerFactory.createLineBreaksComputer(context, this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak, this.wrapOnEscapedLineFeeds);
 	}
@@ -1228,7 +1228,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 			lineContent.length + 1,
 			0,
 			lineTokens.inflate(),
-			[]
+			null
 		);
 	}
 
