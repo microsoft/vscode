@@ -51,6 +51,7 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, 
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
+import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
@@ -306,7 +307,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IChatModeService private readonly chatModeService: IChatModeService
+		@IChatModeService private readonly chatModeService: IChatModeService,
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -821,9 +823,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderChatTodoListWidget(): void {
+		const sessionId = this.viewModel?.sessionId;
+		if (!sessionId) {
+			this.chatTodoListWidget.render(sessionId);
+			return;
+		}
+
 		const isChatTodoListToolEnabled = this.configurationService.getValue<boolean>(TodoListToolSettingId) === true;
-		if (isChatTodoListToolEnabled) {
-			this.chatTodoListWidget.render(this.viewModel?.sessionId);
+		if (!isChatTodoListToolEnabled) {
+			return;
+		}
+
+		const todos = this.chatTodoListService.getTodos(sessionId);
+		if (todos.length > 0) {
+			this.chatTodoListWidget.render(sessionId);
 		}
 	}
 
