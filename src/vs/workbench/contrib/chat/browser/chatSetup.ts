@@ -1136,12 +1136,12 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}
 
 		this.registerListeners();
-		this.checkExtensionInstallation(context);
+		this.checkExtensionEnablement(context);
 		this.registerActions(context);
 	}
 
-	private async checkExtensionInstallation(context: ChatEntitlementContext): Promise<void> {
-		if (context.state.installed) {
+	private async checkExtensionEnablement(context: ChatEntitlementContext): Promise<void> {
+		if (context.state.installed && !context.state.disabled && !context.state.untrusted) {
 			this.configurationService.updateValue(CHAT_HIDDEN_CONFIGURATION_KEY, false);
 		}
 	}
