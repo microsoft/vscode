@@ -150,7 +150,7 @@
 	},
 	"For-In Loop": {
 		"prefix": "forin",
-		"body": [			
+		"body": [
 			"for (const ${1:key} in ${2:object}) {",
 			"\tif (!${2:object}.hasOwn(${1:key})) continue;",
 			"\t",
