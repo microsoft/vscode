@@ -19,7 +19,7 @@ const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
 export interface IGitHubServer {
-	login(scopes: string, signInProvider?: GitHubSocialSignInProvider, existingLogin?: string): Promise<string>;
+	login(scopes: string, signInProvider?: GitHubSocialSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
@@ -87,7 +87,7 @@ export class GitHubServer implements IGitHubServer {
 		return this._isNoCorsEnvironment;
 	}
 
-	public async login(scopes: string, signInProvider?: GitHubSocialSignInProvider, existingLogin?: string): Promise<string> {
+	public async login(scopes: string, signInProvider?: GitHubSocialSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
@@ -136,6 +136,7 @@ export class GitHubServer implements IGitHubServer {
 					callbackUri,
 					nonce,
 					signInProvider,
+					extraAuthorizeParameters: extraAuthorizeParameters,
 					baseUri: this.baseUri,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
