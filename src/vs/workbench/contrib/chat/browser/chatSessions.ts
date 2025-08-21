@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -271,8 +271,8 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		}
 
 		// Exclude history sessions that are opened from "Show history"
-		// These have a sessionId in their target options indicating they're loading existing sessions
-		if (editor.options.target && 'sessionId' in editor.options.target) {
+		// These have a specific marker indicating they're from history
+		if (editor.options.fromHistory) {
 			return false;
 		}
 
@@ -667,7 +667,6 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		@ILogService private readonly logService: ILogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
@@ -874,26 +873,25 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 	}
 
 	private renderInputBox(container: HTMLElement, session: IChatSessionItem, editableData: IEditableData): DisposableStore {
-		// Find the resource label element and hide it
-		const resourceLabelElement = container.querySelector('.monaco-icon-label') as HTMLElement;
-		if (resourceLabelElement) {
-			resourceLabelElement.style.display = 'none';
+		// Hide the existing resource label element
+		const existingResourceLabelElement = container.querySelector('.monaco-icon-label') as HTMLElement;
+		if (existingResourceLabelElement) {
+			existingResourceLabelElement.style.display = 'none';
 		}
 
-		// Create a container div for the input box that matches the resource label layout
-		const inputContainer = DOM.append(container, DOM.$('.session-input-container'));
+		// Create a simple container that mimics the file explorer's structure
+		const editContainer = DOM.append(container, DOM.$('.explorer-item.explorer-item-edited'));
 
-		// Create icon element matching the original session icon
-		let iconElement: HTMLElement | undefined;
-		if (session.iconPath) {
-			iconElement = DOM.append(inputContainer, DOM.$('.session-input-icon.codicon'));
-			if (ThemeIcon.isThemeIcon(session.iconPath)) {
-				iconElement.classList.add(`codicon-${session.iconPath.id}`);
-			}
+		// Add the icon
+		const iconElement = DOM.append(editContainer, DOM.$('.codicon'));
+		if (session.iconPath && ThemeIcon.isThemeIcon(session.iconPath)) {
+			iconElement.classList.add(`codicon-${session.iconPath.id}`);
+		} else {
+			iconElement.classList.add('codicon-file'); // Default file icon
 		}
 
-		// Create the input box
-		const inputBox = new InputBox(inputContainer, this.contextViewService, {
+		// Create the input box directly
+		const inputBox = new InputBox(editContainer, this.contextViewService, {
 			validationOptions: {
 				validation: (value) => {
 					const message = editableData.validationMessage(value);
@@ -918,14 +916,13 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
 			const value = inputBox.value;
 
-			// Clean up our input container
-			if (inputContainer && inputContainer.parentNode) {
-				inputContainer.parentNode.removeChild(inputContainer);
-			}
+			// Clean up the edit container
+			editContainer.style.display = 'none';
+			editContainer.remove();
 
 			// Restore the original resource label
-			if (resourceLabelElement) {
-				resourceLabelElement.style.display = '';
+			if (existingResourceLabelElement) {
+				existingResourceLabelElement.style.display = '';
 			}
 
 			if (finishEditing) {
@@ -974,7 +971,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 					if (DOM.isActiveElement(inputBox.inputElement)) {
 						return;
 					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
-						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
+						// Do nothing - context menu is open
 					} else {
 						break;
 					}
@@ -986,6 +983,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 		const disposableStore = new DisposableStore();
 		disposables.forEach(d => disposableStore.add(d));
+		disposableStore.add(toDisposable(() => done(false, false)));
 		return disposableStore;
 	}
 
@@ -1212,7 +1210,6 @@ class SessionsViewPane extends ViewPane {
 
 		// Set the input
 		this.tree.setInput(this.provider);
-		this.tree.layout(300, 400); // Give it a reasonable size
 
 		// Register tree events
 		this._register(this.tree.onDidOpen((e) => {
@@ -1243,6 +1240,13 @@ class SessionsViewPane extends ViewPane {
 		this._register(this.tree);
 	}
 
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		if (this.tree) {
+			this.tree.layout(height, width);
+		}
+	}
+
 	private async openChatSession(element: ChatSessionItemWithProvider) {
 		if (!element || !element.id) {
 			return;
@@ -1261,7 +1265,12 @@ class SessionsViewPane extends ViewPane {
 
 				// For local history sessions, use ChatEditorInput approach
 				if (sessionWithProvider.provider.chatSessionType === 'local') {
-					const options: IChatEditorOptions = { target: { sessionId }, pinned: true };
+					const options: IChatEditorOptions = {
+						target: { sessionId },
+						pinned: true,
+						// Add a marker to indicate this session was opened from history
+						fromHistory: true
+					};
 					await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
 				} else {
 					// For external provider sessions, use ChatSessionUri approach
