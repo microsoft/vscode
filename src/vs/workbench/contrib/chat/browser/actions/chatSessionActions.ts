@@ -140,7 +140,7 @@ export class RenameChatSessionAction extends Action2 {
 	}
 }
 
-// Register the menu item - only show for local chat sessions
+// Register the menu item - only show for local chat sessions that are not history items
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: RenameChatSessionAction.id,
@@ -148,5 +148,8 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'context',
 	order: 1,
-	when: ChatContextKeys.sessionType.isEqualTo('local')
+	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionType.isEqualTo('local'),
+		ChatContextKeys.isHistoryItem.isEqualTo(false)
+	)
 });
