@@ -152,7 +152,7 @@
 		"prefix": "forin",
 		"body": [
 			"for (const ${1:key} in ${2:object}) {",
-			"\tif (!${2:object}.hasOwn(${1:key})) continue;",
+			"\tif (!Object.hasOwn(${2:object}, ${1:key})) continue;",
 			"\t",
 			"\tconst ${3:element} = ${2:object}[${1:key}];",
 			"\t",
