@@ -12,7 +12,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
-import { ToolProgress } from '../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext, ToolProgress } from '../../../chat/common/languageModelToolsService.js';
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
@@ -144,7 +144,7 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, instantiationService: IInstantiationService, invocationContext: any, progress: ToolProgress, token: CancellationToken, disposableStore: DisposableStore, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState; autoReplyCount: number }>> {
+	terminals: ITerminalInstance[], task: Task, instantiationService: IInstantiationService, invocationContext: IToolInvocationContext, progress: ToolProgress, token: CancellationToken, disposableStore: DisposableStore, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState; autoReplyCount: number }>> {
 	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; autoReplyCount: number }> = [];
 	if (token.isCancellationRequested) {
 		return results;
@@ -156,13 +156,14 @@ export async function collectTerminalResults(
 			isActive,
 			task,
 			instance,
-			dependencyTasks
+			dependencyTasks,
+			sessionId: invocationContext.sessionId
 		};
 		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn));
 		const outputAndIdle = await outputMonitor.startMonitoring(
 			task._label,
 			invocationContext,
-			token,
+			token
 		);
 		results.push({
 			name: instance.shellLaunchConfig.name ?? 'unknown',

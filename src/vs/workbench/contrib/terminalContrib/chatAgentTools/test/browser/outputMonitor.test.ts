@@ -16,7 +16,7 @@ import { IChatService } from '../../../../chat/common/chatService.js';
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let monitor: OutputMonitor;
-	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText'> };
+	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText'>; sessionId: string };
 	let cts: CancellationTokenSource;
 	let instantiationService: TestInstantiationService;
 	let sendTextCalled: boolean;
@@ -29,7 +29,8 @@ suite('OutputMonitor', () => {
 			instance: {
 				instanceId: 1,
 				sendText: async () => { sendTextCalled = true; }
-			}
+			},
+			sessionId: '1'
 		};
 		instantiationService = new TestInstantiationService();
 

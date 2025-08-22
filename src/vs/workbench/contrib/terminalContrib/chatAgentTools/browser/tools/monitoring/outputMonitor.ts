@@ -226,12 +226,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token);
 		const confirmationPrompt = await this._determineUserInputOptions(execution, token);
-		const executedOption = await this._selectAndRunOptionInTerminal(confirmationPrompt, execution, token);
-		if (executedOption) {
+
+		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
+		if (selectedOption) {
 			if (recursionDepth >= PollingConsts.MaxRecursionCount) {
 				return { state: OutputMonitorState.Timeout, modelOutputEvalResponse, output: buffer };
 			}
-			return this._pollForOutputAndIdle(execution, true, token, pollFn, recursionDepth + 1);
+			const confirmed = await this._confirmRunInTerminal(selectedOption, execution);
+			if (confirmed) {
+				return this._pollForOutputAndIdle(execution, true, token, pollFn, recursionDepth + 1);
+			}
 		}
 		return { state: this._state, modelOutputEvalResponse, output: buffer, autoReplyCount: recursionDepth };
 	}
@@ -296,7 +300,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const match = responseText.match(/\{[\s\S]*\}/);
 			if (match) {
 				const obj = JSON.parse(match[0]);
-				if (obj && typeof obj.prompt === 'string' && Array.isArray(obj.options)) {
+				if (obj && obj satisfies IConfirmationPrompt) {
 					return obj;
 				}
 			}
@@ -305,9 +309,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return undefined;
 	}
 
-	private async _selectAndRunOptionInTerminal(
+	private async _selectAndHandleOption(
 		confirmationPrompt: IConfirmationPrompt | undefined,
-		execution: IExecution,
 		token: CancellationToken,
 	): Promise<string | undefined> {
 		if (!confirmationPrompt?.options.length) {
@@ -317,7 +320,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!model) {
 			return Promise.resolve(undefined);
 		}
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: model });
+
+		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
 		if (!models.length) {
 			return Promise.resolve(undefined);
 		}
@@ -333,11 +337,49 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// Validate that the selectedOption matches one of the original options
 			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
 			if (selectedOption && validOption && validOption !== this._lastAutoReply) {
-				await execution.instance.sendText(validOption, true);
-				this._lastAutoReply = validOption;
 				return Promise.resolve(validOption);
 			}
 		}
 		return Promise.resolve(undefined);
+	}
+
+	private async _confirmRunInTerminal(selectedOption: string, execution: IExecution): Promise<boolean> {
+		const chatModel = this._chatService.getSession(execution.sessionId);
+		if (chatModel instanceof ChatModel) {
+			const request = chatModel.getRequests().at(-1);
+			if (request) {
+				const userPrompt = new Promise<boolean>(resolve => {
+					const thePart = this._register(new ChatElicitationRequestPart(
+						new MarkdownString(localize('poll.terminal.confirmRun', "Run \`{0}\` in the terminal?", selectedOption)),
+						new MarkdownString(localize('poll.terminal.confirmRunDetail', "The terminal output appears to require a response. Do you want to send \`{0}\` to the terminal?", selectedOption)),
+						'',
+						localize('poll.terminal.acceptRun', 'Yes'),
+						localize('poll.terminal.rejectRun', 'No'),
+						async () => {
+							thePart.state = 'accepted';
+							thePart.hide();
+							thePart.dispose();
+							resolve(true);
+						},
+						async () => {
+							thePart.state = 'rejected';
+							thePart.hide();
+							this._state = OutputMonitorState.Cancelled;
+							resolve(false);
+						}
+					));
+					chatModel.acceptResponseProgress(request, thePart);
+				});
+
+				const shouldRun = await userPrompt;
+				if (shouldRun) {
+					this._lastAutoReply = selectedOption;
+					await execution.instance.sendText(selectedOption, true);
+					this._lastAutoReply = selectedOption;
+				}
+				return shouldRun;
+			}
+		}
+		return false;
 	}
 }
