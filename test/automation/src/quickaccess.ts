@@ -22,7 +22,11 @@ export class QuickAccess {
 
 		// make sure the file quick access is not "polluted"
 		// with entries from the editor history when opening
-		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
+		if (this.code.version.minor < 104) {
+			await this.runCommand('workbench.action.clearEditorHistory');
+		} else {
+			await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
+		}
 
 		const PollingStrategy = {
 			Stop: true,
