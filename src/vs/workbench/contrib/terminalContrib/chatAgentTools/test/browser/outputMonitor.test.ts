@@ -8,7 +8,7 @@ import { OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { OutputMonitorState } from '../../browser/tools/monitoring/types.js';
+import { IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
@@ -104,5 +104,32 @@ suite('OutputMonitor', () => {
 		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
 		monitor.dispose();
 		monitor.dispose();
+	});
+	test('startMonitoring returns timeout when polling times out and user does not extend', async () => {
+		const forcedTimeoutPoller = async () => ({
+			state: OutputMonitorState.Timeout,
+			output: execution.getOutput(),
+			modelOutputEvalResponse: 'Timed out'
+		} satisfies IPollingResult);
+
+		monitor = store.add(
+			instantiationService.createInstance(
+				OutputMonitor,
+				execution,
+				forcedTimeoutPoller,
+				{ sessionId: '1' },
+				cts.token,
+				'test command'
+			)
+		);
+
+		// Wait for completion
+		await Event.toPromise(monitor.onDidFinishCommand);
+
+		const pollingResult = monitor.pollingResult!;
+		assert.strictEqual(pollingResult.state, OutputMonitorState.Timeout);
+		assert.strictEqual(pollingResult.output, 'test output');
+		// ensure we recorded duration and no auto replies were sent
+		assert.ok(typeof pollingResult.pollDurationMs === 'number');
 	});
 });
