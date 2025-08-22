@@ -3428,13 +3428,15 @@ export class CommandCenter {
 			return;
 		}
 
-		if (worktreeRepository.workingTreeGroup.resourceStates.length === 0 &&
+		if (worktreeRepository.indexGroup.resourceStates.length === 0 &&
+			worktreeRepository.workingTreeGroup.resourceStates.length === 0 &&
 			worktreeRepository.untrackedGroup.resourceStates.length === 0) {
-			window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
+			await window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
 			return;
 		}
 
 		const worktreeChangedFilePaths = [
+			...worktreeRepository.indexGroup.resourceStates,
 			...worktreeRepository.workingTreeGroup.resourceStates,
 			...worktreeRepository.untrackedGroup.resourceStates
 		].map(resource => path.relative(worktreeRepository.root, resource.resourceUri.fsPath));
@@ -3447,19 +3449,38 @@ export class CommandCenter {
 		// Detect overlapping unstaged files in worktree stash and target repository
 		const conflicts = worktreeChangedFilePaths.filter(path => targetChangedFilePaths.includes(path));
 
+		// Check for 'LocalChangesOverwritten' error
 		if (conflicts.length > 0) {
-			const fileList = conflicts.join('\n- ');
-			const message = l10n.t('Your local changes to the following files would be overwritten by merge:\n- {0}\n\nPlease stage, commit, or stash your changes before migrating changes.', fileList);
-			window.showErrorMessage(message, { modal: true });
+			const fileList = conflicts.join('\n ');
+			const message = l10n.t('Your local changes to the following files would be overwritten by merge:\n {0}\n\nPlease stage, commit, or stash your changes before migrating changes.', fileList);
+			await window.showErrorMessage(message, { modal: true });
 			return;
 		}
 
 		await worktreeRepository.createStash(undefined, true);
 		const stashes = await worktreeRepository.getStashes();
+
+		if (stashes.length === 0) {
+			const message = l10n.t('Failed to migrate worktree changes.');
+			await window.showErrorMessage(message);
+			return;
+		}
+
 		try {
 			await repository.applyStash(stashes[0].index);
 		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.StashConflict && err.gitErrorCode !== GitErrorCodes.LocalChangesOverwritten) {
+			if (err.gitErrorCode === GitErrorCodes.StashConflict) {
+				const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
+				const show = l10n.t('Show Changes');
+				const choice = await window.showWarningMessage(message, show);
+				if (choice === show) {
+					await commands.executeCommand('workbench.view.scm');
+				}
+			} else if (err.gitErrorCode === GitErrorCodes.LocalChangesOverwritten) {
+				// Should not occur
+				const message = l10n.t('Your local changes would be overwritten by the stash apply. Please commit or stash them before continuing.');
+				await window.showWarningMessage(message, { modal: true });
+			} else {
 				throw err;
 			}
 		} finally {
