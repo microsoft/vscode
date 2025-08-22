@@ -287,13 +287,7 @@ function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
 }
 
 function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
-	const newUser = isNewUser(chatEntitlementService);
-	const disabled = chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted;
-	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-	const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-	const allFreeQuotaReached = free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
-
-	return !newUser && !signedOut && !allFreeQuotaReached && !disabled;
+	return true;
 }
 
 function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
