@@ -136,7 +136,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			let contextKeyService: IContextKeyService = this.contextKeyService;
 			if (activeEditorUri) {
 				const { authority } = activeEditorUri;
-				const overlay: [string, any][] = [];
+				const overlay: [string, unknown][] = [];
 				if (authority) {
 					overlay.push([ChatContextKeys.sessionType.key, authority]);
 				}
