@@ -23,8 +23,8 @@ import { TerminalChatController } from './terminalChatController.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
-	title: localize2('startChat', 'Terminal Inline Chat'),
-	category: AbstractInline1ChatAction.category,
+	title: localize2('startChat', 'Open Inline Chat'),
+	category: localize2('terminalCategory', "Terminal"),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
