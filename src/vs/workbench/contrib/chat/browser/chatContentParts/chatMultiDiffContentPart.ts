@@ -27,10 +27,11 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 const $ = dom.$;
 
@@ -132,7 +133,14 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 			const activeEditorUri = this.editorService.activeEditor?.resource;
 			let marshalledUri: any | undefined = undefined;
+			let contextKeyService: IContextKeyService = this.contextKeyService;
 			if (activeEditorUri) {
+				const { authority } = activeEditorUri;
+				const overlay: [string, any][] = [];
+				if (authority) {
+					overlay.push([ChatContextKeys.sessionType.key, authority]);
+				}
+				contextKeyService = this.contextKeyService.createOverlay(overlay);
 				marshalledUri = {
 					...activeEditorUri,
 					$mid: MarshalledId.Uri
@@ -141,7 +149,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 			const actions = this.menuService.getMenuActions(
 				MenuId.ChatMultiDiffContext,
-				this.contextKeyService,
+				contextKeyService,
 				{ arg: marshalledUri, shouldForwardArgs: true }
 			);
 			const allActions = actions.flatMap(([, actions]) => actions);
