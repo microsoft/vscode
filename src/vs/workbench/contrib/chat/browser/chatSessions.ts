@@ -242,7 +242,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			}));
 
 			// Listen for request progress changes
-			this._register(model.requestInProgressObs.subscribe((value) => {
+			model.requestInProgressObs.recomputeInitiallyAndOnChange(this._store, (value) => {
 				const previousStatus = this.sessionProgressMap.get(widgetSessionId);
 				const newStatus = value ? ChatSessionStatus.InProgress : ChatSessionStatus.Completed;
 				
@@ -251,7 +251,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 					this._onDidChange.fire();
 					this._onDidChangeChatSessionItems.fire();
 				}
-			}));
+			});
 		}
 	}
 
@@ -379,7 +379,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		
 		if (editorModel && editorModel.model && editorModel.model.requestInProgressObs) {
 			// Listen for request progress changes
-			this._register(editorModel.model.requestInProgressObs.subscribe((value) => {
+			editorModel.model.requestInProgressObs.recomputeInitiallyAndOnChange(this._store, (value) => {
 				const previousStatus = this.sessionProgressMap.get(sessionId);
 				const newStatus = value ? ChatSessionStatus.InProgress : ChatSessionStatus.Completed;
 				
@@ -388,7 +388,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 					this._onDidChange.fire();
 					this._onDidChangeChatSessionItems.fire();
 				}
-			}));
+			});
 		}
 	}
 
