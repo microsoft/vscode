@@ -396,6 +396,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		this._stickyScrollOverlay.open(this._element);
 
+		// Prevent tab key from being handled by the xterm overlay to allow natural tab navigation
+		this._stickyScrollOverlay.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+			if (event.key === 'Tab') {
+				return false;
+			}
+			return true;
+		});
+
 		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
 			if (this._store.isDisposed || !this._stickyScrollOverlay) {
 				return;

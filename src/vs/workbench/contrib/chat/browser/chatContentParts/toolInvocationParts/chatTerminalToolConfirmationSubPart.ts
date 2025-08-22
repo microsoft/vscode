@@ -107,7 +107,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === 'on';
 		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		let moreActions: (IChatConfirmationButton | Separator)[] | undefined = undefined;
+		let moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined = undefined;
 		if (autoApproveEnabled) {
 			moreActions = [];
 			if (!autoApproveWarningAccepted) {
@@ -115,7 +115,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					label: localize('autoApprove.enable', 'Enable Auto Approve...'),
 					data: {
 						type: 'enable'
-					} satisfies TerminalNewAutoApproveButtonData
+					}
 				});
 				moreActions.push(new Separator());
 				if (terminalCustomActions) {
@@ -131,7 +131,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		}
 
-		const buttons: IChatConfirmationButton[] = [
+		const buttons: IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] = [
 			{
 				label: continueLabel,
 				data: true,
@@ -201,7 +201,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			appearance: { showPointer: true },
 		}));
 		const confirmWidget = this._register(this.instantiationService.createInstance(
-			ChatCustomConfirmationWidget,
+			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
 			this.context.container,
 			{
 				title,
@@ -216,7 +216,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}
 
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
-		this._register(confirmWidget.onDidClick(async (button: Omit<IChatConfirmationButton, 'data'> & { data: TerminalNewAutoApproveButtonData | boolean }) => {
+		this._register(confirmWidget.onDidClick(async button => {
 			let doComplete = true;
 			const data = button.data;
 			let toolConfirmKind: ToolConfirmKind = ToolConfirmKind.Denied;
@@ -249,7 +249,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 									}
 								}
 
-								const buttons: IChatConfirmationButton[] = [
+								confirmWidget.updateButtons([
 									{
 										label: continueLabel,
 										data: true,
@@ -262,8 +262,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 										isSecondary: true,
 										tooltip: cancelTooltip,
 									}
-								];
-								confirmWidget.updateButtons(buttons);
+								]);
 								doComplete = false;
 							}
 						} else {

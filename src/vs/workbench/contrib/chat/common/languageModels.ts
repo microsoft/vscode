@@ -44,6 +44,13 @@ export interface IChatMessageImagePart {
 	value: IChatImageURLPart;
 }
 
+export interface IChatMessageThinkingPart {
+	type: 'thinking';
+	value: string;
+	id?: string;
+	metadata?: string;
+}
+
 export interface IChatMessageDataPart {
 	type: 'data';
 	mimeType: string;
@@ -90,7 +97,7 @@ export interface IChatMessageToolResultPart {
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageDataPart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart | IChatMessageImagePart | IChatMessageDataPart | IChatMessageThinkingPart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;

@@ -27,21 +27,21 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { showChatView } from '../chat.js';
 import './media/chatConfirmationWidget.css';
 
-export interface IChatConfirmationButton {
+export interface IChatConfirmationButton<T> {
 	label: string;
 	isSecondary?: boolean;
 	tooltip?: string;
-	data: any;
+	data: T;
 	disabled?: boolean;
 	onDidChangeDisablement?: Event<boolean>;
-	moreActions?: (IChatConfirmationButton | Separator)[];
+	moreActions?: (IChatConfirmationButton<T> | Separator)[];
 }
 
-export interface IChatConfirmationWidgetOptions {
+export interface IChatConfirmationWidgetOptions<T> {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
-	buttons: IChatConfirmationButton[];
+	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: any; partType: string; partSource?: string };
 }
 
@@ -105,9 +105,9 @@ export class ChatQueryTitlePart extends Disposable {
 	}
 }
 
-abstract class BaseSimpleChatConfirmationWidget extends Disposable {
-	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
-	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
+abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
+	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
 
 	protected _onDidChangeHeight = this._register(new Emitter<void>());
 	get onDidChangeHeight(): Event<void> { return this._onDidChangeHeight.event; }
@@ -132,7 +132,7 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
-		options: IChatConfirmationWidgetOptions,
+		options: IChatConfirmationWidgetOptions<T>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -273,12 +273,12 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 }
 
 /** @deprecated Use ChatConfirmationWidget instead */
-export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidget {
+export class SimpleChatConfirmationWidget<T> extends BaseSimpleChatConfirmationWidget<T> {
 	private _renderedMessage: HTMLElement | undefined;
 
 	constructor(
 		private readonly _container: HTMLElement,
-		options: IChatConfirmationWidgetOptions,
+		options: IChatConfirmationWidgetOptions<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -301,18 +301,18 @@ export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidg
 	}
 }
 
-export interface IChatConfirmationWidget2Options {
+export interface IChatConfirmationWidget2Options<T> {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString | HTMLElement;
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
-	buttons: IChatConfirmationButton[];
+	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: any; partType: string; partSource?: string };
 }
 
-abstract class BaseChatConfirmationWidget extends Disposable {
-	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
-	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
+abstract class BaseChatConfirmationWidget<T> extends Disposable {
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
+	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
 
 	protected _onDidChangeHeight = this._register(new Emitter<void>());
 	get onDidChangeHeight(): Event<void> { return this._onDidChangeHeight.event; }
@@ -339,7 +339,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
-		options: IChatConfirmationWidget2Options,
+		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -408,7 +408,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		}
 	}
 
-	updateButtons(buttons: IChatConfirmationButton[]) {
+	updateButtons(buttons: IChatConfirmationButton<T>[]) {
 		while (this._buttonsDomNode.children.length > 0) {
 			this._buttonsDomNode.children[0].remove();
 		}
@@ -501,12 +501,12 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		}
 	}
 }
-export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
+export class ChatConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 	private _renderedMessage: HTMLElement | undefined;
 
 	constructor(
 		private readonly _container: HTMLElement,
-		options: IChatConfirmationWidget2Options,
+		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -528,10 +528,10 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 		this._renderedMessage = renderedMessage.element;
 	}
 }
-export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
+export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 	constructor(
 		container: HTMLElement,
-		options: IChatConfirmationWidget2Options,
+		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
