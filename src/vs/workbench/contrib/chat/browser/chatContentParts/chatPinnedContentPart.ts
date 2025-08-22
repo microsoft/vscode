@@ -19,7 +19,7 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		context: IChatContentPartRenderContext,
 	) {
 		super(nls.localize('chat.pinned.thinking.header.base', "Thinking..."), context);
-		this.setExpanded(true);
+		this.setExpanded(false);
 		this.domNode.classList.add('chat-thinking-box');
 		this.domNode.tabIndex = 0;
 
