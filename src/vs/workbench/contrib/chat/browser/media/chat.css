@@ -511,6 +511,27 @@
 			background: var(--vscode-editorWidget-background);
 			border-bottom: 1px solid var(--vscode-widget-border);
 		}
+
+		.output-error {
+			margin: 6px 4px;
+			color: var(--vscode-errorForeground);
+
+			.output-error-header {
+				display: flex;
+				align-items: center;
+				gap: 7px;
+				margin-bottom: 4px;
+
+				.codicon-error {
+					color: var(--vscode-errorForeground) !important;
+				}
+			}
+
+			.output-error-details {
+				font-family: var(--monaco-monospace-font);
+				font-size: 11px;
+			}
+		}
 	}
 
 	&:not(:last-child) {
