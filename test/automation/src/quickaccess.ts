@@ -23,7 +23,7 @@ export class QuickAccess {
 
 		// make sure the file quick access is not "polluted"
 		// with entries from the editor history when opening
-		if (this.code.quality === Quality.Dev || this.code.quality === Quality.OSS || this.code.version.minor >= 104) {
+		if (this.code.quality !== Quality.Stable) {
 			await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
 		} else {
 			await this.runCommand('workbench.action.clearEditorHistory');
