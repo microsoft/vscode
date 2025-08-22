@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { createNativeAboutDialogDetails } from '../../../../platform/dialogs/electron-browser/dialog.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -42,7 +43,8 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IProductService private productService: IProductService,
 		@IClipboardService clipboardService: IClipboardService,
 		@INativeHostService private nativeHostService: INativeHostService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
 
@@ -91,9 +93,9 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 
 				// About
 				else {
-					const aboutDialogDetails = createNativeAboutDialogDetails(this.productService, await this.nativeHostService.getOSProperties());
+					const aboutDialogDetails = createNativeAboutDialogDetails(this.productService, await this.nativeHostService.getOSProperties(), this.extensionService);
 
-					if (this.useCustomDialog) {
+					if (this.useCustomDialog) {	
 						await this.browserImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
 					} else {
 						await this.nativeImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
