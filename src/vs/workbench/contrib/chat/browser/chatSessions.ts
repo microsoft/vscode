@@ -184,13 +184,15 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	}
 
 	private async initializeExistingEditorProgress(): Promise<void> {
-		this.editorGroupService.groups.forEach(group => {
-			group.editors.forEach(editor => {
+		// Track progress for all existing chat editors
+		for (const group of this.editorGroupService.groups) {
+			for (const editor of group.editors) {
 				if (this.isLocalChatSession(editor)) {
-					this.trackEditorProgress(editor as ChatEditorInput, group);
+					// Use await to ensure proper initialization order
+					await this.trackEditorProgress(editor as ChatEditorInput, group);
 				}
-			});
-		});
+			}
+		}
 	}
 
 	private registerWidgetListeners(): void {
@@ -338,9 +340,12 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 						if (index > -1) {
 							this.editorOrder.splice(index, 1);
 						}
-						// Remove progress tracking for the closed editor
-						const sessionId = `local-${group.id}-${this.editorOrder.indexOf(editorKey)}`;
-						this.sessionProgressMap.delete(sessionId);
+						// Clean up progress tracking for closed editor
+						// Note: We clean up all potential session IDs since they might have shifted
+						const keysToDelete = Array.from(this.sessionProgressMap.keys()).filter(key => 
+							key.startsWith(`local-${group.id}-`)
+						);
+						keysToDelete.forEach(key => this.sessionProgressMap.delete(key));
 					}
 					this._onDidChange.fire();
 					break;
@@ -369,23 +374,21 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	}
 
 	private async trackEditorProgress(editor: ChatEditorInput, group: IEditorGroup): Promise<void> {
-		// Find the session ID that will be used in provideChatSessionItems
-		const editorKey = this.getEditorKey(editor, group);
-		const editorIndex = this.editorOrder.indexOf(editorKey);
-		
-		// Skip if editor not found in our ordered list
-		if (editorIndex === -1) {
-			return;
-		}
-		
-		const sessionId = `local-${group.id}-${editorIndex}`;
-
 		// Resolve the editor model if not already resolved
 		const editorModel = await editor.resolve();
 		
 		if (editorModel && editorModel.model && editorModel.model.requestInProgressObs) {
+			const editorKey = this.getEditorKey(editor, group);
+			
 			// Listen for request progress changes
 			editorModel.model.requestInProgressObs.recomputeInitiallyAndOnChange(this._store, (value) => {
+				// Generate session ID dynamically based on current order (same as provideChatSessionItems)
+				const currentIndex = this.editorOrder.indexOf(editorKey);
+				if (currentIndex === -1) {
+					return; // Skip if editor not in current order
+				}
+				
+				const sessionId = `local-${group.id}-${currentIndex}`;
 				const previousStatus = this.sessionProgressMap.get(sessionId);
 				const newStatus = value ? ChatSessionStatus.InProgress : ChatSessionStatus.Completed;
 				
