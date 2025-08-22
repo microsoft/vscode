@@ -143,7 +143,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 				title: nls.localize2('chat.sessions', "Chat Sessions"),
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
 				hideIfEmpty: false,
-				icon: registerIcon('chat-sessions-icon', Codicon.chatSparkle, 'Icon for Chat Sessions View'),
+				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
 				order: 10
 			}, ViewContainerLocation.Sidebar);
 	}
