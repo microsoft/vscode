@@ -293,7 +293,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const stepMs = Math.max(PollingConsts.MinPollingDuration / 2, 50);
 		let waited = 0;
 
-		const initialActive = execution.isActive ? await execution.isActive() : undefined;
+		const initialActive = await execution.isActive?.();
 
 		while (!token.isCancellationRequested && waited < maxMs) {
 			await timeout(stepMs, token);
