@@ -657,6 +657,7 @@ interface ISessionTemplateData {
 	resourceLabel: IResourceLabel;
 	actionBar: ActionBar;
 	elementDisposable: DisposableStore;
+	badgeElement: HTMLElement;
 }
 
 // Renderer for session items in the tree
@@ -737,6 +738,11 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Create a container that holds both the label and actions
 		const contentContainer = append(element, $('.session-content'));
 		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
+		
+		// Create badge element between label and actions
+		const badgeElement = append(contentContainer, $('.chat-session-badge'));
+		badgeElement.style.display = 'none'; // Hidden by default
+		
 		const actionsContainer = append(contentContainer, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer);
 		const elementDisposable = new DisposableStore();
@@ -745,7 +751,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			container: element,
 			resourceLabel,
 			actionBar,
-			elementDisposable
+			elementDisposable,
+			badgeElement
 		};
 	}
 
@@ -832,6 +839,16 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 					} : undefined) :
 				undefined
 		});
+
+		// Handle badge rendering
+		if (session.badge !== undefined && session.badge !== null && session.badge !== '') {
+			templateData.badgeElement.textContent = typeof session.badge === 'number' ? 
+				session.badge.toString() : session.badge;
+			templateData.badgeElement.title = session.badgeTooltip || '';
+			templateData.badgeElement.style.display = 'inline-block';
+		} else {
+			templateData.badgeElement.style.display = 'none';
+		}
 
 		// Create context overlay for this specific session item
 		const contextOverlay = getSessionItemContextOverlay(session, sessionWithProvider.provider);

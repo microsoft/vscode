@@ -94,6 +94,34 @@
 	min-width: 0; /* Allow text to truncate */
 }
 
+/* Badge styling */
+.chat-sessions-tree-container .chat-session-item .chat-session-badge {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 11px;
+	font-size: 11px;
+	font-weight: 600;
+	min-width: 18px;
+	height: 18px;
+	line-height: 18px;
+	text-align: center;
+	display: inline-block;
+	margin-left: 6px;
+	padding: 0 6px;
+	box-sizing: border-box;
+	flex-shrink: 0;
+}
+
+.chat-sessions-tree-container .chat-session-item .chat-session-badge:empty {
+	display: none;
+}
+
+/* High contrast theme support */
+.hc-black .chat-sessions-tree-container .chat-session-item .chat-session-badge,
+.hc-light .chat-sessions-tree-container .chat-session-item .chat-session-badge {
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
 /* Hide twisties for elements that don't have children */
 .chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
 	visibility: hidden;
