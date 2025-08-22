@@ -25,7 +25,6 @@ export interface IPollingResult {
 	resources?: ILinkLocation[];
 	modelOutputEvalResponse?: string;
 	state: OutputMonitorState;
-	autoReplyCount?: number;
 	inputToolManualAcceptCount?: number;
 	inputToolManualRejectCount?: number;
 	inputToolManualChars?: number;

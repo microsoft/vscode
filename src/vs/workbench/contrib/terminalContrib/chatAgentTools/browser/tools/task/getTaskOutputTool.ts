@@ -24,7 +24,7 @@ type GetTaskOutputToolClassification = {
 	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
 	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
 	inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by copilot automatically responding' };
-	inputToolAutoAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times copilot automatically accepted a suggestion' };
+	// inputToolSuggestInputCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times copilot automatically accepted a suggestion' };
 	owner: 'meganrogge';
 	comment: 'Understanding the usage of the getTaskOutput tool';
 };
@@ -36,7 +36,7 @@ type GetTaskOutputToolEvent = {
 	inputToolManualRejectCount: number;
 	inputToolManualChars: number;
 	inputToolAutoChars: number;
-	inputToolAutoAcceptCount: number;
+	// inputToolSuggestInputCount: number;
 };
 
 export const GetTaskOutputToolData: IToolData = {
@@ -137,7 +137,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
 				inputToolManualChars: r.inputToolManualChars ?? 0,
 				inputToolAutoChars: r.inputToolAutoChars ?? 0,
-				inputToolAutoAcceptCount: r.inputToolAutoAcceptCount ?? 0,
+				// inputToolSuggestInputCount: r.inputToolAutoAcceptCount ?? 0,
 			});
 		}
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
