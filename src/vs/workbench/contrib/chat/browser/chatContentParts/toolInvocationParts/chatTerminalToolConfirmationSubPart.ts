@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../../../base/browser/dom.js';
+import { append, h } from '../../../../../../base/browser/dom.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
@@ -46,8 +46,6 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
 }
-
-const $ = dom.$;
 
 export interface ITerminalNewAutoApproveRule {
 	key: string;
@@ -193,9 +191,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this._register(model.onDidChangeContent(e => {
 			terminalData.commandLine.userEdited = model.getValue();
 		}));
-		const messageElement = $('.chat-confirmation-message-terminal');
-		dom.append(messageElement, editor.object.element);
-		this._register(hoverService.setupDelayedHover(messageElement, {
+		const elements = h('.chat-confirmation-message-terminal', [
+			h('.chat-confirmation-message-terminal-editor@editor'),
+			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),
+		]);
+		append(elements.editor, editor.object.element);
+		this._register(hoverService.setupDelayedHover(elements.editor, {
 			content: message,
 			position: { hoverPosition: HoverPosition.LEFT },
 			appearance: { showPointer: true },
@@ -206,13 +207,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			{
 				title,
 				icon: Codicon.terminal,
-				message: messageElement,
+				message: elements.root,
 				buttons
 			},
 		));
 
 		if (disclaimer) {
-			this._appendMarkdownPart(messageElement, disclaimer, codeBlockRenderOptions);
+			this._appendMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions);
 		}
 
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
@@ -372,7 +373,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this.codeBlockModelCollection,
 			{ codeBlockRenderOptions }
 		));
-		dom.append(container, part.domNode);
+		append(container, part.domNode);
 		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 	}
 }
