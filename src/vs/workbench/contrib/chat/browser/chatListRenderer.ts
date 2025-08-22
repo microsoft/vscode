@@ -196,7 +196,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private hasAnyValidThinkingTokens(element: IChatResponseViewModel): boolean {
 		return element.model.entireResponse.value.some(
-			part => part.kind === 'thinking');
+			part => part.kind === 'thinking' && part.value);
 	}
 
 	constructor(
