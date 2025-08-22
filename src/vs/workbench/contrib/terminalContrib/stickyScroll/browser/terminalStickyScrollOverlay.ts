@@ -7,7 +7,7 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
-import { $, addDisposableListener, addStandardDisposableListener, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
 import { throttle } from '../../../../../base/common/decorators.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -396,14 +396,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		this._stickyScrollOverlay.open(this._element);
 
-		// Prevent tab navigation from getting stuck in sticky scroll
-		this._element.querySelectorAll('*').forEach(el => {
-			if (isHTMLElement(el)) {
-				el.tabIndex = -1;
+		// Prevent tab key from being handled by the xterm overlay to allow natural tab navigation
+		this._stickyScrollOverlay.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+			if (event.key === 'Tab') {
+				return false;
 			}
+			return true;
 		});
-		// Re-enable pointer events on the hover overlay so clicks still work
-		hoverOverlay.style.pointerEvents = 'auto';
 
 		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
 			if (this._store.isDisposed || !this._stickyScrollOverlay) {
