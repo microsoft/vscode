@@ -218,7 +218,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onWillDispose: Event<void> = this._onWillDispose.event;
 
-	private readonly _onDidChangeDecorations: DidChangeDecorationsEmitter = this._register(new DidChangeDecorationsEmitter((affectedInjectedTextLines, affectedLineHeights, affectedFontLines) => this.handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines, affectedLineHeights, affectedFontLines)));
+	private readonly _onDidChangeDecorations: DidChangeDecorationsEmitter = this._register(new DidChangeDecorationsEmitter((affectedLineHeights, affectedFontLines) => this.handleBeforeFireDecorationsChangedEvent(affectedLineHeights, affectedFontLines)));
 	public readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeDecorations.event;
 
 	public get onDidChangeLanguage() { return this._tokenizationTextModelPart.onDidChangeLanguage; }
@@ -1579,14 +1579,17 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	//#region Decorations
 
-	private handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines: Set<number> | null, affectedLineHeights: Set<LineHeightChangingDecoration> | null, affectedFontLines: Set<LineFontChangingDecoration> | null): void {
-		// This is called before the decoration changed event is fired.
-
+	private onDidChangeInjectedText(affectedInjectedTextLines: Set<number> | null): void {
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
 			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber));
 			this.onDidChangeContentOrInjectedText(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
+	}
+
+	private handleBeforeFireDecorationsChangedEvent(affectedLineHeights: Set<LineHeightChangingDecoration> | null, affectedFontLines: Set<LineFontChangingDecoration> | null): void {
+		// This is called before the decoration changed event is fired.
+
 		if (affectedLineHeights && affectedLineHeights.size > 0) {
 			const affectedLines = Array.from(affectedLineHeights);
 			const lineHeightChangeEvent = affectedLines.map(specialLineHeightChange => new ModelLineHeightChanged(specialLineHeightChange.ownerId, specialLineHeightChange.decorationId, specialLineHeightChange.lineNumber, specialLineHeightChange.lineHeight));
@@ -1821,13 +1824,14 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			return;
 		}
 
+		const affectedInjectedTextLines = new Set<number>();
 		if (node.options.after) {
 			const oldRange = this.getDecorationRange(decorationId);
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(oldRange!.endLineNumber);
+			affectedInjectedTextLines.add(oldRange!.endLineNumber);
 		}
 		if (node.options.before) {
 			const oldRange = this.getDecorationRange(decorationId);
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(oldRange!.startLineNumber);
+			affectedInjectedTextLines.add(oldRange!.startLineNumber);
 		}
 		if (node.options.lineHeight !== null) {
 			const oldRange = this.getDecorationRange(decorationId);
@@ -1848,10 +1852,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._onDidChangeDecorations.checkAffectedAndFire(node.options);
 
 		if (node.options.after) {
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
+			affectedInjectedTextLines.add(range.endLineNumber);
 		}
 		if (node.options.before) {
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
+			affectedInjectedTextLines.add(range.startLineNumber);
 		}
 		if (node.options.lineHeight !== null) {
 			this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, decorationId, range.startLineNumber, node.options.lineHeight);
@@ -1859,6 +1863,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (node.options.affectsFont) {
 			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, range.startLineNumber);
 		}
+		this.onDidChangeInjectedText(affectedInjectedTextLines);
 	}
 
 	private _changeDecorationOptionsImpl(ownerId: number, decorationId: string, options: ModelDecorationOptions): void {
@@ -1873,13 +1878,14 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._onDidChangeDecorations.checkAffectedAndFire(node.options);
 		this._onDidChangeDecorations.checkAffectedAndFire(options);
 
+		const affectedInjectedTextLines = new Set<number>();
 		if (node.options.after || options.after) {
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
+			affectedInjectedTextLines.add(nodeRange.endLineNumber);
 		}
 		if (node.options.before || options.before) {
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
-			this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
+			affectedInjectedTextLines.add(nodeRange.startLineNumber);
 		}
 		if (node.options.lineHeight !== null || options.lineHeight !== null) {
 			const nodeRange = this._decorationsTree.getNodeRange(this, node);
@@ -1899,6 +1905,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		} else {
 			node.setOptions(options);
 		}
+		this.onDidChangeInjectedText(affectedInjectedTextLines);
 	}
 
 	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: model.IModelDeltaDecoration[], suppressEvents: boolean = false): string[] {
@@ -1909,6 +1916,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		const newDecorationsLen = newDecorations.length;
 		let newDecorationIndex = 0;
+
+		const affectedInjectedTextLines = new Set<number>();
 
 		this._onDidChangeDecorations.beginDeferredEmit();
 		try {
@@ -1929,11 +1938,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					if (node) {
 						if (node.options.after) {
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
-							this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
+							affectedInjectedTextLines.add(nodeRange.endLineNumber);
 						}
 						if (node.options.before) {
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
-							this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
+							affectedInjectedTextLines.add(nodeRange.startLineNumber);
 						}
 						if (node.options.lineHeight !== null) {
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
@@ -1972,10 +1981,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					node.setOptions(options);
 
 					if (node.options.after) {
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
+						affectedInjectedTextLines.add(range.endLineNumber);
 					}
 					if (node.options.before) {
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
+						affectedInjectedTextLines.add(range.startLineNumber);
 					}
 					if (node.options.lineHeight !== null) {
 						this._onDidChangeDecorations.recordLineAffectedByLineHeightChange(ownerId, node.id, range.startLineNumber, node.options.lineHeight);
@@ -1999,6 +2008,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				}
 			}
 
+			this.onDidChangeInjectedText(affectedInjectedTextLines);
 			return result;
 		} finally {
 			this._onDidChangeDecorations.endDeferredEmit();
@@ -2509,13 +2519,12 @@ class DidChangeDecorationsEmitter extends Disposable {
 	private _shouldFireDeferred: boolean;
 	private _affectsMinimap: boolean;
 	private _affectsOverviewRuler: boolean;
-	private _affectedInjectedTextLines: Set<number> | null = null;
 	private _affectedLineHeights: SetWithKey<LineHeightChangingDecoration> | null = null;
 	private _affectedFontLines: SetWithKey<LineFontChangingDecoration> | null = null;
 	private _affectsGlyphMargin: boolean;
 	private _affectsLineNumber: boolean;
 
-	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null, affectedLineHeights: SetWithKey<LineHeightChangingDecoration> | null, affectedFontLines: SetWithKey<LineFontChangingDecoration> | null) => void) {
+	constructor(private readonly handleBeforeFire: (affectedLineHeights: SetWithKey<LineHeightChangingDecoration> | null, affectedFontLines: SetWithKey<LineFontChangingDecoration> | null) => void) {
 		super();
 		this._deferredCnt = 0;
 		this._shouldFireDeferred = false;
@@ -2539,21 +2548,11 @@ class DidChangeDecorationsEmitter extends Disposable {
 			if (this._shouldFireDeferred) {
 				this.doFire();
 			}
-
-			this._affectedInjectedTextLines?.clear();
-			this._affectedInjectedTextLines = null;
 			this._affectedLineHeights?.clear();
 			this._affectedLineHeights = null;
 			this._affectedFontLines?.clear();
 			this._affectedFontLines = null;
 		}
-	}
-
-	public recordLineAffectedByInjectedText(lineNumber: number): void {
-		if (!this._affectedInjectedTextLines) {
-			this._affectedInjectedTextLines = new Set();
-		}
-		this._affectedInjectedTextLines.add(lineNumber);
 	}
 
 	public recordLineAffectedByLineHeightChange(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null): void {
@@ -2594,7 +2593,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 	}
 
 	private doFire() {
-		this.handleBeforeFire(this._affectedInjectedTextLines, this._affectedLineHeights, this._affectedFontLines);
+		this.handleBeforeFire(this._affectedLineHeights, this._affectedFontLines);
 
 		const event: IModelDecorationsChangedEvent = {
 			affectsMinimap: this._affectsMinimap,
