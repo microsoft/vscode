@@ -137,6 +137,7 @@ const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '' }, enterprise: { id: '' } },
+	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
@@ -582,16 +583,11 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private async doResolveEntitlement(sessions: AuthenticationSession[], token: CancellationToken): Promise<IEntitlements | undefined> {
-		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
-			this.logService.trace('[chat entitlement]: enterprise provider, assuming Enterprise plan');
-			return { entitlement: ChatEntitlement.Enterprise };
-		}
-
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
-		const response = await this.request(defaultChat.entitlementUrl, 'GET', undefined, sessions, token);
+		const response = await this.request(this.getEntitlementUrl(), 'GET', undefined, sessions, token);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -670,6 +666,19 @@ export class ChatEntitlementRequests extends Disposable {
 		});
 
 		return entitlements;
+	}
+
+	private getEntitlementUrl(): string {
+		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
+			try {
+				const enterpriseUrl = new URL(this.configurationService.getValue(defaultChat.providerUriSetting));
+				return `${enterpriseUrl.protocol}//api.${enterpriseUrl.hostname}${enterpriseUrl.port ? ':' + enterpriseUrl.port : ''}/copilot_internal/user`;
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+
+		return defaultChat.entitlementUrl;
 	}
 
 	private toQuotas(response: IEntitlementsResponse): IQuotas {
@@ -899,7 +908,13 @@ export class ChatEntitlementRequests extends Disposable {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
 
 		const scopes = options?.additionalScopes ? distinct([...defaultChat.providerScopes[0], ...options.additionalScopes]) : defaultChat.providerScopes[0];
-		const session = await this.authenticationService.createSession(providerId, scopes, options?.useSocialProvider ? { provider: options.useSocialProvider } : undefined);
+		const session = await this.authenticationService.createSession(
+			providerId,
+			scopes,
+			{
+				extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
+				provider: options?.useSocialProvider
+			});
 
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);

@@ -13,6 +13,7 @@ import { Task, ITaskEvent, KeyedTaskIdentifier } from './tasks.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 
 import { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
+import { IMarkerData } from '../../../../platform/markers/common/markers.js';
 
 export const enum TaskErrors {
 	NotConfigured,
@@ -152,6 +153,7 @@ export interface ITaskSystem {
 	isTaskVisible(task: Task): boolean;
 	getTaskForTerminal(instanceId: number): Task | undefined;
 	getTerminalsForTasks(tasks: Task | Task[]): URI[] | undefined;
+	getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined;
 	getFirstInstance(task: Task): Task | undefined;
 	get lastTask(): VerifiedTask | undefined;
 	set lastTask(task: VerifiedTask);

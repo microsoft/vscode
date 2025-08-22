@@ -87,7 +87,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			CustomAction,
 		}
 
-		const buttons: IChatConfirmationButton[] = [
+		const buttons: IChatConfirmationButton<ConfirmationOutcome>[] = [
 			{
 				label: continueLabel,
 				data: ConfirmationOutcome.Allow,
@@ -105,11 +105,11 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				tooltip: cancelTooltip
 			}];
 
-		let confirmWidget: ChatCustomConfirmationWidget;
+		let confirmWidget: ChatCustomConfirmationWidget<ConfirmationOutcome>;
 		if (typeof message === 'string') {
 			const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 			confirmWidget = this._register(this.instantiationService.createInstance(
-				ChatConfirmationWidget,
+				ChatConfirmationWidget<ConfirmationOutcome>,
 				this.context.container,
 				{
 					title,
@@ -288,7 +288,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 
 			const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 			confirmWidget = this._register(this.instantiationService.createInstance(
-				ChatCustomConfirmationWidget,
+				ChatCustomConfirmationWidget<ConfirmationOutcome>,
 				this.context.container,
 				{
 					title,

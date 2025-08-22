@@ -196,7 +196,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private agentInInput: IContextKey<boolean>;
 	private currentRequest: Promise<void> | undefined;
 
-
 	private _visible = false;
 	public get visible() {
 		return this._visible;
@@ -220,6 +219,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
 	private _codingAgentPrefix: string | undefined;
+
+	private lastWelcomeViewChatMode: ChatModeKind | undefined;
 
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
@@ -280,6 +281,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	readonly viewContext: IChatWidgetViewContext;
+
+	private readonly chatSetupTriggerContext = ContextKeyExpr.or(
+		ChatContextKeys.Setup.installed.negate(),
+		ChatContextKeys.Entitlement.canSignUp
+	);
 
 	get supportsChangingModes(): boolean {
 		return !!this.viewOptions.supportsChangingModes;
@@ -486,12 +492,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				ChatContextKeys.Entitlement.canSignUp.key
 			]))) {
 				// reset the input in welcome view if it was rendered in experimental mode
-				if (this.container.classList.contains('experimental-welcome-view')) {
+				if (this.container.classList.contains('experimental-welcome-view') && !this.contextKeyService.contextMatchesRules(this.chatSetupTriggerContext)) {
 					this.container.classList.remove('experimental-welcome-view');
 					const renderFollowups = this.viewOptions.renderFollowups ?? false;
 					const renderStyle = this.viewOptions.renderStyle;
 					this.createInput(this.container, { renderFollowups, renderStyle });
-					this.inputPart.initForNewChatModel(this.getViewState(), true);
+					this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
 				}
 			}
 		}));
@@ -574,7 +580,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle });
 		}
 
-		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
 		const scrollDownButton = this._register(new Button(this.listContainer, {
@@ -718,12 +723,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 			// reset the input in welcome view if it was rendered in experimental mode
-			if (this.container.classList.contains('experimental-welcome-view')) {
+			if (this.container.classList.contains('experimental-welcome-view') && this.viewModel?.getItems().length) {
 				this.container.classList.remove('experimental-welcome-view');
 				const renderFollowups = this.viewOptions.renderFollowups ?? false;
 				const renderStyle = this.viewOptions.renderStyle;
 				this.createInput(this.container, { renderFollowups, renderStyle });
-				this.inputPart.initForNewChatModel(this.getViewState(), true);
+				this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
 			}
 
 			this.renderWelcomeViewContentIfNeeded();
@@ -779,15 +784,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!numItems) {
 			const expEmptyState = this.configurationService.getValue<boolean>('chat.emptyChatState.enabled');
 
-			const chatSetupTriggerContext = ContextKeyExpr.or(
-				ChatContextKeys.Setup.installed.negate(),
-				ChatContextKeys.Entitlement.canSignUp
-			);
-
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
-			if (this.contextKeyService.contextMatchesRules(chatSetupTriggerContext)) {
+			if (this.contextKeyService.contextMatchesRules(this.chatSetupTriggerContext)) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
@@ -1108,6 +1108,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private clickedRequest(item: IChatListItemTemplate) {
+
+		// cancel current request before we start editing. 
+		if (this.viewModel) {
+			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
+		}
+
 		const currentElement = item.currentElement;
 		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
 
@@ -1456,6 +1462,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderWelcomeViewContentIfNeeded();
 		}));
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
+			this.lastWelcomeViewChatMode = this.input.currentModeKind;
 			this.renderWelcomeViewContentIfNeeded();
 			this.refreshParsedInput();
 			this.renderFollowups();

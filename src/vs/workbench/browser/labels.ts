@@ -120,7 +120,7 @@ export const DEFAULT_LABELS_CONTAINER: IResourceLabelsContainer = {
 export class ResourceLabels extends Disposable {
 
 	private readonly _onDidChangeDecorations = this._register(new Emitter<void>());
-	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
+	get onDidChangeDecorations() { return this._onDidChangeDecorations.event; }
 
 	private widgets: ResourceLabelWidget[] = [];
 	private labels: IResourceLabel[] = [];
@@ -220,7 +220,7 @@ export class ResourceLabels extends Disposable {
 		// Only expose a handle to the outside
 		const label: IResourceLabel = {
 			element: widget.element,
-			onDidRender: widget.onDidRender,
+			get onDidRender() { return widget.onDidRender; },
 			setLabel: (label: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
 			setResource: (label: IResourceLabelProps, options?: IResourceLabelOptions) => widget.setResource(label, options),
 			setFile: (resource: URI, options?: IFileLabelOptions) => widget.setFile(resource, options),
@@ -293,7 +293,7 @@ enum Redraw {
 class ResourceLabelWidget extends IconLabel {
 
 	private readonly _onDidRender = this._register(new Emitter<void>());
-	readonly onDidRender = this._onDidRender.event;
+	get onDidRender() { return this._onDidRender.event; }
 
 	private label: IResourceLabelProps | undefined = undefined;
 	private readonly decoration = this._register(new MutableDisposable<IDecoration>());
