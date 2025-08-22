@@ -53,7 +53,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,
-		history: [],
+		history: any[],
 		token: CancellationToken
 	) => Promise<void>;
 
@@ -155,7 +155,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 				this.requestHandler = async (
 					request: IChatAgentRequest,
 					progress: (progress: IChatProgress[]) => void,
-					history: [],
+					history: any[],
 					token: CancellationToken
 				) => {
 					// Clear previous progress and mark as active
@@ -323,7 +323,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const provider: IChatSessionItemProvider = {
 			chatSessionType,
 			onDidChangeChatSessionItems: changeEmitter.event,
-			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
+			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token),
+			provideNewChatSessionItem: (options, token) => this._provideNewChatSessionItem(handle, options, token)
 		};
 		disposables.add(this._chatSessionsService.registerChatSessionItemProvider(provider));
 
@@ -352,6 +353,24 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			this._logService.error('Error providing chat sessions:', error);
 		}
 		return [];
+	}
+
+	private async _provideNewChatSessionItem(handle: number, options: { prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
+		try {
+			const chatSessionItem = await this._proxy.$provideNewChatSessionItem(handle, options, token);
+			if (!chatSessionItem) {
+				throw new Error('Extension failed to create chat session');
+			}
+			return {
+				...chatSessionItem,
+				id: chatSessionItem.id,
+				iconPath: chatSessionItem.iconPath ? this._reviveIconPath(chatSessionItem.iconPath) : undefined,
+				tooltip: chatSessionItem.tooltip ? this._reviveTooltip(chatSessionItem.tooltip) : undefined,
+			};
+		} catch (error) {
+			this._logService.error('Error creating chat session:', error);
+			throw error;
+		}
 	}
 
 	private async _provideChatSessionContent(providerHandle: number, id: string, token: CancellationToken): Promise<ChatSession> {

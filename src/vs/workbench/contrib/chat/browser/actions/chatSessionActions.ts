@@ -14,6 +14,8 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -22,6 +24,25 @@ export interface IChatSessionContext {
 	editorInput?: any;
 	editorGroup?: any;
 	widget?: any;
+}
+
+interface IMarshalledChatSessionContext {
+	$mid: MarshalledId.ChatSessionContext;
+	session: {
+		id: string;
+		label: string;
+		editor?: ChatEditorInput;
+		widget?: any;
+		sessionType?: 'editor' | 'widget';
+	};
+}
+
+function isMarshalledChatSessionContext(obj: unknown): obj is IMarshalledChatSessionContext {
+	return !!obj &&
+		typeof obj === 'object' &&
+		'$mid' in obj &&
+		(obj as any).$mid === MarshalledId.ChatSessionContext &&
+		'session' in obj;
 }
 
 export class RenameChatSessionAction extends Action2 {
@@ -41,9 +62,42 @@ export class RenameChatSessionAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IChatSessionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
 		if (!context) {
 			return;
+		}
+
+		// Handle marshalled context from menu actions
+		let sessionContext: IChatSessionContext;
+		if (isMarshalledChatSessionContext(context)) {
+			const session = context.session;
+			// Extract actual session ID based on session type
+			let actualSessionId: string | undefined;
+			const currentTitle = session.label;
+
+			// For local sessions, we need to extract the actual session ID from editor or widget
+			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			} else {
+				// Fall back to using the session ID directly
+				actualSessionId = session.id;
+			}
+
+			if (!actualSessionId) {
+				return; // Can't proceed without a session ID
+			}
+
+			sessionContext = {
+				sessionId: actualSessionId,
+				sessionType: session.sessionType || 'editor',
+				currentTitle: currentTitle,
+				editorInput: session.editor,
+				widget: session.widget
+			};
+		} else {
+			sessionContext = context;
 		}
 
 		const chatSessionsService = accessor.get(IChatSessionsService);
@@ -53,7 +107,7 @@ export class RenameChatSessionAction extends Action2 {
 		try {
 			// Find the chat sessions view and trigger inline rename mode
 			// This is similar to how file renaming works in the explorer
-			await chatSessionsService.setEditableSession(context.sessionId, {
+			await chatSessionsService.setEditableSession(sessionContext.sessionId, {
 				validationMessage: (value: string) => {
 					if (!value || value.trim().length === 0) {
 						return { content: localize('renameSession.emptyName', "Name cannot be empty"), severity: Severity.Error };
@@ -64,12 +118,12 @@ export class RenameChatSessionAction extends Action2 {
 					return null;
 				},
 				placeholder: localize('renameSession.placeholder', "Enter new name for chat session"),
-				startingValue: context.currentTitle,
+				startingValue: sessionContext.currentTitle,
 				onFinish: async (value: string, success: boolean) => {
-					if (success && value && value.trim() !== context.currentTitle) {
+					if (success && value && value.trim() !== sessionContext.currentTitle) {
 						try {
 							const newTitle = value.trim();
-							chatService.setChatSessionTitle(context.sessionId, newTitle);
+							chatService.setChatSessionTitle(sessionContext.sessionId, newTitle);
 						} catch (error) {
 							logService.error(
 								localize('renameSession.error', "Failed to rename chat session: {0}",
@@ -77,7 +131,7 @@ export class RenameChatSessionAction extends Action2 {
 							);
 						}
 					}
-					await chatSessionsService.setEditableSession(context.sessionId, null);
+					await chatSessionsService.setEditableSession(sessionContext.sessionId, null);
 				}
 			});
 		} catch (error) {
@@ -86,7 +140,7 @@ export class RenameChatSessionAction extends Action2 {
 	}
 }
 
-// Register the menu item - only show for local chat sessions
+// Register the menu item - only show for local chat sessions that are not history items
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: RenameChatSessionAction.id,
@@ -94,5 +148,8 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'context',
 	order: 1,
-	when: ChatContextKeys.sessionType.isEqualTo('local')
+	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionType.isEqualTo('local'),
+		ChatContextKeys.isHistoryItem.isEqualTo(false)
+	)
 });

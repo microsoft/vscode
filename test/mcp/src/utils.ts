@@ -44,3 +44,39 @@ export function createApp(options: ApplicationOptions, optionsTransform?: (opts:
 
 	return app;
 }
+
+export function timeout(i: number) {
+	return new Promise<void>(resolve => {
+		setTimeout(() => {
+			resolve();
+		}, i);
+	});
+}
+
+export interface ITask<T> {
+	(): T;
+}
+
+export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: number, onBeforeRetry?: () => Promise<unknown>): Promise<T> {
+	let lastError: Error | undefined;
+
+	for (let i = 0; i < retries; i++) {
+		try {
+			if (i > 0 && typeof onBeforeRetry === 'function') {
+				try {
+					await onBeforeRetry();
+				} catch (error) {
+					console.warn(`onBeforeRetry failed with: ${error}`);
+				}
+			}
+
+			return await task();
+		} catch (error) {
+			lastError = error as Error;
+
+			await timeout(delay);
+		}
+	}
+
+	throw lastError;
+}

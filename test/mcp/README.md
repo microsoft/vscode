@@ -31,33 +31,55 @@ Then you can use `/playwright` to ask specific questions.
 
 Getting started with the MCP server is simple - just run the pre-configured Code - OSS task:
 
-### 1. Launch the MCP Server
+1. Launch the MCP Server
 
-In Code - OSS, open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:
+   In Code - OSS, open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:
 
-```
-Tasks: Run Task → Launch MCP Server
-```
+   ```
+   Tasks: Run Task → Launch MCP Server
+   ```
 
-### 2. Start the MCP Server
+2. Start the MCP Server
 
-Open the Command Palette and run:
-```
-MCP: List Servers → vscode-playwright-mcp → Start Server
-```
-or open [mcp.json](../../.vscode/mcp.json) and start it from there.
+   Open the Command Palette and run:
+   ```
+   MCP: List Servers → vscode-playwright-mcp → Start Server
+   ```
+   or open [mcp.json](../../.vscode/mcp.json) and start it from there.
 
 That's it! Your AI assistant can now use browser automation capabilities through MCP.
+
+## Arguments
+
+Open the [mcp.json](../../.vscode/mcp.json) and modify the `args`:
+
+* `["run", "start-stdio"]`: opens Electron window
+* `["run", "start-stdio", "--", "--web"]`: opens a Chromium window
+* `["run", "start-stdio", "--", "--web", "--headless"]`: opens a headless window
+
+> *NOTE: `--web` requires running `npm run install-playwright` from root*
+
+## Debugging the server
+
+You can modify the mcp.json to debug the server:
+```JSON
+"vscode-playwright-mcp": {
+	"type": "stdio",
+	"command": "node",
+	"args": ["./out/stdio.js"],
+	"cwd": "${workspaceFolder}/test/mcp",
+	"dev": {
+		"watch": "test/mcp/**/*.ts",
+		"debug": {
+			"type": "node"
+		}
+	}
+}
+```
 
 ## What the Server Provides
 
 The MCP server exposes a comprehensive set of browser automation tools through the MCP protocol:
-
-### Navigation & Page Management
-- Navigate to URLs
-- Go back/forward in browser history
-- Manage browser tabs (open, close, switch)
-- Resize browser windows
 
 ### Element Interaction
 - Click on elements (single, double, right-click)

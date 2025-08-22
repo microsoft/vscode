@@ -15,13 +15,47 @@ export class RunInTerminalToolTelemetry {
 
 	logPrepare(state: {
 		terminalToolSessionId: string | undefined;
+		subCommands: string[];
 		autoApproveResult: 'approved' | 'denied' | 'manual';
 		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		autoApproveDefault: boolean | undefined;
 	}) {
+		const subCommandsSanitized = state.subCommands.map(e => {
+			let commandName = e.split(' ')[0].toLowerCase();
+			if (!commandAllowList.has(commandName)) {
+				if (/[\\\/]/.test(commandName)) {
+					commandName = '(unknown:path)';
+				} else if (/^(?:[A-Z][a-z0-9]+)+(?:-(?:[A-Z][a-z0-9]+))*$/.test(commandName)) {
+					commandName = '(unknown:pwsh)';
+				} else if (/^[a-z0-9_-]+$/i.test(commandName)) {
+					const properties: string[] = [];
+					if (/[a-z]/.test(commandName)) {
+						properties.push('alpha_lowercase');
+					}
+					if (/[A-Z]/.test(commandName)) {
+						properties.push('alpha_uppercase');
+					}
+					if (/[0-9]/.test(commandName)) {
+						properties.push('numeric');
+					}
+					if (commandName.includes('-')) {
+						properties.push('hyphen');
+					}
+					if (commandName.includes('_')) {
+						properties.push('underscore');
+					}
+					commandName = `(unknown:${properties.join(',')})`;
+				} else {
+					commandName = '(unknown)';
+				}
+			}
+			return commandName;
+		});
+
 		type TelemetryEvent = {
 			terminalToolSessionId: string | undefined;
 
+			subCommands: string;
 			autoApproveResult: string;
 			autoApproveReason: string | undefined;
 			autoApproveDefault: boolean | undefined;
@@ -32,6 +66,7 @@ export class RunInTerminalToolTelemetry {
 
 			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
+			subCommands: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A sanitized list of sub-commands that were executed, encoded as a JSON array' };
 			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
 			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
 			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
@@ -39,7 +74,7 @@ export class RunInTerminalToolTelemetry {
 
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
 			terminalToolSessionId: state.terminalToolSessionId,
-
+			subCommands: JSON.stringify(subCommandsSanitized),
 			autoApproveResult: state.autoApproveResult,
 			autoApproveReason: state.autoApproveReason,
 			autoApproveDefault: state.autoApproveDefault,
@@ -60,6 +95,7 @@ export class RunInTerminalToolTelemetry {
 		pollDurationMs?: number;
 		terminalExecutionIdleBeforeTimeout?: boolean;
 		exitCode: number | undefined;
+		autoReplyCount?: number;
 		inputUserChars: number;
 		inputUserSigint: boolean;
 	}) {
@@ -79,6 +115,7 @@ export class RunInTerminalToolTelemetry {
 			pollDurationMs: number;
 			timingExecuteMs: number;
 			terminalExecutionIdleBeforeTimeout: boolean;
+			autoReplyCount: number;
 
 			inputUserChars: number;
 			inputUserSigint: boolean;
@@ -102,6 +139,7 @@ export class RunInTerminalToolTelemetry {
 			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to execute the command' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
 			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
+			autoReplyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the tool automatically replied to the terminal requesting user input.' };
 
 			inputUserChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters the user input manually, a single key stroke could map to several characters. Focus in/out sequences are not counted as part of this' };
 			inputUserSigint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user input the SIGINT signal' };
@@ -122,9 +160,388 @@ export class RunInTerminalToolTelemetry {
 			timingExecuteMs: state.timingExecuteMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
 			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
+			autoReplyCount: state.autoReplyCount ?? 0,
 
 			inputUserChars: state.inputUserChars,
 			inputUserSigint: state.inputUserSigint,
 		});
 	}
 }
+
+
+const commandAllowList: ReadonlySet<string> = new Set([
+	// Special chars/scripting
+	'!',
+	'@',
+	'#',
+	'$',
+	'%',
+	'^',
+	'&',
+	'*',
+	'(',
+	')',
+	'~',
+	'{',
+	'}',
+	'<',
+	'>',
+
+	// Utils
+	'.',
+	'7z',
+	'alias',
+	'assoc',
+	'attrib',
+	'awk',
+	'basename',
+	'bg',
+	'blkid',
+	'bunzip2',
+	'bzip2',
+	'cat',
+	'cd',
+	'certutil',
+	'chkdsk',
+	'chmod',
+	'chown',
+	'cipher',
+	'clear',
+	'cls',
+	'cmp',
+	'column',
+	'comm',
+	'compact',
+	'compress',
+	'copy',
+	'cp',
+	'curl',
+	'cut',
+	'date',
+	'dd',
+	'del',
+	'df',
+	'diff',
+	'dig',
+	'dir',
+	'dirname',
+	'diskpart',
+	'dism',
+	'disown',
+	'du',
+	'echo',
+	'env',
+	'erase',
+	'eval',
+	'expand',
+	'export',
+	'fc',
+	'fdisk',
+	'fg',
+	'file',
+	'find',
+	'findstr',
+	'fmt',
+	'fold',
+	'forfiles',
+	'format',
+	'free',
+	'fsck',
+	'git',
+	'gpupdate',
+	'grep',
+	'groupadd',
+	'groups',
+	'gunzip',
+	'gzip',
+	'hash',
+	'head',
+	'hexdump',
+	'history',
+	'host',
+	'htop',
+	'icacls',
+	'id',
+	'ifconfig',
+	'iostat',
+	'ip',
+	'ipconfig',
+	'iptables',
+	'jobs',
+	'jq',
+	'kill',
+	'killall',
+	'less',
+	'ln',
+	'locate',
+	'ls',
+	'lsblk',
+	'lscpu',
+	'lsof',
+	'man',
+	'mkdir',
+	'mklink',
+	'more',
+	'mount',
+	'move',
+	'mv',
+	'nbtstat',
+	'nc/netcat',
+	'net',
+	'netstat',
+	'nice',
+	'nl',
+	'nohup',
+	'nslookup',
+	'nslookup',
+	'od',
+	'passwd',
+	'paste',
+	'pathping',
+	'pause',
+	'pgrep',
+	'ping',
+	'pkill',
+	'powercfg',
+	'pr',
+	'printenv',
+	'ps',
+	'pwd',
+	'query',
+	'rar',
+	'readlink',
+	'realpath',
+	'reg',
+	'rem',
+	'ren',
+	'rename',
+	'renice',
+	'rev',
+	'rm',
+	'rmdir',
+	'robocopy',
+	'route',
+	'rsync',
+	'sc',
+	'schtasks',
+	'scp',
+	'sed',
+	'seq',
+	'set',
+	'setx',
+	'sfc',
+	'shred',
+	'shuf',
+	'shutdown',
+	'sleep',
+	'sort',
+	'source',
+	'split',
+	'ss',
+	'ssh',
+	'stat',
+	'strings',
+	'su',
+	'subst',
+	'sudo',
+	'systeminfo',
+	'tac',
+	'tail',
+	'tar',
+	'tee',
+	'telnet',
+	'test',
+	'time',
+	'top',
+	'touch',
+	'tr',
+	'traceroute',
+	'tracert',
+	'tree',
+	'true',
+	'truncate',
+	'type',
+	'type',
+	'umask',
+	'umount',
+	'unalias',
+	'uname',
+	'uncompress',
+	'unexpand',
+	'uniq',
+	'unlink',
+	'unrar',
+	'unzip',
+	'uptime',
+	'useradd',
+	'usermod',
+	'vmstat',
+	'vol',
+	'watch',
+	'wc',
+	'wget',
+	'where',
+	'whereis',
+	'which',
+	'who',
+	'whoami',
+	'wmic',
+	'xargs',
+	'xcopy',
+	'xxd',
+	'xz',
+	'yes',
+	'zcat',
+	'zip',
+	'zless',
+	'zmore',
+
+	// SCM
+	'bitbucket',
+	'bzr',
+	'cvs',
+	'gh',
+	'git',
+	'glab',
+	'hg',
+	'svn',
+	'fossil',
+	'p4',
+
+	// Devtools, languages, package manager
+	'ansible',
+	'apk',
+	'apt-get',
+	'apt',
+	'aws',
+	'az',
+	'brew',
+	'bundle',
+	'cargo',
+	'choco',
+	'clang',
+	'cmake',
+	'composer',
+	'conan',
+	'conda',
+	'dnf',
+	'docker-compose',
+	'docker',
+	'dotnet',
+	'emacs',
+	'esbuild',
+	'eslint',
+	'flatpak',
+	'flutter',
+	'fnm',
+	'g++',
+	'gcc',
+	'gcloud',
+	'go',
+	'gradle',
+	'helm',
+	'java',
+	'javac',
+	'jest',
+	'julia',
+	'kotlin',
+	'kubectl',
+	'lua',
+	'make',
+	'mocha',
+	'mvn',
+	'n',
+	'nano',
+	'node',
+	'npm',
+	'nvm',
+	'pacman',
+	'perl',
+	'php',
+	'phpunit',
+	'pip',
+	'pipenv',
+	'pnpm',
+	'pod',
+	'podman',
+	'poetry',
+	'python',
+	'r',
+	'rollup',
+	'ruby',
+	'rustc',
+	'rustup',
+	'snap',
+	'swift',
+	'terraform',
+	'tsc',
+	'tslint',
+	'vagrant',
+	'vcpkg',
+	'vi',
+	'vim',
+	'vite',
+	'vitest',
+	'webpack',
+	'yarn',
+	'yum',
+	'zypper',
+
+	// Misc Windows executables
+	'taskkill',
+	'taskkill.exe',
+
+	// PowerShell
+	'add-content',
+	'compare-object',
+	'convertfrom-json',
+	'convertto-json',
+	'copy-item',
+	'format-custom',
+	'format-list',
+	'format-table',
+	'format-wide',
+	'get-childitem',
+	'get-command',
+	'get-content',
+	'get-date',
+	'get-help',
+	'get-location',
+	'get-process',
+	'get-random',
+	'get-service',
+	'invoke-expression',
+	'invoke-restmethod',
+	'invoke-webrequest',
+	'join-path',
+	'measure-command',
+	'measure-object',
+	'move-item',
+	'new-item',
+	'out-file',
+	'remove-item',
+	'restart-computer',
+	'select-object',
+	'select-string',
+	'select-xml',
+	'set-acl',
+	'set-content',
+	'set-itemproperty',
+	'sort-object',
+	'split-path',
+	'start-process',
+	'start-sleep',
+	'stop-process',
+	'test-path',
+	'write-host',
+	'write-output',
+
+	// PowerShell aliases
+	'iex',
+	'irm',
+	'iwr',
+	'rd',
+	'ri',
+	'sp',
+	'spps',
+]);

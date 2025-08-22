@@ -46,6 +46,7 @@ export interface IChatAgentData {
 	/** This is string, not ContextKeyExpression, because dealing with serializing/deserializing is hard and need a better pattern for this */
 	when?: string;
 	extensionId: ExtensionIdentifier;
+	extensionVersion: string | undefined;
 	extensionPublisherId: string;
 	/** This is the extension publisher id, or, in the case of a dynamically registered participant (remote agent), whatever publisher name we have for it */
 	publisherDisplayName?: string;
@@ -582,6 +583,7 @@ export class MergedChatAgent implements IChatAgent {
 	get fullName(): string { return this.data.fullName ?? ''; }
 	get description(): string { return this.data.description ?? ''; }
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
+	get extensionVersion(): string | undefined { return this.data.extensionVersion; }
 	get extensionPublisherId(): string { return this.data.extensionPublisherId; }
 	get extensionPublisherDisplayName() { return this.data.publisherDisplayName; }
 	get extensionDisplayName(): string { return this.data.extensionDisplayName; }
