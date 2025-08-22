@@ -13,11 +13,12 @@ import { getServer } from './playwright';
 import { getServer as getAutomationServer } from './automation';
 import { getApplication } from './application';
 import { Application } from '../../automation';
+import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 interface McpServerConfig {
 	name: string;
 	port: number;
-	getServerInstance: (app: Application) => Promise<any>;
+	getServerInstance: (app: Application) => Promise<Server>;
 }
 
 const serverConfigs: McpServerConfig[] = [

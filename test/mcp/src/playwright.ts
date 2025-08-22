@@ -5,10 +5,10 @@
 
 import { createConnection } from '@playwright/mcp';
 import { getApplication } from './application';
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport';
 import { Application } from '../../automation';
+import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
-export async function getServer(app?: Application): Promise<{ connect(transport: Transport): Promise<void>; onclose?: (() => void) | undefined }> {
+export async function getServer(app?: Application): Promise<Server> {
 	const application = app ?? await getApplication();
 	const connection = await createConnection(
 		{

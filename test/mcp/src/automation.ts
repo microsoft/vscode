@@ -6,10 +6,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getApplication } from './application';
 import { applyAllTools } from './automationTools/index.js';
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport';
 import { Application } from '../../automation';
+import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
-export async function getServer(app?: Application): Promise<{ connect(transport: Transport): Promise<void>; onclose?: (() => void) | undefined }> {
+export async function getServer(app?: Application): Promise<Server> {
 	const server = new McpServer({
 		name: 'VS Code Automation Server',
 		version: '1.0.0',
