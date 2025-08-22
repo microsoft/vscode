@@ -290,15 +290,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			Now, analyze this output:
 			${lastFiveLines}
 			`;
-		let response;
-		try {
-			response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
-				{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
-			], {}, token);
-		} catch (error) {
-			console.log(error);
-		}
-		const responseText = await getTextResponseFromStream(response!);
+		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [
+			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
+		], {}, token);
+
+		const responseText = await getTextResponseFromStream(response);
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
 			if (match) {
@@ -323,6 +319,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!model) {
 			return Promise.resolve(undefined);
 		}
+
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
 		if (!models.length) {
 			return Promise.resolve(undefined);

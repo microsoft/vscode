@@ -5,17 +5,15 @@
 
 import type { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
-import { IChatService } from '../../../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
+import { ITaskService, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
-import { toolResultDetailsFromResponse } from './taskHelpers.js';
+import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
@@ -53,9 +51,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		@ITaskService private readonly _tasksService: ITaskService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IChatService private readonly _chatService: IChatService,
-		@IMarkerService private readonly _markerService: IMarkerService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -94,24 +90,32 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskLabel)) };
 		}
+		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
 			terminals,
 			task,
-			this._languageModelsService,
-			this._markerService,
-			this._chatService,
+			this._instantiationService,
 			invocation.context!,
 			_progress,
 			token,
-			undefined,
+			store,
+			() => this._isTaskActive(task),
 			dependencyTasks
 		);
+		store.dispose();
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
+		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
+		const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults);
+
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
-			toolResultMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskLabel)),
-			toolResultDetails: toolResultDetailsFromResponse(terminalResults)
+			toolResultMessage,
+			toolResultDetails
 		};
+	}
+	private async _isTaskActive(task: Task): Promise<boolean> {
+		const activeTasks = await this._tasksService.getActiveTasks();
+		return activeTasks?.includes(task) ?? false;
 	}
 }
