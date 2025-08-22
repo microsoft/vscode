@@ -13,6 +13,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { ChatModel } from '../../../../chat/common/chatModel.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -105,31 +106,40 @@ suite('OutputMonitor', () => {
 		monitor.dispose();
 		monitor.dispose();
 	});
-	test('startMonitoring returns timeout when polling times out and user does not extend', async () => {
-		const forcedTimeoutPoller = async () => ({
-			state: OutputMonitorState.Timeout,
-			output: execution.getOutput(),
-			modelOutputEvalResponse: 'Timed out'
-		} satisfies IPollingResult);
+	test('timeout prompt unanswered → continues polling and completes when idle', async () => {
+		// Fake a ChatModel enough to pass instanceof and the two methods used
+		const fakeChatModel: any = {
+			getRequests: () => [{}],
+			acceptResponseProgress: () => { }
+		};
+		Object.setPrototypeOf(fakeChatModel, ChatModel.prototype);
+		instantiationService.stub(IChatService, { getSession: () => fakeChatModel });
+
+		// Poller: first pass times out (to show the prompt), second pass goes idle
+		let pass = 0;
+		const timeoutThenIdle = async (): Promise<IPollingResult> => {
+			pass++;
+			return pass === 1
+				? { state: OutputMonitorState.Timeout, output: execution.getOutput(), modelOutputEvalResponse: 'Timed out' }
+				: { state: OutputMonitorState.Idle, output: execution.getOutput(), modelOutputEvalResponse: 'Done' };
+		};
 
 		monitor = store.add(
 			instantiationService.createInstance(
 				OutputMonitor,
 				execution,
-				forcedTimeoutPoller,
+				timeoutThenIdle,
 				{ sessionId: '1' },
 				cts.token,
 				'test command'
 			)
 		);
 
-		// Wait for completion
 		await Event.toPromise(monitor.onDidFinishCommand);
 
-		const pollingResult = monitor.pollingResult!;
-		assert.strictEqual(pollingResult.state, OutputMonitorState.Timeout);
-		assert.strictEqual(pollingResult.output, 'test output');
-		// ensure we recorded duration and no auto replies were sent
-		assert.ok(typeof pollingResult.pollDurationMs === 'number');
+		const res = monitor.pollingResult!;
+		assert.strictEqual(res.state, OutputMonitorState.Idle);
+		assert.strictEqual(res.output, 'test output');
+		assert.ok(typeof res.pollDurationMs === 'number');
 	});
 });
