@@ -77,6 +77,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		invocationContext: IToolInvocationContext,
 		token: CancellationToken
 	): Promise<void> {
+		// Ensure this method always runs truly async so listeners can attach
+		await Promise.resolve();
 
 		const pollStartTime = Date.now();
 		let extended = false;
@@ -133,7 +135,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						// Wait for new data before re-polling to avoid evaluating the same idle event
 						const changed = await this._waitForNextDataOrActivityChange(this._execution, lastObservedLength, token);
 						lastObservedLength = this._execution.getOutput().length;
-						// if nothing changed, return what we have
 						if (!changed) {
 							this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
 							break;
@@ -142,8 +143,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						continue;
 					}
 				}
-			}
 
+				// idle with no auto-reply selected (or not confirmed) => we are done
+				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+				break;
+			}
 		}
 
 		if (!this._pollingResult) {
