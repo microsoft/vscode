@@ -369,9 +369,15 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	}
 
 	private async trackEditorProgress(editor: ChatEditorInput, group: IEditorGroup): Promise<void> {
-		// Generate consistent session ID for this editor
+		// Find the session ID that will be used in provideChatSessionItems
 		const editorKey = this.getEditorKey(editor, group);
 		const editorIndex = this.editorOrder.indexOf(editorKey);
+		
+		// Skip if editor not found in our ordered list
+		if (editorIndex === -1) {
+			return;
+		}
+		
 		const sessionId = `local-${group.id}-${editorIndex}`;
 
 		// Resolve the editor model if not already resolved
