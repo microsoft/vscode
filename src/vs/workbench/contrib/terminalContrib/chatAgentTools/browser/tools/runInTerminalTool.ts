@@ -492,6 +492,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		} else {
 			let terminalResult = '';
+
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
 			try {
@@ -522,12 +523,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
 				exitCode = executeResult.exitCode;
 				error = executeResult.error;
-				const sessionId = invocation.context?.sessionId;
-				if (!sessionId) {
-					throw new Error('Session ID is required');
-				}
-				const outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, getOutput: () => executeResult.output ?? '', sessionId }, undefined));
-				const outputAndIdle = await outputMonitor.startMonitoring(command, invocation.context!, token);
 
 				const resultArr: string[] = [];
 				if (executeResult.output !== undefined) {
@@ -535,9 +530,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				if (executeResult.additionalInformation) {
 					resultArr.push(executeResult.additionalInformation);
-				}
-				if (outputAndIdle.modelOutputEvalResponse) {
-					resultArr.push(outputAndIdle.modelOutputEvalResponse);
 				}
 				terminalResult = resultArr.join('\n\n');
 
