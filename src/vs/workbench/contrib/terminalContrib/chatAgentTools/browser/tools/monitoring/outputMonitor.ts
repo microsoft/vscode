@@ -420,7 +420,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					return { prompt: obj.prompt, options: obj.options };
 				}
 			}
-		} catch { }
+		} catch (err) {
+			console.error('Failed to parse confirmation prompt from language model response:', err);
+		}
 		return undefined;
 	}
 
