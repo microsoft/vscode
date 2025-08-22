@@ -22,7 +22,9 @@ export interface ITerminalExecuteStrategyResult {
 	output: string | undefined;
 	additionalInformation?: string;
 	exitCode?: number;
+	autoReply?: string;
 	error?: string;
+	autoReplyResult?: { selectedOption?: string; confirmed: boolean };
 }
 
 export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number): Promise<void> {

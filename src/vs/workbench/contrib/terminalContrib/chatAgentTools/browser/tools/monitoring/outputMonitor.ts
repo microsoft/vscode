@@ -121,19 +121,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return await pollFn();
 	}
 
-	public async checkIfInputRequired(token: CancellationToken, recursionDepth?: number): Promise<IPollingResult> {
+	public async checkIfInputRequired(token: CancellationToken, recursionDepth?: number): Promise<{ selectedOption: string; confirmed: boolean } | undefined> {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 		if (selectedOption) {
 			if (recursionDepth && recursionDepth >= PollingConsts.MaxRecursionCount) {
-				return { state: OutputMonitorState.Timeout, output: this._execution.getOutput() };
+				return;
 			}
 			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
-			if (confirmed) {
-				return this._pollForOutputAndIdle(this._execution, true, token, undefined, recursionDepth ? recursionDepth + 1 : 1);
-			}
+			return { selectedOption, confirmed };
 		}
-		return { state: OutputMonitorState.Cancelled, output: this._execution.getOutput() };
+		return;
 	}
 
 

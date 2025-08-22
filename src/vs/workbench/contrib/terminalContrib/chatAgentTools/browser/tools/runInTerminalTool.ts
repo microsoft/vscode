@@ -34,7 +34,7 @@ import { getOutput } from '../bufferOutputPolling.js';
 import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult } from '../commandLineAutoApprover.js';
 import { CommandSimplifier } from '../commandSimplifier.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
-import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
+import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
@@ -492,7 +492,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		} else {
 			let terminalResult = '';
-
+			let executeResult: ITerminalExecuteStrategyResult | undefined;
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
 			try {
@@ -514,7 +514,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
-				const executeResult = await strategy.execute(command, token);
+				executeResult = await strategy.execute(command, token);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -555,6 +555,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					timingConnectMs,
 					inputUserChars,
 					inputUserSigint,
+					autoReplyCount: executeResult?.autoReplyResult?.confirmed ? 1 : 0
 				});
 			}
 

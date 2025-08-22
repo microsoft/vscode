@@ -36,6 +36,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
+		let autoReplyResult;
 		try {
 			// Ensure xterm is available
 			this._log('Waiting for xterm');
@@ -54,7 +55,8 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				}),
 				trackIdleOnPrompt(this._instance, 1000, store).then(async () => {
 					const outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { getOutput: () => getOutput(this._instance), sessionId: this._instance.sessionId, instance: this._instance }, undefined));
-					await outputMonitor.checkIfInputRequired(token);
+					autoReplyResult = await outputMonitor.checkIfInputRequired(token);
+
 					this._log('onDone via idle prompt');
 				}),
 			]);
@@ -113,6 +115,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				output,
 				additionalInformation: additionalInformationLines.length > 0 ? additionalInformationLines.join('\n') : undefined,
 				exitCode,
+				autoReplyResult
 			};
 		} finally {
 			store.dispose();
