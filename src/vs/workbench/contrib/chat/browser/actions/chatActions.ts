@@ -27,7 +27,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, ICommandPaletteOptions, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -74,6 +74,7 @@ import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -1664,20 +1665,112 @@ export interface IClearEditingSessionConfirmationOptions {
 
 // --- Chat Submenus in various Components
 
-const menuContext = ContextKeyExpr.and(
-	ChatContextKeys.Setup.hidden.negate(),
-	ChatContextKeys.Setup.disabled.negate()
-);
-
-const title = localize('generateCode', "Generate Code");
-
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	submenu: MenuId.ChatTextEditorMenu,
 	group: '1_chat',
 	order: 5,
-	title,
-	when: menuContext
+	title: localize('generateCode', "Generate Code"),
+	when: ContextKeyExpr.and(
+		ChatContextKeys.Setup.hidden.negate(),
+		ChatContextKeys.Setup.disabled.negate()
+	)
 });
+
+// TODO@bpasero remove these when Chat extension is built-in
+{
+	function registerGenerateCodeCommand(coreCommand: string, actualCommand: string): void {
+		CommandsRegistry.registerCommand(coreCommand, async accessor => {
+			const commandService = accessor.get(ICommandService);
+			const telemetryService = accessor.get(ITelemetryService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'editor' });
+
+			if (editorGroupService.activeGroup.activeEditor) {
+				// Pinning the editor helps when the Chat extension welcome kicks in after install to keep context
+				editorGroupService.activeGroup.pinEditor(editorGroupService.activeGroup.activeEditor);
+			}
+
+			const result = await commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			if (!result) {
+				return;
+			}
+
+			await commandService.executeCommand(actualCommand);
+		});
+	}
+	registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
+	registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
+	registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
+	registerGenerateCodeCommand('chat.internal.generateDocs', 'github.copilot.chat.generateDocs');
+	registerGenerateCodeCommand('chat.internal.generateTests', 'github.copilot.chat.generateTests');
+
+	const internalGenerateCodeContext = ContextKeyExpr.and(
+		ChatContextKeys.Setup.hidden.negate(),
+		ChatContextKeys.Setup.disabled.negate(),
+		ChatContextKeys.Setup.installed.negate(),
+	);
+
+	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+		command: {
+			id: 'chat.internal.explain',
+			title: localize('explain', "Explain"),
+		},
+		group: '1_chat',
+		order: 4,
+		when: internalGenerateCodeContext
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		command: {
+			id: 'chat.internal.fix',
+			title: localize('fix', "Fix"),
+		},
+		group: '1_action',
+		order: 1,
+		when: ContextKeyExpr.and(
+			internalGenerateCodeContext,
+			EditorContextKeys.readOnly.negate()
+		)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		command: {
+			id: 'chat.internal.review',
+			title: localize('review', "Code Review"),
+		},
+		group: '1_action',
+		order: 2,
+		when: internalGenerateCodeContext
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		command: {
+			id: 'chat.internal.generateDocs',
+			title: localize('generateDocs', "Generate Docs"),
+		},
+		group: '2_generate',
+		order: 1,
+		when: ContextKeyExpr.and(
+			internalGenerateCodeContext,
+			EditorContextKeys.readOnly.negate()
+		)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		command: {
+			id: 'chat.internal.generateTests',
+			title: localize('generateTests', "Generate Tests"),
+		},
+		group: '2_generate',
+		order: 2,
+		when: ContextKeyExpr.and(
+			internalGenerateCodeContext,
+			EditorContextKeys.readOnly.negate()
+		)
+	});
+}
+
 
 // --- Chat Default Visibility
 
