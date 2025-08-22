@@ -11,7 +11,7 @@ import { DisposableStore, MutableDisposable } from '../../../../../base/common/l
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 
@@ -41,6 +41,7 @@ export class ToolTerminalCreator {
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 	}
@@ -71,6 +72,7 @@ export class ToolTerminalCreator {
 			ToolTerminalCreator._lastSuccessfulShell !== ShellLaunchType.Fallback ||
 			siInjectionEnabled
 		) {
+			this._logService.info(`ToolTerminalCreator#createTerminal: Waiting ${waitTime}ms for shell integration`);
 			const shellIntegrationQuality = await this._waitForShellIntegration(instance, waitTime);
 			if (token.isCancellationRequested) {
 				instance.dispose();
@@ -82,6 +84,8 @@ export class ToolTerminalCreator {
 				toolTerminal.shellIntegrationQuality = shellIntegrationQuality;
 				return toolTerminal;
 			}
+		} else {
+			this._logService.info(`ToolTerminalCreator#createTerminal: Skipping wait for shell integration - last successful launch type ${ToolTerminalCreator._lastSuccessfulShell}`);
 		}
 
 		// Fallback case: No shell integration in default profile
@@ -129,11 +133,15 @@ export class ToolTerminalCreator {
 		const result = new DeferredPromise<ShellIntegrationQuality>();
 
 		const siNoneTimer = store.add(new MutableDisposable());
-		siNoneTimer.value = disposableTimeout(() => result.complete(ShellIntegrationQuality.None), timeoutMs);
+		siNoneTimer.value = disposableTimeout(() => {
+			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out ${timeoutMs}ms, using no SI`);
+			result.complete(ShellIntegrationQuality.None);
+		}, timeoutMs);
 
 		if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection) {
 			// Rich command detection is available immediately.
 			siNoneTimer.clear();
+			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Rich SI available immediately`);
 			result.complete(ShellIntegrationQuality.Rich);
 		} else {
 			const onSetRichCommandDetection = store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, e => e.onSetRichCommandDetection));
@@ -143,15 +151,17 @@ export class ToolTerminalCreator {
 				}
 				siNoneTimer.clear();
 				// Rich command detection becomes available some time after the terminal is created.
+				this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Rich SI available eventually`);
 				result.complete(ShellIntegrationQuality.Rich);
 			}));
 
 			const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
 				siNoneTimer.clear();
-				// When command detection lights up, allow up to 200ms for the rich command
+				// When SI lights up, allow up to 200ms for the rich command
 				// detection sequence to come in before declaring it as basic shell integration.
 				store.add(disposableTimeout(() => {
+					this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out 200ms, using basic SI`);
 					result.complete(ShellIntegrationQuality.Basic);
 				}, 200));
 			} else {
@@ -162,6 +172,7 @@ export class ToolTerminalCreator {
 						// detection sequence to come in before declaring it as basic shell
 						// integration.
 						store.add(disposableTimeout(() => {
+							this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out 200ms, using basic SI (via listener)`);
 							result.complete(ShellIntegrationQuality.Basic);
 						}, 200));
 					}
@@ -169,7 +180,10 @@ export class ToolTerminalCreator {
 			}
 		}
 
-		result.p.finally(() => store.dispose());
+		result.p.finally(() => {
+			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Promise complete, disposing store`);
+			store.dispose();
+		});
 
 		return result.p;
 	}
