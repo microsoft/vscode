@@ -9,7 +9,6 @@ import { Schemas, matchesScheme } from '../../../../base/common/network.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { isNumber, isObject, isString, isUndefined } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -29,7 +28,6 @@ import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
 import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
 import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
-import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
@@ -38,7 +36,7 @@ import { IEditorResolverService } from '../../../services/editor/common/editorRe
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
-import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, DIFF_OPEN_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
+import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
 import { prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -1342,33 +1340,6 @@ function registerOtherEditorCommands(): void {
 					group.stickEditor(editor);
 				}
 			}
-		}
-	});
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: DIFF_OPEN_SIDE,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: EditorContextKeys.inDiffEditor,
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyO),
-		handler: async accessor => {
-			const editorService = accessor.get(IEditorService);
-			const editorGroupsService = accessor.get(IEditorGroupsService);
-
-			const activeEditor = editorService.activeEditor;
-			const activeTextEditorControl = editorService.activeTextEditorControl;
-			if (!isDiffEditor(activeTextEditorControl) || !(activeEditor instanceof DiffEditorInput)) {
-				return;
-			}
-
-			let editor: EditorInput | undefined;
-			const originalEditor = activeTextEditorControl.getOriginalEditor();
-			if (originalEditor.hasTextFocus()) {
-				editor = activeEditor.original;
-			} else {
-				editor = activeEditor.modified;
-			}
-
-			return editorGroupsService.activeGroup.openEditor(editor);
 		}
 	});
 

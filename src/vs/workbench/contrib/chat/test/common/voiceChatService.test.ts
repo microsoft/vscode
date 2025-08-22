@@ -27,6 +27,7 @@ suite('VoiceChat', () => {
 	class TestChatAgent implements IChatAgent {
 
 		extensionId: ExtensionIdentifier = nullExtensionDescription.identifier;
+		extensionVersion: string | undefined = undefined;
 		extensionPublisher = '';
 		extensionDisplayName = '';
 		extensionPublisherId = '';

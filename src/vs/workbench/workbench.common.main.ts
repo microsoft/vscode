@@ -129,7 +129,6 @@ import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
-import './services/coreExperimentation/common/coreExperimentationService.js';
 import './services/dataChannel/browser/dataChannelService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';

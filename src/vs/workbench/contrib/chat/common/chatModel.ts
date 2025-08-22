@@ -355,6 +355,7 @@ class AbstractResponse implements IResponse {
 	private partsToRepr(parts: readonly IChatProgressResponseContent[]): string {
 		const blocks: string[] = [];
 		let currentBlockSegments: string[] = [];
+		let hasEditGroupsAfterLastClear = false;
 
 		for (const part of parts) {
 			let segment: { text: string; isBlock?: boolean } | undefined;
@@ -362,6 +363,7 @@ class AbstractResponse implements IResponse {
 				case 'clearToPreviousToolInvocation':
 					currentBlockSegments = [];
 					blocks.length = 0;
+					hasEditGroupsAfterLastClear = false; // Reset edit groups flag when clearing
 					continue;
 				case 'treeData':
 				case 'progressMessage':
@@ -385,8 +387,10 @@ class AbstractResponse implements IResponse {
 					break;
 				case 'textEditGroup':
 				case 'notebookEditGroup':
-					segment = { text: localize('editsSummary', "Made changes."), isBlock: true };
-					break;
+					// Mark that we have edit groups after the last clear
+					hasEditGroupsAfterLastClear = true;
+					// Skip individual edit groups to avoid duplication
+					continue;
 				case 'confirmation':
 					if (part.message instanceof MarkdownString) {
 						segment = { text: `${part.title}\n${part.message.value}`, isBlock: true };
@@ -412,6 +416,11 @@ class AbstractResponse implements IResponse {
 
 		if (currentBlockSegments.length) {
 			blocks.push(currentBlockSegments.join(''));
+		}
+
+		// Add consolidated edit summary at the end if there were any edit groups after the last clear
+		if (hasEditGroupsAfterLastClear) {
+			blocks.push(localize('editsSummary', "Made changes."));
 		}
 
 		return blocks.join('\n\n');
@@ -463,10 +472,12 @@ export class Response extends AbstractResponse implements IDisposable {
 	private _citations: IChatCodeCitation[] = [];
 
 
-	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>) {
-		super(asArray(value).map((v) => (isMarkdownString(v) ?
-			{ content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
-			'kind' in v ? v : { kind: 'treeData', treeData: v })));
+	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart>) {
+		super(asArray(value).map((v) => (
+			'kind' in v ? v :
+				isMarkdownString(v) ? { content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
+					{ kind: 'treeData', treeData: v }
+		)));
 	}
 
 	dispose(): void {
@@ -625,7 +636,7 @@ export class Response extends AbstractResponse implements IDisposable {
 }
 
 export interface IChatResponseModelParameters {
-	responseContent: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>;
+	responseContent: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart>;
 	session: ChatModel;
 	agent?: IChatAgentData;
 	slashCommand?: IChatAgentCommand;
@@ -980,7 +991,7 @@ export interface ISerializableChatRequestData {
 	message: string | IParsedChatRequest; // string => old format
 	/** Is really like "prompt data". This is the message in the format in which the agent gets it + variable values. */
 	variableData: IChatRequestVariableData;
-	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability> | undefined;
+	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart> | undefined;
 
 	/**Old, persisted name for shouldBeRemovedOnSend */
 	isHidden?: boolean;

@@ -9,11 +9,12 @@
     "watch-automation": "cd ../automation && npm run watch",
     "watch-mcp": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
     "watch": "npm-run-all -lp watch-automation watch-mcp",
-    "start": "node ./out/main.js"
+    "start-http": "npm run -s compile && node ./out/main.js",
+    "start-stdio": "npm run -s compile && node ./out/stdio.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.3",
-    "@playwright/mcp": "^0.0.33",
+    "@playwright/mcp": "^0.0.34",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "minimist": "^1.2.8",

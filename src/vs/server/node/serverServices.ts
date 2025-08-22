@@ -9,7 +9,7 @@ import { DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import * as path from '../../base/common/path.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
-import { getMachineId, getSqmMachineId, getdevDeviceId } from '../../base/node/id.js';
+import { getMachineId, getSqmMachineId, getDevDeviceId } from '../../base/node/id.js';
 import { Promises } from '../../base/node/pfs.js';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer, StaticRouter } from '../../base/parts/ipc/common/ipc.js';
 import { ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
@@ -87,6 +87,7 @@ import { IExtensionGalleryManifestService } from '../../platform/extensionManage
 import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
+import { INpmPackageManagementService, NpmPackageService } from '../../platform/mcp/node/npmPackageService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpManagementChannel } from '../../platform/mcp/common/mcpManagementIpc.js';
@@ -154,7 +155,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		userDataProfilesService.init(),
 		getMachineId(logService.error.bind(logService)),
 		getSqmMachineId(logService.error.bind(logService)),
-		getdevDeviceId(logService.error.bind(logService))
+		getDevDeviceId(logService.error.bind(logService))
 	]);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
@@ -224,6 +225,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
 	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));
 	services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService));
+	services.set(INpmPackageManagementService, new SyncDescriptor(NpmPackageService));
 	services.set(IMcpManagementService, new SyncDescriptor(McpManagementService));
 
 	instantiationService.invokeFunction(accessor => {

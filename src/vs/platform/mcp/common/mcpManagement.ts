@@ -196,6 +196,8 @@ export interface IMcpManagementService {
 	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
+
+	getMcpServerConfigurationFromManifest(manifest: IMcpServerManifest, packageType: PackageType): Omit<IInstallableMcpServer, 'name'>;
 }
 
 export const IAllowedMcpServersService = createDecorator<IAllowedMcpServersService>('IAllowedMcpServersService');

@@ -183,6 +183,25 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('prompt slash command with numbers', async () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		slashCommandService.getCommands.returns([{ command: 'fix' }]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+
+		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		promptSlashCommandService.asPromptSlashCommand.callsFake((command: string) => {
+			if (command.match(/^[\w_\-\.]+$/)) {
+				return { command };
+			}
+			return undefined;
+		});
+		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const text = '/001-sample this is a test';
+		const result = parser.parseChatRequest('1', text);
+		await assertSnapshot(result);
+	});
 
 	// test('variables', async () => {
 	// 	varService.hasVariable.returns(true);
@@ -214,7 +233,7 @@ suite('ChatRequestParser', () => {
 	// });
 
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
-		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], modes: [ChatModeKind.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
+		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, extensionVersion: undefined, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], modes: [ChatModeKind.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
 	};
 
 	test('agent with subcommand after text', async () => {

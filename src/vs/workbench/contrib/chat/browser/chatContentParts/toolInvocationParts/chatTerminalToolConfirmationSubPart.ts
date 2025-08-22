@@ -5,12 +5,14 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { Separator } from '../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../base/common/errors.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { thenIfNotDisposed, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import Severity from '../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -21,9 +23,11 @@ import { ITextModelService } from '../../../../../../editor/common/services/reso
 import { localize } from '../../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
@@ -39,6 +43,10 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
+export const enum TerminalToolConfirmationStorageKeys {
+	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
+}
+
 const $ = dom.$;
 
 export interface ITerminalNewAutoApproveRule {
@@ -50,6 +58,7 @@ export interface ITerminalNewAutoApproveRule {
 }
 
 export type TerminalNewAutoApproveButtonData = (
+	{ type: 'enable' } |
 	{ type: 'configure' } |
 	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] }
 );
@@ -68,6 +77,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -75,6 +85,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ITextModelService textModelService: ITextModelService,
 		@IHoverService hoverService: IHoverService,
 	) {
@@ -94,12 +105,38 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
+		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === 'on';
+		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
+		let moreActions: (IChatConfirmationButton | Separator)[] | undefined = undefined;
+		if (autoApproveEnabled) {
+			moreActions = [];
+			if (!autoApproveWarningAccepted) {
+				moreActions.push({
+					label: localize('autoApprove.enable', 'Enable Auto Approve...'),
+					data: {
+						type: 'enable'
+					} satisfies TerminalNewAutoApproveButtonData
+				});
+				moreActions.push(new Separator());
+				if (terminalCustomActions) {
+					for (const action of terminalCustomActions) {
+						if (!(action instanceof Separator)) {
+							action.disabled = true;
+						}
+					}
+				}
+			}
+			if (terminalCustomActions) {
+				moreActions.push(...terminalCustomActions);
+			}
+		}
+
 		const buttons: IChatConfirmationButton[] = [
 			{
 				label: continueLabel,
 				data: true,
 				tooltip: continueTooltip,
-				moreActions: terminalCustomActions,
+				moreActions,
 			},
 			{
 				label: cancelLabel,
@@ -184,6 +221,41 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			const data = button.data as TerminalNewAutoApproveButtonData | boolean;
 			if (typeof data !== 'boolean') {
 				switch (data.type) {
+					case 'enable': {
+						const optedIn = await this._showAutoApproveWarning();
+						if (optedIn) {
+							this.storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
+							// If this would not have been auto approved, enable the options and do
+							// not complete
+							if (terminalCustomActions) {
+								for (const action of terminalCustomActions) {
+									if (!(action instanceof Separator)) {
+										action.disabled = false;
+									}
+								}
+
+								const buttons: IChatConfirmationButton[] = [
+									{
+										label: continueLabel,
+										data: true,
+										tooltip: continueTooltip,
+										moreActions: terminalCustomActions,
+									},
+									{
+										label: cancelLabel,
+										data: false,
+										isSecondary: true,
+										tooltip: cancelTooltip,
+									}
+								];
+								confirmWidget.updateButtons(buttons);
+								doComplete = false;
+							}
+						} else {
+							doComplete = false;
+						}
+						break;
+					}
 					case 'newRule': {
 						const newRules = asArray(data.rule);
 						const inspect = this.configurationService.inspect(TerminalContribSettingId.AutoApprove);
@@ -204,7 +276,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							});
 							throw new ErrorNoTelemetry(`Cannot add new rule, existing setting is unexpected format`);
 						}
-						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue);
+						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue, ConfigurationTarget.USER);
 						function formatRuleLinks(newRules: ITerminalNewAutoApproveRule[]): string {
 							return newRules.map(e => {
 								return `[\`${e.key}\`](settings_${ConfigurationTarget.USER} "${localize('ruleTooltip', 'View rule in settings')}")`;
@@ -239,6 +311,27 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		});
 
 		this.domNode = confirmWidget.domNode;
+	}
+
+	private async _showAutoApproveWarning(): Promise<boolean> {
+		const promptResult = await this._dialogService.prompt({
+			type: Severity.Info,
+			message: localize('autoApprove.title', 'Enable terminal auto approve?'),
+			buttons: [{
+				label: localize('autoApprove.button.enable', 'Enable'),
+				run: () => true
+			}],
+			cancelButton: true,
+			custom: {
+				icon: Codicon.shield,
+				markdownDetails: [{
+					markdown: new MarkdownString(localize('autoApprove.markdown', 'This will enable a configurable subset of commands to run in the terminal autonomously. It provides *best effort protections* and assumes the agent is not acting maliciously.')),
+					// TODO: Add this link when it's available
+					// 	markdown: new MarkdownString(`${localize('autoApprove.markdown2', '[Learn more about the potential risks and how to avoid them.](docs)')}`)
+				}],
+			}
+		});
+		return promptResult.result === true;
 	}
 
 	private _getUniqueCodeBlockUri() {

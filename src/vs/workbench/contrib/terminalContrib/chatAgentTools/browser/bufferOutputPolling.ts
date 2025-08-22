@@ -26,6 +26,7 @@ export const enum PollingConsts {
 	FirstPollingMaxDuration = 20000, // 20 seconds
 	ExtendedPollingMaxDuration = 120000, // 2 minutes
 	MaxPollingIntervalDuration = 2000, // 2 seconds
+	MaxRecursionCount = 5
 }
 
 
@@ -232,7 +233,7 @@ export async function assessOutputForErrors(buffer: string, token: CancellationT
 		return 'No models available';
 	}
 
-	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('Github.copilot-chat'), [{ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
+	const response = await languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('github.copilot-chat'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }], {}, token);
 
 	let responseText = '';
 

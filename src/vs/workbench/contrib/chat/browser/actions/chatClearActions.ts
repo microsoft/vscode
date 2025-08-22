@@ -201,7 +201,7 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ChatMessageRestoreCheckpoint,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ChatContextKeys.lockedToCodingAgent.negate(),
 					group: 'navigation',
 					order: -1
 				}]

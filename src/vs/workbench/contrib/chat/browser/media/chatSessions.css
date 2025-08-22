@@ -3,23 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-sessions-tree .monaco-tl-twistie {
-	display: none !important;
-}
-
-.chat-sessions-tree {
-	line-height: 22px;
-}
-
 /* Ensure consistent title background regardless of number of views */
 .composite.viewlet[id="workbench.view.chat.sessions"] .pane-header.expanded.not-collapsible {
 	background-color: var(--vscode-sideBarSectionHeader-background) !important;
-}
-
-/* Add padding to chat session item icons */
-.chat-sessions-tree .chat-session-item .monaco-icon-label-iconpath {
-	margin-right: 4px;
-	margin-left: 4px;
 }
 
 /* Style for empty state message */
@@ -37,55 +23,39 @@
 	font-style: italic;
 }
 
-.chat-sessions-message .no-sessions-message .codicon {
-	opacity: 0.7;
-}
-
-/* Styling for chat session items being edited - exactly matching Explorer's approach */
-.chat-sessions-tree .session-input-container {
+/* Simple approach - directly style the edit container for chat sessions */
+.chat-sessions-tree-container .explorer-item.explorer-item-edited {
 	display: flex;
 	align-items: center;
-	width: 100%;
+	height: 22px;
 	padding: 0;
-	/* Override the input border variable to be transparent */
-	--vscode-input-border: transparent;
 }
 
-.chat-session-item.codicon {
+.chat-sessions-tree-container .explorer-item.explorer-item-edited .codicon {
 	margin-right: 6px;
 	flex-shrink: 0;
 }
 
-.chat-sessions-tree .session-input-container .session-input-icon {
-	margin-right: 6px;
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-/* Override inline styles to match Explorer's exact inputbox styling */
-.chat-sessions-tree .session-input-container .monaco-inputbox {
+.chat-sessions-tree-container .explorer-item.explorer-item-edited .monaco-inputbox {
 	flex: 1;
-	min-width: 0;
-	font-family: inherit;
-	font-size: inherit;
-	height: 22px !important;
+	width: 100%;
+	line-height: normal;
+	border: none !important;
+	background: transparent !important;
 }
 
-.chat-sessions-tree .session-input-container .monaco-inputbox > .ibwrapper > .input {
-	padding: 0 !important;
-	height: 20px !important;
-	line-height: 20px !important;
+/* Add the complete outline border that file explorer uses (this replaces the border) */
+.chat-sessions-tree-container .explorer-item.explorer-item-edited .monaco-inputbox input[type="text"] {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1;
+	border: none !important; /* Remove any default border */
 }
-
-.chat-sessions-tree .session-input-container .monaco-inputbox:focus-within {
-	--vscode-input-border: var(--vscode-focusBorder) !important;
 
 /* Position session content and actions inline */
-.chat-sessions-tree .chat-session-item .session-content {
+.chat-sessions-tree-container .chat-session-item .session-content {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -93,65 +63,59 @@
 	min-height: 22px;
 }
 
-.chat-sessions-tree .chat-session-item .actions {
+.chat-sessions-tree-container .chat-session-item .actions {
 	margin-left: 8px;
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
 }
 
-/* Hide action bar actions by default */
-.chat-sessions-tree .chat-session-item .actions .action-label {
-	display: none;
+/* Hide actions by default, show on hover and focus */
+.chat-sessions-tree-container .chat-session-item .actions .monaco-action-bar .action-label {
+	opacity: 0;
 }
 
-/* Show action bar actions on hover and focus */
-.chat-sessions-tree .chat-session-item:hover .actions .action-label,
-.chat-sessions-tree .monaco-list-row.focused .chat-session-item .actions .action-label,
-.chat-sessions-tree .monaco-list-row.selected .chat-session-item .actions .action-label {
-	display: flex;
-	align-items: center;
+.chat-sessions-tree-container .chat-session-item:hover .actions .monaco-action-bar .action-label,
+.chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .actions .monaco-action-bar .action-label,
+.chat-sessions-tree-container .monaco-list-row.selected .chat-session-item .actions .monaco-action-bar .action-label {
+	opacity: 1;
 }
 
 /* For items with descriptions, keep the structure but adjust alignment */
-.chat-sessions-tree .chat-session-item:not(.local-session) .session-content {
-	align-items: flex-start;
-	padding-top: 2px;
-	padding-bottom: 2px;
+.chat-sessions-tree-container .chat-session-item .session-content {
+	align-items: center;
+	padding-top: 0;
+	padding-bottom: 0;
 }
 
 /* Ensure resource label takes up available space */
-.chat-sessions-tree .chat-session-item .monaco-icon-label {
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label {
 	flex: 1;
 	min-width: 0; /* Allow text to truncate */
 }
 
-/* Multi-line description support */
-.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-label-container {
-	flex-direction: column !important;
-	align-items: flex-start !important;
-	gap: 1px;
+/* Hide twisties for elements that don't have children */
+.chat-sessions-tree-container .monaco-list-row .monaco-tl-twistie {
+	visibility: hidden;
+	width: 0;
+	padding: 0;
+	margin: 0;
 }
 
-.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-name-container {
-	display: flex;
-	align-items: center;
-	width: 100%;
+/* Show twistie only for collapsible items (like "Show history...") */
+.chat-sessions-tree-container .monaco-list-row[aria-expanded] .monaco-tl-twistie {
+	visibility: visible;
+	width: auto;
+	padding-left: 0px;
+	padding-right: 6px;
+	margin: initial;
 }
 
-.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-description-container {
-	width: 100%;
-	padding-left: 0;
+/* History items styling */
+.chat-sessions-tree-container .chat-session-item[data-history-item="true"] {
+	opacity: 0.9;
 }
 
-.chat-sessions-tree .chat-session-item:not(.local-session) .monaco-icon-description-container > .label-description {
-	margin-left: 0 !important;
-	margin-top: 0;
-	opacity: 0.6;
-	font-size: 0.9em;
-	color: var(--vscode-descriptionForeground);
-	white-space: normal !important;
-	word-wrap: break-word;
-	line-height: 1.3;
-	display: block;
+.chat-sessions-tree-container .chat-session-item[data-history-item="true"]:hover {
+	background-color: var(--vscode-list-hoverBackground);
 }
