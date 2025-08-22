@@ -300,8 +300,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const match = responseText.match(/\{[\s\S]*\}/);
 			if (match) {
 				const obj = JSON.parse(match[0]);
-				if (obj && obj satisfies IConfirmationPrompt) {
-					return obj;
+				if (obj && typeof obj.prompt === 'string' && Array.isArray(obj.options)) {
+					return obj as IConfirmationPrompt;
 				}
 			}
 		} catch {
