@@ -49,8 +49,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _inputToolManualAcceptCount = 0;
 	private _inputToolManualRejectCount = 0;
 	private _inputToolManualChars = 0;
-	private _inputToolSuggestChars = 0;
-	private _inputToolSuggestInputCount = 0;
 
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
@@ -358,8 +356,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// Validate that the selectedOption matches one of the original options
 			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
 			if (selectedOption && validOption && validOption !== this._lastAutoReply) {
-				this._inputToolSuggestInputCount++;
-				this._inputToolSuggestChars += validOption.length;
 				return Promise.resolve(validOption);
 			}
 		}
