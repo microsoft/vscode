@@ -352,11 +352,9 @@ export async function showToolsPicker(
 			bucket.children.push(treeItem);
 			const children = [];
 			for (const tool of toolSet.getTools()) {
-				if (tool.canBeReferencedInPrompt) {
-					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
-					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
-					children.push(toolTreeItem);
-				}
+				const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
+				const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
+				children.push(toolTreeItem);
 			}
 			if (children.length > 0) {
 				treeItem.children = children;

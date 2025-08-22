@@ -35,7 +35,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolSet, stringifyPromptTsxPart, ToolDataSource } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolSet, stringifyPromptTsxPart, ToolDataSource, IToolAndToolSetEnablementMap } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -493,29 +493,24 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	/**
 	 * Create a map that contains all tools and toolsets with their enablement state.
-	 * @param toolOrToolSetNames A list of tool or toolset names to check for enablement. If undefined, all tools and toolsets are enabled.
+	 * @param toolOrToolSetNames A list of tool or toolset names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
 	 */
-	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
-		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
+	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
+		const toolOrToolSetNames = new Set(enabledToolOrToolSetNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
 		for (const tool of this.getTools()) {
 			if (tool.canBeReferencedInPrompt) {
-				result.set(tool, toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
+				result.set(tool, toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
 			}
 		}
 		for (const toolSet of this._toolSets) {
-			const enabled = toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName);
+			const enabled = toolOrToolSetNames.has(toolSet.referenceName);
 			result.set(toolSet, enabled);
-
-			// if a mcp toolset is enabled, all tools in it are enabled
-			if (enabled && toolSet.source.type === 'mcp') {
-				for (const tool of toolSet.getTools()) {
-					if (tool.canBeReferencedInPrompt) {
-						result.set(tool, enabled);
-					}
-				}
+			for (const tool of toolSet.getTools()) {
+				result.set(tool, enabled || toolOrToolSetNames?.has(tool.toolReferenceName ?? tool.displayName));
 			}
+
 		}
 		return result;
 	}
