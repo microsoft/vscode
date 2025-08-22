@@ -209,13 +209,21 @@ export class ErdosPlotsViewPane extends ViewPane implements IReactComponentConta
 
 		// TODO: Create the ErdosReactRenderer for the ErdosPlots component and render it.
 		// For now, show a simple placeholder until React integration is complete
-		this._erdosPlotsContainer.innerHTML = `
-			<div style="padding: 20px; text-align: center; color: var(--vscode-foreground);">
-				<h3>Erdos Plots</h3>
-				<p>Plot visualization will appear here once connected to language runtimes.</p>
-				<p style="font-size: 12px; opacity: 0.7;">Phase 2.3 - Plots UI implementation complete</p>
-			</div>
-		`;
+		const placeholder = DOM.append(this._erdosPlotsContainer, DOM.$('div'));
+		placeholder.style.padding = '20px';
+		placeholder.style.textAlign = 'center';
+		placeholder.style.color = 'var(--vscode-foreground)';
+		
+		const title = DOM.append(placeholder, DOM.$('h3'));
+		title.textContent = 'Erdos Plots';
+		
+		const description = DOM.append(placeholder, DOM.$('p'));
+		description.textContent = 'Plot visualization will appear here once connected to language runtimes.';
+		
+		const status = DOM.append(placeholder, DOM.$('p'));
+		status.style.fontSize = '12px';
+		status.style.opacity = '0.7';
+		status.textContent = 'Phase 2.3 - Plots UI implementation complete';
 	}
 
 	/**
