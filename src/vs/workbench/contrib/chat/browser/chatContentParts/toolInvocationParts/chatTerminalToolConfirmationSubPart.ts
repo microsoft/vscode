@@ -32,7 +32,7 @@ import { IPreferencesService } from '../../../../../services/preferences/common/
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatToolInvocation, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import type { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
@@ -216,18 +216,33 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}
 
 		ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService).set(true);
-		this._register(confirmWidget.onDidClick(async button => {
+		this._register(confirmWidget.onDidClick(async (button: Omit<IChatConfirmationButton, 'data'> & { data: TerminalNewAutoApproveButtonData | boolean }) => {
 			let doComplete = true;
-			const data = button.data as TerminalNewAutoApproveButtonData | boolean;
-			if (typeof data !== 'boolean') {
+			const data = button.data;
+			let toolConfirmKind: ToolConfirmKind = ToolConfirmKind.Denied;
+			if (typeof data === 'boolean') {
+				if (data) {
+					toolConfirmKind = ToolConfirmKind.UserAction;
+					// Clear out any auto approve info since this was an explicit user action. This
+					// can happen when the auto approve feature is off.
+					if (terminalData.autoApproveInfo) {
+						terminalData.autoApproveInfo = undefined;
+					}
+				}
+			} else if (typeof data !== 'boolean') {
 				switch (data.type) {
 					case 'enable': {
 						const optedIn = await this._showAutoApproveWarning();
 						if (optedIn) {
 							this.storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
+							// This is good to auto approve immediately
+							if (!terminalCustomActions) {
+								toolConfirmKind = ToolConfirmKind.UserAction;
+							}
 							// If this would not have been auto approved, enable the options and do
 							// not complete
-							if (terminalCustomActions) {
+							else {
+
 								for (const action of terminalCustomActions) {
 									if (!(action instanceof Separator)) {
 										action.disabled = false;
@@ -287,6 +302,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						} else if (newRules.length > 1) {
 							terminalData.autoApproveInfo = new MarkdownString(`_${localize('newRule.plural', 'Auto approve rules {0} added', formatRuleLinks(newRules))}_`);
 						}
+						toolConfirmKind = ToolConfirmKind.UserAction;
 						break;
 					}
 					case 'configure': {
@@ -300,7 +316,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				}
 			}
 			if (doComplete) {
-				toolInvocation.confirmed.complete(button.data);
+				toolInvocation.confirmed.complete({ type: toolConfirmKind });
 				this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
 			}
 		}));
