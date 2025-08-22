@@ -25,7 +25,7 @@ type RunTaskToolClassification = {
 	inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
 	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
 	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
-	inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by copilot automatically responding' };
+	inputToolSuggestChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters copilot suggests as input' };
 	inputToolSuggestInputCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times copilot suggested an input' };
 	owner: 'meganrogge';
 	comment: 'Understanding the usage of the runTask tool';
@@ -37,7 +37,7 @@ type RunTaskToolEvent = {
 	inputToolManualAcceptCount: number;
 	inputToolManualRejectCount: number;
 	inputToolManualChars: number;
-	inputToolAutoChars: number;
+	inputToolSuggestChars: number;
 	inputToolSuggestInputCount: number;
 };
 
@@ -108,7 +108,7 @@ export class RunTaskTool implements IToolImpl {
 				inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
 				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
 				inputToolManualChars: r.inputToolManualChars ?? 0,
-				inputToolAutoChars: r.inputToolAutoChars ?? 0,
+				inputToolSuggestChars: r.inputToolSuggestChars ?? 0,
 				inputToolSuggestInputCount: r.inputToolSuggestInputCount ?? 0,
 			});
 		}

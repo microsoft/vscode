@@ -28,7 +28,7 @@ export interface IPollingResult {
 	inputToolManualAcceptCount?: number;
 	inputToolManualRejectCount?: number;
 	inputToolManualChars?: number;
-	inputToolAutoChars?: number;
+	inputToolSuggestChars?: number;
 	inputToolSuggestInputCount?: number;
 }
 

@@ -49,7 +49,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _inputToolManualAcceptCount = 0;
 	private _inputToolManualRejectCount = 0;
 	private _inputToolManualChars = 0;
-	private _inputToolAutoChars = 0;
+	private _inputToolSuggestChars = 0;
 	private _inputToolSuggestInputCount = 0;
 
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
@@ -244,7 +244,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					inputToolManualAcceptCount: this._inputToolManualAcceptCount,
 					inputToolManualRejectCount: this._inputToolManualRejectCount,
 					inputToolManualChars: this._inputToolManualChars,
-					inputToolAutoChars: this._inputToolAutoChars,
+					inputToolSuggestChars: this._inputToolSuggestChars,
 					inputToolSuggestInputCount: this._inputToolSuggestInputCount
 				};
 			}
@@ -260,7 +260,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			inputToolManualAcceptCount: this._inputToolManualAcceptCount,
 			inputToolManualRejectCount: this._inputToolManualRejectCount,
 			inputToolManualChars: this._inputToolManualChars,
-			inputToolAutoChars: this._inputToolAutoChars,
+			inputToolSuggestChars: this._inputToolSuggestChars,
 			inputToolSuggestInputCount: this._inputToolSuggestInputCount
 		};
 	}
@@ -364,7 +364,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (selectedOption && validOption && validOption !== this._lastAutoReply) {
 				// Track that copilot automatically provided a response
 				this._inputToolSuggestInputCount++;
-				this._inputToolAutoChars += validOption.length;
+				this._inputToolSuggestChars += validOption.length;
 				return Promise.resolve(validOption);
 			}
 		}

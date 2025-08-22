@@ -102,7 +102,7 @@ export class RunInTerminalToolTelemetry {
 		inputToolManualAcceptCount?: number;
 		inputToolManualRejectCount?: number;
 		inputToolManualChars?: number;
-		inputToolAutoChars?: number;
+		inputToolSuggestChars?: number;
 		inputToolSuggestInputCount?: number;
 	}) {
 		type TelemetryEvent = {
@@ -127,7 +127,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: number;
 			inputToolManualRejectCount: number;
 			inputToolManualChars: number;
-			inputToolAutoChars: number;
+			inputToolSuggestChars: number;
 			inputToolSuggestInputCount: number;
 		};
 		type TelemetryClassification = {
@@ -155,7 +155,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
 			inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
 			inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
-			inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by copilot automatically responding' };
+			inputToolSuggestChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters copilot suggests as input' };
 			inputToolSuggestInputCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times copilot suggested an input' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
@@ -180,7 +180,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: state.inputToolManualAcceptCount ?? 0,
 			inputToolManualRejectCount: state.inputToolManualRejectCount ?? 0,
 			inputToolManualChars: state.inputToolManualChars ?? 0,
-			inputToolAutoChars: state.inputToolAutoChars ?? 0,
+			inputToolSuggestChars: state.inputToolSuggestChars ?? 0,
 			inputToolSuggestInputCount: state.inputToolSuggestInputCount ?? 0,
 		});
 	}

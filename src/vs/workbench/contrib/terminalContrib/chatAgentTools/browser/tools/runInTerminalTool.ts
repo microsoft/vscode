@@ -490,7 +490,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputToolManualAcceptCount: outputAndIdle?.inputToolManualAcceptCount ?? 0,
 					inputToolManualRejectCount: outputAndIdle?.inputToolManualRejectCount ?? 0,
 					inputToolManualChars: outputAndIdle?.inputToolManualChars ?? 0,
-					inputToolAutoChars: outputAndIdle?.inputToolAutoChars ?? 0,
+					inputToolSuggestChars: outputAndIdle?.inputToolSuggestChars ?? 0,
 					inputToolSuggestInputCount: outputAndIdle?.inputToolSuggestInputCount ?? 0,
 				});
 			}
@@ -562,7 +562,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputToolManualAcceptCount: 0,
 					inputToolManualRejectCount: 0,
 					inputToolManualChars: 0,
-					inputToolAutoChars: 0,
+					inputToolSuggestChars: 0,
 					inputToolSuggestInputCount: 0,
 				});
 			}
