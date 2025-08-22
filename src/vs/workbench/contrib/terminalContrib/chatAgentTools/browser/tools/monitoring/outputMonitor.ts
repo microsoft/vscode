@@ -244,8 +244,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					inputToolManualAcceptCount: this._inputToolManualAcceptCount,
 					inputToolManualRejectCount: this._inputToolManualRejectCount,
 					inputToolManualChars: this._inputToolManualChars,
-					inputToolSuggestChars: this._inputToolSuggestChars,
-					inputToolSuggestInputCount: this._inputToolSuggestInputCount
 				};
 			}
 			const confirmed = await this._confirmRunInTerminal(selectedOption, execution);
@@ -260,8 +258,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			inputToolManualAcceptCount: this._inputToolManualAcceptCount,
 			inputToolManualRejectCount: this._inputToolManualRejectCount,
 			inputToolManualChars: this._inputToolManualChars,
-			inputToolSuggestChars: this._inputToolSuggestChars,
-			inputToolSuggestInputCount: this._inputToolSuggestInputCount
 		};
 	}
 

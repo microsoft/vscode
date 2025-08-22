@@ -28,8 +28,6 @@ export interface IPollingResult {
 	inputToolManualAcceptCount?: number;
 	inputToolManualRejectCount?: number;
 	inputToolManualChars?: number;
-	inputToolSuggestChars?: number;
-	inputToolSuggestInputCount?: number;
 }
 
 export enum OutputMonitorState {
