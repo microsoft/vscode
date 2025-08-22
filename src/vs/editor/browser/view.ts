@@ -9,7 +9,7 @@ import { IMouseWheelEvent } from '../../base/browser/mouseEvent.js';
 import { inputLatency } from '../../base/browser/performance.js';
 import { CodeWindow } from '../../base/browser/window.js';
 import { BugIndicatingError, onUnexpectedError } from '../../base/common/errors.js';
-import { IDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
 import { IPointerHandlerHelper } from './controller/mouseHandler.js';
 import { PointerHandlerLastRenderData } from './controller/mouseTarget.js';
 import { PointerHandler } from './controller/pointerHandler.js';
@@ -61,8 +61,9 @@ import { AbstractEditContext } from './controller/editContext/editContext.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
-import { EditContext } from './controller/editContext/native/editContextFactory.js';
 import { GpuMarkOverlay } from './viewParts/gpuMark/gpuMark.js';
+import { AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
+import { Event, Emitter } from '../../base/common/event.js';
 
 
 export interface IContentWidgetData {
@@ -82,6 +83,8 @@ export interface IGlyphMarginWidgetData {
 
 export class View extends ViewEventHandler {
 
+	private _widgetFocusTracker: CodeEditorWidgetFocusTracker;
+
 	private readonly _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
 	private readonly _viewGpuContext?: ViewGpuContext;
@@ -100,7 +103,8 @@ export class View extends ViewEventHandler {
 	private readonly _viewParts: ViewPart[];
 	private readonly _viewController: ViewController;
 
-	private _experimentalEditContextEnabled: boolean;
+	private _editContextEnabled: boolean;
+	private _accessibilitySupport: AccessibilitySupport;
 	private _editContext: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
 
@@ -115,6 +119,7 @@ export class View extends ViewEventHandler {
 	private _ownerID: string;
 
 	constructor(
+		editorContainer: HTMLElement,
 		ownerID: string,
 		commandDelegate: ICommandDelegate,
 		configuration: IEditorConfiguration,
@@ -126,6 +131,14 @@ export class View extends ViewEventHandler {
 	) {
 		super();
 		this._ownerID = ownerID;
+
+		this._widgetFocusTracker = this._register(
+			new CodeEditorWidgetFocusTracker(editorContainer, overflowWidgetsDomNode)
+		);
+		this._register(this._widgetFocusTracker.onChange(() => {
+			this._context.viewModel.setHasWidgetFocus(this._widgetFocusTracker.hasFocus());
+		}));
+
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
 
@@ -144,8 +157,9 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
-		this._editContext = this._instantiateEditContext(this._experimentalEditContextEnabled);
+		this._editContextEnabled = this._context.configuration.options.get(EditorOption.effectiveEditContext);
+		this._accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
+		this._editContext = this._instantiateEditContext();
 
 		this._viewParts.push(this._editContext);
 
@@ -274,10 +288,9 @@ export class View extends ViewEventHandler {
 		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper()));
 	}
 
-	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
-		const domNode = dom.getWindow(this._overflowGuardContainer.domNode);
-		const isEditContextSupported = EditContext.supported(domNode);
-		if (experimentalEditContextEnabled && isEditContextSupported) {
+	private _instantiateEditContext(): AbstractEditContext {
+		const usingExperimentalEditContext = this._context.configuration.options.get(EditorOption.effectiveEditContext);
+		if (usingExperimentalEditContext) {
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
 			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
@@ -285,15 +298,17 @@ export class View extends ViewEventHandler {
 	}
 
 	private _updateEditContext(): void {
-		const experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
-		if (this._experimentalEditContextEnabled === experimentalEditContextEnabled) {
+		const editContextEnabled = this._context.configuration.options.get(EditorOption.effectiveEditContext);
+		const accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
+		if (this._editContextEnabled === editContextEnabled && this._accessibilitySupport === accessibilitySupport) {
 			return;
 		}
-		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		this._editContextEnabled = editContextEnabled;
+		this._accessibilitySupport = accessibilitySupport;
 		const isEditContextFocused = this._editContext.isFocused();
 		const indexOfEditContext = this._viewParts.indexOf(this._editContext);
 		this._editContext.dispose();
-		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled);
+		this._editContext = this._instantiateEditContext();
 		if (isEditContextFocused) {
 			this._editContext.focus();
 		}
@@ -681,8 +696,13 @@ export class View extends ViewEventHandler {
 		return this._editContext.isFocused();
 	}
 
+	public isWidgetFocused(): boolean {
+		return this._widgetFocusTracker.hasFocus();
+	}
+
 	public refreshFocusState() {
 		this._editContext.refreshFocusState();
+		this._widgetFocusTracker.refreshState();
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
@@ -845,5 +865,66 @@ class EditorRenderingCoordinator {
 			const [viewParts, ctx] = data;
 			safeInvokeNoArg(() => rendering.render(viewParts, ctx));
 		}
+	}
+}
+
+class CodeEditorWidgetFocusTracker extends Disposable {
+
+	private _hasDomElementFocus: boolean;
+	private readonly _domFocusTracker: dom.IFocusTracker;
+	private readonly _overflowWidgetsDomNode: dom.IFocusTracker | undefined;
+
+	private readonly _onChange: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onChange: Event<void> = this._onChange.event;
+
+	private _overflowWidgetsDomNodeHasFocus: boolean;
+
+	private _hadFocus: boolean | undefined = undefined;
+
+	constructor(domElement: HTMLElement, overflowWidgetsDomNode: HTMLElement | undefined) {
+		super();
+
+		this._hasDomElementFocus = false;
+		this._domFocusTracker = this._register(dom.trackFocus(domElement));
+
+		this._overflowWidgetsDomNodeHasFocus = false;
+
+		this._register(this._domFocusTracker.onDidFocus(() => {
+			this._hasDomElementFocus = true;
+			this._update();
+		}));
+		this._register(this._domFocusTracker.onDidBlur(() => {
+			this._hasDomElementFocus = false;
+			this._update();
+		}));
+
+		if (overflowWidgetsDomNode) {
+			this._overflowWidgetsDomNode = this._register(dom.trackFocus(overflowWidgetsDomNode));
+			this._register(this._overflowWidgetsDomNode.onDidFocus(() => {
+				this._overflowWidgetsDomNodeHasFocus = true;
+				this._update();
+			}));
+			this._register(this._overflowWidgetsDomNode.onDidBlur(() => {
+				this._overflowWidgetsDomNodeHasFocus = false;
+				this._update();
+			}));
+		}
+	}
+
+	private _update() {
+		const focused = this._hasDomElementFocus || this._overflowWidgetsDomNodeHasFocus;
+		if (this._hadFocus !== focused) {
+			this._hadFocus = focused;
+			this._onChange.fire(undefined);
+		}
+	}
+
+	public hasFocus(): boolean {
+		return this._hadFocus ?? false;
+	}
+
+	public refreshState(): void {
+		this._domFocusTracker.refreshState();
+		this._overflowWidgetsDomNode?.refreshState?.();
 	}
 }

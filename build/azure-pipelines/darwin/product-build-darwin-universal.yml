@@ -46,7 +46,14 @@ steps:
         echo "Npm install failed $i, trying again..."
       done
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install build dependencies
+
+  - pwsh: node build/azure-pipelines/common/waitForArtifacts.js unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Wait for x64 and arm64 artifacts
 
   - download: current
     artifact: unsigned_vscode_client_darwin_x64_archive
@@ -61,8 +68,9 @@ steps:
 
   - script: |
       set -e
-      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64
-      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64
+      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64 &
+      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64 &
+      wait
       DEBUG=* node build/darwin/create-universal-app.js $(agent.builddirectory)
     displayName: Create Universal App
 
@@ -85,14 +93,60 @@ steps:
       DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
     displayName: Set Hardened Entitlements
 
-  - script: pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
+  - script: |
+      set -e
+      mkdir -p $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+      pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
     displayName: Archive build
+
+  - task: UseDotNet@2
+    inputs:
+      version: 6.x
+
+  - task: EsrpCodeSigning@5
+    inputs:
+      UseMSIAuthentication: true
+      ConnectedServiceName: vscode-esrp
+      AppRegistrationClientId: $(ESRP_CLIENT_ID)
+      AppRegistrationTenantId: $(ESRP_TENANT_ID)
+      AuthAKVName: vscode-esrp
+      AuthSignCertName: esrp-sign
+      FolderPath: .
+      Pattern: noop
+    displayName: 'Install ESRP Tooling'
+
+  - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: ✍️ Codesign
+
+  - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: ✍️ Notarize
+
+  - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+    displayName: Extract signed app
+
+  - script: |
+      set -e
+      APP_ROOT="$(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      APP_PATH="$APP_ROOT/$APP_NAME"
+      codesign -dv --deep --verbose=4 "$APP_PATH"
+      "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
+    displayName: Verify signature
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-x64.zip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+    displayName: Rename x64 build to its legacy name
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - task: 1ES.PublishPipelineArtifact@1
     inputs:
-      targetPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
-      artifactName: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
-      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      sbomPackageName: "VS Code macOS $(VSCODE_ARCH) (unsigned)"
+      targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-universal.zip
+      artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
+      sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
       sbomPackageVersion: $(Build.SourceVersion)
     displayName: Publish client archive

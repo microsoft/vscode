@@ -9,6 +9,7 @@ import * as extHostConverter from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument.js';
+import { NotebookRange } from './extHostTypes.js';
 
 export class ExtHostNotebookEditor {
 
@@ -48,8 +49,8 @@ export class ExtHostNotebookEditor {
 					if (!Array.isArray(value) || !value.every(extHostTypes.NotebookRange.isNotebookRange)) {
 						throw illegalArgument('selections');
 					}
-					that._selections = value;
-					that._trySetSelections(value);
+					that._selections = value.length === 0 ? [new NotebookRange(0, 0)] : value;
+					that._trySetSelections(that._selections);
 				},
 				get visibleRanges() {
 					return that._visibleRanges;

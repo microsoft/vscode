@@ -29,9 +29,8 @@ import { localize } from '../../../nls.js';
 import { CompositeDragAndDropObserver, toggleDropEffect } from '../dnd.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../common/theme.js';
 import { IPartOptions } from '../part.js';
-import { CompositeMenuActions } from '../actions.js';
 import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
-import { ActionsOrientation, prepareActions } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Gesture, EventType as GestureEventType } from '../../../base/browser/touch.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IAction, SubmenuAction } from '../../../base/common/actions.js';
@@ -39,7 +38,8 @@ import { Composite } from '../composite.js';
 import { ViewsSubMenu } from './views/viewPaneContainer.js';
 import { getActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
-import { HiddenItemStrategy, WorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { DeferredPromise } from '../../../base/common/async.js';
 
 export enum CompositeBarPosition {
 	TOP,
@@ -127,10 +127,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private compositeBarPosition: CompositeBarPosition | undefined = undefined;
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
-	private globalToolBar: WorkbenchToolBar | undefined;
-	private readonly globalActions: CompositeMenuActions;
+	private readonly globalActionsMenuId: MenuId;
+	private globalToolBar: MenuWorkbenchToolBar | undefined;
 
-	private blockOpening = false;
+	private blockOpening: DeferredPromise<PaneComposite | undefined> | undefined = undefined;
 	protected contentDimension: Dimension | undefined;
 
 	constructor(
@@ -189,15 +189,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		);
 
 		this.location = location;
-		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, globalActionsMenuId, undefined, undefined));
-
+		this.globalActionsMenuId = globalActionsMenuId;
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this._register(this.onDidPaneCompositeOpen(composite => this.onDidOpen(composite)));
 		this._register(this.onDidPaneCompositeClose(this.onDidClose, this));
-		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
 
 		this._register(this.registry.onDidDeregister((viewletDescriptor: PaneCompositeDescriptor) => {
 
@@ -265,12 +263,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private createEmptyPaneMessage(parent: HTMLElement): void {
-		this.emptyPaneMessageElement = document.createElement('div');
-		this.emptyPaneMessageElement.classList.add('empty-pane-message-area');
+		this.emptyPaneMessageElement = $('.empty-pane-message-area');
 
-		const messageElement = document.createElement('div');
-		messageElement.classList.add('empty-pane-message');
-		messageElement.innerText = localize('pane.emptyMessage', "Drag a view here to display.");
+		const messageElement = $('.empty-pane-message');
+		messageElement.textContent = localize('pane.emptyMessage', "Drag a view here to display.");
 
 		this.emptyPaneMessageElement.appendChild(messageElement);
 		parent.appendChild(this.emptyPaneMessageElement);
@@ -358,17 +354,22 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const globalTitleActionsContainer = titleArea.appendChild($('.global-actions'));
 
 		// Global Actions Toolbar
-		this.globalToolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, globalTitleActionsContainer, {
-			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
-			orientation: ActionsOrientation.HORIZONTAL,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions..."),
-			hoverDelegate: this.toolbarHoverDelegate,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide
-		}));
-
-		this.updateGlobalToolbarActions();
+		this.globalToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar,
+			globalTitleActionsContainer,
+			this.globalActionsMenuId,
+			{
+				actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
+				orientation: ActionsOrientation.HORIZONTAL,
+				getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+				anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
+				toggleMenuTitle: localize('moreActions', "More Actions..."),
+				hoverDelegate: this.toolbarHoverDelegate,
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				highlightToggledItems: true,
+				telemetrySource: this.nameForTelemetry,
+				toolbarOptions: { forceLeadingSeparatorInPrimaryActions: true /* separate from view toolbar */ }
+			}
+		));
 
 		return titleArea;
 	}
@@ -452,11 +453,13 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	protected override createHeaderArea(): HTMLElement {
 		const headerArea = super.createHeaderArea();
+
 		return this.createHeaderFooterCompositeBarArea(headerArea);
 	}
 
 	protected override createFooterArea(): HTMLElement {
 		const footerArea = super.createFooterArea();
+
 		return this.createHeaderFooterCompositeBarArea(footerArea);
 	}
 
@@ -513,21 +516,34 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return undefined;
 	}
 
-	private doOpenPaneComposite(id: string, focus?: boolean): PaneComposite | undefined {
+	private async doOpenPaneComposite(id: string, focus?: boolean): Promise<PaneComposite | undefined> {
 		if (this.blockOpening) {
-			return undefined; // Workaround against a potential race condition
+			// Workaround against a potential race condition when calling
+			// `setPartHidden` we may end up in `openPaneComposite` again.
+			// But we still want to return the result of the original call,
+			// so we return the promise of the original call.
+			return this.blockOpening.p;
 		}
 
+		let blockOpening: DeferredPromise<PaneComposite | undefined> | undefined;
 		if (!this.layoutService.isVisible(this.partId)) {
 			try {
-				this.blockOpening = true;
+				blockOpening = this.blockOpening = new DeferredPromise<PaneComposite | undefined>();
 				this.layoutService.setPartHidden(false, this.partId);
 			} finally {
-				this.blockOpening = false;
+				this.blockOpening = undefined;
 			}
 		}
 
-		return this.openComposite(id, focus) as PaneComposite;
+		try {
+			const result = this.openComposite(id, focus) as PaneComposite | undefined;
+			blockOpening?.complete(result);
+
+			return result;
+		} catch (error) {
+			blockOpening?.error(error);
+			throw error;
+		}
 	}
 
 	getPaneComposite(id: string): PaneCompositeDescriptor | undefined {
@@ -614,12 +630,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		if (visible) {
 			this.titleLabel?.updateTitle('', '');
 		}
-	}
-
-	private updateGlobalToolbarActions(): void {
-		const primaryActions = this.globalActions.getPrimaryActions();
-		const secondaryActions = this.globalActions.getSecondaryActions();
-		this.globalToolBar?.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
 	protected getToolbarWidth(): number {

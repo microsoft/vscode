@@ -104,6 +104,13 @@ export class InstantiationService implements IInstantiationService {
 						throw new Error(`[invokeFunction] unknown service '${id}'`);
 					}
 					return result;
+				},
+				getIfExists: <T>(id: ServiceIdentifier<T>) => {
+					if (_done) {
+						throw illegalState('service accessor is only valid during the invocation of its target method');
+					}
+					const result = this._getOrCreateServiceInstance(id, _trace);
+					return result;
 				}
 			};
 			return fn(accessor, ...args);
@@ -119,7 +126,7 @@ export class InstantiationService implements IInstantiationService {
 		this._throwIfDisposed();
 
 		let _trace: Trace;
-		let result: any;
+		let result: unknown;
 		if (ctorOrDescriptor instanceof SyncDescriptor) {
 			_trace = Trace.traceCreation(this._enableTracing, ctorOrDescriptor.ctor);
 			result = this._createInstance(ctorOrDescriptor.ctor, ctorOrDescriptor.staticArguments.concat(rest), _trace);

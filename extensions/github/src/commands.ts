@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API as GitAPI, RefType } from './typings/git';
-import { publishRepository } from './publish';
-import { DisposableStore, getRepositoryFromUrl } from './util';
-import { LinkContext, getCommitLink, getLink, getVscodeDevHost } from './links';
+import { API as GitAPI, RefType, Repository } from './typings/git.js';
+import { publishRepository } from './publish.js';
+import { DisposableStore, getRepositoryFromUrl } from './util.js';
+import { LinkContext, getCommitLink, getLink, getVscodeDevHost } from './links.js';
 
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {
@@ -32,6 +32,29 @@ async function openVscodeDevLink(gitAPI: GitAPI): Promise<vscode.Uri | undefined
 		}
 		return undefined;
 	}
+}
+
+async function openOnGitHub(repository: Repository, commit: string): Promise<void> {
+	// Get the unique remotes that contain the commit
+	const branches = await repository.getBranches({ contains: commit, remote: true });
+	const remoteNames = new Set(branches.filter(b => b.type === RefType.RemoteHead && b.remote).map(b => b.remote!));
+
+	// GitHub remotes that contain the commit
+	const remotes = repository.state.remotes
+		.filter(r => remoteNames.has(r.name) && r.fetchUrl && getRepositoryFromUrl(r.fetchUrl));
+
+	if (remotes.length === 0) {
+		vscode.window.showInformationMessage(vscode.l10n.t('No GitHub remotes found that contain this commit.'));
+		return;
+	}
+
+	// upstream -> origin -> first
+	const remote = remotes.find(r => r.name === 'upstream')
+		?? remotes.find(r => r.name === 'origin')
+		?? remotes[0];
+
+	const link = getCommitLink(remote.fetchUrl!, commit);
+	vscode.env.openExternal(vscode.Uri.parse(link));
 }
 
 export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
@@ -62,7 +85,7 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 		vscode.env.openExternal(vscode.Uri.parse(link));
 	}));
 
-	disposables.add(vscode.commands.registerCommand('github.openOnGitHub2', async (repository: vscode.SourceControl, historyItem: vscode.SourceControlHistoryItem) => {
+	disposables.add(vscode.commands.registerCommand('github.graph.openOnGitHub', async (repository: vscode.SourceControl, historyItem: vscode.SourceControlHistoryItem) => {
 		if (!repository || !historyItem) {
 			return;
 		}
@@ -72,24 +95,20 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 			return;
 		}
 
-		// Get the unique remotes that contain the commit
-		const branches = await apiRepository.getBranches({ contains: historyItem.id });
-		const remoteNames = new Set(branches.filter(b => b.type === RefType.RemoteHead && b.remote).map(b => b.remote!));
+		await openOnGitHub(apiRepository, historyItem.id);
+	}));
 
-		// GitHub remotes that contain the commit
-		const remotes = apiRepository.state.remotes
-			.filter(r => remoteNames.has(r.name) && r.fetchUrl && getRepositoryFromUrl(r.fetchUrl));
-
-		if (remotes.length === 0) {
-			vscode.window.showInformationMessage(vscode.l10n.t('No GitHub remotes found that contain this commit.'));
+	disposables.add(vscode.commands.registerCommand('github.timeline.openOnGitHub', async (item: vscode.TimelineItem, uri: vscode.Uri) => {
+		if (!item.id || !uri) {
 			return;
 		}
 
-		// Default remote (origin, or the first remote)
-		const defaultRemote = remotes.find(r => r.name === 'origin') ?? remotes[0];
+		const apiRepository = gitAPI.getRepository(uri);
+		if (!apiRepository) {
+			return;
+		}
 
-		const link = getCommitLink(defaultRemote.fetchUrl!, historyItem.id);
-		vscode.env.openExternal(vscode.Uri.parse(link));
+		await openOnGitHub(apiRepository, item.id);
 	}));
 
 	disposables.add(vscode.commands.registerCommand('github.openOnVscodeDev', async () => {

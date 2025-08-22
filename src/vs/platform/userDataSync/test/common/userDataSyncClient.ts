@@ -34,7 +34,7 @@ import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js'
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 import { ExtensionStorageService, IExtensionStorageService } from '../../../extensionManagement/common/extensionStorage.js';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from '../../common/ignoredExtensions.js';
-import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource, IUserDataSynchroniser, IUserDataResourceManifest, IUserDataCollectionManifest, USER_DATA_SYNC_SCHEME } from '../../common/userDataSync.js';
+import { ALL_SYNC_RESOURCES, getDefaultIgnoredSettings, IUserData, IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration, ServerResource, SyncResource, IUserDataSynchroniser, IUserDataResourceManifest, IUserDataCollectionManifest, USER_DATA_SYNC_SCHEME, IUserDataManifest } from '../../common/userDataSync.js';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from '../../common/userDataSyncAccount.js';
 import { UserDataSyncLocalStoreService } from '../../common/userDataSyncLocalStoreService.js';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from '../../common/userDataSyncMachines.js';
@@ -136,10 +136,16 @@ export class UserDataSyncClient extends Disposable {
 			await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({})));
 			await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
 			await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'c.json'), VSBuffer.fromString(`{}`));
+			await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.promptsHome, 'c.prompt.md'), VSBuffer.fromString(' '));
 			await fileService.writeFile(userDataProfilesService.defaultProfile.tasksResource, VSBuffer.fromString(`{}`));
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
 		}
 		await configurationService.reloadConfiguration();
+
+		// `prompts` resource is disabled by default, so enable it for tests
+		this.instantiationService
+			.get(IUserDataSyncEnablementService)
+			.setResourceEnablement(SyncResource.Prompts, true);
 	}
 
 	async sync(): Promise<void> {
@@ -150,7 +156,12 @@ export class UserDataSyncClient extends Disposable {
 		return this.instantiationService.get(IUserDataSyncStoreService).readResource(resource, null, collection);
 	}
 
-	async getResourceManifest(): Promise<IUserDataResourceManifest | null> {
+	async getLatestRef(resource: SyncResource): Promise<string | null> {
+		const manifest = await this._getResourceManifest();
+		return manifest?.[resource] ?? null;
+	}
+
+	async _getResourceManifest(): Promise<IUserDataResourceManifest | null> {
 		const manifest = await this.instantiationService.get(IUserDataSyncStoreService).manifest(null);
 		return manifest?.latest ?? null;
 	}
@@ -251,19 +262,19 @@ export class UserDataSyncTestServer implements IRequestService {
 		if (this.session) {
 			const latest: Record<ServerResource, string> = Object.create({});
 			this.data.forEach((value, key) => latest[key] = value.ref);
-			let collection: IUserDataCollectionManifest | undefined = undefined;
+			let collections: IUserDataCollectionManifest | undefined = undefined;
 			if (this.collectionCounter) {
-				collection = {};
+				collections = {};
 				for (let collectionId = 1; collectionId <= this.collectionCounter; collectionId++) {
 					const collectionData = this.collections.get(`${collectionId}`);
 					if (collectionData) {
 						const latest: Record<ServerResource, string> = Object.create({});
 						collectionData.forEach((value, key) => latest[key] = value.ref);
-						collection[`${collectionId}`] = { latest };
+						collections[`${collectionId}`] = { latest };
 					}
 				}
 			}
-			const manifest = { session: this.session, latest, collection };
+			const manifest: IUserDataManifest = { session: this.session, latest, collections, ref: '1' };
 			return this.toResponse(200, { 'Content-Type': 'application/json', etag: `${this.manifestRef++}` }, JSON.stringify(manifest));
 		}
 		return this.toResponse(204, { etag: `${this.manifestRef++}` });

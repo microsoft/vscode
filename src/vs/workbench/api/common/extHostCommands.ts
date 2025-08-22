@@ -28,10 +28,11 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { TelemetryTrustedValue } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IExtHostTelemetry } from './extHostTelemetry.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 
 interface CommandHandler {
 	callback: Function;
@@ -41,7 +42,7 @@ interface CommandHandler {
 }
 
 export interface ArgumentProcessor {
-	processArgument(arg: any, extensionId: ExtensionIdentifier | undefined): any;
+	processArgument(arg: any, extension: IExtensionDescription | undefined): any;
 }
 
 export class ExtHostCommands implements ExtHostCommandsShape {
@@ -256,7 +257,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 					id = actual.command;
 				}
 			}
-			this._logService.error(err, id, command.extension?.identifier);
+			if (!isCancellationError(err)) {
+				this._logService.error(err, id, command.extension?.identifier);
+			}
 
 			if (!annotateError) {
 				throw err;
@@ -282,6 +285,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private _reportTelemetry(command: CommandHandler, id: string, duration: number) {
 		if (!command.extension) {
+			return;
+		}
+		if (id.startsWith('code.copilot.logStructured')) {
+			// This command is very active. See https://github.com/microsoft/vscode/issues/254153.
 			return;
 		}
 		type ExtensionActionTelemetry = {
@@ -310,7 +317,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!cmdHandler) {
 			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
 		} else {
-			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r, cmdHandler.extension?.identifier), arg));
+			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r, cmdHandler.extension), arg));
 			return this._executeContributedCommand(id, args, true);
 		}
 	}
@@ -445,7 +452,6 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
 	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
 	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
-	static readonly StringArray = ApiCommandArgument.Arr(ApiCommandArgument.String);
 
 	static Arr<T, K = T>(element: ApiCommandArgument<T, K>) {
 		return new ApiCommandArgument(

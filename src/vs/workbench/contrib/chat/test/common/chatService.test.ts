@@ -5,6 +5,9 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -12,6 +15,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -20,35 +24,41 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { mock, TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { IChatEditingService, IChatEditingSession } from '../../common/chatEditingService.js';
 import { IChatModel, ISerializableChatData } from '../../common/chatModel.js';
 import { IChatFollowup, IChatService } from '../../common/chatService.js';
 import { ChatService } from '../../common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
-import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
-import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
-import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	name: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
+	extensionVersion: undefined,
 	publisherDisplayName: '',
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
+	modes: [ChatModeKind.Ask],
 	metadata: {},
 	slashCommands: [],
 	disambiguation: [],
 	async invoke(request, progress, history, token) {
-		progress({
+		progress([{
 			documents: [
 				{
 					uri: URI.file('/test/path/to/file'),
@@ -59,7 +69,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 				}
 			],
 			kind: 'usedContext'
-		});
+		}]);
 
 		return { metadata: { metadataKey: 'value' } };
 	},
@@ -73,15 +83,17 @@ const chatAgentWithMarkdown: IChatAgent = {
 	id: chatAgentWithMarkdownId,
 	name: chatAgentWithMarkdownId,
 	extensionId: nullExtensionDescription.identifier,
+	extensionVersion: undefined,
 	publisherDisplayName: '',
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
+	modes: [ChatModeKind.Ask],
 	metadata: {},
 	slashCommands: [],
 	disambiguation: [],
 	async invoke(request, progress, history, token) {
-		progress({ kind: 'markdownContent', content: new MarkdownString('test') });
+		progress([{ kind: 'markdownContent', content: new MarkdownString('test') }]);
 		return { metadata: { metadataKey: 'value' } };
 	},
 	async provideFollowups(sessionId, token) {
@@ -89,15 +101,17 @@ const chatAgentWithMarkdown: IChatAgent = {
 	},
 };
 
-function getAgentData(id: string) {
+function getAgentData(id: string): IChatAgentData {
 	return {
 		name: id,
 		id: id,
 		extensionId: nullExtensionDescription.identifier,
+		extensionVersion: undefined,
 		extensionPublisherId: '',
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		locations: [ChatAgentLocation.Panel],
+		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
 		disambiguation: [],
@@ -115,7 +129,8 @@ suite('ChatService', () => {
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChatVariablesService, new MockChatVariablesService()],
-			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
+			[IMcpService, new TestMcpService()],
 		)));
 		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -127,6 +142,13 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
+		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
+		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
+			override startOrContinueGlobalEditingSession(): Promise<IChatEditingSession> {
+				return Promise.resolve(Disposable.None as IChatEditingSession);
+			}
+		});
 
 		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
 		instantiationService.stub(IChatAgentService, chatAgentService);
@@ -146,19 +168,15 @@ suite('ChatService', () => {
 	test('retrieveSession', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const session1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session1.waitForInitialization();
 		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
 		const session2 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
-		await session2.waitForInitialization();
 		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
 		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
-		const retrieved1 = testDisposables.add(testService2.getOrRestoreSession(session1.sessionId)!);
-		await retrieved1.waitForInitialization();
-		const retrieved2 = testDisposables.add(testService2.getOrRestoreSession(session2.sessionId)!);
-		await retrieved2.waitForInitialization();
+		const retrieved1 = testDisposables.add((await testService2.getOrRestoreSession(session1.sessionId))!);
+		const retrieved2 = testDisposables.add((await testService2.getOrRestoreSession(session2.sessionId))!);
 		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
 		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
 	});
@@ -275,6 +293,7 @@ suite('ChatService', () => {
 		assert(chatModel2);
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
+		chatModel2.dispose();
 	});
 
 	test('can deserialize with response', async () => {
@@ -303,6 +322,7 @@ suite('ChatService', () => {
 		assert(chatModel2);
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
+		chatModel2.dispose();
 	});
 });
 

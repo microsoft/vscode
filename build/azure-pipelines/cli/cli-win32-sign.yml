@@ -44,7 +44,7 @@ steps:
   - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(Build.ArtifactStagingDirectory)/sign "*.exe"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Codesign
+    displayName: ✍️ Codesign
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
       - powershell: |

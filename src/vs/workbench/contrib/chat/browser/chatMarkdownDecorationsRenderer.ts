@@ -20,9 +20,8 @@ import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { contentRefUrl } from '../common/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../common/chatColors.js';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../common/chatParserTypes.js';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../common/chatParserTypes.js';
 import { IChatMarkdownContent, IChatService } from '../common/chatService.js';
-import { IChatVariablesService } from '../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -86,7 +85,6 @@ export class ChatMarkdownDecorationsRenderer {
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
@@ -114,7 +112,7 @@ export class ChatMarkdownDecorationsRenderer {
 		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) :
 			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
 				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
-					part instanceof ChatRequestVariablePart ? (this.chatVariablesService.getVariable(part.variableName)?.description) :
+					part instanceof ChatRequestSlashPromptPart ? part.slashPromptCommand.command :
 						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
 							'';
 
@@ -196,7 +194,8 @@ export class ChatMarkdownDecorationsRenderer {
 					{
 						location: widget.location,
 						agentId: agent.id,
-						userSelectedModelId: widget.input.currentLanguageModel
+						userSelectedModelId: widget.input.currentLanguageModel,
+						modeInfo: widget.input.currentModeInfo
 					});
 			}));
 		} else {
@@ -232,7 +231,8 @@ export class ChatMarkdownDecorationsRenderer {
 				location: widget.location,
 				agentId: agent.id,
 				slashCommand: args.command,
-				userSelectedModelId: widget.input.currentLanguageModel
+				userSelectedModelId: widget.input.currentLanguageModel,
+				modeInfo: widget.input.currentModeInfo
 			});
 		}));
 
@@ -250,7 +250,7 @@ export class ChatMarkdownDecorationsRenderer {
 		}
 
 		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data));
-		this.chatMarkdownAnchorService.register(inlineAnchor);
+		store.add(this.chatMarkdownAnchorService.register(inlineAnchor));
 	}
 
 	private renderResourceWidget(name: string, args: IDecorationWidgetArgs | undefined, store: DisposableStore): HTMLElement {

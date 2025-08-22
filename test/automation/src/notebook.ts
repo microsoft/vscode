@@ -26,7 +26,9 @@ export class Notebook {
 	}
 
 	async focusNextCell() {
-		await this.code.dispatchKeybinding('down');
+		await this.code.dispatchKeybinding('down', async () => {
+			// TODO: Add an accept callback to verify the keybinding was successful
+		});
 	}
 
 	async focusFirstCell() {
@@ -34,7 +36,9 @@ export class Notebook {
 	}
 
 	async editCell() {
-		await this.code.dispatchKeybinding('enter');
+		await this.code.dispatchKeybinding('enter', async () => {
+			// TODO: Add an accept callback to verify the keybinding was successful
+		});
 	}
 
 	async stopEditingCell() {
@@ -46,10 +50,10 @@ export class Notebook {
 
 		await this.code.waitForElement(editor);
 
-		const textarea = `${editor} textarea`;
-		await this.code.waitForActiveElement(textarea);
+		const editContext = `${editor} ${!this.code.editContextEnabled ? 'textarea' : '.native-edit-context'}`;
+		await this.code.waitForActiveElement(editContext);
 
-		await this.code.waitForTypeInEditor(textarea, text);
+		await this.code.waitForTypeInEditor(editContext, text);
 
 		await this._waitForActiveCellEditorContents(c => c.indexOf(text) > -1);
 	}

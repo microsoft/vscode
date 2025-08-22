@@ -6,7 +6,7 @@
 import { splitLines } from '../../../../../base/common/strings.js';
 import { Position } from '../../../core/position.js';
 import { Range } from '../../../core/range.js';
-import { TextLength } from '../../../core/textLength.js';
+import { TextLength } from '../../../core/text/textLength.js';
 
 /**
  * The end must be greater than or equal to the start.

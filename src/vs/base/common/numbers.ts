@@ -101,8 +101,7 @@ export function isPointWithinTriangle(
 
 /**
  * Function to get a (pseudo)random integer from a provided `max`...[`min`] range.
- * Both `min` and `max` values are inclusive. The `min` value is optional and defaults
- * to `0` if not explicitely specified.
+ * Both `min` and `max` values are inclusive. The `min` value is optional (defaults to `0`).
  *
  * @throws in the next cases:
  * 	- if provided `min` or `max` is not a number
@@ -144,7 +143,7 @@ export function isPointWithinTriangle(
  * );
  * ```
  */
-export const randomInt = (max: number, min: number = 0): number => {
+export function randomInt(max: number, min: number = 0): number {
 	assert(!isNaN(min), '"min" param is not a number.');
 	assert(!isNaN(max), '"max" param is not a number.');
 
@@ -157,4 +156,9 @@ export const randomInt = (max: number, min: number = 0): number => {
 	const randomFloat = delta * Math.random();
 
 	return Math.round(min + randomFloat);
-};
+}
+
+export function randomChance(p: number): boolean {
+	assert(p >= 0 && p <= 1, 'p must be between 0 and 1');
+	return Math.random() < p;
+}

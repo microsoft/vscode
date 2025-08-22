@@ -2,15 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-//@ts-check
-
-'use strict';
-
-const withBrowserDefaults = require('../shared.webpack.config').browser;
+// @ts-check
+import { browser as withBrowserDefaults } from '../shared.webpack.config.mjs';
 
 const config = withBrowserDefaults({
-	context: __dirname,
+	context: import.meta.dirname,
 	entry: {
 		extension: './src/npmBrowserMain.ts'
 	},
@@ -24,4 +20,4 @@ const config = withBrowserDefaults({
 	}
 });
 
-module.exports = config;
+export default config;

@@ -5,8 +5,11 @@
 import assert from 'assert';
 import { merge, removeFromValueTree } from '../../common/configuration.js';
 import { mergeChanges } from '../../common/configurationModels.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('Configuration', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('simple merge', () => {
 		let base = { 'a': 1, 'b': 2 };
@@ -120,6 +123,8 @@ suite('Configuration', () => {
 });
 
 suite('Configuration Changes: Merge', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge only keys', () => {
 		const actual = mergeChanges({ keys: ['a', 'b'], overrides: [] }, { keys: ['c', 'd'], overrides: [] });

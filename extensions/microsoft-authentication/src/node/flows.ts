@@ -25,11 +25,13 @@ interface IMsalFlowOptions {
 
 interface IMsalFlowTriggerOptions {
 	cachedPca: ICachedPublicClientApplication;
+	authority: string;
 	scopes: string[];
 	loginHint?: string;
 	windowHandle?: Buffer;
 	logger: LogOutputChannel;
 	uriHandler: UriEventHandler;
+	claims?: string;
 }
 
 interface IMsalFlow {
@@ -41,20 +43,22 @@ interface IMsalFlow {
 class DefaultLoopbackFlow implements IMsalFlow {
 	label = 'default';
 	options: IMsalFlowOptions = {
-		supportsRemoteExtensionHost: true,
-		supportsWebWorkerExtensionHost: true
+		supportsRemoteExtensionHost: false,
+		supportsWebWorkerExtensionHost: false
 	};
 
-	async trigger({ cachedPca, scopes, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying default msal flow...');
 		return await cachedPca.acquireTokenInteractive({
 			openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
 			scopes,
+			authority,
 			successTemplate: loopbackTemplate,
 			errorTemplate: loopbackTemplate,
 			loginHint,
 			prompt: loginHint ? undefined : 'select_account',
-			windowHandle
+			windowHandle,
+			claims
 		});
 	}
 }
@@ -62,20 +66,22 @@ class DefaultLoopbackFlow implements IMsalFlow {
 class UrlHandlerFlow implements IMsalFlow {
 	label = 'protocol handler';
 	options: IMsalFlowOptions = {
-		supportsRemoteExtensionHost: false,
+		supportsRemoteExtensionHost: true,
 		supportsWebWorkerExtensionHost: false
 	};
 
-	async trigger({ cachedPca, scopes, loginHint, windowHandle, logger, uriHandler }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying protocol handler flow...');
 		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, redirectUri, logger);
 		return await cachedPca.acquireTokenInteractive({
 			openBrowser: (url: string) => loopbackClient.openBrowser(url),
 			scopes,
+			authority,
 			loopbackClient,
 			loginHint,
 			prompt: loginHint ? undefined : 'select_account',
-			windowHandle
+			windowHandle,
+			claims
 		});
 	}
 }

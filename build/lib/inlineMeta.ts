@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
+import es from 'event-stream';
 import { basename } from 'path';
-import * as File from 'vinyl';
+import File from 'vinyl';
 
 export interface IInlineMetaContext {
 	readonly targetPaths: string[];
@@ -26,7 +26,7 @@ const packageJsonMarkerId = 'BUILD_INSERT_PACKAGE_CONFIGURATION';
 export function inlineMeta(result: NodeJS.ReadWriteStream, ctx: IInlineMetaContext): NodeJS.ReadWriteStream {
 	return result.pipe(es.through(function (file: File) {
 		if (matchesFile(file, ctx)) {
-			let content = file.contents.toString();
+			let content = file.contents!.toString();
 			let markerFound = false;
 
 			const packageMarker = `${packageJsonMarkerId}:"${packageJsonMarkerId}"`; // this needs to be the format after esbuild has processed the file (e.g. double quotes)

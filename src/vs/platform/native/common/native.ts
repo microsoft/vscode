@@ -38,6 +38,28 @@ export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
 
+export const enum FocusMode {
+
+	/**
+	 * (Default) Transfer focus to the target window
+	 * when the editor is focused.
+	 */
+	Transfer,
+
+	/**
+	 * Transfer focus to the target window when the
+	 * editor is focused, otherwise notify the user that
+	 * the app has activity (macOS/Windows only).
+	 */
+	Notify,
+
+	/**
+	 * Force the window to be focused, even if the editor
+	 * is not currently focused.
+	 */
+	Force,
+}
+
 export interface ICommonNativeHostService {
 
 	readonly _serviceBrand: undefined;
@@ -55,6 +77,7 @@ export interface ICommonNativeHostService {
 	readonly onDidBlurMainWindow: Event<number>;
 
 	readonly onDidChangeWindowFullScreen: Event<{ windowId: number; fullscreen: boolean }>;
+	readonly onDidChangeWindowAlwaysOnTop: Event<{ windowId: number; alwaysOnTop: boolean }>;
 
 	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
@@ -92,6 +115,10 @@ export interface ICommonNativeHostService {
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
+	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
+	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
+	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
+
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
 	 *
@@ -103,18 +130,14 @@ export interface ICommonNativeHostService {
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;
 
+	setBackgroundThrottling(allowed: boolean): Promise<void>;
+
 	/**
 	 * Make the window focused.
-	 *
-	 * @param options Pass `force: true` if you want to make the window take
-	 * focus even if the application does not have focus currently. This option
-	 * should only be used if it is necessary to steal focus from the current
-	 * focused application which may not be VSCode.
+	 * @param options specify the specific window to focus and the focus mode.
+	 * Defaults to {@link FocusMode.Transfer}.
 	 */
-	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
-
-	// Titlebar default style override
-	overrideDefaultTitlebarStyle(style: 'custom' | undefined): Promise<void>;
+	focusWindow(options?: INativeHostOptions & { mode?: FocusMode }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
@@ -146,13 +169,14 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
-	getScreenshot(): Promise<ArrayBufferLike | undefined>;
+	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
 	killProcess(pid: number, code: string): Promise<void>;
 
 	// Clipboard
+	triggerPaste(options?: INativeHostOptions): Promise<void>;
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
 	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
 	readClipboardFindText(): Promise<string>;
@@ -187,6 +211,8 @@ export interface ICommonNativeHostService {
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 	openGPUInfoWindow(): Promise<void>;
+	openDevToolsWindow(url: string): Promise<void>;
+	stopTracing(): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
@@ -196,6 +222,7 @@ export interface ICommonNativeHostService {
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
+	isPortFree(port: number): Promise<boolean>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 
 	// Registry (Windows only)

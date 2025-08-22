@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from './buffer.js';
+import { encodeHex, VSBuffer } from './buffer.js';
 import * as strings from './strings.js';
 
 type NotSyncHashable = ArrayBufferLike | ArrayBufferView;
@@ -18,7 +18,7 @@ export function hash<T>(obj: T extends NotSyncHashable ? never : T): number {
 	return doHash(obj, 0);
 }
 
-export function doHash(obj: any, hashVal: number): number {
+export function doHash(obj: unknown, hashVal: number): number {
 	switch (typeof obj) {
 		case 'object':
 			if (obj === null) {
@@ -93,7 +93,7 @@ export const hashAsync = (input: string | ArrayBufferView | VSBuffer) => {
 		buff = input;
 	}
 
-	return crypto.subtle.digest('sha-1', buff).then(toHexString);
+	return crypto.subtle.digest('sha-1', buff as ArrayBufferView<ArrayBuffer>).then(toHexString); // CodeQL [SM04514] we use sha1 here for validating old stored client state, not for security
 };
 
 const enum SHA1Constant {
@@ -116,7 +116,7 @@ function toHexString(buffer: ArrayBuffer): string;
 function toHexString(value: number, bitsize?: number): string;
 function toHexString(bufferOrValue: ArrayBuffer | number, bitsize: number = 32): string {
 	if (bufferOrValue instanceof ArrayBuffer) {
-		return Array.from(new Uint8Array(bufferOrValue)).map(b => b.toString(16).padStart(2, '0')).join('');
+		return encodeHex(VSBuffer.wrap(new Uint8Array(bufferOrValue)));
 	}
 
 	return (bufferOrValue >>> 0).toString(16).padStart(bitsize / 4, '0');

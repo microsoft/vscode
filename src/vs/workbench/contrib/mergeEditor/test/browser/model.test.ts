@@ -343,7 +343,7 @@ class MergeModelInterface extends Disposable {
 		applyRanges(
 			baseTextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: r.baseRange.toRange(),
+				range: r.baseRange.toExclusiveRange(),
 				label: toSmallNumbersDec(idx),
 			}))
 		);
@@ -352,7 +352,7 @@ class MergeModelInterface extends Disposable {
 		applyRanges(
 			input1TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: r.input1Range.toRange(),
+				range: r.input1Range.toExclusiveRange(),
 				label: toSmallNumbersDec(idx),
 			}))
 		);
@@ -361,7 +361,7 @@ class MergeModelInterface extends Disposable {
 		applyRanges(
 			input2TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: r.input2Range.toRange(),
+				range: r.input2Range.toExclusiveRange(),
 				label: toSmallNumbersDec(idx),
 			}))
 		);
@@ -370,7 +370,7 @@ class MergeModelInterface extends Disposable {
 		applyRanges(
 			resultTextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: this.mergeModel.getLineRangeInResult(r.baseRange).toRange(),
+				range: this.mergeModel.getLineRangeInResult(r.baseRange).toExclusiveRange(),
 				label: `{${this.mergeModel.getState(r).get()}}${toSmallNumbersDec(idx)}`,
 			}))
 		);

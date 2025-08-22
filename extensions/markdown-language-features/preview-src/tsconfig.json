@@ -5,7 +5,7 @@
 		"jsx": "react",
 		"esModuleInterop": true,
 		"lib": [
-			"es2018",
+			"es2024",
 			"DOM",
 			"DOM.Iterable"
 		]

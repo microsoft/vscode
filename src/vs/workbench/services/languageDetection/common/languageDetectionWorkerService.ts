@@ -44,7 +44,7 @@ export interface IAutomaticLanguageDetectionLikelyWrongData {
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	owner: 'TylerLeonhardt,JacksonKearl';
+	owner: 'TylerLeonhardt';
 	comment: 'Used to determine how often language detection is likely wrong.';
 	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id we guessed.' };
 	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id the user chose.' };
@@ -61,7 +61,7 @@ export interface ILanguageDetectionStats {
 }
 
 export type LanguageDetectionStatsClassification = {
-	owner: 'TylerLeonhardt,JacksonKearl';
+	owner: 'TylerLeonhardt';
 	comment: 'Used to determine how definitive language detection is and how long it takes.';
 	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages the model supports.' };
 	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of those languages.' };

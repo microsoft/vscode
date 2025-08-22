@@ -11,7 +11,7 @@ import { DeferredPromise, Promises } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from '../../../../base/parts/storage/common/storage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -29,7 +29,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private profileStorage: IStorage | undefined;
 	private profileStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private profileStorageProfile = this.userDataProfileService.currentProfile;
+	private profileStorageProfile: IUserDataProfile;
 	private readonly profileStorageDisposables = this._register(new DisposableStore());
 
 	private workspaceStorage: IStorage | undefined;
@@ -49,6 +49,8 @@ export class BrowserStorageService extends AbstractStorageService {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
+
+		this.profileStorageProfile = this.userDataProfileService.currentProfile;
 
 		this.registerListeners();
 	}
@@ -166,7 +168,7 @@ export class BrowserStorageService extends AbstractStorageService {
 			return;
 		}
 
-		const oldProfileStorage = assertIsDefined(this.profileStorage);
+		const oldProfileStorage = assertReturnsDefined(this.profileStorage);
 		const oldItems = oldProfileStorage.items;
 
 		// Close old profile storage but only if this is
@@ -179,7 +181,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		await this.createProfileStorage(toProfile);
 
 		// Handle data switch and eventing
-		this.switchData(oldItems, assertIsDefined(this.profileStorage), StorageScope.PROFILE);
+		this.switchData(oldItems, assertReturnsDefined(this.profileStorage), StorageScope.PROFILE);
 	}
 
 	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {

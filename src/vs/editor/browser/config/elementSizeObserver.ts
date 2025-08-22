@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IDimension } from '../../common/core/dimension.js';
+import { IDimension } from '../../common/core/2d/dimension.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { getWindow, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 

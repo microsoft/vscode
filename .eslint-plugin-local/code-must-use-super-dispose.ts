@@ -14,7 +14,7 @@ export = new class NoAsyncSuite implements eslint.Rule.RuleModule {
 				return;
 			}
 
-			const body = context.getSourceCode().getText(node)
+			const body = context.getSourceCode().getText(node);
 
 			if (body.includes('super.dispose')) {
 				return;

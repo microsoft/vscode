@@ -1,22 +1,24 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getVSCodeSysroot = getVSCodeSysroot;
+exports.getChromiumSysroot = getChromiumSysroot;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getVSCodeSysroot = getVSCodeSysroot;
-exports.getChromiumSysroot = getChromiumSysroot;
 const child_process_1 = require("child_process");
 const os_1 = require("os");
-const fs = require("fs");
-const https = require("https");
-const path = require("path");
+const fs_1 = __importDefault(require("fs"));
+const https_1 = __importDefault(require("https"));
+const path_1 = __importDefault(require("path"));
 const crypto_1 = require("crypto");
-const ansiColors = require("ansi-colors");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
-const REPO_ROOT = path.dirname(path.dirname(path.dirname(__dirname)));
+const REPO_ROOT = path_1.default.dirname(path_1.default.dirname(path_1.default.dirname(__dirname)));
 const ghApiHeaders = {
     Accept: 'application/vnd.github.v3+json',
     'User-Agent': 'VSCode Build',
@@ -29,7 +31,7 @@ const ghDownloadHeaders = {
     Accept: 'application/octet-stream',
 };
 function getElectronVersion() {
-    const npmrc = fs.readFileSync(path.join(REPO_ROOT, '.npmrc'), 'utf8');
+    const npmrc = fs_1.default.readFileSync(path_1.default.join(REPO_ROOT, '.npmrc'), 'utf8');
     const electronVersion = /^target="(.*)"$/m.exec(npmrc)[1];
     const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)[1];
     return { electronVersion, msBuildId };
@@ -37,11 +39,11 @@ function getElectronVersion() {
 function getSha(filename) {
     const hash = (0, crypto_1.createHash)('sha256');
     // Read file 1 MB at a time
-    const fd = fs.openSync(filename, 'r');
+    const fd = fs_1.default.openSync(filename, 'r');
     const buffer = Buffer.alloc(1024 * 1024);
     let position = 0;
     let bytesRead = 0;
-    while ((bytesRead = fs.readSync(fd, buffer, 0, buffer.length, position)) === buffer.length) {
+    while ((bytesRead = fs_1.default.readSync(fd, buffer, 0, buffer.length, position)) === buffer.length) {
         hash.update(buffer);
         position += bytesRead;
     }
@@ -49,7 +51,7 @@ function getSha(filename) {
     return hash.digest('hex');
 }
 function getVSCodeSysrootChecksum(expectedName) {
-    const checksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'vscode-sysroot.txt'), 'utf8');
+    const checksums = fs_1.default.readFileSync(path_1.default.join(REPO_ROOT, 'build', 'checksums', 'vscode-sysroot.txt'), 'utf8');
     for (const line of checksums.split('\n')) {
         const [checksum, name] = line.split(/\s+/);
         if (name === expectedName) {
@@ -67,7 +69,7 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30 * 1000);
-        const version = '20240129-253798';
+        const version = '20250407-330404';
         try {
             const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
                 headers: ghApiHeaders,
@@ -86,22 +88,22 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
                 });
                 if (assetResponse.ok && (assetResponse.status >= 200 && assetResponse.status < 300)) {
                     const assetContents = Buffer.from(await assetResponse.arrayBuffer());
-                    console.log(`Fetched response body buffer: ${ansiColors.magenta(`${assetContents.byteLength} bytes`)}`);
+                    console.log(`Fetched response body buffer: ${assetContents.byteLength} bytes`);
                     if (options.checksumSha256) {
                         const actualSHA256Checksum = (0, crypto_1.createHash)('sha256').update(assetContents).digest('hex');
                         if (actualSHA256Checksum !== options.checksumSha256) {
-                            throw new Error(`Checksum mismatch for ${ansiColors.cyan(asset.url)} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
+                            throw new Error(`Checksum mismatch for ${asset.url} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
                         }
                     }
-                    console.log(`Verified SHA256 checksums match for ${ansiColors.cyan(asset.url)}`);
+                    console.log(`Verified SHA256 checksums match for ${asset.url}`);
                     const tarCommand = `tar -xz -C ${options.dest}`;
                     (0, child_process_1.execSync)(tarCommand, { input: assetContents });
                     console.log(`Fetch complete!`);
                     return;
                 }
-                throw new Error(`Request ${ansiColors.magenta(asset.url)} failed with status code: ${assetResponse.status}`);
+                throw new Error(`Request ${asset.url} failed with status code: ${assetResponse.status}`);
             }
-            throw new Error(`Request ${ansiColors.magenta('https://api.github.com')} failed with status code: ${response.status}`);
+            throw new Error(`Request https://api.github.com failed with status code: ${response.status}`);
         }
         finally {
             clearTimeout(timeout);
@@ -116,18 +118,24 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
         throw e;
     }
 }
-async function getVSCodeSysroot(arch) {
+async function getVSCodeSysroot(arch, isMusl = false) {
     let expectedName;
     let triple;
-    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28';
+    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28-gcc-10.5.0';
     switch (arch) {
         case 'amd64':
             expectedName = `x86_64-linux-gnu${prefix}.tar.gz`;
             triple = 'x86_64-linux-gnu';
             break;
         case 'arm64':
-            expectedName = `aarch64-linux-gnu${prefix}.tar.gz`;
-            triple = 'aarch64-linux-gnu';
+            if (isMusl) {
+                expectedName = 'aarch64-linux-musl-gcc-10.3.0.tar.gz';
+                triple = 'aarch64-linux-musl';
+            }
+            else {
+                expectedName = `aarch64-linux-gnu${prefix}.tar.gz`;
+                triple = 'aarch64-linux-gnu';
+            }
             break;
         case 'armhf':
             expectedName = `arm-rpi-linux-gnueabihf${prefix}.tar.gz`;
@@ -139,21 +147,24 @@ async function getVSCodeSysroot(arch) {
     if (!checksumSha256) {
         throw new Error(`Could not find checksum for ${expectedName}`);
     }
-    const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path.join((0, os_1.tmpdir)(), `vscode-${arch}-sysroot`);
-    const stamp = path.join(sysroot, '.stamp');
-    const result = `${sysroot}/${triple}/${triple}/sysroot`;
-    if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === expectedName) {
+    const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path_1.default.join((0, os_1.tmpdir)(), `vscode-${arch}-sysroot`);
+    const stamp = path_1.default.join(sysroot, '.stamp');
+    let result = `${sysroot}/${triple}/${triple}/sysroot`;
+    if (isMusl) {
+        result = `${sysroot}/output/${triple}`;
+    }
+    if (fs_1.default.existsSync(stamp) && fs_1.default.readFileSync(stamp).toString() === expectedName) {
         return result;
     }
     console.log(`Installing ${arch} root image: ${sysroot}`);
-    fs.rmSync(sysroot, { recursive: true, force: true });
-    fs.mkdirSync(sysroot);
+    fs_1.default.rmSync(sysroot, { recursive: true, force: true });
+    fs_1.default.mkdirSync(sysroot, { recursive: true });
     await fetchUrl({
         checksumSha256,
         assetName: expectedName,
         dest: sysroot
     });
-    fs.writeFileSync(stamp, expectedName);
+    fs_1.default.writeFileSync(stamp, expectedName);
     return result;
 }
 async function getChromiumSysroot(arch) {
@@ -168,24 +179,24 @@ async function getChromiumSysroot(arch) {
     const sysrootDict = sysrootInfo[sysrootArch];
     const tarballFilename = sysrootDict['Tarball'];
     const tarballSha = sysrootDict['Sha256Sum'];
-    const sysroot = path.join((0, os_1.tmpdir)(), sysrootDict['SysrootDir']);
+    const sysroot = path_1.default.join((0, os_1.tmpdir)(), sysrootDict['SysrootDir']);
     const url = [URL_PREFIX, URL_PATH, tarballSha].join('/');
-    const stamp = path.join(sysroot, '.stamp');
-    if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === url) {
+    const stamp = path_1.default.join(sysroot, '.stamp');
+    if (fs_1.default.existsSync(stamp) && fs_1.default.readFileSync(stamp).toString() === url) {
         return sysroot;
     }
     console.log(`Installing Debian ${arch} root image: ${sysroot}`);
-    fs.rmSync(sysroot, { recursive: true, force: true });
-    fs.mkdirSync(sysroot);
-    const tarball = path.join(sysroot, tarballFilename);
+    fs_1.default.rmSync(sysroot, { recursive: true, force: true });
+    fs_1.default.mkdirSync(sysroot);
+    const tarball = path_1.default.join(sysroot, tarballFilename);
     console.log(`Downloading ${url}`);
     let downloadSuccess = false;
     for (let i = 0; i < 3 && !downloadSuccess; i++) {
-        fs.writeFileSync(tarball, '');
+        fs_1.default.writeFileSync(tarball, '');
         await new Promise((c) => {
-            https.get(url, (res) => {
+            https_1.default.get(url, (res) => {
                 res.on('data', (chunk) => {
-                    fs.appendFileSync(tarball, chunk);
+                    fs_1.default.appendFileSync(tarball, chunk);
                 });
                 res.on('end', () => {
                     downloadSuccess = true;
@@ -198,7 +209,7 @@ async function getChromiumSysroot(arch) {
         });
     }
     if (!downloadSuccess) {
-        fs.rmSync(tarball);
+        fs_1.default.rmSync(tarball);
         throw new Error('Failed to download ' + url);
     }
     const sha = getSha(tarball);
@@ -209,8 +220,8 @@ async function getChromiumSysroot(arch) {
     if (proc.status) {
         throw new Error('Tarball extraction failed with code ' + proc.status);
     }
-    fs.rmSync(tarball);
-    fs.writeFileSync(stamp, url);
+    fs_1.default.rmSync(tarball);
+    fs_1.default.writeFileSync(stamp, url);
     return sysroot;
 }
 //# sourceMappingURL=install-sysroot.js.map

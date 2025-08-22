@@ -8,7 +8,7 @@ import * as nls from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 
 import { ProblemMatcherRegistry } from '../common/problemMatcher.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -20,7 +20,7 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatus
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from '../../../services/output/common/output.js';
 
-import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE } from '../common/tasks.js';
+import { ITaskEvent, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE, TASK_TERMINAL_ACTIVE, TaskEventKind, rerunTaskIcon, RerunForActiveTerminalCommandId, RerunAllRunningTasksCommandId } from '../common/tasks.js';
 import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -40,6 +40,10 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry.js';
 import { TerminalMenuBarGroup } from '../../terminal/browser/terminalMenus.js';
 import { isString } from '../../../../base/common/types.js';
 import { promiseWithResolvers } from '../../../../base/common/async.js';
+
+import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
@@ -136,7 +140,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			};
 
 			if (!this._runningTasksStatusItem) {
-				this._runningTasksStatusItem = this._statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
+				this._runningTasksStatusItem = this._statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, { location: { id: 'status.problems', priority: 50 }, alignment: StatusbarAlignment.RIGHT });
 			} else {
 				this._runningTasksStatusItem.update(itemProps);
 			}
@@ -278,6 +282,14 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.restartTask',
 		title: nls.localize2('RestartTaskAction.label', "Restart Running Task"),
+		category: TASKS_CATEGORY
+	},
+	when: TaskExecutionSupportedContext
+});
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: RerunAllRunningTasksCommandId,
+		title: nls.localize2('RerunAllRunningTasksAction.label', "Rerun All Running Tasks"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -557,5 +569,33 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('task.verboseLogging', "Enable verbose logging for tasks."),
 			default: false
 		},
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RerunForActiveTerminalCommandId,
+			icon: rerunTaskIcon,
+			title: nls.localize2('workbench.action.tasks.rerunForActiveTerminal', 'Rerun Task'),
+			precondition: TASK_TERMINAL_ACTIVE,
+			menu: [{ id: MenuId.TerminalInstanceContext, when: TASK_TERMINAL_ACTIVE }],
+			keybinding: {
+				when: TerminalContextKeys.focus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
+				},
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, args: any): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const taskSystem = accessor.get(ITaskService);
+		const instance = args as ITerminalInstance ?? terminalService.activeInstance;
+		if (instance) {
+			await taskSystem.rerun(instance.instanceId);
+		}
 	}
 });

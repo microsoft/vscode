@@ -5,8 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-DXeP32g8BdMsVuVabYTmznoTH59F7M7UtV0vXemEFqc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
-
+		content="default-src 'none'; script-src 'sha256-ZcIhtIuU4M9PbKfs7w/CLqHimFJRK8L7mYTXOfiUv0I=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -36,6 +35,24 @@
 		const onElectron = searchParams.get('platform') === 'electron';
 		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
+
+		/**
+		 * @param {string} name
+		 * @param {Record<string, string>} [options]
+		 */
+		const perfMark = (name, options = {}) => {
+			performance.mark(`webview/index.html/${name}`, {
+				detail: {
+					id: ID,
+					...options
+				}
+			});
+		}
+
+		perfMark('scriptStart');
+
+		/** @type {MessageChannel | undefined} */
+		let outerIframeMessageChannel;
 
 		/**
 		 * Use polling to track focus of main webview and iframes within the webview
@@ -87,6 +104,7 @@
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = `
+		@layer vscode-default {
 			html {
 				scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
 			}
@@ -180,7 +198,8 @@
 			}
 			::highlight(current-find-highlight) {
 				background-color: var(--vscode-editor-findMatchBackground);
-			}`;
+			}
+		}`;
 
 		/**
 		 * @param {boolean} allowMultipleAPIAcquire
@@ -220,9 +239,9 @@
 							});
 						};
 					})();
-					delete window.parent;
-					delete window.top;
-					delete window.frameElement;
+					window.parent = window;
+					window.top = window;
+					window.frameElement = null;
 				`;
 		}
 
@@ -237,7 +256,7 @@
 			}
 
 			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
-			navigator.serviceWorker.register(swPath)
+			navigator.serviceWorker.register(swPath, { type: 'module' })
 				.then(async registration => {
 					/**
 					 * @param {MessageEvent} event
@@ -265,7 +284,8 @@
 					navigator.serviceWorker.addEventListener('message', versionHandler);
 
 					const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
-						controller.postMessage({ channel: 'version' });
+						outerIframeMessageChannel = new MessageChannel();
+						controller.postMessage({ channel: 'version' }, [outerIframeMessageChannel.port2]);
 					};
 
 					// At this point, either the service worker is ready and
@@ -342,6 +362,7 @@
 
 			async signalReady() {
 				const start = (/** @type {string} */ parentOrigin) => {
+					perfMark('signalingReady');
 					window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
 				};
 
@@ -963,9 +984,12 @@
 			// update iframe-contents
 			let updateId = 0;
 			hostMessaging.onMessage('content', async (_event, /** @type {import('../webviewMessages').UpdateContentEvent} */ data) => {
+				perfMark('content/started');
+
 				const currentUpdateId = ++updateId;
 				try {
 					await workerReady;
+					perfMark('content/workerReady');
 				} catch (e) {
 					console.error(`Webview fatal error: ${e}`);
 					hostMessaging.postMessage('fatal-error', { message: e + '' });
@@ -1054,12 +1078,15 @@
 				 * @param {Document} contentDocument
 				 */
 				function onFrameLoaded(contentDocument) {
+					perfMark('content/innerFrameLoaded')
+
 					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
 					setTimeout(() => {
 						contentDocument.open();
 						contentDocument.write(newDocument);
 						contentDocument.close();
 						hookupOnLoadHandlers(newFrame);
+						perfMark('content/wroteInnerContent')
 
 						if (initialStyleVersion !== styleVersion) {
 							applyStyles(contentDocument, contentDocument.body);
@@ -1118,6 +1145,21 @@
 
 						if (wasFocused) {
 							contentWindow.focus();
+						}
+
+						// Get body size
+						const docEl = contentDocument.documentElement;
+						if (docEl) {
+							const postSize = () => {
+								hostMessaging.postMessage('updated-intrinsic-content-size', {
+									width: docEl.offsetWidth,
+									height: docEl.offsetHeight
+								});
+							};
+
+							const resizeObserver = new ResizeObserver(postSize);
+							resizeObserver.observe(docEl);
+							postSize();
 						}
 
 						pendingMessages.forEach((message) => {
@@ -1202,6 +1244,17 @@
 					contentWindow.addEventListener('drop', handleInnerDropEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+
+				if (!disableServiceWorker && outerIframeMessageChannel) {
+					outerIframeMessageChannel.port1.onmessage = event => {
+						switch (event.data.channel) {
+							case 'load-resource':
+							case 'load-localhost':
+								hostMessaging.postMessage(event.data.channel, event.data);
+								return;
+						}
+					};
 				}
 			});
 

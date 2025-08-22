@@ -152,8 +152,12 @@ suite('Notebook builtin output renderer', () => {
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
 			assert.ok(outputElement.classList.contains('remove-padding'), `Padding should be removed for scrollable outputs ${outputElement.classList}`);
-			assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
-				`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
+			if (mimeType === 'text/plain') {
+				assert.ok(inserted.classList.contains('word-wrap'), `Word wrap should be enabled for text/plain ${outputElement.classList}`);
+			} else {
+				assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+					`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
+			}
 			assert.ok(inserted.innerHTML.indexOf('>content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		});
 

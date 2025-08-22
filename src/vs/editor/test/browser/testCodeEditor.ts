@@ -23,11 +23,9 @@ import { LanguageService } from '../../common/services/languageService.js';
 import { IModelService } from '../../common/services/model.js';
 import { ModelService } from '../../common/services/modelService.js';
 import { ITextResourcePropertiesService } from '../../common/services/textResourceConfiguration.js';
-import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
 import { ViewModel } from '../../common/viewModel/viewModelImpl.js';
 import { TestConfiguration } from './config/testConfiguration.js';
 import { TestCodeEditorService, TestCommandService } from './editorTestServices.js';
-import { TestTreeSitterParserService } from '../common/services/testTreeSitterService.js';
 import { TestLanguageConfigurationService } from '../common/modes/testLanguageConfigurationService.js';
 import { TestEditorWorkerService } from '../common/services/testEditorWorkerService.js';
 import { TestTextResourcePropertiesService } from '../common/services/testTextResourcePropertiesService.js';
@@ -45,12 +43,12 @@ import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../platform/dialogs/test/common/testDialogService.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
-import { BrandedService, IInstantiationService, ServiceIdentifier } from '../../../platform/instantiation/common/instantiation.js';
+import { BrandedService, IInstantiationService, ServiceIdentifier, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { ILogService, NullLogService } from '../../../platform/log/common/log.js';
+import { ILoggerService, ILogService, NullLoggerService, NullLogService } from '../../../platform/log/common/log.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
@@ -61,11 +59,26 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
 import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
+import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../common/services/testTreeSitterLibraryService.js';
+import { IInlineCompletionsService, InlineCompletionsService } from '../../browser/services/inlineCompletionsService.js';
+import { EditorCommand } from '../../browser/editorExtensions.js';
+import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
 	registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T;
 	registerDisposable(disposable: IDisposable): void;
+	runCommand(command: ITestEditorCommand, args?: any): void | Promise<void>;
+	runAction(action: ITestEditorAction, args?: any): void | Promise<void>;
+}
+
+export interface ITestEditorCommand {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args?: any): void | Promise<void>;
+}
+
+export interface ITestEditorAction {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, args?: any): void | Promise<void>;
 }
 
 export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
@@ -98,6 +111,16 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	}
 	public registerDisposable(disposable: IDisposable): void {
 		this._register(disposable);
+	}
+	public runCommand(command: EditorCommand, args?: any): void | Promise<void> {
+		return this._instantiationService.invokeFunction((accessor) => {
+			return command.runEditorCommand(accessor, this, args);
+		});
+	}
+	public runAction(action: ITestEditorAction, args?: any): void | Promise<void> {
+		return this._instantiationService.invokeFunction((accessor) => {
+			return action.run(accessor, this, args);
+		});
 	}
 }
 
@@ -213,6 +236,8 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	define(IContextKeyService, MockContextKeyService);
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
+	define(ILoggerService, NullLoggerService);
+	define(IDataChannelService, NullDataChannelService);
 	define(IEnvironmentService, class extends mock<IEnvironmentService>() {
 		declare readonly _serviceBrand: undefined;
 		override isBuilt: boolean = true;
@@ -220,7 +245,8 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	});
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(ILanguageFeaturesService, LanguageFeaturesService);
-	define(ITreeSitterParserService, TestTreeSitterParserService);
+	define(ITreeSitterLibraryService, TestTreeSitterLibraryService);
+	define(IInlineCompletionsService, InlineCompletionsService);
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {

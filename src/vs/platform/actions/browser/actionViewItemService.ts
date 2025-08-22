@@ -3,15 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActionViewItemProvider } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { IActionViewItem } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { IActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { MenuId } from '../common/actions.js';
 
 
 export const IActionViewItemService = createDecorator<IActionViewItemService>('IActionViewItemService');
+
+
+export interface IActionViewItemFactory {
+	(action: IAction, options: IActionViewItemOptions, instaService: IInstantiationService): IActionViewItem | undefined;
+}
 
 export interface IActionViewItemService {
 
@@ -19,11 +26,11 @@ export interface IActionViewItemService {
 
 	onDidChange: Event<MenuId>;
 
-	register(menu: MenuId, submenu: MenuId, provider: IActionViewItemProvider, event?: Event<unknown>): IDisposable;
-	register(menu: MenuId, commandId: string, provider: IActionViewItemProvider, event?: Event<unknown>): IDisposable;
+	register(menu: MenuId, submenu: MenuId, provider: IActionViewItemFactory, event?: Event<unknown>): IDisposable;
+	register(menu: MenuId, commandId: string, provider: IActionViewItemFactory, event?: Event<unknown>): IDisposable;
 
-	lookUp(menu: MenuId, submenu: MenuId): IActionViewItemProvider | undefined;
-	lookUp(menu: MenuId, commandId: string): IActionViewItemProvider | undefined;
+	lookUp(menu: MenuId, submenu: MenuId): IActionViewItemFactory | undefined;
+	lookUp(menu: MenuId, commandId: string): IActionViewItemFactory | undefined;
 }
 
 export class NullActionViewItemService implements IActionViewItemService {
@@ -31,11 +38,11 @@ export class NullActionViewItemService implements IActionViewItemService {
 
 	onDidChange: Event<MenuId> = Event.None;
 
-	register(menu: MenuId, commandId: string | MenuId, provider: IActionViewItemProvider, event?: Event<unknown>): IDisposable {
+	register(menu: MenuId, commandId: string | MenuId, provider: IActionViewItemFactory, event?: Event<unknown>): IDisposable {
 		return Disposable.None;
 	}
 
-	lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemProvider | undefined {
+	lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
 		return undefined;
 	}
 }
@@ -44,7 +51,7 @@ class ActionViewItemService implements IActionViewItemService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _providers = new Map<string, IActionViewItemProvider>();
+	private readonly _providers = new Map<string, IActionViewItemFactory>();
 
 	private readonly _onDidChange = new Emitter<MenuId>();
 	readonly onDidChange: Event<MenuId> = this._onDidChange.event;
@@ -53,7 +60,7 @@ class ActionViewItemService implements IActionViewItemService {
 		this._onDidChange.dispose();
 	}
 
-	register(menu: MenuId, commandOrSubmenuId: string | MenuId, provider: IActionViewItemProvider, event?: Event<unknown>): IDisposable {
+	register(menu: MenuId, commandOrSubmenuId: string | MenuId, provider: IActionViewItemFactory, event?: Event<unknown>): IDisposable {
 		const id = this._makeKey(menu, commandOrSubmenuId);
 		if (this._providers.has(id)) {
 			throw new Error(`A provider for the command ${commandOrSubmenuId} and menu ${menu} is already registered.`);
@@ -70,7 +77,7 @@ class ActionViewItemService implements IActionViewItemService {
 		});
 	}
 
-	lookUp(menu: MenuId, commandOrMenuId: string | MenuId): IActionViewItemProvider | undefined {
+	lookUp(menu: MenuId, commandOrMenuId: string | MenuId): IActionViewItemFactory | undefined {
 		return this._providers.get(this._makeKey(menu, commandOrMenuId));
 	}
 

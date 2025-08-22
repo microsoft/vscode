@@ -29,7 +29,7 @@ export function inferredProjectCompilerOptions(
 		module: (version.gte(API.v540) ? 'Preserve' : 'ESNext') as Proto.ModuleKind,
 		moduleResolution: (version.gte(API.v540) ? 'Bundler' : 'Node') as Proto.ModuleResolutionKind,
 		target: 'ES2022' as Proto.ScriptTarget,
-		jsx: 'react' as Proto.JsxEmit,
+		jsx: 'react-jsx' as Proto.JsxEmit,
 	};
 
 	if (version.gte(API.v500)) {
@@ -53,6 +53,10 @@ export function inferredProjectCompilerOptions(
 
 	if (serviceConfig.implicitProjectConfiguration.strictFunctionTypes) {
 		projectConfig.strictFunctionTypes = true;
+	}
+
+	if (serviceConfig.implicitProjectConfiguration.strict) {
+		projectConfig.strict = true;
 	}
 
 	if (serviceConfig.implicitProjectConfiguration.module) {

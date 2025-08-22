@@ -329,8 +329,8 @@ pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Resu
 			auth.clear_credentials()?;
 		}
 		TunnelUserSubCommands::Show => {
-			if let Ok(Some(_)) = auth.get_current_credential() {
-				ctx.log.result("logged in");
+			if let Ok(Some(sc)) = auth.get_current_credential() {
+				ctx.log.result(format!("logged in with provider {}", sc.provider));
 			} else {
 				ctx.log.result("not logged in");
 				return Ok(1);

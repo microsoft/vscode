@@ -19,7 +19,7 @@ const { defineConfig } = require('@vscode/test-cli');
  * A list of extension folders who have opted into tests, or configuration objects.
  * Edit me to add more!
  *
- * @type {Array<string | (Partial<import("@vscode/test-cli").TestConfiguration> & { label: string })>}
+ * @type {Array<Partial<import("@vscode/test-cli").TestConfiguration> & { label: string }>}
  */
 const extensions = [
 	{
@@ -65,22 +65,39 @@ const extensions = [
 	{
 		label: 'microsoft-authentication',
 		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'vscode-api-tests-folder',
+		extensionDevelopmentPath: `extensions/vscode-api-tests`,
+		workspaceFolder: `extensions/vscode-api-tests/testWorkspace`,
+		mocha: { timeout: 60_000 },
+		files: 'extensions/vscode-api-tests/out/singlefolder-tests/**/*.test.js',
+	},
+	{
+		label: 'vscode-api-tests-workspace',
+		extensionDevelopmentPath: `extensions/vscode-api-tests`,
+		workspaceFolder: `extensions/vscode-api-tests/testworkspace.code-workspace`,
+		mocha: { timeout: 60_000 },
+		files: 'extensions/vscode-api-tests/out/workspace-tests/**/*.test.js',
 	}
 ];
 
 
 const defaultLaunchArgs = process.env.API_TESTS_EXTRA_ARGS?.split(' ') || [
-	'--disable-telemetry', '--skip-welcome', '--skip-release-notes', `--crash-reporter-directory=${__dirname}/.build/crashes`, `--logsPath=${__dirname}/.build/logs/integration-tests`, '--no-cached-data', '--disable-updates', '--use-inmemory-secretstorage', '--disable-extensions', '--disable-workspace-trust'
+	'--disable-telemetry', '--disable-experiments', '--skip-welcome', '--skip-release-notes', `--crash-reporter-directory=${__dirname}/.build/crashes`, `--logsPath=${__dirname}/.build/logs/integration-tests`, '--no-cached-data', '--disable-updates', '--use-inmemory-secretstorage', '--disable-extensions', '--disable-workspace-trust'
 ];
 
 const config = defineConfig(extensions.map(extension => {
 	/** @type {import('@vscode/test-cli').TestConfiguration} */
-	const config = typeof extension === 'object'
-		? { files: `extensions/${extension.label}/out/**/*.test.js`, ...extension }
-		: { files: `extensions/${extension}/out/**/*.test.js`, label: extension };
+	const config = {
+		platform: 'desktop',
+		files: `extensions/${extension.label}/out/**/*.test.js`,
+		extensionDevelopmentPath: `extensions/${extension.label}`,
+		...extension,
+	};
 
 	config.mocha ??= {};
-	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
 		let suite = '';
 		if (process.env.VSCODE_BROWSER) {
 			suite = `${process.env.VSCODE_BROWSER} Browser Integration ${config.label} tests`;
@@ -95,7 +112,10 @@ const config = defineConfig(extensions.map(extension => {
 			reporterEnabled: 'spec, mocha-junit-reporter',
 			mochaJunitReporterReporterOptions: {
 				testsuitesTitle: `${suite} ${process.platform}`,
-				mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
+				mochaFile: path.join(
+					process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE || __dirname,
+					`test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`
+				)
 			}
 		};
 	}

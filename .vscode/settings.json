@@ -1,6 +1,47 @@
 {
+	// --- Chat ---
+	// "inlineChat.enableV2": true,
+	"chat.tools.terminal.autoApprove": {
+		"/^npm (test|lint|run compile)\\b/": true,
+		"/^npx tsc\\b.*--noEmit/": true,
+		"scripts/test.bat": true,
+		"scripts/test.sh": true,
+		"scripts/test-integration.bat": true,
+		"scripts/test-integration.sh": true,
+	},
+
+	// --- Editor ---
 	"editor.insertSpaces": false,
+	"editor.experimental.asyncTokenization": true,
+	"editor.experimental.asyncTokenizationVerification": true,
+	"editor.occurrencesHighlightDelay": 0,
+	// "editor.experimental.preferTreeSitter.typescript": true,
+	// "editor.experimental.preferTreeSitter.regex": true,
+	// "editor.experimental.preferTreeSitter.css": true,
+
+	// --- Language Specific ---
+	"[plaintext]": {
+		"files.insertFinalNewline": false
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features",
+		"editor.formatOnSave": true
+	},
+	"[javascript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features",
+		"editor.formatOnSave": true
+	},
+	"[rust]": {
+		"editor.defaultFormatter": "rust-lang.rust-analyzer",
+		"editor.formatOnSave": true,
+	},
+	"[github-issues]": {
+		"editor.wordWrap": "on"
+	},
+
+	// --- Files ---
 	"files.trimTrailingWhitespace": true,
+	"files.insertFinalNewline": true,
 	"files.exclude": {
 		".git": true,
 		".build": true,
@@ -17,6 +58,31 @@
 		"cglicenses.json": "jsonc",
 		"*.tst": "typescript"
 	},
+	"files.readonlyInclude": {
+		"**/node_modules/**/*.*": true,
+		"**/yarn.lock": true,
+		"**/package-lock.json": true,
+		"**/Cargo.lock": true,
+		"build/**/*.js": true,
+		"out/**": true,
+		"out-build/**": true,
+		"out-vscode/**": true,
+		"out-vscode-reh/**": true,
+		"extensions/**/dist/**": true,
+		"extensions/**/out/**": true,
+		"extensions/terminal-suggest/src/completions/upstream/**": true,
+		"test/smoke/out/**": true,
+		"test/automation/out/**": true,
+		"test/integration/browser/out/**": true
+	},
+	"files.readonlyExclude": {
+		"build/builtin/*.js": true,
+		"build/monaco/*.js": true,
+		"build/npm/*.js": true,
+		"build/*.js": true
+	},
+
+	// --- Search ---
 	"search.exclude": {
 		"**/node_modules": true,
 		"cli/target/**": true,
@@ -37,28 +103,80 @@
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
 		"build/loader.min": true
 	},
-	"files.readonlyInclude": {
-		"**/node_modules/**/*.*": true,
-		"**/yarn.lock": true,
-		"**/package-lock.json": true,
-		"**/Cargo.lock": true,
-		"build/**/*.js": true,
-		"out/**": true,
-		"out-build/**": true,
-		"out-vscode/**": true,
-		"out-vscode-reh/**": true,
-		"extensions/**/dist/**": true,
-		"extensions/**/out/**": true,
-		"test/smoke/out/**": true,
-		"test/automation/out/**": true,
-		"test/integration/browser/out/**": true
+
+	// --- TypeScript ---
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"typescript.preferences.importModuleSpecifier": "relative",
+	"typescript.preferences.quoteStyle": "single",
+	"typescript.tsc.autoDetect": "off",
+	"typescript.preferences.autoImportFileExcludePatterns": [
+		"@xterm/xterm",
+		"@xterm/headless",
+		"node-pty",
+		"vscode-notebook-renderer",
+		"src/vs/workbench/workbench.web.main.internal.ts"
+	],
+
+	// --- Languages ---
+	"json.schemas": [
+		{
+			"fileMatch": [
+				"cgmanifest.json"
+			],
+			"url": "https://www.schemastore.org/component-detection-manifest.json",
+		},
+		{
+			"fileMatch": [
+				"cglicenses.json"
+			],
+			"url": "./.vscode/cglicenses.schema.json"
+		}
+	],
+	"css.format.spaceAroundSelectorSeparator": true,
+
+	// --- Git ---
+	"git.ignoreLimitWarning": true,
+	"git.branchProtection": [
+		"main",
+		"distro",
+		"release/*"
+	],
+	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
+	"git.branchRandomName.enable": true,
+	"git.pullBeforeCheckout": true,
+	"git.mergeEditor": true,
+	"git.diagnosticsCommitHook.enabled": true,
+	"git.diagnosticsCommitHook.sources": {
+		"*": "error",
+		"ts": "warning",
+		"eslint": "warning"
 	},
-	"files.readonlyExclude": {
-		"build/builtin/*.js": true,
-		"build/monaco/*.js": true,
-		"build/npm/*.js": true,
-		"build/*.js": true
+
+	// --- GitHub ---
+	"githubPullRequests.experimental.createView": true,
+	"githubPullRequests.assignCreated": "${user}",
+	"githubPullRequests.defaultMergeMethod": "squash",
+	"githubPullRequests.ignoredPullRequestBranches": [
+		"main"
+	],
+	"githubPullRequests.codingAgent.enabled": true,
+	"githubPullRequests.codingAgent.uiIntegration": true,
+
+	// --- Testing & Debugging ---
+	"testing.autoRun.mode": "rerun",
+	"debug.javascript.terminalOptions": {
+		"outFiles": [
+			"${workspaceFolder}/out/**/*.js",
+			"${workspaceFolder}/build/**/*.js"
+		]
 	},
+	"extension-test-runner.debugOptions": {
+		"outFiles": [
+			"${workspaceFolder}/extensions/*/out/**/*.js",
+		]
+	},
+
+	// --- Coverage ---
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
 		"./.build/coverage-single/lcov.info"
@@ -72,60 +190,15 @@
 			}
 		}
 	],
-	"typescript.tsdk": "node_modules/typescript/lib",
+
+	// --- Tools ---
 	"npm.exclude": "**/extensions/**",
+	"eslint.useFlatConfig": true,
 	"emmet.excludeLanguages": [],
-	"typescript.preferences.importModuleSpecifier": "relative",
-	"typescript.preferences.quoteStyle": "single",
-	"json.schemas": [
-		{
-			"fileMatch": [
-				"cgmanifest.json"
-			],
-			"url": "https://json.schemastore.org/component-detection-manifest.json",
-		},
-		{
-			"fileMatch": [
-				"cglicenses.json"
-			],
-			"url": "./.vscode/cglicenses.schema.json"
-		}
-	],
-	"git.ignoreLimitWarning": true,
-	"git.branchProtection": [
-		"main",
-		"distro",
-		"release/*"
-	],
-	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
-	"git.branchRandomName.enable": true,
-	"git.pullBeforeCheckout": true,
-	"git.mergeEditor": true,
-	"remote.extensionKind": {
-		"msjsdiag.debugger-for-chrome": "workspace"
-	},
 	"gulp.autoDetect": "off",
-	"files.insertFinalNewline": true,
-	"[plaintext]": {
-		"files.insertFinalNewline": false
-	},
-	"[typescript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true
-	},
-	"[javascript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features",
-		"editor.formatOnSave": true
-	},
-	"[rust]": {
-		"editor.defaultFormatter": "rust-lang.rust-analyzer",
-		"editor.formatOnSave": true,
-	},
 	"rust-analyzer.linkedProjects": [
 		"cli/Cargo.toml"
 	],
-	"typescript.tsc.autoDetect": "off",
-	"testing.autoRun.mode": "rerun",
 	"conventionalCommits.scopes": [
 		"tree",
 		"scm",
@@ -136,39 +209,14 @@
 		"git",
 		"sash"
 	],
-	"githubPullRequests.experimental.createView": true,
-	"debug.javascript.terminalOptions": {
-		"outFiles": [
-			"${workspaceFolder}/out/**/*.js",
-			"${workspaceFolder}/build/**/*.js"
-		]
+
+	// --- Workbench ---
+	"remote.extensionKind": {
+		"msjsdiag.debugger-for-chrome": "workspace"
 	},
-	"extension-test-runner.debugOptions": {
-		"outFiles": [
-			"${workspaceFolder}/extensions/*/out/**/*.js",
-		]
-	},
-	"githubPullRequests.assignCreated": "${user}",
-	"githubPullRequests.defaultMergeMethod": "squash",
-	"githubPullRequests.ignoredPullRequestBranches": [
-		"main"
-	],
+	"terminal.integrated.suggest.enabled": true,
 	"application.experimental.rendererProfiling": true,
-	"editor.experimental.asyncTokenization": true,
-	"editor.experimental.asyncTokenizationVerification": true,
-	"typescript.preferences.autoImportFileExcludePatterns": [
-		"@xterm/xterm",
-		"@xterm/headless",
-		"node-pty",
-		"vscode-notebook-renderer",
-		"src/vs/workbench/workbench.web.main.internal.ts"
-	],
-	"[github-issues]": {
-		"editor.wordWrap": "on"
-	},
-	"css.format.spaceAroundSelectorSeparator": true,
-	"typescript.enablePromptUseWorkspaceTsdk": true,
-	"eslint.useFlatConfig": true,
-	"editor.occurrencesHighlightDelay": 0,
-	"typescript.experimental.expandableHover": true,
+
+	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
+	"chat.checkpoints.showFileChanges": true
 }

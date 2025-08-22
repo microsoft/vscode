@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
-import * as minimatch from 'minimatch';
+import path from 'path';
+import fs from 'fs';
+import minimatch from 'minimatch';
 import { makeUniversalApp } from 'vscode-universal-bundler';
 
 const root = path.dirname(path.dirname(__dirname));
@@ -28,6 +28,7 @@ async function main(buildDir?: string) {
 	const filesToSkip = [
 		'**/CodeResources',
 		'**/Credits.rtf',
+		'**/policies/{*.mobileconfig,**/*.plist}',
 		// TODO: Should we consider expanding this to other files in this area?
 		'**/node_modules/@parcel/node-addon-api/nothing.target.mk'
 	];

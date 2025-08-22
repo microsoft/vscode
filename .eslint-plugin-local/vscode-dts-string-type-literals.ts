@@ -19,7 +19,7 @@ export = new class ApiTypeDiscrimination implements eslint.Rule.RuleModule {
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {
 			['TSPropertySignature[optional=false] TSTypeAnnotation TSLiteralType Literal']: (node: any) => {
-				const raw = String((<TSESTree.Literal>node).raw)
+				const raw = String((<TSESTree.Literal>node).raw);
 
 				if (/^('|").*\1$/.test(raw)) {
 
@@ -29,6 +29,6 @@ export = new class ApiTypeDiscrimination implements eslint.Rule.RuleModule {
 					});
 				}
 			}
-		}
+		};
 	}
 };

@@ -12,14 +12,16 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import * as nls from '../../../../nls.js';
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
 
 export function canExpandCompletionItem(item: SimpleCompletionItem | undefined): boolean {
-	return !!item && Boolean(item.completion.detail && item.completion.detail !== item.completion.label);
+	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
 }
+
+export const SuggestDetailsClassName = 'suggest-details';
 
 export class SimpleSuggestDetailsWidget {
 
@@ -46,8 +48,10 @@ export class SimpleSuggestDetailsWidget {
 	private _size = new dom.Dimension(330, 0);
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService instaService: IInstantiationService,
+		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
+		onDidFontInfoChange: Event<void>,
+		private readonly _getAdvancedExplainModeDetails: () => string | undefined,
+		@IInstantiationService instaService: IInstantiationService
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
@@ -70,6 +74,30 @@ export class SimpleSuggestDetailsWidget {
 		this._type = dom.append(this._header, dom.$('p.type'));
 
 		this._docs = dom.append(this._body, dom.$('p.docs'));
+
+		this._configureFont();
+
+		this._disposables.add(onDidFontInfoChange(() => this._configureFont()));
+	}
+
+	private _configureFont(): void {
+		const fontInfo = this._getFontInfo();
+		const fontFamily = fontInfo.fontFamily;
+
+		const fontSize = fontInfo.fontSize;
+		const lineHeight = fontInfo.lineHeight;
+		const fontWeight = fontInfo.fontWeight;
+		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
+
+		this.domNode.style.fontSize = fontSizePx;
+		this.domNode.style.lineHeight = `${lineHeight / fontSize}`;
+		this.domNode.style.fontWeight = fontWeight;
+		// this.domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
+		this._type.style.fontFamily = fontFamily;
+		this._close.style.height = lineHeightPx;
+		this._close.style.width = lineHeightPx;
+
 	}
 
 	dispose(): void {
@@ -79,7 +107,7 @@ export class SimpleSuggestDetailsWidget {
 	}
 
 	getLayoutInfo() {
-		const lineHeight = this._configurationService.getValue<number>('editor.lineHeight');
+		const lineHeight = this._getFontInfo().lineHeight;
 		const borderWidth = this._borderWidth;
 		const borderHeight = borderWidth * 2;
 		return {
@@ -102,16 +130,22 @@ export class SimpleSuggestDetailsWidget {
 	renderItem(item: SimpleCompletionItem, explainMode: boolean): void {
 		this._renderDisposeable.clear();
 
-		let { detail } = item.completion;
+		let { detail, documentation } = item.completion;
 
 		let md = '';
-		let documentation;
+
 		if (explainMode) {
 			md += `score: ${item.score[0]}\n`;
 			md += `prefix: ${item.word ?? '(no prefix)'}\n`;
 			md += `replacementIndex: ${item.completion.replacementIndex}\n`;
 			md += `replacementLength: ${item.completion.replacementLength}\n`;
 			md += `index: ${item.idx}\n`;
+			if (this._getAdvancedExplainModeDetails) {
+				const advancedDetails = this._getAdvancedExplainModeDetails();
+				if (advancedDetails) {
+					md += `${advancedDetails}\n`;
+				}
+			}
 			detail = `Provider: ${item.completion.provider}`;
 			documentation = new MarkdownString().appendCodeblock('empty', md);
 		}
@@ -158,7 +192,7 @@ export class SimpleSuggestDetailsWidget {
 			this._renderDisposeable.add(renderedContents);
 		}
 
-		// this.domNode.classList.toggle('detail-and-doc', !!documentation);
+		this.domNode.classList.toggle('detail-and-doc', !!detail && !!documentation);
 
 		this.domNode.style.userSelect = 'text';
 		this.domNode.tabIndex = -1;
@@ -175,7 +209,7 @@ export class SimpleSuggestDetailsWidget {
 
 		this._body.scrollTop = 0;
 
-		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
+		this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight + this.getLayoutInfo().verticalPadding);
 		this._onDidChangeContents.fire(this);
 	}
 
@@ -248,7 +282,7 @@ export class SimpleSuggestDetailsOverlay {
 	private _anchorBox?: dom.IDomNodePagePosition;
 	// private _preferAlignAtTop: boolean = true;
 	private _userSize?: dom.Dimension;
-	// private _topLeft?: TopLeftPosition;
+	private _topLeft?: TopLeftPosition;
 
 	constructor(
 		readonly widget: SimpleSuggestDetailsWidget,
@@ -260,43 +294,43 @@ export class SimpleSuggestDetailsOverlay {
 		this._resizable.domNode.appendChild(widget.domNode);
 		this._resizable.enableSashes(false, true, true, false);
 
-		// let topLeftNow: TopLeftPosition | undefined;
-		// let sizeNow: dom.Dimension | undefined;
-		// let deltaTop: number = 0;
-		// let deltaLeft: number = 0;
-		// this._disposables.add(this._resizable.onDidWillResize(() => {
-		// 	topLeftNow = this._topLeft;
-		// 	sizeNow = this._resizable.size;
-		// }));
+		let topLeftNow: TopLeftPosition | undefined;
+		let sizeNow: dom.Dimension | undefined;
+		let deltaTop: number = 0;
+		let deltaLeft: number = 0;
+		this._disposables.add(this._resizable.onDidWillResize(() => {
+			topLeftNow = this._topLeft;
+			sizeNow = this._resizable.size;
+		}));
 
-		// this._disposables.add(this._resizable.onDidResize(e => {
-		// 	if (topLeftNow && sizeNow) {
-		// 		this.widget.layout(e.dimension.width, e.dimension.height);
+		this._disposables.add(this._resizable.onDidResize(e => {
+			if (topLeftNow && sizeNow) {
+				this.widget.layout(e.dimension.width, e.dimension.height);
 
-		// 		let updateTopLeft = false;
-		// 		if (e.west) {
-		// 			deltaLeft = sizeNow.width - e.dimension.width;
-		// 			updateTopLeft = true;
-		// 		}
-		// 		if (e.north) {
-		// 			deltaTop = sizeNow.height - e.dimension.height;
-		// 			updateTopLeft = true;
-		// 		}
-		// 		if (updateTopLeft) {
-		// 			this._applyTopLeft({
-		// 				top: topLeftNow.top + deltaTop,
-		// 				left: topLeftNow.left + deltaLeft,
-		// 			});
-		// 		}
-		// 	}
-		// 	if (e.done) {
-		// 		topLeftNow = undefined;
-		// 		sizeNow = undefined;
-		// 		deltaTop = 0;
-		// 		deltaLeft = 0;
-		// 		this._userSize = e.dimension;
-		// 	}
-		// }));
+				let updateTopLeft = false;
+				if (e.west) {
+					deltaLeft = sizeNow.width - e.dimension.width;
+					updateTopLeft = true;
+				}
+				if (e.north) {
+					deltaTop = sizeNow.height - e.dimension.height;
+					updateTopLeft = true;
+				}
+				if (updateTopLeft) {
+					this._applyTopLeft({
+						top: topLeftNow.top + deltaTop,
+						left: topLeftNow.left + deltaLeft,
+					});
+				}
+			}
+			if (e.done) {
+				topLeftNow = undefined;
+				sizeNow = undefined;
+				deltaTop = 0;
+				deltaLeft = 0;
+				this._userSize = e.dimension;
+			}
+		}));
 
 		this._disposables.add(this.widget.onDidChangeContents(() => {
 			if (this._anchorBox) {
@@ -437,10 +471,15 @@ export class SimpleSuggestDetailsOverlay {
 	}
 
 	private _applyTopLeft(topLeft: { left: number; top: number }): void {
-		// this._topLeft = topLeft;
+		this._topLeft = topLeft;
 		// this._editor.layoutOverlayWidget(this);
 		this._resizable.domNode.style.top = `${topLeft.top}px`;
 		this._resizable.domNode.style.left = `${topLeft.left}px`;
 		this._resizable.domNode.style.position = 'absolute';
 	}
+}
+
+interface TopLeftPosition {
+	top: number;
+	left: number;
 }

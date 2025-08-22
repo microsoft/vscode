@@ -6,11 +6,11 @@
 				"git": {
 					"name": "jlelong/vscode-latex-basics",
 					"repositoryUrl": "https://github.com/jlelong/vscode-latex-basics",
-					"commitHash": "59971565a7065dbb617576c04add9d891b056319"
+					"commitHash": "e5d3d4b46731ed37119a5296c12eee7669284eeb"
 				}
 			},
 			"license": "MIT",
-			"version": "1.9.0",
+			"version": "1.14.0",
 			"description": "The files in syntaxes/ were originally part of https://github.com/James-Yu/LaTeX-Workshop. They have been extracted in the hope that they can useful outside of the LaTeX-Workshop extension.",
 			"licenseDetail": [
 				"Copyright (c) vscode-latex-basics authors",

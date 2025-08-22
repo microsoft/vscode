@@ -48,6 +48,7 @@ class NullEnablementService implements IUserDataSyncEnablementService {
 	canToggleEnablement(): boolean { return true; }
 	setEnablement(_enabled: boolean): void { }
 	isResourceEnabled(_resource: SyncResource): boolean { return true; }
+	isResourceEnablementConfigured(_resource: SyncResource): boolean { return false; }
 	setResourceEnablement(_resource: SyncResource, _enabled: boolean): void { }
 	getResourceSyncStateVersion(_resource: SyncResource): string | undefined { return undefined; }
 

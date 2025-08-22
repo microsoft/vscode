@@ -10,7 +10,7 @@ import { Emitter } from '../../base/common/event.js';
 import { Selection } from './core/selection.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { CursorChangeReason } from './cursorEvents.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from './textModelEvents.js';
+import { ModelLineHeightChangedEvent as OriginalModelLineHeightChangedEvent, ModelFontChangedEvent as OriginalModelFontChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from './textModelEvents.js';
 
 export class ViewModelEventDispatcher extends Disposable {
 
@@ -176,6 +176,7 @@ export class ViewModelEventsCollector {
 export type OutgoingViewModelEvent = (
 	ContentSizeChangedEvent
 	| FocusChangedEvent
+	| WidgetFocusChangedEvent
 	| ScrollChangedEvent
 	| ViewZonesChangedEvent
 	| HiddenAreasChangedEvent
@@ -187,11 +188,14 @@ export type OutgoingViewModelEvent = (
 	| ModelContentChangedEvent
 	| ModelOptionsChangedEvent
 	| ModelTokensChangedEvent
+	| ModelLineHeightChangedEvent
+	| ModelFontChangedEvent
 );
 
 export const enum OutgoingViewModelEventKind {
 	ContentSizeChanged,
 	FocusChanged,
+	WidgetFocusChanged,
 	ScrollChanged,
 	ViewZonesChanged,
 	HiddenAreasChanged,
@@ -203,6 +207,8 @@ export const enum OutgoingViewModelEventKind {
 	ModelContentChanged,
 	ModelOptionsChanged,
 	ModelTokensChanged,
+	ModelLineHeightChanged,
+	ModelFontChangedEvent
 }
 
 export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
@@ -241,6 +247,30 @@ export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
 export class FocusChangedEvent {
 
 	public readonly kind = OutgoingViewModelEventKind.FocusChanged;
+
+	readonly oldHasFocus: boolean;
+	readonly hasFocus: boolean;
+
+	constructor(oldHasFocus: boolean, hasFocus: boolean) {
+		this.oldHasFocus = oldHasFocus;
+		this.hasFocus = hasFocus;
+	}
+
+	public isNoOp(): boolean {
+		return (this.oldHasFocus === this.hasFocus);
+	}
+
+	public attemptToMerge(other: OutgoingViewModelEvent): OutgoingViewModelEvent | null {
+		if (other.kind !== this.kind) {
+			return null;
+		}
+		return new FocusChangedEvent(this.oldHasFocus, other.hasFocus);
+	}
+}
+
+export class WidgetFocusChangedEvent {
+
+	public readonly kind = OutgoingViewModelEventKind.WidgetFocusChanged;
 
 	readonly oldHasFocus: boolean;
 	readonly hasFocus: boolean;
@@ -517,6 +547,38 @@ export class ModelTokensChangedEvent {
 
 	constructor(
 		public readonly event: IModelTokensChangedEvent
+	) { }
+
+	public isNoOp(): boolean {
+		return false;
+	}
+
+	public attemptToMerge(other: OutgoingViewModelEvent): OutgoingViewModelEvent | null {
+		return null;
+	}
+}
+
+export class ModelLineHeightChangedEvent {
+	public readonly kind = OutgoingViewModelEventKind.ModelLineHeightChanged;
+
+	constructor(
+		public readonly event: OriginalModelLineHeightChangedEvent
+	) { }
+
+	public isNoOp(): boolean {
+		return false;
+	}
+
+	public attemptToMerge(other: OutgoingViewModelEvent): OutgoingViewModelEvent | null {
+		return null;
+	}
+}
+
+export class ModelFontChangedEvent {
+	public readonly kind = OutgoingViewModelEventKind.ModelFontChangedEvent;
+
+	constructor(
+		public readonly event: OriginalModelFontChangedEvent
 	) { }
 
 	public isNoOp(): boolean {

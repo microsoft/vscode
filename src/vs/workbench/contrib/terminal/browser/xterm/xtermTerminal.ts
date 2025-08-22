@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from '@xterm/xterm';
+import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel, IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
 import type { ILigatureOptions, LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
@@ -30,7 +30,7 @@ import { ShellIntegrationAddon } from '../../../../../platform/terminal/common/x
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DecorationAddon } from './decorationAddon.js';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../../common/terminalContextKey.js';
@@ -174,6 +174,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	constructor(
 		xtermCtor: typeof RawXtermTerminal,
 		options: IXtermTerminalOptions,
+		private readonly _onDidExecuteText: Event<void> | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
@@ -225,6 +226,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
+			scrollOnEraseInDisplay: true,
 			wordSeparator: config.wordSeparators,
 			overviewRuler: {
 				width: 14,
@@ -276,7 +278,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this._register(this._decorationAddon.onDidRequestCopyAsHtml(e => this._onDidRequestCopyAsHtml.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._telemetryService, this._logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._onDidExecuteText, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
 			if (this._store.isDisposed) {
@@ -308,11 +310,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			updateProgress();
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
-				commandDetection.onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 });
+				this._register(commandDetection.onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 }));
 			} else {
 				const disposable = this._capabilities.onDidAddCapability(e => {
 					if (e.id === TerminalCapability.CommandDetection) {
-						(e.capability as CommandDetectionCapability).onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 });
+						this._register((e.capability as CommandDetectionCapability).onCommandFinished(() => progressAddon.progress = { state: 0, value: 0 }));
 						this._store.delete(disposable);
 					}
 				});
@@ -325,13 +327,30 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	*getBufferReverseIterator(): IterableIterator<string> {
-		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
+		for (let i = this.raw.buffer.active.length - 1; i >= 0; i--) {
 			const { lineData, lineIndex } = getFullBufferLineAsString(i, this.raw.buffer.active);
 			if (lineData) {
 				i = lineIndex;
 				yield lineData;
 			}
 		}
+	}
+
+	getContentsAsText(startMarker?: IXtermMarker, endMarker?: IXtermMarker): string {
+		const lines: string[] = [];
+		const buffer = this.raw.buffer.active;
+		if (startMarker?.line === -1) {
+			throw new Error('Cannot get contents of a disposed startMarker');
+		}
+		if (endMarker?.line === -1) {
+			throw new Error('Cannot get contents of a disposed endMarker');
+		}
+		const startLine = startMarker?.line ?? 0;
+		const endLine = endMarker?.line ?? buffer.length - 1;
+		for (let y = startLine; y <= endLine; y++) {
+			lines.push(buffer.getLine(y)?.translateToString(true) ?? '');
+		}
+		return lines.join('\n');
 	}
 
 	async getContentsAsHtml(): Promise<string> {

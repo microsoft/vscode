@@ -28,6 +28,9 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	private readonly _onDidChangeFullScreen = this._register(new Emitter<{ window: IAuxiliaryWindow; fullscreen: boolean }>());
 	readonly onDidChangeFullScreen = this._onDidChangeFullScreen.event;
 
+	private readonly _onDidChangeAlwaysOnTop = this._register(new Emitter<{ window: IAuxiliaryWindow; alwaysOnTop: boolean }>());
+	readonly onDidChangeAlwaysOnTop = this._onDidChangeAlwaysOnTop.event;
+
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: IAuxiliaryWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
@@ -90,7 +93,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
 		const { state, overrides } = this.computeWindowStateAndOverrides(details);
 		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
-			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
+			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload-aux.js').fsPath
 		});
 	}
 
@@ -98,7 +101,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		const windowState: IWindowState = {};
 		const overrides: IDefaultBrowserWindowOptionsOverrides = {};
 
-		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=800,height=600
+		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=1024,height=768
 		for (const feature of features) {
 			const [key, value] = feature.split('=');
 			switch (key) {
@@ -126,6 +129,9 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-native-titlebar':
 					overrides.forceNativeTitlebar = true;
 					break;
+				case 'window-always-on-top':
+					overrides.alwaysOnTop = true;
+					break;
 			}
 		}
 
@@ -148,6 +154,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		disposables.add(auxiliaryWindow.onDidUnmaximize(() => this._onDidUnmaximizeWindow.fire(auxiliaryWindow)));
 		disposables.add(auxiliaryWindow.onDidEnterFullScreen(() => this._onDidChangeFullScreen.fire({ window: auxiliaryWindow, fullscreen: true })));
 		disposables.add(auxiliaryWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: auxiliaryWindow, fullscreen: false })));
+		disposables.add(auxiliaryWindow.onDidChangeAlwaysOnTop(alwaysOnTop => this._onDidChangeAlwaysOnTop.fire({ window: auxiliaryWindow, alwaysOnTop })));
 		disposables.add(auxiliaryWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: auxiliaryWindow, x, y })));
 
 		Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose());

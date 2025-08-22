@@ -33,7 +33,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ReconnectionWaitEvent, PersistentConnectionEventType } from '../../../../platform/remote/common/remoteAgentConnection.js';
 import Severity from '../../../../base/common/severity.js';
 import { ReloadWindowAction } from '../../../browser/actions/windowActions.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { SwitchRemoteViewItem } from './explorerViewItems.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { HelpInformation, IRemoteExplorerService } from '../../../services/remote/common/remoteExplorerService.js';
@@ -86,7 +86,7 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 		return { parent, icon };
 	}
 
-	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData, height: number | undefined): void {
+	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData): void {
 		const container = templateData.parent;
 		dom.append(container, templateData.icon);
 		templateData.icon.classList.add(...element.element.iconClasses);
@@ -120,7 +120,7 @@ interface IHelpItem {
 	handleClick(): Promise<void>;
 }
 
-class HelpModel {
+class HelpModel extends Disposable {
 	items: IHelpItem[] | undefined;
 
 	constructor(
@@ -133,8 +133,10 @@ class HelpModel {
 		private workspaceContextService: IWorkspaceContextService,
 		private walkthroughsService: IWalkthroughsService
 	) {
+		super();
+
 		this.updateItems();
-		viewModel.onDidChangeHelpInformation(() => this.updateItems());
+		this._register(viewModel.onDidChangeHelpInformation(() => this.updateItems()));
 	}
 
 	private createHelpItemValue(info: HelpInformation, infoKey: Exclude<keyof HelpInformation, 'extensionDescription' | 'remoteName' | 'virtualWorkspace'>) {
@@ -460,12 +462,11 @@ class HelpPanel extends ViewPane {
 		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWalkthroughsService private readonly walkthroughsService: IWalkthroughsService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -492,7 +493,7 @@ class HelpPanel extends ViewPane {
 			}
 		);
 
-		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService, this.workspaceContextService, this.walkthroughsService);
+		const model = this._register(new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService, this.workspaceContextService, this.walkthroughsService));
 
 		this.tree.setInput(model);
 
@@ -546,9 +547,9 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService, logService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		this._register(this.remoteSwitcher = this.instantiationService.createInstance(SwitchRemoteViewItem));
-		this.remoteExplorerService.onDidChangeHelpInformation(extensions => {
+		this._register(this.remoteExplorerService.onDidChangeHelpInformation(extensions => {
 			this._setHelpInformation(extensions);
-		});
+		}));
 
 		this._setHelpInformation(this.remoteExplorerService.helpInformation);
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
@@ -805,7 +806,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 
 			let visibleProgress: VisibleProgress | null = null;
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
-			let disposableListener: IDisposable | null = null;
+			const disposableListener = this._register(new MutableDisposable());
 
 			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string; callback: () => void }[], initialReport: string | null = null): VisibleProgress {
 				if (visibleProgress) {
@@ -887,13 +888,10 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			// ReconnectionWait    -> ReconnectionRunning
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 
-			connection.onDidStateChange((e) => {
+			this._register(connection.onDidStateChange((e) => {
 				visibleProgress?.stopTimer();
+				disposableListener.clear();
 
-				if (disposableListener) {
-					disposableListener.dispose();
-					disposableListener = null;
-				}
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
 						reconnectionToken = e.reconnectionToken;
@@ -962,7 +960,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 							visibleProgress.report(nls.localize('reconnectionRunning', "Disconnected. Attempting to reconnect..."));
 
 							// Register to listen for quick input is opened
-							disposableListener = quickInputService.onShow(() => {
+							disposableListener.value = quickInputService.onShow(() => {
 								// Need to move from dialog if being shown and user needs to type in a prompt
 								if (visibleProgress && visibleProgress.location === ProgressLocation.Dialog) {
 									visibleProgress = showProgress(ProgressLocation.Notification, [reloadButton], visibleProgress.lastReport);
@@ -1049,7 +1047,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						hideProgress();
 						break;
 				}
-			});
+			}));
 		}
 	}
 }

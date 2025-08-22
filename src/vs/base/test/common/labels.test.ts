@@ -60,7 +60,7 @@ suite('Labels', () => {
 		assert.deepStrictEqual(labels.shorten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']);
 		assert.deepStrictEqual(labels.shorten(['a', 'a\\b', 'b']), ['a', 'a\\b', 'b']);
 		assert.deepStrictEqual(labels.shorten(['', 'a', 'b', 'b\\c', 'a\\c']), ['.\\', 'a', 'b', 'b\\c', 'a\\c']);
-		assert.deepStrictEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-sandbox', 'src\\vs\\workbench\\parts\\execution\\electron-sandbox\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-sandbox']), ['…\\execution\\electron-sandbox', '…\\something', '…\\terminal\\…']);
+		assert.deepStrictEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-browser', 'src\\vs\\workbench\\parts\\execution\\electron-browser\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-browser']), ['…\\execution\\electron-browser', '…\\something', '…\\terminal\\…']);
 	});
 
 	(isWindows ? test.skip : test)('shorten - not windows', () => {
@@ -145,17 +145,17 @@ suite('Labels', () => {
 	});
 
 	test('mnemonicButtonLabel', () => {
-		assert.strictEqual(labels.mnemonicButtonLabel('Hello World'), 'Hello World');
-		assert.strictEqual(labels.mnemonicButtonLabel(''), '');
+		assert.strictEqual(labels.mnemonicButtonLabel('Hello World').withMnemonic, 'Hello World');
+		assert.strictEqual(labels.mnemonicButtonLabel('').withMnemonic, '');
 		if (isWindows) {
-			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello && World');
-			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do &not Save && Continue');
+			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World').withMnemonic, 'Hello && World');
+			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue').withMnemonic, 'Do &not Save && Continue');
 		} else if (isMacintosh) {
-			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
-			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do not Save & Continue');
+			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World').withMnemonic, 'Hello & World');
+			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue').withMnemonic, 'Do not Save & Continue');
 		} else {
-			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
-			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do _not Save & Continue');
+			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World').withMnemonic, 'Hello & World');
+			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue').withMnemonic, 'Do _not Save & Continue');
 		}
 	});
 

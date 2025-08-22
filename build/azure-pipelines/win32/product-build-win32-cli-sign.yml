@@ -12,6 +12,13 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: vscode
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password"
+
   - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY build
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
@@ -39,6 +46,8 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { npm ci }
     workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     retryCountOnTaskFailure: 5
     displayName: Install build dependencies
 

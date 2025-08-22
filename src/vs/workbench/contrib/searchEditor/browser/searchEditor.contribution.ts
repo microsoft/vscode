@@ -338,11 +338,11 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib
 			},
 			icon: searchRefreshIcon,
-			menu: [{
-				id: MenuId.EditorTitle,
+			menu: [...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
 				group: 'navigation',
 				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
-			},
+			})),
 			{
 				id: MenuId.CommandPalette,
 				when: ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)

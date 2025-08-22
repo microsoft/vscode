@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, EventHelper, EventLike, getWindow, isHTMLElement } from '../../dom.js';
+import { $, addDisposableListener, append, EventHelper, EventLike, getWindow, isHTMLElement } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
 import { DomEmitter } from '../../event.js';
 import { EventType, Gesture } from '../../touch.js';
@@ -296,23 +296,23 @@ export class Sash extends Disposable {
 	/**
 	 * An event which fires whenever the user starts dragging this sash.
 	 */
-	readonly onDidStart: Event<ISashEvent> = this._onDidStart.event;
+	get onDidStart() { return this._onDidStart.event; }
 
 	/**
 	 * An event which fires whenever the user moves the mouse while
 	 * dragging this sash.
 	 */
-	readonly onDidChange: Event<ISashEvent> = this._onDidChange.event;
+	get onDidChange() { return this._onDidChange.event; }
 
 	/**
 	 * An event which fires whenever the user double clicks this sash.
 	 */
-	readonly onDidReset: Event<void> = this._onDidReset.event;
+	get onDidReset() { return this._onDidReset.event; }
 
 	/**
 	 * An event which fires whenever the user stops dragging this sash.
 	 */
-	readonly onDidEnd: Event<void> = this._onDidEnd.event;
+	get onDidEnd() { return this._onDidEnd.event; }
 
 	/**
 	 * A linked sash will be forwarded the same user interactions and events
@@ -345,10 +345,8 @@ export class Sash extends Disposable {
 				if (state !== SashState.Disabled) {
 					this._orthogonalStartDragHandle = append(this.el, $('.orthogonal-drag-handle.start'));
 					this.orthogonalStartDragHandleDisposables.add(toDisposable(() => this._orthogonalStartDragHandle!.remove()));
-					this.orthogonalStartDragHandleDisposables.add(new DomEmitter(this._orthogonalStartDragHandle, 'mouseenter')).event
-						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalStartDragHandleDisposables);
-					this.orthogonalStartDragHandleDisposables.add(new DomEmitter(this._orthogonalStartDragHandle, 'mouseleave')).event
-						(() => Sash.onMouseLeave(sash), undefined, this.orthogonalStartDragHandleDisposables);
+					this.orthogonalStartDragHandleDisposables.add(addDisposableListener(this._orthogonalStartDragHandle, 'mouseenter', () => Sash.onMouseEnter(sash)));
+					this.orthogonalStartDragHandleDisposables.add(addDisposableListener(this._orthogonalStartDragHandle, 'mouseleave', () => Sash.onMouseLeave(sash)));
 				}
 			};
 
@@ -383,10 +381,8 @@ export class Sash extends Disposable {
 				if (state !== SashState.Disabled) {
 					this._orthogonalEndDragHandle = append(this.el, $('.orthogonal-drag-handle.end'));
 					this.orthogonalEndDragHandleDisposables.add(toDisposable(() => this._orthogonalEndDragHandle!.remove()));
-					this.orthogonalEndDragHandleDisposables.add(new DomEmitter(this._orthogonalEndDragHandle, 'mouseenter')).event
-						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalEndDragHandleDisposables);
-					this.orthogonalEndDragHandleDisposables.add(new DomEmitter(this._orthogonalEndDragHandle, 'mouseleave')).event
-						(() => Sash.onMouseLeave(sash), undefined, this.orthogonalEndDragHandleDisposables);
+					this.orthogonalEndDragHandleDisposables.add(addDisposableListener(this._orthogonalEndDragHandle, 'mouseenter', () => Sash.onMouseEnter(sash)));
+					this.orthogonalEndDragHandleDisposables.add(addDisposableListener(this._orthogonalEndDragHandle, 'mouseleave', () => Sash.onMouseLeave(sash)));
 				}
 			};
 
@@ -427,23 +423,17 @@ export class Sash extends Disposable {
 			this.el.classList.add('mac');
 		}
 
-		const onMouseDown = this._register(new DomEmitter(this.el, 'mousedown')).event;
-		this._register(onMouseDown(e => this.onPointerStart(e, new MouseEventFactory(container)), this));
-		const onMouseDoubleClick = this._register(new DomEmitter(this.el, 'dblclick')).event;
-		this._register(onMouseDoubleClick(this.onPointerDoublePress, this));
-		const onMouseEnter = this._register(new DomEmitter(this.el, 'mouseenter')).event;
-		this._register(onMouseEnter(() => Sash.onMouseEnter(this)));
-		const onMouseLeave = this._register(new DomEmitter(this.el, 'mouseleave')).event;
-		this._register(onMouseLeave(() => Sash.onMouseLeave(this)));
+		this._register(addDisposableListener(this.el, 'mousedown', e => this.onPointerStart(e, new MouseEventFactory(container))));
+		this._register(addDisposableListener(this.el, 'dblclick', e => this.onPointerDoublePress(e)));
+		this._register(addDisposableListener(this.el, 'mouseenter', () => Sash.onMouseEnter(this)));
+		this._register(addDisposableListener(this.el, 'mouseleave', () => Sash.onMouseLeave(this)));
 
 		this._register(Gesture.addTarget(this.el));
 
-		const onTouchStart = this._register(new DomEmitter(this.el, EventType.Start)).event;
-		this._register(onTouchStart(e => this.onPointerStart(e, new GestureEventFactory(this.el)), this));
-		const onTap = this._register(new DomEmitter(this.el, EventType.Tap)).event;
+		this._register(addDisposableListener(this.el, EventType.Start, e => this.onPointerStart(e, new GestureEventFactory(this.el))));
 
-		let doubleTapTimeout: any = undefined;
-		this._register(onTap(event => {
+		let doubleTapTimeout: Timeout | undefined = undefined;
+		this._register(addDisposableListener(this.el, EventType.Tap, event => {
 			if (doubleTapTimeout) {
 				clearTimeout(doubleTapTimeout);
 				doubleTapTimeout = undefined;
@@ -453,7 +443,7 @@ export class Sash extends Disposable {
 
 			clearTimeout(doubleTapTimeout);
 			doubleTapTimeout = setTimeout(() => doubleTapTimeout = undefined, 250);
-		}, this));
+		}));
 
 		if (typeof options.size === 'number') {
 			this.size = options.size;

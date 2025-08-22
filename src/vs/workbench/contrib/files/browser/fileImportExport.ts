@@ -26,7 +26,6 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { getActiveWindow, isDragEvent, triggerDownload } from '../../../../base/browser/dom.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
-import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { listenStream } from '../../../../base/common/stream.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
@@ -719,7 +718,7 @@ export class FileDownload {
 
 			listenStream(sourceStream, {
 				onData: data => {
-					target.write(data.buffer);
+					target.write(data.buffer as Uint8Array<ArrayBuffer>);
 					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
 				},
 				onError: error => {
@@ -737,7 +736,7 @@ export class FileDownload {
 	private async downloadFileUnbufferedBrowser(resource: URI, target: FileSystemWritableFileStream, operation: IDownloadOperation, token: CancellationToken): Promise<void> {
 		const contents = await this.fileService.readFile(resource, undefined, token);
 		if (!token.isCancellationRequested) {
-			target.write(contents.value.buffer);
+			target.write(contents.value.buffer as Uint8Array<ArrayBuffer>);
 			this.reportProgress(contents.name, contents.size, contents.value.byteLength, operation);
 		}
 
@@ -828,7 +827,7 @@ export class FileDownload {
 
 		const destination = await this.fileDialogService.showSaveDialog({
 			availableFileSystems: [Schemas.file],
-			saveLabel: mnemonicButtonLabel(localize('downloadButton', "Download")),
+			saveLabel: localize('downloadButton', "Download"),
 			title: localize('chooseWhereToDownload', "Choose Where to Download"),
 			defaultUri
 		});

@@ -216,12 +216,9 @@ pub struct ServeWebArgs {
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
-	/// Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.
+	/// Use a specific commit SHA for the client.
 	#[clap(long)]
-	pub user_data_dir: Option<String>,
-	/// Set the root path for extensions.
-	#[clap(long)]
-	pub extensions_dir: Option<String>,
+	pub commit_id: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

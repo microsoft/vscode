@@ -1,0 +1,104 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.preferences-editor {
+
+	height: 100%;
+	overflow: hidden;
+	max-width: 1200px;
+	margin: auto;
+
+	.preferences-editor-header {
+		box-sizing: border-box;
+		margin: auto;
+		overflow: hidden;
+		margin-top: 11px;
+		padding-top: 3px;
+		padding-left: 24px;
+		padding-right: 24px;
+		max-width: 1200px;
+
+		.search-container {
+			position: relative;
+
+			.suggest-input-container {
+				border: 1px solid #ddd;
+			}
+		}
+
+		.preferences-tabs-container {
+			height: 32px;
+			display: flex;
+			border-bottom: solid 1px;
+			margin-top: 10px;
+			border-color: var(--vscode-settings-headerBorder);
+
+			.action-item {
+				max-width: 300px;
+				overflow: hidden;
+				text-overflow: ellipsis;
+
+				.action-title {
+					text-overflow: ellipsis;
+					overflow: hidden;
+				}
+
+				.action-details {
+					opacity: 0.9;
+					text-transform: none;
+					margin-left: 0.5em;
+					font-size: 10px;
+				}
+
+				.action-label {
+					font-size: 13px;
+					padding: 7px 8px 6.5px 8px;
+					opacity: 0.9;
+					border-radius: 0;
+					color: var(--vscode-foreground);
+					overflow: hidden;
+					text-overflow: ellipsis;
+					background: none !important;
+					color: var(--vscode-panelTitle-inactiveForeground);
+				}
+
+				.action-label.checked {
+					opacity: 1;
+					color: var(--vscode-settings-headerForeground);
+					border-bottom: 1px solid var(--vscode-panelTitle-activeBorder);
+					outline: 1px solid var(--vscode-contrastActiveBorder, transparent);
+					outline-offset: -1px;
+				}
+
+				.action-label:hover {
+					color: var(--vscode-panelTitle-activeForeground);
+					border-bottom: 1px solid var(--vscode-panelTitle-activeBorder);
+					outline: 1px solid var(--vscode-contrastActiveBorder, transparent);
+					outline-offset: -1px;
+				}
+
+				.action-label:focus {
+					border-bottom: 1px solid var(--vscode-focusBorder);
+					outline: 1px solid transparent;
+					outline-offset: -1px;
+				}
+
+				.action-label.checked:not(:focus) {
+					border-bottom-color: var(--vscode-settings-headerForeground);
+				}
+
+				.action-label:not(.checked):not(:focus) {
+					/* Still maintain a border for alignment, but keep it transparent */
+					border-bottom: 1px solid transparent;
+				}
+
+				.action-label:not(.checked):hover {
+					outline-style: dashed;
+				}
+			}
+
+		}
+	}
+}

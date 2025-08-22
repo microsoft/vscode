@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../../../nls.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -14,7 +15,7 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
-import { IDimension } from '../../../../../../editor/common/core/dimension.js';
+import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { IReadonlyTextBuffer, ITextModel } from '../../../../../../editor/common/model.js';
@@ -201,7 +202,7 @@ export class CodeCell extends Disposable {
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
-			if (this._isDisposed) {
+			if (this._isDisposed || model?.isDisposed()) {
 				return;
 			}
 
@@ -328,8 +329,12 @@ export class CodeCell extends Disposable {
 		}));
 
 		this._register(this.templateData.editor.onDidChangeCursorSelection((e) => {
-			if (e.source === 'restoreState' || e.oldModelVersionId === 0) {
-				// do not reveal the cell into view if this selection change was caused by restoring editors...
+			if (
+				// do not reveal the cell into view if this selection change was caused by restoring editors
+				e.source === 'restoreState' || e.oldModelVersionId === 0
+				// nor if the text editor is not actually focused (e.g. inline chat is focused and modifying the cell content)
+				|| !this.templateData.editor.hasTextFocus()
+			) {
 				return;
 			}
 
@@ -352,7 +357,6 @@ export class CodeCell extends Disposable {
 		}));
 
 		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
-			CodeActionController.get(this.templateData.editor)?.hideCodeActions();
 			CodeActionController.get(this.templateData.editor)?.hideLightBulbWidget();
 		}));
 	}
@@ -362,7 +366,7 @@ export class CodeCell extends Disposable {
 			if (this.viewCell.isInputCollapsed && this._inputCollapseElement) {
 				// flush the collapsed input with the latest tokens
 				const content = this._getRichTextFromLineTokens(model);
-				DOM.safeInnerHtml(this._inputCollapseElement, content);
+				domSanitize.safeSetInnerHtml(this._inputCollapseElement, content);
 				this._attachInputExpandButton(this._inputCollapseElement);
 			}
 		}));
@@ -442,7 +446,7 @@ export class CodeCell extends Disposable {
 		// update preview
 		const richEditorText = this.templateData.editor.hasModel() ? this._getRichTextFromLineTokens(this.templateData.editor.getModel()) : this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		const element = DOM.$('div.cell-collapse-preview');
-		DOM.safeInnerHtml(element, richEditorText);
+		domSanitize.safeSetInnerHtml(element, richEditorText);
 		this._inputCollapseElement = element;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 		this._attachInputExpandButton(element);

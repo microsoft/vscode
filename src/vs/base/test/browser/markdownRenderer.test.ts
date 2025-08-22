@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from '../../browser/markdownRenderer.js';
+import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
 import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
@@ -166,7 +166,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			assert.strictEqual(result.innerHTML, `<p><a draggable="false" title="#link" href="" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -186,7 +186,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a data-href="#link" href="" title="#link" draggable="false"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a draggable="false" title="#link" href="" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -253,7 +253,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo" draggable="false">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a draggable="false" title="command:doFoo" href="" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {
@@ -261,14 +261,14 @@ suite('MarkdownRenderer', () => {
 		test('test code, blockquote, heading, list, listitem, paragraph, table, tablerow, tablecell, strong, em, br, del, text are rendered plaintext', () => {
 			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
 			const expected = 'code\nquote\nheading\nlist\n\ntable table2\none two\nbold\nitalic\ndel\nsome text';
-			const result: string = renderMarkdownAsPlaintext(markdown);
+			const result: string = renderAsPlaintext(markdown);
 			assert.strictEqual(result, expected);
 		});
 
 		test('test html, hr, image, link are rendered plaintext', () => {
 			const markdown = { value: '<div>html</div>\n\n---\n![image](imageLink)\n[text](textLink)' };
 			const expected = 'text';
-			const result: string = renderMarkdownAsPlaintext(markdown);
+			const result: string = renderAsPlaintext(markdown);
 			assert.strictEqual(result, expected);
 		});
 
@@ -285,7 +285,7 @@ suite('MarkdownRenderer', () => {
 				'<form>html</form>',
 				'```',
 			].join('\n');
-			const result: string = renderMarkdownAsPlaintext(markdown, true);
+			const result: string = renderAsPlaintext(markdown, { includeCodeBlocksFences: true });
 			assert.strictEqual(result, expected);
 		});
 	});
@@ -345,6 +345,17 @@ suite('MarkdownRenderer', () => {
 
 			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
+		});
+
+		test('Should only allow checkbox inputs', () => {
+			const mds = new MarkdownString(
+				'text: <input type="text">\ncheckbox:<input type="checkbox">',
+				{ supportHtml: true });
+
+			const result = store.add(renderMarkdown(mds)).element;
+
+			// Inputs should always be disabled too
+			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input type="checkbox" disabled=""></p>`);
 		});
 	});
 
@@ -508,6 +519,15 @@ suite('MarkdownRenderer', () => {
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(incomplete + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`${name} with trailing space`, () => {
+				const incomplete = `some text and ${delimiter}some code `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
@@ -692,6 +712,45 @@ suite('MarkdownRenderer', () => {
 				const completeTokens = marked.marked.lexer(incomplete + '\`](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
+
+			test('list with incomplete subitem', () => {
+				const incomplete = `1. list item one
+	- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete nested subitem', () => {
+				const incomplete = `1. list item one
+	- item 2
+		- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('text with start of list is not a heading', () => {
+				const incomplete = `hello\n- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('even more text with start of list is not a heading', () => {
+				const incomplete = `# hello\n\ntext\n-`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
 		});
 
 		suite('codespan', () => {
@@ -747,6 +806,16 @@ suite('MarkdownRenderer', () => {
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(text + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			// TODO trim these patterns from end
+			test.skip(`ending in doublestar`, () => {
+				const incomplete = `some text and **`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + '**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -831,7 +900,7 @@ suite('MarkdownRenderer', () => {
 			});
 
 			test('incomplete link target with incomplete arg 2', () => {
-				const incomplete = '[text](command:_github.copilot.openRelativePath "arg';
+				const incomplete = '[text](command:vscode.openRelativePath "arg';
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -894,6 +963,14 @@ suite('MarkdownRenderer', () => {
 
 			test('square brace on previous line', () => {
 				const incomplete = 'text[\nmore text';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('square braces in text', () => {
+				const incomplete = 'hello [what] is going on';
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 

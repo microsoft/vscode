@@ -10,7 +10,7 @@ import { RangeMapping, DetailedLineRangeMapping } from './rangeMapping.js';
 import * as strings from '../../../base/common/strings.js';
 import { Range } from '../core/range.js';
 import { assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
-import { LineRange } from '../core/lineRange.js';
+import { LineRange } from '../core/ranges/lineRange.js';
 
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 

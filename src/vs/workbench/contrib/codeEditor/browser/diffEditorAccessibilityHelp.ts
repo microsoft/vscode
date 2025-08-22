@@ -8,7 +8,7 @@ import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from '../../../../
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -16,7 +16,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { getCommentCommandInfo } from '../../accessibility/browser/editorAccessibilityHelp.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 
-export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation {
+export class DiffEditorAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
 	readonly name = 'diff-editor';
 	readonly when = ContextKeyEqualsExpr.create('isInDiffEditor', true);

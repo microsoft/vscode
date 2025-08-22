@@ -12,11 +12,17 @@ import { ContextKeyExpr } from '../../contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../contextkey/common/contextkeys.js';
 import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from '../../keybinding/common/keybindingsRegistry.js';
 import { endOfQuickInputBoxContext, inQuickInputContext, quickInputTypeContextKeyValue } from './quickInput.js';
-import { IQuickInputService, IQuickPick, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
+import { IQuickInputService, IQuickPick, IQuickTree, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
 
 const defaultCommandAndKeybindingRule = {
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick), inQuickInputContext),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick),
+			ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickTree),
+		),
+		inQuickInputContext
+	),
 	metadata: { description: localize('quickPick', "Used while in the context of the quick pick. If you change one keybinding for this command, you should change all of the other keybindings (modifier variants) of this command as well.") }
 };
 function registerQuickPickCommandAndKeybindingRule(rule: PartialExcept<ICommandAndKeybindingRule, 'id' | 'handler'>, options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean } = {}) {
@@ -62,11 +68,11 @@ function getSecondary(primary: number, secondary: number[], options: { withAltMo
 function focusHandler(focus: QuickPickFocus, focusOnQuickNatigate?: QuickPickFocus): ICommandHandler {
 	return accessor => {
 		// Assuming this is a quick pick due to above when clause
-		const currentQuickPick = accessor.get(IQuickInputService).currentQuickInput as IQuickPick<any> | undefined;
+		const currentQuickPick = accessor.get(IQuickInputService).currentQuickInput as IQuickPick<any> | IQuickTree<any> | undefined;
 		if (!currentQuickPick) {
 			return;
 		}
-		if (focusOnQuickNatigate && currentQuickPick.quickNavigate) {
+		if (focusOnQuickNatigate && (currentQuickPick as IQuickPick<any>).quickNavigate) {
 			return currentQuickPick.focus(focusOnQuickNatigate);
 		}
 		return currentQuickPick.focus(focus);
@@ -187,7 +193,11 @@ registerQuickPickCommandAndKeybindingRule(
 	{
 		id: 'quickInput.acceptInBackground',
 		// If we are in the quick pick but the input box is not focused or our cursor is at the end of the input box
-		when: ContextKeyExpr.and(defaultCommandAndKeybindingRule.when, ContextKeyExpr.or(InputFocusedContext.negate(), endOfQuickInputBoxContext)),
+		when: ContextKeyExpr.and(
+			inQuickInputContext,
+			ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick),
+			ContextKeyExpr.or(InputFocusedContext.negate(), endOfQuickInputBoxContext)
+		),
 		primary: KeyCode.RightArrow,
 		// Need a little extra weight to ensure this keybinding is preferred over the default cmd+alt+right arrow keybinding
 		// https://github.com/microsoft/vscode/blob/1451e4fbbbf074a4355cc537c35b547b80ce1c52/src/vs/workbench/browser/parts/editor/editorActions.ts#L1178-L1195
@@ -199,3 +209,18 @@ registerQuickPickCommandAndKeybindingRule(
 	},
 	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
 );
+
+//#region Toggle Hover
+
+registerQuickPickCommandAndKeybindingRule(
+	{
+		id: 'quickInput.toggleHover',
+		primary: ctrlKeyMod | KeyCode.Space,
+		handler: accessor => {
+			const quickInputService = accessor.get(IQuickInputService);
+			quickInputService.toggleHover();
+		}
+	}
+);
+
+//#endregion

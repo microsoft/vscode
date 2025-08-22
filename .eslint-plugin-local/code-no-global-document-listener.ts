@@ -25,6 +25,6 @@ export = new class NoGlobalDocumentListener implements eslint.Rule.RuleModule {
 					});
 				}
 			},
-		}
+		};
 	}
 };

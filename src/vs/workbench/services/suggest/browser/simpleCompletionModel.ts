@@ -7,7 +7,6 @@ import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { quickSelect } from '../../../../base/common/arrays.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters.js';
-import { isWindows } from '../../../../base/common/platform.js';
 
 export interface ISimpleCompletionStats {
 	pLabelLen: number;
@@ -26,11 +25,14 @@ const enum Refilter {
 	Incr = 2
 }
 
-export class SimpleCompletionModel {
+export class SimpleCompletionModel<T extends SimpleCompletionItem> {
 	private _stats?: ISimpleCompletionStats;
-	private _filteredItems?: SimpleCompletionItem[];
+	private _filteredItems?: T[];
 	private _refilterKind: Refilter = Refilter.All;
-	private _fuzzyScoreOptions: FuzzyScoreOptions | undefined = FuzzyScoreOptions.default;
+	private _fuzzyScoreOptions: FuzzyScoreOptions | undefined = {
+		...FuzzyScoreOptions.default,
+		firstMatchCanBeWeak: true
+	};
 
 	// TODO: Pass in options
 	private _options: {
@@ -38,12 +40,13 @@ export class SimpleCompletionModel {
 	} = {};
 
 	constructor(
-		private readonly _items: SimpleCompletionItem[],
+		private readonly _items: T[],
 		private _lineContext: LineContext,
+		private readonly _rawCompareFn?: (leadingLineContent: string, a: T, b: T) => number,
 	) {
 	}
 
-	get items(): SimpleCompletionItem[] {
+	get items(): T[] {
 		this._ensureCachedState();
 		return this._filteredItems!;
 	}
@@ -67,6 +70,10 @@ export class SimpleCompletionModel {
 		}
 	}
 
+	forceRefilterAll() {
+		this._refilterKind = Refilter.All;
+	}
+
 	private _ensureCachedState(): void {
 		if (this._refilterKind !== Refilter.Nothing) {
 			this._createCachedState();
@@ -84,7 +91,7 @@ export class SimpleCompletionModel {
 
 		// incrementally filter less
 		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems!;
-		const target: SimpleCompletionItem[] = [];
+		const target: T[] = [];
 
 		// picks a score function based on the number of
 		// items that we have to score/filter and based on the
@@ -95,9 +102,9 @@ export class SimpleCompletionModel {
 
 			const item = source[i];
 
-			// if (item.isInvalid) {
-			// 	continue; // SKIP invalid items
-			// }
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
+			}
 
 			// collect all support, know if their result is incomplete
 			// this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
@@ -163,7 +170,7 @@ export class SimpleCompletionModel {
 
 				} else {
 					// by default match `word` against the `label`
-					const match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, this._fuzzyScoreOptions);
+					const match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
 					if (!match && word !== '') {
 						continue; // NO match
 					}
@@ -175,41 +182,10 @@ export class SimpleCompletionModel {
 			target.push(item);
 
 			// update stats
-			labelLengths.push(item.completion.label.length);
+			labelLengths.push(item.textLabel.length);
 		}
 
-		this._filteredItems = target.sort((a, b) => {
-			// Keywords should always appear at the bottom when they are not an exact match
-			let score = 0;
-			if (a.completion.isKeyword && a.labelLow !== wordLow || b.completion.isKeyword && b.labelLow !== wordLow) {
-				score = (a.completion.isKeyword ? 1 : 0) - (b.completion.isKeyword ? 1 : 0);
-				if (score !== 0) {
-					return score;
-				}
-			}
-			// Sort by the score
-			score = b.score[0] - a.score[0];
-			if (score !== 0) {
-				return score;
-			}
-			// Sort files with the same score against each other specially
-			const isArg = leadingLineContent.includes(' ');
-			if (!isArg && a.fileExtLow.length > 0 && b.fileExtLow.length > 0) {
-				// Then by label length ascending (excluding file extension if it's a file)
-				score = a.labelLowExcludeFileExt.length - b.labelLowExcludeFileExt.length;
-				if (score !== 0) {
-					return score;
-				}
-				// If they're files at the start of the command line, boost extensions depending on the operating system
-				score = fileExtScore(b.fileExtLow) - fileExtScore(a.fileExtLow);
-				if (score !== 0) {
-					return score;
-				}
-				// Then by file extension length ascending
-				score = a.fileExtLow.length - b.fileExtLow.length;
-			}
-			return score;
-		});
+		this._filteredItems = target.sort(this._rawCompareFn?.bind(undefined, leadingLineContent));
 		this._refilterKind = Refilter.Nothing;
 
 		this._stats = {
@@ -218,46 +194,4 @@ export class SimpleCompletionModel {
 				: 0
 		};
 	}
-}
-
-// TODO: This should be based on the process OS, not the local OS
-// File score boosts for specific file extensions on Windows. This only applies when the file is the
-// _first_ part of the command line.
-const fileExtScores = new Map<string, number>(isWindows ? [
-	// Windows - .ps1 > .exe > .bat > .cmd. This is the command precedence when running the files
-	//           without an extension, tested manually in pwsh v7.4.4
-	['ps1', 0.09],
-	['exe', 0.08],
-	['bat', 0.07],
-	['cmd', 0.07],
-	// Non-Windows
-	['sh', -0.05],
-	['bash', -0.05],
-	['zsh', -0.05],
-	['fish', -0.05],
-	['csh', -0.06], // C shell
-	['ksh', -0.06], // Korn shell
-	// Scripting language files are excluded here as the standard behavior on Windows will just open
-	// the file in a text editor, not run the file
-] : [
-	// Pwsh
-	['ps1', 0.05],
-	// Windows
-	['bat', -0.05],
-	['cmd', -0.05],
-	['exe', -0.05],
-	// Non-Windows
-	['sh', 0.05],
-	['bash', 0.05],
-	['zsh', 0.05],
-	['fish', 0.05],
-	['csh', 0.04], // C shell
-	['ksh', 0.04], // Korn shell
-	// Scripting languages
-	['py', 0.05], // Python
-	['pl', 0.05], // Perl
-]);
-
-function fileExtScore(ext: string): number {
-	return fileExtScores.get(ext) || 0;
 }

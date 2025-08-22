@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { FourKeyMap } from '../../../../base/common/map.js';
+import { NKeyMap } from '../../../../base/common/map.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import type { IBoundingBox, IGlyphRasterizer } from '../raster/raster.js';
@@ -31,7 +31,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	private readonly _canvas: OffscreenCanvas;
 	get source(): OffscreenCanvas { return this._canvas; }
 
-	private readonly _glyphMap: GlyphMap<ITextureAtlasPageGlyph> = new FourKeyMap();
+	private readonly _glyphMap: GlyphMap<ITextureAtlasPageGlyph> = new NKeyMap();
 	private readonly _glyphInOrderSet: Set<ITextureAtlasPageGlyph> = new Set();
 	get glyphs(): IterableIterator<ITextureAtlasPageGlyph> {
 		return this._glyphInOrderSet.values();
@@ -89,7 +89,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		}
 
 		// Save the glyph
-		this._glyphMap.set(chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey, glyph);
+		this._glyphMap.set(glyph, chars, tokenMetadata, decorationStyleSetId, rasterizer.cacheKey);
 		this._glyphInOrderSet.add(glyph);
 
 		// Update page version and it's tracked used area

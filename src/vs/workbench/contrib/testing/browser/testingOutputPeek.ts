@@ -47,7 +47,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -112,16 +111,14 @@ function messageItReferenceToUri({ result, test, taskIndex, messageIndex }: IMes
 type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
 
 export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
+	public static readonly ID = 'workbench.contrib.testing.peekOpener';
+
 	declare _serviceBrand: undefined;
 
 	private lastUri?: TestUriWithDocument;
 
 	/** @inheritdoc */
-	public readonly historyVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'testHistoryVisibleInPeek',
-		scope: StorageScope.PROFILE,
-		target: StorageTarget.USER,
-	}, this.storageService), false));
+	public readonly historyVisible: MutableObservableValue<boolean>;
 
 	constructor(
 		@IConfigurationService private readonly configuration: IConfigurationService,
@@ -129,13 +126,18 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@ITestService private readonly testService: ITestService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
+		this.historyVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
+			key: 'testHistoryVisibleInPeek',
+			scope: StorageScope.PROFILE,
+			target: StorageTarget.USER,
+		}, storageService), false));
 	}
 
 	/** @inheritdoc */
@@ -709,10 +711,16 @@ class TestResultsPeek extends PeekViewWidget {
 			return defaultMaxHeight;
 		}
 
+		if (this.testingPeek.historyVisible.value) { // don't cap height with the history split
+			return defaultMaxHeight;
+		}
+
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		// 41 is experimentally determined to be the overhead of the peek view itself
 		// to avoid showing scrollbars by default in its content.
-		return Math.min(defaultMaxHeight || Infinity, (contentHeight + 41) / lineHeight);
+		const basePeekOverhead = 41;
+
+		return Math.min(defaultMaxHeight || Infinity, (contentHeight + basePeekOverhead) / lineHeight + 1);
 	}
 
 	private applyTheme() {
@@ -788,7 +796,7 @@ class TestResultsPeek extends PeekViewWidget {
 
 			const displayed = this._getMaximumHeightInLines();
 			if (displayed) {
-				this._relayout(Math.min(displayed, this.getVisibleEditorLines() / 2));
+				this._relayout(Math.min(displayed, this.getVisibleEditorLines() / 2), true);
 				if (!contentHeightSettleTimer.isScheduled()) {
 					contentHeightSettleTimer.schedule();
 				}
@@ -891,11 +899,10 @@ export class TestResultsView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestResultService private readonly resultService: ITestResultService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	public get subject() {

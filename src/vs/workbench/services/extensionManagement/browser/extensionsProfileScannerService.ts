@@ -6,7 +6,6 @@
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AbstractExtensionsProfileScannerService, IExtensionsProfileScannerService } from '../../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -18,10 +17,9 @@ export class ExtensionsProfileScannerService extends AbstractExtensionsProfileSc
 		@IFileService fileService: IFileService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 	) {
-		super(environmentService.userRoamingDataHome, fileService, userDataProfilesService, uriIdentityService, telemetryService, logService);
+		super(environmentService.userRoamingDataHome, fileService, userDataProfilesService, uriIdentityService, logService);
 	}
 }
 

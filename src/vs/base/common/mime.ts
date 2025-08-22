@@ -12,6 +12,7 @@ export const Mimes = Object.freeze({
 	markdown: 'text/markdown',
 	latex: 'text/latex',
 	uriList: 'text/uri-list',
+	html: 'text/html',
 });
 
 interface MapExtToMediaMimes {

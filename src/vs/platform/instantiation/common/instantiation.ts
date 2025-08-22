@@ -31,6 +31,7 @@ export interface IConstructorSignature<T, Args extends any[] = []> {
 
 export interface ServicesAccessor {
 	get<T>(id: ServiceIdentifier<T>): T;
+	getIfExists<T>(id: ServiceIdentifier<T>): T | undefined;
 }
 
 export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');

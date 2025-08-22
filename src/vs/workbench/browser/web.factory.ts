@@ -5,7 +5,7 @@
 
 import { ITunnel, ITunnelOptions, IWorkbench, IWorkbenchConstructionOptions, Menu } from './web.api.js';
 import { BrowserMain } from './web.main.js';
-import { URI } from '../../base/common/uri.js';
+import { URI, UriComponents } from '../../base/common/uri.js';
 import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
 import { mark, PerformanceMark } from '../../base/common/performance.js';
@@ -125,10 +125,10 @@ export namespace env {
 	/**
 	 * {@linkcode IWorkbench.env IWorkbench.env.openUri}
 	 */
-	export async function openUri(target: URI): Promise<boolean> {
+	export async function openUri(target: URI | UriComponents): Promise<boolean> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.env.openUri(target);
+		return workbench.env.openUri(URI.isUri(target) ? target : URI.from(target));
 	}
 }
 

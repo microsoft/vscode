@@ -11,6 +11,7 @@ import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
 import { IViewModel } from '../viewModel.js';
+import { TextDirection } from '../model.js';
 
 export class CursorMoveCommands {
 
@@ -431,11 +432,16 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		return cursors.map(cursor =>
-			CursorState.fromViewState(
-				MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
-			)
-		);
+		return cursors.map(cursor => {
+			const direction = viewModel.getTextDirection(cursor.viewState.position.lineNumber);
+			const isRtl = direction === TextDirection.RTL;
+
+			return CursorState.fromViewState(
+				isRtl
+					? MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+					: MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+			);
+		});
 	}
 
 	private static _moveHalfLineLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
@@ -450,11 +456,16 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		return cursors.map(cursor =>
-			CursorState.fromViewState(
-				MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
-			)
-		);
+		return cursors.map(cursor => {
+			const direction = viewModel.getTextDirection(cursor.viewState.position.lineNumber);
+			const isRtl = direction === TextDirection.RTL;
+
+			return CursorState.fromViewState(
+				isRtl
+					? MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+					: MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+			);
+		});
 	}
 
 	private static _moveHalfLineRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {

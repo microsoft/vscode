@@ -32,7 +32,7 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor) {
+	public override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		return CopyPasteController.get(editor)?.changePasteType();
 	}
 });
@@ -49,7 +49,7 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor) {
+	public override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		CopyPasteController.get(editor)?.clearWidgets();
 	}
 });

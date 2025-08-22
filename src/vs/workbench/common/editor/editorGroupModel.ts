@@ -55,23 +55,6 @@ export function isSerializedEditorGroupModel(group?: unknown): group is ISeriali
 	return !!(candidate && typeof candidate === 'object' && Array.isArray(candidate.editors) && Array.isArray(candidate.mru));
 }
 
-export interface IMatchOptions {
-
-	/**
-	 * Whether to consider a side by side editor as matching.
-	 * By default, side by side editors will not be considered
-	 * as matching, even if the editor is opened in one of the sides.
-	 */
-	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
-
-	/**
-	 * Only consider an editor to match when the
-	 * `candidate === editor` but not when
-	 * `candidate.matches(editor)`.
-	 */
-	readonly strictEquals?: boolean;
-}
-
 export interface IGroupModelChangeEvent {
 
 	/**

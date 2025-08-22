@@ -10,7 +10,7 @@ import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/
 import { URI } from '../../../../base/common/uri.js';
 import { language } from '../../../../base/common/platform.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -201,21 +201,67 @@ export class GettingStartedDetailsRenderer {
 		</html>`;
 	}
 
+	async renderVideo(path: URI, poster?: URI, description?: string): Promise<string> {
+		const nonce = generateUuid();
+
+		return `<!DOCTYPE html>
+		<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+				<style nonce="${nonce}">
+					video {
+						max-width: 100%;
+						max-height: 100%;
+						object-fit: cover;
+					}
+				</style>
+			</head>
+			<body>
+				<video controls autoplay ${poster ? `poster="${poster.toString(true)}"` : ''} muted ${description ? `aria-label="${description}"` : ''}>
+					<source src="${path.toString(true)}" type="video/mp4">
+				</video>
+			</body>
+		</html>`;
+	}
+
 	private async readAndCacheSVGFile(path: URI): Promise<string> {
 		if (!this.svgCache.has(path)) {
 			const contents = await this.readContentsOfPath(path, false);
 			this.svgCache.set(path, contents);
 		}
-		return assertIsDefined(this.svgCache.get(path));
+		return assertReturnsDefined(this.svgCache.get(path));
 	}
 
 	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
 			const contents = await this.readContentsOfPath(path);
-			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, { allowUnknownProtocols: true });
+			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, {
+				sanitizerConfig: {
+					allowedLinkProtocols: {
+						override: '*'
+					},
+					allowedTags: {
+						augment: [
+							'select',
+							'checkbox',
+							'checklist',
+						]
+					},
+					allowedAttributes: {
+						augment: [
+							'x-dispatch',
+							'data-command',
+							'when-checked',
+							'checked-on',
+							'checked',
+						]
+					},
+				}
+			});
 			this.mdCache.set(path, markdownContents);
 		}
-		return assertIsDefined(this.mdCache.get(path));
+		return assertReturnsDefined(this.mdCache.get(path));
 	}
 
 	private async readContentsOfPath(path: URI, useModuleId = true): Promise<string> {

@@ -99,6 +99,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	) {
 		super();
 
+		this.saveParticipants = this._register(this.instantiationService.createInstance(TextFileSaveParticipant));
+
 		this.registerListeners();
 	}
 
@@ -394,7 +396,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						try {
 							await model.resolve(options);
 						} catch (error) {
-							onUnexpectedError(error);
+							if (!model.isDisposed()) {
+								onUnexpectedError(error); // only log if the model is still around
+							}
 						}
 					})();
 				}
@@ -556,7 +560,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	//#region Save participants
 
-	private readonly saveParticipants = this._register(this.instantiationService.createInstance(TextFileSaveParticipant));
+	private readonly saveParticipants: TextFileSaveParticipant;
 
 	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable {
 		return this.saveParticipants.addSaveParticipant(participant);

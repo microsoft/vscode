@@ -1,10 +1,10 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.referenceGeneratedDepsByArch = exports.recommendedDeps = exports.additionalDeps = void 0;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.referenceGeneratedDepsByArch = exports.recommendedDeps = exports.additionalDeps = void 0;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/additional_deps
 // Additional dependencies not in the dpkg-shlibdeps output.
 exports.additionalDeps = [
@@ -25,7 +25,7 @@ exports.referenceGeneratedDepsByArch = {
         'ca-certificates',
         'libasound2 (>= 1.0.17)',
         'libatk-bridge2.0-0 (>= 2.5.3)',
-        'libatk1.0-0 (>= 2.2.0)',
+        'libatk1.0-0 (>= 2.11.90)',
         'libatspi2.0-0 (>= 2.9.90)',
         'libc6 (>= 2.14)',
         'libc6 (>= 2.16)',
@@ -36,7 +36,6 @@ exports.referenceGeneratedDepsByArch = {
         'libcairo2 (>= 1.6.0)',
         'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
         'libdbus-1-3 (>= 1.9.14)',
-        'libdrm2 (>= 2.4.75)',
         'libexpat1 (>= 2.1~beta3)',
         'libgbm1 (>= 17.1.0~rc2)',
         'libglib2.0-0 (>= 2.37.3)',
@@ -46,6 +45,7 @@ exports.referenceGeneratedDepsByArch = {
         'libnss3 (>= 2:3.30)',
         'libnss3 (>= 3.26)',
         'libpango-1.0-0 (>= 1.14.0)',
+        'libudev1 (>= 183)',
         'libx11-6',
         'libx11-6 (>= 2:1.4.99.1)',
         'libxcb1 (>= 1.9.2)',
@@ -62,7 +62,7 @@ exports.referenceGeneratedDepsByArch = {
         'ca-certificates',
         'libasound2 (>= 1.0.17)',
         'libatk-bridge2.0-0 (>= 2.5.3)',
-        'libatk1.0-0 (>= 2.2.0)',
+        'libatk1.0-0 (>= 2.11.90)',
         'libatspi2.0-0 (>= 2.9.90)',
         'libc6 (>= 2.16)',
         'libc6 (>= 2.17)',
@@ -73,7 +73,6 @@ exports.referenceGeneratedDepsByArch = {
         'libcairo2 (>= 1.6.0)',
         'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
         'libdbus-1-3 (>= 1.9.14)',
-        'libdrm2 (>= 2.4.75)',
         'libexpat1 (>= 2.1~beta3)',
         'libgbm1 (>= 17.1.0~rc2)',
         'libglib2.0-0 (>= 2.37.3)',
@@ -87,6 +86,8 @@ exports.referenceGeneratedDepsByArch = {
         'libstdc++6 (>= 5)',
         'libstdc++6 (>= 5.2)',
         'libstdc++6 (>= 6)',
+        'libstdc++6 (>= 9)',
+        'libudev1 (>= 183)',
         'libx11-6',
         'libx11-6 (>= 2:1.4.99.1)',
         'libxcb1 (>= 1.9.2)',
@@ -103,7 +104,7 @@ exports.referenceGeneratedDepsByArch = {
         'ca-certificates',
         'libasound2 (>= 1.0.17)',
         'libatk-bridge2.0-0 (>= 2.5.3)',
-        'libatk1.0-0 (>= 2.2.0)',
+        'libatk1.0-0 (>= 2.11.90)',
         'libatspi2.0-0 (>= 2.9.90)',
         'libc6 (>= 2.17)',
         'libc6 (>= 2.25)',
@@ -111,7 +112,6 @@ exports.referenceGeneratedDepsByArch = {
         'libcairo2 (>= 1.6.0)',
         'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
         'libdbus-1-3 (>= 1.9.14)',
-        'libdrm2 (>= 2.4.75)',
         'libexpat1 (>= 2.1~beta3)',
         'libgbm1 (>= 17.1.0~rc2)',
         'libglib2.0-0 (>= 2.37.3)',
@@ -125,6 +125,8 @@ exports.referenceGeneratedDepsByArch = {
         'libstdc++6 (>= 5)',
         'libstdc++6 (>= 5.2)',
         'libstdc++6 (>= 6)',
+        'libstdc++6 (>= 9)',
+        'libudev1 (>= 183)',
         'libx11-6',
         'libx11-6 (>= 2:1.4.99.1)',
         'libxcb1 (>= 1.9.2)',

@@ -121,7 +121,7 @@ export class CommentsModel extends Disposable implements ICommentsModel {
 	public hasCommentThreads(): boolean {
 		// There's a resource with at least one thread
 		return !!this._resourceCommentThreads.length && this._resourceCommentThreads.some(resource => {
-			// At least one of the threads in the the resource has comments
+			// At least one of the threads in the resource has comments
 			return (resource.commentThreads.length > 0) && resource.commentThreads.some(thread => {
 				// At least one of the comments in the thread is not empty
 				return threadHasMeaningfulComments(thread.thread);

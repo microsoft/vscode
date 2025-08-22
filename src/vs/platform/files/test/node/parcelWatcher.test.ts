@@ -748,11 +748,11 @@ suite.skip('File Watcher (parcel)', function () {
 		assert.strictEqual(instance.failed, true);
 	});
 
-	(isWindows /* Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, does not exist in beginning, not reusing watcher)', async () => {
+	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, does not exist in beginning, not reusing watcher)', async () => {
 		await testWatchFolderDoesNotExist(false);
 	});
 
-	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, does not exist in beginning, reusing watcher)', async () => {
+	test('watch requests support suspend/resume (folder, does not exist in beginning, reusing watcher)', async () => {
 		await testWatchFolderDoesNotExist(true);
 	});
 
@@ -805,11 +805,11 @@ suite.skip('File Watcher (parcel)', function () {
 		}
 	}
 
-	(isWindows /* Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, exist in beginning, not reusing watcher)', async () => {
+	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, exist in beginning, not reusing watcher)', async () => {
 		await testWatchFolderExists(false);
 	});
 
-	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, exist in beginning, reusing watcher)', async () => {
+	test('watch requests support suspend/resume (folder, exist in beginning, reusing watcher)', async () => {
 		await testWatchFolderExists(true);
 	});
 

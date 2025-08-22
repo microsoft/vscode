@@ -11,8 +11,9 @@ import * as types from '../../../base/common/types.js';
 import * as nls from '../../../nls.js';
 import { getLanguageTagSettingPlainKey } from './configuration.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
-import { PolicyName } from '../../policy/common/policy.js';
 import { Registry } from '../../registry/common/platform.js';
+import { IPolicy, PolicyName } from '../../../base/common/policy.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',
@@ -35,7 +36,7 @@ export interface IConfigurationRegistry {
 	/**
 	 * Register a configuration to the registry.
 	 */
-	registerConfiguration(configuration: IConfigurationNode): void;
+	registerConfiguration(configuration: IConfigurationNode): IConfigurationNode;
 
 	/**
 	 * Register multiple configurations to the registry.
@@ -126,13 +127,17 @@ export interface IConfigurationRegistry {
 
 export const enum ConfigurationScope {
 	/**
-	 * Application specific configuration, which can be configured only in local user settings.
+	 * Application specific configuration, which can be configured only in default profile user settings.
 	 */
 	APPLICATION = 1,
 	/**
 	 * Machine specific configuration, which can be configured only in local and remote user settings.
 	 */
 	MACHINE,
+	/**
+	 * An application machine specific configuration, which can be configured only in default profile user settings and remote user settings.
+	 */
+	APPLICATION_MACHINE,
 	/**
 	 * Window specific configuration, which can be configured in the user or workspace settings.
 	 */
@@ -151,18 +156,6 @@ export const enum ConfigurationScope {
 	MACHINE_OVERRIDABLE,
 }
 
-export interface IPolicy {
-
-	/**
-	 * The policy name.
-	 */
-	readonly name: PolicyName;
-
-	/**
-	 * The Code version in which this policy was introduced.
-	 */
-	readonly minimumVersion: `${number}.${number}`;
-}
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 
@@ -183,7 +176,6 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * List of tags associated to the property.
 	 *  - A tag can be used for filtering
 	 *  - Use `experimental` tag for marking the setting as experimental.
-	 *  - Use `onExP` tag for marking that the default of the setting can be changed by running experiments.
 	 */
 	tags?: string[];
 
@@ -224,6 +216,24 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * a system-wide policy.
 	 */
 	policy?: IPolicy;
+
+	/**
+	 * When specified, this setting's default value can always be overwritten by
+	 * an experiment.
+	 */
+	experiment?: {
+		/**
+		 * The mode of the experiment.
+		 * - `startup`: The setting value is updated to the experiment value only on startup.
+		 * - `auto`: The setting value is updated to the experiment value automatically (whenever the experiment value changes).
+		 */
+		mode: 'startup' | 'auto';
+
+		/**
+		 * The name of the experiment. By default, this is `config.${settingId}`
+		 */
+		name?: string;
+	};
 }
 
 export interface IExtensionInfo {
@@ -269,6 +279,7 @@ export interface IConfigurationDefaultOverrideValue {
 
 export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const applicationMachineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const machineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const machineOverridableSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const windowSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
@@ -279,7 +290,7 @@ export const configurationDefaultsSchemaId = 'vscode://schemas/settings/configur
 
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
-class ConfigurationRegistry implements IConfigurationRegistry {
+class ConfigurationRegistry extends Disposable implements IConfigurationRegistry {
 
 	private readonly registeredConfigurationDefaults: IConfigurationDefaults[] = [];
 	private readonly configurationDefaultsOverrides: Map<string, { configurationDefaultOverrides: IConfigurationDefaultOverride[]; configurationDefaultOverrideValue?: IConfigurationDefaultOverrideValue }>;
@@ -291,13 +302,14 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private readonly resourceLanguageSettingsSchema: IJSONSchema;
 	private readonly overrideIdentifiers = new Set<string>();
 
-	private readonly _onDidSchemaChange = new Emitter<void>();
+	private readonly _onDidSchemaChange = this._register(new Emitter<void>());
 	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
-	private readonly _onDidUpdateConfiguration = new Emitter<{ properties: ReadonlySet<string>; defaultsOverrides?: boolean }>();
+	private readonly _onDidUpdateConfiguration = this._register(new Emitter<{ properties: ReadonlySet<string>; defaultsOverrides?: boolean }>());
 	readonly onDidUpdateConfiguration = this._onDidUpdateConfiguration.event;
 
 	constructor() {
+		super();
 		this.configurationDefaultsOverrides = new Map();
 		this.defaultLanguageConfigurationOverridesNode = {
 			id: 'defaultOverrides',
@@ -320,8 +332,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.registerOverridePropertyPatternKey();
 	}
 
-	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
+	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): IConfigurationNode {
 		this.registerConfigurations([configuration], validate);
+		return configuration;
 	}
 
 	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
@@ -476,7 +489,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		const property: IRegisteredConfigurationPropertySchema = {
 			type: 'object',
 			default: newDefaultOverride.value,
-			description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for the {0} language.", getLanguageTagSettingPlainKey(key)),
+			description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0}.", getLanguageTagSettingPlainKey(key)),
 			$ref: resourceLanguageSettingsSchemaId,
 			defaultDefaultValue: newDefaultOverride.value,
 			source,
@@ -661,25 +674,39 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!restrictedProperties?.includes(key) : property.restricted;
 				}
 
-				// Add to properties maps
-				// Property is included by default if 'included' is unspecified
-				if (properties[key].hasOwnProperty('included') && !properties[key].included) {
+				if (property.experiment) {
+					if (!property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+						property.tags = property.tags ?? [];
+						property.tags.push('onExP');
+					}
+				} else if (property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+					console.error(`Invalid tag 'onExP' found for property '${key}'. Please use 'experiment' property instead.`);
+					property.experiment = { mode: 'startup' };
+				}
+
+				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
+				const policyName = properties[key].policy?.name;
+
+				if (excluded) {
 					this.excludedConfigurationProperties[key] = properties[key];
+					if (policyName) {
+						this.policyConfigurations.set(policyName, key);
+						bucket.add(key);
+					}
 					delete properties[key];
-					continue;
 				} else {
+					bucket.add(key);
+					if (policyName) {
+						this.policyConfigurations.set(policyName, key);
+					}
 					this.configurationProperties[key] = properties[key];
-					if (properties[key].policy?.name) {
-						this.policyConfigurations.set(properties[key].policy!.name, key);
+					if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
+						// If not set, default deprecationMessage to the markdown source
+						properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
 					}
 				}
 
-				if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
-					// If not set, default deprecationMessage to the markdown source
-					properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
-				}
 
-				bucket.add(key);
 			}
 		}
 		const subNodes = configuration.allOf;
@@ -744,6 +771,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			case ConfigurationScope.MACHINE:
 				machineSettings.properties[key] = property;
 				break;
+			case ConfigurationScope.APPLICATION_MACHINE:
+				applicationMachineSettings.properties[key] = property;
+				break;
 			case ConfigurationScope.MACHINE_OVERRIDABLE:
 				machineOverridableSettings.properties[key] = property;
 				break;
@@ -768,6 +798,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				break;
 			case ConfigurationScope.MACHINE:
 				delete machineSettings.properties[key];
+				break;
+			case ConfigurationScope.APPLICATION_MACHINE:
+				delete applicationMachineSettings.properties[key];
 				break;
 			case ConfigurationScope.MACHINE_OVERRIDABLE:
 				delete machineOverridableSettings.properties[key];
@@ -795,6 +828,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			this.updatePropertyDefaultValue(overrideIdentifierProperty, resourceLanguagePropertiesSchema);
 			allSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			applicationSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
+			applicationMachineSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			machineSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			machineOverridableSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
 			windowSettings.properties[overrideIdentifierProperty] = resourceLanguagePropertiesSchema;
@@ -811,6 +845,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		};
 		allSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		applicationSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
+		applicationMachineSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		machineSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		machineOverridableSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;
 		windowSettings.patternProperties[OVERRIDE_PROPERTY_PATTERN] = resourceLanguagePropertiesSchema;

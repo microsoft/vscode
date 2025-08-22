@@ -40,7 +40,6 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { IViewPaneOptions, ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
@@ -77,11 +76,10 @@ export class TestCoverageView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestCoverageService private readonly coverageService: ITestCoverageService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -103,6 +101,10 @@ export class TestCoverageView extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.value?.layout(height, width);
+	}
+
+	public collapseAll(): void {
+		this.tree.value?.collapseAll();
 	}
 }
 
@@ -383,6 +385,10 @@ class TestCoverageTree extends Disposable {
 		this.tree.layout(height, width);
 	}
 
+	public collapseAll() {
+		this.tree.collapseAll();
+	}
+
 	private updateWithDetails(el: IPrefixTreeNode<FileCoverage>, details: readonly CoverageDetails[]) {
 		if (!this.tree.hasElement(el)) {
 			return; // avoid any issues if the tree changes in the meanwhile
@@ -490,7 +496,7 @@ class CurrentlyFilteredToRenderer implements ICompressibleTreeRenderer<CoverageT
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<CoverageTreeElement>, FuzzyScore>, index: number, templateData: IFilteredToTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<CoverageTreeElement>, FuzzyScore>, index: number, templateData: IFilteredToTemplate): void {
 		this.renderInner(node.element.elements[node.element.elements.length - 1] as CurrentlyFilteredTo, templateData);
 	}
 
@@ -508,7 +514,7 @@ class CurrentlyFilteredToRenderer implements ICompressibleTreeRenderer<CoverageT
 		return { label, actions };
 	}
 
-	renderElement(element: ITreeNode<CoverageTreeElement, FuzzyScore>, index: number, templateData: IFilteredToTemplate, height: number | undefined): void {
+	renderElement(element: ITreeNode<CoverageTreeElement, FuzzyScore>, index: number, templateData: IFilteredToTemplate): void {
 		this.renderInner(element.element as CurrentlyFilteredTo, templateData);
 	}
 
@@ -755,6 +761,7 @@ registerAction2(class TestCoverageChangeSortingAction extends ViewAction<TestCov
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', Testing.CoverageViewId),
 				group: 'navigation',
+				order: 1,
 			}
 		});
 	}
@@ -781,5 +788,26 @@ registerAction2(class TestCoverageChangeSortingAction extends ViewAction<TestCov
 				quickInput.dispose();
 			}
 		}));
+	}
+});
+
+registerAction2(class TestCoverageCollapseAllAction extends ViewAction<TestCoverageView> {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageViewCollapseAll,
+			viewId: Testing.CoverageViewId,
+			title: localize2('testing.coverageCollapseAll', 'Collapse All Coverage'),
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', Testing.CoverageViewId),
+				group: 'navigation',
+				order: 2,
+			}
+		});
+	}
+
+	override runInView(_accessor: ServicesAccessor, view: TestCoverageView) {
+		view.collapseAll();
 	}
 });

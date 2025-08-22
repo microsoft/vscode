@@ -23,6 +23,8 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { splitLines } from '../../../../../base/common/strings.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
+	private readonly _onDidChangeTextModel = this._register(new Emitter<void>());
+	readonly onDidChangeTextModel: Event<void> = this._onDidChangeTextModel.event;
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
@@ -114,7 +116,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return this._textBuffer;
 		}
 
-		this._textBuffer = this._register(createTextBuffer(this._source, model.DefaultEndOfLine.LF).textBuffer);
+		this._textBuffer = this._register(createTextBuffer(this._source, this._defaultEOL).textBuffer);
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
@@ -167,6 +169,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 			this._textModel._overwriteVersionId(this._versionId);
 			this._textModel._overwriteAlternativeVersionId(this._versionId);
+			this._onDidChangeTextModel.fire();
 		}
 	}
 
@@ -200,7 +203,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		public readonly collapseState: NotebookCellCollapseState | undefined,
 		public readonly transientOptions: TransientOptions,
 		private readonly _languageService: ILanguageService,
-		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined
+		private readonly _defaultEOL: model.DefaultEndOfLine,
+		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined,
 	) {
 		super();
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));

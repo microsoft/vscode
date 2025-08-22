@@ -5,9 +5,9 @@
 
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { IEditorMouseEvent, IMouseTarget, IMouseTargetViewZoneData, IPartialEditorMouseEvent, MouseTargetType } from '../editorBrowser.js';
-import { ICoordinatesConverter } from '../../common/viewModel.js';
 import { IMouseWheelEvent } from '../../../base/browser/mouseEvent.js';
 import { Position } from '../../common/core/position.js';
+import { ICoordinatesConverter } from '../../common/coordinatesConverter.js';
 
 export interface EventCallback<T> {
 	(event: T): void;

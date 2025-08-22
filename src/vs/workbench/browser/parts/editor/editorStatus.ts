@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { format, compare, splitLines } from '../../../../base/common/strings.js';
 import { extname, basename, isEqual } from '../../../../base/common/resources.js';
-import { areFunctions, assertIsDefined } from '../../../../base/common/types.js';
+import { areFunctions, assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Language } from '../../../../base/common/platform.js';
@@ -57,6 +57,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { InputMode } from '../../../../editor/common/inputMode.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -353,9 +354,9 @@ class EditorStatus extends Disposable {
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
-	private readonly currentMarkerStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
-	private readonly tabFocusMode = this._register(this.instantiationService.createInstance(TabFocusMode));
-	private readonly inputMode = this._register(this.instantiationService.createInstance(StatusInputMode));
+	private readonly currentMarkerStatus: ShowCurrentMarkerInStatusbarContribution;
+	private readonly tabFocusMode: TabFocusMode;
+	private readonly inputMode: StatusInputMode;
 
 	private readonly state = new State();
 	private toRender: StateChange | undefined = undefined;
@@ -370,10 +371,14 @@ class EditorStatus extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+
+		this.currentMarkerStatus = this._register(instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+		this.tabFocusMode = this._register(instantiationService.createInstance(TabFocusMode));
+		this.inputMode = this._register(instantiationService.createInstance(StatusInputMode));
 
 		this.registerCommands();
 		this.registerListeners();
@@ -408,13 +413,13 @@ class EditorStatus extends Disposable {
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
-			assertIsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
-			assertIsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentUsingSpaces.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentUsingTabs.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(ChangeTabDisplaySize.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(DetectIndentation.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToSpacesAction.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(IndentationToTabsAction.ID)),
+			assertReturnsDefined(activeTextEditorControl.getAction(TrimTrailingWhitespaceAction.ID))
 		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
@@ -994,9 +999,10 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 				const line = splitLines(this.currentMarker.message)[0];
 				const text = `${this.getType(this.currentMarker)} ${line}`;
 				if (!this.statusBarEntryAccessor.value) {
-					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ name: localize('currentProblem', "Current Problem"), text: '', ariaLabel: '' }, 'statusbar.currentProblem', StatusbarAlignment.LEFT);
+					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text }, 'statusbar.currentProblem', StatusbarAlignment.LEFT);
+				} else {
+					this.statusBarEntryAccessor.value.update({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text });
 				}
-				this.statusBarEntryAccessor.value.update({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text });
 			} else {
 				this.statusBarEntryAccessor.clear();
 			}
@@ -1451,6 +1457,7 @@ export class ChangeEncodingAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 		const textResourceConfigurationService = accessor.get(ITextResourceConfigurationService);
+		const dialogService = accessor.get(IDialogService);
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
@@ -1572,7 +1579,24 @@ export class ChangeEncodingAction extends Action2 {
 
 		const activeEncodingSupport = toEditorWithEncodingSupport(editorService.activeEditorPane.input);
 		if (typeof encoding.id !== 'undefined' && activeEncodingSupport) {
-			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+
+			// Re-open with encoding does not work on dirty editors, ask to revert
+			if (isReopenWithEncoding && editorService.activeEditorPane.input.isDirty()) {
+				const { confirmed } = await dialogService.confirm({
+					message: localize('reopenWithEncodingWarning', "Do you want to revert the active text editor and reopen with a different encoding?"),
+					detail: localize('reopenWithEncodingDetail', "This will discard any unsaved changes."),
+					primaryButton: localize('reopen', "Discard Changes and Reopen")
+				});
+
+				if (!confirmed) {
+					return;
+				}
+
+				await editorService.activeEditorPane.input.revert(editorService.activeEditorPane.group.id);
+			}
+
+			// Set new encoding
+			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode);
 		}
 
 		activeTextEditorControl.focus();

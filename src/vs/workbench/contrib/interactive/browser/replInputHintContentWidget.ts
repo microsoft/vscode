@@ -12,6 +12,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OS } from '../../../../base/common/platform.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -26,6 +27,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 	private domNode: HTMLElement | undefined;
 	private ariaLabel: string = '';
+	private label: KeybindingLabel | undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -77,6 +79,8 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			}));
 
 			this.editor.applyFontInfo(this.domNode);
+			const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
+			this.domNode.style.lineHeight = lineHeight + 'px';
 		}
 
 		return this.domNode;
@@ -108,10 +112,13 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 			hintElement.appendChild(before);
 
-			const label = new KeybindingLabel(hintElement, OS);
-			label.set(keybinding);
-			label.element.style.width = 'min-content';
-			label.element.style.display = 'inline';
+			if (this.label) {
+				this.label.dispose();
+			}
+			this.label = this._register(new KeybindingLabel(hintElement, OS));
+			this.label.set(keybinding);
+			this.label.element.style.width = 'min-content';
+			this.label.element.style.display = 'inline';
 
 			hintElement.appendChild(after);
 			this.domNode.append(hintElement);
@@ -158,5 +165,6 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 	override dispose(): void {
 		super.dispose();
 		this.editor.removeContentWidget(this);
+		this.label?.dispose();
 	}
 }

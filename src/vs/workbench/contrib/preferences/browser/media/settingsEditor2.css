@@ -38,36 +38,57 @@
 	border: 1px solid #ddd;
 }
 
-.settings-editor > .settings-header > .search-container > .settings-count-widget {
-	position: absolute;
-	right: 46px;
-	top: 0px;
-	margin: 4px 0px;
-}
-
-.settings-editor > .settings-header > .search-container > .settings-count-widget:empty {
-	visibility: hidden;
-}
-
-.settings-editor > .settings-header > .search-container > .settings-clear-widget {
+.settings-editor > .settings-header > .search-container > .search-container-widgets {
 	display: flex;
 	align-items: center;
 	position: absolute;
 	top: 0;
 	right: 0;
 	height: 100%;
-	width: 43px;
+	margin-right: 1px;
 }
 
-.settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {
-	padding: 2px;
+.settings-editor > .settings-header > .search-container > .search-container-widgets .action-label {
+	padding: 3px;
+	margin-left: 0px;
+	box-sizing: content-box;
+}
+
+.settings-editor > .settings-header > .search-container > .search-container-widgets .action-label.monaco-custom-toggle {
+	/* To offset the border width. */
+	padding: 2.3px;
+}
+
+.settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
+	margin-right: 3px;
+	padding-bottom: 3px;
+}
+
+.settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget:empty {
+	visibility: hidden;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	height: 32px;
 	display: flex;
+	flex-wrap: wrap;
 	border-bottom: solid 1px;
 	margin-top: 10px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-suggestions {
+	flex: 0 0 100%;
+	width: 100%;
+	min-height: 20px;
+	margin-bottom: 9px;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-suggestions a {
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+	cursor: pointer;
+	margin-right: 4px;
+	padding: 0px 4px 2px;
+	border-radius: 4px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-target-container {
@@ -239,8 +260,13 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .setting-toolbar-container > .monaco-toolbar .codicon,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .codicon,
-.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .codicon {
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .codicon,
+.settings-editor > .settings-header .search-container .search-container-widgets .action-label {
 	opacity: 1;
+}
+
+.settings-editor > .settings-header .search-container .search-container-widgets .monaco-custom-toggle.disabled {
+	pointer-events: initial;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon {
@@ -593,9 +619,13 @@
 	padding-bottom: 26px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-item-value-description {
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-item-description {
 	display: flex;
 	cursor: pointer;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-item-description.disabled {
+	cursor: initial;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox {

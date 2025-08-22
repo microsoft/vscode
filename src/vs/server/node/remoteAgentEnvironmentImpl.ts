@@ -103,13 +103,14 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		if (process.platform === 'linux') {
 			const glibcVersion = (process as ProcessWithGlibc).glibcVersion;
 			const minorVersion = glibcVersion ? parseInt(glibcVersion.split('.')[1]) : 28;
-			isUnsupportedGlibc = (minorVersion <= 27);
+			isUnsupportedGlibc = (minorVersion <= 27) || !!process.env['VSCODE_SERVER_CUSTOM_GLIBC_LINKER'];
 		}
 		return {
 			pid: process.pid,
 			connectionToken: (this._connectionToken.type !== ServerConnectionTokenType.None ? this._connectionToken.value : ''),
 			appRoot: URI.file(this._environmentService.appRoot),
 			settingsPath: this._environmentService.machineSettingsResource,
+			mcpResource: this._environmentService.mcpResource,
 			logsPath: this._environmentService.logsHome,
 			extensionHostLogsPath: joinPath(this._environmentService.logsHome, `exthost${RemoteAgentEnvironmentChannel._namePool++}`),
 			globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,

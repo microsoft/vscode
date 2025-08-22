@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onDidChangeFullscreen } from '../../../../base/browser/browser.js';
-import { hide, show } from '../../../../base/browser/dom.js';
+import { $, getActiveWindow, hide, show } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isNative } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -27,6 +27,12 @@ import { IWorkbenchLayoutService, shouldShowCustomTitleBar } from '../../../serv
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { GroupIdentifier } from '../../../common/editor.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
@@ -37,6 +43,65 @@ export interface ICreateAuxiliaryEditorPartResult {
 	readonly instantiationService: IInstantiationService;
 	readonly disposables: DisposableStore;
 }
+
+const compactWindowEmitter = markAsSingleton(new Emitter<{ windowId: number; compact: boolean | 'toggle' }>());
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.toggleCompactAuxiliaryWindow',
+			title: localize2('toggleCompactAuxiliaryWindow', "Toggle Window Compact Mode"),
+			category: Categories.View,
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext
+		});
+	}
+
+	override async run(): Promise<void> {
+		compactWindowEmitter.fire({ windowId: getActiveWindow().vscodeWindowId, compact: 'toggle' });
+	}
+});
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.enableCompactAuxiliaryWindow',
+			title: localize('enableCompactAuxiliaryWindow', "Turn On Compact Mode"),
+			icon: Codicon.screenFull,
+			menu: {
+				id: MenuId.LayoutControlMenu,
+				when: ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), IsAuxiliaryWindowContext),
+				order: 0
+			}
+		});
+	}
+
+	override async run(): Promise<void> {
+		compactWindowEmitter.fire({ windowId: getActiveWindow().vscodeWindowId, compact: true });
+	}
+});
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.disableCompactAuxiliaryWindow',
+			title: localize('disableCompactAuxiliaryWindow', "Turn Off Compact Mode"),
+			icon: Codicon.screenNormal,
+			menu: {
+				id: MenuId.LayoutControlMenu,
+				when: ContextKeyExpr.and(IsCompactTitleBarContext, IsAuxiliaryWindowContext),
+				order: 0
+			}
+		});
+	}
+
+	override async run(): Promise<void> {
+		compactWindowEmitter.fire({ windowId: getActiveWindow().vscodeWindowId, compact: false });
+	}
+});
 
 export class AuxiliaryEditorPart {
 
@@ -56,6 +121,10 @@ export class AuxiliaryEditorPart {
 	}
 
 	async create(label: string, options?: IAuxiliaryEditorPartOpenOptions): Promise<ICreateAuxiliaryEditorPartResult> {
+		const that = this;
+		const disposables = new DisposableStore();
+
+		let compact = Boolean(options?.compact);
 
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
@@ -99,28 +168,47 @@ export class AuxiliaryEditorPart {
 			}
 		}
 
-		const disposables = new DisposableStore();
+		function updateCompact(newCompact: boolean): void {
+			if (newCompact === compact) {
+				return;
+			}
+
+			compact = newCompact;
+			auxiliaryWindow.updateOptions({ compact });
+			titlebarPart?.updateOptions({ compact });
+			editorPart.updateOptions({ compact });
+
+			const oldStatusbarVisible = statusbarVisible;
+			statusbarVisible = !compact && that.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+			if (oldStatusbarVisible !== statusbarVisible) {
+				updateStatusbarVisibility(true);
+			}
+		}
 
 		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
 
 		// Editor Part
-		const editorPartContainer = document.createElement('div');
-		editorPartContainer.classList.add('part', 'editor');
-		editorPartContainer.setAttribute('role', 'main');
+		const editorPartContainer = $('.part.editor', { role: 'main' });
 		editorPartContainer.style.position = 'relative';
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label));
+		editorPart.updateOptions({ compact });
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
+
+		const scopedEditorPartInstantiationService = disposables.add(editorPart.scopedInstantiationService.createChild(new ServiceCollection(
+			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
+		)));
 
 		// Titlebar
 		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
 		let titlebarVisible = false;
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
-			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
+			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart, scopedEditorPartInstantiationService));
+			titlebarPart.updateOptions({ compact });
 			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined);
 
 			const handleTitleBarVisibilityEvent = () => {
@@ -143,15 +231,15 @@ export class AuxiliaryEditorPart {
 
 			updateTitlebarVisibility(false);
 		} else {
-			disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
+			disposables.add(scopedEditorPartInstantiationService.createInstance(WindowTitle, auxiliaryWindow.window));
 		}
 
 		// Statusbar
-		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container));
-		let statusbarVisible = this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container, scopedEditorPartInstantiationService));
+		let statusbarVisible = !compact && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY)) {
-				statusbarVisible = this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
+				statusbarVisible = !compact && this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 
 				updateStatusbarVisibility(true);
 			}
@@ -202,15 +290,37 @@ export class AuxiliaryEditorPart {
 		}));
 		auxiliaryWindow.layout();
 
-		// Have a InstantiationService that is scoped to the auxiliary window
-		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
-			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)],
-			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
+		// Compact mode
+		disposables.add(compactWindowEmitter.event(e => {
+			if (e.windowId === auxiliaryWindow.window.vscodeWindowId) {
+				let newCompact: boolean;
+				if (typeof e.compact === 'boolean') {
+					newCompact = e.compact;
+				} else {
+					newCompact = !compact;
+				}
+				updateCompact(newCompact);
+			}
+		}));
+
+		disposables.add(editorPart.onDidAddGroup(() => {
+			updateCompact(false); // leave compact mode when a group is added
+		}));
+
+		disposables.add(editorPart.activeGroup.onDidActiveEditorChange(() => {
+			if (editorPart.activeGroup.count > 1) {
+				updateCompact(false); // leave compact mode when more than 1 editor is active
+			}
+		}));
+
+		// Have a scoped instantiation service that is scoped to the auxiliary window
+		const scopedInstantiationService = disposables.add(scopedEditorPartInstantiationService.createChild(new ServiceCollection(
+			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)]
 		)));
 
 		return {
 			part: editorPart,
-			instantiationService,
+			instantiationService: scopedInstantiationService,
 			disposables
 		};
 	}
@@ -222,6 +332,10 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 	private readonly _onWillClose = this._register(new Emitter<void>());
 	readonly onWillClose = this._onWillClose.event;
+
+	private readonly optionsDisposable = this._register(new MutableDisposable());
+
+	private isCompact = false;
 
 	constructor(
 		windowId: number,
@@ -238,6 +352,31 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+	}
+
+	updateOptions(options: { compact: boolean }): void {
+		this.isCompact = options.compact;
+
+		if (options.compact) {
+			if (!this.optionsDisposable.value) {
+				this.optionsDisposable.value = this.enforcePartOptions({
+					showTabs: 'none',
+					closeEmptyGroups: true
+				});
+			}
+		} else {
+			this.optionsDisposable.clear();
+		}
+	}
+
+	override addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
+		if (this.isCompact) {
+			// When in compact mode, we prefer to open groups in the main part
+			// as compact mode is typically meant for showing just 1 editor.
+			location = this.editorPartsView.mainPart.activeGroup;
+		}
+
+		return super.addGroup(location, direction, groupToCopy);
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
@@ -268,7 +407,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			}
 		}
 
-		this.doClose(false /* do not merge any groups to main part */);
+		this.doClose(false /* do not merge any confirming editors to main part */);
 	}
 
 	protected override loadState(): IEditorPartUIState | undefined {
@@ -280,12 +419,19 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	}
 
 	close(): boolean {
-		return this.doClose(true /* merge all groups to main part */);
+		return this.doClose(true /* merge all confirming editors to main part */);
 	}
 
-	private doClose(mergeGroupsToMainPart: boolean): boolean {
+	private doClose(mergeConfirmingEditorsToMainPart: boolean): boolean {
 		let result = true;
-		if (mergeGroupsToMainPart) {
+		if (mergeConfirmingEditorsToMainPart) {
+
+			// First close all editors that are non-confirming
+			for (const group of this.groups) {
+				group.closeAllEditors({ excludeConfirming: true });
+			}
+
+			// Then merge remaining to main part
 			result = this.mergeGroupsToMainPart();
 		}
 
@@ -312,7 +458,12 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			targetGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
 		}
 
-		const result = this.mergeAllGroups(targetGroup);
+		const result = this.mergeAllGroups(targetGroup, {
+			// Try to reduce the impact of closing the auxiliary window
+			// as much as possible by not changing existing editors
+			// in the main window.
+			preserveExistingIndex: true
+		});
 		targetGroup.focus();
 
 		return result;

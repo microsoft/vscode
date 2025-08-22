@@ -58,7 +58,7 @@ class Renderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, HT
 	disposeTemplate(templateData: HTMLElement): void {
 		// noop
 	}
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: HTMLElement, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ExplorerItem>, FuzzyScore>, index: number, templateData: HTMLElement): void {
 		const result: string[] = [];
 
 		for (const element of node.element.elements) {

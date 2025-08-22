@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
@@ -23,7 +24,6 @@ import { INotebookEditorDelegate } from '../notebookBrowser.js';
 import { NotebooKernelActionViewItem } from './notebookKernelView.js';
 import { ActionViewWithLabel, UnifiedSubmenuActionView } from '../view/cellParts/cellActionView.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NotebookOptions } from '../notebookOptions.js';
 import { IActionViewItem, IActionViewItemProvider } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
@@ -184,7 +184,7 @@ class WorkbenchDynamicLabelStrategy implements IActionLayoutStrategy {
 			return undefined;
 		} else {
 			if (action instanceof MenuItemAction) {
-				this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
+				return this.instantiationService.createInstance(MenuEntryActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 			}
 
 			if (action instanceof SubmenuItemAction) {
@@ -264,7 +264,6 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
@@ -279,6 +278,14 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		)(this._updatePerEditorChange, this));
 
 		this._registerNotebookActionsToolbar();
+
+		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.CONTEXT_MENU, e => {
+			const event = new StandardMouseEvent(DOM.getWindow(this.domNode), e);
+			this.contextMenuService.showContextMenu({
+				menuId: MenuId.NotebookToolbarContext,
+				getAnchor: () => event,
+			});
+		}));
 	}
 
 	private _buildBody() {
@@ -344,7 +351,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 		// Make sure both toolbars have the same hover delegate for instant hover to work
 		// Due to the elements being further apart than normal toolbars, the default time limit is to short and has to be increased
-		const hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', true, {}));
+		const hoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, {}));
 		hoverDelegate.setInstantHoverTimeLimit(600);
 
 		const leftToolbarOptions: IWorkbenchToolBarOptions = {
@@ -363,9 +370,6 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			this._notebookTopLeftToolbarContainer,
 			leftToolbarOptions
 		);
-
-
-
 		this._register(this._notebookLeftToolbar);
 		this._notebookLeftToolbar.context = context;
 
@@ -431,18 +435,6 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 				return;
 			}
 		}));
-
-		if (this.experimentService) {
-			this.experimentService.getTreatment<boolean>('nbtoolbarineditor').then(treatment => {
-				if (treatment === undefined) {
-					return;
-				}
-				if (this._useGlobalToolbar !== treatment) {
-					this._useGlobalToolbar = treatment;
-					this._showNotebookActionsinEditorToolbar();
-				}
-			});
-		}
 	}
 
 	private _updateStrategy() {
@@ -495,6 +487,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 			this._deferredActionUpdate = disposableTimeout(async () => {
 				await this._setNotebookActions();
 				this.visible = true;
+				this._deferredActionUpdate?.dispose();
 				this._deferredActionUpdate = undefined;
 			}, 50);
 		}

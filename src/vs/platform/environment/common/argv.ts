@@ -13,6 +13,7 @@ export interface INativeCliOptions {
  * A list of command line arguments we support natively.
  */
 export interface NativeParsedArgs {
+
 	// subcommands
 	tunnel?: INativeCliOptions & {
 		user: {
@@ -23,6 +24,17 @@ export interface NativeParsedArgs {
 		};
 	};
 	'serve-web'?: INativeCliOptions;
+	chat?: {
+		_: string[];
+		'add-file'?: string[];
+		mode?: string;
+		maximize?: boolean;
+		'reuse-window'?: boolean;
+		'new-window'?: boolean;
+		help?: boolean;
+	};
+
+	// arguments
 	_: string[];
 	'folder-uri'?: string[]; // undefined or array of 1 or more
 	'file-uri'?: string[]; // undefined or array of 1 or more
@@ -51,6 +63,7 @@ export interface NativeParsedArgs {
 	'no-cached-data'?: boolean;
 	verbose?: boolean;
 	trace?: boolean;
+	'trace-memory-infra'?: boolean;
 	'trace-category-filter'?: string;
 	'trace-options'?: string;
 	'open-devtools'?: boolean;
@@ -92,7 +105,9 @@ export interface NativeParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
+	'add-mcp'?: string[];
 	'disable-updates'?: boolean;
+	'transient'?: boolean;
 	'use-inmemory-secretstorage'?: boolean;
 	'password-store'?: string;
 	'disable-workspace-trust'?: boolean;
@@ -119,8 +134,12 @@ export interface NativeParsedArgs {
 	'profile-temp'?: boolean;
 	'disable-chromium-sandbox'?: boolean;
 	sandbox?: boolean;
-
 	'enable-coi'?: boolean;
+	'unresponsive-sample-interval'?: string;
+	'unresponsive-sample-period'?: string;
+	'enable-rdp-display-tracking'?: boolean;
+	'disable-layout-restore'?: boolean;
+	'disable-experiments'?: boolean;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
@@ -147,4 +166,5 @@ export interface NativeParsedArgs {
 	'trace-startup-format'?: string;
 	'trace-startup-file'?: string;
 	'trace-startup-duration'?: string;
+	'xdg-portal-required-version'?: string;
 }

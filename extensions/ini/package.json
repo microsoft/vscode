@@ -45,7 +45,8 @@
         ],
         "filenamePatterns": [
           "**/.config/git/config",
-          "**/.git/config"
+          "**/.git/config",
+          ".*.env"
         ],
         "aliases": [
           "Properties",

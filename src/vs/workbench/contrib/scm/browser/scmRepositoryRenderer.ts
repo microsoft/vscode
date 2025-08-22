@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import { IDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { ISCMProvider, ISCMRepository, ISCMViewService } from '../common/scm.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
@@ -13,7 +13,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util.js';
-import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IListRenderer } from '../../../../base/browser/ui/list/list.js';
@@ -24,9 +24,8 @@ import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actio
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
@@ -38,18 +37,21 @@ export class RepositoryActionRunner extends ActionRunner {
 			return super.runAction(action, context);
 		}
 
+		const actionContext = [context];
+
+		// If the selection contains the repository, add the
+		// other selected repositories to the action context
 		const selection = this.getSelectedRepositories().map(r => r.provider);
-		const actionContext = selection.some(s => s === context) ? selection : [context];
+		if (selection.some(s => s === context)) {
+			actionContext.push(...selection.filter(s => s !== context));
+		}
 
 		await action.run(...actionContext);
 	}
 }
 
 interface RepositoryTemplate {
-	readonly label: HTMLElement;
-	readonly labelCustomHover: IManagedHover;
-	readonly name: HTMLElement;
-	readonly description: HTMLElement;
+	readonly label: IconLabel;
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
 	readonly toolBar: WorkbenchToolBar;
@@ -57,7 +59,7 @@ interface RepositoryTemplate {
 	readonly templateDisposable: IDisposable;
 }
 
-export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, FuzzyScore, RepositoryTemplate>, IListRenderer<ISCMRepository, RepositoryTemplate> {
+export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, FuzzyScore, RepositoryTemplate>, IListRenderer<ISCMRepository, RepositoryTemplate>, ITreeRenderer<ISCMRepository, FuzzyScore, RepositoryTemplate> {
 
 	static readonly TEMPLATE_ID = 'repository';
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
@@ -68,7 +70,6 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IHoverService private hoverService: IHoverService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
 		@ISCMViewService private scmViewService: ISCMViewService,
@@ -82,31 +83,34 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		}
 
 		const provider = append(container, $('.scm-provider'));
-		const label = append(provider, $('.label'));
-		const labelCustomHover = this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), label, '', {});
-		const name = append(label, $('span.name'));
-		const description = append(label, $('span.description'));
+		const label = new IconLabel(provider, { supportIcons: true });
+
 		const actions = append(provider, $('.actions'));
 		const toolBar = new WorkbenchToolBar(actions, { actionViewItemProvider: this.actionViewItemProvider, resetMenu: this.toolbarMenuId }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
 
-		const templateDisposable = combinedDisposable(labelCustomHover, visibilityDisposable, toolBar);
+		const templateDisposable = combinedDisposable(label, visibilityDisposable, toolBar);
 
-		return { label, labelCustomHover, name, description, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
+		return { label, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
-	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
+	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate): void {
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
-		templateData.name.textContent = repository.provider.name;
+		const icon = ThemeIcon.isThemeIcon(repository.provider.iconPath)
+			? repository.provider.iconPath.id
+			: undefined;
+
+		const label = icon
+			? `$(${icon}) ${repository.provider.name}`
+			: repository.provider.name;
+
 		if (repository.provider.rootUri) {
-			templateData.labelCustomHover.update(`${repository.provider.label}: ${repository.provider.rootUri.fsPath}`);
-			templateData.description.textContent = repository.provider.label;
+			templateData.label.setLabel(label, repository.provider.label, { title: `${repository.provider.label}: ${repository.provider.rootUri.fsPath}` });
 		} else {
-			templateData.labelCustomHover.update(repository.provider.label);
-			templateData.description.textContent = '';
+			templateData.label.setLabel(label, undefined, { title: repository.provider.label });
 		}
 
 		let statusPrimaryActions: IAction[] = [];
@@ -116,9 +120,9 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
 		};
 
-		templateData.elementDisposables.add(autorun(reader => {
+		templateData.elementDisposables.add(autorunWithStore((reader, store) => {
 			const commands = repository.provider.statusBarCommands.read(reader) ?? [];
-			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
+			statusPrimaryActions = commands.map(c => store.add(new StatusBarAction(c, this.commandService)));
 			updateToolbar();
 		}));
 
@@ -128,12 +132,19 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.count.setCount(count);
 		}));
 
-		const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
-		const menu = this.toolbarMenuId === MenuId.SCMTitle ? repositoryMenus.titleMenu.menu : repositoryMenus.repositoryMenu;
-		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
-			menuPrimaryActions = primary;
-			menuSecondaryActions = secondary;
-			updateToolbar();
+		templateData.elementDisposables.add(autorun(reader => {
+			repository.provider.contextValue.read(reader);
+
+			const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
+			const menu = this.toolbarMenuId === MenuId.SCMTitle
+				? repositoryMenus.titleMenu.menu
+				: repositoryMenus.getRepositoryMenu(repository);
+
+			reader.store.add(connectPrimaryMenu(menu, (primary, secondary) => {
+				menuPrimaryActions = primary;
+				menuSecondaryActions = secondary;
+				updateToolbar();
+			}));
 		}));
 
 		templateData.toolBar.context = repository.provider;

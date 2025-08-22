@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { ExtensionContext, extensions } from 'vscode';
+import { ExtensionContext, extensions, Uri } from 'vscode';
 
 suite('vscode API - globalState / workspaceState', () => {
 
@@ -16,7 +16,7 @@ suite('vscode API - globalState / workspaceState', () => {
 		extensionContext = (global as any).testExtensionContext;
 	});
 
-	test('state', async () => {
+	test('state basics', async () => {
 		for (const state of [extensionContext.globalState, extensionContext.workspaceState]) {
 			let keys = state.keys();
 			assert.strictEqual(keys.length, 0);
@@ -40,6 +40,41 @@ suite('vscode API - globalState / workspaceState', () => {
 
 			res = state.get('state.test.get', 'default');
 			assert.strictEqual(res, 'default');
+		}
+	});
+
+	test('state - handling of objects', async () => {
+		for (const state of [extensionContext.globalState, extensionContext.workspaceState]) {
+			const keys = state.keys();
+			assert.strictEqual(keys.length, 0);
+
+			state.update('state.test.date', new Date());
+			const date = state.get('state.test.date');
+			assert.ok(typeof date === 'string');
+
+			state.update('state.test.regex', /foo/);
+			const regex = state.get('state.test.regex');
+			assert.ok(typeof regex === 'object' && !(regex instanceof RegExp));
+
+			class Foo { }
+			state.update('state.test.class', new Foo());
+			const clazz = state.get('state.test.class');
+			assert.ok(typeof clazz === 'object' && !(clazz instanceof Foo));
+
+			const cycle: any = { self: null };
+			cycle.self = cycle;
+			assert.throws(() => state.update('state.test.cycle', cycle));
+
+			const uriIn = Uri.parse('/foo/bar');
+			state.update('state.test.uri', uriIn);
+			const uriOut = state.get('state.test.uri') as Uri;
+			assert.ok(uriIn.toString() === Uri.from(uriOut).toString());
+
+			state.update('state.test.null', null);
+			assert.strictEqual(state.get('state.test.null'), null);
+
+			state.update('state.test.undefined', undefined);
+			assert.strictEqual(state.get('state.test.undefined'), undefined);
 		}
 	});
 });

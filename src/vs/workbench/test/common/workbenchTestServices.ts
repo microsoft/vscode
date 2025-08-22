@@ -181,13 +181,14 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
 	readonly capabilities = WorkingCopyCapabilities.None;
 
-	readonly name = basename(this.resource);
+	readonly name;
 
 	private dirty = false;
 
 	constructor(readonly resource: URI, isDirty = false, readonly typeId = 'testWorkingCopyType') {
 		super();
 
+		this.name = basename(this.resource);
 		this.dirty = isDirty;
 	}
 
@@ -225,7 +226,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	}
 }
 
-export function createFileStat(resource: URI, readonly = false, isFile?: boolean, isDirectory?: boolean, children?: { resource: URI; isFile?: boolean; isDirectory?: boolean }[] | undefined): IFileStatWithMetadata {
+export function createFileStat(resource: URI, readonly = false, isFile?: boolean, isDirectory?: boolean, isSymbolicLink?: boolean, children?: { resource: URI; isFile?: boolean; isDirectory?: boolean; isSymbolicLink?: boolean }[] | undefined): IFileStatWithMetadata {
 	return {
 		resource,
 		etag: Date.now().toString(),
@@ -234,11 +235,11 @@ export function createFileStat(resource: URI, readonly = false, isFile?: boolean
 		size: 42,
 		isFile: isFile ?? true,
 		isDirectory: isDirectory ?? false,
-		isSymbolicLink: false,
+		isSymbolicLink: isSymbolicLink ?? false,
 		readonly,
 		locked: false,
 		name: basename(resource),
-		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory))
+		children: children?.map(c => createFileStat(c.resource, false, c.isFile, c.isDirectory, c.isSymbolicLink)),
 	};
 }
 
@@ -323,6 +324,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	getAutoSaveMode(): IAutoSaveMode { throw new Error('Method not implemented.'); }
 	hasShortAutoSaveDelay(): boolean { throw new Error('Method not implemented.'); }
 	toggleAutoSave(): Promise<void> { throw new Error('Method not implemented.'); }
+	enableAutoSaveAfterShortDelay(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
 	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
@@ -478,4 +480,7 @@ export class TestMarkerService implements IMarkerService {
 	changeAll(owner: string, data: IResourceMarker[]): void { }
 	remove(owner: string, resources: URI[]): void { }
 	read(filter?: { owner?: string | undefined; resource?: URI | undefined; severities?: number | undefined; take?: number | undefined } | undefined): IMarker[] { return []; }
+	installResourceFilter(resource: URI, reason: string): IDisposable {
+		return { dispose: () => { /* TODO: Implement cleanup logic */ } };
+	}
 }

@@ -8,7 +8,7 @@ import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } f
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -20,7 +20,6 @@ import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStart
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
@@ -28,7 +27,6 @@ import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from '../../..
 import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { StartupPageEditorResolverContribution, StartupPageRunnerContribution } from './startupPage.js';
-import { ExtensionsInput } from '../../extensions/common/extensionsInput.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -57,12 +55,13 @@ registerAction2(class extends Action2 {
 	public run(
 		accessor: ServicesAccessor,
 		walkthroughID: string | { category: string; step: string } | undefined,
-		toSide: boolean | undefined
+		optionsOrToSide: { toSide?: boolean; inactive?: boolean } | boolean | undefined
 	) {
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
+
+		const toSide = typeof optionsOrToSide === 'object' ? optionsOrToSide.toSide : optionsOrToSide;
+		const inactive = typeof optionsOrToSide === 'object' ? optionsOrToSide.inactive : false;
 
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
@@ -73,40 +72,6 @@ registerAction2(class extends Action2 {
 				selectedStep = undefined;
 			}
 
-			// We're trying to open the welcome page from the Help menu
-			if (!selectedCategory && !selectedStep) {
-				editorService.openEditor({
-					resource: GettingStartedInput.RESOURCE,
-					options: { preserveFocus: toSide ?? false }
-				}, toSide ? SIDE_GROUP : undefined);
-				return;
-			}
-
-			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
-			for (const group of editorGroupsService.groups) {
-				if (group.activeEditor instanceof GettingStartedInput) {
-					const activeEditor = group.activeEditor as GettingStartedInput;
-					activeEditor.showWelcome = false;
-					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
-					return;
-				}
-			}
-
-			// Otherwise, try to find a welcome input somewhere with no selected walkthrough, and open it to this one.
-			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, editorId: undefined, resource: GettingStartedInput.RESOURCE });
-			for (const { editor, groupId } of result) {
-				if (editor instanceof GettingStartedInput) {
-					const group = editorGroupsService.getGroup(groupId);
-					if (!editor.selectedCategory && group) {
-						editor.selectedCategory = selectedCategory;
-						editor.selectedStep = selectedStep;
-						editor.showWelcome = false;
-						group.openEditor(editor, { revealIfOpened: true });
-						return;
-					}
-				}
-			}
-
 			const activeEditor = editorService.activeEditor;
 			// If the walkthrough is already open just reveal the step
 			if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
@@ -115,28 +80,17 @@ registerAction2(class extends Action2 {
 				return;
 			}
 
-			// If it's the extension install page then lets replace it with the getting started page
-			if (activeEditor instanceof ExtensionsInput) {
-				const activeGroup = editorGroupsService.activeGroup;
-				activeGroup.replaceEditors([{
-					editor: activeEditor,
-					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false })
-				}]);
-			} else {
-				// else open respecting toSide
-				const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false };
-				editorService.openEditor({
-					resource: GettingStartedInput.RESOURCE,
-					options
-				}, toSide ? SIDE_GROUP : undefined).then((editor) => {
-					(editor as GettingStartedPage)?.makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
-				});
+			// Otherwise open the walkthrough editor with the selected category and step
+			const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
+			editorService.openEditor({
+				resource: GettingStartedInput.RESOURCE,
+				options
+			}, toSide ? SIDE_GROUP : undefined);
 
-			}
 		} else {
 			editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
-				options: { preserveFocus: toSide ?? false }
+				options: { preserveFocus: toSide ?? false, inactive }
 			}, toSide ? SIDE_GROUP : undefined);
 		}
 	}
@@ -233,6 +187,11 @@ registerAction2(class extends Action2 {
 			title: localize2('welcome.showAllWalkthroughs', 'Open Walkthrough...'),
 			category,
 			f1: true,
+			menu: {
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 3,
+			},
 		});
 	}
 
@@ -275,11 +234,19 @@ registerAction2(class extends Action2 {
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 		await extensionService.whenInstalledExtensionsRegistered();
-		gettingStartedService.onDidAddWalkthrough(async () => {
+		disposables.add(gettingStartedService.onDidAddWalkthrough(async () => {
 			quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
-		});
+		}));
 		quickPick.show();
 		quickPick.busy = false;
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'welcome.newWorkspaceChat',
+	handler: (accessor, stepID: string) => {
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand('workbench.action.chat.open', { mode: 'agent', query: '#new ', isPartialQuery: true });
 	}
 });
 

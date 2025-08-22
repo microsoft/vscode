@@ -13,7 +13,7 @@ import { ActionBar } from '../actionbar/actionbar.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { FindInput } from '../findinput/findInput.js';
 import { IInputBoxStyles, IMessage, MessageType, unthemedInboxStyles } from '../inputbox/inputBox.js';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from '../list/list.js';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListElementRenderDetails, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListAccessibilityProvider, IListOptions, IListStyles, isActionItem, isButton, isMonacoCustomToggle, isMonacoEditor, isStickyScrollContainer, isStickyScrollElement, List, MouseController, TypeNavigationMode } from '../list/listWidget.js';
 import { IToggleStyles, Toggle, unthemedToggleStyles } from '../toggle/toggle.js';
@@ -37,6 +37,7 @@ import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { autorun, constObservable } from '../../../common/observable.js';
 import { alert } from '../aria/aria.js';
+import { IMouseWheelEvent } from '../../mouseEvent.js';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -241,6 +242,7 @@ interface ITreeListTemplateData<T> {
 	readonly indent: HTMLElement;
 	readonly twistie: HTMLElement;
 	indentGuidesDisposable: IDisposable;
+	indentSize: number;
 	readonly templateData: T;
 }
 
@@ -370,6 +372,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 				this.indent = indent;
 
 				for (const [node, templateData] of this.renderedNodes) {
+					templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
 					this.renderTreeElement(node, templateData);
 				}
 			}
@@ -409,22 +412,24 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		const contents = append(el, $('.monaco-tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
-		return { container, indent, twistie, indentGuidesDisposable: Disposable.None, templateData };
+		return { container, indent, twistie, indentGuidesDisposable: Disposable.None, indentSize: 0, templateData };
 	}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: IListElementRenderDetails): void {
+		templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
 		this.renderTreeElement(node, templateData);
-		this.renderer.renderElement(node, index, templateData.templateData, height);
+		this.renderer.renderElement(node, index, templateData.templateData, { ...details, indent: templateData.indentSize });
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
+	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: IListElementRenderDetails): void {
 		templateData.indentGuidesDisposable.dispose();
 
-		this.renderer.disposeElement?.(node, index, templateData.templateData, height);
+		this.renderer.disposeElement?.(node, index, templateData.templateData, { ...details, indent: templateData.indentSize });
 
-		if (typeof height === 'number') {
+		if (typeof details?.height === 'number') {
 			this.renderedNodes.delete(node);
 			this.renderedElements.delete(node.element);
 		}
@@ -455,10 +460,9 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		this.renderTreeElement(node, templateData);
 	}
 
-	private renderTreeElement(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
-		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
-		templateData.twistie.style.paddingLeft = `${indent}px`;
-		templateData.indent.style.width = `${indent + this.indent - 16}px`;
+	private renderTreeElement(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>): void {
+		templateData.twistie.style.paddingLeft = `${templateData.indentSize}px`;
+		templateData.indent.style.width = `${templateData.indentSize + this.indent - 16}px`;
 
 		if (node.collapsible) {
 			templateData.container.setAttribute('aria-expanded', String(!node.collapsed));
@@ -1786,12 +1790,12 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 		// Render the element
 		const templateData = renderer.renderTemplate(stickyElement);
-		renderer.renderElement(nodeCopy, stickyNode.startIndex, templateData, stickyNode.height);
+		renderer.renderElement(nodeCopy, stickyNode.startIndex, templateData, { height: stickyNode.height });
 
 		// Remove the element from the DOM when state is disposed
 		const disposable = toDisposable(() => {
 			accessibilityDisposable.dispose();
-			renderer.disposeElement(nodeCopy, stickyNode.startIndex, templateData, stickyNode.height);
+			renderer.disposeElement(nodeCopy, stickyNode.startIndex, templateData, { height: stickyNode.height });
 			renderer.disposeTemplate(templateData);
 			stickyElement.remove();
 		});
@@ -2195,6 +2199,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly findWidgetStyles?: IFindWidgetStyles;
 	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
 	readonly stickyScrollDelegate?: IStickyScrollDelegate<any, TFilterData>;
+	readonly disableExpandOnSpacebar?: boolean; // defaults to false
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
@@ -2827,8 +2832,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const content: string[] = [];
 
 		if (styles.treeIndentGuidesStroke) {
-			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > .indent-guide, .monaco-list${suffix}.always .monaco-tl-indent > .indent-guide  { border-color: ${styles.treeInactiveIndentGuidesStroke}; }`);
-			content.push(`.monaco-list${suffix} .monaco-tl-indent > .indent-guide.active { border-color: ${styles.treeIndentGuidesStroke}; }`);
+			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > .indent-guide, .monaco-list${suffix}.always .monaco-tl-indent > .indent-guide  { opacity: 1; border-color: ${styles.treeInactiveIndentGuidesStroke}; }`);
+			content.push(`.monaco-list${suffix} .monaco-tl-indent > .indent-guide.active { opacity: 1; border-color: ${styles.treeIndentGuidesStroke}; }`);
 		}
 
 		// Sticky Scroll Background
@@ -3218,6 +3223,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	navigate(start?: TRef): ITreeNavigator<T> {
 		return new TreeNavigator(this.view, this.model, start);
+	}
+
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	dispose(): void {

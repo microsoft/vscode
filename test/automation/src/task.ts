@@ -9,6 +9,7 @@ import { QuickAccess } from './quickaccess';
 import { Editors } from './editors';
 import { QuickInput } from './quickinput';
 import { Terminal } from './terminal';
+import { wait } from './playwrightDriver';
 
 interface ITaskConfigurationProperties {
 	label?: string;
@@ -33,15 +34,16 @@ export class Task {
 	}
 
 	async assertTasks(filter: string, expected: ITaskConfigurationProperties[], type: 'run' | 'configure') {
-		await this.code.dispatchKeybinding('right');
-		await this.editors.saveOpenedFile();
+		// TODO https://github.com/microsoft/vscode/issues/242535
+		// Artificial delay before running non hidden tasks
+		// so that entries from configureTask show up in the quick access.
+		await wait(1000);
 		type === 'run' ? await this.quickaccess.runCommand('workbench.action.tasks.runTask', { keepOpen: true }) : await this.quickaccess.runCommand('workbench.action.tasks.configureTask', { keepOpen: true });
 		if (expected.length === 0) {
 			await this.quickinput.waitForQuickInputElements(e => e.length > 1 && e.every(label => label.trim() !== filter.trim()));
-		} else {
-			await this.quickinput.waitForQuickInputElements(e => e.length > 1 && e.some(label => label.trim() === filter.trim()));
 		}
 		if (expected.length > 0 && !expected[0].hide) {
+			await this.quickinput.waitForQuickInputElements(e => e.length > 1 && e.some(label => label.trim() === filter.trim()));
 			// select the expected task
 			await this.quickinput.selectQuickInputElement(0, true);
 			// Continue without scanning the output
@@ -57,7 +59,10 @@ export class Task {
 		await this.quickaccess.openFileQuickAccessAndWait('tasks.json', 'tasks.json');
 		await this.quickinput.selectQuickInputElement(0);
 		await this.quickaccess.runCommand('editor.action.selectAll');
-		await this.code.dispatchKeybinding('Delete');
+		await this.code.dispatchKeybinding('Delete', async () => {
+			// TODO https://github.com/microsoft/vscode/issues/242535
+			await wait(100);
+		});
 		const taskStringLines: string[] = [
 			'{', // Brackets auto close
 			'"version": "2.0.0",',
@@ -78,7 +83,10 @@ export class Task {
 		for (const [i, line] of taskStringLines.entries()) {
 			await this.editor.waitForTypeInEditor('tasks.json', `${line}`);
 			if (i !== taskStringLines.length - 1) {
-				await this.code.dispatchKeybinding('Enter');
+				await this.code.dispatchKeybinding('Enter', async () => {
+					// TODO https://github.com/microsoft/vscode/issues/242535
+					await wait(100);
+				});
 			}
 		}
 		await this.editors.saveOpenedFile();

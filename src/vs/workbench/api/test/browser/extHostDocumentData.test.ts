@@ -37,7 +37,7 @@ suite('ExtHostDocumentData', () => {
 			'and this is line number two', //27
 			'it is followed by #3', //20
 			'and finished with the fourth.', //29
-		], '\n', 1, 'text', false);
+		], '\n', 1, 'text', false, 'utf8');
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,7 +59,7 @@ suite('ExtHostDocumentData', () => {
 				saved = uri;
 				return Promise.resolve(true);
 			}
-		}, URI.parse('foo:bar'), [], '\n', 1, 'text', true);
+		}, URI.parse('foo:bar'), [], '\n', 1, 'text', true, 'utf8');
 
 		return data.document.save().then(() => {
 			assert.strictEqual(saved.toString(), 'foo:bar');
@@ -256,7 +256,7 @@ suite('ExtHostDocumentData', () => {
 	test('getWordRangeAtPosition', () => {
 		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			'aaaa bbbb+cccc abc'
-		], '\n', 1, 'text', false);
+		], '\n', 1, 'text', false, 'utf8');
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 2))!;
 		assert.strictEqual(range.start.line, 0);
@@ -290,7 +290,7 @@ suite('ExtHostDocumentData', () => {
 			'function() {',
 			'	"far boo"',
 			'}'
-		], '\n', 1, 'text', false);
+		], '\n', 1, 'text', false, 'utf8');
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 0), /\/\*.+\*\//);
 		assert.strictEqual(range, undefined);
@@ -318,7 +318,7 @@ suite('ExtHostDocumentData', () => {
 
 		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			perfData._$_$_expensive
-		], '\n', 1, 'text', false);
+		], '\n', 1, 'text', false, 'utf8');
 
 		// this test only ensures that we eventually give and timeout (when searching "funny" words and long lines)
 		// for the sake of speedy tests we lower the timeBudget here
@@ -345,7 +345,7 @@ suite('ExtHostDocumentData', () => {
 
 		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			line
-		], '\n', 1, 'text', false);
+		], '\n', 1, 'text', false, 'utf8');
 
 		const range = data.document.getWordRangeAtPosition(new Position(0, 27), regex)!;
 		assert.strictEqual(range.start.line, 0);
@@ -358,7 +358,7 @@ suite('ExtHostDocumentData', () => {
 
 		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			`        <p><span xml:lang="en">Sheldon</span>, soprannominato "<span xml:lang="en">Shelly</span> dalla madre e dalla sorella, è nato a <span xml:lang="en">Galveston</span>, in <span xml:lang="en">Texas</span>, il 26 febbraio 1980 in un supermercato. È stato un bambino prodigio, come testimoniato dal suo quoziente d'intelligenza (187, di molto superiore alla norma) e dalla sua rapida carriera scolastica: si è diplomato all'eta di 11 anni approdando alla stessa età alla formazione universitaria e all'età di 16 anni ha ottenuto il suo primo dottorato di ricerca. All'inizio della serie e per gran parte di essa vive con il coinquilino Leonard nell'appartamento 4A al 2311 <span xml:lang="en">North Los Robles Avenue</span> di <span xml:lang="en">Pasadena</span>, per poi trasferirsi nell'appartamento di <span xml:lang="en">Penny</span> con <span xml:lang="en">Amy</span> nella decima stagione. Come più volte afferma lui stesso possiede una memoria eidetica e un orecchio assoluto. È stato educato da una madre estremamente religiosa e, in più occasioni, questo aspetto contrasta con il rigore scientifico di <span xml:lang="en">Sheldon</span>; tuttavia la donna sembra essere l'unica persona in grado di comandarlo a bacchetta.</p>`
-		], '\n', 1, 'text', false);
+		], '\n', 1, 'text', false, 'utf8');
 
 		const pos = new Position(0, 55);
 		const range = data.document.getWordRangeAtPosition(pos)!;
@@ -426,7 +426,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 	}
 
 	function testLineMappingDirectionAfterEvents(lines: string[], eol: string, direction: AssertDocumentLineMappingDirection, e: IModelChangedEvent): void {
-		const myDocument = new ExtHostDocumentData(undefined!, URI.file(''), lines.slice(0), eol, 1, 'text', false);
+		const myDocument = new ExtHostDocumentData(undefined!, URI.file(''), lines.slice(0), eol, 1, 'text', false, 'utf8');
 		assertDocumentLineMapping(myDocument, direction);
 
 		myDocument.onEvents(e);
