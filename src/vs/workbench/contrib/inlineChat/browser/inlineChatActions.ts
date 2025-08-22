@@ -53,7 +53,7 @@ export class StartSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: ACTION_START,
-			title: localize2('run', 'Editor Inline Chat'),
+			title: localize2('run', 'Open Inline Chat'),
 			category: AbstractInline1ChatAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(
@@ -69,13 +69,13 @@ export class StartSessionAction extends Action2 {
 			},
 			icon: START_INLINE_CHAT,
 			menu: [{
+				id: MenuId.EditorContext,
+				group: '1_chat',
+				order: 3,
+			}, {
 				id: MenuId.ChatTitleBarMenu,
 				group: 'a_open',
 				order: 3,
-			}, {
-				id: MenuId.ChatTextEditorMenu,
-				group: 'a_open',
-				order: 1
 			}]
 		});
 	}
