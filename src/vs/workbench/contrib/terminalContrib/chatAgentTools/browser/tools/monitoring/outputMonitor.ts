@@ -30,11 +30,13 @@ export interface IOutputMonitor extends Disposable {
 	readonly onDidIdle: Event<void>;
 	readonly onDidTimeout: Event<void>;
 
+	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
+
 	startMonitoring(
 		command: string,
 		invocationContext: any,
 		token: CancellationToken
-	): Promise<IPollingResult & { pollDurationMs: number }>;
+	): Promise<void>;
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
@@ -46,6 +48,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private _lastAutoReply: string | undefined;
 
+	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
+	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
+
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
 	private readonly _onDidIdle = this._register(new Emitter<void>());
@@ -56,19 +61,23 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	constructor(
 		private readonly _execution: IExecution,
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
+		invocationContext: IToolInvocationContext,
+		token: CancellationToken,
+		command: string,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ITaskService private readonly _taskService: ITaskService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) {
 		super();
+		this.startMonitoring(command, invocationContext, token);
 	}
 
 	async startMonitoring(
 		command: string,
 		invocationContext: IToolInvocationContext,
 		token: CancellationToken
-	): Promise<IPollingResult & { pollDurationMs: number }> {
+	): Promise<void> {
 
 		const pollStartTime = Date.now();
 		let extended = false;
@@ -98,7 +107,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					part?.dispose?.();
 				}
 				if (!continuePolling) {
-					return { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+					break;
 				}
 				extended = true;
 				// small backoff so we do not instantly loop on the same timeout condition
@@ -108,8 +118,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			// If cancelled, we are done
 			if (this._state === OutputMonitorState.Cancelled) {
-				this._onDidFinishCommand.fire();
-				return { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+				break;
 			}
 
 			if (this._state === OutputMonitorState.Idle) {
@@ -126,7 +136,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						lastObservedLength = this._execution.getOutput().length;
 						// if nothing changed, return what we have
 						if (!changed) {
-							return { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+							this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+							break;
 						}
 						// loop again to poll with extended window
 						continue;
@@ -134,20 +145,20 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				}
 			}
 
-			// No auto-reply action and not a timeout; return the current result
-			this._onDidFinishCommand.fire();
-			return { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
 		}
 
-		// Cancellation exit
-		this._state = OutputMonitorState.Cancelled;
-		return {
-			state: this._state,
-			output: this._execution.getOutput(),
-			modelOutputEvalResponse: 'Cancelled',
-			pollDurationMs: Date.now() - pollStartTime,
-			autoReplyCount: 0
-		};
+		if (!this._pollingResult) {
+			// Cancellation exit
+			this._state = OutputMonitorState.Cancelled;
+			this._pollingResult = {
+				state: this._state,
+				output: this._execution.getOutput(),
+				modelOutputEvalResponse: 'Cancelled',
+				pollDurationMs: Date.now() - pollStartTime,
+				autoReplyCount: 0
+			};
+		}
+		this._onDidFinishCommand.fire();
 	}
 
 	/**

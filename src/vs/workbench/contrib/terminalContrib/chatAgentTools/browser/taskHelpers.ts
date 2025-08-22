@@ -19,6 +19,8 @@ import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { getOutput } from './outputHelpers.js';
 import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
 import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/types.js';
+import { Event } from '../../../../../base/common/event.js';
+
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -159,19 +161,16 @@ export async function collectTerminalResults(
 			dependencyTasks,
 			sessionId: invocationContext.sessionId
 		};
-		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn));
-		const outputAndIdle = await outputMonitor.startMonitoring(
-			task._label,
-			invocationContext,
-			token
-		);
+		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
+		await Event.toPromise(outputMonitor.onDidFinishCommand);
+		const pollingResult = outputMonitor.pollingResult;
 		results.push({
 			name: instance.shellLaunchConfig.name ?? 'unknown',
-			output: outputAndIdle?.output ?? '',
-			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
-			resources: outputAndIdle?.resources,
-			state: outputAndIdle?.state,
-			autoReplyCount: outputAndIdle?.autoReplyCount ?? 0
+			output: pollingResult?.output ?? '',
+			pollDurationMs: pollingResult?.pollDurationMs ?? 0,
+			resources: pollingResult?.resources,
+			state: pollingResult?.state ?? OutputMonitorState.Idle,
+			autoReplyCount: pollingResult?.autoReplyCount ?? 0
 		});
 	}
 	return results;

@@ -12,6 +12,7 @@ import { OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
+import { Event } from '../../../../../../base/common/event.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,52 +66,42 @@ suite('OutputMonitor', () => {
 	});
 
 	test('startMonitoring returns immediately when polling succeeds', async () => {
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
-		const result = await monitor.startMonitoring(
-			'test command',
-			{ sessionId: '1' },
-			cts.token
-		);
-		assert.strictEqual(result.state, OutputMonitorState.Idle);
-		assert.strictEqual(result.output, 'test output');
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+		await Event.toPromise(monitor.onDidFinishCommand);
+		const pollingResult = monitor.pollingResult;
+		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+		assert.strictEqual(pollingResult.output, 'test output');
 		assert.strictEqual(sendTextCalled, false, 'sendText should not be called');
 	});
 
 	test('startMonitoring returns cancelled when token is cancelled', async () => {
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
 		cts.cancel();
-		const result = await monitor.startMonitoring(
-			'test command',
-			{ sessionId: '1' },
-			cts.token
-		);
-		assert.strictEqual(result.state, OutputMonitorState.Cancelled);
+		await Event.toPromise(monitor.onDidFinishCommand);
+		const pollingResult = monitor.pollingResult;
+		assert.strictEqual(pollingResult?.state, OutputMonitorState.Cancelled);
 	});
 	test('startMonitoring returns idle when isActive is false', async () => {
 		execution.isActive = async () => false;
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
-		const result = await monitor.startMonitoring(
-			'test command',
-			{ sessionId: '1' },
-			cts.token
-		);
-		assert.strictEqual(result.state, OutputMonitorState.Idle);
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+		await Event.toPromise(monitor.onDidFinishCommand);
+		const pollingResult = monitor.pollingResult;
+		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
 	});
 
 	test('startMonitoring works when isActive is undefined', async () => {
 		delete execution.isActive;
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
-		const result = await monitor.startMonitoring(
-			'test command',
-			{ sessionId: '1' },
-			cts.token
-		);
-		assert.strictEqual(result.state, OutputMonitorState.Idle);
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+		await Event.toPromise(monitor.onDidFinishCommand);
+		const pollingResult = monitor.pollingResult;
+		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
 	});
 
 	test('monitor can be disposed twice without error', async () => {
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
-		await monitor.startMonitoring('test command', { sessionId: '1' }, cts.token);
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+		await Event.toPromise(monitor.onDidFinishCommand);
+		const pollingResult = monitor.pollingResult;
+		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
 		monitor.dispose();
 		monitor.dispose();
 	});

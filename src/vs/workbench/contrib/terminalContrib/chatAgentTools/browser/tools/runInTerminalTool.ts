@@ -416,8 +416,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		if (args.isBackground) {
-			let outputAndIdle: IPollingResult & { pollDurationMs: number } | undefined = undefined;
-			let outputMonitor: OutputMonitor | undefined = undefined;
+			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
 				const sessionId = invocation.context?.sessionId;
@@ -427,10 +426,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, sessionId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, undefined);
-				store.add(outputMonitor);
+				const outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
+				await Event.toPromise(outputMonitor.onDidFinishCommand);
+				const pollingResult = outputMonitor.pollingResult;
 
-				outputAndIdle = await outputMonitor.startMonitoring(command, invocation.context!, token);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -442,10 +441,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				if (outputAndIdle && outputAndIdle.modelOutputEvalResponse) {
-					resultText += `\n\ The command became idle with output:\n${outputAndIdle.modelOutputEvalResponse}`;
-				} else if (outputAndIdle) {
-					resultText += `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				if (pollingResult && pollingResult.modelOutputEvalResponse) {
+					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
+				} else if (pollingResult) {
+					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
 				}
 
 				let toolResultMessage: string | undefined;
@@ -469,7 +468,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				throw e;
 			} finally {
 				store.dispose();
-				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
+				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
 					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
@@ -482,10 +481,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					isNewSession: true,
 					timingExecuteMs,
 					timingConnectMs,
-					terminalExecutionIdleBeforeTimeout: outputAndIdle?.state === OutputMonitorState.Idle,
-					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
-					pollDurationMs: outputAndIdle?.pollDurationMs,
-					autoReplyCount: outputAndIdle?.autoReplyCount ?? 0,
+					terminalExecutionIdleBeforeTimeout: pollingResult?.state === OutputMonitorState.Idle,
+					outputLineCount: pollingResult?.output ? count(pollingResult.output, '\n') : 0,
+					pollDurationMs: pollingResult?.pollDurationMs,
+					autoReplyCount: pollingResult?.autoReplyCount ?? 0,
 					inputUserChars,
 					inputUserSigint,
 				});
