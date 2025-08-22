@@ -908,7 +908,13 @@ export class ChatEntitlementRequests extends Disposable {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
 
 		const scopes = options?.additionalScopes ? distinct([...defaultChat.providerScopes[0], ...options.additionalScopes]) : defaultChat.providerScopes[0];
-		const session = await this.authenticationService.createSession(providerId, scopes, options?.useSocialProvider ? { provider: options.useSocialProvider } : undefined);
+		const session = await this.authenticationService.createSession(
+			providerId,
+			scopes,
+			{
+				extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
+				provider: options?.useSocialProvider
+			});
 
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.extensionId, providerId, session.account);
 		this.authenticationExtensionsService.updateAccountPreference(defaultChat.chatExtensionId, providerId, session.account);
