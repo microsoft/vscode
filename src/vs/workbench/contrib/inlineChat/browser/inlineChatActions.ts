@@ -48,6 +48,13 @@ export function setHoldForSpeech(holdForSpeech: IHoldForSpeech) {
 	_holdForSpeech = holdForSpeech;
 }
 
+const inlineChatContextKey = ContextKeyExpr.and(
+	ContextKeyExpr.or(CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2),
+	CTX_INLINE_CHAT_POSSIBLE,
+	EditorContextKeys.writable,
+	EditorContextKeys.editorSimpleInput.negate()
+);
+
 export class StartSessionAction extends Action2 {
 
 	constructor() {
@@ -56,12 +63,7 @@ export class StartSessionAction extends Action2 {
 			title: localize2('run', 'Open Inline Chat'),
 			category: AbstractInline1ChatAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.or(CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2),
-				CTX_INLINE_CHAT_POSSIBLE,
-				EditorContextKeys.writable,
-				EditorContextKeys.editorSimpleInput.negate()
-			),
+			precondition: inlineChatContextKey,
 			keybinding: {
 				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -72,6 +74,7 @@ export class StartSessionAction extends Action2 {
 				id: MenuId.EditorContext,
 				group: '1_chat',
 				order: 3,
+				when: inlineChatContextKey
 			}, {
 				id: MenuId.ChatTitleBarMenu,
 				group: 'a_open',
