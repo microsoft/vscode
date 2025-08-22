@@ -107,7 +107,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
-			? toolInvocation.isConfirmed : toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction;
+			? toolInvocation.isConfirmed
+			: toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction || toolInvocation.isConfirmed?.type === ToolConfirmKind.ConfirmationNotNeeded;
 		const icon = !isConfirmed ?
 			Codicon.error :
 			toolInvocation.isComplete ?
