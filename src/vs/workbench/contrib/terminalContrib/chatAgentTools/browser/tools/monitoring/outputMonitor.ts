@@ -226,6 +226,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token);
 		const confirmationPrompt = await this._determineUserInputOptions(execution, token);
+
 		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 		if (selectedOption) {
 			if (recursionDepth >= PollingConsts.MaxRecursionCount) {

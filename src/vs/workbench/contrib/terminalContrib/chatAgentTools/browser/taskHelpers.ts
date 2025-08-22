@@ -11,13 +11,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
 import { IToolInvocationContext, ToolProgress } from '../../../chat/common/languageModelToolsService.js';
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { getOutput } from './bufferOutputPolling.js';
 import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
-import { OutputMonitorState } from './tools/monitoring/types.js';
+import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/types.js';
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -158,7 +159,7 @@ export async function collectTerminalResults(
 			dependencyTasks,
 			sessionId: invocationContext.sessionId
 		};
-		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
+		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn));
 		const outputAndIdle = await outputMonitor.startMonitoring(
 			task._label,
 			invocationContext,
@@ -174,6 +175,44 @@ export async function collectTerminalResults(
 		});
 	}
 	return results;
+}
+
+export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, taskService: ITaskService): Promise<IPollingResult | undefined> {
+	if (token.isCancellationRequested) {
+		return;
+	}
+	if (execution.task) {
+		const data: Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined = taskService.getTaskProblems(execution.instance.instanceId);
+		if (data) {
+			// Problem matchers exist for this task
+			const problemList: string[] = [];
+			const resultResources: ILinkLocation[] = [];
+			for (const [owner, { resources, markers }] of data.entries()) {
+				for (let i = 0; i < markers.length; i++) {
+					const uri: URI | undefined = resources[i];
+					const marker = markers[i];
+					resultResources.push({
+						uri,
+						range: marker.startLineNumber !== undefined && marker.startColumn !== undefined && marker.endLineNumber !== undefined && marker.endColumn !== undefined
+							? new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)
+							: undefined
+					});
+					const label: string = uri ? uri.path.split('/').pop() ?? uri.toString() : '';
+					const message = marker.message ?? '';
+					problemList.push(`Problem: ${message} in ${label} coming from ${owner}`);
+				}
+			}
+			if (problemList.length === 0) {
+				return { state: OutputMonitorState.Idle, output: 'The task succeeded with no problems.' };
+			}
+			return {
+				state: OutputMonitorState.Idle,
+				output: problemList.join('\n'),
+				resources: resultResources,
+			};
+		}
+	}
+	throw new Error('Polling failed');
 }
 
 export interface ILinkLocation { uri: URI; range?: Range }
