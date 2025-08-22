@@ -8,9 +8,12 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { getOutput } from '../outputHelpers.js';
+import { OutputMonitor } from '../tools/monitoring/outputMonitor.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 
 /**
@@ -42,6 +45,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 	}
 
@@ -65,7 +69,9 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 				}),
 				// A longer idle prompt event is used here as a catch all for unexpected cases where
 				// the end event doesn't fire for some reason.
-				trackIdleOnPrompt(this._instance, 3000, store).then(() => {
+				trackIdleOnPrompt(this._instance, 3000, store).then(async () => {
+					const outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { getOutput: () => getOutput(this._instance), sessionId: this._instance.sessionId, instance: this._instance }, undefined));
+					await outputMonitor.checkIfInputRequired(token);
 					this._log('onDone long idle prompt');
 				}),
 			]);

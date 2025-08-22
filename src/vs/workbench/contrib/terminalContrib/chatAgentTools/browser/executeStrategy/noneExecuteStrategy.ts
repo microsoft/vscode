@@ -6,8 +6,11 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { getOutput } from '../outputHelpers.js';
+import { OutputMonitor } from '../tools/monitoring/outputMonitor.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 
 /**
@@ -22,6 +25,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 	}
 
@@ -65,6 +69,8 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			// Assume the command is done when it's idle
 			this._log('Waiting for idle with prompt heuristics');
 			const promptResult = await waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000);
+			const outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { getOutput: () => getOutput(this._instance), sessionId: this._instance.sessionId, instance: this._instance }, undefined));
+			await outputMonitor.checkIfInputRequired(token);
 			this._log(`Prompt detection result: ${promptResult.detected ? 'detected' : 'not detected'} - ${promptResult.reason}`);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();

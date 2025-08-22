@@ -121,6 +121,21 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return await pollFn();
 	}
 
+	public async checkIfInputRequired(token: CancellationToken, recursionDepth?: number): Promise<IPollingResult> {
+		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
+		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
+		if (selectedOption) {
+			if (recursionDepth && recursionDepth >= PollingConsts.MaxRecursionCount) {
+				return { state: OutputMonitorState.Timeout, output: this._execution.getOutput() };
+			}
+			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
+			if (confirmed) {
+				return this._pollForOutputAndIdle(this._execution, true, token, undefined, recursionDepth ? recursionDepth + 1 : 1);
+			}
+		}
+		return { state: OutputMonitorState.Cancelled, output: this._execution.getOutput() };
+	}
+
 
 	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
