@@ -45,6 +45,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private _lastAutoReply: string | undefined;
 
+	// Telemetry counters
+	private _inputToolManualAcceptCount = 0;
+	private _inputToolManualRejectCount = 0;
+	private _inputToolManualChars = 0;
+
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
 	private readonly _onDidIdle = this._register(new Emitter<void>());
@@ -230,14 +235,28 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 		if (selectedOption) {
 			if (recursionDepth >= PollingConsts.MaxRecursionCount) {
-				return { state: OutputMonitorState.Timeout, modelOutputEvalResponse, output: buffer };
+				return {
+					state: OutputMonitorState.Timeout,
+					modelOutputEvalResponse,
+					output: buffer,
+					inputToolManualAcceptCount: this._inputToolManualAcceptCount,
+					inputToolManualRejectCount: this._inputToolManualRejectCount,
+					inputToolManualChars: this._inputToolManualChars,
+				};
 			}
 			const confirmed = await this._confirmRunInTerminal(selectedOption, execution);
 			if (confirmed) {
 				return this._pollForOutputAndIdle(execution, true, token, pollFn, recursionDepth + 1);
 			}
 		}
-		return { state: this._state, modelOutputEvalResponse, output: buffer, autoReplyCount: recursionDepth };
+		return {
+			state: this._state,
+			modelOutputEvalResponse,
+			output: buffer,
+			inputToolManualAcceptCount: this._inputToolManualAcceptCount,
+			inputToolManualRejectCount: this._inputToolManualRejectCount,
+			inputToolManualChars: this._inputToolManualChars,
+		};
 	}
 
 
@@ -364,12 +383,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							thePart.state = 'accepted';
 							thePart.hide();
 							thePart.dispose();
+							// Track manual acceptance
+							this._inputToolManualAcceptCount++;
+							this._inputToolManualChars += selectedOption.length;
 							resolve(true);
 						},
 						async () => {
 							thePart.state = 'rejected';
 							thePart.hide();
 							this._state = OutputMonitorState.Cancelled;
+							// Track manual rejection
+							this._inputToolManualRejectCount++;
 							resolve(false);
 						}
 					));
