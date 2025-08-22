@@ -82,13 +82,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		invocationContext: IToolInvocationContext,
 		token: CancellationToken
 	): Promise<void> {
-		// Ensure this method always runs truly async so listeners can attach
 		await Promise.resolve();
 
 		const pollStartTime = Date.now();
 		let extended = false;
 		let autoReplyCount = 0;
 		let lastObservedLength = this._execution.getOutput().length;
+
+		// Hold a single pending "continue?" prompt across timeout passes
+		let continuePollingDecisionP: Promise<boolean> | undefined;
+		let continuePollingPart: ChatElicitationRequestPart | undefined;
 
 		while (!token.isCancellationRequested) {
 			const polled = await this._pollOnce(this._execution, extended, token, this._pollFn);
@@ -102,34 +105,75 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._onDidTimeout.fire();
 			}
 
-			// If we timed out, optionally ask to keep waiting
+			// ----- Timeout handling: prompt + background polling race -----
 			if (this._state === OutputMonitorState.Timeout) {
-				const { promise: continueP, part } = await this._promptForMorePolling(command, token, invocationContext);
-				let continuePolling = false;
-				try {
-					continuePolling = await continueP;
-				} finally {
-					part?.hide();
-					part?.dispose?.();
+				// Create the prompt once; keep it open while we keep polling.
+				if (!continuePollingDecisionP) {
+					const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
+					continuePollingDecisionP = p;
+					continuePollingPart = part;
 				}
-				if (!continuePolling) {
-					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
-					break;
-				}
-				extended = true;
-				// small backoff so we do not instantly loop on the same timeout condition
-				await timeout(PollingConsts.MinPollingDuration, token);
-				continue;
-			}
 
-			// If cancelled, we are done
+				// Always use extended polling while a timeout prompt is visible
+				extended = true;
+
+				// Start another polling pass and race it against the user's decision
+				const nextPollP = this._pollOnce(this._execution, /*extendedPolling*/ true, token, this._pollFn)
+					.catch((): IPollingResult => ({
+						state: OutputMonitorState.Cancelled,
+						output: this._execution.getOutput(),
+						modelOutputEvalResponse: 'Cancelled'
+					}));
+
+				const race = await Promise.race([
+					continuePollingDecisionP.then(v => ({ kind: 'decision' as const, v })),
+					nextPollP.then(r => ({ kind: 'poll' as const, r }))
+				]);
+
+				if (race.kind === 'decision') {
+					try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
+					continuePollingPart = undefined;
+
+					// User explicitly declined to keep waiting, so finish with the timed-out result
+					if (race.v === false) {
+						this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+						break;
+					}
+
+					// User accepted; keep polling (the loop iterates again).
+					// Clear the decision so we don't race on a resolved promise.
+					continuePollingDecisionP = undefined;
+					continue;
+				} else {
+					// A background poll completed while waiting for a decision
+					const r = race.r;
+					this._isIdle = r.state === OutputMonitorState.Idle;
+					this._state = r.state;
+
+					if (r.state === OutputMonitorState.Idle || r.state === OutputMonitorState.Cancelled) {
+						try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
+						continuePollingPart = undefined;
+						continuePollingDecisionP = undefined;
+
+						this._pollingResult = { ...r, pollDurationMs: Date.now() - pollStartTime };
+						if (r.state === OutputMonitorState.Idle) { this._onDidIdle.fire(); }
+						break;
+					}
+
+					// Still timing out; loop and race again with the same prompt.
+					continue;
+				}
+			}
+			// ----- end Timeout handling -----
+
+			// Cancelled path
 			if (this._state === OutputMonitorState.Cancelled) {
 				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 				break;
 			}
 
+			// Idle path: try auto-reply; otherwise finish
 			if (this._state === OutputMonitorState.Idle) {
-				// Assess last output for a pending user prompt we can safely answer
 				const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 				const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 
@@ -137,19 +181,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
 					if (confirmed) {
 						autoReplyCount++;
-						// Wait for new data before re-polling to avoid evaluating the same idle event
 						const changed = await this._waitForNextDataOrActivityChange(this._execution, lastObservedLength, token);
 						lastObservedLength = this._execution.getOutput().length;
 						if (!changed) {
 							this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 							break;
 						}
-						// loop again to poll with extended window
 						continue;
 					}
 				}
 
-				// idle with no auto-reply selected (or not confirmed) => we are done
 				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 				break;
 			}
@@ -164,8 +205,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				pollDurationMs: Date.now() - pollStartTime,
 			};
 		}
+
 		this._onDidFinishCommand.fire();
 	}
+
 
 	/**
 	 * Single bounded polling pass that returns when:
