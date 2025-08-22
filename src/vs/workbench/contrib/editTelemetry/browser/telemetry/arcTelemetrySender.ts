@@ -18,6 +18,7 @@ import { IDocumentWithAnnotatedEdits, EditSourceData, createDocWithJustReason } 
 import type { ScmRepoBridge } from './editSourceTrackingImpl.js';
 import { ITextModelEditSourceMetadata } from '../../../../../editor/common/textModelEditSource.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { forwardToChannelIf, isCopilotLikeExtension } from './forwardingTelemetryService.js';
 
 export class InlineEditArcTelemetrySender extends Disposable {
 	constructor(
@@ -87,6 +88,8 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					currentLineCount: res.currentLineCount,
 					originalDeletedLineCount: res.originalDeletedLineCount,
 					currentDeletedLineCount: res.currentDeletedLineCount,
+
+					...forwardToChannelIf(isCopilotLikeExtension(data.$extensionId)),
 				});
 			});
 
@@ -193,6 +196,8 @@ export class ChatArcTelemetrySender extends Disposable {
 					originalLineCount: res.originalLineCount,
 					currentLineCount: res.currentLineCount,
 					originalDeletedLineCount: res.originalDeletedLineCount,
+
+					...forwardToChannelIf(isCopilotLikeExtension(data.props.$extensionId)),
 				});
 			});
 
