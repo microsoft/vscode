@@ -24,6 +24,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 			id: ACTION_ID_FOCUS_CHAT_CONFIRMATION,
 			title: { value: localize('focusChatConfirmation', 'Focus Chat Confirmation'), original: 'Focus Chat Confirmation' },
 			category: { value: localize('chat.category', 'Chat'), original: 'Chat' },
+			precondition: ChatContextKeys.enabled,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

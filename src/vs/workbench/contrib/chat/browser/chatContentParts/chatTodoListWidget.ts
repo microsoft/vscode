@@ -24,6 +24,7 @@ export class ChatTodoListWidget extends Disposable {
 	private clearButtonContainer!: HTMLElement;
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
+	private _userHasScrolledManually: boolean = false;
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
@@ -84,6 +85,7 @@ export class ChatTodoListWidget extends Disposable {
 
 		this._register(dom.addDisposableListener(this.todoListContainer, 'scroll', () => {
 			this.updateScrollShadow();
+			this._userHasScrolledManually = true;
 		}));
 
 		return container;
@@ -108,6 +110,11 @@ export class ChatTodoListWidget extends Disposable {
 		if (!sessionId) {
 			this.domNode.style.display = 'none';
 			return;
+		}
+
+		if (this._currentSessionId !== sessionId) {
+			this._userHasScrolledManually = false;
+			this._userManuallyExpanded = false;
 		}
 
 		const todoList = this.chatTodoListService.getTodos(sessionId);
@@ -160,6 +167,12 @@ export class ChatTodoListWidget extends Disposable {
 		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
 		if (titleElement) {
 			this.updateTitleElement(titleElement, todoList);
+		}
+
+		const allIncomplete = todoList.every(todo => todo.status === 'not-started');
+		if (allIncomplete) {
+			this._userHasScrolledManually = false;
+			this._userManuallyExpanded = false;
 		}
 
 		let lastActiveIndex = -1;
@@ -259,7 +272,7 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private scrollToRelevantItem(lastActiveIndex: number, firstCompletedIndex: number, firstPendingAfterCompletedIndex: number, totalItems: number): void {
-		if (totalItems <= 6) {
+		if (totalItems <= 6 || this._userHasScrolledManually) {
 			return;
 		}
 
@@ -315,8 +328,11 @@ export class ChatTodoListWidget extends Disposable {
 		titleElement.appendChild(progressText);
 
 		if (!this._isExpanded) {
+			let currentTodo: IChatTodo | undefined;
+
 			if (!firstInProgressTodo) {
 				if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
+					currentTodo = lastCompletedTodo;
 					// Add separator
 					const separator = dom.$('span');
 					separator.textContent = ' - ';
@@ -335,6 +351,7 @@ export class ChatTodoListWidget extends Disposable {
 					titleElement.appendChild(completedText);
 				}
 			} else {
+				currentTodo = firstInProgressTodo;
 				const separator = dom.$('span');
 				separator.textContent = ' - ';
 				titleElement.appendChild(separator);
@@ -350,6 +367,11 @@ export class ChatTodoListWidget extends Disposable {
 				inProgressText.style.verticalAlign = 'middle';
 				titleElement.appendChild(inProgressText);
 			}
+			if (currentTodo && currentTodo.description && currentTodo.description.trim()) {
+				this.expandoElement.title = currentTodo.description;
+			}
+		} else {
+			this.expandoElement.title = progressText.textContent || '';
 		}
 	}
 

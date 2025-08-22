@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 1
+// version: 2
 
 declare module 'vscode' {
 
@@ -12,15 +12,16 @@ declare module 'vscode' {
 	 */
 	export interface LanguageModelChatRequestHandleOptions {
 
-		// initiator
-		// TODO@API Do we need this?
-		readonly extensionId: string;
+		/**
+		 * What extension initiated the request to the language model
+		 */
+		readonly requestInitiator: string;
 
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
 		 * and need to be looked up in the respective documentation.
 		 */
-		readonly modelOptions: { readonly [name: string]: any };
+		readonly modelOptions?: { readonly [name: string]: any };
 
 		/**
 		 * An optional list of tools that are available to the language model. These could be registered tools available via
@@ -92,11 +93,25 @@ declare module 'vscode' {
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
 		 * the user must approve of another extension accessing the models contributed by this extension.
 		 * Additionally, the extension can provide a label that will be shown in the UI.
-		 * The label should indicate why the user is being asked to approve access.
 		 */
 		requiresAuthorization?: true | { label: string };
 
-		// TODO@API isPreselected proposed
+
+		readonly capabilities?: {
+
+			/**
+			 * Whether image input is supported by the model.
+			 * Common supported images are jpg and png, but each model will vary in supported mimetypes.
+			 */
+			readonly imageInput?: boolean;
+
+			/**
+			 * Whether tool calling is supported by the model.
+			 * If a number is provided, that is the maximum number of tools a model can call.
+			 */
+			readonly toolCalling?: boolean | number;
+		};
+
 		/**
 		 * Whether or not this will be selected by default in the model picker
 		 * NOT BEING FINALIZED
@@ -109,18 +124,6 @@ declare module 'vscode' {
 		 */
 		readonly isUserSelectable?: boolean;
 
-		readonly capabilities?: {
-
-			// TODO@API have mimeTypes that you support
-			readonly vision?: boolean;
-
-			/**
-			 * Whether tool calling is supported by the model.
-			 * If a number is provided, that is the maximum number of tools a model can call.
-			 */
-			readonly toolCalling?: boolean | number;
-		};
-
 		/**
 		 * Optional category to group models by in the model picker.
 		 * The lower the order, the higher the category appears in the list.
@@ -132,7 +135,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The provider version of { @link LanguageModelChatMessage}.
+	 * The provider version of {@linkcode LanguageModelChatMessage}.
 	 */
 	export interface LanguageModelChatRequestMessage {
 		/**
@@ -151,6 +154,8 @@ declare module 'vscode' {
 		 */
 		readonly name: string | undefined;
 	}
+
+	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart;
 
 	/**
 	 * Represents a Language model chat provider. This provider provides multiple models in a 1 provider to many model relationship
@@ -172,14 +177,15 @@ declare module 'vscode' {
 		prepareLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
-		 * Returns the response for a chat request
+		 * Returns the response for a chat request, passing the results to the progress callback
 		 * @param model The language model to use
 		 * @param messages The messages to include in the request
 		 * @param options Options for the request
 		 * @param progress The progress to emit the streamed response chunks to
 		 * @param token A cancellation token for the request
+		 * @returns A promise that resolves when the response is complete. Results are actually passed to the progress callback.
 		 */
-		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, token: CancellationToken): Thenable<any>;
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelResponsePart>, token: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns the number of tokens for a given text using the model specific tokenizer logic

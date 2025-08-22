@@ -1198,6 +1198,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private registerActions(context: ChatEntitlementContext): void {
+
+		// TODO@bpasero eventually replace this with the more broadly available setting for AI feature enablement and migrate UI state over to the setting
 		const that = this;
 		class ChatSetupHideAction extends Action2 {
 

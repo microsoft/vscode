@@ -298,11 +298,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
 
 				if (prepared?.confirmationMessages) {
-					if (!toolInvocation.isConfirmed && !autoConfirmed) {
+					if (!toolInvocation.isConfirmed?.type && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
 					}
 					const userConfirmed = await toolInvocation.confirmed.p;
-					if (!userConfirmed) {
+					if (userConfirmed.type === ToolConfirmKind.Denied) {
 						throw new CancellationError();
 					}
 

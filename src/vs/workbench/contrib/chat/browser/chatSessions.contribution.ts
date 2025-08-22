@@ -107,6 +107,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	readonly onDidChangeSessionItems: Event<string> = this._onDidChangeSessionItems.event;
 	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeAvailability: Event<void> = this._onDidChangeAvailability.event;
+	private readonly _onDidChangeInProgress = this._register(new Emitter<void>());
+	public get onDidChangeInProgress() { return this._onDidChangeInProgress.event; }
+	private readonly inProgressMap: Map<string, number> = new Map();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -144,6 +147,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._register(Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(this._contextKeys))(() => {
 			this._evaluateAvailability();
 		}));
+	}
+
+	public reportInProgress(chatSessionType: string, count: number): void {
+		const displayName = this._contributions.get(chatSessionType)?.displayName;
+		if (displayName) {
+			this.inProgressMap.set(displayName, count);
+		}
+		this._onDidChangeInProgress.fire();
+	}
+
+	public getInProgress(): { displayName: string; count: number }[] {
+		return Array.from(this.inProgressMap.entries()).map(([displayName, count]) => ({ displayName, count }));
 	}
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
