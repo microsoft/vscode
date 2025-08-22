@@ -718,7 +718,7 @@ export class RevealWidget extends AbstractInline2ChatAction {
 			id: 'inlineChat2.reveal',
 			title: localize2('reveal', "Toggle Inline Chat"),
 			f1: true,
-			icon: Codicon.copilot,
+			icon: Codicon.chatSparkle,
 			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ContextKeyExpr.greaterEquals(ctxRequestCount.key, 1)),
 			toggled: {
 				condition: CTX_INLINE_CHAT_VISIBLE,
