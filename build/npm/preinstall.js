@@ -28,6 +28,8 @@ const os = require('os');
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
 		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
+		console.error('\x1b[1;31m*** If you have Visual Studio installed in a custom location, you can specify it via the environment variable:\x1b[0;0m');
+		console.error('\x1b[1;31m*** set vs2022_install=<path> (or vs2019_install, vs2017_install for older versions)\x1b[0;0m');
 		throw new Error();
 	}
 	installHeaders();
@@ -41,17 +43,21 @@ if (process.arch !== os.arch()) {
 function hasSupportedVisualStudioVersion() {
 	const fs = require('fs');
 	const path = require('path');
+	const cp = require('child_process');
 	// Translated over from
 	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
 	const supportedVersions = ['2022', '2019', '2017'];
 
 	const availableVersions = [];
 	for (const version of supportedVersions) {
+		// Check environment variable first (explicit override)
 		let vsPath = process.env[`vs${version}_install`];
 		if (vsPath && fs.existsSync(vsPath)) {
 			availableVersions.push(version);
 			break;
 		}
+		
+		// Check default installation paths
 		const programFiles86Path = process.env['ProgramFiles(x86)'];
 		const programFiles64Path = process.env['ProgramFiles'];
 
@@ -72,6 +78,34 @@ function hasSupportedVisualStudioVersion() {
 			}
 		}
 	}
+	
+	// If no Visual Studio found through conventional means, try vswhere.exe
+	if (availableVersions.length === 0) {
+		try {
+			// Try to find vswhere.exe in Program Files (x86)
+			const programFiles86Path = process.env['ProgramFiles(x86)'];
+			if (programFiles86Path) {
+				const vswherePath = path.join(programFiles86Path, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
+				if (fs.existsSync(vswherePath)) {
+					// Use vswhere to find Visual Studio installations
+					const vswhereResult = cp.execFileSync(vswherePath, [
+						'-version', '[15.0,18.0)',  // VS 2017, 2019, 2022
+						'-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+						'-property', 'installationVersion',
+						'-nologo'
+					], { encoding: 'utf8', timeout: 5000 });
+					
+					if (vswhereResult && vswhereResult.trim()) {
+						// vswhere found at least one compatible Visual Studio installation
+						return 1;
+					}
+				}
+			}
+		} catch (error) {
+			// vswhere failed or doesn't exist, continue with original logic
+		}
+	}
+	
 	return availableVersions.length;
 }
 
