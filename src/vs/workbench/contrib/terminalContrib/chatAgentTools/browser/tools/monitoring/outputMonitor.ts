@@ -50,7 +50,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _inputToolManualRejectCount = 0;
 	private _inputToolManualChars = 0;
 	private _inputToolAutoChars = 0;
-	private _inputToolAutoAcceptCount = 0;
+	private _inputToolSuggestInputCount = 0;
 
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
@@ -237,15 +237,15 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 		if (selectedOption) {
 			if (recursionDepth >= PollingConsts.MaxRecursionCount) {
-				return { 
-					state: OutputMonitorState.Timeout, 
-					modelOutputEvalResponse, 
+				return {
+					state: OutputMonitorState.Timeout,
+					modelOutputEvalResponse,
 					output: buffer,
 					inputToolManualAcceptCount: this._inputToolManualAcceptCount,
 					inputToolManualRejectCount: this._inputToolManualRejectCount,
 					inputToolManualChars: this._inputToolManualChars,
 					inputToolAutoChars: this._inputToolAutoChars,
-					inputToolAutoAcceptCount: this._inputToolAutoAcceptCount
+					inputToolSuggestInputCount: this._inputToolSuggestInputCount
 				};
 			}
 			const confirmed = await this._confirmRunInTerminal(selectedOption, execution);
@@ -253,15 +253,15 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return this._pollForOutputAndIdle(execution, true, token, pollFn, recursionDepth + 1);
 			}
 		}
-		return { 
-			state: this._state, 
-			modelOutputEvalResponse, 
-			output: buffer, 
+		return {
+			state: this._state,
+			modelOutputEvalResponse,
+			output: buffer,
 			inputToolManualAcceptCount: this._inputToolManualAcceptCount,
 			inputToolManualRejectCount: this._inputToolManualRejectCount,
 			inputToolManualChars: this._inputToolManualChars,
 			inputToolAutoChars: this._inputToolAutoChars,
-			inputToolAutoAcceptCount: this._inputToolAutoAcceptCount
+			inputToolSuggestInputCount: this._inputToolSuggestInputCount
 		};
 	}
 
@@ -363,7 +363,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
 			if (selectedOption && validOption && validOption !== this._lastAutoReply) {
 				// Track that copilot automatically provided a response
-				this._inputToolAutoAcceptCount++;
+				this._inputToolSuggestInputCount++;
 				this._inputToolAutoChars += validOption.length;
 				return Promise.resolve(validOption);
 			}

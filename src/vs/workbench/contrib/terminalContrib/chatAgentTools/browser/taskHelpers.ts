@@ -144,8 +144,8 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, instantiationService: IInstantiationService, invocationContext: IToolInvocationContext, progress: ToolProgress, token: CancellationToken, disposableStore: DisposableStore, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState; inputToolManualAcceptCount: number; inputToolManualRejectCount: number; inputToolManualChars: number; inputToolAutoChars: number; inputToolAutoAcceptCount: number }>> {
-	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; inputToolManualAcceptCount: number; inputToolManualRejectCount: number; inputToolManualChars: number; inputToolAutoChars: number; inputToolAutoAcceptCount: number }> = [];
+	terminals: ITerminalInstance[], task: Task, instantiationService: IInstantiationService, invocationContext: IToolInvocationContext, progress: ToolProgress, token: CancellationToken, disposableStore: DisposableStore, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState; inputToolManualAcceptCount: number; inputToolManualRejectCount: number; inputToolManualChars: number; inputToolAutoChars: number; inputToolSuggestInputCount: number }>> {
+	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; inputToolManualAcceptCount: number; inputToolManualRejectCount: number; inputToolManualChars: number; inputToolAutoChars: number; inputToolSuggestInputCount: number }> = [];
 	if (token.isCancellationRequested) {
 		return results;
 	}
@@ -175,7 +175,7 @@ export async function collectTerminalResults(
 			inputToolManualRejectCount: outputAndIdle?.inputToolManualRejectCount ?? 0,
 			inputToolManualChars: outputAndIdle?.inputToolManualChars ?? 0,
 			inputToolAutoChars: outputAndIdle?.inputToolAutoChars ?? 0,
-			inputToolAutoAcceptCount: outputAndIdle?.inputToolAutoAcceptCount ?? 0
+			inputToolSuggestInputCount: outputAndIdle?.inputToolSuggestInputCount ?? 0
 		});
 	}
 	return results;
@@ -214,7 +214,7 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 					inputToolManualRejectCount: 0,
 					inputToolManualChars: 0,
 					inputToolAutoChars: 0,
-					inputToolAutoAcceptCount: 0
+					inputToolSuggestInputCount: 0
 				};
 			}
 			return {
@@ -225,7 +225,7 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 				inputToolManualRejectCount: 0,
 				inputToolManualChars: 0,
 				inputToolAutoChars: 0,
-				inputToolAutoAcceptCount: 0
+				inputToolSuggestInputCount: 0
 			};
 		}
 	}

@@ -491,7 +491,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputToolManualRejectCount: outputAndIdle?.inputToolManualRejectCount ?? 0,
 					inputToolManualChars: outputAndIdle?.inputToolManualChars ?? 0,
 					inputToolAutoChars: outputAndIdle?.inputToolAutoChars ?? 0,
-					inputToolAutoAcceptCount: outputAndIdle?.inputToolAutoAcceptCount ?? 0,
+					inputToolSuggestInputCount: outputAndIdle?.inputToolSuggestInputCount ?? 0,
 				});
 			}
 		} else {
@@ -563,7 +563,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputToolManualRejectCount: 0,
 					inputToolManualChars: 0,
 					inputToolAutoChars: 0,
-					inputToolAutoAcceptCount: 0,
+					inputToolSuggestInputCount: 0,
 				});
 			}
 

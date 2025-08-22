@@ -29,7 +29,7 @@ export interface IPollingResult {
 	inputToolManualRejectCount?: number;
 	inputToolManualChars?: number;
 	inputToolAutoChars?: number;
-	inputToolAutoAcceptCount?: number;
+	inputToolSuggestInputCount?: number;
 }
 
 export enum OutputMonitorState {

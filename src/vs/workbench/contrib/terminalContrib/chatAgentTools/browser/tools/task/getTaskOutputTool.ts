@@ -137,7 +137,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
 				inputToolManualChars: r.inputToolManualChars ?? 0,
 				inputToolAutoChars: r.inputToolAutoChars ?? 0,
-				// inputToolSuggestInputCount: r.inputToolAutoAcceptCount ?? 0,
+				// inputToolSuggestInputCount: r.inputToolSuggestInputCount ?? 0,
 			});
 		}
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);

@@ -103,7 +103,7 @@ export class RunInTerminalToolTelemetry {
 		inputToolManualRejectCount?: number;
 		inputToolManualChars?: number;
 		inputToolAutoChars?: number;
-		inputToolAutoAcceptCount?: number;
+		inputToolSuggestInputCount?: number;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -128,7 +128,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualRejectCount: number;
 			inputToolManualChars: number;
 			inputToolAutoChars: number;
-			inputToolAutoAcceptCount: number;
+			inputToolSuggestInputCount: number;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -156,7 +156,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
 			inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
 			inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by copilot automatically responding' };
-			inputToolAutoAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times copilot automatically accepted a suggestion' };
+			inputToolSuggestInputCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times copilot automatically accepted a suggestion' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -181,7 +181,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualRejectCount: state.inputToolManualRejectCount ?? 0,
 			inputToolManualChars: state.inputToolManualChars ?? 0,
 			inputToolAutoChars: state.inputToolAutoChars ?? 0,
-			inputToolAutoAcceptCount: state.inputToolAutoAcceptCount ?? 0,
+			inputToolSuggestInputCount: state.inputToolSuggestInputCount ?? 0,
 		});
 	}
 }
