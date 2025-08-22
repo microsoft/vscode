@@ -1268,6 +1268,7 @@ export class CamelCaseAction extends AbstractCaseAction {
 export class PascalCaseAction extends AbstractCaseAction {
 	public static wordBoundary = new BackwardsCompatibleRegExp('[_ \\t-]', 'gm');
 	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)', 'gm');
+	public static upperCaseWordMatcher = new BackwardsCompatibleRegExp('^[A-Z]+$', 'mu');
 
 	constructor() {
 		super({
@@ -1280,18 +1281,27 @@ export class PascalCaseAction extends AbstractCaseAction {
 	protected _modifyText(text: string, wordSeparators: string): string {
 		const wordBoundary = PascalCaseAction.wordBoundary.get();
 		const wordBoundaryToMaintain = PascalCaseAction.wordBoundaryToMaintain.get();
+		const upperCaseWordMatcher = PascalCaseAction.upperCaseWordMatcher.get();
 
-		if (!wordBoundary || !wordBoundaryToMaintain) {
+		if (!wordBoundary || !wordBoundaryToMaintain || !upperCaseWordMatcher) {
 			// cannot support this
 			return text;
 		}
 
 		const wordsWithMaintainBoundaries = text.split(wordBoundaryToMaintain);
-		const words = wordsWithMaintainBoundaries.map((word: string) => word.split(wordBoundary)).flat();
-		return words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
-			.join('');
+		const words = wordsWithMaintainBoundaries.map(word => word.split(wordBoundary)).flat();
+
+		return words.map(word => {
+			const normalizedWord = word.charAt(0).toLocaleUpperCase() + word.slice(1);
+			const isAllCaps = normalizedWord.length > 1 && upperCaseWordMatcher.test(normalizedWord);
+			if (isAllCaps) {
+				return normalizedWord.charAt(0) + normalizedWord.slice(1).toLocaleLowerCase();
+			}
+			return normalizedWord;
+		}).join('');
 	}
 }
+
 
 export class KebabCaseAction extends AbstractCaseAction {
 
