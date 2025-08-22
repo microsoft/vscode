@@ -54,7 +54,7 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		if (elapsedText) {
 			title = nls.localize('chat.pinned.thinking.header.count.time', "Thought for {0}", elapsedText);
 		} else {
-			title = nls.localize('chat.pinned.thinking.header.count', "Though for a few seconds...");
+			title = nls.localize('chat.pinned.thinking.header.count', "Thought for a few seconds...");
 		}
 		this.setTitle(title);
 	}
