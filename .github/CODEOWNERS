@@ -31,6 +31,7 @@ src/vs/platform/backup/** @bpasero
 src/vs/platform/files/** @bpasero
 src/vs/base/node/pfs.ts @bpasero
 src/vs/code/** @bpasero
+src/vs/workbench/services/textfile/** @bpasero
 src/vs/workbench/services/workingCopy/** @bpasero
 
 # ensure the API police is aware of changes to the vscode-dts file
