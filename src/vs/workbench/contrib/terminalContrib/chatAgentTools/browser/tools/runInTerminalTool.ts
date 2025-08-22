@@ -484,9 +484,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalExecutionIdleBeforeTimeout: pollingResult?.state === OutputMonitorState.Idle,
 					outputLineCount: pollingResult?.output ? count(pollingResult.output, '\n') : 0,
 					pollDurationMs: pollingResult?.pollDurationMs,
-					autoReplyCount: pollingResult?.autoReplyCount ?? 0,
 					inputUserChars,
 					inputUserSigint,
+					inputToolManualAcceptCount: pollingResult?.inputToolManualAcceptCount ?? 0,
+					inputToolManualRejectCount: pollingResult?.inputToolManualRejectCount ?? 0,
+					inputToolManualChars: pollingResult?.inputToolManualChars ?? 0,
 				});
 			}
 		} else {
@@ -554,6 +556,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					timingConnectMs,
 					inputUserChars,
 					inputUserSigint,
+					inputToolManualAcceptCount: 0,
+					inputToolManualRejectCount: 0,
+					inputToolManualChars: 0,
 				});
 			}
 

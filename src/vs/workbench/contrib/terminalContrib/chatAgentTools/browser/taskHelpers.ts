@@ -146,8 +146,8 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, instantiationService: IInstantiationService, invocationContext: IToolInvocationContext, progress: ToolProgress, token: CancellationToken, disposableStore: DisposableStore, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState; autoReplyCount: number }>> {
-	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; autoReplyCount: number }> = [];
+	terminals: ITerminalInstance[], task: Task, instantiationService: IInstantiationService, invocationContext: IToolInvocationContext, progress: ToolProgress, token: CancellationToken, disposableStore: DisposableStore, isActive?: () => Promise<boolean>, dependencyTasks?: Task[]): Promise<Array<{ name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; state: OutputMonitorState; inputToolManualAcceptCount: number; inputToolManualRejectCount: number; inputToolManualChars: number }>> {
+	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; inputToolManualAcceptCount: number; inputToolManualRejectCount: number; inputToolManualChars: number }> = [];
 	if (token.isCancellationRequested) {
 		return results;
 	}
@@ -169,8 +169,10 @@ export async function collectTerminalResults(
 			output: pollingResult?.output ?? '',
 			pollDurationMs: pollingResult?.pollDurationMs ?? 0,
 			resources: pollingResult?.resources,
-			state: pollingResult?.state ?? OutputMonitorState.Idle,
-			autoReplyCount: pollingResult?.autoReplyCount ?? 0
+			state: pollingResult?.state || OutputMonitorState.Idle,
+			inputToolManualAcceptCount: pollingResult?.inputToolManualAcceptCount ?? 0,
+			inputToolManualRejectCount: pollingResult?.inputToolManualRejectCount ?? 0,
+			inputToolManualChars: pollingResult?.inputToolManualChars ?? 0,
 		});
 	}
 	return results;
@@ -202,12 +204,21 @@ export async function taskProblemPollFn(execution: IExecution, token: Cancellati
 				}
 			}
 			if (problemList.length === 0) {
-				return { state: OutputMonitorState.Idle, output: 'The task succeeded with no problems.' };
+				return {
+					state: OutputMonitorState.Idle,
+					output: 'The task succeeded with no problems.',
+					inputToolManualAcceptCount: 0,
+					inputToolManualRejectCount: 0,
+					inputToolManualChars: 0,
+				};
 			}
 			return {
 				state: OutputMonitorState.Idle,
 				output: problemList.join('\n'),
 				resources: resultResources,
+				inputToolManualAcceptCount: 0,
+				inputToolManualRejectCount: 0,
+				inputToolManualChars: 0,
 			};
 		}
 	}

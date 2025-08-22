@@ -50,6 +50,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
 
+	// Telemetry counters
+	private _inputToolManualAcceptCount = 0;
+	private _inputToolManualRejectCount = 0;
+	private _inputToolManualChars = 0;
+
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
 	private readonly _onDidIdle = this._register(new Emitter<void>());
@@ -108,7 +113,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					part?.dispose?.();
 				}
 				if (!continuePolling) {
-					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 					break;
 				}
 				extended = true;
@@ -119,7 +124,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			// If cancelled, we are done
 			if (this._state === OutputMonitorState.Cancelled) {
-				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 				break;
 			}
 
@@ -136,7 +141,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						const changed = await this._waitForNextDataOrActivityChange(this._execution, lastObservedLength, token);
 						lastObservedLength = this._execution.getOutput().length;
 						if (!changed) {
-							this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+							this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 							break;
 						}
 						// loop again to poll with extended window
@@ -145,7 +150,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				}
 
 				// idle with no auto-reply selected (or not confirmed) => we are done
-				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime, autoReplyCount };
+				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 				break;
 			}
 		}
@@ -157,7 +162,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				output: this._execution.getOutput(),
 				modelOutputEvalResponse: 'Cancelled',
 				pollDurationMs: Date.now() - pollStartTime,
-				autoReplyCount: 0
 			};
 		}
 		this._onDidFinishCommand.fire();
@@ -432,12 +436,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							thePart.state = 'accepted';
 							thePart.hide();
 							thePart.dispose();
+							// Track manual acceptance
+							this._inputToolManualAcceptCount++;
+							this._inputToolManualChars += selectedOption.length;
 							resolve(true);
 						},
 						async () => {
 							thePart.state = 'rejected';
 							thePart.hide();
 							this._state = OutputMonitorState.Cancelled;
+							// Track manual rejection
+							this._inputToolManualRejectCount++;
 							resolve(false);
 						}
 					));
