@@ -53,7 +53,7 @@ interface IFetchResult {
  * The sourceLabel must not contain '@'!
 */
 export function formatRecordableLogEntry<T extends IRecordableLogEntry>(entry: T): string {
-	return entry.sourceId + ' @@ ' + JSON.stringify({ ...entry, sourceId: undefined });
+	return entry.sourceId + ' @@ ' + JSON.stringify({ ...entry, modelUri: (entry as any).modelUri?.toString(), sourceId: undefined });
 }
 
 export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable {
