@@ -90,7 +90,7 @@ function getSessionItemContextOverlay(session: IChatSessionItem, provider?: ICha
 }
 
 // Extended interface for local chat session items that includes editor information or widget information
-interface ILocalChatSessionItem extends IChatSessionItem {
+export interface ILocalChatSessionItem extends IChatSessionItem {
 	editor?: EditorInput;
 	group?: IEditorGroup;
 	widget?: IChatWidget;
@@ -168,12 +168,17 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
 		this.initializeCurrentEditorSet();
 		this.registerEditorListeners();
 		this.registerWidgetListeners();
+
+		this._register(this.chatService.onDidDisposeSession(() => {
+			this._onDidChange.fire();
+		}));
 	}
 
 	private registerWidgetListeners(): void {
@@ -272,7 +277,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 		// Exclude history sessions that are opened from "Show history"
 		// These have a specific marker indicating they're from history
-		if (editor.options.fromHistory) {
+		if (editor.options.ignoreInView) {
 			return false;
 		}
 
@@ -1282,7 +1287,7 @@ class SessionsViewPane extends ViewPane {
 						target: { sessionId },
 						pinned: true,
 						// Add a marker to indicate this session was opened from history
-						fromHistory: true
+						ignoreInView: true
 					};
 					await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
 				} else {
