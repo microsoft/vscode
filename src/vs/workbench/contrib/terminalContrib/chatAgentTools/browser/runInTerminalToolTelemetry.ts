@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import type { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { ShellIntegrationQuality } from './toolTerminalCreator.js';
 
@@ -21,41 +22,42 @@ export class RunInTerminalToolTelemetry {
 		autoApproveDefault: boolean | undefined;
 	}) {
 		const subCommandsSanitized = state.subCommands.map(e => {
-			let commandName = e.split(' ')[0].toLowerCase();
-			if (!commandAllowList.has(commandName)) {
-				if (/[\\\/]/.test(commandName)) {
-					commandName = '(unknown:path)';
-				} else if (/^(?:[A-Z][a-z0-9]+)+(?:-(?:[A-Z][a-z0-9]+))*$/.test(commandName)) {
-					commandName = '(unknown:pwsh)';
-				} else if (/^[a-z0-9_-]+$/i.test(commandName)) {
+			const commandName = e.split(' ')[0];
+			let sanitizedCommandName = commandName.toLowerCase();
+			if (!commandAllowList.has(sanitizedCommandName)) {
+				if (/^(?:[A-Z][a-z0-9]+)+(?:-(?:[A-Z][a-z0-9]+))*$/.test(commandName)) {
+					sanitizedCommandName = '(unknown:pwsh)';
+				} else if (/^[a-z0-9_\-\.\\\/:;]+$/i.test(commandName)) {
 					const properties: string[] = [];
 					if (/[a-z]/.test(commandName)) {
-						properties.push('alpha_lowercase');
+						properties.push('ascii_lower');
 					}
 					if (/[A-Z]/.test(commandName)) {
-						properties.push('alpha_uppercase');
+						properties.push('ascii_upper');
 					}
 					if (/[0-9]/.test(commandName)) {
 						properties.push('numeric');
 					}
-					if (commandName.includes('-')) {
-						properties.push('hyphen');
+					const chars: string[] = [];
+					for (const c of ['.', '-', '_', '/', '\\', ':', ';']) {
+						if (commandName.includes(c)) {
+							chars.push(c);
+						}
 					}
-					if (commandName.includes('_')) {
-						properties.push('underscore');
-					}
-					commandName = `(unknown:${properties.join(',')})`;
+					sanitizedCommandName = `(unknown:${properties.join(',')}:${chars.join('')})`;
+				} else if (/[^\x00-\x7F]/.test(commandName)) {
+					sanitizedCommandName = '(unknown:unicode)';
 				} else {
-					commandName = '(unknown)';
+					sanitizedCommandName = '(unknown)';
 				}
 			}
-			return commandName;
+			return sanitizedCommandName;
 		});
 
 		type TelemetryEvent = {
 			terminalToolSessionId: string | undefined;
 
-			subCommands: string;
+			subCommands: TelemetryTrustedValue<string>;
 			autoApproveResult: string;
 			autoApproveReason: string | undefined;
 			autoApproveDefault: boolean | undefined;
@@ -74,7 +76,7 @@ export class RunInTerminalToolTelemetry {
 
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
 			terminalToolSessionId: state.terminalToolSessionId,
-			subCommands: JSON.stringify(subCommandsSanitized),
+			subCommands: new TelemetryTrustedValue(JSON.stringify(subCommandsSanitized)),
 			autoApproveResult: state.autoApproveResult,
 			autoApproveReason: state.autoApproveReason,
 			autoApproveDefault: state.autoApproveDefault,
