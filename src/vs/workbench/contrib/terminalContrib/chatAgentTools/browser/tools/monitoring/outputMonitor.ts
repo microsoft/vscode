@@ -150,8 +150,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 		}
 
-		if (!this._pollingResult) {
-			// Cancellation exit
+		if (!this._pollingResult && token.isCancellationRequested) {
 			this._state = OutputMonitorState.Cancelled;
 			this._pollingResult = {
 				state: this._state,
