@@ -20294,6 +20294,56 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * McpNodeServerDefinition represents an MCP server available by running
+	 * a local Node.js process. The process will be spawned as a child process
+	 * of the extension host and by default will not run in a shell environment.
+	 */
+	export class McpNodeServerDefinition {
+		/**
+		 * The human-readable name of the server.
+		 */
+		readonly label: string;
+
+		/**
+		 * Name of the node package that needs to be started.
+		 * This should be the name of the package as specified in package.json.
+		 */
+		readonly packageName: string;
+
+		/**
+		 * The working directory used to start the server.
+		 */
+		cwd?: Uri;
+
+		/**
+		 * Additional command-line arguments passed to the server.
+		 */
+		args: string[];
+
+		/**
+		 * Optional additional environment information for the server. Variables
+		 * in this environment will overwrite or remove (if null) the default
+		 * environment variables of the editor's extension host.
+		 */
+		env: Record<string, string | number | null>;
+
+		/**
+		 * Optional version identification for the server. If this changes, the
+		 * editor will indicate that tools have changed and prompt to refresh them.
+		 */
+		version?: string;
+
+		/**
+		 * @param label The human-readable name of the server.
+		 * @param packageName 
+		 * @param args Additional command-line arguments passed to the server.
+		 * @param env Optional additional environment information for the server.
+		 * @param version Optional version identification for the server.
+		 */
+		constructor(label: string, packageName: string, args?: string[], env?: Record<string, string | number | null>, version?: string);
+	}
+
+	/**
 	 * McpHttpServerDefinition represents an MCP server available using the
 	 * Streamable HTTP transport.
 	 */
@@ -20332,7 +20382,7 @@ declare module 'vscode' {
 	 * Definitions that describe different types of Model Context Protocol servers,
 	 * which can be returned from the {@link McpServerDefinitionProvider}.
 	 */
-	export type McpServerDefinition = McpStdioServerDefinition | McpHttpServerDefinition;
+	export type McpServerDefinition = McpStdioServerDefinition | McpNodeServerDefinition | McpHttpServerDefinition;
 
 	/**
 	 * A type that can provide Model Context Protocol server definitions. This

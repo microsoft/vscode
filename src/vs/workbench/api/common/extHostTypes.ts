@@ -5319,6 +5319,18 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 	) { }
 }
 
+export class McpNodeServerDefinition implements vscode.McpNodeServerDefinition {
+	cwd?: URI;
+
+	constructor(
+		public label: string,
+		public packageName: string,
+		public args: string[] = [],
+		public env: Record<string, string | number | null> = {},
+		public version?: string,
+	) { }
+}
+
 export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 	constructor(
 		public label: string,

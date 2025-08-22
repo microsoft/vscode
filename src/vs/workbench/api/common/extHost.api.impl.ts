@@ -1908,6 +1908,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatErrorLevel: extHostTypes.ChatErrorLevel,
 			McpHttpServerDefinition: extHostTypes.McpHttpServerDefinition,
 			McpStdioServerDefinition: extHostTypes.McpStdioServerDefinition,
+			McpNodeServerDefinition: extHostTypes.McpNodeServerDefinition,
 			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind
 		};
 	};
