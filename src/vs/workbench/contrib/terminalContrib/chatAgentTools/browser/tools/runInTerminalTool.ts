@@ -485,7 +485,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalExecutionIdleBeforeTimeout: outputAndIdle?.state === OutputMonitorState.Idle,
 					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
 					pollDurationMs: outputAndIdle?.pollDurationMs,
-					autoReplyCount: outputAndIdle?.autoReplyCount ?? 0,
 					inputUserChars,
 					inputUserSigint,
 					inputToolManualAcceptCount: outputAndIdle?.inputToolManualAcceptCount ?? 0,

@@ -22,7 +22,11 @@ type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
 	bufferLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the terminal buffer as a string.' };
 	pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long polling for output took (ms).' };
-	autoReplyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of times the tool automatically replied to requests from the terminal for user input' };
+	inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
+	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
+	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
+	inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by copilot automatically responding' };
+	inputToolAutoAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times copilot automatically accepted a suggestion' };
 	owner: 'meganrogge';
 	comment: 'Understanding the usage of the runTask tool';
 };
@@ -30,7 +34,11 @@ type RunTaskToolEvent = {
 	taskId: string;
 	bufferLength: number;
 	pollDurationMs: number | undefined;
-	autoReplyCount: number;
+	inputToolManualAcceptCount: number;
+	inputToolManualRejectCount: number;
+	inputToolManualChars: number;
+	inputToolAutoChars: number;
+	inputToolAutoAcceptCount: number;
 };
 
 interface IRunTaskToolInput extends IToolInvocation {
@@ -97,7 +105,11 @@ export class RunTaskTool implements IToolImpl {
 				taskId: args.id,
 				bufferLength: r.output.length ?? 0,
 				pollDurationMs: r.pollDurationMs ?? 0,
-				autoReplyCount: r.autoReplyCount ?? 0
+				inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
+				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
+				inputToolManualChars: r.inputToolManualChars ?? 0,
+				inputToolAutoChars: r.inputToolAutoChars ?? 0,
+				inputToolAutoAcceptCount: r.inputToolAutoAcceptCount ?? 0,
 			});
 		}
 
