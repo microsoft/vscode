@@ -16,7 +16,6 @@ export interface SemanticTokenProvider {
 	getSemanticTokens(document: TextDocument, ranges?: Range[]): Promise<number[]>;
 }
 
-
 export function newSemanticTokenProvider(languageModes: LanguageModes): SemanticTokenProvider {
 
 	// combined legend across modes

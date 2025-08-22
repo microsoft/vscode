@@ -26,6 +26,9 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 		private readonly _reportSlowTokenization: boolean,
 	) {
 		super();
+		console.log('TextMateTokenizationSupport.constructor');
+		console.log('this._grammar: ', this._grammar);
+		console.log('this._initialState: ', this._initialState);
 	}
 
 	public get backgroundTokenizerShouldOnlyVerifyTokens(): boolean | undefined {
@@ -88,6 +91,11 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 		} else {
 			endState = textMateResult.ruleStack;
 		}
+
+		console.log('TextMateTokenizationSupport.tokenizeEncoded');
+		console.log('line: ', line);
+		console.log('textMateResult.tokens : ', textMateResult.tokens);
+		console.log('endState: ', endState);
 
 		return new EncodedTokenizationResult(textMateResult.tokens, endState);
 	}

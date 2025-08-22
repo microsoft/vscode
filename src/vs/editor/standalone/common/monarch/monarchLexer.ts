@@ -364,6 +364,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 		}
 
 		const nestedResult = nestedLanguageTokenizationSupport.tokenizeEncoded(embeddedLanguageLine, hasEOL, embeddedModeState);
+		console.log('MonarchModernTokensCollector.nestedLanguageTokenize nestedResult : ', nestedResult);
 		if (offsetDelta !== 0) {
 			for (let i = 0, len = nestedResult.tokens.length; i < len; i += 2) {
 				nestedResult.tokens[i] += offsetDelta;
