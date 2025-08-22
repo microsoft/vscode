@@ -16,7 +16,7 @@ import { IToolInvocationContext, ToolProgress } from '../../../chat/common/langu
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { getOutput } from './bufferOutputPolling.js';
+import { getOutput } from './outputHelpers.js';
 import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
 import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/types.js';
 
@@ -152,7 +152,7 @@ export async function collectTerminalResults(
 	for (const instance of terminals) {
 		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
 		const execution = {
-			getOutput: () => getOutput(instance.xterm?.raw) ?? '',
+			getOutput: () => getOutput(instance) ?? '',
 			isActive,
 			task,
 			instance,
