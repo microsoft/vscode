@@ -14,23 +14,23 @@ src/vs/base/browser/ui/list/** @joaomoreno @benibenj
 src/vs/base/browser/ui/sash/** @joaomoreno @benibenj
 src/vs/base/browser/ui/splitview/** @joaomoreno @benibenj
 src/vs/base/browser/ui/grid/** @joaomoreno @benibenj
-src/bootstrap-cli.ts @bpasero
-src/bootstrap-esm.ts @bpasero
-src/bootstrap-fork.ts @bpasero
-src/bootstrap-import.ts @bpasero
-src/bootstrap-meta.ts @bpasero
-src/bootstrap-node.ts @bpasero
-src/bootstrap-server.ts @bpasero
-src/cli.ts @bpasero
-src/main.ts @bpasero
-src/server-cli.ts @bpasero
-src/server-main.ts @bpasero
-src/vs/base/parts/sandbox/** @bpasero
-src/vs/base/parts/storage/** @bpasero
+src/bootstrap-cli.ts @bpasero @deepak1556
+src/bootstrap-esm.ts @bpasero @deepak1556
+src/bootstrap-fork.ts @bpasero @deepak1556
+src/bootstrap-import.ts @bpasero @deepak1556
+src/bootstrap-meta.ts @bpasero @deepak1556
+src/bootstrap-node.ts @bpasero @deepak1556
+src/bootstrap-server.ts @bpasero @deepak1556
+src/cli.ts @bpasero @deepak1556
+src/main.ts @bpasero @deepak1556
+src/server-cli.ts @bpasero @deepak1556
+src/server-main.ts @bpasero @deepak1556
+src/vs/base/parts/sandbox/** @bpasero @deepak1556
+src/vs/base/parts/storage/** @bpasero @deepak1556
 src/vs/platform/backup/** @bpasero
-src/vs/platform/files/** @bpasero
-src/vs/base/node/pfs.ts @bpasero
-src/vs/code/** @bpasero
+src/vs/platform/files/** @bpasero @deepak1556
+src/vs/base/node/pfs.ts @bpasero @deepak1556
+src/vs/code/** @bpasero @deepak1556
 src/vs/workbench/services/textfile/** @bpasero
 src/vs/workbench/services/workingCopy/** @bpasero
 
