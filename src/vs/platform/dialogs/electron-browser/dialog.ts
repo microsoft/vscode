@@ -9,9 +9,8 @@ import { localize } from '../../../nls.js';
 import { IOSProperties } from '../../native/common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { process } from '../../../base/parts/sandbox/electron-browser/globals.js';
-import { type IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 
-export function createNativeAboutDialogDetails(productService: IProductService, osProps: IOSProperties, extensionService: IExtensionService): { title: string; details: string; detailsToCopy: string } {
+export function createNativeAboutDialogDetails(productService: IProductService, osProps: IOSProperties): { title: string; details: string; detailsToCopy: string } {
 	let version = productService.version;
 	if (productService.target) {
 		version = `${version} (${productService.target} setup)`;
@@ -20,18 +19,20 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 	}
 
 	function getCopilotChatVersion(): string {
-		if (!extensionService) {
-			return 'Unknown';
-		}
-
 		try {
-			const extensions = extensionService.extensions;
-			const copilotChatExtension = extensions.find(ext => ext.id === 'GitHub.copilot-chat');
-			if (copilotChatExtension) {
-				return copilotChatExtension.version;
+			if (typeof globalThis !== 'undefined' && (globalThis as any).vscode) {
+				const vscode = (globalThis as any).vscode;
+				if (vscode.extensions && vscode.extensions.getExtension) {
+					const copilotChatExtension = vscode.extensions.getExtension('github.copilot-chat');
+					if (copilotChatExtension) {
+						return copilotChatExtension.version;
+					}
+
+					return 'Not Installed';
+				}
 			}
 
-			return 'Not Installed';
+			return 'Unknown';
 		} catch (error) {
 			return 'Error';
 		}
