@@ -21,6 +21,7 @@ import { IPollingResult, OutputMonitorState, IExecution, IRacePollingOrPromptRes
 import { getTextResponseFromStream } from './utils.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
+import { isObject, isString } from '../../../../../../../base/common/types.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly isIdle: boolean;
@@ -299,9 +300,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
 			if (match) {
-				const obj = JSON.parse(match[0]);
-				if (obj && typeof obj.prompt === 'string' && Array.isArray(obj.options)) {
-					return obj as IConfirmationPrompt;
+				const obj = JSON.parse(match[0]) as unknown;
+				if (
+					isObject(obj) &&
+					'prompt' in obj && isString(obj.prompt) &&
+					'options' in obj && Array.isArray(obj.options) &&
+					obj.options.every(isString)
+				) {
+					return { prompt: obj.prompt, options: obj.options };
 				}
 			}
 		} catch {
