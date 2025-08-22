@@ -566,6 +566,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including Chat, Code Completions and Next Edit Suggestions."),
 			default: false,
+			scope: ConfigurationScope.WINDOW
 		},
 	}
 });
