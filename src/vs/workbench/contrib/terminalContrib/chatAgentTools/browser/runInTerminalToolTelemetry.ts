@@ -100,6 +100,11 @@ export class RunInTerminalToolTelemetry {
 		autoReplyCount?: number;
 		inputUserChars: number;
 		inputUserSigint: boolean;
+		inputToolManualAcceptCount?: number;
+		inputToolManualRejectCount?: number;
+		inputToolManualChars?: number;
+		inputToolAutoChars?: number;
+		inputToolAutoAcceptCount?: number;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -121,6 +126,11 @@ export class RunInTerminalToolTelemetry {
 
 			inputUserChars: number;
 			inputUserSigint: boolean;
+			inputToolManualAcceptCount: number;
+			inputToolManualRejectCount: number;
+			inputToolManualChars: number;
+			inputToolAutoChars: number;
+			inputToolAutoAcceptCount: number;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -145,6 +155,11 @@ export class RunInTerminalToolTelemetry {
 
 			inputUserChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters the user input manually, a single key stroke could map to several characters. Focus in/out sequences are not counted as part of this' };
 			inputUserSigint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user input the SIGINT signal' };
+			inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
+			inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
+			inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
+			inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by copilot automatically responding' };
+			inputToolAutoAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times copilot automatically accepted a suggestion' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -166,6 +181,11 @@ export class RunInTerminalToolTelemetry {
 
 			inputUserChars: state.inputUserChars,
 			inputUserSigint: state.inputUserSigint,
+			inputToolManualAcceptCount: state.inputToolManualAcceptCount ?? 0,
+			inputToolManualRejectCount: state.inputToolManualRejectCount ?? 0,
+			inputToolManualChars: state.inputToolManualChars ?? 0,
+			inputToolAutoChars: state.inputToolAutoChars ?? 0,
+			inputToolAutoAcceptCount: state.inputToolAutoAcceptCount ?? 0,
 		});
 	}
 }

@@ -26,6 +26,11 @@ export interface IPollingResult {
 	modelOutputEvalResponse?: string;
 	state: OutputMonitorState;
 	autoReplyCount?: number;
+	inputToolManualAcceptCount?: number;
+	inputToolManualRejectCount?: number;
+	inputToolManualChars?: number;
+	inputToolAutoChars?: number;
+	inputToolAutoAcceptCount?: number;
 }
 
 export enum OutputMonitorState {

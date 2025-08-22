@@ -488,6 +488,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					autoReplyCount: outputAndIdle?.autoReplyCount ?? 0,
 					inputUserChars,
 					inputUserSigint,
+					inputToolManualAcceptCount: outputAndIdle?.inputToolManualAcceptCount ?? 0,
+					inputToolManualRejectCount: outputAndIdle?.inputToolManualRejectCount ?? 0,
+					inputToolManualChars: outputAndIdle?.inputToolManualChars ?? 0,
+					inputToolAutoChars: outputAndIdle?.inputToolAutoChars ?? 0,
+					inputToolAutoAcceptCount: outputAndIdle?.inputToolAutoAcceptCount ?? 0,
 				});
 			}
 		} else {
@@ -555,6 +560,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					timingConnectMs,
 					inputUserChars,
 					inputUserSigint,
+					inputToolManualAcceptCount: 0,
+					inputToolManualRejectCount: 0,
+					inputToolManualChars: 0,
+					inputToolAutoChars: 0,
+					inputToolAutoAcceptCount: 0,
 				});
 			}
 
