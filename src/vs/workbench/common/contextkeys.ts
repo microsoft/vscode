@@ -302,6 +302,7 @@ export class ResourceContextKey {
 
 export const ErdosConsoleFocused = new RawContextKey<boolean>('erdosConsoleFocused', false, localize('erdosConsoleFocused', "Whether Erdos Console has keyboard focus"));
 export const ErdosConsoleInstancesExistContext = new RawContextKey<boolean>('erdosConsoleInstancesExist', false, localize('erdosConsoleInstancesExist', "Whether any Erdos console instances exist"));
+export const ERDOS_NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('erdosNotebookEditorFocused', false, localize('erdosNotebookEditorFocused', "Whether Erdos Notebook Editor has keyboard focus"));
 
 //#endregion
 

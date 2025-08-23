@@ -78,6 +78,8 @@ import './services/untitled/common/untitledTextEditorService.js';
 import './services/textresourceProperties/common/textResourcePropertiesService.js';
 import './services/textfile/common/textEditorService.js';
 import './services/language/common/languageService.js';
+import './services/languageRuntime/common/languageRuntime.js';
+import './services/runtimeSession/common/runtimeSession.js';
 import './services/model/common/modelService.js';
 import './services/notebook/common/notebookDocumentService.js';
 import './services/commands/common/commandService.js';
@@ -199,11 +201,27 @@ import './contrib/erdosDevTools/browser/erdosDevTools.js';
 // Erdos Console (Phase 2.1 Core UI)
 import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
 
+// Erdos Modal Dialogs (Required by Console)
+// Erdos Modal Dialogs (Phase 2.4 Core UI) - Replaced with erdosDialogs in Phase 4
+// import './contrib/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
+
 // Erdos Runtime Sessions (Phase 2.2 Core UI)
 import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
 
 // Erdos Plots (Phase 2.3 Core UI)
 import './contrib/erdosPlots/browser/erdosPlots.contribution.js';
+
+// Erdos Workspace (Phase 4.1 Integration - Workspace Management)
+import './contrib/erdosWorkspace/browser/erdosWorkspace.contribution.js';
+
+// Erdos Commands (Phase 4.2 Integration - Data Science Commands)
+import './contrib/erdosCommands/browser/erdosCommands.contribution.js';
+
+// Erdos Dialogs (Phase 4.3 Integration - Dialog Service)
+import './contrib/erdosDialogs/browser/erdosDialogs.contribution.js';
+
+// Erdos New Project (Phase 4.4 Integration - Project Creation)
+import './contrib/erdosNewProject/browser/erdosNewProject.contribution.js';
 
 // Context Menus
 import './contrib/contextmenu/browser/contextmenu.contribution.js';

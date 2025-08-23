@@ -457,4 +457,173 @@ export class ErdosNewFolderService extends Disposable implements IErdosNewFolder
 	public get newFolderRuntimeMetadata(): ILanguageRuntimeMetadata | undefined {
 		return this._runtimeMetadata;
 	}
+
+	// Phase 4 Extensions: Simple project creation methods
+	async createNewProject(name: string, location: string, template?: string): Promise<void> {
+		this._logService.info(`ErdosNewFolderService: Creating new project '${name}' at '${location}' with template '${template || 'default'}'`);
+		
+		try {
+			const projectUri = URI.file(location).with({ path: `${URI.file(location).path}/${name}` });
+			
+			// Create the project directory
+			await this._fileService.createFolder(projectUri);
+			
+			// Create basic project structure based on template
+			await this.createProjectStructure(projectUri, template);
+			
+			this._logService.info(`ErdosNewFolderService: Successfully created project '${name}'`);
+		} catch (error) {
+			this._logService.error(`ErdosNewFolderService: Failed to create project '${name}':`, error);
+			throw error;
+		}
+	}
+
+	async getAvailableTemplates(): Promise<string[]> {
+		// Return basic templates for now
+		// In the future, this could be extended to read from configuration or extensions
+		return [
+			'r-project',
+			'python-project',
+			'data-analysis',
+			'empty'
+		];
+	}
+
+	private async createProjectStructure(projectUri: URI, template?: string): Promise<void> {
+		switch (template) {
+			case 'r-project':
+				await this.createRProjectStructure(projectUri);
+				break;
+			case 'python-project':
+				await this.createPythonProjectStructure(projectUri);
+				break;
+			case 'data-analysis':
+				await this.createDataAnalysisStructure(projectUri);
+				break;
+			default:
+				await this.createEmptyProjectStructure(projectUri);
+				break;
+		}
+	}
+
+	private async createRProjectStructure(projectUri: URI): Promise<void> {
+		// Create R project files
+		const rprojectContent = `Version: 1.0
+
+RestoreWorkspace: Default
+SaveWorkspace: Default
+AlwaysSaveHistory: Default
+
+EnableCodeIndexing: Yes
+UseSpacesForTab: Yes
+NumSpacesForTab: 2
+Encoding: UTF-8
+
+RnwWeave: Sweave
+LaTeX: pdfLaTeX`;
+
+		await this._fileService.writeFile(
+			URI.joinPath(projectUri, `${projectUri.path.split('/').pop()}.Rproj`),
+			VSBuffer.fromString(rprojectContent)
+		);
+
+		// Create basic R script
+		const rScriptContent = `# ${projectUri.path.split('/').pop()} R Project
+# Created with Erdos
+
+# Load required libraries
+# library(tidyverse)
+
+# Your code here
+`;
+
+		await this._fileService.writeFile(
+			URI.joinPath(projectUri, 'main.R'),
+			VSBuffer.fromString(rScriptContent)
+		);
+	}
+
+	private async createPythonProjectStructure(projectUri: URI): Promise<void> {
+		// Create requirements.txt
+		const requirementsContent = `# Python dependencies
+pandas>=1.3.0
+numpy>=1.21.0
+matplotlib>=3.4.0
+seaborn>=0.11.0
+jupyter>=1.0.0
+`;
+
+		await this._fileService.writeFile(
+			URI.joinPath(projectUri, 'requirements.txt'),
+			VSBuffer.fromString(requirementsContent)
+		);
+
+		// Create main.py
+		const pythonScriptContent = `"""
+${projectUri.path.split('/').pop()} Python Project
+Created with Erdos
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+def main():
+    """Main function"""
+    print("Hello from Erdos!")
+    
+if __name__ == "__main__":
+    main()
+`;
+
+		await this._fileService.writeFile(
+			URI.joinPath(projectUri, 'main.py'),
+			VSBuffer.fromString(pythonScriptContent)
+		);
+	}
+
+	private async createDataAnalysisStructure(projectUri: URI): Promise<void> {
+		// Create data analysis folder structure
+		await this._fileService.createFolder(URI.joinPath(projectUri, 'data'));
+		await this._fileService.createFolder(URI.joinPath(projectUri, 'scripts'));
+		await this._fileService.createFolder(URI.joinPath(projectUri, 'output'));
+		await this._fileService.createFolder(URI.joinPath(projectUri, 'docs'));
+
+		// Create README
+		const readmeContent = `# ${projectUri.path.split('/').pop()}
+
+Data analysis project created with Erdos.
+
+## Structure
+
+- \`data/\` - Raw and processed data files
+- \`scripts/\` - Analysis scripts
+- \`output/\` - Generated plots and results
+- \`docs/\` - Documentation and reports
+
+## Getting Started
+
+1. Place your data files in the \`data/\` folder
+2. Create analysis scripts in the \`scripts/\` folder
+3. Run your analysis and save outputs to the \`output/\` folder
+`;
+
+		await this._fileService.writeFile(
+			URI.joinPath(projectUri, 'README.md'),
+			VSBuffer.fromString(readmeContent)
+		);
+	}
+
+	private async createEmptyProjectStructure(projectUri: URI): Promise<void> {
+		// Create a simple README for empty projects
+		const readmeContent = `# ${projectUri.path.split('/').pop()}
+
+Project created with Erdos.
+`;
+
+		await this._fileService.writeFile(
+			URI.joinPath(projectUri, 'README.md'),
+			VSBuffer.fromString(readmeContent)
+		);
+	}
 }

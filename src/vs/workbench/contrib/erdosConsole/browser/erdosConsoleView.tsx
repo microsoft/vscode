@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ErdosConsole } from './erdosConsole.js';
-import { IReactComponentContainer, ISize, PositronReactRenderer } from '../../../../base/browser/positronReactRenderer.js';
+import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
 import { IErdosConsoleService } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
@@ -79,9 +79,9 @@ export class ErdosConsoleViewPane extends ViewPane implements IReactComponentCon
 	private _erdosConsoleContainer!: HTMLElement;
 
 	/**
-	 * Gets or sets the PositronReactRenderer for the ErdosConsole component.
+	 * Gets or sets the ErdosReactRenderer for the ErdosConsole component.
 	 */
-	private _positronReactRenderer: PositronReactRenderer | undefined;
+	private _erdosReactRenderer: ErdosReactRenderer | undefined;
 
 	/**
 	 * Gets or sets the ErdosConsoleFocused context key.
@@ -206,10 +206,10 @@ export class ErdosConsoleViewPane extends ViewPane implements IReactComponentCon
 		// Create and append the Erdos console container.
 		this._erdosConsoleContainer = DOM.append(container, DOM.$('.erdos-console-container'));
 
-		// Create the PositronReactRenderer for the ErdosConsole component and render it.
-		this._positronReactRenderer = new PositronReactRenderer(this._erdosConsoleContainer);
-		this._register(this._positronReactRenderer);
-		this._positronReactRenderer.render(
+		// Create the ErdosReactRenderer for the ErdosConsole component and render it.
+		this._erdosReactRenderer = new ErdosReactRenderer(this._erdosConsoleContainer);
+		this._register(this._erdosReactRenderer);
+		this._erdosReactRenderer.render(
 			<ErdosConsole
 				reactComponentContainer={this}
 			/>

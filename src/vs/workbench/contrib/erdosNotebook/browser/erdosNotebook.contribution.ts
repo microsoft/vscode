@@ -26,7 +26,7 @@ import { ErdosNotebookEditorInput, ErdosNotebookEditorInputOptions } from './Erd
 
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ICommandAndKeybindingRule, KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ERDOS_NOTEBOOK_EDITOR_FOCUSED } from '../../../services/erdosNotebook/browser/ContextKeysManager.js';
+import { ERDOS_NOTEBOOK_EDITOR_FOCUSED } from '../../../common/contextkeys.js';
 import { IErdosNotebookService } from '../../../services/erdosNotebook/browser/erdosNotebookService.js';
 import { IErdosNotebookInstance } from '../../../services/erdosNotebook/browser/IErdosNotebookInstance.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';

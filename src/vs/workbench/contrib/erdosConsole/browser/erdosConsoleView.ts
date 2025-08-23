@@ -83,11 +83,12 @@ export class ErdosConsoleViewPane extends ViewPane {
 
 		// Add placeholder content for now
 		const placeholder = DOM.append(this._erdosConsoleContainer, DOM.$('.erdos-console-placeholder'));
-		placeholder.innerHTML = `
-			<h3>Erdos Console</h3>
-			<p>Console UI implementation in progress...</p>
-			<p>This is a basic placeholder that will be enhanced with React components.</p>
-		`;
+		const title = DOM.append(placeholder, DOM.$('h3'));
+		title.textContent = 'Erdos Console';
+		const description = DOM.append(placeholder, DOM.$('p'));
+		description.textContent = 'Console UI implementation in progress...';
+		const details = DOM.append(placeholder, DOM.$('p'));
+		details.textContent = 'This is a basic placeholder that will be enhanced with React components.';
 	}
 
 	/**

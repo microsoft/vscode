@@ -98,12 +98,12 @@ class ErdosRuntimeSessionsContribution extends Disposable {
 					original: 'Runtimes'
 				},
 				icon: erdosRuntimeSessionsViewIcon,
-				order: 10, // Match Positron's order
+				order: 10,
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ERDOS_RUNTIME_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 				storageId: ERDOS_RUNTIME_VIEW_CONTAINER_ID,
 				hideIfEmpty: true,
 			},
-			ViewContainerLocation.AuxiliaryBar, // Place in right sidebar (like Positron)
+			ViewContainerLocation.AuxiliaryBar,
 			{
 				doNotRegisterOpenCommand: false,
 				isDefault: false

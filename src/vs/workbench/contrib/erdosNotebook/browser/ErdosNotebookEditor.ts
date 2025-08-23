@@ -14,7 +14,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { ErdosNotebookEditorInput } from './ErdosNotebookEditorInput.js';
-import { ERDOS_NOTEBOOK_EDITOR_FOCUSED } from '../../../services/erdosNotebook/browser/ContextKeysManager.js';
+import { ERDOS_NOTEBOOK_EDITOR_FOCUSED } from '../../../common/contextkeys.js';
 
 export interface IErdosNotebookEditorOptions extends IEditorOptions {
 }
