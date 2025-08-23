@@ -284,9 +284,13 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		// Copilot. Waiting for the registration of the agent is not
 		// enough, we also need a language/tools model to be available.
 
-		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind);
-		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService);
-		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel);
+		let agentReady = false;
+		let languageModelReady = false;
+		let toolsModelReady = false;
+
+		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
+		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService)?.then(() => languageModelReady = true);
+		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel)?.then(() => toolsModelReady = true);
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise || whenToolsModelReady instanceof Promise) {
 			const timeoutHandle = setTimeout(() => {
@@ -310,6 +314,12 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 					} else {
 						warningMessage = localize('copilotFailedWarning', "Copilot failed to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
 					}
+
+					this.logService.warn(warningMessage, {
+						agentReady: whenAgentReady ? agentReady : undefined,
+						languageModelReady: whenLanguageModelReady ? languageModelReady : undefined,
+						toolsModelReady: whenToolsModelReady ? toolsModelReady : undefined
+					});
 
 					progress({
 						kind: 'warning',
