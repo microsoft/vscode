@@ -170,8 +170,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 	private lastItem: ChatTreeItem | undefined;
 
-	private inputPart!: ChatInputPart;
-	private inlineInputPart!: ChatInputPart;
+	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
+	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
@@ -520,6 +520,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get input(): ChatInputPart {
 		return this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input' ? this.inlineInputPart : this.inputPart;
+	}
+
+	private get inputPart(): ChatInputPart {
+		return this.inputPartDisposable.value!;
+	}
+
+	private get inlineInputPart(): ChatInputPart {
+		return this.inlineInputPartDisposable.value!;
 	}
 
 	get inputEditor(): ICodeEditor {
@@ -1109,7 +1117,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private clickedRequest(item: IChatListItemTemplate) {
 
-		// cancel current request before we start editing. 
+		// cancel current request before we start editing.
 		if (this.viewModel) {
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
 		}
@@ -1363,21 +1371,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel?.editing) {
 			const editedRequest = this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editedRequest?.contextKeyService])));
-			this.inlineInputPart = this._register(scopedInstantiationService.createInstance(ChatInputPart,
+			this.inlineInputPartDisposable.value = scopedInstantiationService.createInstance(ChatInputPart,
 				this.location,
 				commonConfig,
 				this.styles,
 				() => this.collectInputState(),
 				true
-			));
+			);
 		} else {
-			this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
+			this.inputPartDisposable.value = this.instantiationService.createInstance(ChatInputPart,
 				this.location,
 				commonConfig,
 				this.styles,
 				() => this.collectInputState(),
 				false
-			));
+			);
 		}
 
 		this.input.render(container, '', this);
