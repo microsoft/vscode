@@ -8,7 +8,7 @@ import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
-import { throttle } from '../../../../../base/common/decorators.js';
+import { debounce, throttle } from '../../../../../base/common/decorators.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
@@ -59,7 +59,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _contextMenu: IMenu;
 
 	private readonly _refreshListeners = this._register(new MutableDisposable());
-	private readonly _refreshTimeout = this._register(new MutableDisposable());
 
 	private _state: OverlayState = OverlayState.Off;
 	private _isRefreshQueued = false;
@@ -186,6 +185,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._refreshListeners.clear();
 	}
 
+	@debounce(100)
 	private _setVisible(isVisible: boolean) {
 		if (isVisible) {
 			this._ensureElement();
@@ -194,16 +194,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	}
 
 	private _refresh(): void {
-		this._refreshTimeout.clear();
-
-		// Always debounce by 100ms to prevent flashing during rapid scroll/enter events
-		const timeoutId = setTimeout(() => {
-			this._executeRefresh();
-		}, 100);
-
-		this._refreshTimeout.value = toDisposable(() => {
-			clearTimeout(timeoutId);
-		});
+		this._executeRefresh();
 	}
 
 	private _executeRefresh(): void {
