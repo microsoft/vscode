@@ -568,6 +568,13 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
+		[ChatConfiguration.UseChatSessionsForCloudButton]: {
+			type: 'boolean',
+			description: nls.localize('chat.useChatSessionsForCloudButton', "Controls whether the 'Delegate to coding agent' button uses the new chat sessions API."),
+			default: false,
+			tags: ['experimental'],
+
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
