@@ -316,7 +316,8 @@ export const enum ToolConfirmKind {
 	ConfirmationNotNeeded,
 	Setting,
 	LmServicePerTool,
-	UserAction
+	UserAction,
+	Skipped
 }
 
 export type ConfirmedReason =
@@ -324,7 +325,8 @@ export type ConfirmedReason =
 	| { type: ToolConfirmKind.ConfirmationNotNeeded }
 	| { type: ToolConfirmKind.Setting; id: string }
 	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
-	| { type: ToolConfirmKind.UserAction };
+	| { type: ToolConfirmKind.UserAction }
+	| { type: ToolConfirmKind.Skipped };
 
 export interface IChatToolInvocation {
 	presentation: IPreparedToolInvocation['presentation'];

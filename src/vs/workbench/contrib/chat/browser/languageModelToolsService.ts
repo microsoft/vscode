@@ -305,6 +305,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					if (userConfirmed.type === ToolConfirmKind.Denied) {
 						throw new CancellationError();
 					}
+					if (userConfirmed.type === ToolConfirmKind.Skipped) {
+						toolResult = {
+							content: [{
+								kind: 'text',
+								value: 'The user chose to skip the tool call, they want to proceed without running it'
+							}]
+						};
+						return toolResult;
+					}
 
 					if (dto.toolSpecificData?.kind === 'input') {
 						dto.parameters = dto.toolSpecificData.rawInput;

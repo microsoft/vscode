@@ -34,7 +34,6 @@ import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import type { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
-import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
@@ -58,6 +57,7 @@ export interface ITerminalNewAutoApproveRule {
 export type TerminalNewAutoApproveButtonData = (
 	{ type: 'enable' } |
 	{ type: 'configure' } |
+	{ type: 'skip' } |
 	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] }
 );
 
@@ -75,8 +75,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -96,12 +96,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		const { title, message, disclaimer, terminalCustomActions } = toolInvocation.confirmationMessages;
-		const continueLabel = localize('continue', "Continue");
-		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
-		const cancelLabel = localize('cancel', "Cancel");
-		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
-		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
 		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === 'on';
 		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
@@ -129,20 +123,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		}
 
-		const buttons: IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] = [
-			{
-				label: continueLabel,
-				data: true,
-				tooltip: continueTooltip,
-				moreActions,
-			},
-			{
-				label: cancelLabel,
-				data: false,
-				isSecondary: true,
-				tooltip: cancelTooltip,
-			}
-		];
 		const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 			hideToolbar: true,
 			reserveWidth: 19,
@@ -208,7 +188,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				title,
 				icon: Codicon.terminal,
 				message: elements.root,
-				buttons
+				buttons: this._createButtons(moreActions)
 			},
 		));
 
@@ -240,35 +220,25 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							if (!terminalCustomActions) {
 								toolConfirmKind = ToolConfirmKind.UserAction;
 							}
-							// If this would not have been auto approved, enable the options and do
-							// not complete
+							// If this would not have been auto approved, enable the options and
+							// do not complete
 							else {
-
 								for (const action of terminalCustomActions) {
 									if (!(action instanceof Separator)) {
 										action.disabled = false;
 									}
 								}
 
-								confirmWidget.updateButtons([
-									{
-										label: continueLabel,
-										data: true,
-										tooltip: continueTooltip,
-										moreActions: terminalCustomActions,
-									},
-									{
-										label: cancelLabel,
-										data: false,
-										isSecondary: true,
-										tooltip: cancelTooltip,
-									}
-								]);
+								confirmWidget.updateButtons(this._createButtons(terminalCustomActions));
 								doComplete = false;
 							}
 						} else {
 							doComplete = false;
 						}
+						break;
+					}
+					case 'skip': {
+						toolConfirmKind = ToolConfirmKind.Skipped;
 						break;
 					}
 					case 'newRule': {
@@ -329,8 +299,28 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this.domNode = confirmWidget.domNode;
 	}
 
+	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] {
+		const continueLabel = localize('continue', "Continue");
+		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
+		return [
+			{
+				label: continueLabel,
+				tooltip: continueTooltip,
+				data: true,
+				moreActions,
+			},
+			{
+				label: localize('skip', 'Skip'),
+				tooltip: localize('skip.detail', 'Proceed without executing this command'),
+				data: { type: 'skip' },
+				isSecondary: true,
+			},
+		];
+	}
+
 	private async _showAutoApproveWarning(): Promise<boolean> {
-		const promptResult = await this._dialogService.prompt({
+		const promptResult = await this.dialogService.prompt({
 			type: Severity.Info,
 			message: localize('autoApprove.title', 'Enable terminal auto approve?'),
 			buttons: [{
