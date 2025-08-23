@@ -34,6 +34,7 @@ import { CellEditorOptions } from './cellEditorOptions.js';
 import { CellOutputContainer } from './cellOutput.js';
 import { CollapsedCodeCellExecutionIcon } from './codeCellExecutionIcon.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
+import { getTokenizedPreviewSanitizerConfig } from './tokenizedPreviewSanitizer.js';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -368,38 +369,11 @@ export class CodeCell extends Disposable {
 			if (this.viewCell.isInputCollapsed && this._inputCollapseElement) {
 				// flush the collapsed input with the latest tokens
 				const content = this._getRichTextFromLineTokens(model);
-				domSanitize.safeSetInnerHtml(this._inputCollapseElement, content, this._getTokenizedPreviewSanitizerConfig());
+				domSanitize.safeSetInnerHtml(this._inputCollapseElement, content, getTokenizedPreviewSanitizerConfig());
 				this._attachInputExpandButton(this._inputCollapseElement);
 				this.notebookLogService.debug('cellCollapsePreview', 'Updated tokenized preview after token change.');
 			}
 		}));
-	}
-
-	private _getTokenizedPreviewSanitizerConfig(): domSanitize.DomSanitizerConfig {
-		// Only allow class attributes needed for token coloring, filter out everything else.
-		return {
-			allowedAttributes: {
-				augment: [{
-					attributeName: 'class',
-					shouldKeep: (element, data) => {
-						const raw = (data.attrValue ?? '').trim();
-						if (!raw) {
-							return false;
-						}
-						const classes = raw.split(/\s+/).filter(c => !!c);
-						if (element.tagName === 'DIV') {
-							const keep = classes.filter(c => c === 'monaco-tokenized-source');
-							return keep.length ? keep.join(' ') : false;
-						}
-						if (element.tagName === 'SPAN') {
-							const keep = classes.filter(c => /^mtk\d+$/.test(c) || c === 'mtki' || c === 'mtkb' || c === 'mtku' || c === 'mtks');
-							return keep.length ? keep.join(' ') : false;
-						}
-						return false;
-					}
-				}]
-			}
-		};
 	}
 
 	private registerMouseListener() {
@@ -476,7 +450,7 @@ export class CodeCell extends Disposable {
 		// update preview
 		const richEditorText = this.templateData.editor.hasModel() ? this._getRichTextFromLineTokens(this.templateData.editor.getModel()) : this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		const element = DOM.$('div.cell-collapse-preview');
-		domSanitize.safeSetInnerHtml(element, richEditorText, this._getTokenizedPreviewSanitizerConfig());
+		domSanitize.safeSetInnerHtml(element, richEditorText, getTokenizedPreviewSanitizerConfig());
 		this._inputCollapseElement = element;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 		this._attachInputExpandButton(element);

@@ -32,6 +32,7 @@ import { MarkdownCellRenderTemplate } from '../notebookRenderingCommon.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
 import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
+import { getTokenizedPreviewSanitizerConfig } from './tokenizedPreviewSanitizer.js';
 
 export class MarkupCell extends Disposable {
 
@@ -264,7 +265,7 @@ export class MarkupCell extends Disposable {
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
 		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
-		domSanitize.safeSetInnerHtml(element, richEditorText, this._getTokenizedPreviewSanitizerConfig());
+		domSanitize.safeSetInnerHtml(element, richEditorText, getTokenizedPreviewSanitizerConfig());
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 		this.notebookLogService.debug('cellCollapsePreview', 'Rendered markdown tokenized preview with whitelist sanitizer');
 
@@ -283,32 +284,6 @@ export class MarkupCell extends Disposable {
 		this.viewCell.layoutChange({});
 	}
 
-	private _getTokenizedPreviewSanitizerConfig(): domSanitize.DomSanitizerConfig {
-		// Only allow token-related classes produced by tokenizer
-		return {
-			allowedAttributes: {
-				augment: [{
-					attributeName: 'class',
-					shouldKeep: (element, data) => {
-						const raw = (data.attrValue ?? '').trim();
-						if (!raw) {
-							return false;
-						}
-						const classes = raw.split(/\s+/).filter(c => !!c);
-						if (element.tagName === 'DIV') {
-							const keep = classes.filter(c => c === 'monaco-tokenized-source');
-							return keep.length ? keep.join(' ') : false;
-						}
-						if (element.tagName === 'SPAN') {
-							const keep = classes.filter(c => /^mtk\d+$/.test(c) || c === 'mtki' || c === 'mtkb' || c === 'mtku' || c === 'mtks');
-							return keep.length ? keep.join(' ') : false;
-						}
-						return false;
-					}
-				}]
-			}
-		};
-	}
 
 	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
 		return tokenizeToStringSync(this.languageService, buffer.getLineContent(1), language);
