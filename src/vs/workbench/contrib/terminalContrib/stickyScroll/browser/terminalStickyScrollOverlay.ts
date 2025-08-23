@@ -194,10 +194,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	}
 
 	private _refresh(): void {
-		this._executeRefresh();
-	}
-
-	private _executeRefresh(): void {
 		if (this._isRefreshQueued) {
 			return;
 		}
