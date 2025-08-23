@@ -109,10 +109,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
 			? toolInvocation.isConfirmed
 			: toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction || toolInvocation.isConfirmed?.type === ToolConfirmKind.ConfirmationNotNeeded;
-		const icon = !isConfirmed ?
-			Codicon.error :
-			toolInvocation.isComplete ?
-				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
+		const isSkipped = typeof toolInvocation.isConfirmed !== 'boolean' && toolInvocation.isConfirmed?.type === ToolConfirmKind.Skipped;
+		const icon = isSkipped ?
+			Codicon.circleSlash :
+			(!isConfirmed ?
+				Codicon.error :
+				toolInvocation.isComplete ?
+					Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin'));
 		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, this.markdownPart.domNode, icon);
 		this.domNode = progressPart.domNode;
 	}
