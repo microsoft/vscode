@@ -33,6 +33,7 @@ import { CodeCellRenderTemplate } from '../notebookRenderingCommon.js';
 import { CellEditorOptions } from './cellEditorOptions.js';
 import { CellOutputContainer } from './cellOutput.js';
 import { CollapsedCodeCellExecutionIcon } from './codeCellExecutionIcon.js';
+import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -57,6 +58,7 @@ export class CodeCell extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookLoggingService private readonly notebookLogService: INotebookLoggingService,
 	) {
 		super();
 
@@ -366,10 +368,38 @@ export class CodeCell extends Disposable {
 			if (this.viewCell.isInputCollapsed && this._inputCollapseElement) {
 				// flush the collapsed input with the latest tokens
 				const content = this._getRichTextFromLineTokens(model);
-				domSanitize.safeSetInnerHtml(this._inputCollapseElement, content);
+				domSanitize.safeSetInnerHtml(this._inputCollapseElement, content, this._getTokenizedPreviewSanitizerConfig());
 				this._attachInputExpandButton(this._inputCollapseElement);
+				this.notebookLogService.debug('cellCollapsePreview', 'Updated tokenized preview after token change.');
 			}
 		}));
+	}
+
+	private _getTokenizedPreviewSanitizerConfig(): domSanitize.DomSanitizerConfig {
+		// Only allow class attributes needed for token coloring, filter out everything else.
+		return {
+			allowedAttributes: {
+				augment: [{
+					attributeName: 'class',
+					shouldKeep: (element, data) => {
+						const raw = (data.attrValue ?? '').trim();
+						if (!raw) {
+							return false;
+						}
+						const classes = raw.split(/\s+/).filter(c => !!c);
+						if (element.tagName === 'DIV') {
+							const keep = classes.filter(c => c === 'monaco-tokenized-source');
+							return keep.length ? keep.join(' ') : false;
+						}
+						if (element.tagName === 'SPAN') {
+							const keep = classes.filter(c => /^mtk\d+$/.test(c) || c === 'mtki' || c === 'mtkb' || c === 'mtku' || c === 'mtks');
+							return keep.length ? keep.join(' ') : false;
+						}
+						return false;
+					}
+				}]
+			}
+		};
 	}
 
 	private registerMouseListener() {
@@ -446,10 +476,11 @@ export class CodeCell extends Disposable {
 		// update preview
 		const richEditorText = this.templateData.editor.hasModel() ? this._getRichTextFromLineTokens(this.templateData.editor.getModel()) : this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		const element = DOM.$('div.cell-collapse-preview');
-		domSanitize.safeSetInnerHtml(element, richEditorText);
+		domSanitize.safeSetInnerHtml(element, richEditorText, this._getTokenizedPreviewSanitizerConfig());
 		this._inputCollapseElement = element;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 		this._attachInputExpandButton(element);
+		this.notebookLogService.debug('cellCollapsePreview', 'Rendered tokenized preview with whitelist sanitizer');
 
 		DOM.show(this.templateData.cellInputCollapsedContainer);
 	}
