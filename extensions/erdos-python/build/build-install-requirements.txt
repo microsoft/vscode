@@ -1,0 +1,2 @@
+# Requirements needed to run install_debugpy.py and download_get_pip.py
+packaging

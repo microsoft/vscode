@@ -1,0 +1,34 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "*": ["types/*"]
+        },
+        "module": "commonjs",
+        "target": "es2018",
+        "outDir": "./out",
+        "lib": [
+            "es6",
+            "es2018",
+            "dom",
+            "ES2019",
+            "ES2020"
+        ],
+        "sourceMap": true,
+        "rootDir": "src",
+        "experimentalDecorators": true,
+        "allowSyntheticDefaultImports": true,
+        "strict": true,
+        "noImplicitAny": true,
+        "noImplicitThis": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "resolveJsonModule": true,
+        "declaration": true
+    },
+    "exclude": [
+        "node_modules",
+        "out"
+    ]
+}

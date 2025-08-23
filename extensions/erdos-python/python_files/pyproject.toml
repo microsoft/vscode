@@ -1,0 +1,83 @@
+[tool.pyright]
+exclude = ['lib']
+extraPaths = ['lib/python', 'lib/jedilsp']
+ignore = [
+    # Ignore all pre-existing code with issues
+    'get-pip.py',
+    'tensorboard_launcher.py',
+    'testlauncher.py',
+    'visualstudio_py_testlauncher.py',
+    'testing_tools/unittest_discovery.py',
+    'testing_tools/adapter/util.py',
+    'testing_tools/adapter/pytest/_discovery.py',
+    'testing_tools/adapter/pytest/_pytest_item.py',
+    'tests/testing_tools/adapter/.data',
+    'tests/testing_tools/adapter/test___main__.py',
+    'tests/testing_tools/adapter/test_discovery.py',
+    'tests/testing_tools/adapter/test_functional.py',
+    'tests/testing_tools/adapter/test_report.py',
+    'tests/testing_tools/adapter/test_util.py',
+    'tests/testing_tools/adapter/pytest/test_cli.py',
+    'tests/testing_tools/adapter/pytest/test_discovery.py',
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+exclude = [
+    "**/.data",
+    "lib",
+]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+# Ruff's defaults are F and a subset of E.
+# https://docs.astral.sh/ruff/rules/#rules
+# Compatible w/ ruff formatter. https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+# Up-to-date as of Ruff 0.5.0.
+select = [
+    "A",  # flake8-builtins
+    "ARG",  # flake8-unused-argument
+    "ASYNC",  # flake8-async
+    "B",  # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "D2", "D400", "D403", "D419",  # pydocstyle
+    "DJ",  # flake8-django
+    "DTZ",  # flake8-dasetimez
+    "E4", "E7", "E9",  # pycodestyle (errors)
+    "EXE",  # flake8-executable
+    "F",  # Pyflakes
+    "FBT",  # flake8-boolean-trap
+    "FLY",  # flynt
+    "FURB",  # refurb
+    "I",  # isort
+    "INP",  # flake8-no-pep420
+    "INT",  # flake8-gettext
+    "LOG",  # flake8-logging
+    "N",  # pep8-naming
+    "NPY",  # NumPy-specific rules
+    "PD",  # pandas-vet
+    "PERF",  # Perflint
+    "PIE",  # flake8-pie
+    "PTH",  # flake8-pathlib
+    # flake8-pytest-style
+    "PT006", "PT007", "PT009", "PT012", "PT014", "PT015", "PT016", "PT017", "PT018", "PT019",
+    "PT020", "PT021", "PT022", "PT024", "PT025", "PT026", "PT027",
+    "PYI",  # flake8-pyi
+    "Q",  # flake8-quotes
+    "RET502", "RET503", "RET504",  # flake8-return
+    "RSE",  # flake8-raise
+    "RUF",  # Ruff-specific rules
+    "SIM",  # flake8-simplify
+    "SLF",  # flake8-self
+    "SLOT",  # flake8-slots
+    "TCH",  # flake8-type-checking
+    "UP",  # pyupgrade
+    "W",  # pycodestyle (warnings)
+    "YTT",  # flake8-2020
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"

@@ -1,0 +1,623 @@
+Metadata-Version: 2.1
+Name: jedi
+Version: 0.19.2
+Summary: An autocompletion tool for Python that can be used for text editors.
+Home-page: https://github.com/davidhalter/jedi
+Author: David Halter
+Author-email: davidhalter88@gmail.com
+Maintainer: David Halter
+Maintainer-email: davidhalter88@gmail.com
+License: MIT
+Project-URL: Documentation, https://jedi.readthedocs.io/en/latest/
+Keywords: python completion refactoring vim
+Platform: any
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Plugins
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Text Editors :: Integrated Development Environments (IDE)
+Classifier: Topic :: Utilities
+Requires-Python: >=3.6
+Requires-Dist: parso (<0.9.0,>=0.8.4)
+Provides-Extra: docs
+Requires-Dist: Jinja2 (==2.11.3) ; extra == 'docs'
+Requires-Dist: MarkupSafe (==1.1.1) ; extra == 'docs'
+Requires-Dist: Pygments (==2.8.1) ; extra == 'docs'
+Requires-Dist: alabaster (==0.7.12) ; extra == 'docs'
+Requires-Dist: babel (==2.9.1) ; extra == 'docs'
+Requires-Dist: chardet (==4.0.0) ; extra == 'docs'
+Requires-Dist: commonmark (==0.8.1) ; extra == 'docs'
+Requires-Dist: docutils (==0.17.1) ; extra == 'docs'
+Requires-Dist: future (==0.18.2) ; extra == 'docs'
+Requires-Dist: idna (==2.10) ; extra == 'docs'
+Requires-Dist: imagesize (==1.2.0) ; extra == 'docs'
+Requires-Dist: mock (==1.0.1) ; extra == 'docs'
+Requires-Dist: packaging (==20.9) ; extra == 'docs'
+Requires-Dist: pyparsing (==2.4.7) ; extra == 'docs'
+Requires-Dist: pytz (==2021.1) ; extra == 'docs'
+Requires-Dist: readthedocs-sphinx-ext (==2.1.4) ; extra == 'docs'
+Requires-Dist: recommonmark (==0.5.0) ; extra == 'docs'
+Requires-Dist: requests (==2.25.1) ; extra == 'docs'
+Requires-Dist: six (==1.15.0) ; extra == 'docs'
+Requires-Dist: snowballstemmer (==2.1.0) ; extra == 'docs'
+Requires-Dist: sphinx-rtd-theme (==0.4.3) ; extra == 'docs'
+Requires-Dist: sphinx (==1.8.5) ; extra == 'docs'
+Requires-Dist: sphinxcontrib-serializinghtml (==1.1.4) ; extra == 'docs'
+Requires-Dist: sphinxcontrib-websupport (==1.2.4) ; extra == 'docs'
+Requires-Dist: urllib3 (==1.26.4) ; extra == 'docs'
+Provides-Extra: qa
+Requires-Dist: flake8 (==5.0.4) ; extra == 'qa'
+Requires-Dist: mypy (==0.971) ; extra == 'qa'
+Requires-Dist: types-setuptools (==67.2.0.1) ; extra == 'qa'
+Provides-Extra: testing
+Requires-Dist: Django ; extra == 'testing'
+Requires-Dist: attrs ; extra == 'testing'
+Requires-Dist: colorama ; extra == 'testing'
+Requires-Dist: docopt ; extra == 'testing'
+Requires-Dist: pytest (<9.0.0) ; extra == 'testing'
+
+####################################################################################
+Jedi - an awesome autocompletion, static analysis and refactoring library for Python
+####################################################################################
+
+.. image:: http://isitmaintained.com/badge/open/davidhalter/jedi.svg
+    :target: https://github.com/davidhalter/jedi/issues
+    :alt: The percentage of open issues and pull requests
+
+.. image:: http://isitmaintained.com/badge/resolution/davidhalter/jedi.svg
+    :target: https://github.com/davidhalter/jedi/issues
+    :alt: The resolution time is the median time an issue or pull request stays open.
+
+.. image:: https://github.com/davidhalter/jedi/workflows/ci/badge.svg?branch=master
+    :target: https://github.com/davidhalter/jedi/actions
+    :alt: Tests
+
+.. image:: https://pepy.tech/badge/jedi
+    :target: https://pepy.tech/project/jedi
+    :alt: PyPI Downloads
+
+
+Jedi is a static analysis tool for Python that is typically used in
+IDEs/editors plugins. Jedi has a focus on autocompletion and goto
+functionality. Other features include refactoring, code search and finding
+references.
+
+Jedi has a simple API to work with. There is a reference implementation as a
+`VIM-Plugin <https://github.com/davidhalter/jedi-vim>`_. Autocompletion in your
+REPL is also possible, IPython uses it natively and for the CPython REPL you
+can install it. Jedi is well tested and bugs should be rare.
+
+Jedi can currently be used with the following editors/projects:
+
+- Vim (jedi-vim_, YouCompleteMe_, deoplete-jedi_, completor.vim_)
+- `Visual Studio Code`_ (via `Python Extension <https://marketplace.visualstudio.com/items?itemName=ms-python.python>`_)
+- Emacs (Jedi.el_, company-mode_, elpy_, anaconda-mode_, ycmd_)
+- Sublime Text (SublimeJEDI_ [ST2 + ST3], anaconda_ [only ST3])
+- TextMate_ (Not sure if it's actually working)
+- Kate_ version 4.13+ supports it natively, you have to enable it, though.  [`see
+  <https://projects.kde.org/projects/kde/applications/kate/repository/show?rev=KDE%2F4.13>`_]
+- Atom_ (autocomplete-python-jedi_)
+- `GNOME Builder`_ (with support for GObject Introspection)
+- Gedit (gedi_)
+- wdb_ - Web Debugger
+- `Eric IDE`_
+- `IPython 6.0.0+ <https://ipython.readthedocs.io/en/stable/whatsnew/version6.html>`_
+- `xonsh shell <https://xon.sh/contents.html>`_ has `jedi extension <https://xon.sh/xontribs.html#jedi>`_
+
+and many more!
+
+There are a few language servers that use Jedi:
+
+- `jedi-language-server <https://github.com/pappasam/jedi-language-server>`_
+- `python-language-server <https://github.com/palantir/python-language-server>`_ (currently unmaintained)
+- `python-lsp-server <https://github.com/python-lsp/python-lsp-server>`_ (fork from python-language-server)
+- `anakin-language-server <https://github.com/muffinmad/anakin-language-server>`_
+
+Here are some pictures taken from jedi-vim_:
+
+.. image:: https://github.com/davidhalter/jedi/raw/master/docs/_screenshots/screenshot_complete.png
+
+Completion for almost anything:
+
+.. image:: https://github.com/davidhalter/jedi/raw/master/docs/_screenshots/screenshot_function.png
+
+Documentation:
+
+.. image:: https://github.com/davidhalter/jedi/raw/master/docs/_screenshots/screenshot_pydoc.png
+
+
+Get the latest version from `github <https://github.com/davidhalter/jedi>`_
+(master branch should always be kind of stable/working).
+
+Docs are available at `https://jedi.readthedocs.org/en/latest/
+<https://jedi.readthedocs.org/en/latest/>`_. Pull requests with enhancements
+and/or fixes are awesome and most welcome. Jedi uses `semantic versioning
+<https://semver.org/>`_.
+
+If you want to stay **up-to-date** with releases, please **subscribe** to this
+mailing list: https://groups.google.com/g/jedi-announce. To subscribe you can
+simply send an empty email to ``jedi-announce+subscribe@googlegroups.com``.
+
+Issues & Questions
+==================
+
+You can file issues and questions in the `issue tracker
+<https://github.com/davidhalter/jedi/>`. Alternatively you can also ask on
+`Stack Overflow <https://stackoverflow.com/questions/tagged/python-jedi>`_ with
+the label ``python-jedi``.
+
+Installation
+============
+
+`Check out the docs <https://jedi.readthedocs.org/en/latest/docs/installation.html>`_.
+
+Features and Limitations
+========================
+
+Jedi's features are listed here:
+`Features <https://jedi.readthedocs.org/en/latest/docs/features.html>`_.
+
+You can run Jedi on Python 3.6+ but it should also
+understand code that is older than those versions. Additionally you should be
+able to use `Virtualenvs <https://jedi.readthedocs.org/en/latest/docs/api.html#environments>`_
+very well.
+
+Tips on how to use Jedi efficiently can be found `here
+<https://jedi.readthedocs.org/en/latest/docs/features.html#recipes>`_.
+
+API
+---
+
+You can find a comprehensive documentation for the
+`API here <https://jedi.readthedocs.org/en/latest/docs/api.html>`_.
+
+Autocompletion / Goto / Documentation
+-------------------------------------
+
+There are the following commands:
+
+- ``jedi.Script.goto``
+- ``jedi.Script.infer``
+- ``jedi.Script.help``
+- ``jedi.Script.complete``
+- ``jedi.Script.get_references``
+- ``jedi.Script.get_signatures``
+- ``jedi.Script.get_context``
+
+The returned objects are very powerful and are really all you might need.
+
+Autocompletion in your REPL (IPython, etc.)
+-------------------------------------------
+
+Jedi is a dependency of IPython. Autocompletion in IPython with Jedi is
+therefore possible without additional configuration.
+
+Here is an `example video <https://vimeo.com/122332037>`_ how REPL completion
+can look like.
+For the ``python`` shell you can enable tab completion in a `REPL
+<https://jedi.readthedocs.org/en/latest/docs/usage.html#tab-completion-in-the-python-shell>`_.
+
+Static Analysis
+---------------
+
+For a lot of forms of static analysis, you can try to use
+``jedi.Script(...).get_names``. It will return a list of names that you can
+then filter and work with. There is also a way to list the syntax errors in a
+file: ``jedi.Script.get_syntax_errors``.
+
+
+Refactoring
+-----------
+
+Jedi supports the following refactorings:
+
+- ``jedi.Script.inline``
+- ``jedi.Script.rename``
+- ``jedi.Script.extract_function``
+- ``jedi.Script.extract_variable``
+
+Code Search
+-----------
+
+There is support for module search with ``jedi.Script.search``, and project
+search for ``jedi.Project.search``. The way to search is either by providing a
+name like ``foo`` or by using dotted syntax like ``foo.bar``. Additionally you
+can provide the API type like ``class foo.bar.Bar``. There are also the
+functions ``jedi.Script.complete_search`` and ``jedi.Project.complete_search``.
+
+Development
+===========
+
+There's a pretty good and extensive `development documentation
+<https://jedi.readthedocs.org/en/latest/docs/development.html>`_.
+
+Testing
+=======
+
+The test suite uses ``pytest``::
+
+    pip install pytest
+
+If you want to test only a specific Python version (e.g. Python 3.8), it is as
+easy as::
+
+    python3.8 -m pytest
+
+For more detailed information visit the `testing documentation
+<https://jedi.readthedocs.org/en/latest/docs/testing.html>`_.
+
+Acknowledgements
+================
+
+Thanks a lot to all the
+`contributors <https://jedi.readthedocs.org/en/latest/docs/acknowledgements.html>`_!
+
+
+.. _jedi-vim: https://github.com/davidhalter/jedi-vim
+.. _youcompleteme: https://github.com/ycm-core/YouCompleteMe
+.. _deoplete-jedi: https://github.com/zchee/deoplete-jedi
+.. _completor.vim: https://github.com/maralla/completor.vim
+.. _Jedi.el: https://github.com/tkf/emacs-jedi
+.. _company-mode: https://github.com/syohex/emacs-company-jedi
+.. _elpy: https://github.com/jorgenschaefer/elpy
+.. _anaconda-mode: https://github.com/proofit404/anaconda-mode
+.. _ycmd: https://github.com/abingham/emacs-ycmd
+.. _sublimejedi: https://github.com/srusskih/SublimeJEDI
+.. _anaconda: https://github.com/DamnWidget/anaconda
+.. _wdb: https://github.com/Kozea/wdb
+.. _TextMate: https://github.com/lawrenceakka/python-jedi.tmbundle
+.. _Kate: https://kate-editor.org
+.. _Atom: https://atom.io/
+.. _autocomplete-python-jedi: https://atom.io/packages/autocomplete-python-jedi
+.. _GNOME Builder: https://wiki.gnome.org/Apps/Builder
+.. _Visual Studio Code: https://code.visualstudio.com/
+.. _gedi: https://github.com/isamert/gedi
+.. _Eric IDE: https://eric-ide.python-projects.org
+
+
+.. :changelog:
+
+Changelog
+---------
+
+Unreleased
+++++++++++
+
+0.19.2 (2024-11-10)
++++++++++++++++++++
+
+- Python 3.13 support
+
+0.19.1 (2023-10-02)
++++++++++++++++++++
+
+- Python 3.12 support (Thanks Peter!)
+
+0.19.0 (2023-07-29)
++++++++++++++++++++
+
+- Python 3.11 support
+- Massive improvements in performance for ``Interpreter`` (e.g. IPython) users.
+  This especially affects ``pandas`` users with large datasets.
+- Add ``jedi.settings.allow_unsafe_interpreter_executions`` to make it easier
+  for IPython users to avoid unsafe executions.
+
+0.18.2 (2022-11-21)
++++++++++++++++++++
+
+- Added dataclass-equivalent for attrs.define
+- Find fixtures from Pytest entrypoints; Examples of pytest plugins installed
+  like this are pytest-django, pytest-sugar and Faker.
+- Fixed Project.search, when a venv was involved, which is why for example
+  `:Pyimport django.db` did not work in some cases in jedi-vim.
+- And many smaller bugfixes
+
+0.18.1 (2021-11-17)
++++++++++++++++++++
+
+- Implict namespaces are now a separate types in ``Name().type``
+- Python 3.10 support
+- Mostly bugfixes
+
+0.18.0 (2020-12-25)
++++++++++++++++++++
+
+- Dropped Python 2 and Python 3.5
+- Using ``pathlib.Path()`` as an output instead of ``str`` in most places:
+  - ``Project.path``
+  - ``Script.path``
+  - ``Definition.module_path``
+  - ``Refactoring.get_renames``
+  - ``Refactoring.get_changed_files``
+- Functions with ``@property`` now return ``property`` instead of ``function``
+  in ``Name().type``
+- Started using annotations
+- Better support for the walrus operator
+- Project attributes are now read accessible
+- Removed all deprecations
+
+This is likely going to be the last minor release before 1.0.
+
+0.17.2 (2020-07-17)
++++++++++++++++++++
+
+- Added an option to pass environment variables to ``Environment``
+- ``Project(...).path`` exists now
+- Support for Python 3.9
+- A few bugfixes
+
+This will be the last release that supports Python 2 and Python 3.5.
+``0.18.0`` will be Python 3.6+.
+
+0.17.1 (2020-06-20)
++++++++++++++++++++
+
+- Django ``Model`` meta class support
+- Django Manager support (completion on Managers/QuerySets)
+- Added Django Stubs to Jedi, thanks to all contributors of the
+  `Django Stubs <https://github.com/typeddjango/django-stubs>`_ project
+- Added ``SyntaxError.get_message``
+- Python 3.9 support
+- Bugfixes (mostly towards Generics)
+
+0.17.0 (2020-04-14)
++++++++++++++++++++
+
+- Added ``Project`` support. This allows a user to specify which folders Jedi
+  should work with.
+- Added support for Refactoring. The following refactorings have been
+  implemented: ``Script.rename``, ``Script.inline``,
+  ``Script.extract_variable`` and ``Script.extract_function``.
+- Added ``Script.get_syntax_errors`` to display syntax errors in the current
+  script.
+- Added code search capabilities both for individual files and projects. The
+  new functions are ``Project.search``, ``Project.complete_search``,
+  ``Script.search`` and ``Script.complete_search``.
+- Added ``Script.help`` to make it easier to display a help window to people.
+  Now returns pydoc information as well for Python keywords/operators.  This
+  means that on the class keyword it will now return the docstring of Python's
+  builtin function ``help('class')``.
+- The API documentation is now way more readable and complete. Check it out
+  under https://jedi.readthedocs.io. A lot of it has been rewritten.
+- Removed Python 3.4 support
+- Many bugfixes
+
+This is likely going to be the last minor version that supports Python 2 and
+Python3.5. Bugfixes will be provided in 0.17.1+. The next minor/major version
+will probably be Jedi 1.0.0.
+
+0.16.0 (2020-01-26)
++++++++++++++++++++
+
+- **Added** ``Script.get_context`` to get information where you currently are.
+- Completions/type inference of **Pytest fixtures**.
+- Tensorflow, Numpy and Pandas completions should now be about **4-10x faster**
+  after the first time they are used.
+- Dict key completions are working now. e.g. ``d = {1000: 3}; d[10`` will
+  expand to ``1000``.
+- Completion for "proxies" works now. These are classes that have a
+  ``__getattr__(self, name)`` method that does a ``return getattr(x, name)``.
+  after loading them initially.
+- Goto on a function/attribute in a class now goes to the definition in its
+  super class.
+- Big **Script API Changes**:
+    - The line and column parameters of ``jedi.Script`` are now deprecated
+    - ``completions`` deprecated, use ``complete`` instead
+    - ``goto_assignments`` deprecated, use ``goto`` instead
+    - ``goto_definitions`` deprecated, use ``infer`` instead
+    - ``call_signatures`` deprecated, use ``get_signatures`` instead
+    - ``usages`` deprecated, use ``get_references`` instead
+    - ``jedi.names`` deprecated, use ``jedi.Script(...).get_names()``
+- ``BaseName.goto_assignments`` renamed to ``BaseName.goto``
+- Add follow_imports to ``Name.goto``. Now its signature matches
+  ``Script.goto``.
+- **Python 2 support deprecated**. For this release it is best effort. Python 2
+  has reached the end of its life and now it's just about a smooth transition.
+  Bugs for Python 2 will not be fixed anymore and a third of the tests are
+  already skipped.
+- Removed ``settings.no_completion_duplicates``. It wasn't tested and nobody
+  was probably using it anyway.
+- Removed ``settings.use_filesystem_cache`` and
+  ``settings.additional_dynamic_modules``, they have no usage anymore. Pretty
+  much nobody was probably using them.
+
+0.15.2 (2019-12-20)
++++++++++++++++++++
+
+- Signatures are now detected a lot better
+- Add fuzzy completions with ``Script(...).completions(fuzzy=True)``
+- Files bigger than one MB (about 20kLOC) get cropped to avoid getting
+  stuck completely.
+- Many small Bugfixes
+- A big refactoring around contexts/values
+
+0.15.1 (2019-08-13)
++++++++++++++++++++
+
+- Small bugfix and removal of a print statement
+
+0.15.0 (2019-08-11)
++++++++++++++++++++
+
+- Added file path completions, there's a **new** ``Completion.type`` now:
+  ``path``. Example: ``'/ho`` -> ``'/home/``
+- ``*args``/``**kwargs`` resolving. If possible Jedi replaces the parameters
+  with the actual alternatives.
+- Better support for enums/dataclasses
+- When using Interpreter, properties are now executed, since a lot of people
+  have complained about this. Discussion in #1299, #1347.
+
+New APIs:
+
+- ``Name.get_signatures() -> List[Signature]``. Signatures are similar to
+  ``CallSignature``. ``Name.params`` is therefore deprecated.
+- ``Signature.to_string()`` to format signatures.
+- ``Signature.params -> List[ParamName]``, ParamName has the
+  following additional attributes ``infer_default()``, ``infer_annotation()``,
+  ``to_string()``, and ``kind``.
+- ``Name.execute() -> List[Name]``, makes it possible to infer
+  return values of functions.
+
+
+0.14.1 (2019-07-13)
++++++++++++++++++++
+
+- CallSignature.index should now be working a lot better
+- A couple of smaller bugfixes
+
+0.14.0 (2019-06-20)
++++++++++++++++++++
+
+- Added ``goto_*(prefer_stubs=True)`` as well as ``goto_*(prefer_stubs=True)``
+- Stubs are used now for type inference
+- Typeshed is used for better type inference
+- Reworked Name.full_name, should have more correct return values
+
+0.13.3 (2019-02-24)
++++++++++++++++++++
+
+- Fixed an issue with embedded Python, see https://github.com/davidhalter/jedi-vim/issues/870
+
+0.13.2 (2018-12-15)
++++++++++++++++++++
+
+- Fixed a bug that led to Jedi spawning a lot of subprocesses.
+
+0.13.1 (2018-10-02)
++++++++++++++++++++
+
+- Bugfixes, because tensorflow completions were still slow.
+
+0.13.0 (2018-10-02)
++++++++++++++++++++
+
+- A small release. Some bug fixes.
+- Remove Python 3.3 support. Python 3.3 support has been dropped by the Python
+  foundation.
+- Default environments are now using the same Python version as the Python
+  process. In 0.12.x, we used to load the latest Python version on the system.
+- Added ``include_builtins`` as a parameter to usages.
+- ``goto_assignments`` has a new ``follow_builtin_imports`` parameter that
+  changes the previous behavior slightly.
+
+0.12.1 (2018-06-30)
++++++++++++++++++++
+
+- This release forces you to upgrade parso. If you don't, nothing will work
+  anymore. Otherwise changes should be limited to bug fixes. Unfortunately Jedi
+  still uses a few internals of parso that make it hard to keep compatibility
+  over multiple releases. Parso >=0.3.0 is going to be needed.
+
+0.12.0 (2018-04-15)
++++++++++++++++++++
+
+- Virtualenv/Environment support
+- F-String Completion/Goto Support
+- Cannot crash with segfaults anymore
+- Cleaned up import logic
+- Understand async/await and autocomplete it (including async generators)
+- Better namespace completions
+- Passing tests for Windows (including CI for Windows)
+- Remove Python 2.6 support
+
+0.11.1 (2017-12-14)
++++++++++++++++++++
+
+- Parso update - the caching layer was broken
+- Better usages - a lot of internal code was ripped out and improved.
+
+0.11.0 (2017-09-20)
++++++++++++++++++++
+
+- Split Jedi's parser into a separate project called ``parso``.
+- Avoiding side effects in REPL completion.
+- Numpy docstring support should be much better.
+- Moved the `settings.*recursion*` away, they are no longer usable.
+
+0.10.2 (2017-04-05)
++++++++++++++++++++
+
+- Python Packaging sucks. Some files were not included in 0.10.1.
+
+0.10.1 (2017-04-05)
++++++++++++++++++++
+
+- Fixed a few very annoying bugs.
+- Prepared the parser to be factored out of Jedi.
+
+0.10.0 (2017-02-03)
++++++++++++++++++++
+
+- Actual semantic completions for the complete Python syntax.
+- Basic type inference for ``yield from`` PEP 380.
+- PEP 484 support (most of the important features of it). Thanks Claude! (@reinhrst)
+- Added ``get_line_code`` to ``Name`` and ``Completion`` objects.
+- Completely rewritten the type inference engine.
+- A new and better parser for (fast) parsing diffs of Python code.
+
+0.9.0 (2015-04-10)
+++++++++++++++++++
+
+- The import logic has been rewritten to look more like Python's. There is now
+  an ``InferState.modules`` import cache, which resembles ``sys.modules``.
+- Integrated the parser of 2to3. This will make refactoring possible. It will
+  also be possible to check for error messages (like compiling an AST would give)
+  in the future.
+- With the new parser, the type inference also completely changed. It's now
+  simpler and more readable.
+- Completely rewritten REPL completion.
+- Added ``jedi.names``, a command to do static analysis. Thanks to that
+  sourcegraph guys for sponsoring this!
+- Alpha version of the linter.
+
+
+0.8.1 (2014-07-23)
++++++++++++++++++++
+
+- Bugfix release, the last release forgot to include files that improve
+  autocompletion for builtin libraries. Fixed.
+
+0.8.0 (2014-05-05)
++++++++++++++++++++
+
+- Memory Consumption for compiled modules (e.g. builtins, sys) has been reduced
+  drastically. Loading times are down as well (it takes basically as long as an
+  import).
+- REPL completion is starting to become usable.
+- Various small API changes. Generally this release focuses on stability and
+  refactoring of internal APIs.
+- Introducing operator precedence, which makes calculating correct Array
+  indices and ``__getattr__`` strings possible.
+
+0.7.0 (2013-08-09)
+++++++++++++++++++
+
+- Switched from LGPL to MIT license.
+- Added an Interpreter class to the API to make autocompletion in REPL
+  possible.
+- Added autocompletion support for namespace packages.
+- Add sith.py, a new random testing method.
+
+0.6.0 (2013-05-14)
+++++++++++++++++++
+
+- Much faster parser with builtin part caching.
+- A test suite, thanks @tkf.
+
+0.5 versions (2012)
++++++++++++++++++++
+
+- Initial development.
+
+

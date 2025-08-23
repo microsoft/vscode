@@ -1,0 +1,232 @@
+Metadata-Version: 2.4
+Name: attrs
+Version: 25.3.0
+Summary: Classes Without Boilerplate
+Project-URL: Documentation, https://www.attrs.org/
+Project-URL: Changelog, https://www.attrs.org/en/stable/changelog.html
+Project-URL: GitHub, https://github.com/python-attrs/attrs
+Project-URL: Funding, https://github.com/sponsors/hynek
+Project-URL: Tidelift, https://tidelift.com/subscription/pkg/pypi-attrs?utm_source=pypi-attrs&utm_medium=pypi
+Author-email: Hynek Schlawack <hs@ox.cx>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: attribute,boilerplate,class
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Typing :: Typed
+Requires-Python: >=3.8
+Provides-Extra: benchmark
+Requires-Dist: cloudpickle; (platform_python_implementation == 'CPython') and extra == 'benchmark'
+Requires-Dist: hypothesis; extra == 'benchmark'
+Requires-Dist: mypy>=1.11.1; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'benchmark'
+Requires-Dist: pympler; extra == 'benchmark'
+Requires-Dist: pytest-codspeed; extra == 'benchmark'
+Requires-Dist: pytest-mypy-plugins; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'benchmark'
+Requires-Dist: pytest-xdist[psutil]; extra == 'benchmark'
+Requires-Dist: pytest>=4.3.0; extra == 'benchmark'
+Provides-Extra: cov
+Requires-Dist: cloudpickle; (platform_python_implementation == 'CPython') and extra == 'cov'
+Requires-Dist: coverage[toml]>=5.3; extra == 'cov'
+Requires-Dist: hypothesis; extra == 'cov'
+Requires-Dist: mypy>=1.11.1; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'cov'
+Requires-Dist: pympler; extra == 'cov'
+Requires-Dist: pytest-mypy-plugins; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'cov'
+Requires-Dist: pytest-xdist[psutil]; extra == 'cov'
+Requires-Dist: pytest>=4.3.0; extra == 'cov'
+Provides-Extra: dev
+Requires-Dist: cloudpickle; (platform_python_implementation == 'CPython') and extra == 'dev'
+Requires-Dist: hypothesis; extra == 'dev'
+Requires-Dist: mypy>=1.11.1; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'dev'
+Requires-Dist: pre-commit-uv; extra == 'dev'
+Requires-Dist: pympler; extra == 'dev'
+Requires-Dist: pytest-mypy-plugins; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'dev'
+Requires-Dist: pytest-xdist[psutil]; extra == 'dev'
+Requires-Dist: pytest>=4.3.0; extra == 'dev'
+Provides-Extra: docs
+Requires-Dist: cogapp; extra == 'docs'
+Requires-Dist: furo; extra == 'docs'
+Requires-Dist: myst-parser; extra == 'docs'
+Requires-Dist: sphinx; extra == 'docs'
+Requires-Dist: sphinx-notfound-page; extra == 'docs'
+Requires-Dist: sphinxcontrib-towncrier; extra == 'docs'
+Requires-Dist: towncrier; extra == 'docs'
+Provides-Extra: tests
+Requires-Dist: cloudpickle; (platform_python_implementation == 'CPython') and extra == 'tests'
+Requires-Dist: hypothesis; extra == 'tests'
+Requires-Dist: mypy>=1.11.1; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'tests'
+Requires-Dist: pympler; extra == 'tests'
+Requires-Dist: pytest-mypy-plugins; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'tests'
+Requires-Dist: pytest-xdist[psutil]; extra == 'tests'
+Requires-Dist: pytest>=4.3.0; extra == 'tests'
+Provides-Extra: tests-mypy
+Requires-Dist: mypy>=1.11.1; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'tests-mypy'
+Requires-Dist: pytest-mypy-plugins; (platform_python_implementation == 'CPython' and python_version >= '3.10') and extra == 'tests-mypy'
+Description-Content-Type: text/markdown
+
+<p align="center">
+  <a href="https://www.attrs.org/">
+    <img src="https://raw.githubusercontent.com/python-attrs/attrs/main/docs/_static/attrs_logo.svg" width="35%" alt="attrs" />
+  </a>
+</p>
+
+
+*attrs* is the Python package that will bring back the **joy** of **writing classes** by relieving you from the drudgery of implementing object protocols (aka [dunder methods](https://www.attrs.org/en/latest/glossary.html#term-dunder-methods)).
+[Trusted by NASA](https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-github-profile/customizing-your-profile/personalizing-your-profile#list-of-qualifying-repositories-for-mars-2020-helicopter-contributor-achievement) for Mars missions since 2020!
+
+Its main goal is to help you to write **concise** and **correct** software without slowing down your code.
+
+
+## Sponsors
+
+*attrs* would not be possible without our [amazing sponsors](https://github.com/sponsors/hynek).
+Especially those generously supporting us at the *The Organization* tier and higher:
+
+<!-- sponsor-break-begin -->
+
+<p align="center">
+
+<!-- [[[cog
+import pathlib, tomllib
+
+for sponsor in tomllib.loads(pathlib.Path("pyproject.toml").read_text())["tool"]["sponcon"]["sponsors"]:
+      print(f'<a href="{sponsor["url"]}"><img title="{sponsor["title"]}" src="https://www.attrs.org/en/25.3.0/_static/sponsors/{sponsor["img"]}" width="190" /></a>')
+]]] -->
+<a href="https://www.variomedia.de/"><img title="Variomedia AG" src="https://www.attrs.org/en/25.3.0/_static/sponsors/Variomedia.svg" width="190" /></a>
+<a href="https://tidelift.com/?utm_source=lifter&utm_medium=referral&utm_campaign=hynek"><img title="Tidelift" src="https://www.attrs.org/en/25.3.0/_static/sponsors/Tidelift.svg" width="190" /></a>
+<a href="https://klaviyo.com/"><img title="Klaviyo" src="https://www.attrs.org/en/25.3.0/_static/sponsors/Klaviyo.svg" width="190" /></a>
+<a href="https://privacy-solutions.org/"><img title="Privacy Solutions" src="https://www.attrs.org/en/25.3.0/_static/sponsors/Privacy-Solutions.svg" width="190" /></a>
+<a href="https://www.emsys-renewables.com/"><img title="emsys renewables" src="https://www.attrs.org/en/25.3.0/_static/sponsors/emsys-renewables.svg" width="190" /></a>
+<a href="https://filepreviews.io/"><img title="FilePreviews" src="https://www.attrs.org/en/25.3.0/_static/sponsors/FilePreviews.svg" width="190" /></a>
+<a href="https://polar.sh/"><img title="Polar" src="https://www.attrs.org/en/25.3.0/_static/sponsors/Polar.svg" width="190" /></a>
+<!-- [[[end]]] -->
+
+</p>
+
+<!-- sponsor-break-end -->
+
+<p align="center">
+   <strong>Please consider <a href="https://github.com/sponsors/hynek">joining them</a> to help make <em>attrs</em>’s maintenance more sustainable!</strong>
+</p>
+
+<!-- teaser-end -->
+
+## Example
+
+*attrs* gives you a class decorator and a way to declaratively define the attributes on that class:
+
+<!-- code-begin -->
+
+```pycon
+>>> from attrs import asdict, define, make_class, Factory
+
+>>> @define
+... class SomeClass:
+...     a_number: int = 42
+...     list_of_numbers: list[int] = Factory(list)
+...
+...     def hard_math(self, another_number):
+...         return self.a_number + sum(self.list_of_numbers) * another_number
+
+
+>>> sc = SomeClass(1, [1, 2, 3])
+>>> sc
+SomeClass(a_number=1, list_of_numbers=[1, 2, 3])
+
+>>> sc.hard_math(3)
+19
+>>> sc == SomeClass(1, [1, 2, 3])
+True
+>>> sc != SomeClass(2, [3, 2, 1])
+True
+
+>>> asdict(sc)
+{'a_number': 1, 'list_of_numbers': [1, 2, 3]}
+
+>>> SomeClass()
+SomeClass(a_number=42, list_of_numbers=[])
+
+>>> C = make_class("C", ["a", "b"])
+>>> C("foo", "bar")
+C(a='foo', b='bar')
+```
+
+After *declaring* your attributes, *attrs* gives you:
+
+- a concise and explicit overview of the class's attributes,
+- a nice human-readable `__repr__`,
+- equality-checking methods,
+- an initializer,
+- and much more,
+
+*without* writing dull boilerplate code again and again and *without* runtime performance penalties.
+
+---
+
+This example uses *attrs*'s modern APIs that have been introduced in version 20.1.0, and the *attrs* package import name that has been added in version 21.3.0.
+The classic APIs (`@attr.s`, `attr.ib`, plus their serious-business aliases) and the `attr` package import name will remain **indefinitely**.
+
+Check out [*On The Core API Names*](https://www.attrs.org/en/latest/names.html) for an in-depth explanation!
+
+
+### Hate Type Annotations!?
+
+No problem!
+Types are entirely **optional** with *attrs*.
+Simply assign `attrs.field()` to the attributes instead of annotating them with types:
+
+```python
+from attrs import define, field
+
+@define
+class SomeClass:
+    a_number = field(default=42)
+    list_of_numbers = field(factory=list)
+```
+
+
+## Data Classes
+
+On the tin, *attrs* might remind you of `dataclasses` (and indeed, `dataclasses` [are a descendant](https://hynek.me/articles/import-attrs/) of *attrs*).
+In practice it does a lot more and is more flexible.
+For instance, it allows you to define [special handling of NumPy arrays for equality checks](https://www.attrs.org/en/stable/comparison.html#customization), allows more ways to [plug into the initialization process](https://www.attrs.org/en/stable/init.html#hooking-yourself-into-initialization), has a replacement for `__init_subclass__`, and allows for stepping through the generated methods using a debugger.
+
+For more details, please refer to our [comparison page](https://www.attrs.org/en/stable/why.html#data-classes), but generally speaking, we are more likely to commit crimes against nature to make things work that one would expect to work, but that are quite complicated in practice.
+
+
+## Project Information
+
+- [**Changelog**](https://www.attrs.org/en/stable/changelog.html)
+- [**Documentation**](https://www.attrs.org/)
+- [**PyPI**](https://pypi.org/project/attrs/)
+- [**Source Code**](https://github.com/python-attrs/attrs)
+- [**Contributing**](https://github.com/python-attrs/attrs/blob/main/.github/CONTRIBUTING.md)
+- [**Third-party Extensions**](https://github.com/python-attrs/attrs/wiki/Extensions-to-attrs)
+- **Get Help**: use the `python-attrs` tag on [Stack Overflow](https://stackoverflow.com/questions/tagged/python-attrs)
+
+
+### *attrs* for Enterprise
+
+Available as part of the [Tidelift Subscription](https://tidelift.com/?utm_source=lifter&utm_medium=referral&utm_campaign=hynek).
+
+The maintainers of *attrs* and thousands of other packages are working with Tidelift to deliver commercial support and maintenance for the open source packages you use to build your applications.
+Save time, reduce risk, and improve code health, while paying the maintainers of the exact packages you use.
+
+## Release Information
+
+### Changes
+
+- Restore support for generator-based `field_transformer`s.
+  [#1417](https://github.com/python-attrs/attrs/issues/1417)
+
+
+
+---
+
+[Full changelog →](https://www.attrs.org/en/stable/changelog.html)

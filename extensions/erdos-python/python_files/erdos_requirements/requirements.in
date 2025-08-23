@@ -1,0 +1,48 @@
+# This file is used to generate requirements.txt.
+# To update requirements.txt, run the following commands.
+# Use Python 3.9 when creating the environment or using pip-tools
+# 1) Install `uv` https://docs.astral.sh/uv/getting-started/installation/
+# 2) uv pip compile --generate-hashes --upgrade python_files/erdos_requirements/requirements.in > python_files/erdos_requirements/requirements.txt
+
+docstring-to-markdown==0.13
+jedi-language-server>=0.44.0
+markdown-it-py
+# Stick to pydantic v1 since it has a pure Python implementation which is much easy to vendor.
+pydantic<2.0.0
+pygls>=0.10.3
+pygments
+typing-extensions<4.11.0
+ipykernel
+ipython
+jupyter_client
+jupyter_core
+comm
+debugpy
+pexpect
+ptyprocess
+pyzmq
+tornado
+
+asttokens
+decorator
+executing
+importlib_metadata
+matplotlib_inline
+microvenv
+nest_asyncio
+packaging
+parso
+platformdirs
+prompt_toolkit
+psutil
+pure_eval
+python_dateutil
+six
+stack_data
+tomli
+traitlets
+wcwidth
+zipp
+
+# macOS specific (conditional)
+appnope

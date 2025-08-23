@@ -1,0 +1,7 @@
+X=1
+Y=2
+PYTHONPATH=/usr/one/three:/usr/one/four
+# Unix PATH variable
+PATH=/usr/x:/usr/y
+# Windows Path variable
+Path=/usr/x:/usr/y

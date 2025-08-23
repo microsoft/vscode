@@ -1,0 +1,9 @@
+home = ~\appdata\local\programs\python\python38
+implementation = CPython
+version_info = 3.8.2.final.0
+virtualenv = 20.1.0
+include-system-site-packages = false
+base-prefix = ~\appdata\local\programs\python\python38
+base-exec-prefix = ~\appdata\local\programs\python\python38
+base-executable = ~\appdata\local\programs\python\python38\python.exe
+prompt = (pythonEnv)

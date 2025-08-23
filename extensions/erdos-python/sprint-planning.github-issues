@@ -1,0 +1,72 @@
+[
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# Query constants"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$pvsc=repo:microsoft/vscode-python\n$open=is:open\n$upvotes=sort:reactions-+1-desc"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# Priority issues 🚨"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "## Important/P1"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$pvsc $open label:\"important\""
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# Regressions 🔙"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$pvsc $open label:\"regression\""
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# Partner asks"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$pvsc $open label:\"partner ask\""
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "# Upvotes 👍"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "## Enhancements 💪"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$pvsc $open $upvotes label:\"feature-request\" "
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "## Bugs 🐜"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$pvsc $open $upvotes label:\"bug\""
+  }
+]

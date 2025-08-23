@@ -683,6 +683,320 @@ function* refVisitor(
 	}
 }
 
+/**
+ * Process schema fields and create types for objects, enums, and one-ofs in Python.
+ */
+function* createPythonValueTypes(source: any, contracts: any[], models: string[]): Generator<string> {
+	// Create enums for all enum types
+	yield* enumVisitor([], source, function* (context: Array<string>, values: Array<string>) {
+		if (context.length === 1) {
+			// Shared enum at the components.schemas level
+			yield '@enum.unique\n';
+			yield `class ${snakeCaseToSentenceCase(context[0])}(str, enum.Enum):\n`;
+			yield '    """\n';
+			yield formatComment(`    `,
+				`Possible values for ` +
+				snakeCaseToSentenceCase(context[0]));
+		} else {
+			// Enum field within another interface
+			yield '@enum.unique\n';
+			yield `class ${snakeCaseToSentenceCase(context[1])}`;
+			yield `${snakeCaseToSentenceCase(context[0])}(str, enum.Enum):\n`;
+			yield '    """\n';
+			yield formatComment(`    `,
+				`Possible values for ` +
+				snakeCaseToSentenceCase(context[0]) +
+				` in ` +
+				snakeCaseToSentenceCase(context[1]));
+		}
+		yield '    """\n';
+		yield '\n';
+		for (let i = 0; i < values.length; i++) {
+			const value = values[i];
+			yield `    ${snakeCaseToSentenceCase(value)} = "${value}"`;
+			if (i < values.length - 1) {
+				yield '\n\n';
+			} else {
+				yield '\n';
+			}
+		}
+		yield '\n\n';
+	});
+
+	// Create pydantic models for all object types
+	yield* objectVisitor([], source, function* (
+		context: Array<string>,
+		o: Record<string, any>) {
+
+		let name = o.name ? o.name : context[0] === 'items' ? context[1] : context[0];
+		name = snakeCaseToSentenceCase(name);
+
+		// Empty object specs map to `Any`
+		const props = Object.keys(o.properties);
+		if ((!props || !props.length) && o.additionalProperties === true) {
+			return yield `${name} = Any\n`;
+		}
+
+		// Preamble
+		models.push(name);
+		yield `class ${name}(BaseModel):\n`;
+
+		// Docstring
+		if (o.description) {
+			yield '    """\n';
+			yield formatComment('    ', o.description);
+			yield '    """\n';
+			yield '\n';
+		} else {
+			yield '    """\n';
+			yield formatComment('    ', snakeCaseToSentenceCase(context[0]) + ' in ' +
+				snakeCaseToSentenceCase(context[1]));
+			yield '    """\n';
+			yield '\n';
+		}
+
+		// Fields
+		for (const prop of Object.keys(o.properties)) {
+			const schema = o.properties[prop];
+			yield `    ${prop}: `;
+			if (!o.required || !o.required.includes(prop)) {
+				yield 'Optional[';
+				yield deriveType(contracts, PythonTypeMap, [prop, ...context], schema);
+				yield ']';
+			} else {
+				yield deriveType(contracts, PythonTypeMap, [prop, ...context], schema);
+			}
+			yield ' = Field(\n';
+			if (!o.required || !o.required.includes(prop)) {
+				yield `        default=None,\n`;
+			}
+			yield `        description="${schema.description}",\n`;
+			yield `    )\n\n`;
+		}
+		yield '\n\n';
+	});
+
+	// Create declare out-of-line union types
+	yield* oneOfVisitor([], source, function* (
+		context: Array<string>,
+		o: Record<string, any>) {
+
+		let name = o.name ? o.name : context[0] === 'items' ? context[1] : context[0];
+		name = snakeCaseToSentenceCase(name);
+
+		// Document origin of union
+		if (o.description) {
+			yield formatComment('# ', o.description);
+		} else if (context.length === 1) {
+			yield formatComment('# ', snakeCaseToSentenceCase(context[0]));
+		} else {
+			yield formatComment('# ', snakeCaseToSentenceCase(context[0]) + ' in ' +
+				snakeCaseToSentenceCase(context[1]));
+		}
+
+		yield `${name} = Union[`;
+		// Options
+		for (const option of o.oneOf) {
+			if (option.name === undefined) {
+				throw new Error(`No name in option: ${JSON.stringify(option)}`);
+			}
+			yield deriveType(contracts, PythonTypeMap, [option.name, ...context], option);
+			yield ', ';
+		}
+		yield ']\n';
+	});
+}
+
+/**
+ * Create a Python comm for a given OpenRPC contract.
+ */
+function* createPythonComm(name: string, frontend: any, backend: any): Generator<string> {
+	yield `#
+# Copyright (C) ${year} Lotas Inc. All rights reserved.
+#
+
+#
+# AUTO-GENERATED from ${name}.json; do not edit.
+#
+
+# flake8: noqa
+
+# For forward declarations
+from __future__ import annotations
+
+import enum
+from typing import Any, List, Literal, Optional, Union
+
+from ._vendor.pydantic import BaseModel, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+
+`;
+
+	const contracts = [backend, frontend].filter(element => element !== undefined);
+
+	// Add imports for external references
+	const externalReferences = collectExternalReferences(contracts);
+	if (externalReferences.length) {
+		for (const { fileName, refs } of externalReferences) {
+			if (refs.length) {
+				yield `from .${fileName}_comm import ${refs.join(', ')}\n`;
+			}
+		}
+		yield `\n`;
+	}
+
+	const models = Array<string>();
+
+	for (const source of contracts) {
+		yield* createPythonValueTypes(source, contracts, models);
+	}
+
+	if (backend) {
+		yield '@enum.unique\n';
+		yield `class ${snakeCaseToSentenceCase(name)}BackendRequest(str, enum.Enum):\n`;
+		yield `    """\n`;
+		yield `    An enumeration of all the possible requests that can be sent to the backend ${name} comm.\n`;
+		yield `    """\n`;
+		yield `\n`;
+		for (const method of backend.methods) {
+			if (method.result) {
+				yield formatComment('    # ', method.summary);
+				yield `    ${snakeCaseToSentenceCase(method.name)} = "${method.name}"\n`;
+				yield '\n';
+			}
+		}
+	}
+
+	if (backend) {
+		for (const method of backend.methods) {
+			if (!method.description) {
+				throw new Error(`No description for '${method.name}'; please add a description to the schema`);
+			}
+
+			const params: Array<MethodParam> = method.params;
+
+			if (params.length > 0) {
+				const klass = `${snakeCaseToSentenceCase(method.name)}Params`;
+				models.push(klass);
+				yield `class ${klass}(BaseModel):\n`;
+				yield `    """\n`;
+				yield formatComment('    ', method.description);
+				yield `    """\n`;
+				yield `\n`;
+
+				for (const param of params) {
+					yield `    ${param.name}: `;
+					if (isOptional(param)) {
+						yield 'Optional[';
+					}
+					if (param.schema.enum) {
+						yield snakeCaseToSentenceCase(method.name) + snakeCaseToSentenceCase(param.name);
+					} else {
+						yield deriveType(contracts, PythonTypeMap, [param.name], param.schema);
+					}
+					if (isOptional(param)) {
+						yield ']';
+					}
+					yield ' = Field(\n';
+					if (isOptional(param)) {
+						yield `        default=None,\n`;
+					}
+					yield `        description="${param.description}",\n`;
+					yield `    )\n\n`;
+				}
+			}
+
+			const klass = `${snakeCaseToSentenceCase(method.name)}Request`;
+			models.push(klass);
+			yield `class ${klass}(BaseModel):\n`;
+			yield `    """\n`;
+			yield formatComment('    ', method.description);
+			yield `    """\n`;
+			yield `\n`;
+			if (method.params.length > 0) {
+				yield `    params: ${snakeCaseToSentenceCase(method.name)}Params = Field(\n`;
+				yield `        description="Parameters to the ${snakeCaseToSentenceCase(method.name)} method",\n`;
+				yield `    )\n`;
+				yield `\n`;
+			}
+			yield `    method: Literal[${snakeCaseToSentenceCase(name)}BackendRequest.${snakeCaseToSentenceCase(method.name)}] = Field(\n`;
+			yield `        description="The JSON-RPC method name (${method.name})",\n`;
+			yield `    )\n`;
+			yield '\n';
+			yield `    jsonrpc: str = Field(\n`;
+			yield `        default="2.0",`;
+			yield `        description="The JSON-RPC version specifier",\n`;
+			yield `    )\n`;
+			yield `\n`;
+		}
+	}
+
+	// Create the backend message content class
+	if (backend && backend.methods) {
+		yield `class ${snakeCaseToSentenceCase(name)}BackendMessageContent(BaseModel):\n`;
+		yield `    comm_id: str\n`;
+		if (backend.methods.length === 1) {
+			yield `    data: ${snakeCaseToSentenceCase(backend.methods[0].name)}Request`;
+		} else {
+			yield `    data: Union[\n`;
+			for (const method of backend.methods) {
+				yield `        ${snakeCaseToSentenceCase(method.name)}Request,\n`;
+			}
+			yield `    ] = Field(..., discriminator="method")\n`;
+		}
+		yield `\n`;
+	}
+
+	if (frontend) {
+		yield `@enum.unique\n`;
+		yield `class ${snakeCaseToSentenceCase(name)}FrontendEvent(str, enum.Enum):\n`;
+		yield `    """\n`;
+		yield `    An enumeration of all the possible events that can be sent to the frontend ${name} comm.\n`;
+		yield `    """\n`;
+		yield `\n`;
+		for (const method of frontend.methods) {
+			// Skip requests
+			if (method.result) {
+				continue;
+			}
+			yield formatComment('    # ', method.summary);
+			yield `    ${snakeCaseToSentenceCase(method.name)} = "${method.name}"\n`;
+			yield '\n';
+		}
+
+		for (const method of frontend.methods) {
+			if (method.params.length > 0) {
+				const klass = `${snakeCaseToSentenceCase(method.name)}Params`;
+				models.push(klass);
+				yield `class ${klass}(BaseModel):\n`;
+				yield `    """\n`;
+				yield formatComment('    ', method.summary);
+				yield `    """\n`;
+				yield `\n`;
+				for (const param of method.params) {
+					yield `    ${param.name}: `;
+					if (isOptional(param)) {
+						yield `Optional[`;
+					}
+					if (param.schema.enum) {
+						yield `${snakeCaseToSentenceCase(method.name)}${snakeCaseToSentenceCase(param.name)}`;
+					} else {
+						yield `${deriveType(contracts, PythonTypeMap, [param.name], param.schema)}`;
+					}
+					if (isOptional(param)) {
+						yield `]`;
+					}
+					yield ' = Field(\n';
+					yield `        description="${param.description}",\n`;
+					yield `    )\n\n`;
+				}
+			}
+		}
+	}
+	for (const model of models) {
+		yield `${model}.update_forward_refs()\n\n`;
+	}
+}
+
 async function createCommInterface() {
 	for (const file of commsFiles) {
 		if (!file.endsWith('.json')) {
@@ -717,6 +1031,16 @@ async function createCommInterface() {
 
 				console.log(`Writing generated comm file: ${tsOutputFile}`);
 				writeFileSync(tsOutputFile, ts, { encoding: 'utf-8' });
+
+				// Create the Python output file
+				const pythonOutputFile = path.join(pythonOutputDir, `${name}_comm.py`);
+				let python = '';
+				for await (const chunk of createPythonComm(name, frontend, backend)) {
+					python += chunk;
+				}
+
+				console.log(`Writing generated comm file: ${pythonOutputFile}`);
+				writeFileSync(pythonOutputFile, python, { encoding: 'utf-8' });
 			}
 		} catch (e: any) {
 			if (e.message) {

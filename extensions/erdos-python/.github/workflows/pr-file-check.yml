@@ -1,0 +1,58 @@
+name: PR files
+
+on:
+  pull_request:
+    types:
+      - 'opened'
+      - 'reopened'
+      - 'synchronize'
+      - 'labeled'
+      - 'unlabeled'
+
+permissions: {}
+
+jobs:
+  changed-files-in-pr:
+    name: 'Check for changed files'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'package-lock.json matches package.json'
+        uses: brettcannon/check-for-changed-files@871d7b8b5917a4f6f06662e2262e8ffc51dff6d1 # v1.2.1
+        with:
+          prereq-pattern: 'package.json'
+          file-pattern: 'package-lock.json'
+          skip-label: 'skip package*.json'
+          failure-message: '${prereq-pattern} was edited but ${file-pattern} was not (the ${skip-label} label can be used to pass this check)'
+
+      - name: 'package.json matches package-lock.json'
+        uses: brettcannon/check-for-changed-files@871d7b8b5917a4f6f06662e2262e8ffc51dff6d1 # v1.2.1
+        with:
+          prereq-pattern: 'package-lock.json'
+          file-pattern: 'package.json'
+          skip-label: 'skip package*.json'
+          failure-message: '${prereq-pattern} was edited but ${file-pattern} was not (the ${skip-label} label can be used to pass this check)'
+
+      - name: 'Tests'
+        uses: brettcannon/check-for-changed-files@871d7b8b5917a4f6f06662e2262e8ffc51dff6d1 # v1.2.1
+        with:
+          prereq-pattern: src/**/*.ts
+          file-pattern: |
+            src/**/*.test.ts
+            src/**/*.testvirtualenvs.ts
+            .github/test_plan.md
+          skip-label: 'skip tests'
+          failure-message: 'TypeScript code was edited without also editing a ${file-pattern} file; see the Testing page in our wiki on testing guidelines (the ${skip-label} label can be used to pass this check)'
+
+      - name: 'Ensure PR has an associated issue'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            if (!labels.includes('skip-issue-check')) {
+              const prBody = context.payload.pull_request.body || '';
+              const issueLink = prBody.match(/https:\/\/github\.com\/\S+\/issues\/\d+/);
+              const issueReference = prBody.match(/#\d+/);
+              if (!issueLink && !issueReference) {
+                core.setFailed('No associated issue found in the PR description.');
+              }
+            }

@@ -1,0 +1,46 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "*": ["types/*"],
+            "erdos": ["src/client/erdos.d.ts"]
+        },
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "es2018",
+        "outDir": "out",
+        "lib": [
+            "es6",
+            "es2018",
+            "dom",
+            "ES2019",
+            "ES2020"
+        ],
+        "sourceMap": true,
+        "rootDir": "src",
+        "experimentalDecorators": true,
+        "allowSyntheticDefaultImports": true,
+        "strict": true,
+        "noImplicitAny": true,
+        "noImplicitThis": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+        "resolveJsonModule": true,
+        "removeComments": true
+    },
+    "exclude": [
+        "node_modules",
+        ".vscode-test",
+        ".vscode test",
+        "src/server/node_modules",
+        "src/client/node_modules",
+        "src/server/src/typings",
+        "src/client/src/typings",
+        "src/smoke",
+        "build",
+        "out",
+        "tmp",
+        "pythonExtensionApi"
+    ]
+}

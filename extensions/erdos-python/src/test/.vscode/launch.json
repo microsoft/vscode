@@ -1,0 +1,37 @@
+{
+    "version": "0.1.0",
+    "configurations": [
+        {
+            "name": "launch a file",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "attach to a local port",
+            "type": "python",
+            "request": "attach",
+            "port": 5678,
+            "host": "localhost",
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "."
+                }
+            ]
+        },
+        {
+            "name": "attach to a local PID",
+            "type": "python",
+            "request": "attach",
+            "processId": "${env:CI_DEBUGPY_PROCESS_ID}",
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "."
+                }
+            ]
+        }
+    ]
+}

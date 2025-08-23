@@ -1,0 +1,3 @@
+home = /home/kanadig/.pyenv/versions/3.9.0/bin
+include-system-site-packages = false
+version = 3.9.0

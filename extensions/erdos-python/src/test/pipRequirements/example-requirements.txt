@@ -1,0 +1,37 @@
+# https://www.python.org/dev/peps/pep-0508/#names
+This-name_has.everything42 # End-of-line comment.
+
+# https://www.python.org/dev/peps/pep-0508/#extras
+project[extras]
+
+# https://www.python.org/dev/peps/pep-0508/#versions
+# https://www.python.org/dev/peps/pep-0440/
+project > 2.0.0
+project~=1.0.0
+project>1.0.0,<2.0.0
+project==1.0.0.dev1
+
+# https://www.python.org/dev/peps/pep-0508/#environment-markers
+project;python_version>'3.0'
+project~=2.0.0;os_name=="linux"
+
+# https://pip.readthedocs.io/en/stable/reference/pip_install/#requirements-file-format
+# Continuation line.
+project \
+    >1.0.0
+
+# Options
+## Stand-alone w/o argument.
+--no-links
+## Stand-alone w/ argument.
+-c constraints.txt
+-e git://git.myproject.org/MyProject#egg=MyProject
+## Part of requirement.
+FooProject >= 1.2 --global-option="--no-user-cfg"
+
+# File path.
+./some/file
+some/file
+
+# URL.
+https://some-site.ca/project.whl

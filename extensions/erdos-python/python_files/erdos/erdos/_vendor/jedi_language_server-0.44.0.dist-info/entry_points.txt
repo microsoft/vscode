@@ -1,0 +1,3 @@
+[console_scripts]
+jedi-language-server=jedi_language_server.cli:cli
+

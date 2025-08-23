@@ -1,0 +1,14 @@
+[project]
+name = "multi-env"
+channels = ["conda-forge"]
+platforms = ["win-64"]
+
+[feature.py310.dependencies]
+python = "~=3.10"
+
+[feature.py311.dependencies]
+python = "~=3.11"
+
+[environments]
+py310 = ["py310"]
+py311 = ["py311"]

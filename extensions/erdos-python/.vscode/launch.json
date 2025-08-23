@@ -1,0 +1,262 @@
+// A launch configuration that compiles the extension and then opens it inside a new window
+{
+    "version": "0.1.0",
+    "configurations": [
+        {
+            "name": "Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+            "smartStep": true,
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/out/**/*", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "Compile",
+            "skipFiles": ["<node_internals>/**"],
+            "env": {
+                // Enable this to turn on redux logging during debugging
+                "XVSC_PYTHON_FORCE_LOGGING": "1",
+                // Enable this to try out new experiments locally
+                "VSC_PYTHON_LOAD_EXPERIMENTS_FROM_FILE": "1",
+                // Enable this to log telemetry to the output during debugging
+                "XVSC_PYTHON_LOG_TELEMETRY": "1",
+                // Enable this to log debugger output. Directory must exist ahead of time
+                "XDEBUGPY_LOG_DIR": "${workspaceRoot}/tmp/Debug_Output_Ex"
+            }
+        },
+        {
+            "name": "Extension inside container",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}", "${workspaceFolder}/data"],
+            "smartStep": true,
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/out/**/*", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "Compile"
+        },
+        {
+            "name": "Tests (Debugger, VS Code, *.test.ts)",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": [
+                "${workspaceFolder}/src/testMultiRootWkspc/multi.code-workspace",
+                "--disable-extensions",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/test"
+            ],
+            "sourceMaps": true,
+            "smartStep": true,
+            "outFiles": ["${workspaceFolder}/out/**/*", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "Compile",
+            "env": {
+                "IS_CI_SERVER_TEST_DEBUGGER": "1"
+            },
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            // Note, for the smoke test you want to debug, you may need to copy the file,
+            // rename it and remove a check for only smoke tests.
+            "name": "Tests (Smoke, VS Code, *.test.ts)",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": [
+                "${workspaceFolder}/src/testMultiRootWkspc/smokeTests",
+                "--disable-extensions",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/test"
+            ],
+            "env": {
+                "VSC_PYTHON_CI_TEST_GREP": "Smoke Test",
+                "VSC_PYTHON_SMOKE_TEST": "1",
+                "TEST_FILES_SUFFIX": "smoke.test"
+            },
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/out/**/*.js", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "Compile",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Tests (Single Workspace, VS Code, *.test.ts)",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": [
+                "${workspaceFolder}/src/test",
+                "--disable-extensions",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/test"
+            ],
+            "env": {
+                "VSC_PYTHON_CI_TEST_GREP": "" // Modify this to run a subset of the single workspace tests
+            },
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/out/**/*.js", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "Compile",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Jedi LSP tests",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": [
+                "${workspaceFolder}/src/test",
+                "--disable-extensions",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/test"
+            ],
+            "env": {
+                "VSC_PYTHON_CI_TEST_GREP": "Language Server:"
+            },
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/out/**/*.js", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "preTestJediLSP",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Tests (Multiroot, VS Code, *.test.ts)",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": [
+                "${workspaceFolder}/src/testMultiRootWkspc/multi.code-workspace",
+                "--disable-extensions",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/test"
+            ],
+            "env": {
+                "VSC_PYTHON_CI_TEST_GREP": "" // Modify this to run a subset of the single workspace tests
+            },
+            "sourceMaps": true,
+            "smartStep": true,
+            "outFiles": ["${workspaceFolder}/out/**/*", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "Compile",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Unit Tests (without VS Code, *.unit.test.ts)",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+            "stopOnEntry": false,
+            "sourceMaps": true,
+            "args": [
+                "./out/test/**/*.unit.test.js",
+                "--require=out/test/unittests.js",
+                "--ui=tdd",
+                "--recursive",
+                "--colors",
+                //"--grep", "<suite name>",
+                "--timeout=300000"
+            ],
+            "outFiles": ["${workspaceFolder}/out/**/*.js", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "Compile",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Unit Tests (fast, without VS Code and without react/monaco, *.unit.test.ts)",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+            "stopOnEntry": false,
+            "sourceMaps": true,
+            "args": [
+                "./out/test/**/*.unit.test.js",
+                "--require=out/test/unittests.js",
+                "--ui=tdd",
+                "--recursive",
+                "--colors",
+                // "--grep", "<suite name>",
+                "--timeout=300000",
+                "--fast"
+            ],
+            "outFiles": ["${workspaceFolder}/out/**/*.js", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "Compile",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Functional Tests (without VS Code, *.functional.test.ts)",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+            "stopOnEntry": false,
+            "sourceMaps": true,
+            "args": [
+                "./out/test/**/*.functional.test.js",
+                "--require=out/test/unittests.js",
+                "--ui=tdd",
+                "--recursive",
+                "--colors",
+                // "--grep", "<suite>",
+                "--timeout=300000",
+                "--exit"
+            ],
+            "env": {
+                // Remove `X` prefix to test with real browser to host DS ui (for DS functional tests).
+                "XVSC_PYTHON_DS_UI_BROWSER": "1",
+                // Remove `X` prefix to test with real python (for DS functional tests).
+                "XVSCODE_PYTHON_ROLLING": "1",
+                // Remove 'X' to turn on all logging in the debug output
+                "XVSC_PYTHON_FORCE_LOGGING": "1",
+                // Remove `X` prefix and update path to test with real python interpreter (for DS functional tests).
+                "XCI_PYTHON_PATH": "<Python Path>",
+                // Remove 'X' prefix to dump output for debugger. Directory has to exist prior to launch
+                "XDEBUGPY_LOG_DIR": "${workspaceRoot}/tmp/Debug_Output",
+                // Remove 'X' prefix to dump webview redux action log
+                "XVSC_PYTHON_WEBVIEW_LOG_FILE": "${workspaceRoot}/test-webview.log"
+            },
+            "outFiles": ["${workspaceFolder}/out/**/*.js", "!${workspaceFolder}/**/node_modules**/*"],
+            "preLaunchTask": "Compile",
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Gulp tasks (helpful for debugging gulpfile.js)",
+            "program": "${workspaceFolder}/node_modules/gulp/bin/gulp.js",
+            "args": ["watch"],
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Node: Current File",
+            "program": "${file}",
+            "request": "launch",
+            "skipFiles": ["<node_internals>/**"],
+            "type": "node"
+        },
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "justMyCode": true,
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Python: Attach Listen",
+            "type": "debugpy",
+            "request": "attach",
+            "listen": { "host": "localhost", "port": 5678 },
+            "justMyCode": true
+        },
+        {
+            "name": "Debug pytest plugin tests",
+
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["${workspaceFolder}/python_files/tests/pytestadapter"],
+            "justMyCode": true
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Debug Python and Extension",
+            "configurations": ["Python: Attach Listen", "Extension"]
+        }
+    ]
+}

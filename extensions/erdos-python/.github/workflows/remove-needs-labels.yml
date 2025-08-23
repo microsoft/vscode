@@ -1,0 +1,20 @@
+name: 'Remove Needs Label'
+on:
+  issues:
+    types: [closed]
+
+jobs:
+  classify:
+    name: 'Remove needs labels on issue closing'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: 'Removes needs labels on issue close'
+        uses: actions-ecosystem/action-remove-labels@2ce5d41b4b6aa8503e285553f75ed56e0a40bae0 # v1.3.0
+        with:
+          labels: |
+            needs PR
+            needs spike
+            needs community feedback
+            needs proposal

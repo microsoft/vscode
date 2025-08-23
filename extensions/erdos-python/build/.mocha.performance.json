@@ -1,0 +1,11 @@
+{
+    "spec": "./out/test/**/*.functional.test.js",
+    "require": ["out/test/unittests.js"],
+    "reporter": "mocha-multi-reporters",
+    "reporter-option": "configFile=build/.mocha.perf.config",
+    "ui": "tdd",
+    "recursive": true,
+    "colors": true,
+    "exit": true,
+    "timeout": 30000
+}

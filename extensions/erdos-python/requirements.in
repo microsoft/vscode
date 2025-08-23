@@ -1,0 +1,15 @@
+# This file is used to generate requirements.txt.
+# To update requirements.txt, run the following commands.
+# 1) Install `uv` https://docs.astral.sh/uv/getting-started/installation/
+# 2) uv pip compile --generate-hashes --upgrade requirements.in -o requirements.txt
+
+# Unittest test adapter
+typing-extensions==4.14.1
+
+# Fallback env creator for debian
+microvenv
+
+# Checker for installed packages
+importlib_metadata
+packaging
+tomli

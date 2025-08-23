@@ -1,0 +1,153 @@
+trigger: none
+#   branches:
+#     include:
+#       - release*
+#   tags:
+#     include: ['*']
+pr: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      ref: main
+      endpoint: Monaco
+
+parameters:
+  - name: publishExtension
+    displayName: 🚀 Publish Extension
+    type: boolean
+    default: false
+
+extends:
+  template: azure-pipelines/extension/stable.yml@templates
+  parameters:
+    publishExtension: ${{ parameters.publishExtension }}
+    l10nSourcePaths: ./src/client
+
+    buildPlatforms:
+      - name: Linux
+        vsceTarget: 'web'
+      - name: Linux
+        packageArch: arm64
+        vsceTarget: linux-arm64
+      - name: Linux
+        packageArch: arm
+        vsceTarget: linux-armhf
+      - name: Linux
+        packageArch: x64
+        vsceTarget: linux-x64
+      - name: Linux
+        packageArch: arm64
+        vsceTarget: alpine-arm64
+      - name: Linux
+        packageArch: x64
+        vsceTarget: alpine-x64
+      - name: MacOS
+        packageArch: arm64
+        vsceTarget: darwin-arm64
+      - name: MacOS
+        packageArch: x64
+        vsceTarget: darwin-x64
+      - name: Windows
+        packageArch: arm
+        vsceTarget: win32-arm64
+      - name: Windows
+        packageArch: x64
+        vsceTarget: win32-x64
+
+    buildSteps:
+      - task: NodeTool@0
+        inputs:
+          versionSpec: '22.17.0'
+        displayName: Select Node version
+
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.9'
+          addToPath: true
+          architecture: 'x64'
+        displayName: Select Python version
+
+      - script: python -m pip install -U pip
+        displayName: Upgrade pip
+
+      - script: python -m pip install wheel nox
+        displayName: Install wheel and nox
+
+      - script: npm ci
+        displayName: Install NPM dependencies
+
+      - script: nox --session install_python_libs
+        displayName: Install Jedi, get-pip, etc
+
+      - script: python ./build/update_package_file.py
+        displayName: Update telemetry in package.json
+
+      - script: npm run addExtensionPackDependencies
+        displayName: Update optional extension dependencies
+
+      - script: npx gulp prePublishBundle
+        displayName: Build
+
+      - bash: |
+          mkdir -p $(Build.SourcesDirectory)/python-env-tools/bin
+          chmod +x $(Build.SourcesDirectory)/python-env-tools/bin
+        displayName: Make Directory for python-env-tool binary
+
+      - bash: |
+          if [ "$(vsceTarget)" == "win32-x64" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]x86_64-pc-windows-msvc"
+          elif [ "$(vsceTarget)" == "win32-arm64" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]aarch64-pc-windows-msvc"
+          elif [ "$(vsceTarget)" == "linux-x64" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]x86_64-unknown-linux-musl"
+          elif [ "$(vsceTarget)" == "linux-arm64" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]aarch64-unknown-linux-gnu"
+          elif [ "$(vsceTarget)" == "linux-armhf" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]armv7-unknown-linux-gnueabihf"
+          elif [ "$(vsceTarget)" == "darwin-x64" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]x86_64-apple-darwin"
+          elif [ "$(vsceTarget)" == "darwin-arm64" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]aarch64-apple-darwin"
+          elif [ "$(vsceTarget)" == "alpine-x64" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]x86_64-unknown-linux-musl"
+          elif [ "$(vsceTarget)" == "alpine-arm64" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]aarch64-unknown-linux-gnu"
+          elif [ "$(vsceTarget)" == "web" ]; then
+            echo "##vso[task.setvariable variable=buildTarget]x86_64-unknown-linux-musl"
+          else
+            echo "##vso[task.setvariable variable=buildTarget]x86_64-unknown-linux-musl"
+          fi
+        displayName: Set buildTarget variable
+
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          buildType: 'specific'
+          project: 'Monaco'
+          definition: 593
+          buildVersionToDownload: 'latestFromBranch'
+          branchName: 'refs/heads/release/2025.12'
+          targetPath: '$(Build.SourcesDirectory)/python-env-tools/bin'
+          artifactName: 'bin-$(buildTarget)'
+          itemPattern: |
+            pet.exe
+            pet
+            ThirdPartyNotices.txt
+
+      - bash: |
+          ls -lf ./python-env-tools/bin
+          chmod +x ./python-env-tools/bin/pet*
+          ls -lf ./python-env-tools/bin
+        displayName: Set chmod for pet binary
+
+      - script: python -c "import shutil; shutil.rmtree('.nox', ignore_errors=True)"
+        displayName: Clean up Nox
+    tsa:
+      config:
+        areaPath: 'Visual Studio Code Python Extensions'
+        serviceTreeID: '6e6194bc-7baa-4486-86d0-9f5419626d46'
+      enabled: true
+    apiScanDependentPipelineId: '593' # python-environment-tools
+    apiScanSoftwareVersion: '2024'

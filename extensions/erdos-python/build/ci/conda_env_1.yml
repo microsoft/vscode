@@ -1,0 +1,4 @@
+name: conda_env_1
+dependencies:
+  - python=3.9
+  - pip

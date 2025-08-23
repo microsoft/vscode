@@ -1,0 +1,4 @@
+This is a doctest test which passes #test_marker--text_docstring.txt
+>>> x = 3
+>>> x
+3

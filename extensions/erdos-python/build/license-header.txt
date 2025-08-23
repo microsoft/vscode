@@ -1,0 +1,9 @@
+PLEASE NOTE: This is the license for the Python extension for Visual Studio Code. The Python extension automatically installs other extensions as optional dependencies, which can be uninstalled at any time. These extensions have separate licenses:
+
+ - The Python Debugger extension is released under an MIT License:
+  https://marketplace.visualstudio.com/items/ms-python.debugpy/license
+
+ - The Pylance extension is only available in binary form and is released under a Microsoft proprietary license, the terms of which are available here:
+  https://marketplace.visualstudio.com/items/ms-python.vscode-pylance/license
+
+------------------------------------------------------------------------------

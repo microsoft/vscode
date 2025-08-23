@@ -1,0 +1,57 @@
+name: Triage "info-needed" label
+
+on:
+  issue_comment:
+    types: [created]
+
+env:
+  TRIAGERS: '["karrtikr","karthiknadig","paulacamargo25","eleanorjboyd", "brettcannon","anthonykim1"]'
+
+jobs:
+  add_label:
+    if: contains(github.event.issue.labels.*.name, 'triage-needed') && !contains(github.event.issue.labels.*.name, 'info-needed')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v5
+        with:
+          repository: 'microsoft/vscode-github-triage-actions'
+          ref: stable
+          path: ./actions
+          persist-credentials: false
+
+      - name: Install Actions
+        run: npm install --production --prefix ./actions
+
+      - name: Add "info-needed" label
+        uses: ./actions/python-triage-info-needed
+        with:
+          triagers: ${{ env.TRIAGERS }}
+          action: 'add'
+          token: ${{secrets.GITHUB_TOKEN}}
+
+  remove_label:
+    if: contains(github.event.issue.labels.*.name, 'info-needed') && contains(github.event.issue.labels.*.name, 'triage-needed')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v5
+        with:
+          repository: 'microsoft/vscode-github-triage-actions'
+          ref: stable
+          path: ./actions
+          persist-credentials: false
+
+      - name: Install Actions
+        run: npm install --production --prefix ./actions
+
+      - name: Remove "info-needed" label
+        uses: ./actions/python-triage-info-needed
+        with:
+          triagers: ${{ env.TRIAGERS }}
+          action: 'remove'
+          token: ${{secrets.GITHUB_TOKEN}}

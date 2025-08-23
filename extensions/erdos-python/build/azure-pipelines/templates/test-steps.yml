@@ -1,0 +1,23 @@
+###############################################################################################
+#  Copyright (c) Microsoft Corporation. All rights reserved.
+#  Licensed under the MIT License. See License.txt in the project root for license information.
+###############################################################################################
+parameters:
+- name: package
+  type: string
+- name: script
+  type: string
+  default: 'all:publish'
+
+steps:
+  - script: npm install --root-only
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: Install root dependencies
+  - bash: |
+      /usr/bin/Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+      echo ">>> Started xvfb"
+    displayName: Start xvfb
+    condition: eq(variables['Agent.OS'], 'Linux')
+  - script: npm run ${{ parameters.script }}
+    workingDirectory: $(Build.SourcesDirectory)/${{ parameters.package }}
+    displayName: Verify package

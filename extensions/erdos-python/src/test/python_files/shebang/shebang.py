@@ -1,0 +1,3 @@
+#!python
+
+print("dummy")

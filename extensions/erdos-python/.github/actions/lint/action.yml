@@ -1,0 +1,50 @@
+name: 'Lint'
+description: 'Lint TypeScript and Python code'
+
+inputs:
+  node_version:
+    description: 'Version of Node to install'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: 'npm'
+
+    - name: Install Node dependencies
+      run: npm ci --prefer-offline
+      shell: bash
+
+    - name: Run `gulp prePublishNonBundle`
+      run: npx gulp prePublishNonBundle
+      shell: bash
+
+    - name: Check dependencies
+      run: npm run checkDependencies
+      shell: bash
+
+    - name: Lint TypeScript code
+      run: npm run lint
+      shell: bash
+
+    - name: Check TypeScript format
+      run: npm run format-check
+      shell: bash
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+        cache: 'pip'
+
+    - name: Run Ruff
+      run: |
+        python -m pip install -U "ruff"
+        python -m ruff check .
+        python -m ruff format --check
+      working-directory: python_files
+      shell: bash

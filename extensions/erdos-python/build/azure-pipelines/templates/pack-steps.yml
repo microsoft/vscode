@@ -1,0 +1,14 @@
+###############################################################################################
+#  Copyright (c) Microsoft Corporation. All rights reserved.
+#  Licensed under the MIT License. See License.txt in the project root for license information.
+###############################################################################################
+parameters:
+- name: package
+
+steps:
+  - script: npm install --root-only
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: Install root dependencies
+  - script: npm install
+    workingDirectory: $(Build.SourcesDirectory)/${{ parameters.package }}
+    displayName: Install package dependencies

@@ -1,0 +1,13 @@
+{
+    "spec": "./out/test/**/*.unit.test.js",
+    "require": [
+        "out/test/unittests.js"
+    ],
+    "exclude": "out/**/*.jsx",
+    "reporter": "mocha-multi-reporters",
+    "reporter-option": "configFile=./build/.mocha-multi-reporters.config",
+    "ui": "tdd",
+    "recursive": true,
+    "colors": true,
+    "timeout": 180000
+}

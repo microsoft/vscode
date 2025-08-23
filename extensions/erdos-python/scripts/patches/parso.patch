@@ -1,0 +1,37 @@
+We append `-Erdos` to the `_VERSION_TAG` so that our cache directories don't overlap with a parso
+installation in the user's environment. The vendored parso has a different import path than the user's,
+so using the same cache can cause unexpected errors.
+
+diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/parso/cache.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/parso/cache.py
+index 5592a9fdd..98b903aaa 100644
+--- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/parso/cache.py
++++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/parso/cache.py
+@@ -49,7 +49,7 @@ are regarded as incompatible.
+ - A __slot__ of a class is changed.
+ """
+
+-_VERSION_TAG = '%s-%s%s-%s' % (
++_VERSION_TAG = '%s-%s%s-%s-Erdos' % (
+     platform.python_implementation(),
+     sys.version_info[0],
+     sys.version_info[1],
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

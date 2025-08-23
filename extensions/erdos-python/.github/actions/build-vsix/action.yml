@@ -1,0 +1,101 @@
+name: 'Build VSIX'
+description: "Build the extension's VSIX"
+
+inputs:
+  node_version:
+    description: 'Version of Node to install'
+    required: true
+  vsix_name:
+    description: 'Name to give the final VSIX'
+    required: true
+  artifact_name:
+    description: 'Name to give the artifact containing the VSIX'
+    required: true
+  cargo_target:
+    description: 'Cargo build target for the native build'
+    required: true
+  vsix_target:
+    description: 'vsix build target for the native build'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: 'npm'
+
+    - name: Rust Tool Chain setup
+      uses: dtolnay/rust-toolchain@stable
+
+    # Jedi LS depends on dataclasses which is not in the stdlib in Python 3.7.
+    - name: Use Python 3.9 for JediLSP
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.9
+        cache: 'pip'
+        cache-dependency-path: |
+          requirements.txt
+          python_files/jedilsp_requirements/requirements.txt
+
+    - name: Upgrade Pip
+      run: python -m pip install -U pip
+      shell: bash
+
+    # For faster/better builds of sdists.
+    - name: Install build pre-requisite
+      run: python -m pip install wheel nox
+      shell: bash
+
+    - name: Install Python Extension dependencies (jedi, etc.)
+      run: nox --session install_python_libs
+      shell: bash
+
+    - name: Add Rustup target
+      run: rustup target add "${CARGO_TARGET}"
+      shell: bash
+      env:
+        CARGO_TARGET: ${{ inputs.cargo_target }}
+
+    - name: Build Native Binaries
+      run: nox --session native_build
+      shell: bash
+      env:
+        CARGO_TARGET: ${{ inputs.cargo_target }}
+
+    - name: Run npm ci
+      run: npm ci --prefer-offline
+      shell: bash
+
+    - name: Update optional extension dependencies
+      run: npm run addExtensionPackDependencies
+      shell: bash
+
+    - name: Build Webpack
+      run: |
+        npx gulp clean
+        npx gulp prePublishBundle
+      shell: bash
+
+    - name: Build VSIX
+      run: npx vsce package --target "${VSIX_TARGET}" --out ms-python-insiders.vsix --pre-release
+      shell: bash
+      env:
+        VSIX_TARGET: ${{ inputs.vsix_target }}
+
+    - name: Rename VSIX
+      # Move to a temp name in case the specified name happens to match the default name.
+      run: mv ms-python-insiders.vsix ms-python-temp.vsix && mv ms-python-temp.vsix "${VSIX_NAME}"
+      shell: bash
+      env:
+        VSIX_NAME: ${{ inputs.vsix_name }}
+
+    - name: Upload VSIX
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: ${{ inputs.vsix_name }}
+        if-no-files-found: error
+        retention-days: 7

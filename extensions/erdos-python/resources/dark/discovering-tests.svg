@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+	<defs>
+		<style type="text/css"><![CDATA[
+			g {
+				transform-origin: 8px 8px;
+				animation: 1s linear infinite rotate;
+			}
+			@keyframes rotate {
+				from { transform: rotate(0); }
+				to { transform: rotate(1turn); }
+			}
+		]]></style>
+	</defs>
+	<g>
+		<path d="M14,6 A6.3,6.3 0 1 0 12.5,12.5" style="stroke: #cccccc; stroke-width: 1.5; fill: none;"/>
+		<path d="M15,2 L15,6.5 L11,6.5" style="stroke: #cccccc; stroke-width: 1.5; fill: none;"/>
+	</g>
+</svg>

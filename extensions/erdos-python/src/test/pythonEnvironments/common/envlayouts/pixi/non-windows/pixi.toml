@@ -1,0 +1,11 @@
+[project]
+name = "non-windows"
+version = "0.1.0"
+description = "Add a short description here"
+authors = ["Bas Zalmstra <zalmstra.bas@gmail.com>"]
+channels = ["conda-forge"]
+platforms = ["win-64"]
+
+[tasks]
+
+[dependencies]

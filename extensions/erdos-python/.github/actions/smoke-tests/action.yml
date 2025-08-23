@@ -1,0 +1,66 @@
+name: 'Smoke tests'
+description: 'Run smoke tests'
+
+inputs:
+  node_version:
+    description: 'Version of Node to install'
+    required: true
+  artifact_name:
+    description: 'Name of the artifact containing the VSIX'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: 'npm'
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+        cache: 'pip'
+        cache-dependency-path: |
+          build/test-requirements.txt
+          requirements.txt
+
+    - name: Install dependencies (npm ci)
+      run: npm ci --prefer-offline
+      shell: bash
+
+    - name: Install Python requirements
+      uses: brettcannon/pip-secure-install@92f400e3191171c1858cc0e0d9ac6320173fdb0c # v1.0.0
+      with:
+        options: '-t ./python_files/lib/python --implementation py'
+
+    - name: pip install system test requirements
+      run: |
+        python -m pip install --upgrade -r build/test-requirements.txt
+      shell: bash
+
+    # Bits from the VSIX are reused by smokeTest.ts to speed things up.
+    - name: Download VSIX
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifact_name }}
+
+    - name: Prepare for smoke tests
+      run: npx tsc -p ./
+      shell: bash
+
+    - name: Set CI_PYTHON_PATH and CI_DISABLE_AUTO_SELECTION
+      run: |
+        echo "CI_PYTHON_PATH=python" >> $GITHUB_ENV
+        echo "CI_DISABLE_AUTO_SELECTION=1" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Run smoke tests
+      env:
+        DISPLAY: 10
+        INSTALL_JUPYTER_EXTENSION: true
+      uses: GabrielBB/xvfb-action@b706e4e27b14669b486812790492dc50ca16b465 # v1.7
+      with:
+        run: node --no-force-async-hooks-checks ./out/test/smokeTest.js

@@ -1,0 +1,24 @@
+name: 'Lock Issues'
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: lock
+
+jobs:
+  lock-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Lock Issues'
+        uses: dessant/lock-threads@1bf7ec25051fe7c00bdd17e6a7cf3d7bfb7dc771 # v5.0.1
+        with:
+          github-token: ${{ github.token }}
+          issue-inactive-days: '30'
+          process-only: 'issues'
+          log-output: true

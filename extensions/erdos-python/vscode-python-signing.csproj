@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MicroBuild.Core" Version="0.2.0" />
+  </ItemGroup>
+  <PropertyGroup>
+    <VsixOutPath>$(OutputPath)\python-$(Branch).vsix</VsixOutPath>
+    <VscePath>$(UserProfile)\AppData\Roaming\npm\vsce</VscePath>
+  </PropertyGroup>
+  <Target Name="BeforeBuild">
+    <Exec Command="$(VscePath) package --out $(VsixOutPath)" />
+  </Target>
+  <ItemGroup>
+    <FilesToSign Include="$(VsixOutPath)">
+      <Authenticode>VsixSHA2</Authenticode>
+    </FilesToSign>
+  </ItemGroup>
+</Project>

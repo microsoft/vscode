@@ -1,0 +1,30 @@
+name: Test Plan Item Validator
+on:
+  issues:
+    types: [edited, labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'testplan-item') || contains(github.event.issue.labels.*.name, 'invalid-testplan-item')
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v5
+        with:
+          repository: 'microsoft/vscode-github-triage-actions'
+          path: ./actions
+          persist-credentials: false
+          ref: stable
+
+      - name: Install Actions
+        run: npm install --production --prefix ./actions
+
+      - name: Run Test Plan Item Validator
+        uses: ./actions/test-plan-item-validator
+        with:
+          label: testplan-item
+          invalidLabel: invalid-testplan-item
+          comment: Invalid test plan item. See errors below and the [test plan item spec](https://github.com/microsoft/vscode/wiki/Writing-Test-Plan-Items) for more information. This comment will go away when the issues are resolved.

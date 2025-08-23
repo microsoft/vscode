@@ -1,0 +1,9 @@
+{
+    "spec": "./out/test/**/*.unit.test.js",
+    "require": ["source-map-support/register", "out/test/unittests.js"],
+    "reporter": "mocha-multi-reporters",
+    "reporter-option": "configFile=build/.mocha-multi-reporters.config",
+    "ui": "tdd",
+    "recursive": true,
+    "colors": true
+}

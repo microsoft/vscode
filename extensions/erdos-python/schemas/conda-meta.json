@@ -1,0 +1,405 @@
+{
+    "title": "conda metadata build recipe",
+    "description": "conda's meta.yaml file; https://conda.io/docs/user-guide/tasks/build-packages/define-metadata.html",
+    "id": "https://raw.githubusercontent.com/Microsoft/vscode-python/master/schemas/conda-meta.json",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "definitions": {
+        "boolean": {
+            "anyOf": [
+                {
+                    "type": "boolean"
+                },
+                {
+                    "type": "string"
+                }
+            ]
+        },
+        "integer": {
+            "anyOf": [
+                {
+                    "type": "integer"
+                },
+                {
+                    "type": "string"
+                }
+            ]
+        },
+        "feature": {
+            "type": "string"
+        },
+        "package": {
+            "type": "string"
+        },
+        "path": {
+            "type": "string"
+        },
+        "uri": {
+            "type": "string"
+        },
+        "requirement": {
+            "type": "object",
+            "properties": {
+                "build": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/package"
+                    }
+                },
+                "host": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/package"
+                    }
+                },
+                "run": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/package"
+                    }
+                }
+            }
+        },
+        "source": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "$ref": "#/definitions/uri"
+                },
+                "md5": {
+                    "type": "string",
+                    "pattern": "^[0-9A-Fa-f]{32}$"
+                },
+                "sha1": {
+                    "type": "string",
+                    "pattern": "^[0-9A-Fa-f]{40}$"
+                },
+                "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9A-Fa-f]{64}$"
+                },
+                "git_url": {
+                    "$ref": "#/definitions/uri"
+                },
+                "git_rev": {
+                    "type": "string"
+                },
+                "hg_url": {
+                    "$ref": "#/definitions/uri"
+                },
+                "hg_tag": {
+                    "type": "string"
+                },
+                "svn_url": {
+                    "$ref": "#/definitions/uri"
+                },
+                "svn_rev": {
+                    "type": "string"
+                },
+                "svn_ignore_externals": {
+                    "$ref": "#/definitions/boolean"
+                },
+                "path": {
+                    "$ref": "#/definitions/path"
+                },
+                "patches": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/path"
+                    }
+                },
+                "folder": {
+                    "$ref": "#/definitions/path"
+                },
+                "fn": {
+                    "type": "string"
+                }
+            }
+        },
+        "test": {
+            "type": "object",
+            "properties": {
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/path"
+                    }
+                },
+                "source_files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/path"
+                    }
+                },
+                "requires": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/package"
+                    }
+                },
+                "commands": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "imports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/package"
+                    }
+                },
+                "script": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "properties": {
+        "package": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "$ref": "#/definitions/package"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "source": {
+            "oneOf": [
+                {
+                    "$ref": "#/definitions/source"
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/source"
+                    }
+                }
+            ]
+        },
+        "build": {
+            "type": "object",
+            "properties": {
+                "number": {
+                    "$ref": "#/definitions/integer"
+                },
+                "string": {
+                    "type": "string"
+                },
+                "entry_points": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "osx_is_app": {
+                    "$ref": "#/definitions/boolean"
+                },
+                "features": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/feature"
+                    }
+                },
+                "track_features": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/feature"
+                    }
+                },
+                "preserve_egg_dir": {
+                    "$ref": "#/definitions/boolean"
+                },
+                "skip_compile_pyc": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/path"
+                    }
+                },
+                "no_link": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/path"
+                    }
+                },
+                "script": {
+                    "type": "string"
+                },
+                "rpaths": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/path"
+                    }
+                },
+                "always_include_files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/path"
+                    }
+                },
+                "binary_relocation": {
+                    "$ref": "#/definitions/boolean"
+                },
+                "detect_binary_files_with_prefix": {
+                    "$ref": "#/definitions/boolean"
+                },
+                "binary_has_prefix_files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/path"
+                    }
+                },
+                "has_prefix_files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/path"
+                    }
+                },
+                "ignore_prefix_files": {
+                    "oneOf": [
+                        {
+                            "$ref": "#/definitions/boolean"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/path"
+                            }
+                        }
+                    ]
+                },
+                "skip": {
+                    "$ref": "#/definitions/boolean"
+                },
+                "noarch": {
+                    "type": "string"
+                },
+                "noarch_python": {
+                    "$ref": "#/definitions/boolean"
+                },
+                "include_recipe": {
+                    "$ref": "#/definitions/boolean"
+                },
+                "script_env": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "run_exports": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ignore_run_exports": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "requirements": {
+            "$ref": "#/definitions/requirement"
+        },
+        "test": {
+            "anyOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "$ref": "#/definitions/test"
+                }
+            ]
+        },
+        "outputs": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "string"
+                    },
+                    "files": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/path"
+                        }
+                    },
+                    "script": {
+                        "$ref": "#/definitions/path"
+                    },
+                    "script_interpreter": {
+                        "type": "string"
+                    },
+                    "requirements": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/definitions/requirement"
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/package"
+                                }
+                            }
+                        ]
+                    },
+                    "run_exports": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "test": {
+                        "$ref": "#/definitions/test"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "about": {
+            "type": "object",
+            "properties": {
+                "home": {
+                    "$ref": "#/definitions/uri"
+                },
+                "license": {
+                    "type": "string"
+                },
+                "license_file": {
+                    "$ref": "#/definitions/path"
+                },
+                "summary": {
+                    "type": "string"
+                }
+            }
+        },
+        "app": {
+            "type": "object",
+            "properties": {
+                "entry": {
+                    "type": "string"
+                },
+                "icon": {
+                    "$ref": "#/definitions/path"
+                },
+                "summary": {
+                    "type": "string"
+                },
+                "own_environment": {
+                    "$ref": "#/definitions/boolean"
+                }
+            }
+        },
+        "extra": {}
+    }
+}

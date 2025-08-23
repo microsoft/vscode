@@ -1,0 +1,75 @@
+<svg width="520" height="220" viewBox="0 0 520 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <rect width="520" height="220" fill="var(--vscode-editor-background, #1E1E1E)" />
+    <g clip-path="url(#clip0_1003_92716)">
+      <g>
+        <rect width="520" height="39" fill="var(--vscode-editorGroupHeader-tabsBackground, #252526)" />
+        <g clip-path="url(#clip1_1003_92716)">
+          <g>
+            <rect width="115.654" height="39.2998" fill="var(--vscode-tab-activeBackground, #1E1E1E)" />
+            <rect x="13.4741" y="15.7197" width="88.7052" height="7.85995" rx="3.92998" fill="var(--vscode-tab-unfocusedInactiveForeground, #2D2D2D)" />
+          </g>
+        </g>
+      </g>
+    </g>
+    <g filter="url(#filter0_d_1003_92716)">
+      <rect width="425" height="162" transform="translate(48 20)" fill="var(--vscode-quickInput-background, #252526)" />
+      <g>
+        <g>
+          <rect x="55.5" y="27.5" width="410" height="25" fill="var(--vscode-input-background, #3C3C3C)" />
+          <rect x="55.5" y="27.5" width="410" height="25" stroke="var(--vscode-focusBorder, #007FD4)" />
+        </g>
+      </g>
+      <g>
+        <g>
+          <g>
+            <rect x="60" y="66" width="29" height="6" rx="3" fill="var(--vscode-textLink-foreground, #3794FF)" fill-opacity="0.6" />
+            <rect x="93" y="66" width="38" height="6" rx="3" fill="var(--vscode-editorHoverWidget-border, #454545)" />
+            <rect x="135" y="66" width="105" height="6" rx="3" fill="var(--vscode-editorHoverWidget-border, #454545)" />
+          </g>
+        </g>
+        <g>
+          <g>
+            <rect width="425" height="24" transform="translate(48 82)" fill="var(--vscode-quickInputList-focusBackground, #062F4A)" />
+            <path d="M65.2812 99L68.5376 89.8403H67.0269L64.5703 97.2988H64.4624L61.9932 89.8403H60.4443L63.7197 99H65.2812ZM73.8252 97.1528C73.5713 97.7114 73.0063 98.0161 72.1812 98.0161C71.0894 98.0161 70.3848 97.229 70.3403 95.9785V95.915H75.2217V95.4453C75.2217 93.2871 74.0601 91.9731 72.1367 91.9731C70.188 91.9731 68.9502 93.376 68.9502 95.5659C68.9502 97.7686 70.1626 99.1333 72.1431 99.1333C73.7236 99.1333 74.8408 98.3716 75.1392 97.1528H73.8252ZM72.1304 93.084C73.1396 93.084 73.7998 93.814 73.8315 94.9312H70.3403C70.4165 93.8203 71.1211 93.084 72.1304 93.084ZM76.8594 99H78.2241V94.9565C78.2241 93.8457 78.8652 93.1602 79.8745 93.1602C80.8838 93.1602 81.3662 93.7188 81.3662 94.8613V99H82.731V94.5376C82.731 92.8936 81.8804 91.9731 80.3379 91.9731C79.2969 91.9731 78.6113 92.4365 78.2749 93.1982H78.1733V92.1064H76.8594V99ZM90.2783 92.1064H88.8311L87.1172 97.6035H87.0093L85.2891 92.1064H83.8291L86.3237 99H87.79L90.2783 92.1064Z" fill="var(--vscode-list-activeSelectionForeground, #FFFFFF)" />
+            <rect x="101" y="91" width="106" height="6" rx="3" fill="var(--vscode-tab-unfocusedInactiveForeground, #FFFFFF)" />
+          </g>
+          <g>
+            <path d="M64.9067 123.222C66.9507 123.222 68.4551 122.048 68.709 120.264H67.2935C67.0396 121.305 66.1191 121.959 64.9067 121.959C63.2563 121.959 62.228 120.601 62.228 118.423C62.228 116.246 63.2563 114.881 64.9004 114.881C66.1064 114.881 67.0269 115.605 67.2935 116.741H68.709C68.4805 114.907 66.9189 113.618 64.9004 113.618C62.355 113.618 60.7744 115.459 60.7744 118.423C60.7744 121.381 62.3613 123.222 64.9067 123.222ZM73.3428 123.133C75.3613 123.133 76.5991 121.781 76.5991 119.553C76.5991 117.325 75.355 115.973 73.3428 115.973C71.3242 115.973 70.0801 117.332 70.0801 119.553C70.0801 121.781 71.3179 123.133 73.3428 123.133ZM73.3428 121.972C72.1558 121.972 71.4893 121.089 71.4893 119.553C71.4893 118.017 72.1558 117.128 73.3428 117.128C74.5234 117.128 75.1963 118.017 75.1963 119.553C75.1963 121.083 74.5234 121.972 73.3428 121.972ZM78.2432 123H79.6079V118.957C79.6079 117.846 80.249 117.16 81.2583 117.16C82.2676 117.16 82.75 117.719 82.75 118.861V123H84.1147V118.538C84.1147 116.894 83.2642 115.973 81.7217 115.973C80.6807 115.973 79.9951 116.437 79.6587 117.198H79.5571V116.106H78.2432V123ZM88.5645 123.114C89.5166 123.114 90.3228 122.664 90.7354 121.908H90.8433V123H92.1509V113.402H90.7861V117.198H90.6846C90.3101 116.443 89.5103 115.986 88.5645 115.986C86.8188 115.986 85.6953 117.376 85.6953 119.547C85.6953 121.73 86.8062 123.114 88.5645 123.114ZM88.9517 117.154C90.0942 117.154 90.8115 118.081 90.8115 119.553C90.8115 121.039 90.1006 121.946 88.9517 121.946C87.7964 121.946 87.1045 121.051 87.1045 119.553C87.1045 118.062 87.8027 117.154 88.9517 117.154ZM96.1118 123.114C97.0195 123.114 97.7749 122.721 98.1875 122.022H98.2954V123H99.6094V118.284C99.6094 116.836 98.6318 115.973 96.8989 115.973C95.3311 115.973 94.2139 116.729 94.0742 117.89H95.3945C95.5469 117.389 96.0737 117.103 96.8354 117.103C97.7686 117.103 98.251 117.528 98.251 118.284V118.887L96.3784 119.001C94.7344 119.103 93.8076 119.82 93.8076 121.058C93.8076 122.314 94.7788 123.114 96.1118 123.114ZM96.4609 122.016C95.7183 122.016 95.1787 121.642 95.1787 121C95.1787 120.372 95.6104 120.036 96.5625 119.972L98.251 119.858V120.455C98.251 121.343 97.4893 122.016 96.4609 122.016Z" fill="var(--vscode-editor-foreground, #CCCCCC)" />
+            <rect x="111" y="115" width="154" height="6" rx="3" fill="var(--vscode-editorHoverWidget-border, #454545)" />
+          </g>
+        </g>
+        <g>
+          <g>
+            <rect x="60" y="140" width="41" height="6" rx="3" fill="var(--vscode-editorHoverWidget-border, #454545)" />
+            <rect x="105" y="140" width="69" height="6" rx="3" fill="var(--vscode-editorHoverWidget-border, #454545)" />
+            <rect x="178" y="140" width="26" height="6" rx="3" fill="var(--vscode-textLink-foreground, #3794FF)" fill-opacity="0.6" />
+          </g>
+        </g>
+        <g>
+          <g>
+            <rect x="60" y="162" width="26" height="6" rx="3" fill="var(--vscode-textLink-foreground, #3794FF)" fill-opacity="0.6" />
+            <rect x="90" y="162" width="164" height="6" rx="3" fill="var(--vscode-editorHoverWidget-border, #454545)" />
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+  <defs>
+    <filter id="filter0_d_1003_92716" x="32" y="6" width="457" height="194" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix" />
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+      <feOffset dy="2" />
+      <feGaussianBlur stdDeviation="8" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.36 0" />
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1003_92716" />
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1003_92716" result="shape" />
+    </filter>
+    <clipPath id="clip0_1003_92716">
+      <rect width="520" height="220" fill="#FFFFFF" />
+    </clipPath>
+    <clipPath id="clip1_1003_92716">
+      <rect width="115.654" height="39.2998" fill="#FFFFFF" />
+    </clipPath>
+  </defs>
+</svg>

@@ -1,0 +1,6 @@
+# this file is not actually used in tests, as all is mocked out
+
+# The default environment always exists
+#[envs.default]
+
+[envs.test]

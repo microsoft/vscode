@@ -1,0 +1,3 @@
+from typing import Text
+
+def pythonic(var_name: Text) -> Text: ...

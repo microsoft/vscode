@@ -1,0 +1,11 @@
+{
+    "spec": "./out/test/**/*.functional.test.js",
+    "exclude-out": "out/**/*.jsx",
+    "require": ["out/test/unittests.js"],
+    "reporter": "spec",
+    "ui": "tdd",
+    "recursive": true,
+    "colors": true,
+    "exit": true,
+    "timeout": 180000
+}

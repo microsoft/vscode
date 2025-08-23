@@ -1,0 +1,6 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+
+@pytest.mark.parametrize("num", range(1, 89))
+def test_odd_even(num):
+    assert True

@@ -1,0 +1,23 @@
+==> 2020-10-29 17:13:39 <==
+# cmd: ~/.pyenv/versions/miniconda3-4.7.12/bin/conda create --name conda1 --yes python
+# conda version: 4.9.1
++defaults/linux-64::_libgcc_mutex-0.1-main
++defaults/linux-64::ca-certificates-2020.10.14-0
++defaults/linux-64::certifi-2020.6.20-py38h06a4308_2
++defaults/linux-64::ld_impl_linux-64-2.33.1-h53a641e_7
++defaults/linux-64::libedit-3.1.20191231-h14c3975_1
++defaults/linux-64::libffi-3.3-he6710b0_2
++defaults/linux-64::libgcc-ng-9.1.0-hdf63c60_0
++defaults/linux-64::libstdcxx-ng-9.1.0-hdf63c60_0
++defaults/linux-64::ncurses-6.2-he6710b0_1
++defaults/linux-64::openssl-1.1.1h-h7b6447c_0
++defaults/linux-64::pip-20.2.4-py38_0
++defaults/linux-64::python-3.9.0rc1-h7579374_1
++defaults/linux-64::readline-8.0-h7b6447c_0
++defaults/linux-64::setuptools-50.3.0-py38hb0f4dca_1
++defaults/linux-64::sqlite-3.33.0-h62c20be_0
++defaults/linux-64::tk-8.6.10-hbc83047_0
++defaults/linux-64::xz-5.2.5-h7b6447c_0
++defaults/linux-64::zlib-1.2.11-h7b6447c_3
++defaults/noarch::wheel-0.35.1-py_0
+# update specs: ['python']

@@ -1,0 +1,1 @@
+from tkinter.dialog import *

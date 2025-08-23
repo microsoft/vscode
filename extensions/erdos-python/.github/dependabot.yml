@@ -1,0 +1,49 @@
+version: 2
+updates:
+  - package-ecosystem: 'github-actions'
+    directory: /
+    schedule:
+      interval: daily
+    labels:
+      - 'no-changelog'
+
+  - package-ecosystem: 'github-actions'
+    directory: .github/actions/build-vsix
+    schedule:
+      interval: daily
+    labels:
+      - 'no-changelog'
+
+  - package-ecosystem: 'github-actions'
+    directory: .github/actions/lint
+    schedule:
+      interval: daily
+    labels:
+      - 'no-changelog'
+
+  - package-ecosystem: 'github-actions'
+    directory: .github/actions/smoke-test
+    schedule:
+      interval: daily
+    labels:
+      - 'no-changelog'
+
+  # Not skipping the news for some Python dependencies in case it's actually useful to communicate to users.
+  - package-ecosystem: 'pip'
+    directory: /
+    schedule:
+      interval: daily
+    ignore:
+      - dependency-name: prospector # Due to Python 2.7 and #14477.
+      - dependency-name: pytest # Due to Python 2.7 and #13776.
+      - dependency-name: py # Due to Python 2.7.
+      - dependency-name: jedi-language-server
+    labels:
+      - 'no-changelog'
+  # Activate when we feel ready to keep up with frequency.
+  # - package-ecosystem: 'npm'
+  #   directory: /
+  #   schedule:
+  #     interval: daily
+  #   default_labels:
+  #     - "no-changelog"

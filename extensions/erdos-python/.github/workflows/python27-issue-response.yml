@@ -1,0 +1,16 @@
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  python27-issue-response:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    if: "contains(github.event.issue.body, 'Python version (& distribution if applicable, e.g. Anaconda): 2.7')"
+    steps:
+      - name: Check for Python 2.7 string
+        run: |
+          response="We're sorry, but we no longer support Python 2.7. If you need to work with Python 2.7, you will have to pin to 2022.2.* version of the extension, which was the last version that had the debugger (debugpy) with support for python 2.7, and was tested with `2.7`. Thank you for your understanding! \n ![https://user-images.githubusercontent.com/51720070/80000627-39dacc00-8472-11ea-9755-ac7ba0acbb70.gif](https://user-images.githubusercontent.com/51720070/80000627-39dacc00-8472-11ea-9755-ac7ba0acbb70.gif)"
+          gh issue comment ${{ github.event.issue.number }} --body "$response"
+          gh issue close ${{ github.event.issue.number }}

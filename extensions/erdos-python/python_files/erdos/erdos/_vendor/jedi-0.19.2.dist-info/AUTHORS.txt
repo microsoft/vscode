@@ -1,0 +1,72 @@
+Main Authors
+------------
+
+- David Halter (@davidhalter) <davidhalter88@gmail.com>
+- Takafumi Arakaki (@tkf) <aka.tkf@gmail.com>
+
+Code Contributors
+-----------------
+
+- Danilo Bargen (@dbrgn) <mail@dbrgn.ch>
+- Laurens Van Houtven (@lvh) <_@lvh.cc>
+- Aldo Stracquadanio (@Astrac) <aldo.strac@gmail.com>
+- Jean-Louis Fuchs (@ganwell) <ganwell@fangorn.ch>
+- tek (@tek)
+- Yasha Borevich (@jjay) <j.borevich@gmail.com>
+- Aaron Griffin <aaronmgriffin@gmail.com>
+- andviro (@andviro)
+- Mike Gilbert (@floppym) <floppym@gentoo.org>
+- Aaron Meurer (@asmeurer) <asmeurer@gmail.com>
+- Lubos Trilety <ltrilety@redhat.com>
+- Akinori Hattori (@hattya) <hattya@gmail.com>
+- srusskih (@srusskih)
+- Steven Silvester (@blink1073)
+- Colin Duquesnoy (@ColinDuquesnoy) <colin.duquesnoy@gmail.com>
+- Jorgen Schaefer (@jorgenschaefer) <contact@jorgenschaefer.de>
+- Fredrik Bergroth (@fbergroth)
+- Mathias Fußenegger (@mfussenegger)
+- Syohei Yoshida (@syohex) <syohex@gmail.com>
+- ppalucky (@ppalucky)
+- immerrr (@immerrr) immerrr@gmail.com
+- Albertas Agejevas (@alga)
+- Savor d'Isavano (@KenetJervet) <newelevenken@163.com>
+- Phillip Berndt (@phillipberndt) <phillip.berndt@gmail.com>
+- Ian Lee (@IanLee1521) <IanLee1521@gmail.com>
+- Farkhad Khatamov (@hatamov) <comsgn@gmail.com>
+- Kevin Kelley (@kelleyk) <kelleyk@kelleyk.net>
+- Sid Shanker (@squidarth) <sid.p.shanker@gmail.com>
+- Reinoud Elhorst (@reinhrst)
+- Guido van Rossum (@gvanrossum) <guido@python.org>
+- Dmytro Sadovnychyi (@sadovnychyi) <jedi@dmit.ro>
+- Cristi Burcă (@scribu)
+- bstaint (@bstaint)
+- Mathias Rav (@Mortal) <rav@cs.au.dk>
+- Daniel Fiterman (@dfit99) <fitermandaniel2@gmail.com>
+- Simon Ruggier (@sruggier)
+- Élie Gouzien (@ElieGouzien)
+- Robin Roth (@robinro)
+- Malte Plath (@langsamer)
+- Anton Zub (@zabulazza)
+- Maksim Novikov (@m-novikov) <mnovikov.work@gmail.com>
+- Tobias Rzepka (@TobiasRzepka)
+- micbou (@micbou)
+- Dima Gerasimov (@karlicoss) <karlicoss@gmail.com>
+- Max Woerner Chase (@mwchase) <max.chase@gmail.com>
+- Johannes Maria Frank (@jmfrank63) <jmfrank63@gmail.com>
+- Shane Steinert-Threlkeld (@shanest) <ssshanest@gmail.com>
+- Tim Gates (@timgates42) <tim.gates@iress.com>
+- Lior Goldberg (@goldberglior)
+- Ryan Clary (@mrclary)
+- Max Mäusezahl (@mmaeusezahl) <maxmaeusezahl@googlemail.com>
+- Vladislav Serebrennikov (@endilll)
+- Andrii Kolomoiets (@muffinmad)
+- Leo Ryu (@Leo-Ryu)
+- Joseph Birkner (@josephbirkner)
+- Márcio Mazza (@marciomazza)
+- Martin Vielsmaier (@moser) <martin@vielsmaier.net>
+- TingJia Wu (@WutingjiaX) <wutingjia@bytedance.com>
+- Nguyễn Hồng Quân <ng.hong.quan@gmail.com>
+
+And a few more "anonymous" contributors.
+
+Note: (@user) means a github user name.

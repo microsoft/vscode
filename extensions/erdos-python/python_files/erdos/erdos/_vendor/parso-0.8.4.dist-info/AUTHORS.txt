@@ -1,0 +1,58 @@
+Main Authors
+============
+
+David Halter (@davidhalter) <davidhalter88@gmail.com>
+
+Code Contributors
+=================
+Alisdair Robertson (@robodair)
+Bryan Forbes (@bryanforbes) <bryan@reigndropsfall.net>
+
+
+Code Contributors (to Jedi and therefore possibly to this library)
+==================================================================
+
+Takafumi Arakaki (@tkf) <aka.tkf@gmail.com>
+Danilo Bargen (@dbrgn) <mail@dbrgn.ch>
+Laurens Van Houtven (@lvh) <_@lvh.cc>
+Aldo Stracquadanio (@Astrac) <aldo.strac@gmail.com>
+Jean-Louis Fuchs (@ganwell) <ganwell@fangorn.ch>
+tek (@tek)
+Yasha Borevich (@jjay) <j.borevich@gmail.com>
+Aaron Griffin <aaronmgriffin@gmail.com>
+andviro (@andviro)
+Mike Gilbert (@floppym) <floppym@gentoo.org>
+Aaron Meurer (@asmeurer) <asmeurer@gmail.com>
+Lubos Trilety <ltrilety@redhat.com>
+Akinori Hattori (@hattya) <hattya@gmail.com>
+srusskih (@srusskih)
+Steven Silvester (@blink1073)
+Colin Duquesnoy (@ColinDuquesnoy) <colin.duquesnoy@gmail.com>
+Jorgen Schaefer (@jorgenschaefer) <contact@jorgenschaefer.de>
+Fredrik Bergroth (@fbergroth)
+Mathias Fußenegger (@mfussenegger)
+Syohei Yoshida (@syohex) <syohex@gmail.com>
+ppalucky (@ppalucky)
+immerrr (@immerrr) immerrr@gmail.com
+Albertas Agejevas (@alga)
+Savor d'Isavano (@KenetJervet) <newelevenken@163.com>
+Phillip Berndt (@phillipberndt) <phillip.berndt@gmail.com>
+Ian Lee (@IanLee1521) <IanLee1521@gmail.com>
+Farkhad Khatamov (@hatamov) <comsgn@gmail.com>
+Kevin Kelley (@kelleyk) <kelleyk@kelleyk.net>
+Sid Shanker (@squidarth) <sid.p.shanker@gmail.com>
+Reinoud Elhorst (@reinhrst)
+Guido van Rossum (@gvanrossum) <guido@python.org>
+Dmytro Sadovnychyi (@sadovnychyi) <jedi@dmit.ro>
+Cristi Burcă (@scribu)
+bstaint (@bstaint)
+Mathias Rav (@Mortal) <rav@cs.au.dk>
+Daniel Fiterman (@dfit99) <fitermandaniel2@gmail.com>
+Simon Ruggier (@sruggier)
+Élie Gouzien (@ElieGouzien)
+Tim Gates (@timgates42) <tim.gates@iress.com>
+Batuhan Taskaya (@isidentical) <isidentical@gmail.com>
+Jocelyn Boullier (@Kazy) <jocelyn@boullier.bzh>
+
+
+Note: (@user) means a github user name.

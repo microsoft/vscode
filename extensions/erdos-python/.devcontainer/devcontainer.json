@@ -1,0 +1,30 @@
+// For format details, see https://aka.ms/devcontainer.json.
+{
+    "name": "VS Code Python Dev Container",
+    // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+    "build": {
+        "dockerfile": "./Dockerfile",
+        "context": ".."
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "charliermarsh.ruff",
+                "editorconfig.editorconfig",
+                "esbenp.prettier-vscode",
+                "dbaeumer.vscode-eslint",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-python.debugpy"
+            ]
+        }
+    },
+    // Commands to execute on container creation,start.
+    "postCreateCommand": "bash scripts/postCreateCommand.sh",
+    "onCreateCommand": "bash scripts/onCreateCommand.sh",
+
+    "containerEnv": {
+        "CI_PYTHON_PATH": "/workspaces/vscode-python/.venv/bin/python"
+    }
+
+}

@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 'Bug 🐜'
+    url: https://aka.ms/pvsc-bug
+    about: 'Use the `Python: Report Issue...` command (follow the link for instructions)'
+  - name: 'Pylance'
+    url: https://github.com/microsoft/pylance-release/issues
+    about: 'For issues relating to the Pylance language server extension'
+  - name: 'Jupyter'
+    url: https://github.com/microsoft/vscode-jupyter/issues
+    about: 'For issues relating to the Jupyter extension (including the interactive window)'
+  - name: 'Python Debugger'
+    url: https://github.com/microsoft/vscode-python-debugger/issues
+    about: 'For issues relating to the Python debugger'
+  - name: Help/Support
+    url: https://github.com/microsoft/vscode-python/discussions/categories/q-a
+    about: 'Having trouble with the extension? Need help getting something to work?'

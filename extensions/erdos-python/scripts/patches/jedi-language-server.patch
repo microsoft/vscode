@@ -1,0 +1,78 @@
+# Rewrite absolute imports.
+diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/jedi_utils.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/jedi_utils.py
+index b31f5918935..a723c10718e 100644
+--- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/jedi_utils.py
++++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/jedi_utils.py
+@@ -12,9 +12,9 @@ from inspect import Parameter
+ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+
+ import docstring_to_markdown
+-import jedi.api.errors
+-import jedi.inference.references
+-import jedi.settings
++import jedi
++from jedi.api.errors import SyntaxError as JediSyntaxError
++from jedi import settings
+ from jedi import Project, Script
+ from jedi.api.classes import (
+     BaseName,
+@@ -106,14 +106,14 @@ def set_jedi_settings(
+     initialization_options: InitializationOptions,
+ ) -> None:
+     """Sets jedi settings."""
+-    jedi.settings.auto_import_modules = list(
++    settings.auto_import_modules = list(
+         set(
+-            jedi.settings.auto_import_modules
++            settings.auto_import_modules
+             + initialization_options.jedi_settings.auto_import_modules
+         )
+     )
+
+-    jedi.settings.case_insensitive_completion = (
++    settings.case_insensitive_completion = (
+         initialization_options.jedi_settings.case_insensitive_completion
+     )
+     if initialization_options.jedi_settings.debug:
+@@ -288,7 +288,7 @@ def lsp_document_symbols(names: List[Name]) -> List[DocumentSymbol]:
+     return results
+
+
+-def lsp_diagnostic(error: jedi.api.errors.SyntaxError) -> Diagnostic:
++def lsp_diagnostic(error: JediSyntaxError) -> Diagnostic:
+     """Get LSP Diagnostic from Jedi SyntaxError."""
+     return Diagnostic(
+         range=Range(
+# Patch the version since version("jedi-language-server") raises a PackageNotFoundError
+# since jedi-language-server is not actually installed.
+diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/__init__.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/__init__.py
+index ba6eaf9fe..28266bd95 100644
+--- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/__init__.py
++++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/jedi_language_server/__init__.py
+@@ -1,5 +1,4 @@
+ """Jedi Language Server."""
+
+-from importlib.metadata import version
+
+-__version__ = version("jedi-language-server")
++__version__ = "unknown"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

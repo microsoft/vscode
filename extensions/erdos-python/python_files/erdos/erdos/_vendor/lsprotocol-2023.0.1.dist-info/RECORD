@@ -1,0 +1,17 @@
+lsprotocol-2023.0.1.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+lsprotocol-2023.0.1.dist-info/LICENSE,sha256=ws_MuBL-SCEBqPBFl9_FqZkaaydIJmxHrJG2parhU4M,1141
+lsprotocol-2023.0.1.dist-info/METADATA,sha256=oh7M_V0nCX-lx8MCik5z0_J8Wyd7ApJtdl30wWs4Tb8,2237
+lsprotocol-2023.0.1.dist-info/RECORD,,
+lsprotocol-2023.0.1.dist-info/REQUESTED,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+lsprotocol-2023.0.1.dist-info/WHEEL,sha256=EZbGkh7Ie4PoZfRQ8I0ZuP9VklN_TvcZ6DSE5Uar4z4,81
+lsprotocol/__init__.py,sha256=zoT6Do2JtGHGb7pOeKpahg4ocXIsSpyowjhOrhUhx8g,94
+lsprotocol/__pycache__/__init__.cpython-313.pyc,,
+lsprotocol/__pycache__/_hooks.cpython-313.pyc,,
+lsprotocol/__pycache__/converters.cpython-313.pyc,,
+lsprotocol/__pycache__/types.cpython-313.pyc,,
+lsprotocol/__pycache__/validators.cpython-313.pyc,,
+lsprotocol/_hooks.py,sha256=PCTq4Ve_dDd02DMcWQ8afu9gj_oyX0B4nDOomPghqYs,41570
+lsprotocol/converters.py,sha256=404tQOVoZL31R9CBrDe6Gx9Nok5cRph3glKlnSx00fo,433
+lsprotocol/py.typed,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+lsprotocol/types.py,sha256=nZYiI5ZvHEBkRYjtPd8tpqe0n2NpmdaCZ2RLwHxoMLs,454735
+lsprotocol/validators.py,sha256=5UMUmWhk52_Ps66_KFydjNkMfLNUsPH3wmV0Buv645s,1420

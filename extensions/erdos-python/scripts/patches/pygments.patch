@@ -1,0 +1,76 @@
+diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/cmdline.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/cmdline.py
+index 435231e65..b75a9d7f4 100644
+--- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/cmdline.py
++++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/cmdline.py
+@@ -469,11 +469,11 @@ def main_inner(parser, argns):
+         outfile = UnclosingTextIOWrapper(outfile, encoding=fmter.encoding)
+         fmter.encoding = None
+         try:
+-            import colorama.initialise
++            import colorama.initialise as colorama_initialise
+         except ImportError:
+             pass
+         else:
+-            outfile = colorama.initialise.wrap_stream(
++            outfile = colorama_initialise.wrap_stream(
+                 outfile, convert=None, strip=None, autoreset=False, wrap=True)
+ 
+     # When using the LaTeX formatter and the option `escapeinside` is
+diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/__main__.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/__main__.py
+index 5eb2c747a..b8b833ec4 100644
+--- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/__main__.py
++++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/__main__.py
+@@ -9,9 +9,9 @@
+ """
+ 
+ import sys
+-import pygments.cmdline
++from pygments.cmdline import main
+ 
+ try:
+-    sys.exit(pygments.cmdline.main(sys.argv))
++    sys.exit(main(sys.argv))
+ except KeyboardInterrupt:
+     sys.exit(1)
+diff --git a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/sphinxext.py b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/sphinxext.py
+index f935688f1..4c293489f 100644
+--- a/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/sphinxext.py
++++ b/extensions/erdos-python/python_files/erdos/erdos/_vendor/pygments/sphinxext.py
+@@ -91,7 +91,7 @@ class PygmentsDoc(Directive):
+         The columns are the lexer name, the extensions handled by this lexer
+         (or "None"), the aliases and a link to the lexer class."""
+         from pygments.lexers._mapping import LEXERS
+-        import pygments.lexers
++        from pygments.lexers import find_lexer_class
+         out = []
+ 
+         table = []
+@@ -102,7 +102,7 @@ class PygmentsDoc(Directive):
+             return name
+ 
+         for classname, data in sorted(LEXERS.items(), key=lambda x: x[1][1].lower()):
+-            lexer_cls = pygments.lexers.find_lexer_class(data[1])
++            lexer_cls = find_lexer_class(data[1])
+             extensions = lexer_cls.filenames + lexer_cls.alias_filenames
+ 
+             table.append({
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

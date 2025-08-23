@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "module": "commonjs",
+        "target": "es6",
+        "outDir": "out",
+        "lib": [
+            "es6",
+            "es2018",
+            "ES2019",
+            "ES2020",
+        ],
+        "sourceMap": true,
+        "rootDir": "src",
+        "experimentalDecorators": true,
+        "allowSyntheticDefaultImports": true,
+        "noImplicitThis": false
+    },
+    "exclude": [
+        "node_modules",
+        ".vscode-test",
+        ".vscode test",
+        "build"
+    ]
+}

@@ -1,0 +1,8 @@
+example/**
+dist/
+out/**/*.map
+out/**/*.tsbuildInfo
+src/
+.eslintrc*
+.eslintignore
+tsconfig*.json

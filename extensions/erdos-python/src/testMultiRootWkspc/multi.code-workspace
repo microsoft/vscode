@@ -1,0 +1,44 @@
+{
+    "folders": [
+        {
+            "path": "workspace1"
+        },
+        {
+            "path": "workspace2"
+        },
+        {
+            "path": "workspace3"
+        },
+        {
+            "path": "workspace4"
+        },
+        {
+            "path": "workspace5"
+        },
+        {
+            "path": "smokeTests"
+        },
+        {
+            "path": "parent\\child"
+        },
+        {
+            "path": "disableLinters"
+        },
+        {
+            "path": "../test"
+        }
+    ],
+    "settings": {
+        "python.linting.flake8Enabled": false,
+        "python.linting.banditEnabled": false,
+        "python.linting.mypyEnabled": false,
+        "python.linting.pydocstyleEnabled": false,
+        "python.linting.pylamaEnabled": false,
+        "python.linting.pylintEnabled": true,
+        "python.linting.pycodestyleEnabled": false,
+        "python.linting.prospectorEnabled": false,
+        "python.linting.lintOnSave": false,
+        "python.linting.enabled": true,
+        "python.pythonPath": "python"
+    }
+}

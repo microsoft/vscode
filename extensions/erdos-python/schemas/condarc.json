@@ -1,0 +1,150 @@
+{
+    "title": ".condarc",
+    "description": "The conda configuration file; https://conda.io/docs/user-guide/configuration/use-condarc.html",
+    "id": "https://raw.githubusercontent.com/Microsoft/vscode-python/main/schemas/condarc.json",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "definitions": {
+        "channel": {
+            "type": "string"
+        },
+        "feature": {
+            "type": "string"
+        },
+        "package": {
+            "type": "string"
+        },
+        "path": {
+            "type": "string"
+        }
+    },
+    "properties": {
+        "channels": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/channel"
+            }
+        },
+        "allow_other_channels": {
+            "type": "boolean"
+        },
+        "default_channels": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/channel"
+            }
+        },
+        "auto_update_conda": {
+            "type": "boolean"
+        },
+        "always_yes": {
+            "type": "boolean"
+        },
+        "show_channel_urls": {
+            "type": "boolean"
+        },
+        "changeps1": {
+            "type": "boolean"
+        },
+        "add_pip_as_python_dependency": {
+            "type": "boolean"
+        },
+        "use_pip": {
+            "type": "boolean"
+        },
+        "proxy_servers": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string",
+                "format": "hostname"
+            }
+        },
+        "ssl_verify": {
+            "oneOf": [
+                {
+                    "type": "boolean"
+                },
+                {
+                    "type": "string"
+                }
+            ]
+        },
+        "offline": {
+            "type": "boolean"
+        },
+        "allow_softlinks": {
+            "type": "boolean"
+        },
+        "channel_alias": {
+            "type": "string",
+            "format": "uri"
+        },
+        "create_default_packages": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/package"
+            }
+        },
+        "track_features": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/feature"
+            }
+        },
+        "update_dependencies": {
+            "type": "boolean"
+        },
+        "disallow": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/package"
+            }
+        },
+        "add_anaconda_token": {
+            "type": "boolean"
+        },
+        "envs_dirs": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/path"
+            }
+        },
+        "anaconda_upload": {
+            "type": "boolean"
+        },
+        "conda-build": {
+            "type": "object",
+            "properties": {
+                "root-dir": {
+                    "$ref": "#/definitions/path"
+                },
+                "quiet": {
+                    "type": "boolean"
+                },
+                "filename_hashing": {
+                    "type": "boolean"
+                },
+                "no_verify": {
+                    "type": "boolean"
+                },
+                "set_build_id": {
+                    "type": "boolean"
+                },
+                "skip_existing": {
+                    "type": "boolean"
+                },
+                "include_recipe": {
+                    "type": "boolean"
+                },
+                "activate": {
+                    "type": "boolean"
+                },
+                "pypirc": {
+                    "$ref": "#/definitions/path"
+                },
+                "pypi_repository": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

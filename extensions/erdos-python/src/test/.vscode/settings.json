@@ -1,0 +1,18 @@
+{
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": false,
+    "python.testing.pytestArgs": [],
+    "python.testing.unittestArgs": ["-s=./tests", "-p=test_*.py", "-v", "-s", ".", "-p", "*test*.py"],
+    "python.linting.lintOnSave": false,
+    "python.linting.enabled": true,
+    "python.linting.pycodestyleEnabled": false,
+    "python.linting.prospectorEnabled": false,
+    "python.linting.pydocstyleEnabled": false,
+    "python.linting.pylamaEnabled": false,
+    "python.linting.mypyEnabled": false,
+    "python.linting.banditEnabled": false,
+    // Don't set this to `Pylance`, for CI we want to use the LS that ships with the extension.
+    "python.languageServer": "Jedi",
+    "python.pythonPath": "C:\\GIT\\s p\\vscode-python\\.venv\\Scripts\\python.exe",
+    "python.defaultInterpreterPath": "python"
+}

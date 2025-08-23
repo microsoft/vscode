@@ -1,0 +1,3 @@
+from typing import Any
+
+def make_hashable(value: Any) -> Any: ...

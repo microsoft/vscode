@@ -20,7 +20,10 @@ import { joinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
-
+// import { IRuntimeSessionService } from '../../runtimeSession/common/runtimeSessionService.js';
+// import type { IRuntimeSessionService as IRuntimeSessionServiceType } from '../../runtimeSession/common/runtimeSessionTypes.js';
+// import { INotebookEditorService } from '../../../contrib/notebook/browser/services/notebookEditorService.js';
+// import { INotebookKernelService } from '../../../contrib/notebook/common/notebookKernelService.js';
 
 export class ErdosNewFolderService extends Disposable implements IErdosNewFolderService {
 	declare readonly _serviceBrand: undefined;
@@ -48,7 +51,10 @@ export class ErdosNewFolderService extends Disposable implements IErdosNewFolder
 		@ICommandService private readonly _commandService: ICommandService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
+		// @INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
+		// @INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		// @IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionServiceType,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,

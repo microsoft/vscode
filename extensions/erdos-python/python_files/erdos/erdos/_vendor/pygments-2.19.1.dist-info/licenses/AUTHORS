@@ -1,0 +1,291 @@
+Pygments is written and maintained by Georg Brandl <georg@python.org>.
+
+Major developers are Tim Hatch <tim@timhatch.com> and Armin Ronacher
+<armin.ronacher@active-4.com>.
+
+Other contributors, listed alphabetically, are:
+
+* Sam Aaron -- Ioke lexer
+* Jean Abou Samra -- LilyPond lexer
+* João Abecasis -- JSLT lexer
+* Ali Afshar -- image formatter
+* Thomas Aglassinger -- Easytrieve, JCL, Rexx, Transact-SQL and VBScript
+  lexers
+* Maxence Ahlouche -- PostgreSQL Explain lexer
+* Muthiah Annamalai -- Ezhil lexer
+* Nikolay Antipov -- OpenSCAD lexer
+* Kumar Appaiah -- Debian control lexer
+* Andreas Amann -- AppleScript lexer
+* Timothy Armstrong -- Dart lexer fixes
+* Jeffrey Arnold -- R/S, Rd, BUGS, Jags, and Stan lexers
+* Eiríkr Åsheim -- Uxntal lexer
+* Jeremy Ashkenas -- CoffeeScript lexer
+* José Joaquín Atria -- Praat lexer
+* Stefan Matthias Aust -- Smalltalk lexer
+* Lucas Bajolet -- Nit lexer
+* Ben Bangert -- Mako lexers
+* Max Battcher -- Darcs patch lexer
+* Thomas Baruchel -- APL lexer
+* Tim Baumann -- (Literate) Agda lexer
+* Paul Baumgart, 280 North, Inc. -- Objective-J lexer
+* Michael Bayer -- Myghty lexers
+* Thomas Beale -- Archetype lexers
+* John Benediktsson -- Factor lexer
+* David Benjamin, Google LLC -- TLS lexer
+* Trevor Bergeron -- mIRC formatter
+* Vincent Bernat -- LessCSS lexer
+* Christopher Bertels -- Fancy lexer
+* Sébastien Bigaret -- QVT Operational lexer
+* Jarrett Billingsley -- MiniD lexer
+* Adam Blinkinsop -- Haskell, Redcode lexers
+* Stéphane Blondon -- Procfile, SGF and Sieve lexers
+* Frits van Bommel -- assembler lexers
+* Pierre Bourdon -- bugfixes
+* Martijn Braam -- Kernel log lexer, BARE lexer
+* JD Browne, Google LLC -- GoogleSQL lexer
+* Matthias Bussonnier -- ANSI style handling for terminal-256 formatter
+* chebee7i -- Python traceback lexer improvements
+* Hiram Chirino -- Scaml and Jade lexers
+* Mauricio Caceres -- SAS and Stata lexers.
+* Michael Camilleri, John Gabriele, sogaiu -- Janet lexer
+* Daren Chandisingh -- Gleam lexer
+* Ian Cooper -- VGL lexer
+* David Corbett -- Inform, Jasmin, JSGF, Snowball, and TADS 3 lexers
+* Leaf Corcoran -- MoonScript lexer
+* Fraser Cormack -- TableGen lexer
+* Gabriel Corona -- ASN.1 lexer
+* Christopher Creutzig -- MuPAD lexer
+* Daniël W. Crompton -- Pike lexer
+* Pete Curry -- bugfixes
+* Bryan Davis -- EBNF lexer
+* Bruno Deferrari -- Shen lexer
+* Walter Dörwald -- UL4 lexer
+* Luke Drummond -- Meson lexer
+* Giedrius Dubinskas -- HTML formatter improvements
+* Owen Durni -- Haxe lexer
+* Alexander Dutton, Oxford University Computing Services -- SPARQL lexer
+* James Edwards -- Terraform lexer
+* Nick Efford -- Python 3 lexer
+* Sven Efftinge -- Xtend lexer
+* Artem Egorkine -- terminal256 formatter
+* Matthew Fernandez -- CAmkES lexer
+* Paweł Fertyk -- GDScript lexer, HTML formatter improvements
+* Michael Ficarra -- CPSA lexer
+* James H. Fisher -- PostScript lexer
+* Amanda Fitch, Google LLC -- GoogleSQL lexer
+* William S. Fulton -- SWIG lexer
+* Carlos Galdino -- Elixir and Elixir Console lexers
+* Michael Galloy -- IDL lexer
+* Naveen Garg -- Autohotkey lexer
+* Simon Garnotel -- FreeFem++ lexer
+* Laurent Gautier -- R/S lexer
+* Alex Gaynor -- PyPy log lexer
+* Richard Gerkin -- Igor Pro lexer
+* Alain Gilbert -- TypeScript lexer
+* Alex Gilding -- BlitzBasic lexer
+* GitHub, Inc -- DASM16, Augeas, TOML, and Slash lexers
+* Bertrand Goetzmann -- Groovy lexer
+* Krzysiek Goj -- Scala lexer
+* Rostyslav Golda -- FloScript lexer
+* Andrey Golovizin -- BibTeX lexers
+* Matt Good -- Genshi, Cheetah lexers
+* Michał Górny -- vim modeline support
+* Alex Gosse -- TrafficScript lexer
+* Patrick Gotthardt -- PHP namespaces support
+* Hubert Gruniaux -- C and C++ lexer improvements
+* Olivier Guibe -- Asymptote lexer
+* Phil Hagelberg -- Fennel lexer
+* Florian Hahn -- Boogie lexer
+* Martin Harriman -- SNOBOL lexer
+* Matthew Harrison -- SVG formatter
+* Steven Hazel -- Tcl lexer
+* Dan Michael Heggø -- Turtle lexer
+* Aslak Hellesøy -- Gherkin lexer
+* Greg Hendershott -- Racket lexer
+* Justin Hendrick -- ParaSail lexer
+* Jordi Gutiérrez Hermoso -- Octave lexer
+* David Hess, Fish Software, Inc. -- Objective-J lexer
+* Ken Hilton -- Typographic Number Theory and Arrow lexers
+* Varun Hiremath -- Debian control lexer
+* Rob Hoelz -- Perl 6 lexer
+* Doug Hogan -- Mscgen lexer
+* Ben Hollis -- Mason lexer
+* Max Horn -- GAP lexer
+* Fred Hornsey -- OMG IDL Lexer
+* Alastair Houghton -- Lexer inheritance facility
+* Tim Howard -- BlitzMax lexer
+* Dustin Howett -- Logos lexer
+* Ivan Inozemtsev -- Fantom lexer
+* Hiroaki Itoh -- Shell console rewrite, Lexers for PowerShell session,
+  MSDOS session, BC, WDiff
+* Brian R. Jackson -- Tea lexer
+* Christian Jann -- ShellSession lexer
+* Jonas Camillus Jeppesen -- Line numbers and line highlighting for 
+  RTF-formatter
+* Dennis Kaarsemaker -- sources.list lexer
+* Dmitri Kabak -- Inferno Limbo lexer
+* Igor Kalnitsky -- vhdl lexer
+* Colin Kennedy - USD lexer
+* Alexander Kit -- MaskJS lexer
+* Pekka Klärck -- Robot Framework lexer
+* Gerwin Klein -- Isabelle lexer
+* Eric Knibbe -- Lasso lexer
+* Stepan Koltsov -- Clay lexer
+* Oliver Kopp - Friendly grayscale style
+* Adam Koprowski -- Opa lexer
+* Benjamin Kowarsch -- Modula-2 lexer
+* Domen Kožar -- Nix lexer
+* Oleh Krekel -- Emacs Lisp lexer
+* Alexander Kriegisch -- Kconfig and AspectJ lexers
+* Marek Kubica -- Scheme lexer
+* Jochen Kupperschmidt -- Markdown processor
+* Gerd Kurzbach -- Modelica lexer
+* Jon Larimer, Google Inc. -- Smali lexer
+* Olov Lassus -- Dart lexer
+* Matt Layman -- TAP lexer
+* Dan Lazin, Google LLC -- GoogleSQL lexer
+* Kristian Lyngstøl -- Varnish lexers
+* Sylvestre Ledru -- Scilab lexer
+* Chee Sing Lee -- Flatline lexer
+* Mark Lee -- Vala lexer
+* Thomas Linder Puls -- Visual Prolog lexer
+* Pete Lomax -- Phix lexer
+* Valentin Lorentz -- C++ lexer improvements
+* Ben Mabey -- Gherkin lexer
+* Angus MacArthur -- QML lexer
+* Louis Mandel -- X10 lexer
+* Louis Marchand -- Eiffel lexer
+* Simone Margaritelli -- Hybris lexer
+* Tim Martin - World of Warcraft TOC lexer
+* Kirk McDonald -- D lexer
+* Gordon McGregor -- SystemVerilog lexer
+* Stephen McKamey -- Duel/JBST lexer
+* Brian McKenna -- F# lexer
+* Charles McLaughlin -- Puppet lexer
+* Kurt McKee -- Tera Term macro lexer, PostgreSQL updates, MySQL overhaul, JSON lexer
+* Joe Eli McIlvain -- Savi lexer
+* Lukas Meuser -- BBCode formatter, Lua lexer
+* Cat Miller -- Pig lexer
+* Paul Miller -- LiveScript lexer
+* Hong Minhee -- HTTP lexer
+* Michael Mior -- Awk lexer
+* Bruce Mitchener -- Dylan lexer rewrite
+* Reuben Morais -- SourcePawn lexer
+* Jon Morton -- Rust lexer
+* Paulo Moura -- Logtalk lexer
+* Mher Movsisyan -- DTD lexer
+* Dejan Muhamedagic -- Crmsh lexer
+* Adrien Nayrat -- PostgreSQL Explain lexer
+* Ana Nelson -- Ragel, ANTLR, R console lexers
+* David Neto, Google LLC -- WebGPU Shading Language lexer
+* Kurt Neufeld -- Markdown lexer
+* Nam T. Nguyen -- Monokai style
+* Jesper Noehr -- HTML formatter "anchorlinenos"
+* Mike Nolta -- Julia lexer
+* Avery Nortonsmith -- Pointless lexer
+* Jonas Obrist -- BBCode lexer
+* Edward O'Callaghan -- Cryptol lexer
+* David Oliva -- Rebol lexer
+* Pat Pannuto -- nesC lexer
+* Jon Parise -- Protocol buffers and Thrift lexers
+* Benjamin Peterson -- Test suite refactoring
+* Ronny Pfannschmidt -- BBCode lexer
+* Dominik Picheta -- Nimrod lexer
+* Andrew Pinkham -- RTF Formatter Refactoring
+* Clément Prévost -- UrbiScript lexer
+* Tanner Prynn -- cmdline -x option and loading lexers from files
+* Oleh Prypin -- Crystal lexer (based on Ruby lexer)
+* Nick Psaris -- K and Q lexers
+* Xidorn Quan -- Web IDL lexer
+* Elias Rabel -- Fortran fixed form lexer
+* raichoo -- Idris lexer
+* Daniel Ramirez -- GDScript lexer
+* Kashif Rasul -- CUDA lexer
+* Nathan Reed -- HLSL lexer
+* Justin Reidy -- MXML lexer
+* Jonathon Reinhart, Google LLC -- Soong lexer
+* Norman Richards -- JSON lexer
+* Corey Richardson -- Rust lexer updates
+* Fabrizio Riguzzi -- cplint leder
+* Lubomir Rintel -- GoodData MAQL and CL lexers
+* Andre Roberge -- Tango style
+* Georg Rollinger -- HSAIL lexer
+* Michiel Roos -- TypoScript lexer
+* Konrad Rudolph -- LaTeX formatter enhancements
+* Mario Ruggier -- Evoque lexers
+* Miikka Salminen -- Lovelace style, Hexdump lexer, lexer enhancements
+* Stou Sandalski -- NumPy, FORTRAN, tcsh and XSLT lexers
+* Matteo Sasso -- Common Lisp lexer
+* Joe Schafer -- Ada lexer
+* Max Schillinger -- TiddlyWiki5 lexer
+* Andrew Schmidt -- X++ lexer
+* Ken Schutte -- Matlab lexers
+* René Schwaiger -- Rainbow Dash style
+* Sebastian Schweizer -- Whiley lexer
+* Tassilo Schweyer -- Io, MOOCode lexers
+* Pablo Seminario -- PromQL lexer
+* Ted Shaw -- AutoIt lexer
+* Joerg Sieker -- ABAP lexer
+* Robert Simmons -- Standard ML lexer
+* Kirill Simonov -- YAML lexer
+* Corbin Simpson -- Monte lexer
+* Ville Skyttä -- ASCII armored lexer
+* Alexander Smishlajev -- Visual FoxPro lexer
+* Steve Spigarelli -- XQuery lexer
+* Jerome St-Louis -- eC lexer
+* Camil Staps -- Clean and NuSMV lexers; Solarized style
+* James Strachan -- Kotlin lexer
+* Tom Stuart -- Treetop lexer
+* Colin Sullivan -- SuperCollider lexer
+* Ben Swift -- Extempore lexer
+* tatt61880 -- Kuin lexer
+* Edoardo Tenani -- Arduino lexer
+* Tiberius Teng -- default style overhaul
+* Jeremy Thurgood -- Erlang, Squid config lexers
+* Brian Tiffin -- OpenCOBOL lexer
+* Bob Tolbert -- Hy lexer
+* Doug Torrance -- Macaulay2 lexer
+* Matthias Trute -- Forth lexer
+* Tuoa Spi T4 -- Bdd lexer
+* Erick Tryzelaar -- Felix lexer
+* Alexander Udalov -- Kotlin lexer improvements
+* Thomas Van Doren -- Chapel lexer
+* Dave Van Ee -- Uxntal lexer updates
+* Daniele Varrazzo -- PostgreSQL lexers
+* Abe Voelker -- OpenEdge ABL lexer
+* Pepijn de Vos -- HTML formatter CTags support
+* Matthias Vallentin -- Bro lexer
+* Benoît Vinot -- AMPL lexer
+* Linh Vu Hong -- RSL lexer
+* Taavi Väänänen -- Debian control lexer
+* Immanuel Washington -- Smithy lexer
+* Nathan Weizenbaum -- Haml and Sass lexers
+* Nathan Whetsell -- Csound lexers
+* Dietmar Winkler -- Modelica lexer
+* Nils Winter -- Smalltalk lexer
+* Davy Wybiral -- Clojure lexer
+* Whitney Young -- ObjectiveC lexer
+* Diego Zamboni -- CFengine3 lexer
+* Enrique Zamudio -- Ceylon lexer
+* Alex Zimin -- Nemerle lexer
+* Rob Zimmerman -- Kal lexer
+* Evgenii Zheltonozhskii -- Maple lexer
+* Vincent Zurczak -- Roboconf lexer
+* Hubert Gruniaux -- C and C++ lexer improvements
+* Thomas Symalla -- AMDGPU Lexer
+* 15b3 -- Image Formatter improvements
+* Fabian Neumann -- CDDL lexer
+* Thomas Duboucher -- CDDL lexer
+* Philipp Imhof -- Pango Markup formatter
+* Thomas Voss -- Sed lexer
+* Martin Fischer -- WCAG contrast testing
+* Marc Auberer -- Spice lexer
+* Amr Hesham -- Carbon lexer
+* diskdance -- Wikitext lexer
+* vanillajonathan -- PRQL lexer
+* Nikolay Antipov -- OpenSCAD lexer
+* Markus Meyer, Nextron Systems -- YARA lexer
+* Hannes Römer -- Mojo lexer
+* Jan Frederik Schaefer -- PDDL lexer
+
+Many thanks for all contributions!

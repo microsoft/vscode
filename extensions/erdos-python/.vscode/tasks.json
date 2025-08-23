@@ -1,0 +1,39 @@
+{
+    "version": "2.0.0",
+    "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+    },
+    "tasks": [
+        {
+            "label": "Compile",
+            "type": "npm",
+            "script": "compile",
+            "isBackground": true,
+            "problemMatcher": [
+                "$tsc-watch"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Run Unit Tests",
+            "type": "npm",
+            "script": "test:unittests",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "type": "npm",
+            "script": "preTestJediLSP",
+            "problemMatcher": [],
+            "label": "preTestJediLSP"
+        }
+    ]
+}

@@ -1,0 +1,42 @@
+# pin setoptconf to prevent issue with 'use_2to3'
+setoptconf==0.3.0
+
+flake8
+bandit
+pylint
+pycodestyle
+pydocstyle
+prospector
+pytest
+flask
+fastapi
+uvicorn
+django
+testresources
+testscenarios
+
+# Integrated TensorBoard tests
+tensorboard
+torch-tb-profiler
+
+# extension build tests
+freezegun
+
+# testing custom pytest plugin require the use of named pipes
+namedpipe; platform_system == "Windows"
+
+# typing for Django files
+django-stubs
+
+coverage
+pytest-cov
+pytest-json
+pytest-timeout
+
+
+# for pytest-describe related tests
+pytest-describe
+
+# for pytest-ruff related tests
+pytest-ruff
+pytest-black

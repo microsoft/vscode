@@ -1,0 +1,58 @@
+###############################################################################################
+#  Copyright (c) Microsoft Corporation. All rights reserved.
+#  Licensed under the MIT License. See License.txt in the project root for license information.
+###############################################################################################
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+
+pr: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      ref: main
+      endpoint: Monaco
+
+parameters:
+  - name: quality
+    displayName: Quality
+    type: string
+    default: latest
+    values:
+      - latest
+      - next
+  - name: publishPythonApi
+    displayName: 🚀 Publish pythonExtensionApi
+    type: boolean
+    default: false
+
+extends:
+  template: azure-pipelines/npm-package/pipeline.yml@templates
+  parameters:
+    npmPackages:
+      - name: pythonExtensionApi
+        testPlatforms:
+          - name: Linux
+            nodeVersions:
+              - 22.17.0
+          - name: MacOS
+            nodeVersions:
+              - 22.17.0
+          - name: Windows
+            nodeVersions:
+              - 22.17.0
+        testSteps:
+          - template: /build/azure-pipelines/templates/test-steps.yml@self
+            parameters:
+              package: pythonExtensionApi
+        buildSteps:
+          - template: /build/azure-pipelines/templates/pack-steps.yml@self
+            parameters:
+              package: pythonExtensionApi
+        ghTagPrefix: release/pythonExtensionApi/
+        tag: ${{ parameters.quality }}
+        publishPackage: ${{ parameters.publishPythonApi }}
+        workingDirectory: $(Build.SourcesDirectory)/pythonExtensionApi
