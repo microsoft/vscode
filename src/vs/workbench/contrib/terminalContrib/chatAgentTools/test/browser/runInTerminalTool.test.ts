@@ -47,7 +47,7 @@ suite('RunInTerminalTool', () => {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
-		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'on');
+		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionId: string; reason: 'cleared' }>();
 
@@ -975,7 +975,7 @@ suite('RunInTerminalTool', () => {
 
 	suite('auto approve warning acceptance mechanism', () => {
 		test('should require confirmation for auto-approvable commands when warning not accepted', async () => {
-			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'on');
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 			setAutoApprove({
 				echo: true
 			});
@@ -986,7 +986,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should auto-approve commands when both auto-approve enabled and warning accepted', async () => {
-			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'on');
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 			setAutoApprove({
 				echo: true
 			});
@@ -995,7 +995,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should require confirmation when auto-approve disabled regardless of warning acceptance', async () => {
-			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'off');
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
 			setAutoApprove({
 				echo: true
 			});
