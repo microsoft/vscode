@@ -18,11 +18,13 @@ export class ChatTodoListWidget extends Disposable {
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private _isExpanded: boolean = true;
+	private _userManuallyExpanded: boolean = false;
 	private expandoElement!: HTMLElement;
 	private todoListContainer!: HTMLElement;
 	private clearButtonContainer!: HTMLElement;
 	private clearButton!: Button;
 	private _currentSessionId: string | undefined;
+	private _userHasScrolledManually: boolean = false;
 
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
@@ -81,6 +83,11 @@ export class ChatTodoListWidget extends Disposable {
 			}
 		}));
 
+		this._register(dom.addDisposableListener(this.todoListContainer, 'scroll', () => {
+			this.updateScrollShadow();
+			this._userHasScrolledManually = true;
+		}));
+
 		return container;
 	}
 
@@ -99,9 +106,40 @@ export class ChatTodoListWidget extends Disposable {
 		}));
 	}
 
-	public updateSessionId(sessionId: string | undefined): void {
+	public render(sessionId: string | undefined): void {
+		if (!sessionId) {
+			this.domNode.style.display = 'none';
+			return;
+		}
+
+		if (this._currentSessionId !== sessionId) {
+			this._userHasScrolledManually = false;
+			this._userManuallyExpanded = false;
+		}
+
+		const todoList = this.chatTodoListService.getTodos(sessionId);
+		if (todoList.length > 0) {
+			this.renderTodoList(todoList);
+			this.domNode.style.display = 'block';
+		} else {
+			this.domNode.style.display = 'none';
+			return;
+		}
+
 		this._currentSessionId = sessionId;
 		this.updateTodoDisplay();
+	}
+
+	public clear(sessionId: string | undefined): void {
+		if (!sessionId || this.domNode.style.display === 'none') {
+			return;
+		}
+
+		const currentTodos = this.chatTodoListService.getTodos(sessionId);
+		const todoListCompleted = !currentTodos.some(todo => todo.status !== 'completed');
+		if (todoListCompleted) {
+			this.clearAllTodos();
+		}
 	}
 
 	private updateTodoDisplay(): void {
@@ -128,7 +166,13 @@ export class ChatTodoListWidget extends Disposable {
 
 		const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
 		if (titleElement) {
-			titleElement.textContent = this.getProgressText(todoList);
+			this.updateTitleElement(titleElement, todoList);
+		}
+
+		const allIncomplete = todoList.every(todo => todo.status === 'not-started');
+		if (allIncomplete) {
+			this._userHasScrolledManually = false;
+			this._userManuallyExpanded = false;
 		}
 
 		let lastActiveIndex = -1;
@@ -171,12 +215,32 @@ export class ChatTodoListWidget extends Disposable {
 			}
 		});
 
+		const hasInProgressTask = todoList.some(todo => todo.status === 'in-progress');
+		const hasCompletedTask = todoList.some(todo => todo.status === 'completed');
+
+		// Only auto-collapse if there are in-progress or completed tasks AND user hasn't manually expanded
+		if ((hasInProgressTask || hasCompletedTask) && this._isExpanded && !this._userManuallyExpanded) {
+			this._isExpanded = false;
+			this.expandoElement.setAttribute('aria-expanded', 'false');
+			this.todoListContainer.style.display = 'none';
+
+			const expandIcon = this.expandoElement.querySelector('.expand-icon') as HTMLElement;
+			if (expandIcon) {
+				expandIcon.classList.remove('codicon-chevron-down');
+				expandIcon.classList.add('codicon-chevron-right');
+			}
+
+			this.updateTitleElement(titleElement, todoList);
+			this._onDidChangeHeight.fire();
+		}
+
 		// Auto-scroll to show the most relevant item
 		this.scrollToRelevantItem(lastActiveIndex, firstCompletedIndex, firstPendingAfterCompletedIndex, todoList.length);
 	}
 
 	private toggleExpanded(): void {
 		this._isExpanded = !this._isExpanded;
+		this._userManuallyExpanded = true;
 
 		const expandIcon = this.expandoElement.querySelector('.expand-icon') as HTMLElement;
 		if (expandIcon) {
@@ -184,8 +248,15 @@ export class ChatTodoListWidget extends Disposable {
 			expandIcon.classList.toggle('codicon-chevron-right', !this._isExpanded);
 		}
 
-		this.expandoElement.setAttribute('aria-expanded', this._isExpanded.toString());
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
+
+		if (this._currentSessionId) {
+			const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+			const titleElement = this.expandoElement.querySelector('.todo-list-title') as HTMLElement;
+			if (titleElement) {
+				this.updateTitleElement(titleElement, todoList);
+			}
+		}
 
 		this._onDidChangeHeight.fire();
 	}
@@ -196,11 +267,12 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		this.chatTodoListService.setTodos(this._currentSessionId, []);
-		this.updateTodoDisplay();
+		this.domNode.style.display = 'none';
+		this._onDidChangeHeight.fire();
 	}
 
 	private scrollToRelevantItem(lastActiveIndex: number, firstCompletedIndex: number, firstPendingAfterCompletedIndex: number, totalItems: number): void {
-		if (totalItems <= 6) {
+		if (totalItems <= 6 || this._userHasScrolledManually) {
 			return;
 		}
 
@@ -233,15 +305,74 @@ export class ChatTodoListWidget extends Disposable {
 		}, 50);
 	}
 
-	private getProgressText(todoList: IChatTodo[]): string {
-		if (todoList.length === 0) {
-			return localize('chat.todoList.title', 'Todos');
-		}
+	private updateScrollShadow(): void {
+		this.domNode.classList.toggle('scrolled', this.todoListContainer.scrollTop > 0);
+	}
+
+	private updateTitleElement(titleElement: HTMLElement, todoList: IChatTodo[]): void {
+		titleElement.textContent = '';
 
 		const completedCount = todoList.filter(todo => todo.status === 'completed').length;
 		const totalCount = todoList.length;
+		const inProgressTodos = todoList.filter(todo => todo.status === 'in-progress');
+		const firstInProgressTodo = inProgressTodos.length > 0 ? inProgressTodos[0] : undefined;
+		const completedTodos = todoList.filter(todo => todo.status === 'completed');
+		const lastCompletedTodo = completedTodos.length > 0 ? completedTodos[completedTodos.length - 1] : undefined;
 
-		return localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
+		const progressText = dom.$('span');
+		if (totalCount === 0) {
+			progressText.textContent = localize('chat.todoList.title', 'Todos');
+		} else {
+			progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
+		}
+		titleElement.appendChild(progressText);
+
+		if (!this._isExpanded) {
+			let currentTodo: IChatTodo | undefined;
+
+			if (!firstInProgressTodo) {
+				if (completedCount > 0 && completedCount < totalCount && lastCompletedTodo) {
+					currentTodo = lastCompletedTodo;
+					// Add separator
+					const separator = dom.$('span');
+					separator.textContent = ' - ';
+					titleElement.appendChild(separator);
+
+					const icon = dom.$('.codicon.codicon-check');
+					icon.style.color = 'var(--vscode-charts-green)';
+					icon.style.marginRight = '4px';
+					icon.style.verticalAlign = 'middle';
+					titleElement.appendChild(icon);
+
+					// Add completed todo title
+					const completedText = dom.$('span');
+					completedText.textContent = lastCompletedTodo.title;
+					completedText.style.verticalAlign = 'middle';
+					titleElement.appendChild(completedText);
+				}
+			} else {
+				currentTodo = firstInProgressTodo;
+				const separator = dom.$('span');
+				separator.textContent = ' - ';
+				titleElement.appendChild(separator);
+
+				const icon = dom.$('.codicon.codicon-record');
+				icon.style.color = 'var(--vscode-charts-blue)';
+				icon.style.marginRight = '4px';
+				icon.style.verticalAlign = 'middle';
+				titleElement.appendChild(icon);
+
+				const inProgressText = dom.$('span');
+				inProgressText.textContent = firstInProgressTodo.title;
+				inProgressText.style.verticalAlign = 'middle';
+				titleElement.appendChild(inProgressText);
+			}
+			if (currentTodo && currentTodo.description && currentTodo.description.trim()) {
+				this.expandoElement.title = currentTodo.description;
+			}
+		} else {
+			this.expandoElement.title = progressText.textContent || '';
+		}
 	}
 
 	private getStatusIconClass(status: string): string {

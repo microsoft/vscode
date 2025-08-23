@@ -17,6 +17,8 @@ import { ArcTracker } from './arcTracker.js';
 import { IDocumentWithAnnotatedEdits, EditSourceData, createDocWithJustReason } from '../helpers/documentWithAnnotatedEdits.js';
 import type { ScmRepoBridge } from './editSourceTrackingImpl.js';
 import { ITextModelEditSourceMetadata } from '../../../../../editor/common/textModelEditSource.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { forwardToChannelIf, isCopilotLikeExtension } from './forwardingTelemetryService.js';
 
 export class InlineEditArcTelemetrySender extends Disposable {
 	constructor(
@@ -86,6 +88,8 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					currentLineCount: res.currentLineCount,
 					originalDeletedLineCount: res.originalDeletedLineCount,
 					currentDeletedLineCount: res.currentDeletedLineCount,
+
+					...forwardToChannelIf(isCopilotLikeExtension(data.$extensionId)),
 				});
 			});
 
@@ -107,7 +111,7 @@ export class ChatArcTelemetrySender extends Disposable {
 		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
 			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
 
-			const supportedSource = new Set(['Chat.applyEdits' as ITextModelEditSourceMetadata['source']]);
+			const supportedSource = new Set(['Chat.applyEdits', 'inlineChat.applyEdits'] as ITextModelEditSourceMetadata['source'][]);
 
 			if (!edit.replacements.some(r => supportedSource.has(r.data.editSource.metadata.source))) {
 				return;
@@ -117,6 +121,8 @@ export class ChatArcTelemetrySender extends Disposable {
 				return;
 			}
 			const data = edit.replacements[0].data.editSource;
+
+			const uniqueEditId = generateUuid();
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
 			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, [0, 60, 300].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
@@ -130,6 +136,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					modelId: string | undefined;
 					languageId: string | undefined;
 					mode: string | undefined;
+					uniqueEditId: string | undefined;
 
 					didBranchChange: number;
 					timeDelayMs: number;
@@ -152,6 +159,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
 					languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 					mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode chat was in.' };
+					uniqueEditId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The unique identifier for the edit.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
@@ -178,6 +186,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					modelId: data.props.$modelId,
 					languageId: data.props.$$languageId,
 					mode: data.props.$$mode,
+					uniqueEditId,
 
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
@@ -187,6 +196,8 @@ export class ChatArcTelemetrySender extends Disposable {
 					originalLineCount: res.originalLineCount,
 					currentLineCount: res.currentLineCount,
 					originalDeletedLineCount: res.originalDeletedLineCount,
+
+					...forwardToChannelIf(isCopilotLikeExtension(data.props.$extensionId)),
 				});
 			});
 

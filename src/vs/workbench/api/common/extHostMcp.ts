@@ -373,7 +373,7 @@ class McpHTTPHandle extends Disposable {
 		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
 		defaultMetadata.scopes_supported = scopesSupported ?? defaultMetadata.scopes_supported ?? [];
 		this._authMetadata = {
-			authorizationServer: URI.parse(serverMetadataUrl),
+			authorizationServer: URI.parse(baseUrl),
 			serverMetadata: defaultMetadata,
 			resourceMetadata: resource
 		};
@@ -404,7 +404,7 @@ class McpHTTPHandle extends Disposable {
 		if (isAuthorizationProtectedResourceMetadata(body)) {
 			return body;
 		} else {
-			throw new Error(`Invalid resource metadata: ${JSON.stringify(body)}`);
+			throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
 		}
 	}
 
@@ -468,36 +468,32 @@ class McpHTTPHandle extends Disposable {
 			return; // no body
 		}
 
-		switch (res.headers.get('Content-Type')?.toLowerCase()) {
-			case 'text/event-stream': {
-				const parser = new SSEParser(event => {
-					if (event.type === 'message') {
-						this._proxy.$onDidReceiveMessage(this._id, event.data);
-					} else if (event.type === 'endpoint') {
-						// An SSE server that didn't correctly return a 4xx status when we POSTed
-						this._log(LogLevel.Warning, `Received SSE endpoint from a POST to ${this._launch.uri}, will fall back to legacy SSE`);
-						this._sseFallbackWithMessage(message);
-						throw new CancellationError(); // just to end the SSE stream
-					}
-				});
+		const contentType = res.headers.get('Content-Type')?.toLowerCase() || '';
+		if (contentType.startsWith('text/event-stream')) {
+			const parser = new SSEParser(event => {
+				if (event.type === 'message') {
+					this._proxy.$onDidReceiveMessage(this._id, event.data);
+				} else if (event.type === 'endpoint') {
+					// An SSE server that didn't correctly return a 4xx status when we POSTed
+					this._log(LogLevel.Warning, `Received SSE endpoint from a POST to ${this._launch.uri}, will fall back to legacy SSE`);
+					this._sseFallbackWithMessage(message);
+					throw new CancellationError(); // just to end the SSE stream
+				}
+			});
 
-				try {
-					await this._doSSE(parser, res);
-				} catch (err) {
-					this._log(LogLevel.Warning, `Error reading SSE stream: ${String(err)}`);
-				}
-				break;
+			try {
+				await this._doSSE(parser, res);
+			} catch (err) {
+				this._log(LogLevel.Warning, `Error reading SSE stream: ${String(err)}`);
 			}
-			case 'application/json':
-				this._proxy.$onDidReceiveMessage(this._id, await res.text());
-				break;
-			default: {
-				const responseBody = await res.text();
-				if (isJSON(responseBody)) { // try to read as JSON even if the server didn't set the content type
-					this._proxy.$onDidReceiveMessage(this._id, responseBody);
-				} else {
-					this._log(LogLevel.Warning, `Unexpected ${res.status} response for request: ${responseBody}`);
-				}
+		} else if (contentType.startsWith('application/json')) {
+			this._proxy.$onDidReceiveMessage(this._id, await res.text());
+		} else {
+			const responseBody = await res.text();
+			if (isJSON(responseBody)) { // try to read as JSON even if the server didn't set the content type
+				this._proxy.$onDidReceiveMessage(this._id, responseBody);
+			} else {
+				this._log(LogLevel.Warning, `Unexpected ${res.status} response for request: ${responseBody}`);
 			}
 		}
 	}

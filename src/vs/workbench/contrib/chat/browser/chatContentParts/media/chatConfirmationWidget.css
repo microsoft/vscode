@@ -16,6 +16,12 @@
 	margin-bottom: 16px;
 }
 
+.chat-confirmation-widget + .chat-tool-approval-message  {
+	margin: -12px 6px 16px;
+	opacity: 0.8;
+	font-size: 12px;
+}
+
 .chat-confirmation-widget .chat-confirmation-widget-title  {
 	width: 100%;
 	border-radius: 3px;
@@ -225,6 +231,7 @@
 
 .chat-confirmation-widget2 .chat-confirmation-message-terminal .interactive-result-code-block {
 	border-radius: 0px;
+	border-color: var(--vscode-chat-requestBorder) !important;
 }
 .chat-confirmation-widget2.hideButtons .chat-confirmation-widget-message,
 .chat-confirmation-widget2.hideButtons .chat-confirmation-message-terminal .interactive-result-code-block,
