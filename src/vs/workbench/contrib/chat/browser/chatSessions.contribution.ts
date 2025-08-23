@@ -156,7 +156,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public reportInProgress(chatSessionType: string, count: number): void {
-		const displayName = this._contributions.get(chatSessionType)?.displayName;
+		let displayName: string | undefined;
+
+		if (chatSessionType === 'local') {
+			displayName = 'Local Chat Sessions';
+		} else {
+			displayName = this._contributions.get(chatSessionType)?.displayName;
+		}
+
 		if (displayName) {
 			this.inProgressMap.set(displayName, count);
 		}
