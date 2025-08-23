@@ -552,7 +552,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.secondarySideBar.defaultVisibility': {
 				'type': 'string',
 				'enum': ['hidden', 'visibleInWorkspace', 'visible', 'maximizedInWorkspace', 'maximized'],
-				'default': 'visibleInWorkspace',
+				'default': 'visible',
 				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows opened for the first time."),
 				'enumDescriptions': [
 					localize('workbench.secondarySideBar.defaultVisibility.hidden', "The secondary side bar is hidden by default."),

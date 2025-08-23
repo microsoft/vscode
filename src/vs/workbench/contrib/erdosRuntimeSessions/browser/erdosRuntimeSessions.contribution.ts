@@ -18,7 +18,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 // The Erdos sessions view container and view identifiers.
-export const ERDOS_RUNTIME_VIEW_CONTAINER_ID = 'workbench.panel.erdosSessions';
+export const ERDOS_RUNTIME_VIEW_CONTAINER_ID = 'workbench.auxiliaryBar.erdosRuntimeSessions';
 export const ERDOS_RUNTIME_SESSIONS_VIEW_ID = 'workbench.view.erdosSessions';
 
 // The Erdos sessions view icon.
@@ -42,10 +42,27 @@ configurationRegistry.registerConfiguration({
 		'erdos.showSessions': {
 			scope: ConfigurationScope.MACHINE,
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('erdos.showSessions', "Enable debug Runtimes pane listing active interpreter sessions.")
 		},
 	}
+});
+
+// Create the Erdos runtime sessions view container (register immediately like plots).
+const ERDOS_RUNTIME_SESSIONS_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+	id: ERDOS_RUNTIME_VIEW_CONTAINER_ID,
+	title: {
+		value: nls.localize('erdos.view.runtime.view', "Runtimes"),
+		original: 'Runtimes'
+	},
+	icon: erdosRuntimeSessionsViewIcon,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ERDOS_RUNTIME_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+	storageId: ERDOS_RUNTIME_VIEW_CONTAINER_ID,
+	hideIfEmpty: false,
+	order: 10,
+}, ViewContainerLocation.AuxiliaryBar, {
+	doNotRegisterOpenCommand: false,
+	isDefault: false
 });
 
 /**
@@ -55,7 +72,7 @@ configurationRegistry.registerConfiguration({
  * view.
  */
 class ErdosRuntimeSessionsContribution extends Disposable {
-	private _viewContainer: ViewContainer | undefined;
+	private _viewRegistered = false;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -74,49 +91,35 @@ class ErdosRuntimeSessionsContribution extends Disposable {
 			if (e.affectsConfiguration(SHOW_SESSIONS_CONFIG_KEY)) {
 				if (this._configurationService.getValue<boolean>(SHOW_SESSIONS_CONFIG_KEY)) {
 					this.registerSessionsView();
-				} else if (this._viewContainer) {
+				} else {
 					// Deregister the view if the configuration is set to hide it.
 					Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry)
-						.deregisterViews([this.runtimeSessionViewDescriptor()], this._viewContainer);
+						.deregisterViews([this.runtimeSessionViewDescriptor()], ERDOS_RUNTIME_SESSIONS_CONTAINER);
+					this._viewRegistered = false;
 				}
 			}
 		});
 	}
 
 	/**
-	 * Registers the Runtime Sessions view container and the Sessions view within it.
+	 * Registers the Sessions view within the already-created container.
 	 */
 	private registerSessionsView(): void {
-		// Register the Erdos sessions view container.
-		this._viewContainer = Registry.as<IViewContainersRegistry>(
-			ViewContainerExtensions.ViewContainersRegistry
-		).registerViewContainer(
-			{
-				id: ERDOS_RUNTIME_VIEW_CONTAINER_ID,
-				title: {
-					value: nls.localize('erdos.view.runtime.view', "Runtimes"),
-					original: 'Runtimes'
-				},
-				icon: erdosRuntimeSessionsViewIcon,
-				order: 10,
-				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ERDOS_RUNTIME_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
-				storageId: ERDOS_RUNTIME_VIEW_CONTAINER_ID,
-				hideIfEmpty: true,
-			},
-			ViewContainerLocation.AuxiliaryBar,
-			{
-				doNotRegisterOpenCommand: false,
-				isDefault: false
-			}
-		);
+		// Prevent duplicate registration
+		if (this._viewRegistered) {
+			return;
+		}
 
 		// Register the Erdos sessions view.
 		Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews(
 			[
 				this.runtimeSessionViewDescriptor()
 			],
-			this._viewContainer
+			ERDOS_RUNTIME_SESSIONS_CONTAINER
 		);
+
+		// Mark as registered to prevent duplicates
+		this._viewRegistered = true;
 	}
 
 	/**
@@ -132,6 +135,7 @@ class ErdosRuntimeSessionsContribution extends Disposable {
 				original: 'Sessions'
 			},
 			ctorDescriptor: new SyncDescriptor(ErdosRuntimeSessionsViewPane),
+			collapsed: false,
 			canToggleVisibility: true,
 			hideByDefault: false,
 			canMoveView: true,
@@ -139,6 +143,7 @@ class ErdosRuntimeSessionsContribution extends Disposable {
 			openCommandActionDescriptor: {
 				id: 'workbench.action.erdos.toggleSessions',
 				mnemonicTitle: nls.localize({ key: 'miToggleSessions', comment: ['&& denotes a mnemonic'] }, "&&Sessions"),
+				keybindings: {},
 				order: 1,
 			}
 		};

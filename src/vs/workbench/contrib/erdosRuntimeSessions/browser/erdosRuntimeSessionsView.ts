@@ -72,23 +72,36 @@ export class ErdosRuntimeSessionsViewPane extends ViewPane {
 		// Create and append the Erdos runtime sessions container.
 		this._erdosRuntimeSessionsContainer = DOM.append(container, DOM.$('.erdos-runtime-sessions-container'));
 
-		// Add placeholder content for now
+		// Add placeholder content for now using DOM manipulation (not innerHTML for security)
 		const placeholder = DOM.append(this._erdosRuntimeSessionsContainer, DOM.$('.erdos-runtime-sessions-placeholder'));
-		placeholder.innerHTML = `
-			<h3>Erdos Runtime Sessions</h3>
-			<p>Runtime Sessions UI implementation in progress...</p>
-			<p>This will show active interpreter sessions and allow session management.</p>
-			<div class="sessions-list">
-				<div class="session-item">
-					<span class="session-language">Python 3.12</span>
-					<span class="session-status">Active</span>
-				</div>
-				<div class="session-item">
-					<span class="session-language">R 4.3.0</span>
-					<span class="session-status">Idle</span>
-				</div>
-			</div>
-		`;
+		
+		// Create header
+		const header = DOM.append(placeholder, DOM.$('h3'));
+		header.textContent = 'Erdos Runtime Sessions';
+		
+		// Create description paragraphs
+		const desc1 = DOM.append(placeholder, DOM.$('p'));
+		desc1.textContent = 'Runtime Sessions UI implementation in progress...';
+		
+		const desc2 = DOM.append(placeholder, DOM.$('p'));
+		desc2.textContent = 'This will show active interpreter sessions and allow session management.';
+		
+		// Create sessions list
+		const sessionsList = DOM.append(placeholder, DOM.$('.sessions-list'));
+		
+		// Create Python session item
+		const pythonSession = DOM.append(sessionsList, DOM.$('.session-item'));
+		const pythonLang = DOM.append(pythonSession, DOM.$('span.session-language'));
+		pythonLang.textContent = 'Python 3.12';
+		const pythonStatus = DOM.append(pythonSession, DOM.$('span.session-status'));
+		pythonStatus.textContent = 'Active';
+		
+		// Create R session item
+		const rSession = DOM.append(sessionsList, DOM.$('.session-item'));
+		const rLang = DOM.append(rSession, DOM.$('span.session-language'));
+		rLang.textContent = 'R 4.3.0';
+		const rStatus = DOM.append(rSession, DOM.$('span.session-status'));
+		rStatus.textContent = 'Idle';
 	}
 
 	/**

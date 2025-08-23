@@ -1,0 +1,9 @@
+{
+	"displayName": "Environment",
+	"description": "Environment Variables",
+	"environment.configuration.title": "Environment Variables",
+	"environment.configuration.enabled.description": "Enable the Erdos environment variable collection.",
+	"environment.configuration.variables.set.description": "Environment variables to set in all Erdos terminals and consoles.",
+	"environment.configuration.variables.append.description": "Values to append to existing environment variables, naming the variable to append to and the value to append.",
+	"environment.configuration.variables.prepend.description": "Values to prepend to existing environment variables, naming the variable to prepend to and the value to prepend."
+}

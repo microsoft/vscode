@@ -1,0 +1,79 @@
+{
+  "name": "erdos-environment",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.0.1",
+  "publisher": "positron",
+  "engines": {
+    "vscode": "^1.65.0"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": [
+      {
+        "type": "object",
+        "title": "%environment.configuration.title%",
+        "properties": {
+          "environmentVariables.enabled": {
+            "scope": "window",
+            "type": "boolean",
+            "default": true,
+            "description": "%environment.configuration.enabled.description%",
+            "order": 1
+          },
+          "environmentVariables.set": {
+            "scope": "window",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {
+              "SF_PARTNER": "posit_positron",
+              "SPARK_CONNECT_USER_AGENT": "posit-positron"
+            },
+            "description": "%environment.configuration.variables.set.description%",
+            "order": 2
+          },
+          "environmentVariables.append": {
+            "scope": "window",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "%environment.configuration.variables.append.description%",
+            "order": 3
+          },
+          "environmentVariables.prepend": {
+            "scope": "window",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "%environment.configuration.variables.prepend.description%",
+            "order": 4
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "14.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/posit-dev/positron"
+  }
+}

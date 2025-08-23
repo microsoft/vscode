@@ -201,9 +201,8 @@ import './contrib/erdosDevTools/browser/erdosDevTools.js';
 // Erdos Console (Phase 2.1 Core UI)
 import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
 
-// Erdos Modal Dialogs (Required by Console)
-// Erdos Modal Dialogs (Phase 2.4 Core UI) - Replaced with erdosDialogs in Phase 4
-// import './contrib/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
+// Erdos Modal Dialogs Service (Required by Console and Runtime Sessions)
+import './services/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
 
 // Erdos Runtime Sessions (Phase 2.2 Core UI)
 import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';

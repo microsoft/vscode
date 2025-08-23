@@ -1,0 +1,28 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "ES2020",
+		"outDir": "out",
+		"lib": [
+			"ES2020"
+		],
+		"sourceMap": true,
+		"rootDir": "src",
+		"strict": true,
+		"typeRoots": [
+			"./node_modules/@types"
+		],
+		"paths": {
+			"*": ["./node_modules/*"]
+		},
+
+		/* Additional Checks */
+		// "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
+		// "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
+		// "noUnusedParameters": true,	/* Report errors on unused parameters. */
+	},
+	"include": [
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+	]
+}
