@@ -90,6 +90,9 @@ export class CommandService extends Disposable implements ICommandService {
 	}
 
 	private _tryExecuteCommand(id: string, args: any[]): Promise<any> {
+		if (id === 'editor.action.clipboardPasteAction') {
+			console.log('_tryExecuteCommand for id : ', id);
+		}
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));
