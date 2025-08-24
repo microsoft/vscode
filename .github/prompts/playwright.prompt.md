@@ -1,7 +1,7 @@
 ---
 mode: agent
 description: 'Use playwright to _see_ the code changes you have made'
-tools: ['codebase', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'openSimpleBrowser', 'fetch', 'findTestFiles', 'searchResults', 'githubRepo', 'todos', 'runTests', 'runCommands', 'runTasks', 'editFiles', 'runNotebooks', 'search', 'new', 'browser_click', 'browser_close', 'browser_console_messages', 'browser_drag', 'browser_evaluate', 'browser_file_upload', 'browser_handle_dialog', 'browser_hover', 'browser_install', 'browser_navigate_back', 'browser_navigate_forward', 'browser_network_requests', 'browser_press_key', 'browser_resize', 'browser_select_option', 'browser_snapshot', 'browser_tab_close', 'browser_tab_list', 'browser_tab_new', 'browser_tab_select', 'browser_take_screenshot', 'browser_type', 'browser_wait_for']
+tools: ['codebase', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'openSimpleBrowser', 'fetch', 'findTestFiles', 'searchResults', 'githubRepo', 'todos', 'runTests', 'editFiles', 'runNotebooks', 'search', 'new', 'runCommands', 'runTasks', 'browser_click', 'browser_close', 'browser_console_messages', 'browser_drag', 'browser_evaluate', 'browser_file_upload', 'browser_handle_dialog', 'browser_hover', 'browser_network_requests', 'browser_press_key', 'browser_resize', 'browser_select_option', 'browser_snapshot', 'browser_tab_close', 'browser_tab_list', 'browser_tab_new', 'browser_tab_select', 'browser_take_screenshot', 'browser_type', 'browser_wait_for', 'get_commit', 'get_discussion', 'get_discussion_comments', 'get_issue', 'get_issue_comments']
 ---
 For every UI change you make, verify the result interactively using vscode-playwright-mcp. Use Playwright to open the relevant UI, perform the change, and take screenshots to visually confirm the update. This ensures that every modification is visible, correct, and meets the intended requirements.
 
@@ -12,3 +12,7 @@ NOTE: When you use a playwright tool, it will automatically open a VS Code dev b
 In addition to visual verification, follow best practices for writing robust, maintainable, and extendable code. Ensure all user-facing messages are localized, use consistent naming and indentation, and prefer async/await for asynchronous operations. Write and update relevant tests, clean up temporary files, and adhere to project coding guidelines for quality and consistency.
 
 If the task is unreasonable or infeasible, or if any of the tests are incorrect, please tell the user. The solution should be robust, maintainable, and extendable.
+
+Tips for navigating VS Code:
+* When running a command in the command palette, the line needs to start with `>`
+* For Quick Pick bugs, you may need to temporarily modify an existing quick pick to see the issue.

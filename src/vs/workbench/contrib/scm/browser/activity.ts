@@ -112,7 +112,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		this._register(autorunWithStore((reader, store) => {
 			this.logService.trace('[SCMActiveRepositoryController][updateStatusBarAutorun] start');
-			this._repositories.read(reader);
 			const repository = this.scmViewService.activeRepository.read(reader);
 			const commands = repository?.provider.statusBarCommands.read(reader);
 

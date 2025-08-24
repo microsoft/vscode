@@ -599,6 +599,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.modeWidget?.show();
 	}
 
+	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
+		this._currentLanguageModel = model;
+
+		if (this.cachedDimensions) {
+			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
+			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+		}
+
+		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
+
+		this._onDidChangeCurrentLanguageModel.fire(model);
+	}
+
 	private checkModelSupported(): void {
 		if (this._currentLanguageModel && !this.modelSupportedForDefaultAgent(this._currentLanguageModel)) {
 			this.setCurrentLanguageModelToDefault();
@@ -662,20 +676,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (defaultModel) {
 			this.setCurrentLanguageModel(defaultModel);
 		}
-	}
-
-	private setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
-		this._currentLanguageModel = model;
-
-		if (this.cachedDimensions) {
-			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
-			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
-		}
-
-		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
-		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
-
-		this._onDidChangeCurrentLanguageModel.fire(model);
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -1530,10 +1530,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				if (!seenEntries.has(entry.modifiedURI)) {
 					seenEntries.add(entry.modifiedURI);
+					const linesAdded = entry.linesAdded?.get();
+					const linesRemoved = entry.linesRemoved?.get();
 					entries.push({
 						reference: entry.modifiedURI,
 						state: entry.state.get(),
 						kind: 'reference',
+						options: {
+							status: undefined,
+							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 }
+						}
 					});
 				}
 			}

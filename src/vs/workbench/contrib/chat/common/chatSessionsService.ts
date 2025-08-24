@@ -23,7 +23,7 @@ export const enum ChatSessionStatus {
 }
 
 export interface IChatSessionsExtensionPoint {
-	readonly id: string;
+	readonly id: string; // TODO(jospicer): Deprecated. Remove
 	readonly type: string;
 	readonly name: string;
 	readonly displayName: string;
@@ -56,7 +56,7 @@ export interface ChatSession extends IDisposable {
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,
-		history: [],
+		history: any[], // TODO: Nail down types
 		token: CancellationToken
 	) => Promise<void>;
 }
@@ -66,6 +66,11 @@ export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
 	readonly onDidChangeChatSessionItems: Event<void>;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
+	provideNewChatSessionItem?(options: {
+		prompt?: string;
+		history?: any[];
+		metadata?: any;
+	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
 
 export interface IChatSessionContentProvider {
@@ -78,12 +83,20 @@ export interface IChatSessionsService {
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
 	readonly onDidChangeSessionItems: Event<string>;
 	readonly onDidChangeAvailability: Event<void>;
+	readonly onDidChangeInProgress: Event<void>;
 
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
 	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
+	provideNewChatSessionItem(chatSessionType: string, options: {
+		prompt?: string;
+		history?: any[];
+		metadata?: any;
+	}, token: CancellationToken): Promise<IChatSessionItem>;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
+	reportInProgress(chatSessionType: string, count: number): void;
+	getInProgress(): { displayName: string; count: number }[];
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;

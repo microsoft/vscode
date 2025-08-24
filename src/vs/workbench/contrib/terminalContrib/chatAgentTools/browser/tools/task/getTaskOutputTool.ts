@@ -5,18 +5,35 @@
 
 import type { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
-import { IChatService } from '../../../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
+import { ITaskService, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
-import { Location } from '../../../../../../../editor/common/languages.js';
-import { URI } from '../../../../../../../base/common/uri.js';
+import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
+
+type GetTaskOutputToolClassification = {
+	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
+	bufferLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the terminal buffer as a string.' };
+	pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long polling for output took (ms).' };
+	inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
+	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
+	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
+	owner: 'meganrogge';
+	comment: 'Understanding the usage of the getTaskOutput tool';
+};
+type GetTaskOutputToolEvent = {
+	taskId: string;
+	bufferLength: number;
+	pollDurationMs: number | undefined;
+	inputToolManualAcceptCount: number;
+	inputToolManualRejectCount: number;
+	inputToolManualChars: number;
+};
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
@@ -54,9 +71,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		@ITaskService private readonly _tasksService: ITaskService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IChatService private readonly _chatService: IChatService,
-		@IMarkerService private readonly _markerService: IMarkerService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -95,36 +111,42 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Terminal not found for task ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.terminalNotFound', 'Terminal not found for task `{0}`', taskLabel)) };
 		}
+		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
 			terminals,
 			task,
-			this._languageModelsService,
-			this._markerService,
-			this._chatService,
+			this._instantiationService,
 			invocation.context!,
 			_progress,
 			token,
-			undefined,
+			store,
+			() => this._isTaskActive(task),
 			dependencyTasks
 		);
+		store.dispose();
+		for (const r of terminalResults) {
+			this._telemetryService.publicLog2?.<GetTaskOutputToolEvent, GetTaskOutputToolClassification>('copilotChat.getTaskOutputTool.get', {
+				taskId: args.id,
+				bufferLength: r.output.length ?? 0,
+				pollDurationMs: r.pollDurationMs ?? 0,
+				inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
+				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
+				inputToolManualChars: r.inputToolManualChars ?? 0,
+			});
+		}
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
+		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
+		const toolResultMessage = toolResultMessageFromResponse(undefined, taskLabel, toolResultDetails, terminalResults);
+
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
-			toolResultMessage: new MarkdownString(localize('copilotChat.checkedTerminalOutput', 'Checked output for task `{0}`', taskLabel)),
-			toolResultDetails: Array.from(new Map(
-				terminalResults
-					.flatMap(r =>
-						r.resources?.filter(res => res.uri).map(res => {
-							const range = res.range;
-							const item = range !== undefined ? { uri: res.uri, range } : res.uri;
-							const key = range !== undefined
-								? `${res.uri.toString()}-${range.toString()}`
-								: `${res.uri.toString()}`;
-							return [key, item] as [string, URI | Location];
-						}) ?? []
-					)
-			).values())
+			toolResultMessage,
+			toolResultDetails
 		};
+	}
+	private async _isTaskActive(task: Task): Promise<boolean> {
+		const activeTasks = await this._tasksService.getActiveTasks();
+		return activeTasks?.includes(task) ?? false;
 	}
 }
