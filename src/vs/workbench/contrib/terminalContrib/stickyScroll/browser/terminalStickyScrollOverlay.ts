@@ -191,7 +191,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._pendingShowOperation = true;
 			this._show();
 		} else {
-			this._hideImmediate();
+			this._hide();
 		}
 	}
 
@@ -204,7 +204,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._pendingShowOperation = false;
 	}
 
-	private _hideImmediate(): void {
+	private _hide(): void {
 		this._pendingShowOperation = false;
 		this._element?.classList.toggle(CssClasses.Visible, false);
 	}
