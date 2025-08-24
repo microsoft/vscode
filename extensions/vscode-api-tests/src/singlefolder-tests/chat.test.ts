@@ -177,7 +177,7 @@ suite('chat', () => {
 		assert.strictEqual((result as any).errorDetails.code, 'rate_limited');
 	});
 
-	test.skip('title provider is called for first request', async () => {
+	test('title provider is called for first request', async () => {
 		let calls = 0;
 		const deferred = new DeferredPromise<void>();
 		const participant = chat.createChatParticipant('api-test.participant', (_request, _context, _progress, _token) => {
