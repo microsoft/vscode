@@ -284,7 +284,8 @@ export class ReleaseNotesManager extends Disposable {
 			.replace(/\s*Navigation End\s*-->/gi, '');
 
 		const colorMap = TokenizationRegistry.getColorMap();
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+		const highlightingColorSpace = TokenizationRegistry.getHighlightingColorSpace();
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap, highlightingColorSpace) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
 
 		return `<!DOCTYPE html>
