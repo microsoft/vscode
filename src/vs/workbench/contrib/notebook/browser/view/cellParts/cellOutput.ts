@@ -769,10 +769,13 @@ export class CellOutputContainer extends CellContentPart {
 		};
 
 		const rendered = disposables.add(renderMarkdown(md, {
-			actionHandler: (content) => {
-				if (content === 'command:workbench.action.openLargeOutput') {
-					this.openerService.open(CellUri.generateCellOutputUriWithId(this.notebookEditor.textModel!.uri));
-				}
+			actionHandler: {
+				callback: (content) => {
+					if (content === 'command:workbench.action.openLargeOutput') {
+						this.openerService.open(CellUri.generateCellOutputUriWithId(this.notebookEditor.textModel!.uri));
+					}
+				},
+				disposables: disposables
 			},
 		}));
 

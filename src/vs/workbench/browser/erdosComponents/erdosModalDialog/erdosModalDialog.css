@@ -1,0 +1,79 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-modal-dialog-container {
+	inset: 0;
+	position: absolute;
+	outline: none !important;
+	background: rgba(0, 0, 0, 0.2);
+}
+
+.erdos-modal-dialog-box {
+	display: flex;
+	overflow: hidden;
+	position: absolute;
+	border-radius: 5px;
+	color: var(--vscode-erdosModalDialog-foreground);
+	background: var(--vscode-erdosModalDialog-background);
+	border: 1px solid var(--vscode-erdosModalDialog-border);
+	box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.1), 0 6px 20px 0 rgba(0, 0, 0, 0.1);
+}
+
+.erdos-modal-dialog-box .action-bar-button {
+	display: flex;
+	cursor: pointer;
+	border-radius: 5px;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--vscode-erdosModalDialog-buttonBorder);
+	color: var(--vscode-erdosModalDialog-buttonForeground);
+	background: var(--vscode-erdosModalDialog-buttonBackground);
+}
+
+.erdos-modal-dialog-box .action-bar-button:hover {
+	background: var(--vscode-erdosModalDialog-buttonHoverBackground);
+}
+
+.erdos-modal-dialog-box .action-bar-button.default {
+	color: var(--vscode-erdosModalDialog-defaultButtonForeground);
+	background: var(--vscode-erdosModalDialog-defaultButtonBackground);
+}
+
+.erdos-modal-dialog-box .action-bar-button.default:hover {
+	background: var(--vscode-erdosModalDialog-defaultButtonHoverBackground);
+}
+
+.erdos-modal-dialog-box .action-bar-button.destructive {
+	color: var(--vscode-erdosModalDialog-buttonDestructiveForeground);
+	background-color: var(--vscode-erdosModalDialog-buttonDestructiveBackground);
+}
+
+.erdos-modal-dialog-box .action-bar-button:focus {
+	outline: none;
+}
+
+.erdos-modal-dialog-box .action-bar-button:focus-visible {
+	outline-offset: 2px;
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.erdos-modal-dialog-box .text-input {
+	width: 100%;
+	padding: 4px;
+	border-radius: 4px;
+	box-sizing: border-box;
+	background: var(--vscode-erdosModalDialog-textInputBackground);
+	border: 1px solid var(--vscode-erdosModalDialog-textInputBorder);
+}
+
+.erdos-modal-dialog-box .text-input::selection {
+	color: var(--vscode-erdosModalDialog-textInputSelectionForeground);
+	background: var(--vscode-erdosModalDialog-textInputSelectionBackground);
+}
+
+.erdos-modal-dialog-box .error-msg {
+	color: var(--vscode-errorForeground);
+	word-break: break-all;
+}

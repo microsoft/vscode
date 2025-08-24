@@ -1,0 +1,82 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 by Lotas Inc.
+ *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Error Message Styles - Matching Rao's exact implementation with VS Code theme colors */
+.error-message-container {
+	margin: 6px 0;
+	display: block;
+	clear: both;
+}
+
+.message.error {
+	background-color: var(--vscode-inputValidation-errorBackground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+	border-radius: 4px;
+	padding: 10px 12px;
+	margin: 6px 0;
+	position: relative;
+}
+
+.error-content {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.error-icon-text {
+	display: flex;
+	align-items: flex-start;
+	gap: 0px;
+	flex: 1;
+}
+
+.error-icon {
+	display: none;
+}
+
+.error-text {
+	color: var(--vscode-inputValidation-errorForeground);
+	font-family: inherit;
+	font-size: 14px;
+	line-height: 1.4;
+	word-wrap: break-word;
+	flex: 1;
+	font-weight: normal;
+}
+
+.error-close-button {
+	background: none;
+	border: none;
+	color: var(--vscode-icon-foreground, #999);
+	cursor: pointer;
+	font-size: 14px;
+	line-height: 1;
+	padding: 2px;
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 2px;
+	transition: background-color 0.1s ease, color 0.1s ease;
+	font-weight: bold;
+}
+
+.error-close-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground, #e5e5e5);
+	color: var(--vscode-button-secondaryForeground, #666);
+}
+
+.error-close-button:active {
+	background-color: var(--vscode-button-secondaryBackground, #d5d5d5);
+}
+
+
+
+
+
+

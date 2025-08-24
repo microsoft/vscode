@@ -2057,11 +2057,14 @@ class SCMInputWidget {
 
 					const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 					const renderedMarkdown = renderer.render(message, {
-						actionHandler: (link, mdStr) => {
-							openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);
-							this.element.style.borderBottomLeftRadius = '2px';
-							this.element.style.borderBottomRightRadius = '2px';
-							this.contextViewService.hideContextView();
+						actionHandler: {
+							callback: (link) => {
+								openLinkFromMarkdown(this.openerService, link, message.isTrusted);
+								this.element.style.borderBottomLeftRadius = '2px';
+								this.element.style.borderBottomRightRadius = '2px';
+								this.contextViewService.hideContextView();
+							},
+							disposables: new DisposableStore()
 						},
 					});
 					disposables.add(renderedMarkdown);

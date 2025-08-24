@@ -1,0 +1,81 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vertical-splitter {
+	height: 100%;
+	position: relative;
+	background-origin: border-box;
+}
+
+:not(.mac) .vertical-splitter .sash {
+	cursor: ew-resize;
+}
+
+.mac .vertical-splitter .sash {
+	cursor: col-resize;
+}
+
+.vertical-splitter .sash {
+	z-index: 25;
+	height: 100%;
+	display: flex;
+	position: relative;
+	justify-content: center;
+}
+
+.vertical-splitter .sash-hovering {
+	transition: background-color 0.1s ease-out;
+	background-color: var(--vscode-focusBorder);
+}
+
+.vertical-splitter .sash-resizing {
+	background-color: var(--vscode-focusBorder);
+}
+
+.vertical-splitter .sash .sash-indicator {
+	height: 100%;
+	position: relative;
+}
+
+.vertical-splitter .sash .sash-indicator.hovering {
+	transition: background-color 0.1s ease-out;
+	background-color: var(--vscode-focusBorder);
+}
+
+.vertical-splitter .sash .sash-indicator.resizing {
+	background-color: var(--vscode-focusBorder);
+}
+
+.vertical-splitter .expand-collapse-button {
+	right: 50%;
+	z-index: 100;
+	cursor: pointer;
+	overflow: visible;
+	position: absolute;
+	transform: translateX(50%);
+}
+
+.vertical-splitter .expand-collapse-button .expand-collapse-button-face {
+	top: 0;
+	left: 0;
+	display: flex;
+	position: absolute;
+	border-radius: 50%;
+	font-weight: bolder;
+	align-items: center;
+	box-sizing: border-box;
+	justify-content: center;
+	color: var(--vscode-erdosSplitterExpandCollapseButton-foreground);
+    border: 1px solid var(--vscode-erdosSplitterExpandCollapseButton-foreground);
+    background-color: var(--vscode-erdosSplitterExpandCollapseButton-background);
+}
+
+.vertical-splitter .expand-collapse-button .expand-collapse-button-face.highlighted {
+	color: var(--vscode-erdosSplitterExpandCollapseButton-background);
+    background-color: var(--vscode-erdosSplitterExpandCollapseButton-foreground);
+}
+
+
+

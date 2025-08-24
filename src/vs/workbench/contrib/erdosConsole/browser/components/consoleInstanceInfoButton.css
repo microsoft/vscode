@@ -1,0 +1,33 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-modal-popup-children:has(.console-instance-info) {
+	background: var(--vscode-editorHoverWidget-background);
+}
+
+.console-instance-info .top-separator {
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+.console-instance-info .actions {
+	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
+	padding-bottom: 4px;
+}
+
+.console-instance-info .content .line {
+	margin: 8px 0;
+	overflow-wrap: break-word;
+	padding: 0 8px;
+	user-select: text;
+}
+
+.console-instance-info .actions .link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	line-height: 22px;
+	padding: 0 8px;
+	text-decoration: underline;
+}

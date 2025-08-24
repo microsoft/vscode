@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+@keyframes erdosOutputRun-blink {
+	50% {
+		opacity: 0;
+	}
+}
+
+a.output-run-hyperlink {
+	cursor: pointer;
+	text-decoration: underline dotted;
+	color: var(--vscode-textLink-foreground);
+}
+
+.output-run {
+	display: inline-block;
+	word-break: break-all;
+}

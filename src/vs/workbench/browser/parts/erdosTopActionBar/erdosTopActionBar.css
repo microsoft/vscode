@@ -1,0 +1,15 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.top-action-bar-container {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	padding-right: 8px;
+	align-items: center;
+	box-sizing: border-box;
+	background-color: var(--vscode-erdosActionBar-background);
+	border-bottom: 1px solid var(--vscode-erdosActionBar-border);
+}

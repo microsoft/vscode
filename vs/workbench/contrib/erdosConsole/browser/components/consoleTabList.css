@@ -1,0 +1,112 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.tabs-container {
+	border-top: 1px solid var(--vscode-erdosActionBar-border);
+	background-color: var(--vscode-tab-inactiveBackground);
+	flex-grow: 1;
+	overflow-y: auto;
+}
+
+.tabs-container .tab-button {
+	background-color: inherit;
+	/*
+	 * The transparent border allows for a smooth transition when switching tabs.
+	 * The active tab will have a solid border, while the inactive tabs will have
+	 * a transparent border. The transparent border prevents flickering when
+	 * switching between tabs by maintaining the same width for all tabs.
+	 */
+	border-left: 1px solid transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	height: 22px;
+	padding: 0 10px;
+	width: 100%;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+
+	/* Use this property to take padding into account when sizing (prevents overflow) */
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+}
+
+.tabs-container .tab-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.tabs-container .tab-button--active {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	border-left: 1px solid var(--vscode-panelTitle-activeBorder);
+}
+
+.tabs-container .tab-button--active:hover {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.tabs-container .tab-button .icon {
+	height: 15px;
+	width: 15px;
+	margin: 0 6px
+}
+
+.tabs-container .tab-button .session-name {
+	/* Grow items after session name to fill available space */
+	flex: 1;
+
+	margin: 0;
+	line-height: 22px;
+	overflow: hidden;
+	min-width: 0;
+	text-overflow: ellipsis;
+}
+
+.tabs-container .tab-button .session-name-input {
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	color: var(--vscode-input-foreground);
+
+	/* Grow input to fill available space */
+	flex: 1;
+}
+
+.tabs-container .tab-button .session-name-input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.tabs-container .tab-button .delete-button {
+	/* delete button is hidden by default */
+	display: none;
+
+	background-color: transparent;
+	border: none;
+	cursor: pointer;
+	height: 22px;
+	padding: 2px;
+
+	border-radius: 5px;
+}
+
+.tabs-container .tab-button:hover .delete-button,
+.tabs-container .tab-button:focus-within .delete-button {
+	/* Show delete button on hover or when tab has focus */
+	display: unset;
+}
+
+.tabs-container .tab-button .delete-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.tabs-container .tab-button .delete-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.tabs-container .tab-button .delete-button .codicon {
+	height: 15px;
+	width: 15px;
+	vertical-align: text-bottom;
+}

@@ -1,0 +1,1012 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 by Lotas Inc.
+ *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Main widget container */
+.erdos-ai-widget {
+	display: flex;
+	flex-direction: column;
+	margin: 12px 0 0 0; /* remove bottom gap so button stack touches */
+	border: 1px solid var(--vscode-input-border, #cccccc);
+	border-radius: 4px;
+    background-color: var(--vscode-textCodeBlock-background);
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	overflow: hidden;
+}
+
+/* Widget header - compact like chat headers */
+.erdos-ai-widget .widget-header {
+    background-color: var(--vscode-titleBar-activeBackground);
+    color: var(--vscode-titleBar-activeForeground);
+    padding: 2px 8px;
+    font-family: var(--monaco-monospace-font);
+    font-size: 12px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--vscode-input-border, #cccccc);
+    line-height: 1.2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Widget header diff stats styling */
+.erdos-ai-widget .widget-header .diff-stats {
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: normal;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.erdos-ai-widget .widget-header .addition {
+    color: #4CAF50 !important;
+    font-weight: bold;
+    display: inline;
+}
+
+.erdos-ai-widget .widget-header .removal {
+    color: #f44336 !important;
+    font-weight: bold;
+    display: inline;
+    margin-left: 4px;
+}
+
+/* Main container with content and buttons side by side */
+.erdos-ai-widget .widget-main-container {
+    display: block;
+}
+
+/* Content area */
+.erdos-ai-widget .widget-content {
+    padding: 8px;
+    background-color: var(--vscode-editor-background);
+}
+
+/* Console/Terminal prompt styling */
+.erdos-ai-widget .console-prompt-container {
+	display: flex;
+	align-items: center;
+	width: 100%;
+}
+
+.erdos-ai-widget .console-prompt {
+	color: var(--vscode-descriptionForeground);
+	margin-right: 8px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	line-height: 1.2;
+	flex-shrink: 0;
+}
+
+.erdos-ai-widget .console-input {
+	flex: 1;
+	border: none;
+	outline: none;
+	resize: none;
+	background: transparent;
+	color: var(--vscode-textPreformat-foreground);
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	line-height: 1.4;
+	padding: 0;
+	margin: 0;
+	min-height: calc(1.4em * 1); /* Start with 1 line minimum */
+	max-height: calc(1.4em * 6); /* Max 6 lines before scrolling */
+	overflow-y: auto; /* Enable scrolling when content exceeds max height */
+}
+
+/* File content input styling */
+.erdos-ai-widget .file-content-input {
+	width: 100%;
+	min-height: 80px;
+	border: none;
+	outline: none;
+	background: transparent;
+	color: var(--vscode-textPreformat-foreground);
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	line-height: 1.4;
+	resize: vertical;
+	padding: 0;
+	margin: 0;
+}
+
+/* Vertical button stack - RAO style */
+.erdos-ai-widget .widget-button-stack-container,
+.widget-button-stack-container {
+    display: flex;
+    justify-content: flex-end;
+	padding: 0;
+	margin: 0 0 12px 0; /* overall spacing under the stack */
+}
+
+.erdos-ai-widget .widget-button-stack,
+.widget-button-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    background-color: var(--vscode-input-background, #f5f5f5);
+    border: 1px solid var(--vscode-input-border, #cccccc);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    overflow: hidden;
+    width: 140px;
+ 	font-family: var(--vscode-font-family); /* ensure non-code font in button area */
+	margin-right: 5px; /* inset from right edge */
+}
+
+/* Individual buttons in the stack */
+.erdos-ai-widget .widget-button,
+.widget-button {
+    width: 100%;
+    border: none;
+    padding: 4px 8px;
+	font-family: var(--vscode-font-family);
+    font-size: 10px; /* 30% smaller than 12px */
+    line-height: 1; /* Tight, no extra vertical spacing */
+	font-weight: normal;
+    cursor: pointer;
+    background: transparent;
+	text-align: left;
+    transition: background-color 0.2s;
+    user-select: none;
+    -webkit-user-select: none;
+    box-sizing: border-box;
+    margin: 0;
+    white-space: nowrap; /* prevent wrapping */
+}
+
+/* Primary button (Run/Accept) - dark green */
+
+.widget-button-primary {
+	color: #006400 !important;
+	font-weight: normal;
+}
+
+.widget-button-primary:hover {
+	background-color: rgba(0, 100, 0, 0.1);
+}
+
+/* Cancel button - dark red */
+.widget-button-cancel {
+	color: #8b0000 !important;
+	font-weight: normal;
+}
+
+.widget-button-cancel:hover {
+	background-color: rgba(139, 0, 0, 0.1);
+}
+
+/* Allow list button - dark gray */
+.widget-button-allow-list {
+	color: #666666;
+	font-weight: normal;
+}
+
+.widget-button-allow-list:hover {
+	background-color: rgba(102, 102, 102, 0.1);
+}
+
+/* Divider between Cancel and Allow List */
+.erdos-ai-widget .widget-button-divider,
+.widget-button-divider {
+    height: 1px;
+    background-color: var(--vscode-input-border, #cccccc);
+    margin: 0;
+    opacity: 0.6;
+}
+
+/* General hover effect for all buttons */
+.erdos-ai-widget .widget-button:active {
+	background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Dark theme adjustments */
+.vs-dark .erdos-ai-widget .widget-button-stack {
+	background-color: #3c3c3c;
+}
+
+.vs-dark .erdos-ai-widget .widget-button-primary {
+	color: #006400 !important; /* keep dark green in dark theme */
+}
+
+.vs-dark .erdos-ai-widget .widget-button-cancel {
+	color: #8b0000 !important; /* keep dark red in dark theme */
+}
+
+.vs-dark .erdos-ai-widget .widget-button-allow-list {
+	color: #666666; /* keep dark gray in dark theme */
+}
+
+.vs-dark .erdos-ai-widget .widget-button-primary:hover {
+	background-color: rgba(0, 100, 0, 0.15);
+}
+
+.vs-dark .erdos-ai-widget .widget-button-cancel:hover {
+	background-color: rgba(139, 0, 0, 0.15);
+}
+
+.vs-dark .erdos-ai-widget .widget-button-allow-list:hover {
+	background-color: rgba(102, 102, 102, 0.15);
+}
+
+/* High contrast theme adjustments */
+.hc-black .erdos-ai-widget,
+.hc-light .erdos-ai-widget {
+	border: 2px solid var(--vscode-contrastBorder);
+}
+
+.hc-black .erdos-ai-widget .widget-button:hover,
+.hc-light .erdos-ai-widget .widget-button:hover {
+	outline: 1px solid var(--vscode-contrastBorder);
+}
+
+/* Focus states for accessibility */
+.erdos-ai-widget .widget-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.erdos-ai-widget .console-input:focus,
+.erdos-ai-widget .file-content-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Widget type specific styles */
+/* Do not prefix headers with symbols */
+
+/* Ensure proper text wrapping and overflow handling */
+.erdos-ai-widget .console-input,
+.erdos-ai-widget .file-content-input {
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+}
+
+/* Diff highlighting styles - like Rao's ACE editor highlighting */
+.diff-highlighter {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+}
+
+.diff-filename-header {
+	background-color: var(--vscode-titleBar-activeBackground);
+	color: var(--vscode-titleBar-activeForeground);
+	padding: 2px 8px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	font-weight: 600;
+	border-bottom: 1px solid var(--vscode-input-border, #cccccc);
+	line-height: 1.2;
+}
+
+.diff-filename-header .diff-stats {
+	font-family: monospace;
+	font-size: 11px;
+	font-weight: normal;
+	white-space: nowrap;
+	display: inline-block;
+}
+
+.diff-filename-header .addition {
+	color: #4CAF50 !important;
+	font-weight: bold;
+	display: inline;
+}
+
+.diff-filename-header .removal {
+	color: #f44336 !important;
+	font-weight: bold;
+	display: inline;
+	margin-left: 4px;
+}
+
+.diff-editor-container {
+	position: relative;
+}
+
+/* Diff content highlighting styles */
+.diff-content-plain {
+	margin: 0;
+	padding: 8px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 13px;
+	line-height: 18px;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	overflow: auto;
+	max-height: 300px;
+	white-space: pre-wrap;
+}
+
+.diff-content-highlighted {
+	font-family: var(--monaco-monospace-font);
+	font-size: 13px;
+	line-height: 18px;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	overflow: auto;
+	max-height: 300px;
+}
+
+.diff-line {
+	display: flex;
+	align-items: flex-start;
+	min-height: 18px;
+	padding: 0;
+	margin: 0;
+}
+
+.diff-line-number {
+	display: inline-block;
+	width: 40px;
+	padding: 0 8px 0 4px;
+	text-align: right;
+	background-color: var(--vscode-editorLineNumber-background, transparent);
+	color: var(--vscode-editorLineNumber-foreground);
+	font-size: 12px;
+	border-right: 1px solid var(--vscode-editorLineNumber-activeForeground, #ccc);
+	user-select: none;
+	-webkit-user-select: none;
+	flex-shrink: 0;
+}
+
+.diff-line-content {
+	flex: 1;
+	padding: 0 8px;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.diff-line-added {
+	background-color: rgba(76, 175, 80, 0.2) !important;
+	border-left: 3px solid #4CAF50 !important;
+}
+
+.diff-line-deleted {
+	background-color: rgba(244, 67, 54, 0.2) !important;
+	border-left: 3px solid #f44336 !important;
+}
+
+.diff-line-unchanged {
+	background-color: transparent;
+}
+
+.diff-editor-textarea {
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	border: 1px solid var(--vscode-input-border, #ccc);
+}
+
+/* Dark theme support for diff highlighting */
+.vs-dark .diff-line-added {
+	background-color: rgba(76, 175, 80, 0.15) !important;
+}
+
+.vs-dark .diff-line-deleted {
+	background-color: rgba(244, 67, 54, 0.15) !important;
+}
+
+.vs-dark .diff-line-added-gutter {
+	background-color: rgba(76, 175, 80, 0.2) !important;
+}
+
+.vs-dark .diff-line-deleted-gutter {
+	background-color: rgba(244, 67, 54, 0.2) !important;
+}
+
+
+/* High contrast theme support */
+.hc-black .diff-line-added,
+.hc-light .diff-line-added {
+	background-color: rgba(76, 175, 80, 0.4) !important;
+	border-left: 4px solid #4CAF50 !important;
+}
+
+.hc-black .diff-line-deleted,
+.hc-light .diff-line-deleted {
+	background-color: rgba(244, 67, 54, 0.4) !important;
+	border-left: 4px solid #f44336 !important;
+}
+
+/* === Auto-Accept Dialog === */
+.auto-accept-dialog-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 10000;
+}
+
+.auto-accept-dialog {
+	background-color: var(--vscode-quickInput-background);
+	border: 1px solid var(--vscode-quickInput-border);
+	border-radius: 6px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	max-width: 600px;
+	width: 90%;
+	max-height: 80vh;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.auto-accept-dialog-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 16px 20px;
+	border-bottom: 1px solid var(--vscode-quickInput-border);
+	background-color: var(--vscode-quickInput-background);
+}
+
+.auto-accept-dialog-header h3 {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--vscode-quickInput-foreground);
+}
+
+.auto-accept-dialog-content {
+	padding: 20px;
+	overflow-y: auto;
+	flex: 1;
+}
+
+.status-section {
+	margin-bottom: 20px;
+}
+
+.status-indicator {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px;
+	border-radius: 4px;
+	background-color: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--vscode-input-border);
+}
+
+.status-icon {
+	font-size: 18px;
+	font-weight: bold;
+}
+
+.status-text {
+	font-size: 14px;
+}
+
+.command-section {
+	margin-bottom: 20px;
+}
+
+.command-section h4 {
+	margin: 0 0 8px 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-quickInput-foreground);
+}
+
+.command-preview {
+	background-color: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	padding: 12px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	overflow-x: auto;
+}
+
+.functions-section {
+	margin-bottom: 20px;
+}
+
+.functions-section h4 {
+	margin: 0 0 12px 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-quickInput-foreground);
+}
+
+.functions-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 8px;
+	margin-bottom: 16px;
+}
+
+.function-item {
+	padding: 8px 12px;
+	border-radius: 4px;
+	cursor: pointer;
+	border: 1px solid var(--vscode-input-border);
+	transition: all 0.2s ease;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.function-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.function-item.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.function-item.function-allowed {
+	background-color: rgba(76, 175, 80, 0.1);
+	border-color: #4CAF50;
+}
+
+.function-item.function-denied {
+	background-color: rgba(244, 67, 54, 0.1);
+	border-color: #f44336;
+}
+
+.function-item.function-unknown {
+	background-color: rgba(255, 193, 7, 0.1);
+	border-color: #ffc107;
+}
+
+.function-name {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.function-status {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	font-weight: 500;
+}
+
+.function-allowed .function-status {
+	color: #4CAF50;
+}
+
+.function-denied .function-status {
+	color: #f44336;
+}
+
+.function-unknown .function-status {
+	color: #ffc107;
+}
+
+.function-actions {
+	padding: 12px;
+	background-color: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	margin-top: 12px;
+}
+
+.function-actions p {
+	margin: 0 0 8px 0;
+	font-size: 13px;
+	color: var(--vscode-quickInput-foreground);
+}
+
+.action-buttons {
+	display: flex;
+	gap: 8px;
+}
+
+.add-to-allow-button, .add-to-deny-button {
+	padding: 6px 12px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-button-border);
+	font-size: 12px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.add-to-allow-button {
+	background-color: rgba(76, 175, 80, 0.1);
+	color: #4CAF50;
+	border-color: #4CAF50;
+}
+
+.add-to-allow-button:hover {
+	background-color: rgba(76, 175, 80, 0.2);
+}
+
+.add-to-deny-button {
+	background-color: rgba(244, 67, 54, 0.1);
+	color: #f44336;
+	border-color: #f44336;
+}
+
+.add-to-deny-button:hover {
+	background-color: rgba(244, 67, 54, 0.2);
+}
+
+.no-functions-section {
+	text-align: center;
+	padding: 20px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.auto-accept-dialog-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 12px;
+	padding: 16px 20px;
+	border-top: 1px solid var(--vscode-quickInput-border);
+	background-color: var(--vscode-quickInput-background);
+}
+
+.deny-button, .accept-button {
+	padding: 8px 16px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-button-border);
+	font-size: 13px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.deny-button {
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.deny-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.accept-button {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.accept-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.accept-button.auto-accept {
+	background-color: #4CAF50;
+	color: white;
+	border-color: #4CAF50;
+}
+
+.accept-button.auto-accept:hover {
+	background-color: #45a049;
+}
+
+/* === Auto-Accept Settings Panel === */
+.auto-accept-settings-panel {
+	padding: 20px;
+	max-width: 800px;
+}
+
+.settings-section {
+	margin-bottom: 24px;
+}
+
+.settings-section h3 {
+	margin: 0 0 8px 0;
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.settings-section h4 {
+	margin: 0 0 12px 0;
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.settings-section h5 {
+	margin: 0 0 8px 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.settings-description {
+	margin: 0 0 16px 0;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+.setting-item {
+	margin-bottom: 16px;
+	padding: 12px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	background-color: var(--vscode-input-background);
+}
+
+.setting-label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+	margin-bottom: 4px;
+}
+
+.setting-title {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.setting-description {
+	margin: 4px 0 0 24px;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.3;
+}
+
+.function-list-section {
+	margin-bottom: 20px;
+	padding: 16px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	background-color: var(--vscode-input-background);
+}
+
+.list-description {
+	margin: 0 0 12px 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.3;
+}
+
+.add-function-row {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 16px;
+}
+
+.function-input {
+	flex: 1;
+	padding: 8px 12px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-family: var(--monaco-monospace-font);
+	font-size: 13px;
+}
+
+.function-input:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.add-function-button {
+	padding: 8px 16px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-button-border);
+	font-size: 13px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	white-space: nowrap;
+}
+
+.add-function-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.add-function-button.allow {
+	background-color: rgba(76, 175, 80, 0.1);
+	color: #4CAF50;
+	border-color: #4CAF50;
+}
+
+.add-function-button.allow:hover:not(:disabled) {
+	background-color: rgba(76, 175, 80, 0.2);
+}
+
+.add-function-button.deny {
+	background-color: rgba(244, 67, 54, 0.1);
+	color: #f44336;
+	border-color: #f44336;
+}
+
+.add-function-button.deny:hover:not(:disabled) {
+	background-color: rgba(244, 67, 54, 0.2);
+}
+
+.function-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	min-height: 40px;
+}
+
+.function-tag {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	border-radius: 16px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	border: 1px solid;
+	transition: all 0.2s ease;
+}
+
+.function-tag.allow {
+	background-color: rgba(76, 175, 80, 0.1);
+	color: #4CAF50;
+	border-color: #4CAF50;
+}
+
+.function-tag.deny {
+	background-color: rgba(244, 67, 54, 0.1);
+	color: #f44336;
+	border-color: #f44336;
+}
+
+.function-name {
+	font-weight: 500;
+}
+
+.remove-function-button {
+	background: none;
+	border: none;
+	color: inherit;
+	cursor: pointer;
+	padding: 0;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+	line-height: 1;
+	transition: all 0.2s ease;
+}
+
+.remove-function-button:hover {
+	background-color: rgba(0, 0, 0, 0.1);
+}
+
+.empty-list-message {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	margin: 8px 0;
+	text-align: center;
+	padding: 20px;
+}
+
+.safety-notice {
+	padding: 16px;
+	border: 1px solid #ffc107;
+	border-radius: 4px;
+	background-color: rgba(255, 193, 7, 0.1);
+}
+
+.safety-notice h4 {
+	color: #ffc107;
+	margin-bottom: 8px;
+}
+
+.safety-notice p {
+	margin: 0 0 8px 0;
+	color: var(--vscode-foreground);
+	line-height: 1.4;
+}
+
+.safety-notice ul {
+	margin: 0;
+	padding-left: 20px;
+	color: var(--vscode-foreground);
+}
+
+.safety-notice li {
+	margin-bottom: 4px;
+	line-height: 1.4;
+}
+
+.safety-notice code {
+	background-color: var(--vscode-textCodeBlock-background);
+	padding: 2px 4px;
+	border-radius: 2px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 600px) {
+	.erdos-ai-widget .widget-button-stack {
+		width: 100px;
+	}
+	
+	.erdos-ai-widget .widget-button {
+		font-size: 11px;
+		padding: 4px 6px;
+	}
+	
+	.diff-filename-header {
+		font-size: 11px;
+		padding: 2px 6px;
+	}
+	
+	.diff-filename-header .diff-stats {
+		font-size: 10px;
+	}
+	
+	.auto-accept-dialog {
+		width: 95%;
+		max-height: 90vh;
+	}
+	
+	.functions-grid {
+		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+	}
+}
+
+/* Delete file widget - compact design */
+.delete-file-widget-compact {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 6px 12px;
+	height: 32px;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 3px;
+}
+
+.delete-file-text {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-font-size);
+	font-family: var(--vscode-font-family);
+	font-weight: normal;
+}
+
+.delete-file-buttons {
+	display: flex;
+	gap: 6px;
+}
+
+.delete-file-btn {
+	width: 28px;
+	height: 24px;
+	border: 1px solid;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 16px;
+	font-weight: normal;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s;
+}
+
+.delete-file-confirm {
+	background-color: rgba(34, 139, 34, 0.15);
+	border-color: rgba(34, 139, 34, 0.5);
+	color: #228B22;
+}
+
+.delete-file-confirm:hover {
+	background-color: rgba(34, 139, 34, 0.25);
+	border-color: #228B22;
+}
+
+.delete-file-cancel {
+	background-color: rgba(220, 53, 69, 0.15);
+	border-color: rgba(220, 53, 69, 0.5);
+	color: #dc3545;
+}
+
+.delete-file-cancel:hover {
+	background-color: rgba(220, 53, 69, 0.25);
+	border-color: #dc3545;
+}

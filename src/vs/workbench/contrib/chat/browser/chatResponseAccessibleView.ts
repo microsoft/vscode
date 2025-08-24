@@ -72,11 +72,11 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 				if (typeof title === 'string') {
 					responseContent += `${title}\n`;
 				} else if (isMarkdownString(title)) {
-					responseContent += renderAsPlaintext(title, { includeCodeBlocksFences: true }) + '\n';
+					responseContent += renderAsPlaintext(title, true) + '\n';
 				}
 				const message = elicitation.message;
 				if (isMarkdownString(message)) {
-					responseContent += renderAsPlaintext(message, { includeCodeBlocksFences: true });
+					responseContent += renderAsPlaintext(message, true);
 				} else {
 					responseContent += message;
 				}
@@ -121,7 +121,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 				}
 			}
 		}
-		return renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true });
+		return renderAsPlaintext(new MarkdownString(responseContent), true);
 	}
 
 	onClose(): void {

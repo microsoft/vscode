@@ -33,13 +33,15 @@ import { ToggleActivityBarVisibilityActionId } from '../../actions/layoutActions
 import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
+export const SIDEBAR_PART_MINIMUM_WIDTH = 170;
+
 export class SidebarPart extends AbstractPaneCompositePart {
 
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
 	//#region IView
 
-	readonly minimumWidth: number = 170;
+	readonly minimumWidth: number = SIDEBAR_PART_MINIMUM_WIDTH;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;

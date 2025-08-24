@@ -1,0 +1,23 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+@keyframes erdos-modal-overlay-fade-in {
+	0% {
+		opacity: 0;
+	}
+
+	100% {
+		opacity: 1;
+	}
+}
+
+.erdos-modal-overlay {
+	inset: 0;
+	z-index: 20000;
+	position: absolute;
+	/* Makes some devices run their hardware acceleration. */
+	transform: translate3d(0px, 0px, 0px);
+	animation: erdos-modal-overlay-fade-in 0.1s ease-out;
+}

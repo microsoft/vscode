@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-console .console-core {
+	display: flex;
+	flex-direction: row;
+	width: 100%;
+}
+
+.erdos-console .console-core .console-instances-container {
+	position: relative;
+}
+
+.erdos-console .console-core .vertical-splitter {
+	background-color: var(--vscode-terminal-border);
+}

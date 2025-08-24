@@ -31,6 +31,11 @@ export function renderFormattedText(formattedText: string, options?: FormattedTe
 	return element;
 }
 
+export function createElement(options: FormattedTextRenderOptions = {}): HTMLElement {
+	const element = document.createElement('div');
+	return element;
+}
+
 class StringStream {
 	private source: string;
 	private index: number;

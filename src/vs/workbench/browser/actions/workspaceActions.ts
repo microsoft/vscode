@@ -24,7 +24,7 @@ import { IsMacNativeContext } from '../../../platform/contextkey/common/contextk
 import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 
-const workspacesCategory: ILocalizedString = localize2('workspaces', 'Workspaces');
+export const workspacesCategory: ILocalizedString = localize2('workspaces', 'Workspaces');
 
 export class OpenFileAction extends Action2 {
 

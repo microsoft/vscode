@@ -28,6 +28,7 @@ export type FromWebviewMessage = {
 	'did-focus': void;
 	'did-blur': void;
 	'did-load': void;
+	'did-load-window': { title: string };
 	'did-find': { didFind: boolean };
 	'do-update-state': string;
 	'do-reload': void;

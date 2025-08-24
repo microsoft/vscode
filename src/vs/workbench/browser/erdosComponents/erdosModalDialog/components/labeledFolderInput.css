@@ -1,0 +1,51 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-modal-dialog-box
+.labeled-folder-input {
+	width: 100%;
+}
+
+.erdos-modal-dialog-box
+.labeled-folder-input
+.folder-input {
+	gap: 8px;
+	display: flex;
+	margin-top: 4px;
+}
+
+.erdos-modal-dialog-box
+.labeled-folder-input
+.folder-input
+.browse-button {
+	padding: 0 8px;
+	width: min-content;
+	border-radius: 4px;
+	color: var(--vscode-erdosModalDialog-buttonForeground);
+	background: var(--vscode-erdosModalDialog-buttonBackground);
+	border: 1px solid var(--vscode-erdosModalDialog-buttonBorder);
+}
+
+.erdos-modal-dialog-box
+.labeled-folder-input
+.folder-input
+.browse-button:focus {
+	outline: none !important;
+
+}
+
+.erdos-modal-dialog-box
+.labeled-folder-input
+.folder-input
+.browse-button:focus-visible {
+	outline-offset: 2px;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+}
+
+.erdos-modal-dialog-box .labeled-folder-input span.error {
+	color: var(--vscode-errorForeground);
+	height: 1em;
+	display: block
+}

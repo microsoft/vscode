@@ -69,10 +69,13 @@ export interface INotebookService {
 	tryGetDataProviderSync(viewType: string): SimpleNotebookProviderInfo | undefined;
 
 	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
+	getMimeTypeInfo(viewType: string | undefined, kernelProvides: readonly string[] | undefined, mimeTypes: string[]): readonly IOrderedMimeType[];
 
 	getViewTypeProvider(viewType: string): string | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 	getRenderers(): INotebookRendererInfo[];
+
+	getPreferredRenderer(mimeType: string): INotebookRendererInfo | undefined;
 
 	getStaticPreloads(viewType: string): Iterable<INotebookStaticPreloadInfo>;
 

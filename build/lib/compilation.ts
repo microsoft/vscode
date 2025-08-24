@@ -68,10 +68,11 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 	function pipeline(token?: util.ICancellationToken) {
 		const bom = require('gulp-bom') as typeof import('gulp-bom');
 
-		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
+		// Added x? to regexes so that .tsx files are compiled and updated in the same way as .ts files.
+		const tsFilter = util.filter(data => /\.tsx?$/.test(data.path));
 		const isUtf8Test = (f: File) => /(\/|\\)test(\/|\\).*utf8/.test(f.path);
 		const isRuntimeJs = (f: File) => f.path.endsWith('.js') && !f.path.includes('fixtures');
-		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
+		const noDeclarationsFilter = util.filter(data => !(/\.d\.tsx?$/.test(data.path)));
 
 		const input = es.through();
 		const output = input

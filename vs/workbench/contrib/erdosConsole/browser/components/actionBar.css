@@ -1,0 +1,16 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-console .action-bar {
+	height: var(--vscode-erdosActionBar-height);
+}
+
+.state-label {
+	white-space: nowrap;
+}
+
+.action-bar-button-icon.interrupt::before {
+	color: var(--vscode-errorForeground);
+}

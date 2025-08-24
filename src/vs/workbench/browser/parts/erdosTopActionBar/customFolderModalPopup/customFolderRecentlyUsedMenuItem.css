@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.custom-folder-recently-used-menu-item {
+	width: 100%;
+	height: 26px;
+	border: none;
+	display: grid;
+	cursor: pointer;
+	text-align: left;
+	align-items: center;
+	align-content: center;
+	background: transparent;
+	grid-template-columns: 1fr min-content;
+	color: var(--vscode-erdosContextMenu-foreground);
+}
+
+.custom-folder-recently-used-menu-item:hover {
+	border-radius: 5px;
+	color: var(--vscode-erdosContextMenu-hoverForeground);
+	background: var(--vscode-erdosContextMenu-hoverBackground);
+}
+
+.custom-folder-recently-used-menu-item:focus {
+	outline: none !important;
+}
+
+.custom-folder-recently-used-menu-item:focus-visible {
+	border-radius: 6px;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+	background: var(--vscode-erdosContextMenu-hoverBackground);
+}
+
+.custom-folder-recently-used-menu-item .title {
+	display: block;
+	max-width: 100%;
+	max-width: 600px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	margin: 10px 5px 10px 10px;
+}
+
+.custom-folder-recently-used-menu-item .open-in-new-window {
+	display: flex;
+	padding: 2px 5px;
+	margin-right: 3.5px;
+}
+
+.custom-folder-recently-used-menu-item .open-in-new-window:hover {
+	border-radius: 5px;
+	color: var(--vscode-erdosContextMenu-hoverForeground);
+	background: var(--vscode-erdosContextMenu-actionHoverBackground);
+}
+
+.custom-folder-recently-used-menu-item .open-in-new-window:focus {
+	outline: none !important;
+}
+
+.custom-folder-recently-used-menu-item .open-in-new-window:focus-visible {
+	border-radius: 6px;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+	background: var(--vscode-erdosContextMenu-actionHoverBackground);
+}

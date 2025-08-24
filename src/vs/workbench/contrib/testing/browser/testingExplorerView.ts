@@ -1475,7 +1475,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 		if (typeof element.message === 'string') {
 			data.label.innerText = element.message;
 		} else {
-			const result = this.renderer.render(element.message, undefined, document.createElement('span'));
+			const result = this.renderer.render(element.message, {});
 			data.label.appendChild(result.element);
 		}
 		data.disposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, element.description));

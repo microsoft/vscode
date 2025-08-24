@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-plots-container .action-bars {
+	height: min-content;
+}
+
+.vs-dark .erdos-plots-container .codicon-color-mode {
+	rotate: 180deg;
+	transition: 0.2s ease;
+}
+
+.erdos-plots-container .codicon-color-mode {
+	rotate: 0deg;
+	transition: 0.2s ease;
+}

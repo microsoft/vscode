@@ -640,6 +640,11 @@ class LanguageServiceHost {
                     this._dependencies.inertEdge(filename, normalizedPath + '.ts');
                     found = true;
                 }
+                // Added .tsx support for dependency resolution
+                else if (this.getScriptSnapshot(normalizedPath + '.tsx')) {
+                    this._dependencies.inertEdge(filename, normalizedPath + '.tsx');
+                    found = true;
+                }
                 else if (this.getScriptSnapshot(normalizedPath + '.d.ts')) {
                     this._dependencies.inertEdge(filename, normalizedPath + '.d.ts');
                     found = true;

@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import * as arrays from '../../../common/arrays.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode, KeyCodeUtils } from '../../../common/keyCodes.js';
-import { Disposable, IDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
 import { isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
 import * as cssJs from '../../cssValue.js';
@@ -882,7 +882,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 		};
 
-		const rendered = renderMarkdown({ value: text, supportThemeIcons: true }, { actionHandler });
+		const rendered = renderMarkdown({ value: text, supportThemeIcons: true }, { 
+			actionHandler: actionHandler ? {
+				callback: actionHandler,
+				disposables: new DisposableStore()
+			} : undefined 
+		});
 
 		rendered.element.classList.add('select-box-description-markdown');
 		cleanRenderedMarkdown(rendered.element);

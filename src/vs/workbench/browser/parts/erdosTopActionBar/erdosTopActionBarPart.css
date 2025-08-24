@@ -1,0 +1,20 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.erdos-top-action-bar {
+	width: 100%;
+	height: 100%;
+	cursor: default;
+	font-size: 12px;
+	overflow: visible;
+	align-items: center;
+	justify-content: left;
+	box-sizing: border-box;
+}
+
+/* Don't draw a focus outline. */
+.monaco-workbench .part.erdos-top-action-bar:focus {
+	outline: none !important;
+}

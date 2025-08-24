@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-action-bar {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: var(--vscode-erdosActionBar-height);
+}
+
+.erdos-action-bar:not(.transparent-background) {
+	background-color: var(--vscode-erdosActionBar-background);
+}
+
+.erdos-action-bar.transparent-background {
+	background-color: transparent;
+}
+
+.erdos-action-bar.border-top {
+	border-top: 1px solid var(--vscode-erdosActionBar-border);
+}
+
+.erdos-action-bar.border-bottom {
+	border-bottom: 1px solid var(--vscode-erdosActionBar-border);
+}

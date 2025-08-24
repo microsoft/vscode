@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
+// import { IDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
 
 export interface IRecordableLogEntry {
 	sourceId: string;
@@ -67,7 +67,7 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 	constructor(
 		private readonly _key: string,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IDataChannelService private readonly _dataChannelService: IDataChannelService,
+		// @IDataChannelService private readonly _dataChannelService: IDataChannelService,
 	) {
 		super();
 		this._isEnabledContextKeyValue = observableContextKey<boolean>('structuredLogger.enabled:' + this._key, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
@@ -79,7 +79,7 @@ export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable 
 		if (!enabled) {
 			return false;
 		}
-		this._dataChannelService.getDataChannel<T>('structuredLogger:' + this._key).sendData(data);
+		// this._dataChannelService.getDataChannel<T>('structuredLogger:' + this._key).sendData(data);
 		return true;
 	}
 }

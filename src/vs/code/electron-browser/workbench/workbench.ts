@@ -292,7 +292,7 @@
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
 
 		// Dev only: CSS import map tricks
-		setupCSSImportMaps<T>(configuration, baseUrl);
+		setupImportMaps<T>(configuration, baseUrl);
 
 		// ESM Import
 		try {
@@ -441,27 +441,44 @@
 		return uri.replace(/#/g, '%23');
 	}
 
-	function setupCSSImportMaps<T extends ISandboxConfiguration>(configuration: T, baseUrl: URL) {
-
-		// DEV ---------------------------------------------------------------------------------------
-		// DEV: This is for development and enables loading CSS via import-statements via import-maps.
-		// DEV: For each CSS modules that we have we defined an entry in the import map that maps to
-		// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
-		// DEV ---------------------------------------------------------------------------------------
-
+	function setupImportMaps<T extends ISandboxConfiguration>(configuration: T, baseUrl: URL) {
+		// Only set up import maps if we have CSS modules. These only exist in
+		// development configurations.
 		if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
-			performance.mark('code/willAddCssLoader');
 
-			globalThis._VSCODE_CSS_LOAD = function (url) {
-				const link = document.createElement('link');
-				link.setAttribute('rel', 'stylesheet');
-				link.setAttribute('type', 'text/css');
-				link.setAttribute('href', url);
-
-				window.document.head.appendChild(link);
-			};
+			// Create import maps for React and other dependencies. This is for
+			// development mode only; for release builds, the importmap is inlined
+			// in workbench.html.
+			const style = document.createElement('style');
+			style.type = 'text/css';
+			style.media = 'screen';
+			style.id = 'vscode-css-loading';
+			document.head.appendChild(style);
 
 			const importMap: { imports: Record<string, string> } = { imports: {} };
+			const addModule = (packageName: string) => {
+				const packageNamePath = packageName.split('/');
+				const module = `esm-package-dependencies/${packageNamePath[packageNamePath.length - 1]}.js`;
+				const url = new URL(module, baseUrl).href;
+				importMap.imports[packageName] = url;
+			};
+
+			addModule('he');
+			addModule('js-yaml');
+			addModule('react');
+			addModule('react-dom');
+			addModule('react-dom/client');
+			addModule('react-window');
+
+			// DEV ---------------------------------------------------------------------------------------
+			// DEV: This is for development and enables loading CSS via import-statements via import-maps.
+			// DEV: For each CSS modules that we have we defined an entry in the import map that maps to
+			// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
+			// DEV ---------------------------------------------------------------------------------------
+			globalThis._VSCODE_CSS_LOAD = function (url) {
+				style.textContent += `@import url(${url});\n`;
+			};
+
 			for (const cssModule of configuration.cssModules) {
 				const cssUrl = new URL(cssModule, baseUrl).href;
 				const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
@@ -476,9 +493,7 @@
 			importMapScript.setAttribute('nonce', '0c6a828f1297');
 			// @ts-ignore
 			importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
-			window.document.head.appendChild(importMapScript);
-
-			performance.mark('code/didAddCssLoader');
+			document.head.appendChild(importMapScript);
 		}
 	}
 

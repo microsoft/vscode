@@ -11,30 +11,17 @@ import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../service
 import { IErdosNewFolderService } from '../../../services/erdosNewFolder/common/erdosNewFolder.js';
 import { ErdosNewFolderService } from '../../../services/erdosNewFolder/common/erdosNewFolderService.js';
 
-// Register the Erdos New Folder service
 registerSingleton(IErdosNewFolderService, ErdosNewFolderService, InstantiationType.Delayed);
 
-/**
- * Erdos New Project Contribution.
- * Handles new project/folder creation workflows and initialization.
- */
-class ErdosNewProjectContribution extends Disposable implements IWorkbenchContribution {
-	
-	static readonly ID = 'workbench.contrib.erdosNewProject';
+class ErdosNewFolderContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.erdosNewFolder';
 
-	/**
-	 * Create a new instance of the ErdosNewProjectContribution.
-	 * @param _lifecycleService The lifecycle service.
-	 * @param _erdosNewFolderService The Erdos New Folder service.
-	 */
 	constructor(
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IErdosNewFolderService private readonly _erdosNewFolderService: IErdosNewFolderService,
 	) {
 		super();
 
-		// Initialize new folder workflow if this is a new window or reopened window
-		// This handles cases where the user creates a new project or opens an existing one
 		if (
 			this._lifecycleService.startupKind === StartupKind.NewWindow ||
 			this._lifecycleService.startupKind === StartupKind.ReopenedWindow
@@ -43,17 +30,10 @@ class ErdosNewProjectContribution extends Disposable implements IWorkbenchContri
 		}
 	}
 
-	/**
-	 * Run the Erdos New Project contribution, which initializes the new folder if applicable.
-	 */
 	private async run() {
-		// Wait until after the workbench has been restored
 		await this._lifecycleService.when(LifecyclePhase.Restored);
-		
-		// Initialize new folder workflow
 		await this._erdosNewFolderService.initNewFolder();
 	}
 }
 
-// Register the ErdosNewProjectContribution
-registerWorkbenchContribution2(ErdosNewProjectContribution.ID, ErdosNewProjectContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ErdosNewFolderContribution.ID, ErdosNewFolderContribution, WorkbenchPhase.AfterRestored);

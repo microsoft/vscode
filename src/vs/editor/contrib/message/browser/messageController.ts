@@ -38,6 +38,7 @@ export class MessageController implements IEditorContribution {
 	private readonly _messageWidget = new MutableDisposable<MessageWidget>();
 	private readonly _messageListeners = new DisposableStore();
 	private _mouseOverMessage: boolean = false;
+	private _message: { element: HTMLElement; dispose: () => void } | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -50,6 +51,7 @@ export class MessageController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		this._message?.dispose();
 		this._messageListeners.dispose();
 		this._messageWidget.dispose();
 		this._visible.reset();
@@ -67,17 +69,16 @@ export class MessageController implements IEditorContribution {
 		this._messageWidget.clear();
 		this._messageListeners.clear();
 
-		if (isMarkdownString(message)) {
-			const renderedMessage = this._messageListeners.add(renderMarkdown(message, {
-				actionHandler: (url, mdStr) => {
+		this._message = isMarkdownString(message) ? renderMarkdown(message, {
+			actionHandler: {
+				callback: (url) => {
 					this.closeMessage();
-					openLinkFromMarkdown(this._openerService, url, mdStr.isTrusted);
+					openLinkFromMarkdown(this._openerService, url, isMarkdownString(message) ? message.isTrusted : undefined);
 				},
-			}));
-			this._messageWidget.value = new MessageWidget(this._editor, position, renderedMessage.element);
-		} else {
-			this._messageWidget.value = new MessageWidget(this._editor, position, message);
-		}
+				disposables: this._messageListeners
+			},
+		}) : undefined;
+		this._messageWidget.value = new MessageWidget(this._editor, position, typeof message === 'string' ? message : this._message!.element);
 
 		// close on blur (debounced to allow to tab into the message), cursor, model change, dispose
 		this._messageListeners.add(Event.debounce(this._editor.onDidBlurEditorText, (last, event) => event, 0)(() => {

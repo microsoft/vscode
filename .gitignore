@@ -45,9 +45,9 @@ src/vs/workbench/services/erdosPlots/common/sizingPolicyLandscape.ts
 src/vs/workbench/services/erdosPlots/common/sizingPolicyPortrait.ts
 src/vs/workbench/services/erdosPlots/common/sizingPolicySquare.ts
 src/vs/workbench/services/erdosPlots/test/
-# Positron test files
-src/vs/workbench/test/browser/positronWorkbenchTestServices.ts
-src/vs/workbench/test/common/positronWorkbenchTestServices.ts
+# Erdos test files
+src/vs/workbench/test/browser/erdosWorkbenchTestServices.ts
+src/vs/workbench/test/common/erdosWorkbenchTestServices.ts
 # Documentation files with Positron references
 frontend-dev-guide-updated.md
 infrastructure-dev-guide-updated.md

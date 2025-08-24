@@ -18,23 +18,14 @@ export class DataChannelService extends Disposable implements IDataChannelServic
 		super();
 	}
 
-	getDataChannel<T>(channelId: string): CoreDataChannel<T> {
-		return new CoreDataChannelImpl<T>(channelId, this._onDidSendData);
-	}
-}
-
-class CoreDataChannelImpl<T> implements CoreDataChannel<T> {
-	constructor(
-		private readonly channelId: string,
-		private readonly _onDidSendData: Emitter<IDataChannelEvent>
-	) { }
-
-	sendData(data: T): void {
+	sendData(channel: CoreDataChannel, data: any): void {
 		this._onDidSendData.fire({
-			channelId: this.channelId,
+			channel,
 			data
 		});
 	}
 }
+
+
 
 registerSingleton(IDataChannelService, DataChannelService, InstantiationType.Delayed);

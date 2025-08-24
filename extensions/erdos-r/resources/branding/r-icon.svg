@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="linear-gradient" x1="-48.93" y1="150.88" x2="-48.8" y2="150.74" gradientTransform="translate(35285.51 72877.49) scale(721.09 -482.94)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ccced0"/>
+      <stop offset="1" stop-color="#85848c"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="-49.53" y1="151.17" x2="-49.39" y2="151.03" gradientTransform="translate(19751 61428.67) scale(398 -406.12)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#336db6"/>
+      <stop offset="1" stop-color="#1c5eaa"/>
+    </linearGradient>
+  </defs>
+  <path d="m50,77.95C22.84,77.95.81,63.21.81,45.01S22.84,12.07,50,12.07s49.19,14.75,49.19,32.94-22.02,32.94-49.19,32.94Zm7.53-53c-20.65,0-37.39,10.08-37.39,22.52s16.74,22.52,37.39,22.52,35.88-6.89,35.88-22.52-15.24-22.52-35.88-22.52Z" style="fill: url(#linear-gradient); fill-rule: evenodd;"/>
+  <path d="m75.72,63.09s2.98.9,4.71,1.77c.6.3,1.64.91,2.39,1.71.73.78,1.09,1.57,1.09,1.57l11.73,19.78h-18.96s-8.87-16.64-8.87-16.64c0,0-1.82-3.12-2.93-4.02-.93-.75-1.33-1.02-2.25-1.02h-4.51v21.69s-16.78,0-16.78,0v-55.4h33.7s15.35.28,15.35,14.88-14.67,15.69-14.67,15.69Zm-7.3-18.55h-10.16s0,9.41,0,9.41h10.16s4.71-.02,4.71-4.8-4.71-4.62-4.71-4.62Z" style="fill: url(#linear-gradient-2); fill-rule: evenodd;"/>
+</svg>

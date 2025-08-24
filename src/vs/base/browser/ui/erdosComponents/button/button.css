@@ -1,0 +1,36 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-button {
+	border: none;
+	cursor: pointer;
+	background-color: transparent;
+
+	font-family: unset !important;
+	text-align: unset !important;
+}
+
+.hc-black .erdos-button:not(.border),
+.hc-light .erdos-button:not(.border) {
+	border: 1px solid transparent;
+}
+
+.hc-black .erdos-button:hover,
+.hc-light .erdos-button:hover {
+	border: 1px dashed var(--vscode-focusBorder);
+}
+
+.erdos-button:focus {
+	outline: none !important;
+}
+
+.erdos-button:focus-visible {
+	border-radius: 4px;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+}
+
+.erdos-button.solid:focus-visible {
+	outline-offset: 2px !important;
+}

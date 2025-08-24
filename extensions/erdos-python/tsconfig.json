@@ -2,8 +2,7 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
-            "*": ["types/*"],
-            "erdos": ["src/client/erdos.d.ts"]
+            "*": ["types/*"]
         },
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
@@ -29,6 +28,11 @@
         "resolveJsonModule": true,
         "removeComments": true
     },
+    "include": [
+        "src/**/*",
+        "../../src/vscode-dts/vscode.d.ts",
+        "../../src/vscode-dts/erdos.d.ts"
+    ],
     "exclude": [
         "node_modules",
         ".vscode-test",

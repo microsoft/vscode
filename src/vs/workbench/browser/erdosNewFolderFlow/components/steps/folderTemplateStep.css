@@ -1,0 +1,24 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.folder-template-selection-step {
+	top: 32px;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 16px;
+	position: absolute;
+}
+
+.folder-template-selection-step .folder-template-selection-step-title {
+	font-size: 26px;
+	font-weight: bold;
+	margin-top: 16px;
+	margin-bottom: 32px;
+}
+
+.folder-template-selection-step .folder-template-selection-step-description {
+	margin-bottom: 8px;
+}

@@ -1,0 +1,39 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.action-bar-region {
+	flex: 1;
+	overflow: visible;
+}
+
+.action-bar-region-left {
+	display: flex;
+	margin-right: 4px;
+	align-items: center;
+}
+
+.action-bar-region-center {
+	display: flex;
+	margin: 0 4px;
+	align-items: center;
+}
+
+.action-bar-region-right {
+	display: flex;
+	margin-left: 4px;
+	align-items: center;
+}
+
+.action-bar-region-justify-left {
+	justify-content: left;
+}
+
+.action-bar-region-justify-center {
+	justify-content: center;
+}
+
+.action-bar-region-justify-right {
+	justify-content: right;
+}

@@ -34,7 +34,6 @@ export const ActionBars = (props: PropsWithChildren<ActionBarsProps>) => {
 
 	// Do we have any plots?
 	const noPlots = erdosPlotsContext.erdosPlotInstances.length === 0;
-	const hasPlots = !noPlots;
 	const disableLeft = noPlots || erdosPlotsContext.selectedInstanceIndex <= 0;
 	const disableRight = noPlots || erdosPlotsContext.selectedInstanceIndex >=
 		erdosPlotsContext.erdosPlotInstances.length - 1;
@@ -59,7 +58,7 @@ export const ActionBars = (props: PropsWithChildren<ActionBarsProps>) => {
 				</button>
 				<button 
 					disabled={noPlots}
-					onClick={() => services.erdosPlotsService.clearPlots()}
+					onClick={() => services.erdosPlotsService.removeAllPlots()}
 					title={localize('erdosClearAllPlots', "Clear all plots")}
 				>
 					Clear

@@ -29,7 +29,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
-import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
+import { TerminalChatAgentToolsSettingId } from '../../../../terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
@@ -105,7 +105,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
-		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === 'on';
+		const autoApproveEnabled = this.configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === 'on';
 		const autoApproveWarningAccepted = this.storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
 		let moreActions: (IChatConfirmationButton | Separator)[] | undefined = undefined;
 		if (autoApproveEnabled) {
@@ -258,7 +258,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					}
 					case 'newRule': {
 						const newRules = asArray(data.rule);
-						const inspect = this.configurationService.inspect(TerminalContribSettingId.AutoApprove);
+						const inspect = this.configurationService.inspect(TerminalChatAgentToolsSettingId.AutoApprove);
 						const oldValue = (inspect.user?.value as Record<string, unknown> | undefined) ?? {};
 						let newValue: Record<string, unknown>;
 						if (isObject(oldValue)) {
@@ -271,12 +271,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 								jsonEditor: true,
 								target: ConfigurationTarget.USER,
 								revealSetting: {
-									key: TerminalContribSettingId.AutoApprove
+									key: TerminalChatAgentToolsSettingId.AutoApprove
 								},
 							});
 							throw new ErrorNoTelemetry(`Cannot add new rule, existing setting is unexpected format`);
 						}
-						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue, ConfigurationTarget.USER);
+						await this.configurationService.updateValue(TerminalChatAgentToolsSettingId.AutoApprove, newValue, ConfigurationTarget.USER);
 						function formatRuleLinks(newRules: ITerminalNewAutoApproveRule[]): string {
 							return newRules.map(e => {
 								return `[\`${e.key}\`](settings_${ConfigurationTarget.USER} "${localize('ruleTooltip', 'View rule in settings')}")`;
@@ -292,7 +292,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					case 'configure': {
 						this.preferencesService.openSettings({
 							target: ConfigurationTarget.USER,
-							query: `@id:${TerminalContribSettingId.AutoApprove}`,
+							query: `@id:${TerminalChatAgentToolsSettingId.AutoApprove}`,
 						});
 						doComplete = false;
 						break;

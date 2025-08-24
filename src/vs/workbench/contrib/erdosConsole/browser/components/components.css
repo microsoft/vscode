@@ -1,0 +1,152 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Runtime Activity Components */
+.runtime-activity {
+	/* Add styles for runtime activity */
+}
+
+.pending-input {
+	/* Add styles for pending input */
+}
+
+.runtime-offline {
+	/* Add styles for runtime offline */
+}
+
+.runtime-exited {
+	/* Add styles for runtime exited */
+}
+
+.runtime-restart-button {
+	/* Add styles for runtime restart button */
+}
+
+.runtime-startup-failure {
+	/* Add styles for runtime startup failure */
+}
+
+.runtime-trace {
+	/* Add styles for runtime trace */
+}
+
+/* Activity Components */
+.activity-input {
+	/* Add styles for activity input */
+}
+
+.activity-input.executing {
+	/* Add styles for executing state */
+}
+
+.activity-input.cancelled {
+	/* Add styles for cancelled state */
+}
+
+.activity-input .progress-bar {
+	/* Add styles for progress bar */
+}
+
+.activity-input .prompt {
+	/* Add styles for prompt */
+}
+
+.activity-prompt {
+	/* Add styles for activity prompt */
+}
+
+.activity-prompt .input-field {
+	/* Add styles for input field */
+}
+
+.activity-prompt .prompt-line {
+	/* Add styles for prompt line */
+}
+
+.activity-error-stream {
+	/* Add styles for activity error stream */
+}
+
+.activity-output-html {
+	/* Add styles for activity output HTML */
+}
+
+.activity-output-plot {
+	/* Add styles for activity output plot */
+}
+
+.activity-output-plot .inspect {
+	/* Add styles for inspect icon */
+}
+
+.activity-error-message {
+	/* Add styles for activity error message */
+}
+
+.activity-error-message .error-bar {
+	/* Add styles for error bar */
+}
+
+.activity-error-message .error-information {
+	/* Add styles for error information */
+}
+
+.activity-error-message .traceback {
+	/* Add styles for traceback */
+}
+
+.activity-error-message .toggle-traceback {
+	/* Add styles for toggle traceback button */
+}
+
+.activity-error-message .expansion-indicator {
+	/* Add styles for expansion indicator */
+}
+
+.activity-error-message .link-text {
+	/* Add styles for link text */
+}
+
+.activity-error-message .traceback-lines {
+	/* Add styles for traceback lines */
+}
+
+.output-run-hyperlink {
+	/* Add styles for output run hyperlinks */
+}
+
+.runtime-starting {
+	display: grid;
+	margin-left: -10px;
+	grid-template-columns: 10px 1fr;
+}
+
+.runtime-starting .left-bar {
+	width: 4px;
+	display: flex;
+	opacity: 0.75;
+	background-image: repeating-linear-gradient(45deg,
+			var(--vscode-erdosConsole-ansiBrightBlue),
+			var(--vscode-erdosConsole-ansiBrightBlue) 3px,
+			transparent 3px,
+			transparent 6px);
+	background-size: 8.49px 8.49px;
+	animation: move-stripes 1s linear infinite;
+}
+
+@keyframes move-stripes {
+	0% {
+		background-position: 0 0;
+	}
+
+	100% {
+		background-position: 8.49px 0;
+	}
+}
+
+.runtime-starting .starting-message {
+	padding: 4px 0;
+	display: flex;
+}

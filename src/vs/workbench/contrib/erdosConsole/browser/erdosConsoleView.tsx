@@ -3,13 +3,13 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// CSS.
+// @ts-ignore: TypeScript dependency injection decorators
+/* eslint-disable */
+
 import './erdosConsoleView.css';
 
-// React.
 import React from 'react';
 
-// Other dependencies.
 import * as DOM from '../../../../base/browser/dom.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -18,104 +18,58 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ErdosConsoleFocused, ErdosConsoleInstancesExistContext } from '../../../common/contextkeys.js';
-import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ErdosViewPane } from '../../../browser/erdosViewPane/erdosViewPane.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ErdosConsole } from './erdosConsole.js';
+import { IRuntimeSessionService, RuntimeStartMode } from '../../../services/runtimeSession/common/runtimeSessionService.js';
+import { LanguageRuntimeSessionMode } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
 import { IErdosConsoleService } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { LANGUAGE_RUNTIME_DUPLICATE_ACTIVE_SESSION_ID, LANGUAGE_RUNTIME_START_NEW_SESSION_ID } from '../../languageRuntime/browser/languageRuntimeActions.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 
 /**
  * ErdosConsoleViewPane class.
  */
-export class ErdosConsoleViewPane extends ViewPane implements IReactComponentContainer {
-	//#region Private Properties
-
-	/**
-	 * The onSizeChanged event emitter.
-	 */
+export class ErdosConsoleViewPane extends ErdosViewPane implements IReactComponentContainer {
 	private _onSizeChangedEmitter = this._register(new Emitter<ISize>());
-
-	/**
-	 * The onVisibilityChanged event emitter.
-	 */
 	private _onVisibilityChangedEmitter = this._register(new Emitter<boolean>());
-
-	/**
-	 * The onSaveScrollPosition event emitter.
-	 */
 	private _onSaveScrollPositionEmitter = this._register(new Emitter<void>());
-
-	/**
-	 * The onRestoreScrollPosition event emitter.
-	 */
 	private _onRestoreScrollPositionEmitter = this._register(new Emitter<void>());
-
-	/**
-	 * The onFocused event emitter.
-	 */
 	private _onFocusedEmitter = this._register(new Emitter<void>());
-
-	/**
-	 * Gets or sets the width. This value is set in layoutBody and is used to implement the
-	 * IReactComponentContainer interface.
-	 */
 	private _width = 0;
-
-	/**
-	 * Gets or sets the height. This value is set in layoutBody and is used to implement the
-	 * IReactComponentContainer interface.
-	 */
 	private _height = 0;
-
-	/**
-	 * Gets or sets the Erdos console container - contains the entire Erdos console UI.
-	 */
 	private _erdosConsoleContainer!: HTMLElement;
-
-	/**
-	 * Gets or sets the ErdosReactRenderer for the ErdosConsole component.
-	 */
 	private _erdosReactRenderer: ErdosReactRenderer | undefined;
-
-	/**
-	 * Gets or sets the ErdosConsoleFocused context key.
-	 */
 	private _erdosConsoleFocusedContextKey: IContextKey<boolean>;
+	private readonly _sessionDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
+	private _erdosConsoleInstancesExistContextKey: IContextKey<boolean>;
 
-	//#endregion Private Properties
-
-	//#region IReactComponentContainer
-
-	/**
-	 * Gets the width.
-	 */
 	get width() {
 		return this._width;
 	}
 
-	/**
-	 * Gets the height.
-	 */
 	get height() {
 		return this._height;
 	}
 
-	/**
-	 * Gets the container visibility.
-	 */
 	get containerVisible() {
 		return this.isBodyVisible();
 	}
 
-	/**
-	 * Directs the React component container to take focus.
-	 */
 	takeFocus(): void {
 		this.focus();
 	}
@@ -128,142 +82,185 @@ export class ErdosConsoleViewPane extends ViewPane implements IReactComponentCon
 		}
 	}
 
-	/**
-	 * onSizeChanged event.
-	 */
-	public readonly onSizeChanged: Event<ISize> = this._onSizeChangedEmitter.event;
+	readonly onSizeChanged: Event<ISize> = this._onSizeChangedEmitter.event;
+	readonly onVisibilityChanged: Event<boolean> = this._onVisibilityChangedEmitter.event;
+	readonly onSaveScrollPosition: Event<void> = this._onSaveScrollPositionEmitter.event;
+	readonly onRestoreScrollPosition: Event<void> = this._onRestoreScrollPositionEmitter.event;
+	readonly onFocused: Event<void> = this._onFocusedEmitter.event;
 
-	/**
-	 * onVisibilityChanged event.
-	 */
-	public readonly onVisibilityChanged: Event<boolean> = this._onVisibilityChangedEmitter.event;
-
-	/**
-	 * onSaveScrollPosition event.
-	 */
-	public readonly onSaveScrollPosition: Event<void> = this._onSaveScrollPositionEmitter.event;
-
-	/**
-	 * onRestoreScrollPosition event.
-	 */
-	public readonly onRestoreScrollPosition: Event<void> = this._onRestoreScrollPositionEmitter.event;
-
-	/**
-	 * onFocused event.
-	 */
-	public readonly onFocused: Event<void> = this._onFocusedEmitter.event;
-
-	//#endregion IReactComponentContainer
-
-	/**
-	 * Constructor.
-	 * @param options A ViewPaneOptions that contains the view pane options.
-	 * @param keybindingService The keybinding service.
-	 * @param contextMenuService The context menu service.
-	 * @param configurationService The configuration service.
-	 * @param contextKeyService The context key service.
-	 * @param viewDescriptorService The view descriptor service.
-	 * @param instantiationService The instantiation service.
-	 * @param openerService The opener service.
-	 * @param themeService The theme service.
-	 * @param hoverService The hover service.
-	 * @param accessibilityService The accessibility service.
-	 * @param commandService The command service.
-	 * @param notificationService The notification service.
-	 * @param erdosConsoleService The Erdos console service.
-	 */
 	constructor(
 		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IErdosConsoleService private readonly _erdosConsoleService: IErdosConsoleService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService openerService: IOpenerService,
+		@IErdosConsoleService private readonly erdosConsoleService: IErdosConsoleService,
+		@IRuntimeSessionService private readonly runtimeSessionService: IRuntimeSessionService,
+		@IThemeService themeService: IThemeService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 	) {
-		// Call the base class constructor.
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService, accessibilityService);
+		super(
+			options,
+			keybindingService,
+			contextMenuService,
+			configurationService,
+			contextKeyService,
+			viewDescriptorService,
+			instantiationService,
+			openerService,
+			themeService,
+			hoverService);
 
-		// Set the Erdos console focused context key.
 		this._erdosConsoleFocusedContextKey = ErdosConsoleFocused.bindTo(contextKeyService);
+		this._erdosConsoleInstancesExistContextKey = ErdosConsoleInstancesExistContext.bindTo(contextKeyService);
+
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			this._onVisibilityChangedEmitter.fire(visible);
+		}));
+
+		this._register(this.runtimeSessionService.onDidStartRuntime(() => this.updateActions()));
+		this._register(this.runtimeSessionService.onDidChangeForegroundSession(() => this.updateActions()));
+		this._register(this.runtimeSessionService.onDidDeleteRuntimeSession(() => this.updateActions()));
+
+		this._register(this.erdosConsoleService.onDidStartErdosConsoleInstance(() => {
+			this.updateConsoleInstancesExistContext();
+		}));
+
+		this._register(this.erdosConsoleService.onDidDeleteErdosConsoleInstance(() => {
+			this.updateConsoleInstancesExistContext();
+		}));
 	}
 
-	/**
-	 * renderBody override method.
-	 * @param container The container HTMLElement.
-	 */
+	public override dispose(): void {
+		super.dispose();
+	}
+
 	protected override renderBody(container: HTMLElement): void {
-		// Call the base class method.
 		super.renderBody(container);
 
-		// Create and append the Erdos console container.
-		this._erdosConsoleContainer = DOM.append(container, DOM.$('.erdos-console-container'));
+		this._erdosConsoleContainer = DOM.$('.erdos-console-container');
+		container.appendChild(this._erdosConsoleContainer);
 
-		// Create the ErdosReactRenderer for the ErdosConsole component and render it.
-		this._erdosReactRenderer = new ErdosReactRenderer(this._erdosConsoleContainer);
-		this._register(this._erdosReactRenderer);
+		this._erdosReactRenderer = this._register(new ErdosReactRenderer(this._erdosConsoleContainer));
 		this._erdosReactRenderer.render(
-			<ErdosConsole
-				reactComponentContainer={this}
-			/>
+			<ErdosConsole reactComponentContainer={this} />
 		);
+
+		const focusTracker = this._register(DOM.trackFocus(this.element));
+		this._register(focusTracker.onDidFocus(() => this.focusChanged(true)));
+		this._register(focusTracker.onDidBlur(() => this.focusChanged(false)));
+
+		this.updateConsoleInstancesExistContext();
 	}
 
-	/**
-	 * layoutBody override method.
-	 * @param height The height of the body.
-	 * @param width The width of the body.
-	 */
+	override focusElement(): void {
+		this.erdosConsoleService.activeErdosConsoleInstance?.focusInput();
+	}
+
 	protected override layoutBody(height: number, width: number): void {
-		// Call the base class method.
 		super.layoutBody(height, width);
 
-		// Set the width and height.
+		this._erdosConsoleContainer.style.width = `${width}px`;
+		this._erdosConsoleContainer.style.height = `${height}px`;
+
 		this._width = width;
 		this._height = height;
 
-		// Fire the onSizeChanged event.
-		this._onSizeChangedEmitter.fire({ width, height });
+		this._onSizeChangedEmitter.fire({
+			width,
+			height
+		});
 	}
 
-	/**
-	 * setVisible override method.
-	 * @param visible A value which indicates whether the view pane is visible.
-	 */
-	protected override setVisible(visible: boolean): void {
-		// Call the base class method.
-		super.setVisible(visible);
+	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id === LANGUAGE_RUNTIME_DUPLICATE_ACTIVE_SESSION_ID && this.erdosConsoleService.erdosConsoleInstances.length > 0) {
+			if (action instanceof MenuItemAction) {
+				const dropdownAction = new Action('console.session.quickLaunch', localize('console.session.quickLaunch', 'Quick Launch Session...'), 'codicon-chevron-down', true);
+				this._register(dropdownAction);
 
-		// Fire the onVisibilityChanged event.
-		this._onVisibilityChangedEmitter.fire(visible);
+				this._sessionDropdown.value = new DropdownWithPrimaryActionViewItem(
+					action,
+					dropdownAction,
+					[],
+					'',
+					{},
+					this.contextMenuService, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.accessibilityService);
+				this.updateSessionDropdown(dropdownAction);
+
+				return this._sessionDropdown.value;
+			}
+		}
+		return super.createActionViewItem(action, options);
 	}
 
-	/**
-	 * saveState override method.
-	 */
-	public override saveState(): void {
-		// Fire the onSaveScrollPosition event.
-		this._onSaveScrollPositionEmitter.fire();
+	private updateSessionDropdown(dropdownAction: Action): void {
+		const currentRuntime = this.runtimeSessionService.foregroundSession?.runtimeMetadata;
 
-		// Call the base class method.
-		super.saveState();
+		let activeRuntimes = this.runtimeSessionService.activeSessions
+			.sort((a, b) => b.lastUsed - a.lastUsed)
+			.map(session => session.runtimeMetadata)
+			.filter((runtime, index, runtimes) =>
+				runtime.runtimeId !== currentRuntime?.runtimeId && runtimes.findIndex(r => r.runtimeId === runtime.runtimeId) === index
+			)
+
+		if (currentRuntime) {
+			activeRuntimes.unshift(currentRuntime);
+		}
+
+		activeRuntimes = activeRuntimes.slice(0, 5);
+
+		const dropdownMenuActions = activeRuntimes.map(runtime => new Action(
+			`console.startSession.${runtime.runtimeId}`,
+			runtime.runtimeName,
+			undefined,
+			true,
+			() => {
+				this.runtimeSessionService.startNewRuntimeSession(
+					runtime.runtimeId,
+					runtime.runtimeName,
+					LanguageRuntimeSessionMode.Console,
+					undefined,
+					'User selected runtime',
+					RuntimeStartMode.Starting,
+					true
+				);
+			})
+		);
+
+		if (dropdownMenuActions.length === 0) {
+			dropdownMenuActions.push(
+				new Action(
+					'console.startSession.none',
+					localize('console.startSession.none', 'No Sessions'),
+					undefined,
+					false
+				)
+			);
+		}
+
+		dropdownMenuActions.push(new Action(
+			'console.startSession.other',
+			localize('console.startSession.other', 'Start Another...'),
+			undefined,
+			true,
+			() => {
+				this.commandService.executeCommand(LANGUAGE_RUNTIME_START_NEW_SESSION_ID);
+			})
+		);
+
+		dropdownMenuActions.forEach(action => this._register(action));
+
+		this._sessionDropdown.value?.update(dropdownAction, dropdownMenuActions, 'codicon-chevron-down');
 	}
 
-	/**
-	 * focus override method.
-	 */
-	public override focus(): void {
-		// Call the base class method.
-		super.focus();
-
-		// Set focus to the Erdos console container.
-		this._erdosConsoleContainer?.focus();
+	private updateConsoleInstancesExistContext(): void {
+		const hasInstances = this.erdosConsoleService.erdosConsoleInstances.length > 0;
+		this._erdosConsoleInstancesExistContextKey.set(hasInstances);
 	}
 }

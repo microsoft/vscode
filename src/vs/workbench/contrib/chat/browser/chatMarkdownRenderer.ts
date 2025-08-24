@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../base/browser/dom.js';
-import { MarkdownRenderOptions } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownRenderOptions, MarkedOptions } from '../../../../base/browser/markdownRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -72,21 +72,19 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		super(options ?? {}, languageService, openerService);
 	}
 
-	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
+	override render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
 		options = {
 			...options,
-			sanitizerConfig: {
+			remoteImageIsAllowed: (_uri) => false,
+			sanitizerOptions: {
 				replaceWithPlaintext: true,
-				allowedTags: {
-					override: allowedChatMarkdownHtmlTags,
-				},
-				...options?.sanitizerConfig,
-				allowedLinkSchemes: { augment: [product.urlProtocol] },
-				remoteImageIsAllowed: (_uri) => false,
+				allowedTags: [...allowedChatMarkdownHtmlTags],
+				...options?.sanitizerOptions,
+				allowedProductProtocols: [product.urlProtocol]
 			}
 		};
 
-		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
+		const mdWithBody: IMarkdownString | undefined = (markdown && markdown.supportHtml) ?
 			{
 				...markdown,
 
@@ -95,7 +93,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				value: `<body>\n\n${markdown.value}</body>`,
 			}
 			: markdown;
-		const result = super.render(mdWithBody, options, outElement);
+		const result = super.render(mdWithBody, options, markedOptions);
 
 		// In some cases, the renderer can return text that is not inside a <p>,
 		// but our CSS expects text to be in a <p> for margin to be applied properly.

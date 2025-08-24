@@ -37,7 +37,7 @@ export class InlineChatAccessibleView implements IAccessibleViewImplementation {
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.InlineChat,
 			{ type: AccessibleViewType.View },
-			() => renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true }),
+			() => renderAsPlaintext(new MarkdownString(responseContent), true),
 			() => controller.focus(),
 			AccessibilityVerbositySettingId.InlineChat
 		);

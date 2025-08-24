@@ -11,12 +11,11 @@ import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
-import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -28,15 +27,13 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
-import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
-import { ChatSessionUri } from './chatUri.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
@@ -74,7 +71,7 @@ export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
 	private readonly _sessionModels = new ObservableMap<string, ChatModel>();
-	private readonly _contentProviderSessionModels = new Map<string, Map<string, { readonly model: IChatModel; readonly disposables: DisposableStore }>>();
+
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 
@@ -125,7 +122,6 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
-		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
 		super();
@@ -612,120 +608,6 @@ export class ChatService extends Disposable implements IChatService {
 		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
 	}
 
-	async loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
-		// TODO: Move this into a new ChatModelService
-		const parsed = ChatSessionUri.parse(resource);
-		if (!parsed) {
-			throw new Error('Invalid chat session URI');
-		}
-
-		const existing = this._contentProviderSessionModels.get(parsed.chatSessionType)?.get(parsed.sessionId);
-		if (existing) {
-			return existing.model;
-		}
-
-		const chatSessionType = parsed.chatSessionType;
-		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
-
-		const model = this._startSession(undefined, location, true, CancellationToken.None);
-		if (!this._contentProviderSessionModels.has(chatSessionType)) {
-			this._contentProviderSessionModels.set(chatSessionType, new Map());
-		}
-		const disposables = new DisposableStore();
-		this._contentProviderSessionModels.get(chatSessionType)!.set(parsed.sessionId, { model, disposables });
-
-		disposables.add(model.onDidDispose(() => {
-			this._contentProviderSessionModels?.get(chatSessionType)?.delete(parsed.sessionId);
-			content.dispose();
-		}));
-
-		let lastRequest: ChatRequestModel | undefined;
-		for (const message of content.history) {
-			if (message.type === 'request') {
-				if (lastRequest) {
-					model.completeResponse(lastRequest);
-				}
-
-				const requestText = message.prompt;
-
-				const parsedRequest: IParsedChatRequest = {
-					text: requestText,
-					parts: [new ChatRequestTextPart(
-						new OffsetRange(0, requestText.length),
-						{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
-						requestText
-					)]
-				};
-				lastRequest = model.addRequest(parsedRequest,
-					{ variables: [] }, // variableData
-					0, // attempt
-					undefined,
-					undefined, // chatAgent - will use default
-					undefined, // slashCommand
-					undefined, // confirmation
-					undefined, // locationData
-					undefined, // attachments
-					true // isCompleteAddedRequest - this indicates it's a complete request, not user input
-				);
-			} else {
-				// response
-				if (lastRequest) {
-					for (const part of message.parts) {
-						model.acceptResponseProgress(lastRequest, part);
-					}
-				}
-			}
-		}
-
-		if (content.progressObs && lastRequest && content.interruptActiveResponseCallback) {
-			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
-			this._pendingRequests.set(model.sessionId, initialCancellationRequest);
-			const cancellationListener = new MutableDisposable();
-
-			const createCancellationListener = (token: CancellationToken) => {
-				return token.onCancellationRequested(() => {
-					content.interruptActiveResponseCallback?.().then(userConfirmedInterruption => {
-						if (!userConfirmedInterruption) {
-							// User cancelled the interruption
-							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
-							this._pendingRequests.set(model.sessionId, newCancellationRequest);
-							cancellationListener.value = createCancellationListener(newCancellationRequest.cancellationTokenSource.token);
-						}
-					});
-				});
-			};
-
-			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
-			disposables.add(cancellationListener);
-
-			let lastProgressLength = 0;
-			disposables.add(autorun(reader => {
-				const progressArray = content.progressObs?.read(reader) ?? [];
-				const isComplete = content.isCompleteObs?.read(reader) ?? false;
-
-				// Process only new progress items
-				if (progressArray.length > lastProgressLength) {
-					const newProgress = progressArray.slice(lastProgressLength);
-					for (const progress of newProgress) {
-						model?.acceptResponseProgress(lastRequest, progress);
-					}
-					lastProgressLength = progressArray.length;
-				}
-
-				// Handle completion
-				if (isComplete) {
-					model?.completeResponse(lastRequest);
-					cancellationListener.clear();
-				}
-			}));
-		} else {
-			if (lastRequest) {
-				model.completeResponse(lastRequest);
-			}
-		}
-
-		return model;
-	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
 		const model = this._sessionModels.get(request.session.sessionId);

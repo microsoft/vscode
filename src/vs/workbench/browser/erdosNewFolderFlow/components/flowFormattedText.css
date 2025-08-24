@@ -1,0 +1,40 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.flow-step .flow-formatted-text {
+	display: flex;
+	flex-direction: row;
+	column-gap: 2px;
+	align-items: center;
+}
+
+.flow-step .flow-formatted-text-info {
+	color: var(--vscode-descriptionForeground);
+}
+
+.flow-step .flow-formatted-text-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.flow-step .flow-formatted-text-warning .flow-formatted-text-icon {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.flow-step .flow-formatted-text-error {
+	color: var(--vscode-editorError-foreground);
+}
+
+.flow-step .flow-formatted-text-error .flow-formatted-text-icon {
+	color: var(--vscode-editorError-foreground);
+}
+
+.flow-step .flow-formatted-text code {
+	font-size: 13px;
+	font-weight: 500;
+	border-radius: 4px;
+	padding: 0px 3px !important;
+	font-family: var(--monaco-monospace-font);
+	color: var(--vscode-erdosModalDialog-preformattedTextForeground);
+}

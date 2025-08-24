@@ -1126,6 +1126,14 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 				this.viewContainer.insertBefore(container, this.viewContainer.children.item(index));
 			}
 
+			// Defensive check: skip views with undefined elements to prevent crashes
+			if (!view.element) {
+				console.warn('Skipping view with undefined element:', view.constructor.name);
+				// Skip this view and continue with the next one
+				this.state = State.Idle;
+				return;
+			}
+
 			const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
 			const containerDisposable = toDisposable(() => container.remove());
 			const disposable = combinedDisposable(onChangeDisposable, containerDisposable);

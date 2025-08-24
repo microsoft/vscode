@@ -6,7 +6,8 @@
 import { WebContents, webContents, WebFrameMain } from 'electron';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId, FrameNavigationEvent, WebviewFrameId, WebviewRectangle } from '../common/webviewManagerService.js';
 import { WebviewProtocolProvider } from './webviewProtocolProvider.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IFileService } from '../../files/common/files.js';
@@ -17,6 +18,9 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
 	public readonly onFoundInFrame = this._onFoundInFrame.event;
+
+	private readonly _onFrameNavigation = this._register(new Emitter<FrameNavigationEvent>());
+	public readonly onFrameNavigation = this._onFrameNavigation.event;
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -83,6 +87,27 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		const frame = initialFrame as unknown as WebFrameMainWithFindSupport;
 		if (typeof frame.stopFindInFrame === 'function') {
 			frame.stopFindInFrame(options.keepSelection ? 'keepSelection' : 'clearSelection');
+		}
+	}
+
+	public async captureContentsAsPng(windowId: WebviewWindowId, area?: WebviewRectangle): Promise<VSBuffer | undefined> {
+		const window = this.windowsMainService.getWindowById(windowId.windowId);
+		if (!window?.win) {
+			return undefined;
+		}
+		try {
+			const image = await window.win.webContents.capturePage(area);
+			return VSBuffer.wrap(image.toPNG());
+		} catch {
+			return undefined;
+		}
+	}
+
+	public async executeJavaScript(frameId: WebviewFrameId, code: string): Promise<any> {
+		try {
+			return Promise.resolve(undefined);
+		} catch {
+			return Promise.resolve(undefined);
 		}
 	}
 

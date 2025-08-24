@@ -1,0 +1,922 @@
+{
+  "name": "erdos-r",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.0.2",
+  "publisher": "lotas",
+  "engines": {
+    "vscode": "^1.65.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%r.capabilities.untrustedWorkspaces.description%"
+    }
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "r.createNewFile",
+        "category": "R",
+        "title": "%r.command.createNewFile.title%",
+        "shortTitle": "%r.menu.createNewFile.title%"
+      },
+      {
+        "command": "r.insertPipe",
+        "category": "R",
+        "title": "%r.command.insertPipe.title%",
+        "shortTitle": "%r.menu.insertPipe.title%",
+        "enablement": "editorTextFocus"
+      },
+      {
+        "command": "r.insertPipeConsole",
+        "category": "R",
+        "title": "%r.command.insertPipe.title%",
+        "shortTitle": "%r.menu.insertPipe.title%",
+        "enablement": "erdosConsoleFocused"
+      },
+      {
+        "command": "r.insertLeftAssignment",
+        "category": "R",
+        "title": "%r.command.insertLeftAssignment.title%",
+        "shortTitle": "%r.menu.insertLeftAssignment.title%",
+        "enablement": "editorTextFocus"
+      },
+      {
+        "command": "r.insertLeftAssignmentConsole",
+        "category": "R",
+        "title": "%r.command.insertLeftAssignment.title%",
+        "shortTitle": "%r.menu.insertLeftAssignment.title%",
+        "enablement": "erdosConsoleFocused"
+      },
+      {
+        "command": "r.insertSection",
+        "category": "R",
+        "title": "%r.command.insertSection.title%",
+        "shortTitle": "%r.menu.insertSection.title%",
+        "enablement": "editorLangId == r"
+      },
+      {
+        "command": "r.packageLoad",
+        "category": "R",
+        "title": "%r.command.packageLoad.title%",
+        "shortTitle": "%r.menu.packageLoad.title%"
+      },
+      {
+        "command": "r.packageBuild",
+        "category": "R",
+        "title": "%r.command.packageBuild.title%",
+        "shortTitle": "%r.menu.packageBuild.title%"
+      },
+      {
+        "command": "r.packageInstall",
+        "category": "R",
+        "title": "%r.command.packageInstall.title%",
+        "shortTitle": "%r.menu.packageInstall.title%"
+      },
+      {
+        "command": "r.packageTest",
+        "category": "R",
+        "title": "%r.command.packageTest.title%",
+        "shortTitle": "%r.menu.packageTest.title%"
+      },
+      {
+        "command": "r.packageTestExplorer",
+        "category": "R",
+        "title": "%r.command.packageTestExplorer.title%"
+      },
+      {
+        "command": "r.useTestthat",
+        "category": "R",
+        "title": "%r.command.useTestthat.title%"
+      },
+      {
+        "command": "r.useTest",
+        "category": "R",
+        "title": "%r.command.useTest.title%"
+      },
+      {
+        "command": "r.packageCheck",
+        "category": "R",
+        "title": "%r.command.packageCheck.title%",
+        "shortTitle": "%r.menu.packageCheck.title%"
+      },
+      {
+        "command": "r.packageDocument",
+        "category": "R",
+        "title": "%r.command.packageDocument.title%",
+        "shortTitle": "%r.menu.packageDocument.title%"
+      },
+      {
+        "command": "r.selectInterpreter",
+        "category": "R",
+        "title": "%r.command.selectInterpreter.title%"
+      },
+      {
+        "command": "r.sourceCurrentFile",
+        "category": "R",
+        "title": "%r.command.sourceCurrentFile.title%",
+        "icon": "$(play)"
+      },
+      {
+        "command": "r.sourceCurrentFileWithEcho",
+        "category": "R",
+        "title": "%r.command.sourceCurrentFileWithEcho.title%",
+        "icon": "$(play)"
+      },
+      {
+        "command": "r.rmarkdownRender",
+        "category": "R",
+        "title": "%r.command.rmarkdownRender.title%",
+        "icon": "$(play)"
+      },
+      {
+        "command": "r.interpreters.settingsInfo",
+        "category": "R",
+        "title": "%r.command.interpreters.settingsInfo.title%"
+      }
+    ],
+    "configuration": [
+      {
+        "type": "object",
+        "title": "%r.configuration.title%",
+        "properties": {
+          "erdos.r.testing": {
+            "type": "boolean",
+            "default": true,
+            "description": "%r.configuration.packageTesting.description%"
+          },
+          "erdos.r.restoreWorkspace": {
+            "scope": "window",
+            "type": "boolean",
+            "default": false,
+            "description": "%r.configuration.restoreWorkspace.description%"
+          },
+          "erdos.r.quietMode": {
+            "scope": "window",
+            "type": "boolean",
+            "default": false,
+            "description": "%r.configuration.quietMode.description%"
+          },
+          "erdos.r.pipe": {
+            "type": "string",
+            "default": "%r.configuration.pipe.native.token%",
+            "enum": [
+              "%r.configuration.pipe.native.token%",
+              "%r.configuration.pipe.magrittr.token%"
+            ],
+            "enumDescriptions": [
+              "%r.configuration.pipe.native.description%",
+              "%r.configuration.pipe.magrittr.description%"
+            ],
+            "description": "%r.configuration.pipe%"
+          },
+          "erdos.r.diagnostics.enable": {
+            "type": "boolean",
+            "default": true,
+            "description": "%r.configuration.diagnostics.enable.description%"
+          },
+          "erdos.r.symbols.includeAssignmentsInBlocks": {
+            "type": "boolean",
+            "default": false,
+            "description": "%r.configuration.symbols.includeAssignmentsInBlocks.description%"
+          },
+          "erdos.r.workspaceSymbols.includeCommentSections": {
+            "type": "boolean",
+            "default": false,
+            "description": "%r.configuration.workspaceSymbols.includeCommentSections.description%"
+          }
+        }
+      },
+      {
+        "type": "object",
+        "title": "%r.configuration.title-dev%",
+        "properties": {
+          "erdos.r.customRootFolders": {
+            "scope": "resource",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "tags": [
+              "interpreterSettings"
+            ],
+            "uniqueItems": true,
+            "markdownDescription": "%r.configuration.customRootFolders.markdownDescription%"
+          },
+          "erdos.r.customBinaries": {
+            "scope": "resource",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "tags": [
+              "interpreterSettings"
+            ],
+            "uniqueItems": true,
+            "markdownDescription": "%r.configuration.customBinaries.markdownDescription%"
+          },
+          "erdos.r.interpreters.exclude": {
+            "scope": "resource",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "tags": [
+              "interpreterSettings"
+            ],
+            "uniqueItems": true,
+            "markdownDescription": "%r.configuration.interpreters.exclude.markdownDescription%"
+          },
+          "erdos.r.interpreters.override": {
+            "scope": "resource",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "tags": [
+              "interpreterSettings"
+            ],
+            "uniqueItems": true,
+            "markdownDescription": "%r.configuration.interpreters.override.markdownDescription%"
+          },
+          "erdos.r.interpreters.default": {
+            "scope": "resource",
+            "type": "string",
+            "default": null,
+            "tags": [
+              "interpreterSettings"
+            ],
+            "markdownDescription": "%r.configuration.interpreters.default.markdownDescription%"
+          },
+          "erdos.r.kernel.path": {
+            "scope": "window",
+            "type": "string",
+            "default": "",
+            "description": "%r.configuration.kernelPath.description%"
+          },
+          "erdos.r.kernel.logLevel": {
+            "scope": "window",
+            "type": "string",
+            "enum": [
+              "error",
+              "warn",
+              "info",
+              "debug",
+              "trace"
+            ],
+            "enumDescriptions": [
+              "%r.configuration.logLevel.error.description%",
+              "%r.configuration.logLevel.warn.description%",
+              "%r.configuration.logLevel.info.description%",
+              "%r.configuration.logLevel.debug.description%",
+              "%r.configuration.logLevel.trace.description%"
+            ],
+            "default": "warn",
+            "description": "%r.configuration.logLevel.description%"
+          },
+          "erdos.r.kernel.logLevelExternal": {
+            "scope": "window",
+            "type": "string",
+            "default": "warn",
+            "title": "%r.configuration.logLevelExternal.title%",
+            "description": "%r.configuration.logLevelExternal.description%"
+          },
+          "erdos.r.kernel.profile": {
+            "scope": "window",
+            "type": "string",
+            "default": null,
+            "description": "%r.configuration.profile.description%"
+          },
+          "erdos.r.kernel.env": {
+            "scope": "window",
+            "type": "object",
+            "default": {},
+            "description": "%r.configuration.env.description%"
+          },
+          "erdos.r.trace.server": {
+            "scope": "window",
+            "type": "string",
+            "enum": [
+              "off",
+              "messages",
+              "verbose"
+            ],
+            "enumDescriptions": [
+              "%r.configuration.tracing.off.description%",
+              "%r.configuration.tracing.messages.description%",
+              "%r.configuration.tracing.verbose.description%"
+            ],
+            "default": "off",
+            "description": "%r.configuration.tracing.description%"
+          },
+          "erdos.r.extraArguments": {
+            "scope": "window",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "%r.configuration.extraArguments.description%"
+          },
+          "erdos.r.defaultRepositories": {
+            "scope": "window",
+            "type": "string",
+            "enum": [
+              "auto",
+              "rstudio",
+              "posit-ppm",
+              "none"
+            ],
+            "enumDescriptions": [
+              "%r.configuration.defaultRepositories.auto.description%",
+              "%r.configuration.defaultRepositories.rstudio.description%",
+              "%r.configuration.defaultRepositories.posit-ppm.description%",
+              "%r.configuration.defaultRepositories.none.description%"
+            ],
+            "default": "auto",
+            "markdownDescription": "%r.configuration.defaultRepositories.description%"
+          }
+        }
+      }
+    ],
+    "configurationDefaults": {
+      "[r]": {
+        "editor.formatOnType": true,
+        "editor.tabSize": 2,
+        "editor.wordSeparators": "`~!@#$%^&*()-=+[{]}\\|;:'\",<>/?",
+        "editor.smartSelect.selectLeadingAndTrailingWhitespace": false
+      }
+    },
+    "languages": [
+      {
+        "id": "r",
+        "extensions": [
+          ".R",
+          ".r",
+          ".Rprofile",
+          ".rprofile"
+        ],
+        "aliases": [
+          "R",
+          "r"
+        ],
+        "filenames": [
+          "NAMESPACE"
+        ],
+        "configuration": "./language-configuration/r-language-configuration.json"
+      },
+      {
+        "id": "debian-control-file",
+        "extensions": [
+          ".Rproj",
+          ".dcf"
+        ],
+        "aliases": [
+          "R DCF"
+        ],
+        "filenames": [
+          "DESCRIPTION",
+          ".lintr"
+        ],
+        "configuration": "./language-configuration/dcf-language-configuration.json"
+      },
+      {
+        "id": "r-pkg-docs",
+        "aliases": [
+          "R documentation",
+          "r documentation"
+        ],
+        "extensions": [
+          ".rd",
+          ".Rd"
+        ],
+        "configuration": "./language-configuration/r-docs-language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "r",
+        "scopeName": "source.r",
+        "path": "./syntaxes/r.tmGrammar.gen.json"
+      },
+      {
+        "language": "debian-control-file",
+        "scopeName": "source.dcf",
+        "path": "./syntaxes/dcf.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.r": "r"
+        }
+      },
+      {
+        "language": "r-pkg-docs",
+        "scopeName": "source.rdocs",
+        "path": "./syntaxes/rd.tmLanguage.json"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "r.insertPipe",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m",
+        "when": "editorLangId == r || quarto.document.languageId == r"
+      },
+      {
+        "command": "r.insertPipeConsole",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m",
+        "when": "editorLangId == r"
+      },
+      {
+        "command": "r.insertLeftAssignment",
+        "key": "alt+-",
+        "mac": "alt+-",
+        "when": "editorLangId == r || quarto.document.languageId == r"
+      },
+      {
+        "command": "r.insertLeftAssignmentConsole",
+        "key": "alt+-",
+        "mac": "alt+-",
+        "when": "editorLangId == r"
+      },
+      {
+        "command": "r.packageLoad",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "isRPackage"
+      },
+      {
+        "command": "r.packageInstall",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b",
+        "when": "isRPackage"
+      },
+      {
+        "command": "r.packageTestExplorer",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t",
+        "when": "isRPackage"
+      },
+      {
+        "command": "r.packageCheck",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "isRPackage"
+      },
+      {
+        "command": "r.packageDocument",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d",
+        "when": "isRPackage"
+      },
+      {
+        "command": "r.sourceCurrentFile",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorLangId == r && !isRPackage && !erdos.hasCodeCells"
+      },
+      {
+        "command": "r.insertSection",
+        "key": "ctrl+k h",
+        "mac": "cmd+k h",
+        "when": "editorLangId == r"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "category": "R",
+          "command": "r.sourceCurrentFile",
+          "icon": "$(play)",
+          "title": "%r.command.sourceCurrentFile.title%",
+          "when": "editorLangId == r"
+        },
+        {
+          "category": "R",
+          "command": "r.sourceCurrentFileWithEcho",
+          "icon": "$(play)",
+          "title": "%r.command.sourceCurrentFileWithEcho.title%",
+          "when": "editorLangId == r"
+        },
+        {
+          "category": "R",
+          "command": "r.rmarkdownRender",
+          "icon": "$(play)",
+          "title": "%r.command.rmarkdownRender.title%",
+          "when": "resourceExtname == '.rmd' || resourceExtname == '.Rmd'"
+        },
+        {
+          "category": "R",
+          "command": "r.insertPipe",
+          "when": "editorLangId == r || quarto.document.languageId == r"
+        },
+        {
+          "category": "R",
+          "command": "r.insertPipeConsole",
+          "when": "editorLangId == r"
+        },
+        {
+          "category": "R",
+          "command": "r.insertLeftAssignment",
+          "when": "editorLangId == r || quarto.document.languageId == r"
+        },
+        {
+          "category": "R",
+          "command": "r.insertLeftAssignmentConsole",
+          "when": "editorLangId == r"
+        },
+        {
+          "category": "R",
+          "command": "r.insertSection",
+          "when": "editorLangId == r"
+        },
+        {
+          "category": "R",
+          "command": "r.packageLoad",
+          "when": "isRPackage"
+        },
+        {
+          "category": "R",
+          "command": "r.packageBuild",
+          "when": "isRPackage"
+        },
+        {
+          "category": "R",
+          "command": "r.packageInstall",
+          "when": "isRPackage"
+        },
+        {
+          "category": "R",
+          "command": "r.packageTest",
+          "when": "isRPackage"
+        },
+        {
+          "category": "R",
+          "command": "r.packageTestExplorer",
+          "when": "isRPackage"
+        },
+        {
+          "category": "R",
+          "command": "r.packageCheck",
+          "when": "isRPackage"
+        }
+      ],
+      "file/newFile": [
+        {
+          "command": "r.createNewFile",
+          "group": "file",
+          "when": "!virtualWorkspace"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "r.sourceCurrentFile",
+          "group": "R",
+          "title": "%r.command.sourceCurrentFile.title%",
+          "when": "editorLangId == r && !isRPackage"
+        },
+        {
+          "command": "workbench.action.erdosConsole.executeCode",
+          "group": "R",
+          "when": "editorLangId == r"
+        },
+        {
+          "command": "r.rmarkdownRender",
+          "group": "R",
+          "title": "%r.command.rmarkdownRender.title%",
+          "when": "resourceExtname == '.rmd' || resourceExtname == '.Rmd'"
+        }
+      ],
+      "editor/title/run": [
+        {
+          "command": "r.sourceCurrentFile",
+          "group": "navigation@0",
+          "icon": "$(play)",
+          "title": "%r.command.sourceCurrentFile.title%",
+          "when": "resourceLangId == r && !isInDiffEditor && !isRPackage"
+        },
+        {
+          "command": "r.sourceCurrentFileWithEcho",
+          "group": "navigation@0",
+          "icon": "$(play)",
+          "title": "%r.command.sourceCurrentFileWithEcho.title%",
+          "when": "resourceLangId == r && !isInDiffEditor && !isRPackage"
+        },
+        {
+          "command": "workbench.action.erdosConsole.executeCode",
+          "icon": "$(play)",
+          "when": "resourceLangId == r && !isInDiffEditor"
+        },
+        {
+          "command": "r.rmarkdownRender",
+          "icon": "$(play)",
+          "title": "%r.command.rmarkdownRender.title%",
+          "when": "(resourceExtname == '.rmd' || resourceExtname == '.Rmd') && !isInDiffEditor"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "testing",
+        "contents": "Workspace does not appear to be an R package.",
+        "when": "!isRPackage"
+      },
+      {
+        "view": "testing",
+        "contents": "R tests can appear here if the package uses testthat and the setting Erdos > R: Testing is set to 'true'.\n[Adjust this setting](command:workbench.action.openSettings?\"erdos.r.testing\")",
+        "when": "isRPackage && !config.erdos.r.testing"
+      },
+      {
+        "view": "testing",
+        "contents": "Package does not appear to use testthat.\n[Configure testhat for R](command:r.useTestthat)",
+        "when": "isRPackage && config.erdos.r.testing && !testthatIsConfigured"
+      },
+      {
+        "view": "testing",
+        "contents": "No testthat tests found.\n[Add a test](command:r.useTest)",
+        "when": "isRPackage && config.erdos.r.testing && testthatIsConfigured && !testthatHasTests"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "rPackageTask",
+        "when": "isRPackage"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "ark",
+        "label": "R Debugger"
+      }
+    ],
+    "notebookRenderer": [
+      {
+        "id": "erdos.r.htmlwidget",
+        "displayName": "R HTML Widget",
+        "mimeTypes": [
+          "application/vnd.r.htmlwidget"
+        ],
+        "entrypoint": "resources/js/htmlwidget.js"
+      }
+    ],
+
+    "languageRuntimes": [
+      {
+        "languageId": "r"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "getAttachedRPackages",
+        "displayName": "Get Attached R Packages",
+        "userDescription": "Get a list of the R packages being used in the current R session.",
+        "modelDescription": "Gets a list of the R packages that are loaded and attached in the current R session.",
+        "toolReferenceName": "getAttachedRPackages",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionIdentifier": {
+              "type": "string",
+              "description": "The identifier of the R session to query for installed packages."
+            }
+          },
+          "required": [
+            "sessionIdentifier"
+          ]
+        },
+        "tags": [
+          "erdos-assistant",
+          "requires-session:r"
+        ]
+      },
+      {
+        "name": "getInstalledRPackageVersions",
+        "displayName": "Get Installed R Package Versions",
+        "userDescription": "Get the version of one or more installed R packages.",
+        "modelDescription": "Given an array of R package names, returns, for each package, the version of the package that's installed in the given R session, or NULL if the package is not installed.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "getInstalledRPackageVersion",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionIdentifier": {
+              "type": "string",
+              "description": "The identifier of the R session to query for installed packages."
+            },
+            "packageNames": {
+              "type": "array",
+              "description": "An array of R package names to get the version of.",
+              "items": {
+                "type": "string",
+                "description": "The name of an R package to get the version of."
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "sessionIdentifier",
+            "packageNames"
+          ]
+        },
+        "tags": [
+          "erdos-assistant",
+          "requires-session:r"
+        ]
+      },
+      {
+        "name": "listPackageHelpTopics",
+        "displayName": "List R Package Help Topics",
+        "toolReferenceName": "listPackageHelpTopics",
+        "userDescription": "Get a list of the help topics for the named R package.",
+        "modelDescription": "This tool retrieves a list of help topics for a specific R package. A help topic can be a function, dataset, or other documentation related to the package. The topic IDs returned can be passed to the getRHelpPage tool to retrieve the full help page for that topic.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionIdentifier": {
+              "type": "string",
+              "description": "The identifier of the R session to query for help topics."
+            },
+            "packageName": {
+              "type": "string",
+              "description": "The name of the R package to list help topics for."
+            }
+          },
+          "required": [
+            "sessionIdentifier",
+            "packageName"
+          ]
+        },
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "erdos-assistant",
+          "requires-session:r"
+        ]
+      },
+      {
+        "name": "listAvailableVignettes",
+        "displayName": "List R Package Vignettes",
+        "toolReferenceName": "listAvailableVignettes",
+        "userDescription": "Get a list of vignettes for the named R package.",
+        "modelDescription": "Get a list of the vignettes available for the named R package. A vignette is a long-form guide to using the package, often with examples and explanations. Call this tool if you are unfamiliar with a package and want to see what vignettes are available to help you learn about it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionIdentifier": {
+              "type": "string",
+              "description": "The identifier of the R session to query for vignettes."
+            },
+            "packageName": {
+              "type": "string",
+              "description": "The name of the R package to list vignettes for."
+            }
+          },
+          "required": [
+            "sessionIdentifier",
+            "packageName"
+          ]
+        },
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "erdos-assistant",
+          "requires-session:r"
+        ]
+      },
+      {
+        "name": "getPackageVignette",
+        "displayName": "Get an R Package Vignette",
+        "toolReferenceName": "getPackageVignette",
+        "userDescription": "Get a specific vignette for the named R package.",
+        "modelDescription": "Get a specific vignette for the named R package. This tool retrieves the full text of the specified vignette, including all examples and explanations.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionIdentifier": {
+              "type": "string",
+              "description": "The identifier of the R session to query for the vignette."
+            },
+            "packageName": {
+              "type": "string",
+              "description": "The name of the R package to get the vignette for."
+            },
+            "vignetteName": {
+              "type": "string",
+              "description": "The name of the vignette to retrieve."
+            }
+          },
+          "required": [
+            "sessionIdentifier",
+            "packageName",
+            "vignetteName"
+          ]
+        },
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "erdos-assistant",
+          "requires-session:r"
+        ]
+      },
+      {
+        "name": "getHelpPage",
+        "displayName": "Get an R Help Page",
+        "toolReferenceName": "getRHelpPage",
+        "userDescription": "Get a specific help page from R.",
+        "modelDescription": "Get a specific help page from R. This can be used to retrieve documentation for a specific function, dataset, or other topic in R. If you know which package the help topic is in, you can specify it to narrow down the search. If no package is specified, it will search all loaded packages.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionIdentifier": {
+              "type": "string",
+              "description": "The identifier of the R session to query for help."
+            },
+            "packageName": {
+              "type": "string",
+              "description": "The name of the R package in which to look for help. If not provided, the help page will be searched in all loaded packages."
+            },
+            "helpTopic": {
+              "type": "string",
+              "description": "The name of the help topic to retrieve."
+            }
+          },
+          "required": [
+            "sessionIdentifier",
+            "helpTopic"
+          ]
+        },
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "erdos-assistant",
+          "requires-session:r"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "install-kernel": "ts-node scripts/install-kernel.ts",
+    "compile-syntax": "ts-node scripts/compile-syntax.ts",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "postinstall": "ts-node scripts/post-install.ts",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/decompress": "^4.2.7",
+    "@types/fs-extra": "^9.0.13",
+    "@types/glob": "^7.2.0",
+    "@types/mocha": "^9.1.0",
+    "@types/node": "14.x",
+    "@types/split2": "^4.2.2",
+    "@types/which": "^3.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.12.1",
+    "@typescript-eslint/parser": "^5.12.1",
+    "@vscode/test-electron": "^2.1.2",
+    "decompress": "^4.2.1",
+    "eslint": "^8.9.0",
+    "glob": "^7.2.0",
+    "mocha": "^9.2.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.5.5",
+    "@vscode/vsce": "^3.3.2"
+  },
+  "dependencies": {
+    "fs-extra": "^10.0.1",
+    "p-queue": "^6.6.2",
+    "split2": "^4.2.0",
+    "vscode-languageclient": "^9.0.1",
+    "web-tree-sitter": "^0.20.8",
+    "which": "^3.0.0",
+    "xdg-portable": "^10.6.0"
+  },
+  "extensionDependencies": [
+    "lotas.erdos-supervisor"
+  ],
+  "peerDependencies": {
+    "@vscode/windows-registry": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lotas-inc/erdos"
+  },
+  "erdos": {
+    "binaryDependencies": {
+      "ark": "0.1.201"
+    },
+    "minimumRVersion": "4.2.0",
+    "minimumRenvVersion": "1.0.9"
+  }
+}

@@ -27,6 +27,10 @@ import './browser/actions/workspaceCommands.js';
 import './browser/actions/quickAccessActions.js';
 import './browser/actions/widgetNavigationCommands.js';
 
+// --- Start Erdos ---
+import './browser/actions/erdosActions.js';
+// --- End Erdos ---
+
 //#endregion
 
 
@@ -46,6 +50,10 @@ import './browser/parts/editor/editorParts.js';
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/banner/bannerPart.js';
 import './browser/parts/statusbar/statusbarPart.js';
+
+// --- Start Erdos ---
+import './browser/parts/erdosTopActionBar/erdosTopActionBarPart.js';
+// --- End Erdos ---
 
 //#endregion
 
@@ -85,6 +93,7 @@ import './services/notebook/common/notebookDocumentService.js';
 import './services/commands/common/commandService.js';
 import './services/themes/browser/workbenchThemeService.js';
 import './services/label/common/labelService.js';
+import './services/mcp/common/mcpWorkbenchManagementService.js';
 import './services/extensions/common/extensionManifestPropertiesService.js';
 import './services/extensionManagement/common/extensionGalleryService.js';
 import './services/extensionManagement/browser/extensionEnablementService.js';
@@ -131,7 +140,7 @@ import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
 import './services/editor/browser/editorPaneService.js';
 import './services/editor/common/customEditorLabelService.js';
-import './services/dataChannel/browser/dataChannelService.js';
+import './services/coreExperimentation/common/coreExperimentationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -158,9 +167,9 @@ import { ExtensionStorageService, IExtensionStorageService } from '../platform/e
 import { IUserDataSyncLogService } from '../platform/userDataSync/common/userDataSync.js';
 import { UserDataSyncLogService } from '../platform/userDataSync/common/userDataSyncLog.js';
 import { AllowedExtensionsService } from '../platform/extensionManagement/common/allowedExtensionsService.js';
-import { IAllowedMcpServersService, IMcpGalleryService } from '../platform/mcp/common/mcpManagement.js';
+import { IMcpGalleryService, IMcpManagementService } from '../platform/mcp/common/mcpManagement.js';
 import { McpGalleryService } from '../platform/mcp/common/mcpGalleryService.js';
-import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServersService.js';
+import { McpManagementService } from '../platform/mcp/common/mcpManagementService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -177,7 +186,7 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
 registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
-registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
+registerSingleton(IMcpManagementService, McpManagementService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -224,6 +233,11 @@ import './contrib/erdosNewProject/browser/erdosNewProject.contribution.js';
 
 // Context Menus
 import './contrib/contextmenu/browser/contextmenu.contribution.js';
+
+// --- Start Erdos ---
+import './contrib/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
+import './contrib/erdosAi/browser/erdosAi.contribution.js';
+// --- End Erdos ---
 
 // Notebook
 import './contrib/notebook/browser/notebook.contribution.js';
@@ -319,6 +333,15 @@ import './contrib/extensions/browser/extensionsViewlet.js';
 import './contrib/output/browser/output.contribution.js';
 import './contrib/output/browser/outputView.js';
 
+// --- Start Erdos ---
+
+import './contrib/erdosPlots/browser/erdosPlots.contribution.js';
+import './contrib/erdosPlotsEditor/browser/erdosPlotsEditor.contribution.js';
+import './contrib/erdosOutputWebview/browser/notebookOutputWebview.contribution.js';
+import './contrib/erdosNotebook/browser/erdosNotebook.contribution.js';
+import './contrib/erdosAi/browser/erdosAi.contribution.js';
+// --- End Erdos ---
+
 // Terminal
 import './contrib/terminal/terminal.all.js';
 
@@ -370,6 +393,10 @@ import './contrib/surveys/browser/nps.contribution.js';
 import './contrib/surveys/browser/languageSurveys.contribution.js';
 
 // Welcome
+// --- Start Erdos ---
+// Note: See startupPage.ts and gettingStarted.contribution.ts for how Erdos customizes
+// welcome page enablement.
+// --- End Erdos ---
 import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
 import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
 import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
@@ -405,9 +432,6 @@ import './contrib/editSessions/browser/editSessions.contribution.js';
 
 // Remote Coding Agents
 import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js';
-
-// Chat Sessions
-import './contrib/chat/browser/chatSessions.contribution.js';
 
 // Code Actions
 import './contrib/codeActions/browser/codeActions.contribution.js';
@@ -453,3 +477,30 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 
 
 //#endregion
+
+// --- Start Erdos ---
+
+// Contributions
+
+import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
+import './contrib/erdosConsole/browser/erdosConsoleView.js';
+
+import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
+import './contrib/languageRuntime/browser/languageRuntime.contribution.js';
+import './contrib/erdosIPyWidgets/browser/erdosIPyWidgets.contribution.js';
+import './contrib/erdosNewProject/browser/erdosNewProject.contribution.js';
+import './contrib/erdosKeybindings/browser/erdosKeybindings.contribution.js';
+
+// Workbench services
+import './services/languageRuntime/common/languageRuntime.js';
+import './services/runtimeSession/common/runtimeSession.js';
+import './services/runtimeStartup/common/runtimeStartup.js';
+import './contrib/runtimeNotebookKernel/browser/runtimeNotebookKernelService.js';
+import './services/erdosConsole/browser/erdosConsoleService.js';
+
+
+
+
+import './contrib/erdosWebviewPreloads/browser/erdosWebviewPreloadsService.js';
+
+// --- End Erdos ---

@@ -244,7 +244,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 
 	private getRenderedComment(commentBody: IMarkdownString) {
-		const renderedComment = renderMarkdown(commentBody, {}, document.createElement('span'));
+		const renderedComment = renderMarkdown(commentBody, {});
 		const images = renderedComment.element.getElementsByTagName('img');
 		for (let i = 0; i < images.length; i++) {
 			const image = images[i];

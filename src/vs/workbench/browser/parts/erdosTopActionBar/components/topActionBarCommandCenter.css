@@ -1,0 +1,86 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.top-action-bar-command-center {
+	width: 20vw;
+	display: grid;
+	cursor: pointer;
+	border-radius: 4px;
+	box-sizing: border-box;
+	height: var(--vscode-erdosActionBar-iconSize);
+	grid-template-columns: 1fr min-content 1fr;
+	color: var(--vscode-erdosActionBar-foreground);
+	border: 1px solid var(--vscode-erdosActionBar-selectBorder);
+	background-color: var(--vscode-erdosActionBar-selectBoxBackground);
+}
+
+.top-action-bar-command-center:hover {
+	background-color: var(--vscode-erdosActionBar-hoverBackground);
+}
+
+.top-action-bar-command-center .left {
+	display: flex;
+	align-items: center;
+	justify-content: right;
+}
+
+.top-action-bar-command-center .center {
+	display: flex;
+	align-items: center;
+}
+
+.top-action-bar-command-center .center .search {
+	padding: 0 3px;
+	height: 22px;
+	border: none;
+	display: flex;
+	cursor: pointer;
+	overflow: visible;
+	align-items: center;
+	background: transparent;
+	justify-content: center;
+	color: var(--vscode-erdosActionBar-foreground);
+}
+
+.top-action-bar-command-center .center .search:focus {
+	outline: none !important;
+}
+
+.top-action-bar-command-center .center .search:focus-visible {
+	border-radius: 4px;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+}
+
+.top-action-bar-command-center .right {
+	display: flex;
+	align-items: center;
+	justify-content: right;
+	margin-right: 1px;
+}
+
+.top-action-bar-command-center .right .drop-down {
+	height: 22px;
+	width: 22px;
+	border: none;
+	display: flex;
+	cursor: pointer;
+	overflow: visible;
+	align-items: center;
+	background: transparent;
+	justify-content: center;
+}
+
+.top-action-bar-command-center .right .drop-down:focus {
+	outline: none !important;
+}
+
+.top-action-bar-command-center .right .drop-down:focus-visible {
+	border-radius: 4px;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+}
+
+.top-action-bar-command-center .right .drop-down .icon {
+	font-size: 14px;
+}

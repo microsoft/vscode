@@ -1,0 +1,339 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 by Lotas Inc.
+ *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Context bar - replicates RAO's design */
+.erdos-ai-context-bar {
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, #aaaaaa);
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	border-bottom: none;
+	padding: 4px 0 3px 0;
+	margin: 0 21px 0 21px;
+	min-height: 26px;
+	height: auto;
+	overflow: visible;
+	box-sizing: border-box;
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: center;
+	position: relative;
+}
+
+.erdos-ai-context-bar.drag-over {
+	border-color: var(--vscode-focusBorder);
+	background-color: var(--vscode-list-dropBackground, rgba(0, 122, 204, 0.1));
+}
+
+.erdos-ai-context-bar-hidden {
+	position: relative;
+	height: auto;
+	min-height: 29px;
+	overflow: visible;
+	margin: 0 21px 0 21px;
+	display: flex;
+	align-items: center;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, #aaaaaa);
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	border-bottom: none;
+	padding: 4px 0 3px 0;
+	box-sizing: border-box;
+}
+
+.context-bar-content {
+	display: flex;
+	align-items: center;
+	flex-wrap: nowrap;
+	width: 100%;
+	padding: 0;
+	overflow-x: auto;
+	overflow-y: visible;
+}
+
+/* Attach button wrapper for proper menu positioning */
+.attach-button-wrapper {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+}
+
+/* Attach button - matches RAO style using theme variables */
+.erdos-ai-attach-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder));
+	border-radius: 3px;
+	padding: 1px 5px;
+	margin-left: 3px;
+	margin-right: 5px;
+	cursor: pointer;
+	color: var(--vscode-input-foreground);
+	font-size: 11px;
+	height: 21px;
+	line-height: 17px;
+	vertical-align: middle;
+	position: relative;
+	top: 0px;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.erdos-ai-attach-button:hover {
+	background-color: var(--vscode-input-background);
+	opacity: 0.8;
+}
+
+.attach-button-symbol {
+	position: relative;
+	top: -1px;
+	margin-right: 4px;
+}
+
+.attach-button-text {
+	font-size: 11px;
+}
+
+/* Context items container */
+.context-items-container {
+	display: inline-flex;
+	flex-wrap: nowrap;
+	align-items: center;
+	overflow-x: auto;
+	overflow-y: visible;
+	min-height: 18px;
+	margin-top: 0px;
+	margin-bottom: 0;
+	max-width: calc(100% - 30px);
+	scrollbar-width: thin;
+	-ms-overflow-style: none;
+}
+
+.context-items-container::-webkit-scrollbar {
+	height: 4px;
+}
+
+.context-items-container::-webkit-scrollbar-thumb {
+	background-color: var(--vscode-scrollbarSlider-background);
+}
+
+.context-items-container::-webkit-scrollbar-track {
+	background-color: var(--vscode-editor-background);
+}
+
+/* Individual context item */
+.erdos-ai-context-item {
+	display: inline-flex;
+	align-items: center;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder));
+	border-radius: 3px;
+	padding: 1px 4px;
+	margin: 0 4px 0 0;
+	font-size: 11px;
+	color: var(--vscode-input-foreground);
+	max-width: 175px;
+	height: 18px;
+	overflow: hidden;
+	white-space: nowrap;
+	flex-shrink: 0;
+	position: relative;
+	vertical-align: middle;
+}
+
+.context-item-icon {
+	margin-right: 3px;
+	font-size: 10px;
+	flex-shrink: 0;
+	position: relative;
+	top: 3px;
+}
+
+.context-item-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 120px;
+	flex: 1;
+}
+
+.context-item-remove {
+	background: none;
+	border: none;
+	color: var(--vscode-errorForeground);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: bold;
+	margin-left: 3px;
+	padding: 0;
+	width: 12px;
+	height: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 2px;
+	flex-shrink: 0;
+}
+
+.context-item-remove:hover {
+	background-color: var(--vscode-inputValidation-errorBackground);
+}
+
+/* Attach menu */
+.erdos-ai-attach-menu {
+	position: absolute;
+	bottom: 100%;
+	left: 3px;
+	z-index: 1000;
+	background-color: var(--vscode-menu-background);
+	border: 1px solid var(--vscode-menu-border);
+	border-radius: 4px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+	min-width: 105px; /* 70% of 150px */
+	width: 105px;
+	padding: 2px 0;
+	margin-bottom: 2px;
+}
+
+.attach-menu-item {
+	display: flex;
+	align-items: center;
+	background: none;
+	border: none;
+	padding: 2px 12px;
+	width: 100%;
+	text-align: left;
+	cursor: pointer;
+	font-size: 12px;
+	color: var(--vscode-menu-foreground);
+}
+
+.attach-menu-item:hover {
+	background-color: var(--vscode-menu-selectionBackground);
+}
+
+.attach-menu-icon {
+	margin-right: 8px;
+	font-size: 12px;
+	width: 16px;
+	flex-shrink: 0;
+}
+
+.attach-menu-chevron {
+	margin-left: auto;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	opacity: 0.7;
+}
+
+/* Adjust input container when context bar is shown */
+.erdos-ai-input-container.with-context-bar {
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+}
+
+/* Make input container work seamlessly with context bar */
+.erdos-ai-context-bar + .erdos-ai-input-part,
+.erdos-ai-context-bar-hidden + .erdos-ai-input-part {
+	padding-top: 0;
+	margin-top: -1px;
+}
+
+.erdos-ai-context-bar + .erdos-ai-input-part .erdos-ai-input-container,
+.erdos-ai-context-bar-hidden + .erdos-ai-input-part .erdos-ai-input-container {
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+}
+
+/* Search dropdown - positioned to the right like RAO */
+.erdos-ai-search-dropdown {
+	position: fixed !important; /* Will be positioned by JavaScript */
+	z-index: 1001 !important;
+	background-color: var(--vscode-menu-background);
+	border: 1px solid var(--vscode-menu-border);
+	border-radius: 4px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+	width: 240px;
+	max-height: 300px;
+	display: flex !important;
+	flex-direction: column;
+}
+
+.search-dropdown-input {
+	width: 100%;
+	padding: 2px 12px; /* Match menu item padding */
+	border: none;
+	border-bottom: 1px solid var(--vscode-menu-border);
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 12px;
+	outline: none;
+	box-sizing: border-box;
+	height: auto; /* Let height be determined by content and padding */
+}
+
+.search-dropdown-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.search-dropdown-results {
+	flex: 1;
+	overflow-y: auto;
+	max-height: 240px;
+}
+
+.search-dropdown-item {
+	padding: 2px 12px; /* Match main menu items exactly */
+	font-size: 12px;
+	color: var(--vscode-menu-foreground);
+	cursor: pointer;
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
+	display: flex;
+	align-items: center;
+	height: auto; /* Let height be determined by content and padding */
+}
+
+.search-dropdown-item:last-child {
+	border-bottom: none;
+}
+
+.search-dropdown-item:hover {
+	background-color: var(--vscode-menu-selectionBackground);
+}
+
+.search-dropdown-item.loading,
+.search-dropdown-item.no-results {
+	color: var(--vscode-descriptionForeground);
+	cursor: default;
+	font-style: italic;
+}
+
+.search-dropdown-item.loading:hover,
+.search-dropdown-item.no-results:hover {
+	background-color: transparent;
+}
+
+/* Responsive behavior */
+@media (max-width: 600px) {
+	.context-item-name {
+		max-width: 80px;
+	}
+	
+	.erdos-ai-context-item {
+		max-width: 120px;
+	}
+	
+	.attach-button-text {
+		display: none;
+	}
+	
+	.erdos-ai-search-dropdown {
+		width: 200px;
+	}
+}

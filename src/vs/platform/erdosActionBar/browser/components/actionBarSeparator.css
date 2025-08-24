@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+@keyframes erdosActionBarSeparator-fadeIn {
+	0% {
+		opacity: 0;
+	}
+
+	100% {
+		opacity: 1;
+	}
+}
+
+.action-bar-separator {
+	width: 7px;
+	align-items: center;
+	justify-content: center;
+	display: flex !important;
+}
+
+.action-bar-separator.fade-in {
+	opacity: 0;
+	animation: erdosActionBarSeparator-fadeIn 0.25s ease-in 0.25s 1 forwards;
+}
+
+.action-bar-separator-icon {
+	align-items: center;
+	justify-content: center;
+	display: flex !important;
+	height: var(--vscode-erdosActionBar-iconSize);
+}
+
+.action-bar-separator-icon::before {
+	color: var(--vscode-erdosActionBar-separator);
+}

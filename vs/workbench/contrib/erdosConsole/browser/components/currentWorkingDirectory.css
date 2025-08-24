@@ -1,0 +1,24 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.current-working-directory-label {
+	display: flex;
+	font-size: 12px;
+	overflow: hidden;
+	align-items: center;
+	color: var(--vscode-erdosActionBar-foreground);
+}
+
+.current-working-directory-label .codicon {
+	padding-top: 1px;
+	color: var(--vscode-erdosActionBar-foreground);
+}
+
+.current-working-directory-label .label {
+	overflow: hidden;
+	padding-left: 5px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}

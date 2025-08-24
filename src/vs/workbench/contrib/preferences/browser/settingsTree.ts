@@ -1030,16 +1030,19 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		text = fixSettingLinks(text);
 
 		const renderedMarkdown = disposables.add(this.markdownRenderer.render({ value: text, isTrusted: true }, {
-			actionHandler: (content: string) => {
-				if (content.startsWith('#')) {
-					const e: ISettingLinkClickEvent = {
-						source: element,
-						targetKey: content.substring(1)
-					};
-					this._onDidClickSettingLink.fire(e);
-				} else {
-					this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-				}
+			actionHandler: {
+				callback: (content: string) => {
+					if (content.startsWith('#')) {
+						const e: ISettingLinkClickEvent = {
+							source: element,
+							targetKey: content.substring(1)
+						};
+						this._onDidClickSettingLink.fire(e);
+					} else {
+						this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+					}
+				},
+				disposables: disposables
 			},
 			asyncRenderCallback: () => {
 				const height = container.clientHeight;

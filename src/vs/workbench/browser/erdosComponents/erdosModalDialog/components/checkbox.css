@@ -1,0 +1,38 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-modal-dialog-box .checkbox {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.erdos-modal-dialog-box .checkbox-button {
+	width: 16px;
+	height: 16px;
+	border: none;
+	display: flex;
+	cursor: pointer;
+	border-radius: 3px;
+	justify-content: center;
+	color: var(--vscode-erdosModalDialog-buttonForeground);
+	background: var(--vscode-erdosModalDialog-checkboxBackground);
+	border: 1px solid var(--vscode-erdosModalDialog-checkboxBorder);
+}
+
+.erdos-modal-dialog-box .checkbox-button:focus {
+	outline: none;
+}
+
+.erdos-modal-dialog-box .checkbox-button:focus-visible {
+	outline-offset: 2px;
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.erdos-modal-dialog-box .checkbox-button .check-indicator {
+	font-size: 12px;
+	font-weight: bold;
+	color: var(--vscode-erdosModalDialog-checkboxForeground);
+}

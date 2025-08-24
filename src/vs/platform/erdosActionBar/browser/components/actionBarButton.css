@@ -1,0 +1,154 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+@keyframes erdosActionBarButton-fadeIn {
+	0% {
+		opacity: 0;
+	}
+
+	100% {
+		opacity: 1;
+	}
+}
+
+.action-bar-button {
+	padding: 0;
+	border: none;
+	display: flex;
+	margin: 0 1px;
+	cursor: pointer;
+	overflow: visible;
+	border-radius: 4px;
+	align-items: center;
+	box-sizing: border-box;
+	background: transparent;
+	height: var(--vscode-erdosActionBar-iconSize);
+	color: var(--vscode-erdosActionBar-foreground);
+}
+
+.action-bar-button.checked {
+	background: var(--vscode-erdosActionBar-hoverBackground);
+}
+
+.action-bar-button.border {
+	height: 22px;
+	background-color: var(--vscode-erdosActionBar-background);
+	border: 1px solid var(--vscode-erdosActionBar-selectBorder);
+}
+
+.action-bar-button:hover {
+	background: var(--vscode-erdosActionBar-hoverBackground);
+}
+
+.hc-black .action-bar-button:hover,
+.hc-light .action-bar-button:hover {
+	border: 1px dashed var(--vscode-focusBorder);
+}
+
+.action-bar-button.fade-in {
+	opacity: 0;
+	animation: erdosActionBarButton-fadeIn 0.25s ease-in 0.25s 1 forwards;
+}
+
+.action-bar-button:focus {
+	outline: none !important;
+}
+
+.action-bar-button:focus-visible {
+	border-radius: 4px;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+}
+
+.action-bar-button-action-button {
+	padding: 0;
+}
+
+.action-bar-button-face {
+	display: flex;
+	align-items: center;
+}
+
+.action-bar-button-label {
+	display: flex;
+	font-size: 12px;
+	overflow: hidden;
+	margin-right: 4px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.action-bar-button.border .action-bar-button-label {
+	margin-right: 4px;
+}
+
+.action-bar-button.border .action-bar-button-face {
+	padding: 0 5px;
+	max-height: 100%;
+}
+
+.disabled .action-bar-button-label {
+	color: var(--vscode-erdosActionBar-disabledForeground);
+}
+
+.action-bar-button-icon {
+	padding: 0 4px;
+	align-items: center;
+	justify-content: center;
+	display: flex !important;
+	height: var(--vscode-erdosActionBar-iconSize);
+}
+
+.action-bar-button-icon::before {
+	color: var(--vscode-erdosActionBar-foreground);
+}
+
+.disabled .action-bar-button-icon::before {
+	color: var(--vscode-erdosActionBar-disabledForeground);
+}
+
+.action-bar-button-icon.enabled-split {
+	display: flex;
+	padding: 0 4px;
+}
+
+.action-bar-button-icon.enabled-split:hover {
+	padding: 0 4px;
+	border-radius: 4px;
+	filter: brightness(90%);
+	background: var(--vscode-erdosActionBar-hoverBackground);
+}
+
+.action-bar-button-drop-down-container {
+	display: flex;
+	padding-right: 5px;
+}
+
+.action-bar-button-drop-down-button {
+	display: flex;
+	padding: 0 5px;
+}
+
+.action-bar-button-drop-down-button:hover {
+	border-radius: 4px;
+	filter: brightness(90%);
+	background: var(--vscode-erdosActionBar-hoverBackground);
+}
+
+.action-bar-button-drop-down-arrow {
+	align-items: center;
+	justify-content: left;
+	justify-content: center;
+	display: flex !important;
+	font-size: 18px !important;
+	height: var(--vscode-erdosActionBar-iconSize);
+}
+
+.action-bar-button-drop-down-arrow::before {
+	color: var(--vscode-erdosActionBar-foreground);
+}
+
+.disabled .action-bar-button-drop-down-arrow::before {
+	color: var(--vscode-erdosActionBar-disabledForeground);
+}

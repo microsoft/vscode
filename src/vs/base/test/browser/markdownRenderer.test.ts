@@ -285,7 +285,7 @@ suite('MarkdownRenderer', () => {
 				'<form>html</form>',
 				'```',
 			].join('\n');
-			const result: string = renderAsPlaintext(markdown, { includeCodeBlocksFences: true });
+			const result: string = renderAsPlaintext(markdown, true);
 			assert.strictEqual(result, expected);
 		});
 	});

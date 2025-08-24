@@ -724,13 +724,18 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 				}
 				const normalizedPath = normalize(resolvedPath);
 
-				if (this.getScriptSnapshot(normalizedPath + '.ts')) {
-					this._dependencies.inertEdge(filename, normalizedPath + '.ts');
-					found = true;
+			if (this.getScriptSnapshot(normalizedPath + '.ts')) {
+				this._dependencies.inertEdge(filename, normalizedPath + '.ts');
+				found = true;
 
-				} else if (this.getScriptSnapshot(normalizedPath + '.d.ts')) {
-					this._dependencies.inertEdge(filename, normalizedPath + '.d.ts');
-					found = true;
+			// Added .tsx support for dependency resolution
+			} else if (this.getScriptSnapshot(normalizedPath + '.tsx')) {
+				this._dependencies.inertEdge(filename, normalizedPath + '.tsx');
+				found = true;
+
+			} else if (this.getScriptSnapshot(normalizedPath + '.d.ts')) {
+				this._dependencies.inertEdge(filename, normalizedPath + '.d.ts');
+				found = true;
 
 				} else if (this.getScriptSnapshot(normalizedPath + '.js')) {
 					this._dependencies.inertEdge(filename, normalizedPath + '.js');

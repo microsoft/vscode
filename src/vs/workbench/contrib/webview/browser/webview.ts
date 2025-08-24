@@ -7,6 +7,7 @@ import { Dimension } from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -18,6 +19,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWebviewPortMapping } from '../../../../platform/webview/common/webviewPortMapping.js';
+import { WebviewFrameId } from '../../../../platform/webview/common/webviewManagerService.js';
 import { Memento, MementoObject } from '../../../common/memento.js';
 
 /**
@@ -257,7 +259,11 @@ export interface IWebview extends IDisposable {
 	reload(): void;
 
 	showFind(animated?: boolean): void;
-	hideFind(animated?: boolean): void;
+	hideFind(animated?: boolean, keepSelection?: boolean): void;
+	captureContentsAsPng(): Promise<VSBuffer | undefined>;
+	executeJavaScript(frameId: WebviewFrameId, code: string): Promise<any>;
+	onDidNavigate: Event<URI>;
+	onDidLoad: Event<string>;
 	runFindAction(previous: boolean): void;
 
 	selectAll(): void;

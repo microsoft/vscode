@@ -126,9 +126,12 @@ class TranspileWorker {
 				const enum SuffixTypes {
 					Dts = 5,
 					Ts = 3,
+					Tsx = 4,
 					Unknown = 0
 				}
+				// Added support for .tsx files
 				const suffixLen = file.path.endsWith('.d.ts') ? SuffixTypes.Dts
+					: file.path.endsWith('.tsx') ? SuffixTypes.Tsx
 					: file.path.endsWith('.ts') ? SuffixTypes.Ts
 						: SuffixTypes.Unknown;
 

@@ -1,0 +1,33 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-modal-dialog-box .labeled-text-input {
+	width: 100%;
+}
+
+.erdos-modal-dialog-box .labeled-text-input.disabled {
+	cursor: default;
+	border-color: var(--vscode-disabledForeground);
+	color: var(--vscode-disabledForeground);
+}
+
+.erdos-modal-dialog-box .labeled-text-input label {
+	display: flex;
+	flex-direction: column;
+}
+
+.erdos-modal-dialog-box .labeled-text-input .text-input {
+	margin-top: 4px;
+}
+
+.erdos-modal-dialog-box .labeled-text-input span.error {
+	color: var(--vscode-errorForeground);
+	height: 1em;
+	display: block;
+}
+
+.erdos-modal-dialog-box .labeled-text-input input.error {
+	border-color: var(--vscode-errorForeground);
+}

@@ -19,6 +19,7 @@ import { hash } from '../common/hash.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
 import { isPointWithinTriangle } from '../common/numbers.js';
 import { IObservable, derived, derivedOpts, IReader, observableValue } from '../common/observable.js';
+import dompurify from './dompurify/dompurify.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -1002,7 +1003,7 @@ export function createLinkElement(container: HTMLElement = mainWindow.document.h
 }
 
 function createHeadElement(tagName: string, container: HTMLElement = mainWindow.document.head): HTMLElement {
-	const element = document.createElement(tagName);
+	const element = mainWindow.document.createElement(tagName);
 	container.appendChild(element);
 	return element;
 }
@@ -1301,9 +1302,9 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 	let result: T;
 
 	if (namespace !== Namespace.HTML) {
-		result = document.createElementNS(namespace as string, tagName) as T;
+		result = mainWindow.document.createElementNS(namespace as string, tagName) as T;
 	} else {
-		result = document.createElement(tagName) as unknown as T;
+		result = mainWindow.document.createElement(tagName) as unknown as T;
 	}
 
 	if (match[3]) {
@@ -1554,7 +1555,7 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	// points to the file to download.
 	// See also https://developers.google.com/web/updates/2011/08/Downloading-resources-in-HTML5-a-download
 	const activeWindow = getActiveWindow();
-	const anchor = document.createElement('a');
+	const anchor = activeWindow.document.createElement('a');
 	activeWindow.document.body.appendChild(anchor);
 	anchor.download = name;
 	anchor.href = url;
@@ -1571,7 +1572,7 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		// input element of type `file` and click it
 		// to gather the selected files
 		const activeWindow = getActiveWindow();
-		const input = document.createElement('input');
+		const input = activeWindow.document.createElement('input');
 		activeWindow.document.body.appendChild(input);
 		input.type = 'file';
 		input.multiple = true;
@@ -2012,7 +2013,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 	}
 
 	const tagName = match.groups['tag'] || 'div';
-	const el = document.createElement(tagName);
+	const el = mainWindow.document.createElement(tagName);
 
 	if (match.groups['id']) {
 		el.id = match.groups['id'];
@@ -2114,7 +2115,7 @@ export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & 
 	}
 
 	const tagName = match.groups['tag'] || 'div';
-	const el = document.createElementNS('http://www.w3.org/2000/svg', tagName) as any as HTMLElement;
+	const el = mainWindow.document.createElementNS('http://www.w3.org/2000/svg', tagName) as any as HTMLElement;
 
 	if (match.groups['id']) {
 		el.id = match.groups['id'];
@@ -2377,7 +2378,7 @@ export abstract class ObserverNode<T extends HTMLOrSVGElement = HTMLOrSVGElement
 		attributes: ElementAttributeKeys<T>,
 		children: ChildNode
 	) {
-		this._element = (ns ? document.createElementNS(ns, tag) : document.createElement(tag)) as unknown as T;
+		this._element = (ns ? mainWindow.document.createElementNS(ns, tag) : mainWindow.document.createElement(tag)) as unknown as T;
 		if (ref) {
 			ref(this._element);
 		}
@@ -2614,3 +2615,102 @@ function isObservable<T>(obj: unknown): obj is IObservable<T> {
 type ElementAttributeKeys<T> = Partial<{
 	[K in keyof T]: T[K] extends Function ? never : T[K] extends object ? ElementAttributeKeys<T[K]> : Value<number | T[K] | undefined | null>;
 }>;
+
+export function hookDomPurifyHrefAndSrcSanitizer(allowedProtocols: readonly string[], allowDataImages = false): IDisposable {
+	const anchor = mainWindow.document.createElement('a');
+
+	dompurify.addHook('afterSanitizeAttributes', (node) => {
+		for (const attr of ['href', 'src']) {
+			if (node.hasAttribute(attr)) {
+				const attrValue = node.getAttribute(attr) as string;
+				if (attr === 'href' && attrValue.startsWith('#')) {
+					continue;
+				}
+
+				anchor.href = attrValue;
+				if (!allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
+					if (allowDataImages && attr === 'src' && anchor.href.startsWith('data:')) {
+						continue;
+					}
+
+					node.removeAttribute(attr);
+				}
+			}
+		}
+	});
+
+	return toDisposable(() => {
+		dompurify.removeHook('afterSanitizeAttributes');
+	});
+}
+
+
+
+export const basicMarkupHtmlTags = Object.freeze([
+	'a',
+	'abbr',
+	'b',
+	'bdo',
+	'blockquote',
+	'br',
+	'caption',
+	'cite',
+	'code',
+	'col',
+	'colgroup',
+	'dd',
+	'del',
+	'details',
+	'dfn',
+	'div',
+	'dl',
+	'dt',
+	'em',
+	'figcaption',
+	'figure',
+	'h1',
+	'h2',
+	'h3',
+	'h4',
+	'h5',
+	'h6',
+	'hr',
+	'i',
+	'img',
+	'input',
+	'ins',
+	'kbd',
+	'label',
+	'li',
+	'mark',
+	'ol',
+	'p',
+	'pre',
+	'q',
+	'rp',
+	'rt',
+	'ruby',
+	'samp',
+	'small',
+	'source',
+	'span',
+	'strike',
+	'strong',
+	'sub',
+	'summary',
+	'sup',
+	'table',
+	'tbody',
+	'td',
+	'tfoot',
+	'th',
+	'thead',
+	'time',
+	'tr',
+	'tt',
+	'u',
+	'ul',
+	'var',
+	'video',
+	'wbr',
+]);

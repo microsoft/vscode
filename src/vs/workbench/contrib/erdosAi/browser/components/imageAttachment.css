@@ -1,0 +1,411 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 by Lotas Inc.
+ *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Image Attachment Toolbar */
+.erdos-ai-image-toolbar {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 4px;
+	background: var(--vscode-editor-background);
+	margin: 4px 0;
+	transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.erdos-ai-image-toolbar.drag-over {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-list-hoverBackground);
+}
+
+.attached-images-container {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-bottom: 4px;
+}
+
+.erdos-ai-attached-image {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 12px;
+	font-size: 12px;
+	max-width: 200px;
+}
+
+.attached-image-icon {
+	display: flex;
+	align-items: center;
+	opacity: 0.8;
+}
+
+.attached-image-name {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.attached-image-remove {
+	background: none;
+	border: none;
+	color: var(--vscode-badge-foreground);
+	cursor: pointer;
+	padding: 0;
+	margin: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	font-size: 14px;
+	line-height: 1;
+	opacity: 0.7;
+	transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.attached-image-remove:hover {
+	opacity: 1;
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.image-attachment-buttons {
+	display: flex;
+	gap: 8px;
+	position: relative;
+}
+
+.erdos-ai-image-attach-button,
+.erdos-ai-plots-attach-button {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: 1px solid var(--vscode-button-border);
+	border-radius: 4px;
+	padding: 6px 8px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 32px;
+	height: 32px;
+	transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.erdos-ai-image-attach-button:hover,
+.erdos-ai-plots-attach-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.erdos-ai-image-attach-button:disabled,
+.erdos-ai-plots-attach-button:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+/* Plots Menu */
+.plots-attachment-menu {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	z-index: 1000;
+	background: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 4px;
+	box-shadow: var(--vscode-widget-shadow);
+	min-width: 200px;
+	max-width: 300px;
+	max-height: 200px;
+	overflow-y: auto;
+	margin-top: 4px;
+}
+
+.plots-menu-header {
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+	font-weight: 600;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	background: var(--vscode-list-hoverBackground);
+}
+
+.plots-menu-empty {
+	padding: 12px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	font-style: italic;
+}
+
+.plots-menu-items {
+	padding: 4px 0;
+}
+
+.plots-menu-item {
+	width: 100%;
+	padding: 8px 12px;
+	background: none;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+	text-align: left;
+	transition: background-color 0.2s ease;
+}
+
+.plots-menu-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.plots-menu-item:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Integration with existing Erdos AI styles */
+.erdos-ai-input-toolbars .erdos-ai-image-toolbar {
+	margin: 0;
+	border: none;
+	background: none;
+	padding: 0;
+}
+
+.erdos-ai-input-toolbars .image-attachment-buttons {
+	margin-left: 8px;
+}
+
+/* Drag and drop visual feedback */
+.erdos-ai-image-toolbar.drag-over::before {
+	content: "Drop images here to attach";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	color: var(--vscode-focusBorder);
+	font-size: 12px;
+	font-weight: 500;
+	pointer-events: none;
+	z-index: 1;
+}
+
+/* Compact image attachment button styles */
+.image-attachment-button-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.image-attachment-button {
+	background: none;
+	border: none;
+	padding: 4px;
+	cursor: pointer;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	transition: background-color 0.2s ease;
+}
+
+.image-attachment-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.image-attachment-count {
+	position: relative;
+}
+
+.image-count-button {
+	background: transparent;
+	border: 1px solid var(--vscode-button-border);
+	border-radius: 6px;
+	padding: 2px 6px;
+	font-size: 11px;
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	transition: all 0.2s ease;
+	white-space: nowrap;
+	height: 20px;
+	line-height: 1;
+}
+
+.image-count-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.chevron-icon {
+	transition: transform 0.2s ease;
+}
+
+.image-viewer-popup {
+	position: fixed;
+	background: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 6px;
+	box-shadow: var(--vscode-widget-shadow);
+	padding: 0;
+	min-width: 200px;
+	max-width: 300px;
+	z-index: 1000;
+}
+
+.attached-image-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 4px;
+	transition: background-color 0.2s ease;
+}
+
+.attached-image-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.attached-image-thumbnail {
+	width: 32px;
+	height: 32px;
+	object-fit: cover;
+	border-radius: 3px;
+	border: 1px solid var(--vscode-widget-border);
+}
+
+.attached-image-info {
+	flex: 1;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+}
+
+.attached-image-name {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.remove-image-button {
+	background: none;
+	border: none;
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: bold;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 2px;
+	transition: all 0.2s ease;
+}
+
+.remove-image-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+	color: var(--vscode-errorForeground);
+}
+
+/* Image attachment wrapper for error popup */
+.image-attachment-wrapper {
+	position: relative;
+	display: flex;
+	align-items: center;
+}
+
+/* Error popup above image attachment */
+.image-attachment-error-popup {
+	position: absolute;
+	bottom: 100%;
+	left: 0;
+	margin-bottom: 8px;
+	background: var(--vscode-inputValidation-errorBackground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+	border-radius: 4px;
+	padding: 8px 12px;
+	font-size: 12px;
+	color: var(--vscode-inputValidation-errorForeground);
+	white-space: nowrap;
+	box-shadow: var(--vscode-widget-shadow);
+	z-index: 1001;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 200px;
+	max-width: 400px;
+}
+
+.image-attachment-error-popup::after {
+	content: '';
+	position: absolute;
+	top: 100%;
+	left: 12px;
+	border: 6px solid transparent;
+	border-top-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.image-attachment-error-popup .error-text {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.image-attachment-error-popup .error-close-btn {
+	background: none;
+	border: none;
+	color: var(--vscode-inputValidation-errorForeground);
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: bold;
+	padding: 0;
+	margin: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 2px;
+	transition: background-color 0.2s ease;
+}
+
+.image-attachment-error-popup .error-close-btn:hover {
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+	.attached-images-container {
+		flex-direction: column;
+	}
+	
+	.erdos-ai-attached-image {
+		max-width: none;
+	}
+	
+	.plots-attachment-menu {
+		left: auto;
+		right: 0;
+	}
+	
+	.image-attachment-error-popup {
+		max-width: 300px;
+		white-space: normal;
+	}
+}

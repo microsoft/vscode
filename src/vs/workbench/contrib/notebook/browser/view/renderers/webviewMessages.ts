@@ -489,6 +489,20 @@ export interface IPerformanceMessage extends BaseToWebviewMessage {
 	readonly outputSize?: number;
 }
 
+export interface IErdosRenderMessage {
+	readonly type: 'erdosRender';
+	readonly outputId: string;
+	readonly elementId: string;
+	readonly rendererId: string;
+	readonly mimeType: string;
+	readonly metadata: unknown;
+	readonly valueBytes: Uint8Array;
+}
+
+export interface IErdosRenderCompleteMessage extends BaseToWebviewMessage {
+	readonly type: 'erdosRenderComplete';
+	readonly outputId: string;
+}
 
 export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
@@ -517,6 +531,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	IInitializedMarkupMessage |
 	IRenderedMarkupMessage |
 	IRenderedCellOutputMessage |
+	IErdosRenderCompleteMessage |
 	IDidFindMessage |
 	IDidFindHighlightCurrentMessage |
 	IOutputResizedMessage |

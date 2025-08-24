@@ -6,7 +6,7 @@
 import { IContextMenuProvider } from '../../contextmenu.js';
 import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus, $ } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
-import { renderMarkdown, renderAsPlaintext } from '../../markdownRenderer.js';
+import { renderMarkdown, renderAsPlaintext, renderStringAsPlaintext } from '../../markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../touch.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
@@ -247,7 +247,7 @@ export class Button extends Disposable implements IButton {
 		const labelElement = this.options.supportShortLabel ? this._labelElement! : this._element;
 
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
+			const rendered = renderMarkdown(value, {});
 			rendered.dispose();
 
 			// Don't include outer `<p>`
@@ -269,7 +269,7 @@ export class Button extends Disposable implements IButton {
 		if (typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (this.options.title) {
-			title = renderAsPlaintext(value);
+			title = isMarkdownString(value) ? renderAsPlaintext(value) : value;
 		}
 
 		this.setTitle(title);
@@ -393,7 +393,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 		this.primaryButton = this._register(new Button(this.element, options));
 		this._register(this.primaryButton.onDidClick(e => this._onDidClick.fire(e)));
-		this.action = this._register(new Action('primaryAction', renderAsPlaintext(this.primaryButton.label), undefined, true, async () => this._onDidClick.fire(undefined)));
+		this.action = this._register(new Action('primaryAction', renderStringAsPlaintext(this.primaryButton.label), undefined, true, async () => this._onDidClick.fire(undefined)));
 
 		this.separatorContainer = document.createElement('div');
 		this.separatorContainer.classList.add('monaco-button-dropdown-separator');
@@ -649,7 +649,7 @@ export class ButtonWithIcon extends Button {
 
 		this._element.classList.add('monaco-text-button');
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
+			const rendered = renderMarkdown(value, {});
 			rendered.dispose();
 
 			const root = rendered.element.querySelector('p')?.innerHTML;
@@ -670,7 +670,7 @@ export class ButtonWithIcon extends Button {
 		if (typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (this.options.title) {
-			title = renderAsPlaintext(value);
+			title = isMarkdownString(value) ? renderAsPlaintext(value) : value;
 		}
 
 		this.setTitle(title);

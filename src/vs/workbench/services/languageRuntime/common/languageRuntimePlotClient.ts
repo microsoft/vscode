@@ -27,9 +27,9 @@ export enum PlotClientState {
 export interface IErdosPlotMetadata {
 	id: string;
 	created: number;
-	parent_id?: string;
-	code?: string;
-	session_id?: string;
+	parent_id: string;
+	code: string;
+	session_id: string;
 	zoom_level?: ZoomLevel;
 }
 

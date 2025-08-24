@@ -31,7 +31,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import * as arrays from '../../../../../base/common/arrays.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 class ChatEditorOverlayWidget extends Disposable {
@@ -108,7 +108,7 @@ class ChatEditorOverlayWidget extends Disposable {
 			if (!busy || !value || this._session.read(r)?.isGlobalEditingSession) {
 				textProgress.innerText = '';
 			} else if (value) {
-				textProgress.innerText = renderAsPlaintext(value.message);
+				textProgress.innerText = renderStringAsPlaintext(value.message);
 			}
 		}));
 

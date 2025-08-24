@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sanitizeHtml } from '../../../../base/browser/domSanitize.js';
-import { allowedMarkdownHtmlAttributes, allowedMarkdownHtmlTags } from '../../../../base/browser/markdownRenderer.js';
+import { basicMarkupHtmlTags, sanitizeHtml } from '../../../../base/browser/domSanitize.js';
+import { allowedMarkdownHtmlAttributes } from '../../../../base/browser/markdownRenderer.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import * as marked from '../../../../base/common/marked/marked.js';
@@ -168,7 +168,7 @@ function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSani
 			override: sanitizerConfig?.allowedLinkProtocols?.override ?? defaultAllowedLinkProtocols,
 		},
 		allowedTags: {
-			override: allowedMarkdownHtmlTags,
+			override: basicMarkupHtmlTags,
 			augment: sanitizerConfig?.allowedTags?.augment
 		},
 		allowedAttributes: {

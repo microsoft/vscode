@@ -9,7 +9,7 @@ import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
-import { streamToBuffer, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { streamToBuffer, VSBuffer, VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -36,6 +36,7 @@ import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority 
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
 import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
+import { FrameNavigationEvent, WebviewFrameId } from '../../../../platform/webview/common/webviewManagerService.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
 
@@ -220,6 +221,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			this.handleFocusChange(false);
 		}));
 
+		this._register(this.on('did-load-window', (data) => {
+			this._onDidLoad.fire(data.title);
+		}));
+
 		this._register(this.on('did-scroll-wheel', (event) => {
 			this._onDidWheel.fire(event);
 		}));
@@ -379,6 +384,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
+
+	protected readonly _onDidNavigate = this._register(new Emitter<URI>());
+	public readonly onDidNavigate = this._onDidNavigate.event;
+	
+	protected readonly _onDidLoad = this._register(new Emitter<string>());
+	public readonly onDidLoad = this._onDidLoad.event;
+
+	protected readonly _onFrameNavigated = this._register(new Emitter<FrameNavigationEvent>());
+	public readonly onFrameNavigated = this._onFrameNavigated.event;
 
 	public postMessage(message: any, transfer?: ArrayBuffer[]): Promise<boolean> {
 		return this._send('message', { message, transfer });
@@ -914,5 +928,13 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	public runFindAction(previous: boolean) {
 		this._webviewFindWidget?.find(previous);
+	}
+
+	public captureContentsAsPng(): Promise<VSBuffer | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	public executeJavaScript(frameId: WebviewFrameId, code: string): Promise<any> {
+		return Promise.resolve(undefined);
 	}
 }

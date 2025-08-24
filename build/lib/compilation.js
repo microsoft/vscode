@@ -92,10 +92,11 @@ function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }
     }, err => reporter(err));
     function pipeline(token) {
         const bom = require('gulp-bom');
-        const tsFilter = util.filter(data => /\.ts$/.test(data.path));
+        // Added x? to regexes so that .tsx files are compiled and updated in the same way as .ts files.
+        const tsFilter = util.filter(data => /\.tsx?$/.test(data.path));
         const isUtf8Test = (f) => /(\/|\\)test(\/|\\).*utf8/.test(f.path);
         const isRuntimeJs = (f) => f.path.endsWith('.js') && !f.path.includes('fixtures');
-        const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
+        const noDeclarationsFilter = util.filter(data => !(/\.d\.tsx?$/.test(data.path)));
         const input = event_stream_1.default.through();
         const output = input
             .pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise

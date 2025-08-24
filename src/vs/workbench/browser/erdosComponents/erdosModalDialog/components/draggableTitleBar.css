@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-modal-dialog-box .simple-title-bar {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 32px;
+	display: flex;
+	padding: 0 16px;
+	align-items: center;
+	color: var(--vscode-erdosModalDialog-foreground);
+	background: var(--vscode-erdosModalDialog-titleBarBackground);
+}
+
+.erdos-modal-dialog-box .simple-title-bar .simple-title-bar-title {
+	overflow: hidden;
+	color: var(--vscode-erdosModalDialog-titleBarForeground);
+}

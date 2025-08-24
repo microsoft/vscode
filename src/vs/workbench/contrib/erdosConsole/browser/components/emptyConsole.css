@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.empty-console {
+	opacity: 0.75;
+	box-sizing: border-box; /* Draw the borders inside the box. */
+	border-top: 1px solid var(--vscode-erdosActionBar-border);
+}
+
+.empty-console .title {
+	margin: 10px;
+}
+
+.empty-console .title .link {
+	display: inline;
+	cursor: pointer;
+	text-decoration: underline;
+	color: var(--vscode-textLink-foreground);
+}

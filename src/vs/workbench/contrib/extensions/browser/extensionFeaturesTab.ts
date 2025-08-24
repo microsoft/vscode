@@ -159,7 +159,10 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 				supportThemeIcons: true
 			},
 			{
-				actionHandler: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
+				actionHandler: {
+					callback: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
+					disposables: new DisposableStore()
+				},
 			}));
 		append(container, element);
 	}
@@ -709,7 +712,10 @@ class ExtensionFeatureView extends Disposable {
 				supportThemeIcons: true
 			},
 			{
-				actionHandler: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
+				actionHandler: {
+					callback: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
+					disposables: new DisposableStore()
+				},
 			}));
 		append(container, element);
 	}

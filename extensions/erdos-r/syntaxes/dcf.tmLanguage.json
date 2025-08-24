@@ -1,0 +1,82 @@
+{
+	"scopeName": "source.dcf",
+	"patterns": [
+		{
+			"include": "#keyword"
+		},
+		{
+			"include": "#comment"
+		},
+		{
+			"include": "#email"
+		},
+		{
+			"include": "#substvar"
+		},
+		{
+			"include": "#block"
+		}
+	],
+	"repository": {
+		"keyword": {
+			"patterns": [
+				{
+					"comment": "keyword",
+					"match": "^(?!(Authors@R:|linters:|exclusions:|Roxygen:)).*?:",
+					"name": "keyword.control"
+				}
+			]
+		},
+		"comment": {
+			"patterns": [
+				{
+					"comment": "comment",
+					"match": "^#.*$",
+					"name": "comment.line.number-sign"
+				}
+			]
+		},
+		"substvar": {
+			"patterns": [
+				{
+					"comment": "substvar",
+					"match": "[$][{].+[}]",
+					"name": "variable.parameter"
+				}
+			]
+		},
+		"email": {
+			"patterns": [
+				{
+					"comment": "email",
+					"match": "<.+@.+[.].+>",
+					"name": "variable.language"
+				}
+			]
+		},
+		"block": {
+			"patterns": [
+				{
+					"include": "#code-block-r"
+				}
+			],
+			"repository": {
+				"code-block-r": {
+					"begin": "^(Authors@R:|linters:|exclusions:|Roxygen:)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control"
+						}
+					},
+					"end": "^(?!\\s)",
+					"contentName": "meta.embedded.block.r",
+					"patterns": [
+						{
+							"include": "source.r"
+						}
+					]
+				}
+			}
+		}
+	}
+}

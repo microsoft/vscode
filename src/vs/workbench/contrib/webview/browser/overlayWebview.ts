@@ -7,6 +7,7 @@ import { Dimension, getWindowById } from '../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
@@ -14,6 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { WebviewFrameId } from '../../../../platform/webview/common/webviewManagerService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 
@@ -272,6 +274,14 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 				this._onDidUpdateState.fire(state);
 			}));
 
+			this._webviewEvents.add(webview.onDidNavigate(x => {
+				this._onDidNavigate.fire(x);
+			}));
+
+			this._webviewEvents.add(webview.onDidLoad(x => {
+				this._onDidLoad.fire(x);
+			}));
+
 			if (this._isFirstLoad) {
 				this._firstLoadPendingMessages.forEach(async msg => {
 					msg.resolve(await webview.postMessage(msg.message, msg.transfer));
@@ -359,6 +369,12 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
 	public onFatalError = this._onFatalError.event;
 
+	private readonly _onDidNavigate = this._register(new Emitter<URI>());
+	public readonly onDidNavigate = this._onDidNavigate.event;
+
+	private readonly _onDidLoad = this._register(new Emitter<string>());
+	public readonly onDidLoad = this._onDidLoad.event;
+
 	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number } | undefined>('WebviewIntrinsicContentSize', undefined);
 
 	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
@@ -415,6 +431,20 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	setContextKeyService(contextKeyService: IContextKeyService) {
 		this._webview.value?.setContextKeyService(contextKeyService);
+	}
+
+	captureContentsAsPng(): Promise<VSBuffer | undefined> {
+		if (this._webview.value) {
+			return this._webview.value.captureContentsAsPng();
+		}
+		return Promise.resolve(undefined);
+	}
+
+	executeJavaScript(frameId: WebviewFrameId, script: string): Promise<any> {
+		if (this._webview.value) {
+			return this._webview.value.executeJavaScript(frameId, script);
+		}
+		return Promise.resolve(undefined);
 	}
 }
 

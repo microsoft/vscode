@@ -1,0 +1,27 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-modal-dialog-box .ok-cancel-action-bar {
+	left: 0;
+	right: 0;
+	bottom: 0;
+	gap: 10px;
+	height: 64px;
+	display: flex;
+	margin: 0 16px;
+	padding: 0 0px;
+	position: absolute;
+	align-items: center;
+	justify-content: end;
+}
+
+.erdos-modal-dialog-box .ok-cancel-action-bar.top-separator {
+	border-top: 1px solid var(--vscode-erdosModalDialog-separator);
+}
+
+.erdos-modal-dialog-box .ok-cancel-action-bar .action-bar-button {
+	width: 80px;
+	height: 32px;
+}

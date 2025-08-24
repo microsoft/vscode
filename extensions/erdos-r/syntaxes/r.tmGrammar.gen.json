@@ -1,0 +1,520 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"comment": "https://macromates.com/manual/en/language_grammars",
+	"name": "R",
+	"scopeName": "source.r",
+	"fileTypes": ["R", "r", "Rprofile"],
+	"foldingStartMarker": "\\{\\s*(?:#|$)",
+	"foldingStopMarker": "^\\s*\\}",
+	"variables": {
+		"bracket": "meta.bracket",
+		"identifier": "variable.object",
+		"latex": "keyword.other",
+		"operator": "keyword.operator",
+		"parameter": "variable.parameter",
+		"roxygen-tag": "keyword.other"
+	},
+	"patterns": [
+		{
+			"include": "#roxygen-example"
+		},
+		{
+			"include": "#basic"
+		}
+	],
+	"repository": {
+		"basic": {
+			"patterns": [
+				{
+					"include": "#roxygen"
+				},
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"basic-roxygen-example": {
+			"patterns": [
+				{
+					"name": "comment.line",
+					"match": "^\\s*#+'"
+				},
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"brackets": {
+			"patterns": [
+				{
+					"name": "meta.bracket",
+					"begin": "\\{",
+					"end": "\\}",
+					"patterns": [
+						{
+							"include": "#basic"
+						}
+					]
+				},
+				{
+					"name": "meta.bracket",
+					"begin": "\\[",
+					"end": "\\]",
+					"patterns": [
+						{
+							"match": "([\\w.]+)\\s*(?==[^=])",
+							"captures": {
+								"1": {
+									"name": "variable.parameter"
+								}
+							}
+						},
+						{
+							"include": "#basic"
+						}
+					]
+				},
+				{
+					"name": "meta.bracket",
+					"begin": "\\(",
+					"end": "\\)",
+					"patterns": [
+						{
+							"match": "([\\w.]+)\\s*(?==[^=])",
+							"captures": {
+								"1": {
+									"name": "variable.parameter"
+								}
+							}
+						},
+						{
+							"include": "#basic"
+						}
+					]
+				}
+			]
+		},
+		"comment": {
+			"name": "comment.line",
+			"match": "#.*"
+		},
+		"escapes": {
+			"patterns": [
+				{
+					"include": "#escape-code"
+				},
+				{
+					"include": "#escape-hex"
+				},
+				{
+					"include": "#escape-octal"
+				},
+				{
+					"include": "#escape-unicode"
+				},
+				{
+					"include": "#escape-invalid"
+				}
+			]
+		},
+		"escape-code": {
+			"name": "constant.character.escape",
+			"match": "\\\\[abefnrtv'\"`\\\\]"
+		},
+		"escape-hex": {
+			"name": "constant.numeric",
+			"match": "\\\\x[0-9a-fA-F]+"
+		},
+		"escape-octal": {
+			"name": "constant.character.escape",
+			"match": "\\\\\\d{1,3}"
+		},
+		"escape-unicode": {
+			"name": "constant.character.escape",
+			"match": "\\\\[uU](?:[0-9a-fA-F]+|\\{[0-9a-fA-F]+\\})"
+		},
+		"escape-invalid": {
+			"name": "invalid",
+			"match": "\\\\."
+		},
+		"expression": {
+			"patterns": [
+				{
+					"include": "#brackets"
+				},
+				{
+					"include": "#raw-strings"
+				},
+				{
+					"include": "#strings"
+				},
+				{
+					"include": "#function-definition"
+				},
+				{
+					"include": "#keywords"
+				},
+				{
+					"include": "#function-call"
+				},
+				{
+					"include": "#identifiers"
+				},
+				{
+					"include": "#numbers"
+				},
+				{
+					"include": "#operators"
+				}
+			]
+		},
+		"function-call": {
+			"match": "([\\w.]+)(?=\\()",
+			"captures": {
+				"0": { "name": "meta.function-call" },
+				"1": { "name": "entity.name.function" }
+			}
+		},
+		"function-definition": {
+			"name": "meta.function.definition",
+			"begin": "(function)\\s*(\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other"
+				},
+				"2": {
+					"name": "meta.bracket"
+				}
+			},
+			"end": "(\\))",
+			"endCaptures": {
+				"1": {
+					"name": "meta.bracket"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "([\\w.]+)",
+					"beginCaptures": {
+						"1": {
+							"name": "variable.parameter"
+						}
+					},
+					"end": "(?=[,)])",
+					"patterns": [
+						{
+							"include": "#basic"
+						}
+					]
+				},
+				{
+					"include": "#basic"
+				}
+			]
+		},
+		"identifiers": {
+			"patterns": [
+				{
+					"include": "#identifier-syntactic"
+				},
+				{
+					"include": "#identifier-quoted"
+				}
+			]
+		},
+		"identifier-syntactic": {
+			"name": "variable.object",
+			"match": "[\\p{L}\\p{Nl}.][\\p{L}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}.]*"
+		},
+		"identifier-quoted": {
+			"name": "variable.object",
+			"begin": "`",
+			"end": "`",
+			"patterns": [
+				{
+					"match": "\\\\`"
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"include": "#keywords-control"
+				},
+				{
+					"include": "#keywords-builtin"
+				},
+				{
+					"include": "#keywords-constant"
+				}
+			]
+		},
+		"keywords-control": {
+			"name": "keyword",
+			"match": "(?:\\\\|function|if|else|in|break|next|repeat|for|while)\\b"
+		},
+		"keywords-builtin": {
+			"name": "keyword.other",
+			"match": "(?:setGroupGeneric|setRefClass|setGeneric|NextMethod|setMethod|UseMethod|tryCatch|setClass|warning|require|library|R6Class|return|switch|attach|detach|source|stop|try)(?=\\()"
+		},
+		"keywords-constant": {
+			"name": "constant.language",
+			"match": "(?:NA_character_|NA_integer_|NA_complex_|NA_real_|TRUE|FALSE|NULL|Inf|NaN|NA|T|F)\\b"
+		},
+		"latex": {
+			"patterns": [
+				{
+					"name": "keyword.other",
+					"match": "\\\\\\w+"
+				}
+			]
+		},
+		"markdown": {
+			"patterns": [
+				{
+					"begin": "([`]{3,})\\s*(.*)",
+					"beginCaptures": {
+						"1": {
+							"name": "comment.line"
+						},
+						"2": {
+							"name": "entity.name.section"
+						}
+					},
+					"end": "(\\1)",
+					"endCaptures": {
+						"1": {
+							"name": "comment.line"
+						}
+					},
+					"patterns": [
+						{
+							"name": "comment.line",
+							"match": "^\\s*#+'"
+						}
+					]
+				},
+				{
+					"match": "(\\[)(?:(\\w+)(:{2,3}))?(\\w+)(\\(\\))?(\\])",
+					"captures": {
+						"1": {
+							"name": "meta.bracket"
+						},
+						"2": {
+							"name": "variable.object"
+						},
+						"3": {
+							"name": "keyword.operator"
+						},
+						"4": {
+							"name": "entity.name.function"
+						},
+						"5": {
+							"name": "meta.bracket"
+						},
+						"6": {
+							"name": "meta.bracket"
+						}
+					}
+				},
+				{
+					"name": "markdown.bold",
+					"match": "(\\s+|^)(__.+?__)\\b"
+				},
+				{
+					"name": "markdown.italic",
+					"match": "(\\s+|^)(_(?=[^_])(?:(?:\\\\.)|(?:[^_\\\\]))*?_)\\b"
+				},
+				{
+					"name": "markdown.bold",
+					"match": "([*][*].+?[*][*])"
+				},
+				{
+					"name": "markdown.italic",
+					"match": "([*](?=[^*\\s])(?:(?:\\\\.)|(?:[^*\\\\]))*?[*])"
+				},
+				{
+					"name": "markup.quote",
+					"match": "(`(?:[^`\\\\]|\\\\.)*`)"
+				},
+				{
+					"name": "markup.underline.link",
+					"match": "(<)([^>]*)(>)"
+				}
+			]
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric",
+					"match": "0[xX][0-9a-fA-F]+(?:p[-+]?\\d+)?[iL]?"
+				},
+				{
+					"name": "constant.numeric",
+					"match": "(?:(?:\\d+(?:\\.\\d*)?)|(?:\\.\\d+))(?:[eE][+-]?\\d*)?[iL]?"
+				}
+			]
+		},
+		"operators": {
+			"name": "keyword.operator",
+			"match": "%.*?%|:::|::|:=|\\|>|=>|%%|>=|<=|==|!=|<<-|->>|->|<-|\\|\\||&&|=|\\+|-|\\*\\*?|/|\\^|>|<|!|&|\\||~|\\$|:|@|\\?|,"
+		},
+		"strings": {
+			"patterns": [
+				{
+					"include": "#qstring"
+				},
+				{
+					"include": "#qqstring"
+				}
+			]
+		},
+		"qstring": {
+			"name": "string.quoted.single",
+			"begin": "'",
+			"end": "'",
+			"patterns": [
+				{
+					"include": "#escapes"
+				}
+			]
+		},
+		"qqstring": {
+			"name": "string.quoted.double",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"include": "#escapes"
+				}
+			]
+		},
+		"raw-strings": {
+			"name": "string.quoted.other",
+			"patterns": [
+				{
+					"name": "string.quoted.other",
+					"begin": "[rR]\"(-*)\\{",
+					"end": "\\}\\1\""
+				},
+				{
+					"name": "string.quoted.other",
+					"begin": "[rR]'(-*)\\{",
+					"end": "\\}\\1'"
+				},
+				{
+					"name": "string.quoted.other",
+					"begin": "[rR]\"(-*)\\[",
+					"end": "\\]\\1\""
+				},
+				{
+					"name": "string.quoted.other",
+					"begin": "[rR]'(-*)\\[",
+					"end": "\\]\\1'"
+				},
+				{
+					"name": "string.quoted.other",
+					"begin": "[rR]\"(-*)\\(",
+					"end": "\\)\\1\""
+				},
+				{
+					"name": "string.quoted.other",
+					"begin": "[rR]'(-*)\\(",
+					"end": "\\)\\1'"
+				}
+			]
+		},
+		"roxygen": {
+			"begin": "(^\\s*#+')",
+			"beginCaptures": {
+				"1": {
+					"name": "comment.line.roxygen"
+				}
+			},
+			"end": "$",
+			"patterns": [
+				{
+					"include": "#markdown"
+				},
+				{
+					"include": "#roxygen-tokens"
+				},
+				{
+					"include": "#latex"
+				},
+				{
+					"name": "comment.line",
+					"match": "."
+				}
+			]
+		},
+		"roxygen-example": {
+			"begin": "(^\\s*#+')\\s*(@examples)\\s*$",
+			"beginCaptures": {
+				"1": {
+					"name": "comment.line"
+				},
+				"2": {
+					"name": "keyword.other"
+				}
+			},
+			"end": "(?:^\\s*(?=#+'\\s*@))|(?:^\\s*(?!#+'))",
+			"patterns": [
+				{
+					"name": "comment.line",
+					"match": "^\\s*#+'"
+				},
+				{
+					"name": "meta.bracket",
+					"match": "[\\[\\(\\{\\}\\)\\]]"
+				},
+				{
+					"include": "#latex"
+				},
+				{
+					"include": "#roxygen-tokens"
+				},
+				{
+					"include": "#basic-roxygen-example"
+				}
+			]
+		},
+		"roxygen-tokens": {
+			"patterns": [
+				{
+					"name": "constant.character.escape",
+					"match": "@@"
+				},
+				{
+					"begin": "(@(?:param|field|slot))\\s*",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other"
+						}
+					},
+					"end": "(?:\\s|$)",
+					"patterns": [
+						{
+							"name": "variable.parameter",
+							"match": "([\\w.]+)"
+						},
+						{
+							"name": "keyword.operator",
+							"match": ","
+						}
+					]
+				},
+				{
+					"name": "keyword.other",
+					"match": "@(?!@)\\w*"
+				}
+			]
+		}
+	}
+}

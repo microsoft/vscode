@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-modal-dialog-box .flow-step .renv-configuration {
+	display: flex;
+	flex-direction: row;
+	column-gap: 6px;
+}
+
+.erdos-modal-dialog-box .flow-step .renv-configuration .renv-docs-external-link {
+	display: flex;
+	align-items: center;
+}
+
+.erdos-modal-dialog-box .flow-step .renv-configuration .codicon-link-external {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font-size: 14px;
+}

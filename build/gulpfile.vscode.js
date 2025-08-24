@@ -311,6 +311,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
 
+		const moduleSources = gulp.src('src/esm-package-dependencies/**').pipe(rename(function (p) { p.dirname = path.join('out', 'esm-package-dependencies', p.dirname) }));
+
+		const erdosApi = gulp.src('src/erdos-dts/erdos.d.ts')
+			.pipe(rename('out/erdos-dts/erdos.d.ts'));
+
 		let all = es.merge(
 			packageJsonStream,
 			productJsonStream,
@@ -318,7 +323,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			api,
 			telemetry,
 			sources,
-			deps
+			deps,
+			moduleSources,
+			erdosApi
 		);
 
 		if (platform === 'win32') {

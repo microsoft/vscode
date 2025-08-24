@@ -2,6 +2,7 @@
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
 		"esModuleInterop": true,
+		"jsx": "react",
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
@@ -29,10 +30,12 @@
 		"./*.ts",
 		"./typings",
 		"./vs/**/*.ts",
+		"./vs/**/*.tsx",
 		"./vscode-dts/vscode.proposed.*.d.ts",
 		"./vscode-dts/vscode.d.ts"
 	],
 	"exclude": [
-		"vs/workbench/contrib/webview/browser/pre/service-worker.js"
+		"vs/workbench/contrib/webview/browser/pre/service-worker.js",
+		"./vs/editor/test/node/diffing/fixtures/**/*.tsx"
 	]
 }

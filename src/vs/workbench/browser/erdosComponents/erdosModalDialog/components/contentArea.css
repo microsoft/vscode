@@ -1,0 +1,23 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-modal-dialog-box .content-area {
+	top: 32px;
+	left: 0;
+	right: 0;
+	bottom: 64px;
+	padding: 16px;
+	position: absolute;
+	/* Allow overflow of extra long content */
+	overflow: auto;
+}
+
+.erdos-modal-dialog-box .content-area code {
+	color: inherit;
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	/* Wrap extra long words e.g file paths */
+	overflow-wrap: break-word;
+}

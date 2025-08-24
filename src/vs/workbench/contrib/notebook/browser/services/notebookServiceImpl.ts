@@ -934,6 +934,24 @@ export class NotebookService extends Disposable implements INotebookService {
 			.sort((a, b) => (a.rendererId === RENDERER_NOT_AVAILABLE ? 1 : 0) - (b.rendererId === RENDERER_NOT_AVAILABLE ? 1 : 0));
 	}
 
+	getMimeTypeInfo(viewType: string | undefined, kernelProvides: readonly string[] | undefined, mimeTypes: string[]): readonly IOrderedMimeType[] {
+		const sorted = this._displayOrder.sort(new Set<string>(mimeTypes));
+		const notebookProviderInfo = viewType ? this.notebookProviderInfoStore.get(viewType) : undefined;
+
+		return sorted
+			.flatMap(mimeType => this._notebookRenderersInfoStore.findBestRenderers(notebookProviderInfo, mimeType, kernelProvides))
+			.sort((a, b) => (a.rendererId === RENDERER_NOT_AVAILABLE ? 1 : 0) - (b.rendererId === RENDERER_NOT_AVAILABLE ? 1 : 0));
+	}
+
+	getPreferredRenderer(mimeType: string): INotebookRendererInfo | undefined {
+		const renderers = this._notebookRenderersInfoStore.findBestRenderers(
+			undefined, mimeType, undefined);
+		if (renderers.length === 0) {
+			return undefined;
+		}
+		return this._notebookRenderersInfoStore.get(renderers[0].rendererId);
+	}
+
 	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[] {
 		if (resource) {
 			return this.notebookProviderInfoStore.getContributedNotebook(resource);

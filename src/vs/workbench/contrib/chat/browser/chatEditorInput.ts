@@ -159,9 +159,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
-		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Editor, CancellationToken.None);
-		} else if (typeof this.sessionId === 'string') {
+		if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
 				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if (!this.options.target) {

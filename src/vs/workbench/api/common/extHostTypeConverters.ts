@@ -42,7 +42,7 @@ import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/c
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -3550,7 +3550,7 @@ export namespace LanguageModelToolResult2 {
 		};
 
 		let hasBuffers = false;
-		let detailsDto: Dto<Array<URI | types.Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | undefined> = undefined;
+		let detailsDto: Dto<Array<URI | types.Location> | IToolResultInputOutputDetails | IToolResultInputOutputDetails | undefined> = undefined;
 		if (Array.isArray(result.toolResultDetails)) {
 			detailsDto = result.toolResultDetails?.map(detail => {
 				return URI.isUri(detail) ? detail : Location.from(detail as vscode.Location);
@@ -3558,12 +3558,13 @@ export namespace LanguageModelToolResult2 {
 		} else {
 			if (result.toolResultDetails2) {
 				detailsDto = {
-					output: {
-						type: 'data',
+					input: '',
+					output: [{
+						type: 'embed',
 						mimeType: (result.toolResultDetails2 as vscode.ToolResultDataOutput).mime,
-						value: VSBuffer.wrap((result.toolResultDetails2 as vscode.ToolResultDataOutput).value),
-					}
-				} satisfies IToolResultOutputDetails;
+						value: VSBuffer.wrap((result.toolResultDetails2 as vscode.ToolResultDataOutput).value).toString(),
+					}]
+				} satisfies IToolResultInputOutputDetails;
 				hasBuffers = true;
 			}
 		}

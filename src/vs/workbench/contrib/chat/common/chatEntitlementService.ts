@@ -136,7 +136,9 @@ const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '' }, enterprise: { id: '' } },
+	providerId: product.defaultChatAgent?.providerId ?? '',
+	enterpriseProviderId: product.defaultChatAgent?.enterpriseProviderId ?? '',
+	alternativeProviderId: product.defaultChatAgent?.alternativeProviderId ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
@@ -430,11 +432,11 @@ interface IQuotas {
 export class ChatEntitlementRequests extends Disposable {
 
 	static providerId(configurationService: IConfigurationService): string {
-		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.provider.enterprise.id) {
-			return defaultChat.provider.enterprise.id;
+		if (configurationService.getValue<string | undefined>(`${defaultChat.completionsAdvancedSetting}.authProvider`) === defaultChat.enterpriseProviderId) {
+			return defaultChat.enterpriseProviderId;
 		}
 
-		return defaultChat.provider.default.id;
+		return defaultChat.providerId;
 	}
 
 	private state: IEntitlements;
@@ -582,7 +584,7 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private async doResolveEntitlement(sessions: AuthenticationSession[], token: CancellationToken): Promise<IEntitlements | undefined> {
-		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
+		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.enterpriseProviderId) {
 			this.logService.trace('[chat entitlement]: enterprise provider, assuming Enterprise plan');
 			return { entitlement: ChatEntitlement.Enterprise };
 		}

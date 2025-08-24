@@ -1,0 +1,114 @@
+{
+	"scopeName": "source.rdocs",
+	"fileTypes": [
+		"rd",
+		"Rd"
+	],
+	"patterns": [
+		{
+			"begin": "((\\\\)(?:alias|docType|keyword|name|title|description|value|note|concept|keyword|details|format|references|source|arguments|seealso|author))(\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.section.rd"
+				},
+				"2": {
+					"name": "punctuation.definition.function.rd"
+				},
+				"3": {
+					"name": "punctuation.definition.arguments.begin.rd"
+				}
+			},
+			"contentName": "entity.name.tag.rd",
+			"end": "(\\})",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.arguments.end.rd"
+				}
+			},
+			"name": "meta.section.rd",
+			"patterns": [
+				{
+					"include": "$self"
+				}
+			]
+		},
+		{
+			"begin": "((\\\\)(?:usage))(\\{)(?:\\n)?",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.usage.rd"
+				},
+				"2": {
+					"name": "punctuation.definition.function.rd"
+				},
+				"3": {
+					"name": "punctuation.definition.arguments.begin.rd"
+				}
+			},
+			"contentName": "source.r.embedded",
+			"end": "(\\})",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.arguments.end.rd"
+				}
+			},
+			"name": "meta.usage.rd",
+			"patterns": [
+				{
+					"include": "source.r"
+				}
+			]
+		},
+		{
+			"begin": "((\\\\)(?:examples))(\\{)(?:\\n)?",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.examples.rd"
+				},
+				"2": {
+					"name": "punctuation.definition.function.rd"
+				},
+				"3": {
+					"name": "punctuation.definition.arguments.begin.rd"
+				}
+			},
+			"contentName": "source.r.embedded",
+			"end": "(^\\}$)",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.arguments.end.rd"
+				}
+			},
+			"name": "meta.examples.rd",
+			"patterns": [
+				{
+					"include": "source.r"
+				}
+			]
+		},
+		{
+			"begin": "((\\\\)(?:author))(\\{)(?:\\n)?",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.author.rd"
+				},
+				"2": {
+					"name": "punctuation.definition.function.rd"
+				},
+				"3": {
+					"name": "punctuation.definition.arguments.begin.rd"
+				}
+			},
+			"end": "(\\})",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.arguments.end.rd"
+				}
+			},
+			"name": "meta.author.rd"
+		},
+		{
+			"include": "text.tex.latex"
+		}
+	]
+}

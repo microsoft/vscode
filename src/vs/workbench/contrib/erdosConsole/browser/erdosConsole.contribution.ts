@@ -12,14 +12,8 @@ import { ErdosConsoleFocused } from '../../../common/contextkeys.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { ErdosConsoleViewPane } from './erdosConsoleView.js';
-// import { registerErdosConsoleActions } from './erdosConsoleActions.js';
+import { registerErdosConsoleActions } from './erdosConsoleActions.js';
 import { IErdosConsoleService, ERDOS_CONSOLE_VIEW_ID } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
-import { ErdosConsoleService } from '../../../services/erdosConsole/browser/erdosConsoleService.js';
-import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { IRuntimeStartupService } from '../../../services/runtimeStartup/common/runtimeStartupService.js';
-import { ErdosRuntimeStartupService } from '../../../services/runtimeStartup/browser/erdosRuntimeStartupService.js';
-import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
-import { RuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSession.js';
 import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
 import { ERDOS_CONSOLE_COPY, ERDOS_CONSOLE_PASTE, ERDOS_CONSOLE_SELECT_ALL } from './erdosConsoleIdentifiers.js';
@@ -114,10 +108,5 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 } satisfies ICommandAndKeybindingRule);
 
-// Register the services
-registerSingleton(IRuntimeStartupService, ErdosRuntimeStartupService, InstantiationType.Delayed);
-registerSingleton(IRuntimeSessionService, RuntimeSessionService, InstantiationType.Eager);
-registerSingleton(IErdosConsoleService, ErdosConsoleService, InstantiationType.Delayed);
-
 // Register all the Erdos console actions.
-// registerErdosConsoleActions();
+registerErdosConsoleActions();

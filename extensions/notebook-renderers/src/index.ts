@@ -538,7 +538,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	document.body.appendChild(style);
 
 	return {
-		renderOutputItem: async (outputInfo, element, signal?: AbortSignal) => {
+		renderOutputItem: async (outputInfo: OutputItem, element: HTMLElement, signal: AbortSignal) => {
 			element.classList.add('remove-padding');
 			switch (outputInfo.mime) {
 				case 'text/html':
@@ -547,7 +547,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 						return;
 					}
 
-					await renderHTML(outputInfo, element, signal!, htmlHooks);
+					await renderHTML(outputInfo, element, signal, htmlHooks);
 					break;
 				}
 				case 'application/javascript': {
@@ -555,7 +555,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 						return;
 					}
 
-					renderJavascript(outputInfo, element, signal!, jsHooks);
+					renderJavascript(outputInfo, element, signal, jsHooks);
 					break;
 				}
 				case 'image/gif':

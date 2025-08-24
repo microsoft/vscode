@@ -129,6 +129,8 @@ export const IsCompactTitleBarContext = new RawContextKey<boolean>('isCompactTit
 
 export const BannerFocused = new RawContextKey<boolean>('bannerFocused', false, localize('bannerFocused', "Whether the banner has keyboard focus"));
 
+export const ErdosTopActionBarFocused = new RawContextKey<boolean>('erdosTopActionBarFocused', false, localize('erdosTopActionBarFocused', "Whether the Erdos Top Action Bar has keyboard focus"));
+
 //#endregion
 
 
@@ -301,6 +303,7 @@ export class ResourceContextKey {
 //#region < --- Erdos --- >
 
 export const ErdosConsoleFocused = new RawContextKey<boolean>('erdosConsoleFocused', false, localize('erdosConsoleFocused', "Whether Erdos Console has keyboard focus"));
+export const ErdosConsoleTabFocused = new RawContextKey<boolean>('erdosConsoleTabFocused', false, localize('erdosConsoleTabFocused', "Whether Erdos Console tab has keyboard focus"));
 export const ErdosConsoleInstancesExistContext = new RawContextKey<boolean>('erdosConsoleInstancesExist', false, localize('erdosConsoleInstancesExist', "Whether any Erdos console instances exist"));
 export const ERDOS_NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('erdosNotebookEditorFocused', false, localize('erdosNotebookEditorFocused', "Whether Erdos Notebook Editor has keyboard focus"));
 

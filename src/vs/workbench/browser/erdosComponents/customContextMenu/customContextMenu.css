@@ -1,0 +1,93 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.custom-context-menu-items {
+	width: 100%;
+	padding: 4px;
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	background: var(--vscode-erdosContextMenu-background);
+}
+
+.custom-context-menu-separator {
+	height: 1px;
+	margin: 4px 0;
+	background: var(--vscode-erdosContextMenu-separatorBackground);
+}
+
+.custom-context-menu-item {
+	width: 100%;
+	height: 26px;
+	border: none;
+	display: grid;
+	cursor: pointer;
+	text-align: left;
+	align-items: center;
+	align-content: center;
+	background: transparent;
+	color: var(--vscode-erdosContextMenu-foreground);
+	grid-template-columns: [icon] 22px [title] 1fr [shortcut] min-content [end];
+}
+
+.custom-context-menu-item.checkable {
+	grid-template-columns: [check] 22px [icon] 22px [title] 1fr [shortcut] min-content [end];
+}
+
+.custom-context-menu-item:not(.disabled):hover {
+	border-radius: 4px;
+	color: var(--vscode-erdosContextMenu-hoverForeground);
+    background: var(--vscode-erdosContextMenu-hoverBackground);
+}
+
+.custom-context-menu-item:focus {
+	outline: none !important;
+}
+
+.custom-context-menu-item:focus-visible {
+	border-radius: 4px;
+	outline: 1px solid var(--vscode-focusBorder) !important;
+}
+
+.custom-context-menu-item:not(.disabled):focus-visible {
+	background: var(--vscode-erdosContextMenu-hoverBackground);
+}
+
+.custom-context-menu-item .check {
+	text-align: left;
+	grid-column: check / icon;
+}
+
+.custom-context-menu-item .icon {
+	text-align: left;
+	grid-column: icon / title;
+}
+
+.custom-context-menu-item .icon.disabled {
+	opacity: 50%;
+}
+
+.custom-context-menu-item .title {
+	display: block;
+	max-width: 100%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	grid-column: title / shortcut;
+	margin: 2px 0 2px 0;
+}
+
+.custom-context-menu-item .title.disabled {
+	opacity: 50%;
+}
+
+.custom-context-menu-item .shortcut {
+	padding: 10px;
+	white-space: nowrap;
+	grid-column: shortcut / end;
+}
+
+
+

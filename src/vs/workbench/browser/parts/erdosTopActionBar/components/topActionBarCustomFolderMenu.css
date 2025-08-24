@@ -1,0 +1,68 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.top-action-bar-custom-folder-menu {
+	display: grid;
+	cursor: pointer;
+	width: min-content;
+	border-radius: 4px;
+	align-items: center;
+	box-sizing: border-box;
+	grid-template-columns: 1fr 1fr;
+	height: var(--vscode-erdosActionBar-iconSize);
+	color: var(--vscode-erdosActionBar-foreground);
+	background-color: var(--vscode-erdosActionBar-background);
+	border: 1px solid var(--vscode-erdosActionBar-selectBorder);
+}
+
+.top-action-bar-custom-folder-menu:hover {
+	background-color: var(--vscode-erdosActionBar-hoverBackground);
+}
+
+.top-action-bar-custom-folder-menu .left {
+	margin-left: 1px;
+}
+
+.top-action-bar-custom-folder-menu .left .label {
+	margin: 0 0px;
+	padding: 0 3px;
+	height: 22px;
+	border: none;
+	display: flex;
+	font-size: 12px;
+	cursor: pointer;
+	overflow: visible;
+	white-space: nowrap;
+	align-items: center;
+	background: transparent;
+	justify-content: center;
+	color: var(--vscode-erdosActionBar-foreground);
+}
+
+.top-action-bar-custom-folder-menu .left .label .label-text {
+	overflow: hidden;
+	max-width: 200px;
+	text-overflow: ellipsis;
+}
+
+.top-action-bar-custom-folder-menu .right {
+	display: flex;
+	align-items: center;
+	justify-content: right;
+	margin-right: 1px;
+}
+
+.top-action-bar-custom-folder-menu .right .chevron {
+	height: 22px;
+	width: 20px;
+	font-size: 14px;
+	border: none;
+	display: flex;
+	cursor: pointer;
+	overflow: visible;
+	align-items: center;
+	background: transparent;
+	justify-content: center;
+}

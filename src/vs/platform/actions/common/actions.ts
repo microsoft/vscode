@@ -253,6 +253,8 @@ export class MenuId {
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly ChatToolOutputResourceToolbar = new MenuId('ChatToolOutputResourceToolbar');
 	static readonly ChatTextEditorMenu = new MenuId('ChatTextEditorMenu');
+	static readonly ChatExplorerMenu = new MenuId('ChatExplorerMenu');
+	static readonly ChatTerminalMenu = new MenuId('ChatTerminalMenu');
 	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');
 	static readonly ChatSessionsMenu = new MenuId('ChatSessionsMenu');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');

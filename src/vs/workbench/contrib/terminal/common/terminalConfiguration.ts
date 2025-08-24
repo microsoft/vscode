@@ -650,31 +650,7 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 			...terminalConfiguration,
 			// HACK: This is included here in order instead of in the contrib to support policy
 			// extraction as it doesn't compute runtime values.
-			[TerminalContribSettingId.EnableAutoApprove]: {
-				description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-				type: 'string',
-				enum: [
-					'off',
-					'on',
-					// 'onWithoutDefaultRules',
-				],
-				enumDescriptions: [
-					localize('enableAutoApprove.off', "Terminal auto approval is disabled."),
-					localize('enableAutoApprove.on', "Terminal auto approval is enabled, with the default rules defined in {0}.", `\`${TerminalContribSettingId.AutoApprove}\``),
-					// localize('enableAutoApprove.onWithoutDefaultRules', "Terminal auto approval is enabled, without the default rules defined in {0}.", `\`${TerminalContribSettingId.AutoApprove}\``),
-				],
-				markdownEnumDescriptions: [
-					localize('enableAutoApprove.off', "Terminal auto approval is disabled."),
-					localize('enableAutoApprove.on', "Terminal auto approval is enabled, with the default rules defined in {0}.", `\`#${TerminalContribSettingId.AutoApprove}#\``),
-					// localize('enableAutoApprove.onWithoutDefaultRules', "Terminal auto approval is enabled, without the default rules defined in {0}.", `\`#${TerminalContribSettingId.AutoApprove}#\``),
-				],
-				default: 'on',
-				// TODO: Move to register call to make tree sitter happy
-				policy: {
-					name: 'ChatToolsTerminalEnableAutoApprove',
-					minimumVersion: '1.104',
-				}
-			}
+
 		}
 	});
 	terminalConfiguration[TerminalSettingId.FontFamily].defaultSnippets = await getFontSnippets();

@@ -1,0 +1,34 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-console {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	color: var(--vscode-erdosConsole-foreground);
+	background: var(--vscode-erdosConsole-background);
+}
+
+.erdos-console .dataframe {
+	border: 1px solid var(--vscode-tab-border);
+	margin-top: 10px;
+	margin-bottom: 10px;
+	border-collapse: collapse;
+}
+
+.erdos-console .dataframe td,
+.erdos-console .dataframe th {
+	border: 1px solid var(--vscode-tab-border);
+	padding-top: 3px;
+	padding-bottom: 3px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+.erdos-console .action-bar .state-label {
+	text-transform: uppercase;
+	color: var(--vscode-erdosActionBar-foreground);
+	font-size: 10px;
+}

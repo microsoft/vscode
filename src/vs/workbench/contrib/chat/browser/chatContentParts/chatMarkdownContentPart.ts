@@ -131,7 +131,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			} : {};
 
 			const result = this._register(renderer.render(markdown.content, {
-				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
+				sanitizerOptions: MarkedKatexSupport.getSanitizerOptions({
 					allowedTags: allowedChatMarkdownHtmlTags,
 					allowedAttributes: allowedMarkdownHtmlAttributes,
 				}),
@@ -243,10 +243,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					}
 				},
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-				markedOptions: markedOpts,
-				markedExtensions,
 				...markdownRenderOptions,
-			}, this.domNode));
+			}, { 
+				...markedOpts,
+				markedExtensions: markedExtensions
+			}));
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
@@ -280,7 +281,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
 			// Need to load async
-			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
+			MarkedKatexSupport.loadExtension(dom.getWindow(context.container), {
+				throwOnError: false
+			})
 				.catch(e => {
 					console.error('Failed to load MarkedKatexSupport extension:', e);
 				}).finally(() => {
