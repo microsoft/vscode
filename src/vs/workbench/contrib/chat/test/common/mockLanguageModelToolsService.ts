@@ -44,6 +44,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return Disposable.None;
 	}
 
+	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable {
+		return Disposable.None;
+	}
+
 	getTools(): Iterable<Readonly<IToolData>> {
 		return [];
 	}
