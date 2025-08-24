@@ -40,7 +40,7 @@ const postProcessRemoteBranches: Fig.Generator["postProcess"] = (out) => {
 		return {
 			name,
 			description: "Branch",
-			icon: "fig://icon?type=git",
+			icon: "vscode://icon?type=11",
 			priority: 75,
 		};
 	});

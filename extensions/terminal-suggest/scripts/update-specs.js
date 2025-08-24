@@ -47,6 +47,10 @@ const specSpecificReplaceStrings = new Map([
 		[
 			'description: repo.description,',
 			'description: repo.description ?? undefined,'
+		],
+		[
+			'icon: "fig://icon?type=git"',
+			'icon: "vscode://icon?type=11"'
 		]
 	]],
 	['git', [
