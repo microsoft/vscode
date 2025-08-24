@@ -58,7 +58,8 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				loggerOptions: {
 					correlationId: _clientId,
 					loggerCallback: (level, message, containsPii) => loggerOptions.loggerCallback(level, message, containsPii),
-					logLevel: LogLevel.Trace
+					logLevel: LogLevel.Trace,
+					piiLoggingEnabled: true
 				}
 			},
 			broker: { nativeBrokerPlugin },
@@ -166,20 +167,25 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				title: l10n.t('Signing in to Microsoft...')
 			},
 			(_process, token) => this._sequencer.queue(async () => {
-				const result = await raceCancellationAndTimeoutError(
-					this._pca.acquireTokenInteractive(request),
-					token,
-					1000 * 60 * 5
-				);
-				if (this._isBrokerAvailable) {
-					await this._accountAccess.setAllowedAccess(result.account!, true);
+				try {
+					const result = await raceCancellationAndTimeoutError(
+						this._pca.acquireTokenInteractive(request),
+						token,
+						1000 * 60 * 5
+					);
+					if (this._isBrokerAvailable) {
+						await this._accountAccess.setAllowedAccess(result.account!, true);
+					}
+					// Force an update so that the account cache is updated.
+					// TODO:@TylerLeonhardt The problem is, we use the sequencer for
+					// change events but we _don't_ use it for the accounts cache.
+					// We should probably use it for the accounts cache as well.
+					await this._update();
+					return result;
+				} catch (error) {
+					this._logger.error(`[acquireTokenInteractive] [${this._clientId}] [${request.authority}] [${request.scopes?.join(' ')}] error: ${error}`);
+					throw error;
 				}
-				// Force an update so that the account cache is updated.
-				// TODO:@TylerLeonhardt The problem is, we use the sequencer for
-				// change events but we _don't_ use it for the accounts cache.
-				// We should probably use it for the accounts cache as well.
-				await this._update();
-				return result;
 			})
 		);
 	}

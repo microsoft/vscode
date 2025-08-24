@@ -29,7 +29,7 @@ async function main(buildDir) {
         '**/Credits.rtf',
         '**/policies/{*.mobileconfig,**/*.plist}',
         // TODO: Should we consider expanding this to other files in this area?
-        '**/node_modules/@parcel/node-addon-api/nothing.target.mk'
+        '**/node_modules/@parcel/node-addon-api/nothing.target.mk',
     ];
     await (0, vscode_universal_bundler_1.makeUniversalApp)({
         x64AppPath,
@@ -38,7 +38,7 @@ async function main(buildDir) {
         outAppPath,
         force: true,
         mergeASARs: true,
-        x64ArchFiles: '*/kerberos.node',
+        x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node}',
         filesToSkipComparison: (file) => {
             for (const expected of filesToSkip) {
                 if ((0, minimatch_1.default)(file, expected)) {
