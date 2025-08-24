@@ -44,7 +44,6 @@ export const upstreamSpecs = [
 	'mv',
 	'nl',
 	'od',
-	'passwd',
 	'paste',
 	'ping',
 	'pkill',
@@ -121,7 +120,6 @@ export const upstreamSpecs = [
 	'yo',
 
 	// Python
-	'pip',
 	'python',
 	'python3',
 	'ruff',

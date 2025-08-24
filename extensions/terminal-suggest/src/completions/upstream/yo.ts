@@ -32,7 +32,7 @@ const yeomanGeneratorList: Fig.Generator = {
 					(item) =>
 						({
 							name: item.trim(),
-							icon: "https://avatars.githubusercontent.com/u/1714870?v=4",
+							icon: undefined,
 							displayName: toTitleCase(item),
 							description: `${toTitleCase(item)} Generator`,
 							priority: 100,

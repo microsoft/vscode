@@ -30,6 +30,9 @@ const specSpecificReplaceStrings = new Map([
 		[
 			'.match(argRegex)',
 			'.match(argRegex)!'
+		], [
+			'"https://upload.wikimedia.org/wikipedia/commons/7/7d/Microsoft_.NET_logo.svg";',
+			'undefined;',
 		]
 	]],
 	['git', [
@@ -42,6 +45,12 @@ const specSpecificReplaceStrings = new Map([
 		], [
 			'message: async ({ executeCommand }) =>',
 			'message: async ({ executeCommand }: any) =>'
+		]
+	]],
+	['yo', [
+		[
+			'icon: "https://avatars.githubusercontent.com/u/1714870?v=4",',
+			'icon: undefined,',
 		]
 	]],
 ]);

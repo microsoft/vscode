@@ -1,7 +1,7 @@
 import { filepaths } from '../../helpers/filepaths';
 
 const DOTNET_ICON =
-	"https://upload.wikimedia.org/wikipedia/commons/7/7d/Microsoft_.NET_logo.svg";
+	undefined;
 
 const commands: Fig.Subcommand[] = [
 	{
