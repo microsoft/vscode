@@ -3462,23 +3462,19 @@ export class CommandCenter {
 
 		try {
 			await repository.applyStash(stashes[0].index);
+			worktreeRepository.dropStash(stashes[0].index);
 		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.StashConflict) {
-				const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
-				const show = l10n.t('Show Changes');
-				const choice = await window.showWarningMessage(message, show);
-				if (choice === show) {
-					await commands.executeCommand('workbench.view.scm');
-				}
-			} else if (err.gitErrorCode === GitErrorCodes.LocalChangesOverwritten) {
-				// Should not occur
-				const message = l10n.t('Your local changes would be overwritten by the stash apply. Please commit or stash them before continuing.');
-				await window.showWarningMessage(message, { modal: true });
-			} else {
+			if (err.gitErrorCode !== GitErrorCodes.StashConflict) {
+				await worktreeRepository.popStash();
 				throw err;
 			}
-		} finally {
-			await worktreeRepository.popStash();
+			const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
+			const show = l10n.t('Show Changes');
+			const choice = await window.showWarningMessage(message, show);
+			if (choice === show) {
+				await commands.executeCommand('workbench.view.scm');
+			}
+			worktreeRepository.dropStash(stashes[0].index);
 		}
 	}
 
