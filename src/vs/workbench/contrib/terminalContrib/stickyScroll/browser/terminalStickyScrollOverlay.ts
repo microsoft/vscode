@@ -63,6 +63,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _state: OverlayState = OverlayState.Off;
 	private _isRefreshQueued = false;
 	private _rawMaxLineCount: number = 5;
+	private _pendingShowOperation = false;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -185,12 +186,27 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._refreshListeners.clear();
 	}
 
-	@debounce(100)
 	private _setVisible(isVisible: boolean) {
 		if (isVisible) {
-			this._ensureElement();
+			this._pendingShowOperation = true;
+			this._show();
+		} else {
+			this._hideImmediate();
 		}
-		this._element?.classList.toggle(CssClasses.Visible, isVisible);
+	}
+
+	@debounce(100)
+	private _show(): void {
+		if (this._pendingShowOperation) {
+			this._ensureElement();
+			this._element?.classList.toggle(CssClasses.Visible, true);
+		}
+		this._pendingShowOperation = false;
+	}
+
+	private _hideImmediate(): void {
+		this._pendingShowOperation = false;
+		this._element?.classList.toggle(CssClasses.Visible, false);
 	}
 
 	private _refresh(): void {
