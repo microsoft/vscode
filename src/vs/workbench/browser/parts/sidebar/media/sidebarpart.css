@@ -92,7 +92,12 @@
 .monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label,
 .monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label,
 .monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .action-label {
-	color: var(--vscode-activityBarTop-foreground) !important;
+	color: var(--vscode-activityBarTop-hoverForeground, var(--vscode-activityBarTop-foreground)) !important;
+}
+
+.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover,
+.monaco-workbench .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover {
+	background-color: var(--vscode-activityBarTop-hoverBackground);
 }
 
 .monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container {
