@@ -10,6 +10,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ConfirmationTool, ConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
+import { ListCodeUsagesTool, ListCodeUsagesToolData } from './listCodeUsagesTool.js';
 import { createManageTodoListToolData, ManageTodoListTool, TodoListToolWriteOnlySettingId } from './manageTodoListTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
@@ -35,6 +36,10 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		// Register the confirmation tool
 		const confirmationTool = instantiationService.createInstance(ConfirmationTool);
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
+
+		// Register the list code usages tool
+		const listCodeUsagesTool = instantiationService.createInstance(ListCodeUsagesTool);
+		this._register(toolsService.registerTool(ListCodeUsagesToolData, listCodeUsagesTool));
 	}
 }
 
