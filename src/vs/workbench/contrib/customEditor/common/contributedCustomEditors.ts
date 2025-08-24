@@ -52,6 +52,7 @@ export class ContributedCustomEditors extends Disposable {
 					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
 					selector: webviewEditorContribution.selector || [],
 					priority: getPriorityFromContribution(webviewEditorContribution, extension.description),
+					whenClause: webviewEditorContribution.when,
 				}));
 			}
 		}
