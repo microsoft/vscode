@@ -666,6 +666,23 @@ export enum KeyCode {
 	 */
 	MAX_VALUE = 132
 }
+/**
+ * Represents the source of the last edit for a line
+ */
+export enum LineEditSource {
+	/**
+	 * The line edit source is unknown or has not been determined
+	 */
+	Undetermined = 0,
+	/**
+	 * The line was last edited by a human user
+	 */
+	Human = 1,
+	/**
+	 * The line was last edited by AI/automated tools
+	 */
+	AI = 2
+}
 
 export enum MarkerSeverity {
 	Hint = 1,

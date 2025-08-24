@@ -940,6 +940,33 @@ declare namespace monaco {
 }
 
 declare namespace monaco.editor {
+	/**
+	 * Represents the source of the last edit for a line
+	 */
+	export enum LineEditSource {
+		/**
+		 * The line edit source is unknown or has not been determined
+		 */
+		Undetermined = 0,
+		/**
+		 * The line was last edited by a human user
+		 */
+		Human = 1,
+		/**
+		 * The line was last edited by AI/automated tools
+		 */
+		AI = 2
+	}
+
+	/**
+	 * Event fired when line edit sources change
+	 */
+	export interface ILineEditSourcesChangedEvent {
+		/**
+		 * Map of line numbers to their new edit sources
+		 */
+		readonly changes: Map<number, LineEditSource>;
+	}
 
 	/**
 	 * Create a new editor under `domElement`.
@@ -2430,6 +2457,22 @@ declare namespace monaco.editor {
 		 * Returns if this model is attached to an editor or not.
 		 */
 		isAttachedToEditor(): boolean;
+		/**
+		 * Get the edit source for a specific line
+		 * @param lineNumber The line number (1-based)
+		 * @return The edit source for the line
+		 */
+		getLineEditSource(lineNumber: number): LineEditSource;
+		/**
+		 * Get edit sources for all lines that have been edited
+		 * @return Map of line numbers to their edit sources
+		 */
+		getAllLineEditSources(): Map<number, LineEditSource>;
+		/**
+		 * An event emitted when line edit sources change
+		 * @event
+		 */
+		readonly onDidChangeLineEditSources: IEvent<ILineEditSourcesChangedEvent>;
 	}
 
 	export enum PositionAffinity {

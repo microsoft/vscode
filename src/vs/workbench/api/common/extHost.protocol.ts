@@ -317,7 +317,7 @@ export interface ITextDocumentShowOptions {
 }
 
 export interface MainThreadBulkEditsShape extends IDisposable {
-	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, respectAutoSaveConfig?: boolean): Promise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: SerializableObjectWithBuffers<IWorkspaceEditDto>, undoRedoGroupId?: number, respectAutoSaveConfig?: boolean, extensionContext?: { extensionId: string; extensionName?: string }): Promise<boolean>;
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
@@ -3160,6 +3160,20 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$showChatSession(chatSessionType: string, sessionId: string, position: EditorGroupColumn | undefined): Promise<void>;
 }
 
+export interface ILineEditSourcesChangeData {
+	editorId: string;
+	changes: { [lineNumber: string]: number };
+}
+
+export interface MainThreadLineEditTrackerShape extends IDisposable {
+	$getLineEditSource(uri: UriComponents, lineNumber: number): Promise<number>;
+	$getAllLineEditSources(uri: UriComponents): Promise<{ [lineNumber: string]: number }>;
+}
+
+export interface ExtHostLineEditTrackerShape {
+	$onDidChangeLineEditSources(data: ILineEditSourcesChangeData): void;
+}
+
 export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
 	$provideNewChatSessionItem(providerHandle: number, options: { prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
@@ -3181,6 +3195,7 @@ export const MainContext = {
 	MainThreadCodeMapper: createProxyIdentifier<MainThreadCodeMapperShape>('MainThreadCodeMapper'),
 	MainThreadLanguageModelTools: createProxyIdentifier<MainThreadLanguageModelToolsShape>('MainThreadChatSkills'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
+	MainThreadLineEditTracker: createProxyIdentifier<MainThreadLineEditTrackerShape>('MainThreadLineEditTracker'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createProxyIdentifier<MainThreadConfigurationShape>('MainThreadConfiguration'),
@@ -3256,6 +3271,7 @@ export const ExtHostContext = {
 	ExtHostCommands: createProxyIdentifier<ExtHostCommandsShape>('ExtHostCommands'),
 	ExtHostConfiguration: createProxyIdentifier<ExtHostConfigurationShape>('ExtHostConfiguration'),
 	ExtHostDiagnostics: createProxyIdentifier<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
+	ExtHostLineEditTracker: createProxyIdentifier<ExtHostLineEditTrackerShape>('ExtHostLineEditTracker'),
 	ExtHostDebugService: createProxyIdentifier<ExtHostDebugServiceShape>('ExtHostDebugService'),
 	ExtHostDecorations: createProxyIdentifier<ExtHostDecorationsShape>('ExtHostDecorations'),
 	ExtHostDocumentsAndEditors: createProxyIdentifier<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors'),

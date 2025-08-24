@@ -1,0 +1,30 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/**
+ * Line edit indicator styles for different edit sources
+ */
+
+.line-edit-indicator-human {
+	color: #ff6b6b !important;
+}
+
+.line-edit-indicator-ai {
+	color: #4dabf7 !important;
+}
+
+.line-edit-indicator-undetermined {
+	color: #868e96 !important;
+}
+
+/* Base styling for all line edit indicators */
+.line-edit-indicator-human,
+.line-edit-indicator-ai,
+.line-edit-indicator-undetermined {
+	cursor: default;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
