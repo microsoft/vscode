@@ -225,26 +225,12 @@ class ToggleChatModeAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleChatModeAction.ID,
-			title: localize2('interactive.toggleAgent.label', "Set Chat Mode"),
+			title: localize2('interactive.toggleAgent.label', "Switch to Next Chat Mode"),
 			f1: true,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ChatContextKeys.requestInProgress.negate()),
-			tooltip: localize('setChatMode', "Set Mode"),
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					order: 1,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.lockedToCodingAgent.negate(),
-					),
-					group: 'navigation',
-				},
-			]
+				ChatContextKeys.requestInProgress.negate())
 		});
 	}
 
@@ -367,13 +353,14 @@ class OpenModelPickerAction extends Action2 {
 	}
 }
 
-class OpenModePickerAction extends Action2 {
+export class OpenModePickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModePicker';
 
 	constructor() {
 		super({
 			id: OpenModePickerAction.ID,
 			title: localize2('interactive.openModePicker.label', "Open Mode Picker"),
+			tooltip: localize('setChatMode', "Set Mode"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
@@ -384,6 +371,18 @@ class OpenModePickerAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			},
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					order: 1,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.lockedToCodingAgent.negate()),
+					group: 'navigation',
+				},
+			]
 		});
 	}
 
