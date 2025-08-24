@@ -174,4 +174,15 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
+
+	test('create worktree', async function () {
+		await commands.executeCommand('workbench.view.scm');
+
+		const onDidOpenRepository = eventToPromise(git.onDidOpenRepository);
+		await commands.executeCommand('git.createWorktree', repository);
+		const newRepository = await onDidOpenRepository;
+
+		assert.strictEqual(git.repositories.length, 2);
+		assert(newRepository, 'A new repository should have been opened for the worktree');
+	});
 });
