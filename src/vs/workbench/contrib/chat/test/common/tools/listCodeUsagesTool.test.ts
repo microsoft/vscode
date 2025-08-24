@@ -122,7 +122,7 @@ suite('ListCodeUsagesTool', () => {
 		const result = await tool.invoke(invocation, () => 0, () => { }, CancellationToken.None);
 
 		assert.strictEqual(result.content.length, 1);
-		assert.strictEqual(result.content[0].kind, 'markdownContent');
+		assert.strictEqual(result.content[0].kind, 'text');
 		
 		const content = result.content[0].value as string;
 		assert.ok(content.includes('Code Usages for "testFunction"'));

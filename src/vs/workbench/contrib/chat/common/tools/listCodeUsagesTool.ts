@@ -21,6 +21,8 @@ export const ListCodeUsagesToolData: IToolData = {
 	displayName: 'List Code Usages',
 	modelDescription: 'List definitions, references, and implementations for a symbol in code. Searches document symbols first, then falls back to workspace symbols if not found.',
 	source: ToolDataSource.Internal,
+	toolReferenceName: 'usages',
+	canBeReferencedInPrompt: true,
 	inputSchema: {
 		type: 'object',
 		properties: {
@@ -63,7 +65,7 @@ export class ListCodeUsagesTool implements IToolImpl {
 			};
 		}
 
-		progress(({ kind: 'text', value: `Searching for symbol "${parameters.symbol}"...` }));
+		progress({ message: `Searching for symbol "${parameters.symbol}"...` });
 
 		try {
 			let symbolLocation: { uri: URI; position: Position } | undefined;
@@ -100,7 +102,7 @@ export class ListCodeUsagesTool implements IToolImpl {
 			}
 
 			// Now get usages using the found symbol location
-			progress(({ kind: 'text', value: 'Getting references, definitions, and implementations...' }));
+			progress({ message: 'Getting references, definitions, and implementations...' });
 			
 			const modelReference = await this.textModelService.createModelReference(symbolLocation.uri);
 			try {
@@ -155,7 +157,7 @@ export class ListCodeUsagesTool implements IToolImpl {
 
 				return {
 					content: [{
-						kind: 'markdownContent',
+						kind: 'text',
 						value: resultText
 					}]
 				};
