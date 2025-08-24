@@ -153,6 +153,10 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		}
 	}
 
+	protected revealRangeInCenter({ editor }: IQuickAccessTextEditorContext, range: IRange): void {
+		editor.revealRangeInCenter(range, ScrollType.Smooth);
+	}
+
 	protected getModel(editor: IEditor | IDiffEditor): ITextModel | undefined {
 		return isDiffEditor(editor) ?
 			editor.getModel()?.modified :

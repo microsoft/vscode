@@ -406,6 +406,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.off', "No editor group is resized when double clicking on a tab.")
 				]
 			},
+			'workbench.editor.goToLineRevealBehavior': {
+				'type': 'string',
+				'enum': ['always', 'submitOnly'],
+				'default': 'always',
+				'description': localize('workbench.editor.goToLineRevealBehavior', "Controls the line revealing behavior of 'Go to Line' quick access."),
+				'enumDescriptions': [
+					localize('workbench.editor.goToLineRevealBehavior.always', "Reveal line as soon as a line number is entered."),
+					localize('workbench.editor.goToLineRevealBehavior.submitOnly', "Reveal line only on submit.")
+				]
+			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
 				'default': false,
