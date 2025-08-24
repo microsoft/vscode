@@ -1,0 +1,27 @@
+{
+  "name": "erdos-supervisor",
+  "displayName": "Erdos Supervisor",
+  "description": "Supervisor service for Erdos extensions",
+  "version": "0.0.1",
+  "publisher": "erdos",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {},
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.95.0",
+    "typescript": "^4.9.4"
+  }
+}

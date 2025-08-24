@@ -188,6 +188,15 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IMcpManagementService, McpManagementService, InstantiationType.Delayed);
 
+// Erdos service registrations
+import { IRuntimeStartupService } from './services/runtimeStartup/common/runtimeStartupService.js';
+import { ErdosRuntimeStartupService } from './services/runtimeStartup/browser/erdosRuntimeStartupService.js';
+import { IAllowedMcpServersService } from '../platform/mcp/common/mcpManagement.js';
+import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServersService.js';
+
+registerSingleton(IRuntimeStartupService, ErdosRuntimeStartupService, InstantiationType.Delayed);
+registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
+
 //#endregion
 
 
@@ -494,7 +503,7 @@ import './contrib/erdosKeybindings/browser/erdosKeybindings.contribution.js';
 // Workbench services
 import './services/languageRuntime/common/languageRuntime.js';
 import './services/runtimeSession/common/runtimeSession.js';
-import './services/runtimeStartup/common/runtimeStartup.js';
+import './services/runtimeStartup/common/runtimeStartupService.js';
 import './contrib/runtimeNotebookKernel/browser/runtimeNotebookKernelService.js';
 import './services/erdosConsole/browser/erdosConsoleService.js';
 
