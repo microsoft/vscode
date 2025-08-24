@@ -292,9 +292,9 @@ export const languageModelExtensionPoint = ExtensionsRegistry.registerExtensionP
 			}
 		]
 	},
-	activationEventsGenerator: (contribs: IUserFriendlyLanguageModel[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs: readonly IUserFriendlyLanguageModel[]) {
 		for (const contrib of contribs) {
-			result.push(`onLanguageModelChat:${contrib.vendor}`);
+			yield `onLanguageModelChat:${contrib.vendor}`;
 		}
 	}
 });
