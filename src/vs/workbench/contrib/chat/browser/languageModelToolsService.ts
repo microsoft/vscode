@@ -143,11 +143,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	flushToolChanges(): void {
-		this._onDidChangeToolsScheduler.cancel();
-		this._onDidChangeTools.fire();
-	}
-
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
 		const entry = this._tools.get(id);
 		if (!entry) {

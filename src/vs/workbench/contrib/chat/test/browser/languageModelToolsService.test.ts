@@ -1277,34 +1277,6 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 	});
 
-	test('flushToolChanges immediately fires event', () => {
-		let eventCount = 0;
-		const disposable = service.onDidChangeTools(() => {
-			eventCount++;
-		});
-		store.add(disposable);
-
-		// Register a tool (will schedule event) - this may fire immediately in tests
-		const toolData: IToolData = {
-			id: 'flushTool',
-			modelDescription: 'Flush Tool',
-			displayName: 'Flush Tool',
-			source: ToolDataSource.Internal,
-		};
-		store.add(service.registerToolData(toolData));
-
-		// Reset count to test flush behavior
-		const initialCount = eventCount;
-
-		// Flush should immediately fire
-		service.flushToolChanges();
-		assert.strictEqual(eventCount, initialCount + 1, 'flush should fire event');
-
-		// Second flush should not fire again (no new changes)
-		service.flushToolChanges();
-		assert.strictEqual(eventCount, initialCount + 1, 'second flush should not fire again');
-	});
-
 	test('toToolAndToolSetEnablementMap with undefined enables all', () => {
 		const tool1 = {
 			id: 'tool1',
