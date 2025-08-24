@@ -2944,38 +2944,29 @@ export class CommandCenter {
 					}
 
 					const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
-					if (mainRepository && item.refName && item.refName === mainRepository.HEAD?.name) {
+					if (mainRepository && item.refName && item.refName.replace(`${item.refRemote}/`, '') === mainRepository.HEAD?.name) {
 						const message = l10n.t('Branch "{0}" is already checked out in the current repository.', item.refName);
-						const createBranch = l10n.t('Create New Branch');
-						const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
-
-						if (pick === createBranch) {
-							await this._branch(repository, undefined, false, mainRepository.HEAD?.name);
-						} else {
-							return false;
-						}
-					} else {
-						this.handleWorktreeBranchAlreadyUsed(err);
+						await window.showErrorMessage(message, { modal: true });
 						return false;
 					}
+					this.handleWorktreeBranchAlreadyUsed(err);
+					return false;
 				}
 
-				if (err.gitErrorCode === GitErrorCodes.DirtyWorkTree) {
-					const stash = l10n.t('Stash & Checkout');
-					const migrate = l10n.t('Migrate Changes');
-					const force = l10n.t('Force Checkout');
-					const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
+				const stash = l10n.t('Stash & Checkout');
+				const migrate = l10n.t('Migrate Changes');
+				const force = l10n.t('Force Checkout');
+				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
 
-					if (choice === force) {
-						await this.cleanAll(repository);
+				if (choice === force) {
+					await this.cleanAll(repository);
+					await item.run(repository, opts);
+				} else if (choice === stash || choice === migrate) {
+					if (await this._stash(repository, true)) {
 						await item.run(repository, opts);
-					} else if (choice === stash || choice === migrate) {
-						if (await this._stash(repository, true)) {
-							await item.run(repository, opts);
 
-							if (choice === migrate) {
-								await this.stashPopLatest(repository);
-							}
+						if (choice === migrate) {
+							await this.stashPopLatest(repository);
 						}
 					}
 				}
