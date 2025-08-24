@@ -3460,12 +3460,6 @@ export class CommandCenter {
 		await worktreeRepository.createStash(undefined, true);
 		const stashes = await worktreeRepository.getStashes();
 
-		if (stashes.length === 0) {
-			const message = l10n.t('Failed to migrate worktree changes.');
-			await window.showErrorMessage(message);
-			return;
-		}
-
 		try {
 			await repository.applyStash(stashes[0].index);
 		} catch (err) {
