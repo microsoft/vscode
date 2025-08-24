@@ -23,7 +23,7 @@ import * as nls from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService, IFileStatWithPartialMetadata } from '../../../../platform/files/common/files.js';
-import { IMarkerService } from '../../../../platform/markers/common/markers.js';
+import { IMarkerData, IMarkerService } from '../../../../platform/markers/common/markers.js';
 import { IProgressOptions, IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -2424,6 +2424,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return this._workspaceTasksPromise;
 		}
 		return this._updateWorkspaceTasks(runSource);
+	}
+
+	public getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined {
+		return this._taskSystem?.getTaskProblems(instanceId);
 	}
 
 	private _updateWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, IWorkspaceFolderTaskResult>> {

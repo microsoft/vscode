@@ -232,11 +232,8 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 			localize('mcp.welcome.descriptionWithLink', "Extend agent mode by installing MCP servers to bring extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
 			{ isTrusted: true }
 		), {
-			actionHandler: {
-				callback: (content: string) => {
-					this.openerService.open(URI.parse(content));
-				},
-				disposables: this._store
+			actionHandler: (content: string) => {
+				this.openerService.open(URI.parse(content));
 			}
 		}));
 		description.appendChild(markdownResult.element);

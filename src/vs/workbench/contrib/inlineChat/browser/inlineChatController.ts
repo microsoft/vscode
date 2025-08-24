@@ -27,7 +27,7 @@ import { IPosition, Position } from '../../../../editor/common/core/position.js'
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection, Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
-import { TextEdit } from '../../../../editor/common/languages.js';
+import { TextEdit, VersionedExtensionId } from '../../../../editor/common/languages.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { DefaultModelSHA1Computer } from '../../../../editor/common/services/modelService.js';
@@ -51,7 +51,7 @@ import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLIN
 import { HunkInformation, Session, StashedSession } from './inlineChatSession.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatError } from './inlineChatSessionServiceImpl.js';
-import { HunkAction, IEditObserver, LiveStrategy, ProgressingEditsOptions } from './inlineChatStrategies.js';
+import { HunkAction, IEditObserver, IInlineChatMetadata, LiveStrategy, ProgressingEditsOptions } from './inlineChatStrategies.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
@@ -1036,11 +1036,21 @@ export class InlineChatController1 implements IEditorContribution {
 			stop: () => this._session!.hunkData.ignoreTextModelNChanges = false,
 		};
 
+		const metadata = this._getMetadata();
 		if (opts) {
-			await this._strategy.makeProgressiveChanges(editOperations, editsObserver, opts, undoStopBefore);
+			await this._strategy.makeProgressiveChanges(editOperations, editsObserver, opts, undoStopBefore, metadata);
 		} else {
-			await this._strategy.makeChanges(editOperations, editsObserver, undoStopBefore);
+			await this._strategy.makeChanges(editOperations, editsObserver, undoStopBefore, metadata);
 		}
+	}
+
+	private _getMetadata(): IInlineChatMetadata {
+		const lastRequest = this._session?.chatModel.lastRequest;
+		return {
+			extensionId: VersionedExtensionId.tryCreate(this._session?.agent.extensionId.value, this._session?.agent.extensionVersion),
+			modelId: lastRequest?.modelId,
+			requestId: lastRequest?.id,
+		};
 	}
 
 	private _updatePlaceholder(): void {

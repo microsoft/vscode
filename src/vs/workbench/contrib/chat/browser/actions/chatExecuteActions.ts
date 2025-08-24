@@ -200,6 +200,20 @@ export interface IToggleChatModeArgs {
 	modeId: ChatModeKind | string;
 }
 
+type ChatModeChangeClassification = {
+	owner: 'digitarald';
+	comment: 'Reporting when Chat mode is switched between different modes';
+	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat mode' };
+	toMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat mode' };
+	requestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of requests in the current chat session'; 'isMeasurement': true };
+};
+
+type ChatModeChangeEvent = {
+	fromMode: string;
+	toMode: string;
+	requestCount: number;
+};
+
 class ToggleChatModeAction extends Action2 {
 
 	static readonly ID = ToggleAgentModeActionId;
@@ -235,6 +249,7 @@ class ToggleChatModeAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const instaService = accessor.get(IInstantiationService);
 		const modeService = accessor.get(IChatModeService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		const context = getEditingSessionContext(accessor, args);
 		if (!context?.chatWidget) {
@@ -246,7 +261,8 @@ class ToggleChatModeAction extends Action2 {
 		const requestCount = chatSession?.getRequests().length ?? 0;
 		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(context.chatWidget, requestCount, configurationService, modeService);
 
-		if (switchToMode.id === context.chatWidget.input.currentModeObs.get().id) {
+		const currentMode = context.chatWidget.input.currentModeObs.get();
+		if (switchToMode.id === currentMode.id) {
 			return;
 		}
 
@@ -254,6 +270,13 @@ class ToggleChatModeAction extends Action2 {
 		if (!chatModeCheck) {
 			return;
 		}
+
+		// Send telemetry for mode change
+		telemetryService.publicLog2<ChatModeChangeEvent, ChatModeChangeClassification>('chat.modeChange', {
+			fromMode: currentMode.id,
+			toMode: switchToMode.id,
+			requestCount: requestCount
+		});
 
 		context.chatWidget.input.setChatMode(switchToMode.id);
 
@@ -479,7 +502,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
 			whenNotInProgress,
 			ChatContextKeys.remoteJobCreating.negate(),
 		);
@@ -524,21 +546,25 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (!session) {
 				return;
 			}
-
-
 			const chatModel = widget.viewModel?.model;
 			if (!chatModel) {
 				return;
 			}
 
-			const userPrompt = widget.getInput();
+			const chatRequests = chatModel.getRequests();
+			let userPrompt = widget.getInput();
 			if (!userPrompt) {
-				return;
+
+				if (!chatRequests.length) {
+					// Nothing to do
+					return;
+				}
+
+				userPrompt = 'implement this.';
 			}
 
 			widget.input.acceptInput(true);
 
-			const chatRequests = chatModel.getRequests();
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 
 			// Complete implementation of adding request back into chat stream

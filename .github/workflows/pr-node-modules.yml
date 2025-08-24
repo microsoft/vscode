@@ -128,7 +128,7 @@ jobs:
             echo "Npm install failed $i, trying again..."
           done
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'

@@ -60,8 +60,3 @@ export namespace ChatAgentLocation {
 		return ChatAgentLocation.Panel;
 	}
 }
-
-export const chatAutoApproveEditsDefaultConfiguration = {
-	'**/*': true,
-	'**/.vscode/*.json': false,
-};

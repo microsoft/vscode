@@ -183,6 +183,8 @@ declare module 'vscode' {
 		isQuotaExceeded?: boolean;
 
 		level?: ChatErrorLevel;
+
+		code?: string;
 	}
 
 	export namespace chat {

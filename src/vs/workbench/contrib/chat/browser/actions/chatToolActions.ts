@@ -5,6 +5,7 @@
 
 import { $ } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -19,7 +20,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatToolInvocation } from '../../common/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
@@ -66,9 +67,9 @@ class AcceptToolConfirmation extends Action2 {
 			return;
 		}
 
-		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && !item.isConfirmed);
+		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && item.isConfirmed === undefined);
 		if (unconfirmedToolInvocation) {
-			unconfirmedToolInvocation.confirmed.complete(true);
+			unconfirmedToolInvocation.confirmed.complete({ type: ToolConfirmKind.UserAction });
 		}
 
 		// Return focus to the chat input, in case it was in the tool confirmation editor
@@ -153,9 +154,10 @@ class ConfigureToolsAction extends Action2 {
 			widget.input.selectedToolsModel.set(result, false);
 		}
 
+		const tools = widget.input.selectedToolsModel.entriesMap.get();
 		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
-			total: widget.input.selectedToolsModel.entriesMap.get().size,
-			enabled: widget.input.selectedToolsModel.entries.get().size,
+			total: tools.size,
+			enabled: Iterable.reduce(tools, (prev, [_, enabled]) => enabled ? prev + 1 : prev, 0),
 		});
 	}
 }
