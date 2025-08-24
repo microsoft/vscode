@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Separator } from '../../../../base/common/actions.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { localize } from '../../../../nls.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
-import { IChatExtensionsContent, IChatToolInputInvocationData, IChatTodoListContent, type IChatTerminalToolInvocationData } from './chatService.js';
-import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { derived, IObservable, IReader, ITransaction, ObservableSet } from '../../../../base/common/observable.js';
-import { Iterable } from '../../../../base/common/iterator.js';
-import { localize } from '../../../../nls.js';
+import { IChatExtensionsContent, IChatTodoListContent, IChatToolInputInvocationData, type IChatTerminalToolInvocationData } from './chatService.js';
 import { LanguageModelPartAudience } from './languageModels.js';
-import { Separator } from '../../../../base/common/actions.js';
+import { PromptElementJSON, stringifyPromptElementJSON } from './tools/promptTsxTypes.js';
 
 export interface IToolData {
 	id: string;
@@ -298,6 +298,7 @@ export interface ILanguageModelToolsService {
 	onDidChangeTools: Event<void>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
+	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
 	flushToolChanges(): void;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
