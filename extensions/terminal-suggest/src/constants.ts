@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const upstreamSpecs = [
-	'apt',
 	'basename',
-	'brew',
 	'cat',
 	'chmod',
 	'chown',
@@ -44,7 +42,6 @@ export const upstreamSpecs = [
 	'more',
 	'mount',
 	'mv',
-	'nano',
 	'nl',
 	'od',
 	'passwd',
@@ -64,7 +61,6 @@ export const upstreamSpecs = [
 	'sort',
 	'source',
 	'split',
-	'ssh',
 	'stat',
 	'su',
 	'sudo',
@@ -92,14 +88,47 @@ export const upstreamSpecs = [
 	'xxd',
 	'zip',
 
+	// OS package management
+	'apt',
+	'brew',
+
+	// Editors
+	'nano',
+	'vim',
+
+	// Shells
+	'ssh',
+
+	// Android
+	'adb',
+
+	// Docker
+	'docker',
+	'docker-compose',
+
+	// Dotnet
+	'dotnet',
+
+	// Go
+	'go',
+
+	// JavaScript / TypeScript
+	'node',
 	'npm',
+	'nvm',
+	'pnpm',
 	'yarn',
+	'yo',
+
+	// Python
+	'pip',
 	'python',
 	'python3',
-	'pnpm',
-	'node',
-	'nvm',
-	'vim',
+	'ruff',
+
+	// Ruby
+	'bundle',
+	'ruby',
 ];
 
 

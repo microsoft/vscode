@@ -20,6 +20,18 @@ const indentSearch = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5,
 const indentReplaceValue = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(e => '\t'.repeat(e));
 
 const specSpecificReplaceStrings = new Map([
+	['docker', [
+		[
+			'console.error(error);',
+			'console.error(error); return null!;'
+		]
+	]],
+	['dotnet', [
+		[
+			'.match(argRegex)',
+			'.match(argRegex)!'
+		]
+	]],
 	['git', [
 		[
 			'import { ai } from "@fig/autocomplete-generators";',

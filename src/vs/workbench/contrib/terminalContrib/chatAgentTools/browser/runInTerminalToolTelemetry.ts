@@ -423,6 +423,7 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'p4',
 
 	// Devtools, languages, package manager
+	'adb',
 	'ansible',
 	'apk',
 	'apt-get',
