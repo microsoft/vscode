@@ -22,6 +22,7 @@ import { IChatModel } from '../../common/chatModel.js';
 import { IChatService, IChatToolInputInvocationData } from '../../common/chatService.js';
 import { IToolData, IToolImpl, IToolInvocation, ToolDataSource } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -1268,7 +1269,7 @@ suite('LanguageModelToolsService', () => {
 		// Change the correct configuration key
 		configurationService.setUserConfiguration('chat.extensionTools.enabled', false);
 		// Fire the configuration change event manually
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set(['chat.extensionTools.enabled']) } as any as IConfigurationChangeEvent);
 
 		// Wait a bit for the scheduler
 		await new Promise(resolve => setTimeout(resolve, 800));

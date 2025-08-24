@@ -383,7 +383,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		} finally {
 			toolInvocation?.complete(toolResult);
 
-			if (requestId && store) {
+			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
 		}
@@ -489,17 +489,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {
-		const disposables = this._callsByRequestId.get(requestId);
-		if (disposables) {
-			const index = disposables.findIndex(d => d.store === store);
-			if (index > -1) {
-				disposables.splice(index, 1);
-			}
-			if (disposables.length === 0) {
-				this._callsByRequestId.delete(requestId);
+	private cleanupCallDisposables(requestId: string | undefined, store: DisposableStore): void {
+		if (requestId) {
+			const disposables = this._callsByRequestId.get(requestId);
+			if (disposables) {
+				const index = disposables.findIndex(d => d.store === store);
+				if (index > -1) {
+					disposables.splice(index, 1);
+				}
+				if (disposables.length === 0) {
+					this._callsByRequestId.delete(requestId);
+				}
 			}
 		}
+
 		store.dispose();
 	}
 
