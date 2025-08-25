@@ -46,6 +46,10 @@ suite('ChatTodoListWidget Accessibility', () => {
 		assert.ok(todoListContainer, 'Should have todo list container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
 
+		const titleElement = widget.domNode.querySelector('#todo-list-title');
+		assert.ok(titleElement, 'Should have title element with ID todo-list-title');
+		assert.ok(titleElement?.textContent?.includes('Todos'));
+
 		const todoList = todoListContainer?.querySelector('ul.todo-list');
 		assert.ok(todoList, 'Should have UL element for list');
 		assert.strictEqual(todoList?.getAttribute('role'), 'list');
@@ -87,16 +91,21 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('expand button has proper accessibility attributes', () => {
-		const expandButton = widget.domNode.querySelector('.todo-list-expand');
-		assert.ok(expandButton, 'Should have expand button');
-		assert.strictEqual(expandButton?.getAttribute('role'), 'button');
-		assert.strictEqual(expandButton?.getAttribute('tabindex'), '0');
-		assert.strictEqual(expandButton?.getAttribute('aria-expanded'), 'true');
-		assert.strictEqual(expandButton?.getAttribute('aria-controls'), 'todo-list-container');
-		assert.ok(expandButton?.getAttribute('aria-label')?.includes('Toggle todo list visibility'));
-	});
+		widget.render('test-session');
 
-	test('hidden status text elements exist for screen readers', () => {
+		// The titleSection now has the accessibility attributes instead of the expand button
+		const titleSection = widget.domNode.querySelector('.todo-list-title-section');
+		assert.ok(titleSection, 'Should have title section');
+		assert.strictEqual(titleSection?.getAttribute('role'), 'button');
+		assert.strictEqual(titleSection?.getAttribute('tabindex'), '0');
+		assert.strictEqual(titleSection?.getAttribute('aria-expanded'), 'false'); // Should be collapsed due to in-progress task
+		assert.strictEqual(titleSection?.getAttribute('aria-controls'), 'todo-list-container');
+
+		// The aria-label should now include progress information, not just "Toggle todo list visibility"
+		const ariaLabel = titleSection?.getAttribute('aria-label');
+		assert.ok(ariaLabel?.includes('Todos (1/3)'), `Title section aria-label should include progress, but got: "${ariaLabel}"`);
+		assert.ok(ariaLabel?.includes('Expand'), `Title section aria-label should include "Expand", but got: "${ariaLabel}"`);
+	}); test('hidden status text elements exist for screen readers', () => {
 		widget.render('test-session');
 
 		const statusElements = widget.domNode.querySelectorAll('.todo-status-text');
@@ -137,5 +146,21 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const clearButton = widget.domNode.querySelector('.todo-clear-button-container .monaco-button');
 		assert.ok(clearButton, 'Should have clear button');
 		assert.strictEqual(clearButton?.getAttribute('tabindex'), '0', 'Clear button should be focusable');
+	});
+
+	test('title element displays progress correctly and is accessible', () => {
+		widget.render('test-session');
+
+		const titleElement = widget.domNode.querySelector('#todo-list-title');
+		assert.ok(titleElement, 'Should have title element with ID');
+
+		// Title should show progress format: "Todos (1/3)" since one todo is in-progress
+		// When collapsed, it also shows the current task: "Todos (1/3) - Second task"
+		const titleText = titleElement?.textContent;
+		assert.ok(titleText?.includes('Todos (1/3)'), `Title should show progress format, but got: "${titleText}"`);
+
+		// Verify aria-labelledby connection works
+		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
+		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
 	});
 });

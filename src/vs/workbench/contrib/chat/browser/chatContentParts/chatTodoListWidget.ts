@@ -47,7 +47,6 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandoElement.setAttribute('aria-expanded', 'true');
 		this.expandoElement.setAttribute('tabindex', '0');
 		this.expandoElement.setAttribute('aria-controls', 'todo-list-container');
-		this.expandoElement.setAttribute('aria-label', localize('chat.todoList.expandButton', 'Toggle todo list visibility'));
 
 		// Create title section to group icon and title
 		const titleSection = dom.$('.todo-list-title-section');
@@ -365,6 +364,10 @@ export class ChatTodoListWidget extends Disposable {
 			progressText.textContent = localize('chat.todoList.titleWithProgress', 'Todos ({0}/{1})', completedCount, totalCount);
 		}
 		titleElement.appendChild(progressText);
+		const expandButtonLabel = this._isExpanded
+			? localize('chat.todoList.collapseButtonWithProgress', 'Collapse {0}', progressText.textContent)
+			: localize('chat.todoList.expandButtonWithProgress', 'Expand {0}', progressText.textContent);
+		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
 
 		if (!this._isExpanded) {
 			let currentTodo: IChatTodo | undefined;
