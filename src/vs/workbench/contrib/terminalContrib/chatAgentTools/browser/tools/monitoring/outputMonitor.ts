@@ -82,7 +82,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		invocationContext: IToolInvocationContext,
 		token: CancellationToken
 	): Promise<void> {
-		await Promise.resolve();
+		await timeout(0);
 
 		const pollStartTime = Date.now();
 		let extended = false;
