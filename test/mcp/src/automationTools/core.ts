@@ -5,44 +5,45 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Application } from '../../../automation';
-import { z } from 'zod';
 
 /**
  * Core Application Management Tools
  */
 export function applyCoreTools(server: McpServer, app: Application) {
-	server.tool(
-		'vscode_automation_restart',
-		'Restart VS Code with optional workspace or folder and extra arguments',
-		{
-			workspaceOrFolder: z.string().optional().describe('Optional path to workspace or folder to open'),
-			extraArgs: z.array(z.string()).optional().describe('Optional extra command line arguments')
-		},
-		async (args) => {
-			const { workspaceOrFolder, extraArgs } = args;
-			await app.restart({ workspaceOrFolder, extraArgs });
-			return {
-				content: [{
-					type: 'text' as const,
-					text: `VS Code restarted successfully${workspaceOrFolder ? ` with workspace: ${workspaceOrFolder}` : ''}`
-				}]
-			};
-		}
-	);
+	// Playwright keeps using this as a start... maybe it needs some massaging
+	// server.tool(
+	// 	'vscode_automation_restart',
+	// 	'Restart VS Code with optional workspace or folder and extra arguments',
+	// 	{
+	// 		workspaceOrFolder: z.string().optional().describe('Optional path to workspace or folder to open'),
+	// 		extraArgs: z.array(z.string()).optional().describe('Optional extra command line arguments')
+	// 	},
+	// 	async (args) => {
+	// 		const { workspaceOrFolder, extraArgs } = args;
+	// 		await app.restart({ workspaceOrFolder, extraArgs });
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: `VS Code restarted successfully${workspaceOrFolder ? ` with workspace: ${workspaceOrFolder}` : ''}`
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
-	server.tool(
-		'vscode_automation_stop',
-		'Stop the VS Code application',
-		async () => {
-			await app.stop();
-			return {
-				content: [{
-					type: 'text' as const,
-					text: 'VS Code stopped successfully'
-				}]
-			};
-		}
-	);
+	// I don't think Playwright needs this
+	// server.tool(
+	// 	'vscode_automation_stop',
+	// 	'Stop the VS Code application',
+	// 	async () => {
+	// 		await app.stop();
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: 'VS Code stopped successfully'
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
 	// This doesn't seem particularly useful
 	// server.tool(
