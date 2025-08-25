@@ -190,9 +190,15 @@
 
 body.issue-reporter-body  {
 	margin: 0;
-	overflow-y: auto;
 	height: 100%;
+	overflow: hidden;
 	background-color: var(--vscode-editor-background)
+}
+
+/* Make the auxiliary window container scrollable while preserving its height:100% for dropdown positioning */
+.issue-reporter-body .monaco-workbench {
+	height: 100%;
+	overflow: auto;
 }
 
 .issue-reporter-body .hidden {

@@ -100,9 +100,22 @@ export class IssueFormService implements IIssueFormService {
 
 			// Reuse the provided auxiliary window container to preserve its inline layout styles (specifically height:100%)
 			// see: https://github.com/microsoft/vscode/blob/main/src/vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.ts#L525-L527
-			const container = auxiliaryWindow.container;
-			container.classList.add('monaco-workbench');
-			safeSetInnerHtml(container, BaseHtml(), {
+			// const container = auxiliaryWindow.container;
+			// container.classList.add('monaco-workbench');
+			// safeSetInnerHtml(container, BaseHtml(), {
+
+			// custom issue reporter wrapper that preserves critical auxiliary window container styles
+			const div = document.createElement('div');
+			div.classList.add('monaco-workbench');
+
+			// Copy only the most critical styles for dropdown positioning
+			div.style.height = '100%';
+			div.style.position = 'relative';
+
+			// removes preset monaco-workbench container
+			auxiliaryWindow.container.remove();
+			auxiliaryWindow.window.document.body.appendChild(div);
+			safeSetInnerHtml(div, BaseHtml(), {
 				// Also allow input elements
 				allowedTags: {
 					augment: [
