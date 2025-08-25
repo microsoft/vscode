@@ -3407,6 +3407,77 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.migrateWorktreeChanges', { repository: true, repositoryFilter: ['repository', 'submodule'] })
+	async migrateWorktreeChanges(repository: Repository): Promise<void> {
+		const worktreePicks = async (): Promise<WorktreeItem[] | QuickPickItem[]> => {
+			const worktrees = await repository.getWorktrees();
+			return worktrees.length === 0
+				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
+				: worktrees.map(worktree => new WorktreeItem(worktree));
+		};
+
+		const placeHolder = l10n.t('Select a worktree to migrate changes from');
+		const choice = await this.pickRef<WorktreeItem | QuickPickItem>(worktreePicks(), placeHolder);
+
+		if (!choice || !(choice instanceof WorktreeItem)) {
+			return;
+		}
+
+		const worktreeRepository = this.model.getRepository(choice.worktree.path);
+		if (!worktreeRepository) {
+			return;
+		}
+
+		if (worktreeRepository.indexGroup.resourceStates.length === 0 &&
+			worktreeRepository.workingTreeGroup.resourceStates.length === 0 &&
+			worktreeRepository.untrackedGroup.resourceStates.length === 0) {
+			await window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
+			return;
+		}
+
+		const worktreeChangedFilePaths = [
+			...worktreeRepository.indexGroup.resourceStates,
+			...worktreeRepository.workingTreeGroup.resourceStates,
+			...worktreeRepository.untrackedGroup.resourceStates
+		].map(resource => path.relative(worktreeRepository.root, resource.resourceUri.fsPath));
+
+		const targetChangedFilePaths = [
+			...repository.workingTreeGroup.resourceStates,
+			...repository.untrackedGroup.resourceStates
+		].map(resource => path.relative(repository.root, resource.resourceUri.fsPath));
+
+		// Detect overlapping unstaged files in worktree stash and target repository
+		const conflicts = worktreeChangedFilePaths.filter(path => targetChangedFilePaths.includes(path));
+
+		// Check for 'LocalChangesOverwritten' error
+		if (conflicts.length > 0) {
+			const fileList = conflicts.join('\n ');
+			const message = l10n.t('Your local changes to the following files would be overwritten by merge:\n {0}\n\nPlease stage, commit, or stash your changes in the repository before migrating changes.', fileList);
+			await window.showErrorMessage(message, { modal: true });
+			return;
+		}
+
+		await worktreeRepository.createStash(undefined, true);
+		const stashes = await worktreeRepository.getStashes();
+
+		try {
+			await repository.applyStash(stashes[0].index);
+			worktreeRepository.dropStash(stashes[0].index);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.StashConflict) {
+				await worktreeRepository.popStash();
+				throw err;
+			}
+			const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
+			const show = l10n.t('Show Changes');
+			const choice = await window.showWarningMessage(message, show);
+			if (choice === show) {
+				await commands.executeCommand('workbench.view.scm');
+			}
+			worktreeRepository.dropStash(stashes[0].index);
+		}
+	}
+
 	@command('git.createWorktree')
 	async createWorktree(repository: any): Promise<void> {
 		repository = this.model.getRepository(repository);

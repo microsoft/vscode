@@ -552,6 +552,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.migrateWorktreeChanges",
+        "title": "%command.migrateWorktreeChanges%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.createWorktree",
         "title": "%command.createWorktree%",
         "category": "Git",
@@ -1325,6 +1331,10 @@
         },
         {
           "command": "git.deleteTag",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.migrateWorktreeChanges",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
