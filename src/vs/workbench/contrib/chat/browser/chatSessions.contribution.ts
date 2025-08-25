@@ -347,7 +347,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isDefault: false,
 			isCore: false,
 			isDynamic: true,
-			isCodingAgent: true, // TODO: Influences chat UI (eg: locks chat to participant, hides UX elements, etc...)
 			slashCommands: [],
 			locations: [ChatAgentLocation.Panel],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask], // TODO: These are no longer respected
