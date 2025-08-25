@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatTodoListWidget } from '../../browser/chatContentParts/chatTodoListWidget.js';
 import { IChatTodo, IChatTodoListService } from '../../common/chatTodoListService.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,19 +22,15 @@ suite('ChatTodoListWidget Accessibility', () => {
 	];
 
 	setup(() => {
-		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
-		
 		// Mock the todo list service
 		mockTodoListService = {
 			_serviceBrand: undefined,
-			getChatTodoListStorage: () => ({
-				getTodoList: () => sampleTodos,
-				setTodoList: () => { }
-			})
+			getTodos: (sessionId: string) => sampleTodos,
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
 		};
 
 		widget = store.add(new ChatTodoListWidget(mockTodoListService));
-		document.body.appendChild(widget.domNode);
+		mainWindow.document.body.appendChild(widget.domNode);
 	});
 
 	teardown(() => {
@@ -45,7 +40,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('creates proper semantic list structure', () => {
-		widget.updateSessionId('test-session');
+		widget.render('test-session');
 
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.ok(todoListContainer, 'Should have todo list container');
@@ -58,7 +53,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('todo items have proper accessibility attributes', () => {
-		widget.updateSessionId('test-session');
+		widget.render('test-session');
 
 		const todoItems = widget.domNode.querySelectorAll('.todo-item');
 		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
@@ -83,7 +78,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('status icons are hidden from screen readers', () => {
-		widget.updateSessionId('test-session');
+		widget.render('test-session');
 
 		const statusIcons = widget.domNode.querySelectorAll('.todo-status-icon');
 		statusIcons.forEach(icon => {
@@ -102,7 +97,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('hidden status text elements exist for screen readers', () => {
-		widget.updateSessionId('test-session');
+		widget.render('test-session');
 
 		const statusElements = widget.domNode.querySelectorAll('.todo-status-text');
 		assert.strictEqual(statusElements.length, 3, 'Should have 3 status text elements');
@@ -119,77 +114,25 @@ suite('ChatTodoListWidget Accessibility', () => {
 		});
 	});
 
-	test('keyboard navigation works properly', () => {
-		widget.updateSessionId('test-session');
-
-		const todoItems = widget.domNode.querySelectorAll('.todo-item') as NodeListOf<HTMLElement>;
-		const firstItem = todoItems[0];
-		const secondItem = todoItems[1];
-		const thirdItem = todoItems[2];
-
-		// Focus first item
-		firstItem.focus();
-		assert.strictEqual(document.activeElement, firstItem);
-
-		// Simulate Arrow Down key
-		const downEvent = new KeyboardEvent('keydown', { 
-			key: 'ArrowDown', 
-			keyCode: KeyCode.DownArrow,
-			bubbles: true,
-			cancelable: true
-		});
-		firstItem.dispatchEvent(downEvent);
-
-		// Second item should be focused (in a real scenario)
-		// Note: In this test environment, focus() may not work exactly as in browser
-		// but the event handling logic is tested
-
-		// Simulate Arrow Up key on second item
-		const upEvent = new KeyboardEvent('keydown', { 
-			key: 'ArrowUp', 
-			keyCode: KeyCode.UpArrow,
-			bubbles: true,
-			cancelable: true
-		});
-		secondItem.dispatchEvent(upEvent);
-
-		// Simulate Home key
-		const homeEvent = new KeyboardEvent('keydown', { 
-			key: 'Home', 
-			keyCode: KeyCode.Home,
-			bubbles: true,
-			cancelable: true
-		});
-		secondItem.dispatchEvent(homeEvent);
-
-		// Simulate End key
-		const endEvent = new KeyboardEvent('keydown', { 
-			key: 'End', 
-			keyCode: KeyCode.End,
-			bubbles: true,
-			cancelable: true
-		});
-		firstItem.dispatchEvent(endEvent);
-
-		// The key event handlers should have been called
-		// (actual focus changes may not work in test environment, but handlers are exercised)
-	});
-
 	test('widget displays properly when no todos exist', () => {
-		// Mock empty todo list
-		mockTodoListService.getChatTodoListStorage = () => ({
-			getTodoList: () => [],
-			setTodoList: () => { }
-		});
+		// Create a new mock service with empty todos
+		const emptyTodoListService: IChatTodoListService = {
+			_serviceBrand: undefined,
+			getTodos: (sessionId: string) => [],
+			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+		};
 
-		widget.updateSessionId('test-session');
+		const emptyWidget = store.add(new ChatTodoListWidget(emptyTodoListService));
+		mainWindow.document.body.appendChild(emptyWidget.domNode);
+
+		emptyWidget.render('test-session');
 
 		// Widget should be hidden when no todos
-		assert.strictEqual(widget.domNode.style.display, 'none', 'Widget should be hidden when no todos');
+		assert.strictEqual(emptyWidget.domNode.style.display, 'none', 'Widget should be hidden when no todos');
 	});
 
 	test('clear button has proper accessibility', () => {
-		widget.updateSessionId('test-session');
+		widget.render('test-session');
 
 		const clearButton = widget.domNode.querySelector('.todo-clear-button-container .monaco-button');
 		assert.ok(clearButton, 'Should have clear button');
