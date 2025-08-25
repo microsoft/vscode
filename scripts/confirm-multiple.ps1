@@ -13,3 +13,14 @@ switch ($decision) {
         exit
     }
 }
+$subTitle    = 'Confirmation'
+$subQuestion = 'No pick a color?'
+$subChoices  = '&Blue', '&Red'
+
+$subDecision = $Host.UI.PromptForChoice($subTitle, $subQuestion, $subChoices, 0)
+if ($subDecision -eq 0) {
+    Write-Host "Confirmed. Continuing..." -ForegroundColor Green
+} else {
+    Write-Host "Action aborted by user." -ForegroundColor Red
+    exit
+}

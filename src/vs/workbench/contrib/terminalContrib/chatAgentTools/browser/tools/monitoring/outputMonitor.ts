@@ -27,7 +27,7 @@ export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	readonly outputMonitorTelemetryCounters: IOutputMonitorTelemetryCounters;
 
-	readonly onDidFinishCommand: Event<IPollingResult & { pollDurationMs: number } | undefined>;
+	readonly onDidFinishCommand: Event<void>;
 }
 
 export interface IOutputMonitorTelemetryCounters {
@@ -52,8 +52,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	};
 	get outputMonitorTelemetryCounters(): Readonly<IOutputMonitorTelemetryCounters> { return this._outputMonitorTelemetryCounters; }
 
-	private readonly _onDidFinishCommand = this._register(new Emitter<IPollingResult & { pollDurationMs: number } | undefined>());
-	readonly onDidFinishCommand: Event<IPollingResult & { pollDurationMs: number } | undefined> = this._onDidFinishCommand.event;
+	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
+	readonly onDidFinishCommand: Event<void> = this._onDidFinishCommand.event;
 
 	constructor(
 		private readonly _execution: IExecution,
@@ -205,7 +205,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			resources
 		};
 
-		this._onDidFinishCommand.fire(this._pollingResult);
+		this._onDidFinishCommand.fire();
 	}
 
 
@@ -417,7 +417,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const prompt = confirmationPrompt.prompt;
 		const options = confirmationPrompt.options.map(opt => opt);
-		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
+		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 		], {}, token);
