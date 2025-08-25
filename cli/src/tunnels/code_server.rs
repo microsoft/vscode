@@ -830,7 +830,7 @@ pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
-	let message = &format!("\nOpen this link in your browser {addr}\n");
+	let message = &format!("\nOpen this link in your browser\n {addr}\n");
 	log.result(message);
 }
 
