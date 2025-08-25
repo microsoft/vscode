@@ -1,0 +1,20 @@
+{
+	"displayName": "Erdos Code Cells",
+	"description": "Jupyter-like code cells in Erdos",
+	"erdos.codeCells.command.goToPreviousCell.title": "Go to Previous Cell",
+	"erdos.codeCells.command.goToNextCell.title": "Go to Next Cell",
+	"erdos.codeCells.command.insertCodeCell.title": "Insert Code Cell",
+	"erdos.codeCells.command.runAllCells.title": "Run All Cells",
+	"erdos.codeCells.command.runCellsAbove.title": "Run Cells Above",
+	"erdos.codeCells.command.runCellsBelow.title": "Run Cells Below",
+	"erdos.codeCells.command.runCurrentAdvance.title": "Run Cell and Advance",
+	"erdos.codeCells.command.runCurrentCell.title": "Run Cell",
+	"erdos.codeCells.command.runCurrentAndBelow.title": "Run Cell and Below",
+	"erdos.codeCells.command.runNextCell.title": "Run Next Cell",
+	"erdos.codeCells.command.runPreviousCell.title": "Run Previous Cell",
+	"erdos.codeCells.configuration.title": "Code Cells",
+	"erdos.codeCells.configuration.cellStyle": "Controls the style of code cell decorations. Colors are configurable with the `notebook.selectedCellBackground` and `interactive.activeCodeBorder` theme colors. See https://code.visualstudio.com/api/references/theme-color for more information about the available theme colors and how to override them.",
+	"erdos.codeCells.configuration.cellStyle.border": "Highlight the active cell's border.",
+	"erdos.codeCells.configuration.cellStyle.background": "Highlight the active cell's background.",
+	"erdos.codeCells.configuration.cellStyle.both": "Highlight the active cell's border and background."
+}

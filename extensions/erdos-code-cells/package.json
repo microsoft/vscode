@@ -1,0 +1,223 @@
+{
+  "name": "erdos-code-cells",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "publisher": "positron",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.65.0"
+  },
+  "categories": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "erdos.goToPreviousCell",
+        "title": "%erdos.codeCells.command.goToPreviousCell.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.goToNextCell",
+        "title": "%erdos.codeCells.command.goToNextCell.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.insertCodeCell",
+        "title": "%erdos.codeCells.command.insertCodeCell.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.runAllCells",
+        "title": "%erdos.codeCells.command.runAllCells.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.runCellsAbove",
+        "title": "%erdos.codeCells.command.runCellsAbove.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.runCellsBelow",
+        "title": "%erdos.codeCells.command.runCellsBelow.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.runCurrentAndBelow",
+        "title": "%erdos.codeCells.command.runCurrentAndBelow.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.runCurrentAdvance",
+        "title": "%erdos.codeCells.command.runCurrentAdvance.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.runCurrentCell",
+        "title": "%erdos.codeCells.command.runCurrentCell.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.runNextCell",
+        "title": "%erdos.codeCells.command.runNextCell.title%",
+        "category": "Erdos"
+      },
+      {
+        "command": "erdos.runPreviousCell",
+        "title": "%erdos.codeCells.command.runPreviousCell.title%",
+        "category": "Erdos"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "erdos.goToPreviousCell",
+        "key": "ctrl+pageup",
+        "mac": "cmd+pageup",
+        "when": "editorTextFocus && erdos.hasCodeCells && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "erdos.goToNextCell",
+        "key": "ctrl+pagedown",
+        "mac": "cmd+pagedown",
+        "when": "editorTextFocus && erdos.hasCodeCells && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "erdos.insertCodeCell",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "editorTextFocus && erdos.supportsCodeCells && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "erdos.runAllCells",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorTextFocus && erdos.hasCodeCells && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "erdos.runCellsAbove",
+        "key": "ctrl+shift+alt+p",
+        "mac": "cmd+shift+alt+p",
+        "when": "editorTextFocus && erdos.hasCodeCells && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "erdos.runCellsBelow",
+        "key": "ctrl+shift+alt+n",
+        "mac": "cmd+shift+alt+n",
+        "when": "editorTextFocus && erdos.hasCodeCells && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "erdos.runCurrentAdvance",
+        "key": "shift+enter",
+        "when": "editorTextFocus && erdos.hasCodeCells && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "erdos.runCurrentCell",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && erdos.hasCodeCells && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "erdos.runNextCell",
+        "key": "ctrl+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "editorTextFocus && erdos.hasCodeCells && !findInputFocussed && !replaceInputFocussed"
+      },
+      {
+        "command": "erdos.runPreviousCell",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p",
+        "when": "editorTextFocus && erdos.hasCodeCells && !findInputFocussed && !replaceInputFocussed"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "erdos.goToPreviousCell",
+          "when": "erdos.hasCodeCells"
+        },
+        {
+          "command": "erdos.goToNextCell",
+          "when": "erdos.hasCodeCells"
+        },
+        {
+          "command": "erdos.insertCodeCell",
+          "when": "erdos.supportsCodeCells"
+        },
+        {
+          "command": "erdos.runAllCells",
+          "when": "erdos.hasCodeCells"
+        },
+        {
+          "command": "erdos.runCellsAbove",
+          "when": "erdos.hasCodeCells"
+        },
+        {
+          "command": "erdos.runCellsBelow",
+          "when": "erdos.hasCodeCells"
+        },
+        {
+          "command": "erdos.runCurrentAndBelow",
+          "when": "erdos.hasCodeCells"
+        },
+        {
+          "command": "erdos.runCurrentAdvance",
+          "when": "erdos.hasCodeCells"
+        },
+        {
+          "command": "erdos.runCurrentCell",
+          "when": "erdos.hasCodeCells"
+        },
+        {
+          "command": "erdos.runNextCell",
+          "when": "erdos.hasCodeCells"
+        },
+        {
+          "command": "erdos.runPreviousCell",
+          "when": "erdos.hasCodeCells"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "erdos.insertCodeCell",
+          "when": "erdos.supportsCodeCells"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "%erdos.codeCells.configuration.title%",
+      "properties": {
+        "codeCells.cellStyle": {
+          "type": "string",
+          "default": "background",
+          "enum": [
+            "border",
+            "background",
+            "both"
+          ],
+          "enumDescriptions": [
+            "%erdos.codeCells.configuration.cellStyle.border%",
+            "%erdos.codeCells.configuration.cellStyle.background%",
+            "%erdos.codeCells.configuration.cellStyle.both%"
+          ],
+          "markdownDescription": "%erdos.codeCells.configuration.cellStyle%"
+        }
+      }
+    }
+  },
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/posit-dev/positron"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.4",
+    "@types/node": "^20.9.3"
+  }
+}
