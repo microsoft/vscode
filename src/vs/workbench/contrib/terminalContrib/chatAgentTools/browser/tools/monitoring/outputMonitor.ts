@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../../../base/common/async.js';
+import { raceTimeout, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -80,8 +80,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	): Promise<void> {
 		const pollStartTime = Date.now();
 		let extended = false;
-		let autoReplyCount = 0;
-		let lastObservedLength = this._execution.getOutput().length;
 
 		// Hold a single pending "continue?" prompt across timeout passes
 		let continuePollingDecisionP: Promise<boolean> | undefined;
@@ -91,10 +89,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const polled = await this._pollOnce(this._execution, extended, token, this._pollFn);
 
 			this._state = polled.state;
-
-
-			// Keep track of the last observed length to detect changes after auto-replies
-			lastObservedLength = this._execution.getOutput().length;
 
 			switch (this._state) {
 				case OutputMonitorState.Timeout: {
@@ -163,20 +157,22 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					if (selectedOption) {
 						const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
 						if (confirmed) {
-							autoReplyCount++;
-							const changed = await this._waitForNextDataOrActivityChange(this._execution, lastObservedLength, token);
-							lastObservedLength = this._execution.getOutput().length;
+							const changed = await this._waitForNextDataOrActivityChange();
 							if (!changed) {
 								this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 								break;
+							} else {
+								continue;
 							}
-							continue;
 						}
 					}
 
 					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 					break;
 				}
+			}
+			if (this._state === OutputMonitorState.Idle || this._state === OutputMonitorState.Cancelled || this._state === OutputMonitorState.Timeout) {
+				break;
 			}
 		}
 
@@ -268,35 +264,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 * Waits for any change in output length or activity flip, up to a short cap.
 	 * This prevents immediately re-evaluating the same idle snapshot after sending input.
 	 */
-	private async _waitForNextDataOrActivityChange(
-		execution: IExecution,
-		lastLength: number,
-		token: CancellationToken
-	): Promise<boolean> {
+	private async _waitForNextDataOrActivityChange(): Promise<boolean> {
 		const maxMs = Math.max(PollingConsts.MinPollingDuration * 2, 250);
-		const stepMs = Math.max(PollingConsts.MinPollingDuration / 2, 50);
-		let waited = 0;
-
-		const initialActive = await execution.isActive?.();
-
-		while (!token.isCancellationRequested && waited < maxMs) {
-			await timeout(stepMs, token);
-			waited += stepMs;
-
-			const len = execution.getOutput().length;
-			if (len !== lastLength) {
-				return true;
-			}
-			if (execution.isActive) {
-				const nowActive = await execution.isActive();
-				if (nowActive !== initialActive) {
-					return true;
-				}
-			}
-		}
-		return false;
+		return await raceTimeout(
+			Event.toPromise(this._execution.instance.onData).then(() => true),
+			maxMs,
+			() => false
+		) ?? false;
 	}
-
 	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };

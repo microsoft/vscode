@@ -12,25 +12,29 @@ import { IPollingResult, OutputMonitorState } from '../../browser/tools/monitori
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ChatModel } from '../../../../chat/common/chatModel.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let monitor: OutputMonitor;
-	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText'>; sessionId: string };
+	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData'>; sessionId: string };
 	let cts: CancellationTokenSource;
 	let instantiationService: TestInstantiationService;
 	let sendTextCalled: boolean;
+	let dataEmitter: Emitter<string>;
 
 	setup(() => {
 		sendTextCalled = false;
+		// Create a real event emitter for onData
+		dataEmitter = new Emitter<string>();
 		execution = {
 			getOutput: () => 'test output',
 			isActive: async () => true,
 			instance: {
 				instanceId: 1,
-				sendText: async () => { sendTextCalled = true; }
+				sendText: async () => { sendTextCalled = true; },
+				onData: dataEmitter.event,
 			},
 			sessionId: '1'
 		};
@@ -67,11 +71,17 @@ suite('OutputMonitor', () => {
 	});
 
 	test('startMonitoring returns immediately when polling succeeds', async () => {
+		// Simulate output change after first poll
+		let callCount = 0;
+		execution.getOutput = () => {
+			callCount++;
+			return callCount > 1 ? 'changed output' : 'test output';
+		};
 		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
 		await Event.toPromise(monitor.onDidFinishCommand);
 		const pollingResult = monitor.pollingResult;
 		assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
-		assert.strictEqual(pollingResult.output, 'test output');
+		assert.strictEqual(pollingResult.output, 'changed output');
 		assert.strictEqual(sendTextCalled, false, 'sendText should not be called');
 	});
 
@@ -91,6 +101,12 @@ suite('OutputMonitor', () => {
 	});
 
 	test('startMonitoring works when isActive is undefined', async () => {
+		// Simulate output change after first poll
+		let callCount = 0;
+		execution.getOutput = () => {
+			callCount++;
+			return callCount > 1 ? 'changed output' : 'test output';
+		};
 		delete execution.isActive;
 		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
 		await Event.toPromise(monitor.onDidFinishCommand);
@@ -99,6 +115,12 @@ suite('OutputMonitor', () => {
 	});
 
 	test('monitor can be disposed twice without error', async () => {
+		// Simulate output change after first poll
+		let callCount = 0;
+		execution.getOutput = () => {
+			callCount++;
+			return callCount > 1 ? 'changed output' : 'test output';
+		};
 		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
 		await Event.toPromise(monitor.onDidFinishCommand);
 		const pollingResult = monitor.pollingResult;
