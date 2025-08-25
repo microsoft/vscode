@@ -57,73 +57,78 @@ export function applyDebugTools(server: McpServer, app: Application) {
 		}
 	);
 
-	server.tool(
-		'vscode_automation_debug_stop',
-		'Stop debugging',
-		async () => {
-			await app.workbench.debug.stopDebugging();
-			return {
-				content: [{
-					type: 'text' as const,
-					text: 'Stopped debugging'
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this out
+	// server.tool(
+	// 	'vscode_automation_debug_stop',
+	// 	'Stop debugging',
+	// 	async () => {
+	// 		await app.workbench.debug.stopDebugging();
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: 'Stopped debugging'
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
-	server.tool(
-		'vscode_automation_debug_step_over',
-		'Step over in debugger',
-		async () => {
-			await app.workbench.debug.stepOver();
-			return {
-				content: [{
-					type: 'text' as const,
-					text: 'Stepped over'
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this out
+	// server.tool(
+	// 	'vscode_automation_debug_step_over',
+	// 	'Step over in debugger',
+	// 	async () => {
+	// 		await app.workbench.debug.stepOver();
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: 'Stepped over'
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
-	server.tool(
-		'vscode_automation_debug_step_in',
-		'Step into in debugger',
-		async () => {
-			await app.workbench.debug.stepIn();
-			return {
-				content: [{
-					type: 'text' as const,
-					text: 'Stepped in'
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this out
+	// server.tool(
+	// 	'vscode_automation_debug_step_in',
+	// 	'Step into in debugger',
+	// 	async () => {
+	// 		await app.workbench.debug.stepIn();
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: 'Stepped in'
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
-	server.tool(
-		'vscode_automation_debug_step_out',
-		'Step out in debugger',
-		async () => {
-			await app.workbench.debug.stepOut();
-			return {
-				content: [{
-					type: 'text' as const,
-					text: 'Stepped out'
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this out
+	// server.tool(
+	// 	'vscode_automation_debug_step_out',
+	// 	'Step out in debugger',
+	// 	async () => {
+	// 		await app.workbench.debug.stepOut();
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: 'Stepped out'
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
-	server.tool(
-		'vscode_automation_debug_continue',
-		'Continue execution in debugger',
-		async () => {
-			await app.workbench.debug.continue();
-			return {
-				content: [{
-					type: 'text' as const,
-					text: 'Continued execution'
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this out
+	// server.tool(
+	// 	'vscode_automation_debug_continue',
+	// 	'Continue execution in debugger',
+	// 	async () => {
+	// 		await app.workbench.debug.continue();
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: 'Continued execution'
+	// 			}]
+	// 		};
+	// 	}
+	// );
 }
