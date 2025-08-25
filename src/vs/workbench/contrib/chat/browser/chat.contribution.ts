@@ -127,6 +127,18 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
 	type: 'object',
 	properties: {
+		'chat.fontSize': {
+			type: 'number',
+			description: nls.localize('chat.fontSize', "Controls the font size in pixels in chat messages."),
+			default: 13,
+			minimum: 13,
+			maximum: 100
+		},
+		'chat.fontFamily': {
+			type: 'string',
+			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
+			default: 'default'
+		},
 		'chat.editor.fontSize': {
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in chat codeblocks."),
