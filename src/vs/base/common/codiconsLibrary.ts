@@ -610,4 +610,9 @@ export const codiconsLibrary = {
 	editSparkle: register('edit-sparkle', 0xec51),
 	copilotSnooze: register('copilot-snooze', 0xec52),
 	sendToRemoteAgent: register('send-to-remote-agent', 0xec53),
+
+	// Erdos-specific icons
+	erdosSeparator: register('erdos-separator', 0xf238),
+	erdosRestartRuntimeThin: register('erdos-restart-runtime-thin', 0xf275),
+	erdosOpenInEditor: register('erdos-open-in-editor', 0xf290),
 } as const;

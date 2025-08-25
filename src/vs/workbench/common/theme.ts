@@ -9,7 +9,27 @@ import { IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Color } from '../../base/common/color.js';
 import { ColorScheme } from '../../platform/theme/common/theme.js';
 
-// < --- Workbench (not customizable) --- >
+import {
+	foreground,
+	disabledForeground,
+	buttonBackground,
+	buttonForeground,
+	buttonSecondaryBackground,
+	buttonSecondaryForeground,
+	checkboxBorder,
+	checkboxForeground,
+	checkboxBackground,
+	inputBackground,
+	listHoverBackground,
+	listHoverForeground,
+	listInactiveSelectionBackground,
+	listInactiveSelectionForeground,
+	menuBorder,
+	textPreformatForeground,
+	selectBorder,
+	inputActiveOptionBackground,
+	inputActiveOptionBorder
+} from '../../platform/theme/common/colorRegistry.js';
 
 export function WORKBENCH_BACKGROUND(theme: IColorTheme): Color {
 	switch (theme.type) {
@@ -808,3 +828,828 @@ export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive on macOS or Linux. Requires custom title bar style and custom or hidden window controls on Linux."));
+
+// Erdos error foreground color.
+export const ERDOS_ERROR_FOREGROUND = registerColor('erdosError.foreground', {
+	dark: errorForeground,
+	light: errorForeground,
+	hcDark: errorForeground,
+	hcLight: errorForeground
+}, localize('erdosError.foreground', "Erdos error foreground color."));
+
+// Erdos scroll bar border color.
+export const ERDOS_SCROLL_BAR_BORDER = registerColor('erdosScrollBar.border', {
+	dark: scrollbarShadow,
+	light: scrollbarShadow,
+	hcDark: scrollbarShadow,
+	hcLight: scrollbarShadow
+}, localize('erdosScrollBar.border', "Erdos scroll bar border color."));
+
+// Erdos splitter expand/collapse button background color.
+export const ERDOS_SPLITTER_EXPAND_COLLAPSE_BUTTON_BACKGROUND = registerColor('erdosSplitterExpandCollapseButton.background', {
+	dark: transparent(editorWidgetBackground, 0.8),
+	light: transparent(editorWidgetBackground, 0.8),
+	hcDark: editorWidgetBackground,
+	hcLight: editorWidgetBackground
+}, localize('erdosSplitterExpandCollapseButton.background', "Erdos splitter expand/collapse button background color."));
+
+// Erdos splitter expand/collapse button foreground color.
+export const ERDOS_SPLITTER_EXPAND_COLLAPSE_BUTTON_FOREGROUND = registerColor('erdosSplitterExpandCollapseButton.foreground', {
+	dark: editorWidgetForeground,
+	light: editorWidgetForeground,
+	hcDark: editorWidgetForeground,
+	hcLight: editorWidgetForeground
+}, localize('erdosSplitterExpandCollapseButton.foreground', "Erdos splitter expand/collapse button foreground color."));
+
+// Erdos tool tip background color.
+export const ERDOS_TOOL_TIP_BACKGROUND = registerColor('erdosToolTip.background', {
+	dark: editorWidgetBackground,
+	light: editorWidgetBackground,
+	hcDark: editorWidgetBackground,
+	hcLight: editorWidgetBackground
+}, localize('erdosToolTip.background', "Erdos tool tip background color."));
+
+// Erdos tool tip border color.
+export const ERDOS_TOOL_TIP_BORDER = registerColor('erdosToolTip.border', {
+	dark: widgetBorder,
+	light: widgetBorder,
+	hcDark: widgetBorder,
+	hcLight: widgetBorder
+}, localize('erdosToolTip.border', "Erdos tool tip border color."));
+
+// Erdos context menu background color.
+export const ERDOS_CONTEXT_MENU_BACKGROUND = registerColor('erdosContextMenu.background', {
+	dark: editorWidgetBackground,
+	light: editorWidgetBackground,
+	hcDark: editorWidgetBackground,
+	hcLight: editorWidgetBackground
+}, localize('erdosContextMenu.background', "Erdos context menu background color."));
+
+// Erdos context menu foreground color.
+export const ERDOS_CONTEXT_MENU_FOREGROUND = registerColor('erdosContextMenu.foreground', {
+	dark: editorWidgetForeground,
+	light: editorWidgetForeground,
+	hcDark: editorWidgetForeground,
+	hcLight: editorWidgetForeground
+}, localize('erdosContextMenu.foreground', "Erdos context menu foreground color."));
+
+// Erdos context menu hover background color.
+export const ERDOS_CONTEXT_MENU_HOVER_BACKGROUND = registerColor('erdosContextMenu.hoverBackground', {
+	dark: listHoverBackground,
+	light: listHoverBackground,
+	hcDark: listHoverBackground,
+	hcLight: listHoverBackground
+}, localize('erdosContextMenu.hoverBackground', "Erdos context menu hover background color."));
+
+// Erdos context menu hover foreground color.
+export const ERDOS_CONTEXT_MENU_HOVER_FOREGROUND = registerColor('erdosContextMenu.hoverForeground', {
+	dark: listHoverForeground,
+	light: listHoverForeground,
+	hcDark: listHoverForeground,
+	hcLight: listHoverForeground
+}, localize('erdosContextMenu.hoverForeground', "Erdos context menu hover foreground color."));
+
+// Erdos context menu action hover background color.
+export const ERDOS_CONTEXT_MENU_ACTION_HOVER_BACKGROUND = registerColor('erdosContextMenu.actionHoverBackground', {
+	dark: darken(listHoverBackground, 0.2),
+	light: darken(listHoverBackground, 0.1),
+	hcDark: listActiveSelectionBackground,
+	hcLight: listActiveSelectionBackground
+}, localize('erdosContextMenu.actionHoverBackground', "Erdos context menu action hover background color."));
+
+// Erdos context menu separator background color.
+export const ERDOS_CONTEXT_MENU_SEPARATOR_BACKGROUND = registerColor('erdosContextMenu.separatorBackground', {
+	dark: menuBorder,
+	light: menuBorder,
+	hcDark: menuBorder,
+	hcLight: menuBorder
+}, localize('erdosContextMenu.separatorBackground', "Erdos context menu separator background color."));
+
+// Erdos modal dialog background color.
+export const ERDOS_MODAL_DIALOG_BACKGROUND = registerColor('erdosModalDialog.background', {
+	dark: editorBackground,
+	light: editorBackground,
+	hcDark: editorBackground,
+	hcLight: editorBackground
+}, localize('erdosModalDialog.background', "Erdos modal dialog background color."));
+
+// Erdos modal dialog foreground color.
+export const ERDOS_MODAL_DIALOG_FOREGROUND = registerColor('erdosModalDialog.foreground', {
+	dark: foreground,
+	light: foreground,
+	hcDark: foreground,
+	hcLight: foreground
+}, localize('erdosModalDialog.foreground', "Erdos modal dialog foreground color."));
+
+// Erdos modal dialog contrast background color.
+export const ERDOS_MODAL_DIALOG_CONTRAST_BACKGROUND = registerColor('erdosModalDialog.contrastBackground', {
+	dark: lighten(ERDOS_MODAL_DIALOG_BACKGROUND, 0.2),
+	light: darken(ERDOS_MODAL_DIALOG_BACKGROUND, 0.2),
+	hcDark: '#3a3d41',
+	hcLight: darken(ERDOS_MODAL_DIALOG_BACKGROUND, 0.2)
+}, localize('erdosModalDialog.contrastBackground', "Erdos modal dialog contrast background color."));
+
+// Erdos modal dialog border color.
+export const ERDOS_MODAL_DIALOG_BORDER = registerColor('erdosModalDialog.border', {
+	dark: selectBorder,
+	light: selectBorder,
+	hcDark: selectBorder,
+	hcLight: selectBorder
+}, localize('erdosModalDialog.border', "Erdos modal dialog border color."));
+
+// Erdos modal dialog separator color.
+export const ERDOS_MODAL_DIALOG_SEPARATOR = registerColor('erdosModalDialog.separator', {
+	dark: '#3a3d41',
+	light: darken(ERDOS_MODAL_DIALOG_BACKGROUND, 0.2),
+	hcDark: '#3a3d41',
+	hcLight: darken(ERDOS_MODAL_DIALOG_BACKGROUND, 0.2)
+}, localize('erdosModalDialog.separator', "Erdos modal dialog separator color."));
+
+// Erdos modal dialog preformatted text foreground color.
+export const ERDOS_MODAL_DIALOG_PREFORMATTED_TEXT_FOREGROUND = registerColor('erdosModalDialog.preformattedTextForeground', {
+	dark: textPreformatForeground,
+	light: textPreformatForeground,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('erdosModalDialog.preformattedTextForeground', "Erdos modal dialog preformatted text foreground color."));
+
+// Erdos modal dialog title bar background color.
+export const ERDOS_MODAL_DIALOG_TITLE_BAR_BACKGROUND = registerColor('erdosModalDialog.titleBarBackground', {
+	dark: ACTIVITY_BAR_BACKGROUND,
+	light: ACTIVITY_BAR_BACKGROUND,
+	hcDark: ACTIVITY_BAR_BACKGROUND,
+	hcLight: ACTIVITY_BAR_BACKGROUND
+}, localize('erdosModalDialog.titleBarBackground', "Erdos modal dialog title bar background color."));
+
+// Erdos modal dialog title bar foreground color.
+export const ERDOS_MODAL_DIALOG_TITLE_BAR_FOREGROUND = registerColor('erdosModalDialog.titleBarForeground', {
+	dark: ACTIVITY_BAR_FOREGROUND,
+	light: ACTIVITY_BAR_FOREGROUND,
+	hcDark: ACTIVITY_BAR_FOREGROUND,
+	hcLight: ACTIVITY_BAR_FOREGROUND
+}, localize('erdosModalDialog.titleBarForeground', "Erdos modal dialog title bar foreground color."));
+
+// Erdos modal dialog button background color.
+export const ERDOS_MODAL_DIALOG_BUTTON_BACKGROUND = registerColor('erdosModalDialog.buttonBackground', {
+	dark: buttonSecondaryBackground,
+	light: buttonSecondaryBackground,
+	hcDark: null,
+	hcLight: null
+}, localize('erdosModalDialog.buttonBackground', "Erdos modal dialog button background color."));
+
+// Erdos modal dialog button hover background color.
+export const ERDOS_MODAL_DIALOG_BUTTON_HOVER_BACKGROUND = registerColor('erdosModalDialog.buttonHoverBackground', {
+	dark: lighten(ERDOS_MODAL_DIALOG_BUTTON_BACKGROUND, 0.15),
+	light: darken(ERDOS_MODAL_DIALOG_BUTTON_BACKGROUND, 0.15),
+	hcDark: lighten(ERDOS_MODAL_DIALOG_BUTTON_BACKGROUND, 0.15),
+	hcLight: darken(ERDOS_MODAL_DIALOG_BUTTON_BACKGROUND, 0.15)
+}, localize('erdosModalDialog.buttonHoverBackground', "Erdos modal dialog button hover background color."));
+
+// Erdos modal dialog button background color.
+export const ERDOS_MODAL_DIALOG_DEFAULT_BUTTON_BACKGROUND = registerColor('erdosModalDialog.defaultButtonBackground', {
+	dark: buttonBackground,
+	light: buttonBackground,
+	hcDark: buttonBackground,
+	hcLight: buttonBackground
+}, localize('erdosModalDialog.defaultButtonBackground', "Erdos modal dialog default button background color."));
+
+// Erdos modal dialog button hover background color.
+export const ERDOS_MODAL_DIALOG_DEFAULT_BUTTON_HOVER_BACKGROUND = registerColor('erdosModalDialog.defaultButtonHoverBackground', {
+	dark: lighten(ERDOS_MODAL_DIALOG_DEFAULT_BUTTON_BACKGROUND, 0.15),
+	light: darken(ERDOS_MODAL_DIALOG_DEFAULT_BUTTON_BACKGROUND, 0.15),
+	hcDark: lighten(ERDOS_MODAL_DIALOG_DEFAULT_BUTTON_BACKGROUND, 0.15),
+	hcLight: darken(ERDOS_MODAL_DIALOG_DEFAULT_BUTTON_BACKGROUND, 0.15)
+}, localize('erdosModalDialog.defaultButtonHoverBackground', "Erdos modal dialog default button hover background color."));
+
+// Erdos modal dialog button active background color.
+export const ERDOS_MODAL_DIALOG_BUTTON_ACTIVE_BACKGROUND = registerColor('erdosModalDialog.buttonActiveBackground', {
+	dark: lighten(ERDOS_MODAL_DIALOG_BUTTON_BACKGROUND, 0.15),
+	light: darken(ERDOS_MODAL_DIALOG_BUTTON_BACKGROUND, 0.15),
+	hcDark: lighten(ERDOS_MODAL_DIALOG_BUTTON_BACKGROUND, 0.15),
+	hcLight: darken(ERDOS_MODAL_DIALOG_BUTTON_BACKGROUND, 0.15)
+}, localize('erdosModalDialog.buttonActiveBackground', "Erdos modal dialog button active background color."));
+
+// Erdos modal dialog button disabled background color.
+export const ERDOS_MODAL_DIALOG_BUTTON_DISABLED_BACKGROUND = registerColor('erdosModalDialog.buttonDisabledBackground', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('erdosModalDialog.buttonDisabledBackground', "Erdos modal dialog button disabled background color."));
+
+// Erdos modal dialog button foreground color.
+export const ERDOS_MODAL_DIALOG_BUTTON_FOREGROUND = registerColor('erdosModalDialog.buttonForeground', {
+	dark: buttonSecondaryForeground,
+	light: buttonSecondaryForeground,
+	hcDark: foreground,
+	hcLight: foreground
+}, localize('erdosModalDialog.buttonForeground', "Erdos modal dialog button foreground color."));
+
+// Erdos modal dialog button foreground color.
+export const ERDOS_MODAL_DIALOG_DEFAULT_BUTTON_FOREGROUND = registerColor('erdosModalDialog.defaultButtonForeground', {
+	dark: buttonForeground,
+	light: buttonForeground,
+	hcDark: buttonForeground,
+	hcLight: buttonForeground
+}, localize('erdosModalDialog.defaultButtonForeground', "Erdos modal dialog default button foreground color."));
+
+// Erdos modal dialog button destructive background color.
+export const ERDOS_MODAL_DIALOG_BUTTON_DESTRUCTIVE_BACKGROUND = registerColor('erdosModalDialog.buttonDestructiveBackground', {
+	dark: buttonSecondaryBackground,
+	light: buttonSecondaryBackground,
+	hcDark: buttonSecondaryBackground,
+	hcLight: buttonSecondaryBackground
+}, localize('erdosModalDialog.buttonDestructiveBackground', "Erdos modal dialog button destructive background color."));
+
+// Erdos modal dialog button destructive foreground color.
+export const ERDOS_MODAL_DIALOG_BUTTON_DESTRUCTIVE_FOREGROUND = registerColor('erdosModalDialog.buttonDestructiveForeground', {
+	dark: buttonSecondaryForeground,
+	light: buttonSecondaryForeground,
+	hcDark: buttonSecondaryForeground,
+	hcLight: buttonSecondaryForeground
+}, localize('erdosModalDialog.buttonDestructiveForeground', "Erdos modal dialog button destructive foreground color."));
+
+// Erdos modal dialog button disabled foreground color.
+export const ERDOS_MODAL_DIALOG_BUTTON_DISABLED_FOREGROUND = registerColor('erdosModalDialog.buttonDisabledForeground', {
+	dark: disabledForeground,
+	light: disabledForeground,
+	hcDark: disabledForeground,
+	hcLight: disabledForeground
+}, localize('erdosModalDialog.buttonDisabledForeground', "Erdos modal dialog button disabled foreground color."));
+
+// Erdos modal dialog button border color.
+export const ERDOS_MODAL_DIALOG_BUTTON_BORDER = registerColor('erdosModalDialog.buttonBorder', {
+	dark: null,
+	light: null,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('erdosModalDialog.buttonBorder', "Erdos modal dialog button border color."));
+
+// Erdos modal dialog button disabled border color.
+export const ERDOS_MODAL_DIALOG_BUTTON_DISABLED_BORDER = registerColor('erdosModalDialog.buttonDisabledBorder', {
+	dark: disabledForeground,
+	light: disabledForeground,
+	hcDark: disabledForeground,
+	hcLight: disabledForeground
+}, localize('erdosModalDialog.buttonDisabledBorder', "Erdos modal dialog button disabled border color."));
+
+// Erdos modal dialog text input background color.
+export const ERDOS_MODAL_DIALOG_TEXT_INPUT_BACKGROUND = registerColor('erdosModalDialog.textInputBackground', {
+	dark: '#292f32',
+	light: '#ffffff',
+	hcDark: inputBackground,
+	hcLight: inputBackground
+}, localize('erdosModalDialog.textInputBackground', "Erdos modal dialog text input background color."));
+
+// Erdos modal dialog text input border color.
+export const ERDOS_MODAL_DIALOG_TEXT_INPUT_BORDER = registerColor('erdosModalDialog.textInputBorder', {
+	dark: '#292f32',
+	light: '#a6a6a6',
+	hcDark: inputBorder,
+	hcLight: inputBorder
+}, localize('erdosModalDialog.textInputBorder', "Erdos modal dialog text input border."));
+
+// Erdos modal dialog text input selection foreground color.
+export const ERDOS_MODAL_DIALOG_TEXT_INPUT_SELECTION_FOREGROUND = registerColor('erdosModalDialog.textInputSelectionForeground', {
+	dark: '#ffffff',
+	light: '#ffffff',
+	hcDark: '#ffffff',
+	hcLight: '#ffffff'
+}, localize('erdosModalDialog.textInputSelectionForeground', "Erdos modal dialog text input selection foreground color."));
+
+// Erdos modal dialog text input selection background color.
+export const ERDOS_MODAL_DIALOG_TEXT_INPUT_SELECTION_BACKGROUND = registerColor('erdosModalDialog.textInputSelectionBackground', {
+	dark: '#0e639c',
+	light: '#007acc',
+	hcDark: '#0e639c',
+	hcLight: '#007acc'
+}, localize('erdosModalDialog.textInputSelectionBackground', "Erdos modal dialog text input selection background color."));
+
+// Erdos modal dialog checkbox background color.
+export const ERDOS_MODAL_DIALOG_CHECKBOX_BACKGROUND = registerColor('erdosModalDialog.checkboxBackground', {
+	dark: '#292f32',
+	light: '#ffffff',
+	hcDark: checkboxBackground,
+	hcLight: checkboxBackground
+}, localize('erdosModalDialog.checkboxBackground', "Erdos modal dialog checkbox background color."));
+
+// Erdos modal dialog checkbox foreground color.
+export const ERDOS_MODAL_DIALOG_CHECKBOX_FOREGROUND = registerColor('erdosModalDialog.checkboxForeground', {
+	dark: foreground,
+	light: '#000000',
+	hcDark: checkboxForeground,
+	hcLight: checkboxForeground
+}, localize('erdosModalDialog.checkboxForeground', "Erdos modal dialog checkbox foreground."));
+
+// Erdos modal dialog checkbox border color.
+export const ERDOS_MODAL_DIALOG_CHECKBOX_BORDER = registerColor('erdosModalDialog.checkboxBorder', {
+	dark: '#292f32',
+	light: '#a6a6a6',
+	hcDark: checkboxBorder,
+	hcLight: checkboxBorder
+}, localize('erdosModalDialog.checkboxBorder', "Erdos modal dialog checkbox border."));
+
+// Erdos modal dialog radio button background color.
+export const ERDOS_MODAL_DIALOG_RADIO_BUTTON_BACKGROUND = registerColor('erdosModalDialog.radioButtonBackground', {
+	dark: buttonSecondaryBackground,
+	light: editorBackground,
+	hcDark: editorBackground,
+	hcLight: editorBackground
+}, localize('erdosModalDialog.radioButtonBackground', "Erdos modal dialog radio button background color."));
+
+// Erdos modal dialog radio button foreground color.
+export const ERDOS_MODAL_DIALOG_RADIO_BUTTON_FOREGROUND = registerColor('erdosModalDialog.radioButtonForeground', {
+	dark: foreground,
+	light: foreground,
+	hcDark: foreground,
+	hcLight: foreground
+}, localize('erdosModalDialog.radioButtonForeground', "Erdos modal dialog radio button foreground color."));
+
+// Erdos modal dialog radio button border color.
+export const ERDOS_MODAL_DIALOG_RADIO_BUTTON_BORDER = registerColor('erdosModalDialog.radioButtonBorder', {
+	dark: selectBorder,
+	light: selectBorder,
+	hcDark: selectBorder,
+	hcLight: selectBorder
+}, localize('erdosModalDialog.radioButtonBorder', "Erdos modal dialog radio button border color."));
+
+// Erdos modal dialog project type background color.
+export const ERDOS_MODAL_DIALOG_PROJECT_TYPE_BACKGROUND = registerColor('erdosModalDialog.projectTypeBackground', {
+	dark: buttonSecondaryBackground,
+	light: darken(editorBackground, 0.05),
+	hcDark: editorBackground,
+	hcLight: editorBackground
+}, localize('erdosModalDialog.projectTypeBackground', "Erdos modal dialog project type background color."));
+
+// Erdos modal dialog project type hover background color.
+export const ERDOS_MODAL_DIALOG_PROJECT_TYPE_BACKGROUND_HOVER = registerColor('erdosModalDialog.projectTypeBackgroundHover', {
+	dark: inputActiveOptionBackground,
+	light: inputActiveOptionBackground,
+	hcDark: inputActiveOptionBackground,
+	hcLight: inputActiveOptionBackground
+}, localize('erdosModalDialog.projectTypeBackgroundHover', "Erdos modal dialog project type background hover color."));
+
+// Erdos modal dialog project type background selected color.
+export const ERDOS_MODAL_DIALOG_PROJECT_TYPE_BACKGROUND_SELECTED = registerColor('erdosModalDialog.projectTypeBackgroundSelected', {
+	dark: inputActiveOptionBackground,
+	light: inputActiveOptionBackground,
+	hcDark: inputActiveOptionBackground,
+	hcLight: inputActiveOptionBackground
+}, localize('erdosModalDialog.projectTypeBackgroundSelected', "Erdos modal dialog project type background selected color."));
+
+// Erdos modal dialog project type foreground color.
+export const ERDOS_MODAL_DIALOG_PROJECT_TYPE_FOREGROUND = registerColor('erdosModalDialog.projectTypeForeground', {
+	dark: editorForeground,
+	light: editorForeground,
+	hcDark: editorForeground,
+	hcLight: editorForeground
+}, localize('erdosModalDialog.projectTypeForeground', "Erdos modal dialog project type foreground color."));
+
+// Erdos modal dialog project type foreground hover color.
+export const ERDOS_MODAL_DIALOG_PROJECT_TYPE_FOREGROUND_HOVER = registerColor('erdosModalDialog.projectTypeForegroundHover', {
+	dark: listHoverForeground,
+	light: listHoverForeground,
+	hcDark: listHoverForeground,
+	hcLight: listHoverForeground
+}, localize('erdosModalDialog.projectTypeForegroundHover', "Erdos modal dialog project type foreground hover color."));
+
+// Erdos modal dialog project type foreground selected color.
+export const ERDOS_MODAL_DIALOG_PROJECT_TYPE_FOREGROUND_SELECTED = registerColor('erdosModalDialog.projectTypeForegroundSelected', {
+	dark: listInactiveSelectionForeground,
+	light: listInactiveSelectionForeground,
+	hcDark: listHoverForeground,
+	hcLight: listHoverForeground
+}, localize('erdosModalDialog.projectTypeForegroundSelected', "Erdos modal dialog project type foreground selected color."));
+
+// Erdos modal dialog project type border color.
+export const ERDOS_MODAL_DIALOG_PROJECT_TYPE_BORDER = registerColor('erdosModalDialog.projectTypeBorder', {
+	dark: buttonSecondaryBackground,
+	light: darken(editorBackground, 0.05),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('erdosModalDialog.projectTypeBorder', "Erdos modal dialog project type border color."));
+
+// Erdos modal dialog project type border color.
+export const ERDOS_MODAL_DIALOG_PROJECT_TYPE_BORDER_HOVER = registerColor('erdosModalDialog.projectTypeBorderHover', {
+	dark: darken(editorForeground, 0.25),
+	light: focusBorder,
+	hcDark: activeContrastBorder,
+	hcLight: activeContrastBorder
+}, localize('erdosModalDialog.projectTypeBorderHover', "Erdos modal dialog project type border hover color."));
+
+// Erdos modal dialog project type border selected color.
+export const ERDOS_MODAL_DIALOG_PROJECT_TYPE_BORDER_SELECTED = registerColor('erdosModalDialog.projectTypeBorderSelected', {
+	dark: inputActiveOptionBorder,
+	light: inputActiveOptionBorder,
+	hcDark: inputActiveOptionBorder,
+	hcLight: inputActiveOptionBorder
+}, localize('erdosModalDialog.projectTypeBorderSelected', "Erdos modal dialog project type border selected color."));
+
+export const ERDOS_ICON_BUTTON_BORDER = registerColor('erdosIconButton.border', {
+	dark: inputActiveOptionBorder,
+	light: inputActiveOptionBorder,
+	hcDark: inputActiveOptionBorder,
+	hcLight: inputActiveOptionBorder
+}, localize('erdosIconButton.border', "Erdos icon button border color."));
+
+export const ERDOS_ICON_BUTTON_BACKGROUND = registerColor('erdosIconButton.background', {
+	dark: inputActiveOptionBackground,
+	light: inputActiveOptionBackground,
+	hcDark: inputActiveOptionBackground,
+	hcLight: inputActiveOptionBackground
+}, localize('erdosIconButton.background', "Erdos icon button background color."));
+
+// Erdos drop down border color.
+export const ERDOS_DROP_DOWN_BORDER = registerColor('erdosDropDownListBox.border', {
+	dark: selectBorder,
+	light: selectBorder,
+	hcDark: selectBorder,
+	hcLight: selectBorder
+}, localize('erdosDropDown.border', "Erdos drop down border color."));
+
+
+// Erdos drop down list box background.
+export const ERDOS_DROP_DOWN_BACKGROUND = registerColor('erdosDropDownListBox.background', {
+	dark: editorBackground,
+	light: editorBackground,
+	hcDark: editorBackground,
+	hcLight: editorBackground
+}, localize('erdosDropDownListBox.background', "Erdos drop down list box background color."));
+
+// Erdos drop down list box foreground color.
+export const ERDOS_DROP_DOWN_FOREGROUND = registerColor('erdosDropDownListBox.foreground', {
+	dark: foreground,
+	light: foreground,
+	hcDark: foreground,
+	hcLight: foreground
+}, localize('erdosDropDownListBox.foreground', "Erdos drop down list box foreground color."));
+
+// Erdos drop down list box hover background.
+export const ERDOS_DROP_DOWN_HOVER_BACKGROUND = registerColor('erdosDropDownListBox.hoverBackground', {
+	dark: listHoverBackground,
+	light: listHoverBackground,
+	hcDark: listHoverBackground,
+	hcLight: listHoverBackground
+}, localize('erdosDropDownListBox.hoverBackground', "Erdos drop down list box hover background color."));
+
+// Erdos drop down list box hover foreground.
+export const ERDOS_DROP_DOWN_HOVER_FOREGROUND = registerColor('erdosDropDownListBox.hoverForeground', {
+	dark: listHoverForeground,
+	light: listHoverForeground,
+	hcDark: listHoverForeground,
+	hcLight: listHoverForeground
+}, localize('erdosDropDownListBox.hoverForeground', "Erdos drop down list box hover foreground color."));
+
+// Erdos drop down list box action hover background.
+export const ERDOS_DROP_DOWN_ACTION_HOVER_BACKGROUND = registerColor('erdosDropDownListBox.actionHoverBackground', {
+	dark: darken(listHoverBackground, 0.2),
+	light: darken(listHoverBackground, 0.1),
+	hcDark: listActiveSelectionBackground,
+	hcLight: listActiveSelectionBackground
+}, localize('erdosDropDownListBox.actionHoverBackground', "Erdos drop down list box action hover background color."));
+
+// Erdos drop down list box separator background.
+export const ERDOS_DROP_DOWN_SEPARATOR_BACKGROUND = registerColor('erdosDropDownListBox.separatorBackground', {
+	dark: menuBorder,
+	light: menuBorder,
+	hcDark: menuBorder,
+	hcLight: menuBorder
+}, localize('erdosDropDownListBox.separatorBackground', "Erdos drop down list box separator background color."));
+
+// Erdos action bar border color.
+export const ERDOS_ACTION_BAR_BORDER = registerColor('erdosActionBar.border', {
+	dark: widgetBorder,
+	light: widgetBorder,
+	hcDark: widgetBorder,
+	hcLight: widgetBorder
+}, localize('erdosActionBar.border', "Erdos action bar border color."));
+
+// Erdos action bar background color.
+export const ERDOS_ACTION_BAR_BACKGROUND = registerColor('erdosActionBar.background', {
+	dark: editorBackground,
+	light: editorBackground,
+	hcDark: editorBackground,
+	hcLight: editorBackground
+}, localize('erdosActionBar.background', "Erdos action bar background color."));
+
+// Erdos action bar foreground color.
+export const ERDOS_ACTION_BAR_FOREGROUND = registerColor('erdosActionBar.foreground', {
+	dark: foreground,
+	light: foreground,
+	hcDark: foreground,
+	hcLight: foreground
+}, localize('erdosActionBar.foreground', "Erdos action bar foreground color."));
+
+// Erdos action bar disabled foreground color.
+export const ERDOS_ACTION_BAR_DISABLED_FOREGROUND = registerColor('erdosActionBar.disabledForeground', {
+	dark: disabledForeground,
+	light: disabledForeground,
+	hcDark: disabledForeground,
+	hcLight: disabledForeground
+}, localize('erdosActionBar.disabledForeground', "Erdos action bar disabled foreground color."));
+
+// Erdos action bar separator color.
+export const ERDOS_ACTION_BAR_SEPARATOR = registerColor('erdosActionBar.separator', {
+	dark: '#434b4f',
+	light: '#dfe3e6',
+	hcDark: '#2f3436',
+	hcLight: '#dfe3e6'
+}, localize('erdosActionBar.separator', "Erdos action bar separator color."));
+
+// Erdos action bar hover background color.
+export const ERDOS_ACTION_BAR_HOVER_BACKGROUND = registerColor('erdosActionBar.hoverBackground', {
+	dark: listInactiveSelectionBackground,
+	light: listInactiveSelectionBackground,
+	hcDark: null,
+	hcLight: null
+}, localize('erdosActionBar.hoverBackground', "Erdos action bar hover background color."));
+
+// Erdos action bar checkbox border color.
+export const ERDOS_ACTION_BAR_CHECKBOX_BORDER = registerColor('erdosActionBar.checkboxBorder', {
+	dark: foreground,
+	light: foreground,
+	hcDark: foreground,
+	hcLight: foreground
+}, localize('erdosActionBar.checkboxBorder', "Erdos action bar checkbox border."));
+
+// Erdos action bar toggle button highlighted border color.
+export const ERDOS_ACTION_BAR_TOGGLE_BUTTON_HIGHLIGHTED = registerColor('erdosActionBar.toggleButtonHighlightedBorder', {
+	dark: listInactiveSelectionBackground,
+	light: listInactiveSelectionBackground,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('erdosActionBar.toggleButtonHighlightedBorder', "Erdos action bar toggle button highlighted border color."));
+
+// Erdos action bar text input background color.
+export const ERDOS_ACTION_BAR_TEXT_INPUT_BACKGROUND = registerColor('erdosActionBar.textInputBackground', {
+	dark: '#000000',
+	light: '#ffffff',
+	hcDark: '#000000',
+	hcLight: '#ffffff'
+}, localize('erdosActionBar.textInputBackground', "Erdos action bar text input background color."));
+
+// Erdos action bar text input border color.
+export const ERDOS_ACTION_BAR_TEXT_INPUT_BORDER = registerColor('erdosActionBar.textInputBorder', {
+	dark: '#434b4f',
+	light: '#cbd0d5',
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('erdosActionBar.textInputBorder', "Erdos action bar text input border."));
+
+// Erdos action bar text input selection foreground color.
+export const ERDOS_ACTION_BAR_TEXT_INPUT_SELECTION_FOREGROUND = registerColor('erdosActionBar.textInputSelectionForeground', {
+	dark: '#ffffff',
+	light: '#ffffff',
+	hcDark: '#ffffff',
+	hcLight: '#ffffff'
+}, localize('erdosActionBar.textInputSelectionForeground', "Erdos action bar text input selection foreground color."));
+
+// Erdos action bar text input selection background color.
+export const ERDOS_ACTION_BAR_TEXT_INPUT_SELECTION_BACKGROUND = registerColor('erdosActionBar.textInputSelectionBackground', {
+	dark: '#0e639c',
+	light: '#007acc',
+	hcDark: '#0e639c',
+	hcLight: '#007acc'
+}, localize('erdosActionBar.textInputSelectionBackground', "Erdos action bar text input selection background color."));
+
+// Erdos action bar select border color.
+export const ERDOS_ACTION_BAR_SELECT_BORDER = registerColor('erdosActionBar.selectBorder', {
+	dark: selectBorder,
+	light: selectBorder,
+	hcDark: selectBorder,
+	hcLight: selectBorder
+}, localize('erdosActionBar.selectBorder', "Erdos action bar select border color."));
+
+// Erdos action bar select box background color.
+export const ERDOS_ACTION_BAR_SELECT_BOX_BACKGROUND = registerColor('erdosActionBar.selectBoxBackground', {
+	dark: editorBackground,
+	light: editorBackground,
+	hcDark: editorBackground,
+	hcLight: editorBackground
+}, localize('erdosActionBar.selectBoxBackground', "Erdos action bar select box background color."));
+
+// Erdos console background color.
+export const ERDOS_CONSOLE_BACKGROUND_COLOR = registerColor('erdosConsole.background', {
+	dark: 'panel.background',
+	light: 'panel.background',
+	hcDark: 'panel.background',
+	hcLight: 'panel.background'
+}, localize('erdosConsole.background', "Erdos console background color."));
+
+// Erdos console foreground color.
+export const ERDOS_CONSOLE_FOREGROUND_COLOR = registerColor('erdosConsole.foreground', {
+	dark: 'terminal.foreground',
+	light: 'terminal.foreground',
+	hcDark: 'terminal.foreground',
+	hcLight: 'terminal.foreground'
+}, localize('erdosConsole.foreground', "Erdos console foreground color."));
+
+// Erdos console error background color.
+export const ERDOS_CONSOLE_ERROR_BACKGROUND_COLOR = registerColor('erdosConsole.errorBackground', {
+	dark: transparent('terminal.ansiRed', 0.1),
+	light: transparent('terminal.ansiRed', 0.05),
+	hcDark: 'panel.background',
+	hcLight: 'panel.background'
+}, localize('erdosConsole.errorBackground', "Erdos console error background color."));
+
+// Erdos console error foreground color.
+export const ERDOS_CONSOLE_ERROR_FOREGROUND_COLOR = registerColor('erdosConsole.errorForeground', {
+	dark: errorForeground,
+	light: errorForeground,
+	hcDark: errorForeground,
+	hcLight: errorForeground
+}, localize('erdosConsole.errorForeground', "Erdos console error foreground color."));
+
+// Erdos console ANSI black color.
+export const ERDOS_CONSOLE_ANSI_BLACK = registerColor('erdosConsole.ansiBlack', {
+	dark: 'terminal.ansiBlack',
+	light: 'terminal.ansiBlack',
+	hcDark: 'terminal.ansiBlack',
+	hcLight: 'terminal.ansiBlack'
+}, localize('erdosConsole.ansiBlack', "Erdos console ANSI black color."));
+
+// Erdos console ANSI red color.
+export const ERDOS_CONSOLE_ANSI_RED = registerColor('erdosConsole.ansiRed', {
+	dark: 'terminal.ansiRed',
+	light: 'terminal.ansiRed',
+	hcDark: 'terminal.ansiRed',
+	hcLight: 'terminal.ansiRed'
+}, localize('erdosConsole.ansiRed', "Erdos console ANSI red color."));
+
+// Erdos console ANSI green color.
+export const ERDOS_CONSOLE_ANSI_GREEN = registerColor('erdosConsole.ansiGreen', {
+	dark: 'terminal.ansiGreen',
+	light: 'terminal.ansiGreen',
+	hcDark: 'terminal.ansiGreen',
+	hcLight: 'terminal.ansiGreen'
+}, localize('erdosConsole.ansiGreen', "Erdos console ANSI green color."));
+
+// Erdos console ANSI yellow color.
+export const ERDOS_CONSOLE_ANSI_YELLOW = registerColor('erdosConsole.ansiYellow', {
+	dark: 'terminal.ansiYellow',
+	light: 'terminal.ansiYellow',
+	hcDark: 'terminal.ansiYellow',
+	hcLight: 'terminal.ansiYellow'
+}, localize('erdosConsole.ansiYellow', "Erdos console ANSI yellow color."));
+
+// Erdos console ANSI blue color.
+export const ERDOS_CONSOLE_ANSI_BLUE = registerColor('erdosConsole.ansiBlue', {
+	dark: 'terminal.ansiBlue',
+	light: 'terminal.ansiBlue',
+	hcDark: 'terminal.ansiBlue',
+	hcLight: 'terminal.ansiBlue'
+}, localize('erdosConsole.ansiBlue', "Erdos console ANSI blue color."));
+
+// Erdos console ANSI magenta color.
+export const ERDOS_CONSOLE_ANSI_MAGENTA = registerColor('erdosConsole.ansiMagenta', {
+	dark: 'terminal.ansiMagenta',
+	light: 'terminal.ansiMagenta',
+	hcDark: 'terminal.ansiMagenta',
+	hcLight: 'terminal.ansiMagenta'
+}, localize('erdosConsole.ansiMagenta', "Erdos console ANSI magenta color."));
+
+// Erdos console ANSI cyan color.
+export const ERDOS_CONSOLE_ANSI_CYAN = registerColor('erdosConsole.ansiCyan', {
+	dark: 'terminal.ansiCyan',
+	light: 'terminal.ansiCyan',
+	hcDark: 'terminal.ansiCyan',
+	hcLight: 'terminal.ansiCyan'
+}, localize('erdosConsole.ansiCyan', "Erdos console ANSI cyan color."));
+
+// Erdos console ANSI white color.
+export const ERDOS_CONSOLE_ANSI_WHITE = registerColor('erdosConsole.ansiWhite', {
+	dark: 'terminal.ansiWhite',
+	light: 'terminal.ansiWhite',
+	hcDark: 'terminal.ansiWhite',
+	hcLight: 'terminal.ansiWhite'
+}, localize('erdosConsole.ansiWhite', "Erdos console ANSI white color."));
+
+// Erdos console ANSI bright black color.
+export const ERDOS_CONSOLE_ANSI_BRIGHT_BLACK = registerColor('erdosConsole.ansiBrightBlack', {
+	dark: 'terminal.ansiBrightBlack',
+	light: 'terminal.ansiBrightBlack',
+	hcDark: 'terminal.ansiBrightBlack',
+	hcLight: 'terminal.ansiBrightBlack'
+}, localize('erdosConsole.ansiBrightBlack', "Erdos console ANSI bright black color."));
+
+// Erdos console ANSI bright red color.
+export const ERDOS_CONSOLE_ANSI_BRIGHT_RED = registerColor('erdosConsole.ansiBrightRed', {
+	dark: 'terminal.ansiBrightRed',
+	light: 'terminal.ansiBrightRed',
+	hcDark: 'terminal.ansiBrightRed',
+	hcLight: 'terminal.ansiBrightRed'
+}, localize('erdosConsole.ansiBrightRed', "Erdos console ANSI bright red color."));
+
+// Erdos console ANSI bright green color.
+export const ERDOS_CONSOLE_ANSI_BRIGHT_GREEN = registerColor('erdosConsole.ansiBrightGreen', {
+	dark: 'terminal.ansiBrightGreen',
+	light: 'terminal.ansiBrightGreen',
+	hcDark: 'terminal.ansiBrightGreen',
+	hcLight: 'terminal.ansiBrightGreen'
+}, localize('erdosConsole.ansiBrightGreen', "Erdos console ANSI bright green color."));
+
+// Erdos console ANSI bright yellow color.
+export const ERDOS_CONSOLE_ANSI_BRIGHT_YELLOW = registerColor('erdosConsole.ansiBrightYellow', {
+	dark: 'terminal.ansiBrightYellow',
+	light: 'terminal.ansiBrightYellow',
+	hcDark: 'terminal.ansiBrightYellow',
+	hcLight: 'terminal.ansiBrightYellow'
+}, localize('erdosConsole.ansiBrightYellow', "Erdos console ANSI bright yellow color."));
+
+// Erdos console ANSI bright blue color.
+export const ERDOS_CONSOLE_ANSI_BRIGHT_BLUE = registerColor('erdosConsole.ansiBrightBlue', {
+	dark: 'terminal.ansiBrightBlue',
+	light: 'terminal.ansiBrightBlue',
+	hcDark: 'terminal.ansiBrightBlue',
+	hcLight: 'terminal.ansiBrightBlue'
+}, localize('erdosConsole.ansiBrightBlue', "Erdos console ANSI bright blue color."));
+
+// Erdos console ANSI bright magenta color.
+export const ERDOS_CONSOLE_ANSI_BRIGHT_MAGENTA = registerColor('erdosConsole.ansiBrightMagenta', {
+	dark: 'terminal.ansiBrightMagenta',
+	light: 'terminal.ansiBrightMagenta',
+	hcDark: 'terminal.ansiBrightMagenta',
+	hcLight: 'terminal.ansiBrightMagenta'
+}, localize('erdosConsole.ansiBrightMagenta', "Erdos console ANSI bright magenta color."));
+
+// Erdos console ANSI bright cyan color.
+export const ERDOS_CONSOLE_ANSI_BRIGHT_CYAN = registerColor('erdosConsole.ansiBrightCyan', {
+	dark: 'terminal.ansiBrightCyan',
+	light: 'terminal.ansiBrightCyan',
+	hcDark: 'terminal.ansiBrightCyan',
+	hcLight: 'terminal.ansiBrightCyan'
+}, localize('erdosConsole.ansiBrightCyan', "Erdos console ANSI bright cyan color."));
+
+// Erdos console ANSI bright white color.
+export const ERDOS_CONSOLE_ANSI_BRIGHT_WHITE = registerColor('erdosConsole.ansiBrightWhite', {
+	dark: 'terminal.ansiBrightWhite',
+	light: 'terminal.ansiBrightWhite',
+	hcDark: 'terminal.ansiBrightWhite',
+	hcLight: 'terminal.ansiBrightWhite'
+}, localize('erdosConsole.ansiBrightWhite', "Erdos console ANSI bright white color."));
+
+// Erdos console trace background color.
+export const ERDOS_CONSOLE_TRACE_BACKGROUND_COLOR = registerColor('erdosConsole.traceBackground', {
+	dark: '#262626',
+	light: '#e5e5e5',
+	hcDark: '#262626',
+	hcLight: '#e5e5e5'
+}, localize('erdosConsole.traceBackground', "Erdos console trace background color."));
+
+// Erdos console active state icon color.
+export const ERDOS_CONSOLE_STATE_ICON_ACTIVE = registerColor('erdosConsole.stateIconActive', {
+	dark: '#afcbe9',
+	light: '#3a79b2',
+	hcDark: '#afcbe9',
+	hcLight: '#3a79b2'
+}, localize('erdosConsole.stateIconActive', "Erdos console active state icon color."));
+
+// Erdos console disconnected state icon color.
+export const ERDOS_CONSOLE_STATE_ICON_DISCONNECTED = registerColor('erdosConsole.stateIconDisconnected', {
+	dark: '#ea8b8b',
+	light: '#d93939',
+	hcDark: '#ea8b8b',
+	hcLight: '#d93939'
+}, localize('erdosConsole.stateIconDisconnected', "Erdos console disconnected state icon color."));
+
+export const ERDOS_CONSOLE_STATE_ICON_IDLE = registerColor('erdosConsole.stateIconIdle', {
+	dark: '#2eb77c',
+	light: '#2eb77c',
+	hcDark: '#2eb77c',
+	hcLight: '#2eb77c'
+}, localize('erdosConsole.stateIconIdle', "Erdos console idle state icon color."));
+
+export const ERDOS_PLOTS_BACKGROUND_COLOR = registerColor('erdosPlots.background', {
+	dark: 'panel.background',
+	light: 'panel.background',
+	hcDark: 'panel.background',
+	hcLight: 'panel.background'
+}, localize('erdosPlots.background', "Erdos plots background color."));
+
+export const ERDOS_WELCOME_FOREGROUND_COLOR = registerColor('erdosWelcome.foreground', {
+	dark: '#4AB4E8',
+	light: '#1371A0',
+	hcDark: '#4AB4E8',
+	hcLight: '#1371A0'
+}, localize('erdosWelcome.foreground', "Erdos welcome page foreground color."));
+
+export const ERDOS_WELCOME_SECONDARY_FOREGROUND_COLOR = registerColor('erdosWelcome.secondaryForeground', {
+	dark: '#cbd0d4',
+	light: '#cbd0d4',
+	hcDark: '#e5e5e5',
+	hcLight: '#262626'
+}, localize('erdosWelcome.secondaryForeground', "Erdos welcome page secondary foreground color."));
+
+export const ERDOS_WELCOME_BACKGROUND_COLOR = registerColor('erdosWelcome.background', {
+	dark: 'panel.background',
+	light: 'panel.background',
+	hcDark: 'panel.background',
+	hcLight: 'panel.background'
+}, localize('erdosWelcome.background', "Erdos Welcome page background color."));
+
+export const ERDOS_WELCOME_HOVER_BACKGROUND = registerColor('erdosWelcome.hoverBackground', {
+	dark: listHoverBackground,
+	light: listHoverBackground,
+	hcDark: listHoverBackground,
+	hcLight: listHoverBackground
+}, localize('erdosWelcome.hoverBackground', "Erdos welcome page hover background color."));

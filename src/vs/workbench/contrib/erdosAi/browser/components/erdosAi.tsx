@@ -27,8 +27,7 @@ import './imageAttachment.css';
 import '../erdosAiView.css';
 
 import { PlotsIcon } from './plotsIcon.js';
-import { ChevronIcon } from './chevronIcon.js';
-import { IAttachedImage, IImageAttachmentService } from '../attachments/imageAttachmentService.js';
+import { ImageAttachmentToolbar } from './imageAttachmentToolbar.js';
 
 // import { IAutoAcceptService, AutoAcceptCheckResult } from '../services/autoAcceptService.js';
 // import { AutoAcceptIntegration } from '../services/autoAcceptIntegration.js';
@@ -341,187 +340,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 	);
 };
 
-// Compact image attachment button component
-interface ImageAttachmentButtonProps {
-	imageAttachmentService: IImageAttachmentService;
-	fileDialogService: IFileDialogService;
-	onError: (message: string) => void;
-}
 
-const ImageAttachmentButton: React.FC<ImageAttachmentButtonProps> = ({
-	imageAttachmentService,
-	fileDialogService,
-	onError
-}) => {
-	const [attachedImages, setAttachedImages] = useState<IAttachedImage[]>([]);
-	const [showImageViewer, setShowImageViewer] = useState(false);
-	const [updateCounter, setUpdateCounter] = useState(0);
-	const fileInputRef = useRef<HTMLInputElement>(null);
-	const countButtonRef = useRef<HTMLButtonElement>(null);
-	const popupRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		// Force initial load and state update
-		const initialImages = imageAttachmentService.getAttachedImages();
-		setAttachedImages([...initialImages]); // Force new array to trigger re-render
-
-		// Subscribe to changes
-		const disposable = imageAttachmentService.onImagesChanged((images) => {
-			setAttachedImages([...images]); // Force new array to trigger re-render
-			setUpdateCounter(prev => prev + 1); // Force component re-render
-			// Hide image viewer if no images left
-			if (images.length === 0) {
-				setShowImageViewer(false);
-			}
-		});
-
-		return () => disposable.dispose();
-	}, [imageAttachmentService]);
-
-	// Position popup to avoid clipping like the history dropdown
-	useEffect(() => {
-		if (showImageViewer && popupRef.current && countButtonRef.current) {
-			const buttonRect = countButtonRef.current.getBoundingClientRect();
-			const popup = popupRef.current;
-			const popupWidth = Math.max(250, popup.offsetWidth);
-			
-			// Calculate left position to prevent overflow (same logic as "Show chats...")
-			let leftPosition = buttonRect.left;
-			const rightEdge = leftPosition + popupWidth;
-			const windowWidth = window.innerWidth;
-			
-			// If popup would extend beyond the right edge, adjust position
-			if (rightEdge > windowWidth) {
-				// Align right edge of popup with right edge of button
-				leftPosition = buttonRect.right - popupWidth;
-				// If that would push it off the left edge, align with left edge of viewport
-				if (leftPosition < 0) {
-					leftPosition = 8; // Small margin from edge
-				}
-			}
-			
-			// Use fixed positioning like the history dropdown
-			popup.style.position = 'fixed';
-			popup.style.top = `${buttonRect.top - popup.offsetHeight - 8}px`;
-			popup.style.left = `${leftPosition}px`;
-			popup.style.minWidth = `${popupWidth}px`;
-		}
-	}, [showImageViewer, attachedImages.length]); // Re-position when number of images changes
-
-	const handleAttachImage = () => {
-		fileInputRef.current?.click();
-	};
-
-	const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0];
-		if (file) {
-			try {
-				await imageAttachmentService.attachImageFromFile(file);
-				// Force refresh
-				const updatedImages = imageAttachmentService.getAttachedImages();
-				setAttachedImages([...updatedImages]);
-				setUpdateCounter(prev => prev + 1);
-			} catch (error) {
-				console.error('Failed to attach image:', error);
-				onError(error instanceof Error ? error.message : 'Failed to attach image');
-			}
-		}
-		// Reset the input
-		if (fileInputRef.current) {
-			fileInputRef.current.value = '';
-		}
-	};
-
-	const handleRemoveImage = async (imageId: string) => {
-		try {
-			await imageAttachmentService.removeImage(imageId);
-			// Force refresh
-			const updatedImages = imageAttachmentService.getAttachedImages();
-			setAttachedImages([...updatedImages]);
-			setUpdateCounter(prev => prev + 1);
-			
-			// Re-position popup after DOM updates
-			setTimeout(() => {
-				if (showImageViewer && popupRef.current && countButtonRef.current) {
-					const buttonRect = countButtonRef.current.getBoundingClientRect();
-					const popup = popupRef.current;
-					popup.style.top = `${buttonRect.top - popup.offsetHeight - 8}px`;
-				}
-			}, 0);
-		} catch (error) {
-			onError(error instanceof Error ? error.message : 'Failed to remove image');
-		}
-	};
-
-	const imageCount = attachedImages.length;
-	
-	return (
-		<div className="image-attachment-button-container" data-update-counter={updateCounter}>
-			{/* Image attachment icon */}
-			<button
-				className="image-attachment-button"
-				onClick={handleAttachImage}
-				title="Attach image"
-			>
-				<PlotsIcon width={16} height={16} stroke="#666" fill="none" strokeWidth={1.5} />
-			</button>
-
-			{/* Hidden file input */}
-			<input
-				ref={fileInputRef}
-				type="file"
-				accept="image/*"
-				onChange={handleFileChange}
-				style={{ display: 'none' }}
-			/>
-
-			{/* Image count display */}
-			{imageCount > 0 && (
-				<div className="image-attachment-count">
-					<button
-						ref={countButtonRef}
-						className="image-count-button"
-						onClick={() => setShowImageViewer(!showImageViewer)}
-						title={`${imageCount} image(s) attached`}
-					>
-						<span>{imageCount} image{imageCount !== 1 ? 's' : ''} attached</span>
-						<ChevronIcon 
-							width={10} 
-							height={10} 
-							direction={showImageViewer ? 'down' : 'up'}
-							className="chevron-icon"
-						/>
-					</button>
-
-					{/* Image viewer popup */}
-					{showImageViewer && (
-						<div ref={popupRef} className="image-viewer-popup">
-							{attachedImages.map((image) => (
-								<div key={image.id} className="attached-image-item">
-									<img
-										src={`data:${image.mimeType};base64,${image.base64Data}`}
-										alt={image.filename}
-										className="attached-image-thumbnail"
-									/>
-									<div className="attached-image-info">
-										<span className="attached-image-name">{image.filename}</span>
-										<button
-											className="remove-image-button"
-											onClick={() => handleRemoveImage(image.id)}
-											title="Remove image"
-										>
-											×
-										</button>
-									</div>
-								</div>
-							))}
-						</div>
-					)}
-				</div>
-			)}
-		</div>
-	);
-};
 
 // Extract and clean command content for widget display (mirrors RAO's extract_command_and_explanation)
 function extractCleanedCommand(functionName: string, args: any): string {
@@ -1086,11 +905,18 @@ export interface ErdosAiProps {
 	readonly fileDialogService?: IFileDialogService;
 	readonly textFileService?: ITextFileService;
 	readonly textModelService?: ITextModelService;
+	readonly erdosPlotsService?: any; // Optional plots service
 	// readonly autoAcceptService?: IAutoAcceptService;
 
 }
 
-export const ErdosAi = (props: ErdosAiProps) => {
+// Ref interface for external control
+export interface ErdosAiRef {
+	showHistory: () => void;
+	showSettings: () => void;
+}
+
+export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) => {
 	const [messages, setMessages] = useState<ConversationMessage[]>([]);
 	const [inputValue, setInputValue] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
@@ -1111,6 +937,12 @@ export const ErdosAi = (props: ErdosAiProps) => {
 	const [markdownRenderer, setMarkdownRenderer] = useState<ErdosAiMarkdownRenderer | null>(null);
 
 	// Auto-accept integration removed with help service
+	
+	// Expose methods via ref
+	React.useImperativeHandle(ref, () => ({
+		showHistory: () => setShowHistory(true),
+		showSettings: () => setShowSettings(true)
+	}));
 	
 	// Scroll to bottom when new messages are added
 	useEffect(() => {
@@ -1674,17 +1506,7 @@ export const ErdosAi = (props: ErdosAiProps) => {
 		}
 	};
 
-	const handleNewConversation = async () => {
-		try {
-			await props.erdosAiService.newConversation();
-		} catch (error) {
-			console.error('Failed to create new conversation:', error);
-		}
-	};
 
-	const handleShowHistory = async () => {
-		setShowHistory(true);
-	};
 
 	const handleCancelStreaming = async () => {
 		try {
@@ -1828,36 +1650,7 @@ export const ErdosAi = (props: ErdosAiProps) => {
 			/>
 
 
-			{/* View title toolbar */}
-			<div className="erdos-ai-view-title">
-				<div className="erdos-ai-conversation-name">
-					{currentConversation?.info?.name || 'New conversation'}
-				</div>
-				<div className="erdos-ai-view-title-actions">
-										<button
-						className="erdos-ai-toolbar-button"
-						onClick={handleNewConversation}
-						title="New Chat"
-					>
-						<span className="codicon codicon-add"></span>
-					</button>
-					<button 
-						ref={historyButtonRef}
-						className="erdos-ai-toolbar-button"
-						onClick={handleShowHistory}
-						title="Show Chats..."
-					>
-						<span className="codicon codicon-history"></span>
-					</button>
-									<button 
-					className="erdos-ai-toolbar-button"
-					onClick={() => setShowSettings(!showSettings)}
-					title="Configure Chat..."
-				>
-					<span className="codicon codicon-settings-gear"></span>
-				</button>
-				</div>
-			</div>
+
 			
 			<div className="erdos-ai-messages">
 				{messages.length === 0 && !isLoading ? (
@@ -2184,10 +1977,11 @@ export const ErdosAi = (props: ErdosAiProps) => {
 										}
 
 										return (
-											<ImageAttachmentButton
+											<ImageAttachmentToolbar
 												key={`image-attachment-${currentConversation.info.id}`}
 												imageAttachmentService={imageService}
-												fileDialogService={props.fileDialogService}
+												fileDialogService={props.fileDialogService!}
+												erdosPlotsService={props.erdosPlotsService}
 												onError={(message) => {
 													console.error('Image attachment error:', message);
 													// Note: image attachment errors should use dialogs, not streaming errors
@@ -2239,4 +2033,4 @@ export const ErdosAi = (props: ErdosAiProps) => {
 			</div>
 		</div>
 	);
-};
+});

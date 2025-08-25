@@ -59,6 +59,16 @@ export interface IErdosAiService {
 	readonly onOrchestratorStateChange: Event<{isProcessing: boolean}>;
 
 	/**
+	 * Event fired when conversation history should be shown
+	 */
+	readonly onShowConversationHistory: Event<void>;
+
+	/**
+	 * Event fired when settings should be shown
+	 */
+	readonly onShowSettings: Event<void>;
+
+	/**
 	 */
 	readonly onFunctionCallDisplayMessage: Event<{ id: number; content: string; timestamp: string }>;
 
@@ -602,4 +612,14 @@ export interface IErdosAiService {
 	 * Extract file content for widget display, handling .ipynb conversion
 	 */
 	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
+
+	/**
+	 * Show conversation history dialog
+	 */
+	showConversationHistory(): Promise<void>;
+
+	/**
+	 * Show settings panel
+	 */
+	showSettings(): Promise<void>;
 }

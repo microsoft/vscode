@@ -243,7 +243,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		switch (activityBarPosition) {
 			case ActivityBarPosition.TOP: return ActivityBarPosition.TOP;
 			case ActivityBarPosition.BOTTOM: return ActivityBarPosition.BOTTOM;
-			default: return ActivityBarPosition.DEFAULT;
+			default: return ActivityBarPosition.TOP;
 		}
 	}
 

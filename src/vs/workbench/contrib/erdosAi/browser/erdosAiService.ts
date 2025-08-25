@@ -7470,6 +7470,29 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 		}
 	}
 
+	/**
+	 * Show conversation history dialog
+	 */
+	async showConversationHistory(): Promise<void> {
+		// This will be handled by the view pane - trigger an event
+		this._onShowConversationHistory.fire();
+	}
+
+	/**
+	 * Show settings panel
+	 */
+	async showSettings(): Promise<void> {
+		// This will be handled by the view pane - trigger an event
+		this._onShowSettings.fire();
+	}
+
+	// Event emitters for the new UI actions
+	private readonly _onShowConversationHistory = this._register(new Emitter<void>());
+	readonly onShowConversationHistory: Event<void> = this._onShowConversationHistory.event;
+
+	private readonly _onShowSettings = this._register(new Emitter<void>());
+	readonly onShowSettings: Event<void> = this._onShowSettings.event;
+
 
 }
 

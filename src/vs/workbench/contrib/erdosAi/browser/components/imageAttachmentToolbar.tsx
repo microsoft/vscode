@@ -39,23 +39,7 @@ const AttachedImageDisplay: React.FC<AttachedImageDisplayProps> = ({ image, onRe
 	};
 
 	const getIcon = () => {
-		if (image.mimeType.startsWith('image/svg')) {
-			return (
-				<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-					<rect x='3' y='3' width='18' height='18' rx='2' ry='2'/>
-					<circle cx='8.5' cy='8.5' r='1.5'/>
-					<path d='M21 15l-5-5L5 21'/>
-				</svg>
-			);
-		} else {
-			return (
-				<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-					<rect x='3' y='3' width='18' height='18' rx='2' ry='2'/>
-					<circle cx='8.5' cy='8.5' r='1.5'/>
-					<path d='M21 15l-5-5L5 21'/>
-				</svg>
-			);
-		}
+		return <PlotsIcon width={14} height={14} stroke="#555" strokeWidth={1.5} />;
 	};
 
 	return (
@@ -266,11 +250,7 @@ export const ImageAttachmentToolbar: React.FC<ImageAttachmentToolbarProps> = ({
 					title="Attach image file"
 					disabled={attachedImages.length >= 3}
 				>
-					<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-						<rect x='3' y='3' width='18' height='18' rx='2' ry='2'/>
-						<circle cx='8.5' cy='8.5' r='1.5'/>
-						<path d='M21 15l-5-5L5 21'/>
-					</svg>
+					<PlotsIcon width={16} height={16} />
 				</button>
 
 				{erdosPlotsService && (

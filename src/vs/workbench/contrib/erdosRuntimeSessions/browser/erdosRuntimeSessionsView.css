@@ -1,0 +1,46 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-runtime-sessions-container {
+	height: 100%;
+	background: var(--vscode-panel-background);
+}
+
+.erdos-runtime-sessions-placeholder {
+	padding: 20px;
+}
+
+.erdos-runtime-sessions-placeholder h3 {
+	margin-bottom: 15px;
+	color: var(--vscode-foreground);
+}
+
+.erdos-runtime-sessions-placeholder p {
+	margin-bottom: 10px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-list {
+	margin-top: 15px;
+}
+
+.session-item {
+	display: flex;
+	justify-content: space-between;
+	padding: 8px 12px;
+	margin-bottom: 5px;
+	background: var(--vscode-list-activeSelectionBackground);
+	border-radius: 4px;
+}
+
+.session-language {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.session-status {
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+}

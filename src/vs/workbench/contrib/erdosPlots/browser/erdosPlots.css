@@ -1,0 +1,15 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/**
+ * Enable the dark filter when it is set to be on (always enabled) or when it
+ * is set to auto and we're in a dark theme (vs-dark).
+ */
+.dark-filter-on .selected-plot img.plot,
+.dark-filter-on .plot-thumbnail img.plot,
+.vs-dark .dark-filter-auto .selected-plot img.plot,
+.vs-dark .dark-filter-auto .plot-thumbnail img.plot {
+	filter: invert(1) hue-rotate(180deg);
+}

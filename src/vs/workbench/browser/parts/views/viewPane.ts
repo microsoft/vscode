@@ -325,12 +325,12 @@ export abstract class ViewPane extends Pane implements IView {
 	private _isVisible: boolean = false;
 	readonly id: string;
 
-	private _title: string;
+	protected _title: string;
 	public get title(): string {
 		return this._title;
 	}
 
-	private _titleDescription: string | undefined;
+	protected _titleDescription: string | undefined;
 	public get titleDescription(): string | undefined {
 		return this._titleDescription;
 	}
@@ -348,8 +348,8 @@ export abstract class ViewPane extends Pane implements IView {
 	private toolbar?: WorkbenchToolBar;
 	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
-	private titleContainer?: HTMLElement;
-	private titleContainerHover?: IManagedHover;
+	protected titleContainer?: HTMLElement;
+	protected titleContainerHover?: IManagedHover;
 	private titleDescriptionContainer?: HTMLElement;
 	private titleDescriptionContainerHover?: IManagedHover;
 	private iconContainer?: HTMLElement;
@@ -580,7 +580,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
-	private updateAriaHeaderLabel(title: string, description: string | undefined) {
+	protected updateAriaHeaderLabel(title: string, description: string | undefined) {
 		const ariaLabel = this._getAriaLabel(title, description);
 		if (this.iconContainer) {
 			this.iconContainerHover?.update(title);
@@ -607,7 +607,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
-	private calculateTitle(title: string): string {
+	protected calculateTitle(title: string): string {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.id)!;
 		const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
 		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(this.id);

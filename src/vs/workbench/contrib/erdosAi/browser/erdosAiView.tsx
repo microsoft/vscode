@@ -20,7 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ErdosAi } from './components/erdosAi.js';
+import { ErdosAi, ErdosAiRef } from './components/erdosAi.js';
 import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
 import { IErdosAiService } from '../common/erdosAiService.js';
 import { ErdosViewPane } from '../../../browser/erdosViewPane/erdosViewPane.js';
@@ -67,6 +67,11 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 	 * The ErdosReactRenderer.
 	 */
 	private _erdosReactRenderer?: ErdosReactRenderer;
+
+	/**
+	 * The ErdosAi component ref.
+	 */
+	private _erdosAiRef = React.createRef<ErdosAiRef>();
 
 	//#endregion Private Properties
 
@@ -167,6 +172,35 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 			...options,
 			openFromCollapsedSize: 200,
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		// Set up event listeners for conversation changes and UI actions
+		this.setupEventListeners();
+	}
+
+	/**
+	 * Set up event listeners for conversation changes and UI actions
+	 */
+	private setupEventListeners(): void {
+		// Listen for conversation changes to update the view title
+		this._register(this.erdosAiService.onConversationLoaded((conversation) => {
+			const title = conversation.info?.name || 'New conversation';
+			this.updateTitle(title);
+		}));
+
+		// Listen for UI action events from the service
+		this._register(this.erdosAiService.onShowConversationHistory(() => {
+			// Trigger show history in the React component
+			if (this._erdosAiRef.current) {
+				this._erdosAiRef.current.showHistory();
+			}
+		}));
+
+		this._register(this.erdosAiService.onShowSettings(() => {
+			// Trigger show settings in the React component
+			if (this._erdosAiRef.current) {
+				this._erdosAiRef.current.showSettings();
+			}
+		}));
 	}
 
 	//#endregion Constructor & Dispose
@@ -187,6 +221,7 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 		// Render the ErdosAi component.
 		this._erdosReactRenderer.render(
 			<ErdosAi
+				ref={this._erdosAiRef}
 				reactComponentContainer={this}
 				erdosAiService={this.erdosAiService}
 				fileService={this.fileService}
@@ -235,6 +270,13 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 	protected updateVisibility(visible: boolean): void {
 		// Fire the onVisibilityChanged event.
 		this._onVisibilityChangedEmitter.fire(visible && this.isExpanded());
+	}
+
+	/**
+	 * Override calculateTitle to show just the conversation name without "ERDOS AI:" prefix
+	 */
+	protected override calculateTitle(title: string): string {
+		return title;
 	}
 
 	/**

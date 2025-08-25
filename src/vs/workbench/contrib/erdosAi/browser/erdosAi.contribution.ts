@@ -18,8 +18,9 @@ import { IJupytextService, JupytextService } from './services/jupytextService.js
 import { IAutoAcceptService, AutoAcceptService } from './services/autoAcceptService.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { Extensions as ViewContainerExtensions, IViewsRegistry, IViewContainersRegistry, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
-import { registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -191,6 +192,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 			canToggleVisibility: false,
 			canMoveView: true,
 			containerIcon: erdosAiViewIcon,
+			containerTitle: erdosAiViewContainer.title.value,
 		}
 	],
 	erdosAiViewContainer
@@ -236,6 +238,72 @@ class ErdosAiContribution extends Disposable implements IWorkbenchContribution {
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const preferencesService = accessor.get(IPreferencesService);
 				await preferencesService.openSettings({ query: 'erdosAi' });
+			}
+		});
+
+		// Register view title actions for conversation controls
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'erdos.ai.newConversation.viewTitle',
+					title: nls.localize2('erdos.ai.newConversation.viewTitle', 'New Chat'),
+					icon: Codicon.add,
+					menu: {
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', POISSON_AI_VIEW_ID),
+						group: 'navigation',
+						order: 1
+					}
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const erdosAiService = accessor.get(IErdosAiService);
+				await erdosAiService.newConversation();
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'erdos.ai.showHistory.viewTitle',
+					title: nls.localize2('erdos.ai.showHistory.viewTitle', 'Show Chats...'),
+					icon: Codicon.history,
+					menu: {
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', POISSON_AI_VIEW_ID),
+						group: 'navigation',
+						order: 2
+					}
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const erdosAiService = accessor.get(IErdosAiService);
+				// Trigger show history - we'll need to add this method to the service
+				await erdosAiService.showConversationHistory();
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'erdos.ai.openSettings.viewTitle',
+					title: nls.localize2('erdos.ai.openSettings.viewTitle', 'Configure Chat...'),
+					icon: Codicon.settingsGear,
+					menu: {
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', POISSON_AI_VIEW_ID),
+						group: 'navigation',
+						order: 3
+					}
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const erdosAiService = accessor.get(IErdosAiService);
+				// Trigger show settings - we'll need to add this method to the service
+				await erdosAiService.showSettings();
 			}
 		});
 

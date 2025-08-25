@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-plots-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.erdos-plots-container .plots-action-bars-container {
+	height: min-content;
+}
+
+.erdos-plots-container .plots-data-container {
+	flex-grow: 1;
+}
+
+.erdos-plots {
+	text-align: center;
+	font-style: italic;
+	margin-top: 20px;
+}
+
+
