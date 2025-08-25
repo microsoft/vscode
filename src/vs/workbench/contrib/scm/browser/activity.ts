@@ -112,7 +112,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		this._register(autorunWithStore((reader, store) => {
 			this.logService.trace('[SCMActiveRepositoryController][updateStatusBarAutorun] start');
-			this._repositories.read(reader);
 			const repository = this.scmViewService.activeRepository.read(reader);
 			const commands = repository?.provider.statusBarCommands.read(reader);
 
@@ -159,12 +158,12 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
 
 			// Get a repository agnostic name for the status bar action, derive this from the
-			// first command argument which is in the form "git.<command>/<number>"
+			// first command argument which is in the form of "<extension>.<command>/<number>"
 			let repoAgnosticActionName = command.arguments?.[0];
 			if (repoAgnosticActionName && typeof repoAgnosticActionName === 'string') {
 				repoAgnosticActionName = repoAgnosticActionName
 					.substring(0, repoAgnosticActionName.lastIndexOf('/'))
-					.replace(/^git\./, '');
+					.replace(/^(?:git\.|remoteHub\.)/, '');
 				if (repoAgnosticActionName.length > 1) {
 					repoAgnosticActionName = repoAgnosticActionName[0].toLocaleUpperCase() + repoAgnosticActionName.slice(1);
 				}

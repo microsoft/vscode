@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatToolInvocation } from '../../../common/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
@@ -71,9 +71,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			throw new Error('Confirmation messages are missing');
 		}
 		const { title, message, allowAutoConfirm, disclaimer } = toolInvocation.confirmationMessages;
-		const continueLabel = localize('continue', "Continue");
-		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
+		const allowLabel = localize('allow', "Allow");
+		const allowKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+		const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
 		const cancelLabel = localize('cancel', "Cancel");
 		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
@@ -87,11 +87,11 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			CustomAction,
 		}
 
-		const buttons: IChatConfirmationButton[] = [
+		const buttons: IChatConfirmationButton<ConfirmationOutcome>[] = [
 			{
-				label: continueLabel,
+				label: allowLabel,
 				data: ConfirmationOutcome.Allow,
-				tooltip: continueTooltip,
+				tooltip: allowTooltip,
 				moreActions: !allowAutoConfirm ? undefined : [
 					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
 					{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
@@ -105,11 +105,11 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				tooltip: cancelTooltip
 			}];
 
-		let confirmWidget: ChatCustomConfirmationWidget;
+		let confirmWidget: ChatCustomConfirmationWidget<ConfirmationOutcome>;
 		if (typeof message === 'string') {
 			const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 			confirmWidget = this._register(this.instantiationService.createInstance(
-				ChatConfirmationWidget,
+				ChatConfirmationWidget<ConfirmationOutcome>,
 				this.context.container,
 				{
 					title,
@@ -288,7 +288,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 
 			const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 			confirmWidget = this._register(this.instantiationService.createInstance(
-				ChatCustomConfirmationWidget,
+				ChatCustomConfirmationWidget<ConfirmationOutcome>,
 				this.context.container,
 				{
 					title,
@@ -309,24 +309,26 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		hasToolConfirmation.set(true);
 
 		this._register(confirmWidget.onDidClick(button => {
+			const confirmAndSave = (kind: 'profile' | 'workspace' | 'session') => {
+				this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, kind);
+				toolInvocation.confirmed.complete({ type: ToolConfirmKind.LmServicePerTool, scope: kind });
+			};
+
 			switch (button.data as ConfirmationOutcome) {
 				case ConfirmationOutcome.AllowGlobally:
-					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'profile', true);
-					toolInvocation.confirmed.complete(true);
+					confirmAndSave('profile');
 					break;
 				case ConfirmationOutcome.AllowWorkspace:
-					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'workspace', true);
-					toolInvocation.confirmed.complete(true);
+					confirmAndSave('workspace');
 					break;
 				case ConfirmationOutcome.AllowSession:
-					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'memory', true);
-					toolInvocation.confirmed.complete(true);
+					confirmAndSave('session');
 					break;
 				case ConfirmationOutcome.Allow:
-					toolInvocation.confirmed.complete(true);
+					toolInvocation.confirmed.complete({ type: ToolConfirmKind.UserAction });
 					break;
 				case ConfirmationOutcome.Disallow:
-					toolInvocation.confirmed.complete(false);
+					toolInvocation.confirmed.complete({ type: ToolConfirmKind.Denied });
 					break;
 			}
 

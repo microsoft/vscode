@@ -323,6 +323,7 @@ steps:
         targetPath: .build/node-cpuprofile
         artifactName: node-cpuprofile-$(VSCODE_ARCH)
         sbomEnabled: false
+      condition: succeededOrFailed()
       displayName: Publish Codesign cpu profile
 
     - task: 1ES.PublishPipelineArtifact@1

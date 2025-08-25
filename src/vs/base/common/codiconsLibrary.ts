@@ -610,4 +610,5 @@ export const codiconsLibrary = {
 	editSparkle: register('edit-sparkle', 0xec51),
 	copilotSnooze: register('copilot-snooze', 0xec52),
 	sendToRemoteAgent: register('send-to-remote-agent', 0xec53),
+	commentDiscussionSparkle: register('comment-discussion-sparkle', 0xec54),
 } as const;

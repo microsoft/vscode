@@ -511,6 +511,27 @@
 			background: var(--vscode-editorWidget-background);
 			border-bottom: 1px solid var(--vscode-widget-border);
 		}
+
+		.output-error {
+			margin: 6px 4px;
+			color: var(--vscode-errorForeground);
+
+			.output-error-header {
+				display: flex;
+				align-items: center;
+				gap: 7px;
+				margin-bottom: 4px;
+
+				.codicon-error {
+					color: var(--vscode-errorForeground) !important;
+				}
+			}
+
+			.output-error-details {
+				font-family: var(--monaco-monospace-font);
+				font-size: 11px;
+			}
+		}
 	}
 
 	&:not(:last-child) {
@@ -726,7 +747,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
 	display: none;
-	padding-right: 12px;
 }
 
 .interactive-session .chat-editing-session .monaco-list-row:hover .chat-collapsible-list-action-bar,
@@ -774,6 +794,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts {
+	margin-left: 6px;
+	display: inline-flex;
+	gap: 4px;
+	font-size: 11px;
+}
+.interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+.interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
@@ -2348,6 +2381,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.editor-instance .interactive-session .interactive-item-container.interactive-response .checkpoint-restore-container {
+	.checkpoint-label-text,
+	.monaco-toolbar {
+		background-color: var(--vscode-editor-background);
+	}
+}
+
 .chat-buttons-container {
 	display: flex;
 	gap: 8px;
@@ -2412,6 +2452,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 100;
 	background-color: var(--vscode-sideBar-background);
 	padding: 4px 16px 6px 16px;
+}
+
+.chat-todo-list-widget.scrolled {
 	box-shadow: 0 2px 4px var(--vscode-scrollbar-shadow);
 }
 
@@ -2423,6 +2466,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 2px 0;
 	justify-content: space-between;
 	width: 100%;
+}
+
+.chat-todo-list-widget .todo-list-expand:focus:not(:focus-visible) {
+	outline: none;
 }
 
 .chat-todo-list-widget .todo-list-expand .todo-list-title-section {
@@ -2480,11 +2527,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 4px;
 }
 
-.chat-todo-list-widget .todo-list-expand:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-	border-radius: 4px;
-}
 
 .chat-todo-list-widget .expand-icon {
 	flex-shrink: 0;
@@ -2562,9 +2604,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
+.interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
+	color: var(--vscode-descriptionForeground);
+	padding-top: 6px;
+}
 
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
+
+	.chat-used-context {
+		margin: 0px;
+	}
+
+	.chat-thinking-item {
+		padding: 2px 0px;
+	}
 
 	.chat-thinking-text {
 		font-size: 12px;

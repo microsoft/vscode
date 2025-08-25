@@ -239,31 +239,31 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private lastActive: ITreeItem;
 
 	private readonly _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
-	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
+	get onDidExpandItem(): Event<ITreeItem> { return this._onDidExpandItem.event; }
 
 	private readonly _onDidCollapseItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
-	readonly onDidCollapseItem: Event<ITreeItem> = this._onDidCollapseItem.event;
+	get onDidCollapseItem(): Event<ITreeItem> { return this._onDidCollapseItem.event; }
 
 	private _onDidChangeSelectionAndFocus: Emitter<{ selection: readonly ITreeItem[]; focus: ITreeItem }> = this._register(new Emitter<{ selection: readonly ITreeItem[]; focus: ITreeItem }>());
-	readonly onDidChangeSelectionAndFocus: Event<{ selection: readonly ITreeItem[]; focus: ITreeItem }> = this._onDidChangeSelectionAndFocus.event;
+	get onDidChangeSelectionAndFocus(): Event<{ selection: readonly ITreeItem[]; focus: ITreeItem }> { return this._onDidChangeSelectionAndFocus.event; }
 
 	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	get onDidChangeVisibility(): Event<boolean> { return this._onDidChangeVisibility.event; }
 
 	private readonly _onDidChangeActions: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeActions: Event<void> = this._onDidChangeActions.event;
+	get onDidChangeActions(): Event<void> { return this._onDidChangeActions.event; }
 
 	private readonly _onDidChangeWelcomeState: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeWelcomeState: Event<void> = this._onDidChangeWelcomeState.event;
+	get onDidChangeWelcomeState(): Event<void> { return this._onDidChangeWelcomeState.event; }
 
 	private readonly _onDidChangeTitle: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChangeTitle: Event<string> = this._onDidChangeTitle.event;
+	get onDidChangeTitle(): Event<string> { return this._onDidChangeTitle.event; }
 
 	private readonly _onDidChangeDescription: Emitter<string | undefined> = this._register(new Emitter<string | undefined>());
-	readonly onDidChangeDescription: Event<string | undefined> = this._onDidChangeDescription.event;
+	get onDidChangeDescription(): Event<string | undefined> { return this._onDidChangeDescription.event; }
 
 	private readonly _onDidChangeCheckboxState: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
-	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]> = this._onDidChangeCheckboxState.event;
+	get onDidChangeCheckboxState(): Event<readonly ITreeItem[]> { return this._onDidChangeCheckboxState.event; }
 
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 

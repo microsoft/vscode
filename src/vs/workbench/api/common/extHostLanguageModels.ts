@@ -174,10 +174,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const modelInformation = await data.provider.prepareLanguageModelChatInformation(options, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map(m => {
 			let auth;
-			if (m.auth) {
+			if (m.requiresAuthorization) {
 				auth = {
 					providerLabel: data.extensionName,
-					accountLabel: typeof m.auth === 'object' ? m.auth.label : undefined
+					accountLabel: typeof m.requiresAuthorization === 'object' ? m.requiresAuthorization.label : undefined
 				};
 			}
 			return {
@@ -197,7 +197,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					isUserSelectable: m.isUserSelectable,
 					modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
 					capabilities: m.capabilities ? {
-						vision: m.capabilities.vision,
+						vision: m.capabilities.imageInput,
 						toolCalling: !!m.capabilities.toolCalling,
 						agentMode: !!m.capabilities.toolCalling
 					} : undefined,
@@ -278,7 +278,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			value = data.provider.provideLanguageModelChatResponse(
 				knownModel.info,
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-				{ ...options, modelOptions: options.modelOptions ?? {}, extensionId: ExtensionIdentifier.toKey(from) },
+				{ ...options, modelOptions: options.modelOptions ?? {}, requestInitiator: ExtensionIdentifier.toKey(from) },
 				progress,
 				token
 			);

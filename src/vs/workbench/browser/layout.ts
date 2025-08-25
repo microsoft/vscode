@@ -18,7 +18,7 @@ import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
-import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay, DEFAULT_WINDOW_SIZE, hasNativeMenu, MenuSettings } from '../../platform/window/common/window.js';
+import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay, DEFAULT_EMPTY_WINDOW_SIZE, DEFAULT_WORKSPACE_WINDOW_SIZE, hasNativeMenu, MenuSettings } from '../../platform/window/common/window.js';
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
@@ -132,7 +132,8 @@ export const TITLE_BAR_SETTINGS = [
 	TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
 ];
 
-const DEFAULT_WINDOW_DIMENSIONS = new Dimension(DEFAULT_WINDOW_SIZE.width, DEFAULT_WINDOW_SIZE.height);
+const DEFAULT_EMPTY_WINDOW_DIMENSIONS = new Dimension(DEFAULT_EMPTY_WINDOW_SIZE.width, DEFAULT_EMPTY_WINDOW_SIZE.height);
+const DEFAULT_WORKSPACE_WINDOW_DIMENSIONS = new Dimension(DEFAULT_WORKSPACE_WINDOW_SIZE.width, DEFAULT_WORKSPACE_WINDOW_SIZE.height);
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
@@ -626,7 +627,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
-		this._mainContainerDimension = getClientArea(this.parent, DEFAULT_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
+		this._mainContainerDimension = getClientArea(this.parent, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
 		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
 		this.stateModel.load({
@@ -1626,7 +1627,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this._mainContainerDimension = getClientArea(this.state.runtime.mainWindowFullscreen ?
 				mainWindow.document.body : 	// in fullscreen mode, make sure to use <body> element because
 				this.parent,				// in that case the workbench will span the entire site
-				DEFAULT_WINDOW_DIMENSIONS	// running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
+				this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 			);
 			this.logService.trace(`Layout#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
@@ -2503,7 +2504,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private createGridDescriptor(): ISerializedGrid {
 		const { width, height } = this._mainContainerDimension!;
 		const sideBarSize = this.stateModel.getInitializationValue(LayoutStateKeys.SIDEBAR_SIZE);
-		const auxiliaryBarPartSize = this.stateModel.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE);
+		const auxiliaryBarSize = this.stateModel.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE);
 		const panelSize = this.stateModel.getInitializationValue(LayoutStateKeys.PANEL_SIZE);
 
 		const titleBarHeight = this.titleBarPartView.minimumHeight;
@@ -2544,7 +2545,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const auxiliaryBarNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.AUXILIARYBAR_PART },
-			size: auxiliaryBarPartSize,
+			size: auxiliaryBarSize,
 			visible: this.isVisible(Parts.AUXILIARYBAR_PART)
 		};
 
@@ -2863,7 +2864,7 @@ class LayoutStateModel extends Disposable {
 			// New users: Show auxiliary bar even in empty workspaces
 			// but not if the user explicitly hides it
 			if (
-				this.storageService.isNew(StorageScope.APPLICATION) &&
+				this.isNew[StorageScope.APPLICATION] &&
 				configuration.value !== 'hidden'
 			) {
 				return false;
@@ -2892,7 +2893,7 @@ class LayoutStateModel extends Disposable {
 		}
 
 		// Apply all overrides
-		this.applyOverrides();
+		this.applyOverrides(configuration);
 
 		// Register for runtime key changes
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(storageChangeEvent => {
@@ -2912,7 +2913,7 @@ class LayoutStateModel extends Disposable {
 		}));
 	}
 
-	private applyOverrides(): void {
+	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
 		// Auxiliary bar: Maximized setting (new workspaces)
 		if (this.isNew[StorageScope.WORKSPACE]) {
@@ -2932,6 +2933,12 @@ class LayoutStateModel extends Disposable {
 			!this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)
 		) {
 			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
+		}
+
+		// Restrict auxiliary bar size in case of small window dimensions
+		if (this.isNew[StorageScope.WORKSPACE] && configuration.mainContainerDimension.width <= DEFAULT_WORKSPACE_WINDOW_DIMENSIONS.width) {
+			this.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
+			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
 		}
 	}
 

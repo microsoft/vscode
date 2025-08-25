@@ -4401,6 +4401,8 @@ export interface IInlineSuggestOptions {
 		* @internal
 		*/
 		triggerCommandOnProviderChange?: boolean;
+
+		showOnSuggestConflict?: 'always' | 'never' | 'whenSuggestListIsIncomplete';
 	};
 }
 
@@ -4436,6 +4438,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			experimental: {
 				suppressInlineSuggestions: '',
 				triggerCommandOnProviderChange: false,
+				showOnSuggestConflict: 'never',
 			},
 		};
 
@@ -4489,6 +4492,16 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.experimental.triggerCommandOnProviderChange,
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes."),
+					experiment: {
+						mode: 'auto'
+					}
+				},
+				'editor.inlineSuggest.experimental.showOnSuggestConflict': {
+					type: 'string',
+					default: defaults.experimental.showOnSuggestConflict,
+					tags: ['experimental'],
+					enum: ['always', 'never', 'whenSuggestListIsIncomplete'],
+					description: nls.localize('inlineSuggest.showOnSuggestConflict', "Controls whether to show inline suggestions when there is a suggest conflict."),
 					experiment: {
 						mode: 'auto'
 					}
@@ -4549,6 +4562,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			experimental: {
 				suppressInlineSuggestions: EditorStringOption.string(input.experimental?.suppressInlineSuggestions, this.defaultValue.experimental.suppressInlineSuggestions),
 				triggerCommandOnProviderChange: boolean(input.experimental?.triggerCommandOnProviderChange, this.defaultValue.experimental.triggerCommandOnProviderChange),
+				showOnSuggestConflict: stringSet(input.experimental?.showOnSuggestConflict, this.defaultValue.experimental.showOnSuggestConflict, ['always', 'never', 'whenSuggestListIsIncomplete']),
 			},
 		};
 	}

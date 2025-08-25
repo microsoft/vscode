@@ -9,7 +9,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../../base/common/h
 import { autorun } from '../../../../../../base/common/observable.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, IChatProgressMessage } from '../../../common/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, IChatProgressMessage, ToolConfirmKind } from '../../../common/chatService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatProgressContentPart } from '../chatProgressContentPart.js';
@@ -32,7 +32,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private createProgressPart(): HTMLElement {
-		if (this.toolInvocation.isComplete && this.toolInvocation.isConfirmed !== false && this.toolInvocation.pastTenseMessage) {
+		if (this.toolInvocation.isComplete && this.toolIsConfirmed && this.toolInvocation.pastTenseMessage) {
 			const part = this.renderProgressContent(this.toolInvocation.pastTenseMessage);
 			this._register(part);
 			return part.domNode;
@@ -48,6 +48,16 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 		}
 	}
 
+	private get toolIsConfirmed() {
+		if (!this.toolInvocation.isConfirmed) {
+			return false;
+		}
+		if (this.toolInvocation.isConfirmed === true) {
+			return true;
+		}
+		return this.toolInvocation.isConfirmed.type !== ToolConfirmKind.Denied;
+	}
+
 	private renderProgressContent(content: IMarkdownString | string) {
 		if (typeof content === 'string') {
 			content = new MarkdownString().appendText(content);
@@ -58,7 +68,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			content
 		};
 
-		const iconOverride = !this.toolInvocation.isConfirmed ?
+		const iconOverride = !this.toolIsConfirmed ?
 			Codicon.error :
 			this.toolInvocation.isComplete ?
 				Codicon.check : undefined;

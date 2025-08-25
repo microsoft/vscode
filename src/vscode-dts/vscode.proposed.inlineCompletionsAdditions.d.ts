@@ -46,6 +46,9 @@ declare module 'vscode' {
 		action?: Command;
 
 		displayLocation?: InlineCompletionDisplayLocation;
+
+		/** Used for telemetry. Can be an arbitrary string. */
+		correlationId?: string;
 	}
 
 	export enum InlineCompletionDisplayLocationKind {
