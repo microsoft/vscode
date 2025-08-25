@@ -7,8 +7,6 @@ import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../../../nls.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { IChatService } from '../../../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
@@ -18,13 +16,17 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IMarkerService } from '../../../../../../../platform/markers/common/markers.js';
-import { Location } from '../../../../../../../editor/common/languages.js';
+import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 
 type CreateAndRunTaskToolClassification = {
 	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
 	bufferLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the terminal buffer as a string.' };
 	pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long polling for output took (ms).' };
+	inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
+	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
+	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
 	owner: 'meganrogge';
 	comment: 'Understanding the usage of the runTask tool';
 };
@@ -32,6 +34,9 @@ type CreateAndRunTaskToolEvent = {
 	taskLabel: string;
 	bufferLength: number;
 	pollDurationMs: number | undefined;
+	inputToolManualAcceptCount: number;
+	inputToolManualRejectCount: number;
+	inputToolManualChars: number;
 };
 
 interface ICreateAndRunTaskToolInput {
@@ -53,11 +58,9 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		@ITaskService private readonly _tasksService: ITaskService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IChatService private readonly _chatService: IChatService,
 		@IFileService private readonly _fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IMarkerService private readonly _markerService: IMarkerService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -120,55 +123,38 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		if (!terminals || terminals.length === 0) {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${args.task.label}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', args.task.label)) };
 		}
-
+		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
 			terminals,
 			task,
-			this._languageModelsService,
-			this._markerService,
-			this._chatService,
+			this._instantiationService,
 			invocation.context!,
 			_progress,
 			token,
+			store,
 			() => this._isTaskActive(task),
 			dependencyTasks
 		);
+		store.dispose();
 		for (const r of terminalResults) {
 			this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
 				taskLabel: args.task.label,
 				bufferLength: r.output.length ?? 0,
 				pollDurationMs: r.pollDurationMs ?? 0,
+				inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
+				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
+				inputToolManualChars: r.inputToolManualChars ?? 0,
 			});
-		}
-
-		let resultSummary = '';
-		if (result?.exitCode) {
-			resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', args.task.label, result.exitCode);
-		} else {
-			resultSummary += `Task \`${args.task.label}\` `;
-			resultSummary += terminalResults.every(r => r.idle)
-				? 'finished.'
-				: 'started and will continue to run in the background.';
 		}
 
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
+		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
+		const toolResultMessage = toolResultMessageFromResponse(result, args.task.label, toolResultDetails, terminalResults);
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
-			toolResultMessage: new MarkdownString(resultSummary),
-			toolResultDetails: Array.from(new Map(
-				terminalResults
-					.flatMap(r =>
-						r.resources?.filter(res => res.uri).map(res => {
-							const range = res.range;
-							const item = range !== undefined ? { uri: res.uri, range } : res.uri;
-							const key = range !== undefined
-								? `${res.uri.toString()}-${range.toString()}`
-								: `${res.uri.toString()}`;
-							return [key, item] as [string, URI | Location];
-						}) ?? []
-					)
-			).values())
+			toolResultMessage,
+			toolResultDetails
 		};
 	}
 

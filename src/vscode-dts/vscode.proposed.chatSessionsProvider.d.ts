@@ -122,6 +122,7 @@ declare module 'vscode' {
 		 * If not set, then the session will be considered read-only and no requests can be made.
 		 */
 		// TODO: Should we introduce our own type for `ChatRequestHandler` since not all field apply to chat sessions?
+		// TODO: Revisit this to align with code.
 		readonly requestHandler: ChatRequestHandler | undefined;
 	}
 

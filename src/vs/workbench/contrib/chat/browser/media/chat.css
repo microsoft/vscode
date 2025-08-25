@@ -517,6 +517,27 @@
 			background: var(--vscode-editorWidget-background);
 			border-bottom: 1px solid var(--vscode-widget-border);
 		}
+
+		.output-error {
+			margin: 6px 4px;
+			color: var(--vscode-errorForeground);
+
+			.output-error-header {
+				display: flex;
+				align-items: center;
+				gap: 7px;
+				margin-bottom: 4px;
+
+				.codicon-error {
+					color: var(--vscode-errorForeground) !important;
+				}
+			}
+
+			.output-error-details {
+				font-family: var(--monaco-monospace-font);
+				font-size: 11px;
+			}
+		}
 	}
 
 	&:not(:last-child) {
@@ -2589,9 +2610,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 }
 
+.interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
+	color: var(--vscode-descriptionForeground);
+	padding-top: 6px;
+}
 
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
+
+	.chat-used-context {
+		margin: 0px;
+	}
+
+	.chat-thinking-item {
+		padding: 2px 0px;
+	}
 
 	.chat-thinking-text {
 		font-size: 12px;

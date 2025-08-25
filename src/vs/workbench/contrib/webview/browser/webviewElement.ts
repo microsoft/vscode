@@ -35,7 +35,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
-import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
+import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
 
@@ -74,7 +74,7 @@ interface WebviewActionContext {
 
 const webviewIdContext = 'webviewId';
 
-export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
+export class WebviewElement extends Disposable implements IWebviewElement, WebviewFindDelegate {
 
 	protected readonly id = generateUuid();
 

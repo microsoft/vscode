@@ -25,6 +25,7 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -35,6 +36,7 @@ import { EditorOptions, IEditorOptions } from '../../../../editor/common/config/
 import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -76,6 +78,7 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { IChatRequestModeInfo } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
@@ -85,7 +88,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } 
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
-import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, ToggleAgentModeActionId } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -102,9 +105,6 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { isLocation } from '../../../../editor/common/languages.js';
-import { IChatRequestModeInfo } from '../common/chatModel.js';
 
 const $ = dom.$;
 
@@ -599,6 +599,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.modeWidget?.show();
 	}
 
+	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
+		this._currentLanguageModel = model;
+
+		if (this.cachedDimensions) {
+			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
+			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+		}
+
+		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
+
+		this._onDidChangeCurrentLanguageModel.fire(model);
+	}
+
 	private checkModelSupported(): void {
 		if (this._currentLanguageModel && !this.modelSupportedForDefaultAgent(this._currentLanguageModel)) {
 			this.setCurrentLanguageModelToDefault();
@@ -662,20 +676,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (defaultModel) {
 			this.setCurrentLanguageModel(defaultModel);
 		}
-	}
-
-	private setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
-		this._currentLanguageModel = model;
-
-		if (this.cachedDimensions) {
-			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
-			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
-		}
-
-		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
-		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
-
-		this._onDidChangeCurrentLanguageModel.fire(model);
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -1203,7 +1203,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						getModels: () => this.getModels()
 					};
 					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, this._currentLanguageModel, itemDelegate);
-				} else if (action.id === ToggleAgentModeActionId && action instanceof MenuItemAction) {
+				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable
 					};

@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -67,54 +64,47 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 		};
 		this.markdownPart = this._register(instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {
-			actionHandler: {
-				callback: (content) => {
-					const [type, scopeRaw] = content.split('_');
-					switch (type) {
-						case 'settings': {
-							if (scopeRaw === 'global') {
-								preferencesService.openSettings({
-									query: `@id:chat.tools.autoApprove`
-								});
-							} else {
-								const scope = parseInt(scopeRaw);
-								const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
-								const options: IOpenSettingsOptions = {
-									jsonEditor: true,
-									revealSetting: {
-										key: TerminalContribSettingId.AutoApprove
-									}
-								};
-								switch (target) {
-									case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
-									case ConfigurationTarget.USER:
-									case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
-									case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
-									case ConfigurationTarget.WORKSPACE:
-									case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
-									default: {
-										// Fallback if something goes wrong
-										preferencesService.openSettings({
-											target: ConfigurationTarget.USER,
-											query: `@id:${TerminalContribSettingId.AutoApprove}`,
-										});
-										break;
-									}
+			actionHandler: (content) => {
+				const [type, scopeRaw] = content.split('_');
+				switch (type) {
+					case 'settings': {
+						if (scopeRaw === 'global') {
+							preferencesService.openSettings({
+								query: `@id:chat.tools.autoApprove`
+							});
+						} else {
+							const scope = parseInt(scopeRaw);
+							const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
+							const options: IOpenSettingsOptions = {
+								jsonEditor: true,
+								revealSetting: {
+									key: TerminalContribSettingId.AutoApprove
+								}
+							};
+							switch (target) {
+								case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
+								case ConfigurationTarget.USER:
+								case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
+								case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
+								case ConfigurationTarget.WORKSPACE:
+								case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
+								default: {
+									// Fallback if something goes wrong
+									preferencesService.openSettings({
+										target: ConfigurationTarget.USER,
+										query: `@id:${TerminalContribSettingId.AutoApprove}`,
+									});
+									break;
 								}
 							}
-							break;
 						}
+						break;
 					}
-				},
-				disposables: new DisposableStore(),
+				}
 			},
 		}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		const icon = !toolInvocation.isConfirmed ?
-			Codicon.error :
-			toolInvocation.isComplete ?
-				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
-		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, this.markdownPart.domNode, icon);
+		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, this.markdownPart.domNode, this.getIcon());
 		this.domNode = progressPart.domNode;
 	}
 }

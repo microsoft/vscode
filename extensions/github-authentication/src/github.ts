@@ -44,6 +44,27 @@ interface GitHubAuthenticationProviderOptions extends vscode.AuthenticationProvi
 	 * leaving it up to the user to choose the social sign-in provider on the sign-in page.
 	 */
 	readonly provider?: GitHubSocialSignInProvider;
+	readonly extraAuthorizeParameters?: Record<string, string>;
+}
+
+function isGitHubAuthenticationProviderOptions(object: any): object is GitHubAuthenticationProviderOptions {
+	if (!object || typeof object !== 'object') {
+		throw new Error('Options are not an object');
+	}
+	if (object.provider !== undefined && !isSocialSignInProvider(object.provider)) {
+		throw new Error(`Provider is invalid: ${object.provider}`);
+	}
+	if (object.extraAuthorizeParameters !== undefined) {
+		if (!object.extraAuthorizeParameters || typeof object.extraAuthorizeParameters !== 'object') {
+			throw new Error('Extra parameters must be a record of string keys and string values.');
+		}
+		for (const [key, value] of Object.entries(object.extraAuthorizeParameters)) {
+			if (typeof key !== 'string' || typeof value !== 'string') {
+				throw new Error('Extra parameters must be a record of string keys and string values.');
+			}
+		}
+	}
+	return true;
 }
 
 export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
@@ -338,12 +359,15 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				scopes: JSON.stringify(scopes),
 			});
 
+			if (options && !isGitHubAuthenticationProviderOptions(options)) {
+				throw new Error('Invalid options');
+			}
 			const sessions = await this._sessionsPromise;
 			const loginWith = options?.account?.label;
-			const signInProvider = isSocialSignInProvider(options?.provider) ? options.provider : undefined;
+			const signInProvider = options?.provider;
 			this._logger.info(`Logging in with${signInProvider ? ` ${signInProvider}, ` : ''} '${loginWith ? loginWith : 'any'}' account...`);
 			const scopeString = sortedScopes.join(' ');
-			const token = await this._githubServer.login(scopeString, signInProvider, loginWith);
+			const token = await this._githubServer.login(scopeString, signInProvider, options?.extraAuthorizeParameters, loginWith);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
