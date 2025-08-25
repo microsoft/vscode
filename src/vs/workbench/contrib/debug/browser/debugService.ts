@@ -526,12 +526,7 @@ export class DebugService implements IDebugService {
 					const existingSessions = this.model.getSessions();
 					const workspace = launch?.workspace;
 					
-					const existingSession = existingSessions.find(s => 
-						s.configuration.name === resolvedConfig.name &&
-						s.configuration.type === resolvedConfig.type &&
-						s.configuration.request === resolvedConfig.request &&
-						s.root === workspace
-					);
+					const existingSession = existingSessions.find(s => this.hasSameConfiguration(s, resolvedConfig, workspace));
 					
 					if (existingSession) {
 						// There is already a session with the same configuration, prompt user before running preLaunchTask
@@ -626,8 +621,8 @@ export class DebugService implements IDebugService {
 	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig; unresolved: IConfig | undefined }, options?: IDebugSessionOptions, userConfirmedConcurrentSession = false): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
-		if (!userConfirmedConcurrentSession && options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel()) && configuration.resolved.suppressMultipleSessionWarning !== true) {
-			// There is already a session with the same name, prompt user #127721
+		if (!userConfirmedConcurrentSession && options?.startedByUser && this.model.getSessions().some(s => this.hasSameConfiguration(s, configuration.resolved, root)) && configuration.resolved.suppressMultipleSessionWarning !== true) {
+			// There is already a session with the same configuration, prompt user #127721
 			const result = await this.dialogService.confirm({ message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", session.getLabel()) });
 			if (!result.confirmed) {
 				return false;
@@ -1005,6 +1000,13 @@ export class DebugService implements IDebugService {
 			})),
 			cancelButton: true
 		});
+	}
+
+	private hasSameConfiguration(session: IDebugSession, config: IConfig, workspace: IWorkspaceFolder | undefined): boolean {
+		return session.configuration.name === config.name &&
+			session.configuration.type === config.type &&
+			session.configuration.request === config.request &&
+			session.root === workspace;
 	}
 
 	//---- focus management
