@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../../../base/common/async.js';
+import { raceTimeout, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -21,6 +21,7 @@ import { getTextResponseFromStream } from './utils.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
+import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -80,24 +81,28 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	): Promise<void> {
 		const pollStartTime = Date.now();
 		let extended = false;
-		let autoReplyCount = 0;
-		let lastObservedLength = this._execution.getOutput().length;
 
 		// Hold a single pending "continue?" prompt across timeout passes
 		let continuePollingDecisionP: Promise<boolean> | undefined;
 		let continuePollingPart: ChatElicitationRequestPart | undefined;
 
+		this._state = OutputMonitorState.PollingForIdle;
+
 		while (!token.isCancellationRequested) {
-			const polled = await this._pollOnce(this._execution, extended, token, this._pollFn);
-
-			this._state = polled.state;
-
-
-			// Keep track of the last observed length to detect changes after auto-replies
-			lastObservedLength = this._execution.getOutput().length;
 
 			switch (this._state) {
+				case OutputMonitorState.PollingForIdle: {
+					this._state = await this._waitForIdle(this._execution, extended, token);
+					break;
+				}
 				case OutputMonitorState.Timeout: {
+					// Always use extended polling while a timeout prompt is visible
+					if (extended) {
+						throw new BugIndicatingError('Cannot timeout when extended is true');
+					}
+					extended = true;
+
+					// TODO: If the user says no, just fire command finished for now to move it to the background and unblock agent mode
 					// Create the prompt once; keep it open while we keep polling.
 					if (!continuePollingDecisionP) {
 						const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
@@ -105,11 +110,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						continuePollingPart = part;
 					}
 
-					// Always use extended polling while a timeout prompt is visible
-					extended = true;
 
 					// Start another polling pass and race it against the user's decision
-					const nextPollP = this._pollOnce(this._execution, /*extendedPolling*/ true, token, this._pollFn)
+					const nextPollP = this._waitForIdle(this._execution, /*extendedPolling*/ true, token, this._pollFn)
 						.catch((): IPollingResult => ({
 							state: OutputMonitorState.Cancelled,
 							output: this._execution.getOutput(),
@@ -127,7 +130,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 						// User explicitly declined to keep waiting, so finish with the timed-out result
 						if (race.v === false) {
-							this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+							this._pollingResult = { ...newState, pollDurationMs: Date.now() - pollStartTime };
 							break;
 						}
 
@@ -154,30 +157,54 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					}
 				}
 				case OutputMonitorState.Cancelled:
-					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+					this._pollingResult = { ...newState, pollDurationMs: Date.now() - pollStartTime };
 					break;
 				case OutputMonitorState.Idle: {
+					const customResult = await this._pollFn?.(this._execution, token, this._taskService);
+					if (customResult) {
+						this._pollingResult = {
+							output: customResult.output,
+							pollDurationMs: Date.now() - pollStartTime,
+							resources: customResult.resources,
+							modelOutputEvalResponse: customResult.modelOutputEvalResponse,
+							state: newState
+						};
+						break;
+					}
+
+					// TODO: Determine whether there is something to be actioned, if not wait for
+					// a single data event and then idle again
+
+					// TODO: Handle this, shouldn't _assessOutputForErrors return undefined?
+					// const modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
+					// TODO: Return errors from modelOutputEvalResponse in the result
+
 					const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 					const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 
 					if (selectedOption) {
 						const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
 						if (confirmed) {
-							autoReplyCount++;
-							const changed = await this._waitForNextDataOrActivityChange(this._execution, lastObservedLength, token);
-							lastObservedLength = this._execution.getOutput().length;
+							const changed = await this._waitForNextDataOrActivityChange();
 							if (!changed) {
-								this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+								// this._pollingResult = { ...newState, pollDurationMs: Date.now() - pollStartTime };
 								break;
 							}
 							continue;
 						}
+					} else {
+						// TODO: If all actions fail, do this:
+						// Wait for a single data event to ensure we don't re-evaluate the same idle event
+						await Event.toPromise(this._execution.instance.onData);
+						this._state = OutputMonitorState.PollingForIdle;
 					}
 
-					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+					// this._pollingResult = { ...newState, pollDurationMs: Date.now() - pollStartTime };
+
 					break;
 				}
 			}
+
 		}
 
 		if (!this._pollingResult && token.isCancellationRequested) {
@@ -199,14 +226,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 *  - terminal becomes inactive/idle, or
 	 *  - timeout window elapses.
 	 */
-	private async _pollOnce(
+	private async _waitForIdle(
 		execution: IExecution,
 		extendedPolling: boolean,
 		token: CancellationToken,
-		pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>
-	): Promise<IPollingResult> {
-		this._state = OutputMonitorState.Polling;
-
+	): Promise<OutputMonitorState> {
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
@@ -237,8 +261,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			// Became inactive or no new data for a while → idle
 			if (noNewData || isActive === false) {
-				this._state = OutputMonitorState.Idle;
-				break;
+				return OutputMonitorState.Idle;
 			}
 
 			// Still active but with a no-new-data, so reset counters and keep going
@@ -249,52 +272,22 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		if (token.isCancellationRequested) {
-			this._state = OutputMonitorState.Cancelled;
-		} else if (this._state === OutputMonitorState.Polling) {
-			this._state = OutputMonitorState.Timeout;
+			return OutputMonitorState.Cancelled;
 		}
-
-		// Let custom poller override if provided
-		const custom = await pollFn?.(execution, token, this._taskService);
-		if (custom) {
-			return custom;
-		}
-
-		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token);
-		return { output: buffer, state: this._state, modelOutputEvalResponse };
+		return OutputMonitorState.Timeout;
 	}
 
 	/**
 	 * Waits for any change in output length or activity flip, up to a short cap.
 	 * This prevents immediately re-evaluating the same idle snapshot after sending input.
 	 */
-	private async _waitForNextDataOrActivityChange(
-		execution: IExecution,
-		lastLength: number,
-		token: CancellationToken
-	): Promise<boolean> {
+	private async _waitForNextDataOrActivityChange(): Promise<boolean> {
 		const maxMs = Math.max(PollingConsts.MinPollingDuration * 2, 250);
-		const stepMs = Math.max(PollingConsts.MinPollingDuration / 2, 50);
-		let waited = 0;
-
-		const initialActive = await execution.isActive?.();
-
-		while (!token.isCancellationRequested && waited < maxMs) {
-			await timeout(stepMs, token);
-			waited += stepMs;
-
-			const len = execution.getOutput().length;
-			if (len !== lastLength) {
-				return true;
-			}
-			if (execution.isActive) {
-				const nowActive = await execution.isActive();
-				if (nowActive !== initialActive) {
-					return true;
-				}
-			}
-		}
-		return false;
+		return await raceTimeout(
+			Event.toPromise(this._execution.instance.onData).then(() => true),
+			maxMs,
+			() => false
+		) ?? false;
 	}
 
 	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
