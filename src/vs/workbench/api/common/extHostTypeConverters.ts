@@ -3649,7 +3649,11 @@ export namespace McpServerDefinition {
 		return !!(candidate as vscode.McpHttpServerDefinition).uri;
 	}
 
-	export function from(item: vscode.McpServerDefinition): McpServerLaunch.Serialized {
+	export function isMcpNodeServerDefinition(candidate: vscode.McpServerDefinition): candidate is vscode.McpPackageServerDefinition {
+		return !!(candidate as vscode.McpPackageServerDefinition).packageName && !!(candidate as vscode.McpPackageServerDefinition).packageType;
+	}
+
+	export function from(item: vscode.McpStdioServerDefinition | vscode.McpHttpServerDefinition): McpServerLaunch.Serialized {
 		return McpServerLaunch.toSerialized(
 			isHttpConfig(item)
 				? {
