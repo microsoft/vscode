@@ -15,8 +15,10 @@ import { ILanguageService } from '../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../common/languages/nullTokenize.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { IModelContentChange } from '../../../common/textModelEvents.js';
+import { IModelContentChange, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent, ModelRawLineChanged } from '../../../common/textModelEvents.js';
 import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IViewModel } from '../../../common/viewModel.js';
 
 // --------- utils
 
@@ -98,31 +100,43 @@ suite('Editor Model - Model', () => {
 
 	// --------- insert text eventing
 
+	function withEventCapturing(callback: () => void): ModelRawContentChangedEvent | null {
+		let e: ModelRawContentChangedEvent | null = null;
+		const spyViewModel = new class extends mock<IViewModel>() {
+			override onDidChangeContentOrInjectedText(_e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent) {
+				if (e !== null || !(_e instanceof InternalModelContentChangeEvent)) {
+					assert.fail('Unexpected assertion error');
+				}
+				e = _e.rawContentChangedEvent;
+			}
+		};
+		thisModel.registerViewModel(spyViewModel);
+		callback();
+		thisModel.unregisterViewModel(spyViewModel);
+		return e;
+	}
+
 	test('model insert empty text does not trigger eventing', () => {
-		const disposable = thisModel.onDidChangeContent((e) => {
-			assert.ok(false, 'was not expecting event');
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
 		});
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
-		disposable.dispose();
+		assert.deepStrictEqual(e, null, 'wast no expecting event');
 	});
 
 	test('model insert text without newline eventing', () => {
-		let e: IModelContentChange[] | null = null;
-		const disposable = thisModel.onDidChangeContent((_e) => {
-			e = _e.changes;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
 		});
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
-		if (!e) {
-			assert.fail('should be defined');
-		}
-		assert.deepStrictEqual(e[0], {
-			range: new Range(1, 1, 1, 1),
-			rangeLength: 0,
-			text: "foo ",
-			rangeOffset: 0,
-			forceMoveMarkers: true
-		});
-		disposable.dispose();
+
+		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 1)
+			],
+			2,
+			false,
+			false,
+			null
+		));
 	});
 
 	test('model insert text with one newline eventing', () => {

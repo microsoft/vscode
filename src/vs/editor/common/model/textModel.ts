@@ -239,7 +239,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
 	}
 	//#endregion
 
@@ -454,8 +454,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokenizationTextModelPart.handleDidChangeContent(change);
 		this._bracketPairs.handleDidChangeContent(change);
 		const contentChangeEvent = new InternalModelContentChangeEvent(rawChange, change);
+		this._onDidChangeContentOrInjectedText(contentChangeEvent);
 		this._eventEmitter.fire(contentChangeEvent);
-		this.onDidChangeContentOrInjectedText(contentChangeEvent);
 	}
 
 	public setValue(value: string | model.ITextSnapshot, reason = EditSources.setValue()): void {
@@ -1428,7 +1428,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._eventEmitter.beginDeferredEmit();
 			this._isUndoing = isUndoing;
 			this._isRedoing = isRedoing;
-			this.applyEdits(edits, false, EditSources.applyEdits(), resultingSelection);
+			this._doApplyEdits(this._validateEditOperations(edits), false, EditSources.applyEdits(), resultingSelection);
 			this.setEOL(eol);
 			this._overwriteAlternativeVersionId(resultingAlternativeVersionId);
 		} finally {
@@ -1443,16 +1443,16 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true): model.IValidEditOperation[];
 	/** @internal */
-	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false, reason: TextModelEditSource, selections?: Selection[] | null): void;
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: false, reason: TextModelEditSource): void;
 	/** @internal */
-	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true, reason: TextModelEditSource, selections?: Selection[] | null): model.IValidEditOperation[];
-	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits?: boolean, reason?: TextModelEditSource, selections?: Selection[] | null): void | model.IValidEditOperation[] {
+	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true, reason: TextModelEditSource): model.IValidEditOperation[];
+	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits?: boolean, reason?: TextModelEditSource): void | model.IValidEditOperation[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
 			const operations = this._validateEditOperations(rawOperations);
 
-			return this._doApplyEdits(operations, computeUndoEdits ?? false, reason ?? EditSources.applyEdits(), selections);
+			return this._doApplyEdits(operations, computeUndoEdits ?? false, reason ?? EditSources.applyEdits());
 		} finally {
 			this._eventEmitter.endDeferredEmit();
 			this._onDidChangeDecorations.endDeferredEmit();
@@ -1513,7 +1513,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				if (editingLinesCnt < deletingLinesCnt) {
 					// Must delete some lines
 					const spliceStartLineNumber = startLineNumber + editingLinesCnt;
-					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber));
+					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber - spliceStartLineNumber));
 				}
 
 				if (editingLinesCnt < insertingLinesCnt) {
@@ -1524,9 +1524,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					rawContentChanges.push(
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
-							startLineNumber + insertingLinesCnt,
 							fromLineNumber,
-							fromLineNumber + cnt - 1
+							cnt
 						)
 					);
 				}
@@ -1579,11 +1578,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	//#region Decorations
 
-	private onDidChangeInjectedText(affectedInjectedTextLines: Set<number> | null): void {
+	private _onDidChangeInjectedText(affectedInjectedTextLines: Set<number> | null): void {
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
 			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber));
-			this.onDidChangeContentOrInjectedText(new ModelInjectedTextChangedEvent(lineChangeEvents));
+			this._onDidChangeContentOrInjectedText(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
 	}
 
@@ -1602,7 +1601,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	public onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
+	private _onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
 		for (const viewModel of this._viewModels) {
 			viewModel.onDidChangeContentOrInjectedText(e);
 		}
@@ -1784,11 +1783,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._decorationsTree.getAllCustomLineHeights(this, ownerId);
 	}
 
-	public getLineInjectedText(lineNumber: number): LineInjectedText[] {
+	public getLineInjectedText(lineNumber: number, ownerId: number = 0): LineInjectedText[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
 
-		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
+		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, ownerId);
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
 
@@ -1863,7 +1862,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (node.options.affectsFont) {
 			this._onDidChangeDecorations.recordLineAffectedByFontChange(ownerId, node.id, range.startLineNumber);
 		}
-		this.onDidChangeInjectedText(affectedInjectedTextLines);
+		this._onDidChangeInjectedText(affectedInjectedTextLines);
 	}
 
 	private _changeDecorationOptionsImpl(ownerId: number, decorationId: string, options: ModelDecorationOptions): void {
@@ -1905,7 +1904,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		} else {
 			node.setOptions(options);
 		}
-		this.onDidChangeInjectedText(affectedInjectedTextLines);
+		this._onDidChangeInjectedText(affectedInjectedTextLines);
 	}
 
 	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: model.IModelDeltaDecoration[], suppressEvents: boolean = false): string[] {
@@ -2008,7 +2007,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				}
 			}
 
-			this.onDidChangeInjectedText(affectedInjectedTextLines);
+			this._onDidChangeInjectedText(affectedInjectedTextLines);
 			return result;
 		} finally {
 			this._onDidChangeDecorations.endDeferredEmit();
@@ -2613,13 +2612,8 @@ class DidChangeDecorationsEmitter extends Disposable {
 
 class DidChangeContentEmitter extends Disposable {
 
-	/**
-	 * Both `fastEvent` and `slowEvent` work the same way and contain the same events, but first we invoke `fastEvent` and then `slowEvent`.
-	 */
-	private readonly _fastEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
-	public readonly fastEvent: Event<InternalModelContentChangeEvent> = this._fastEmitter.event;
-	private readonly _slowEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
-	public readonly slowEvent: Event<InternalModelContentChangeEvent> = this._slowEmitter.event;
+	private readonly _emitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
+	public readonly event: Event<InternalModelContentChangeEvent> = this._emitter.event;
 
 	private _deferredCnt: number;
 	private _deferredEvent: InternalModelContentChangeEvent | null;
@@ -2631,10 +2625,7 @@ class DidChangeContentEmitter extends Disposable {
 	}
 
 	public hasListeners(): boolean {
-		return (
-			this._fastEmitter.hasListeners()
-			|| this._slowEmitter.hasListeners()
-		);
+		return this._emitter.hasListeners();
 	}
 
 	public beginDeferredEmit(): void {
@@ -2647,8 +2638,7 @@ class DidChangeContentEmitter extends Disposable {
 			if (this._deferredEvent !== null) {
 				const e = this._deferredEvent;
 				this._deferredEvent = null;
-				this._fastEmitter.fire(e);
-				this._slowEmitter.fire(e);
+				this._emitter.fire(e);
 			}
 		}
 	}
@@ -2662,7 +2652,6 @@ class DidChangeContentEmitter extends Disposable {
 			}
 			return;
 		}
-		this._fastEmitter.fire(e);
-		this._slowEmitter.fire(e);
+		this._emitter.fire(e);
 	}
 }

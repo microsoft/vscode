@@ -268,16 +268,16 @@ export class LineInjectedText {
 export class ModelRawLineChanged {
 	public readonly changeType = RawContentChangedType.LineChanged;
 	/**
-	 * The line that has changed.
+	 * The line number that has changed (before the change was applied).
 	 */
-	public readonly oldLineNumber: number;
+	public readonly lineNumber: number;
 	/**
-	 * The new line number the old one is mapped to
+	 * The new line number the old one is mapped to (after the change was applied).
 	 */
 	public readonly newLineNumber: number;
 
 	constructor(lineNumber: number, newLineNumber: number) {
-		this.oldLineNumber = lineNumber;
+		this.lineNumber = lineNumber;
 		this.newLineNumber = newLineNumber;
 	}
 }
@@ -344,13 +344,20 @@ export class ModelRawLinesDeleted {
 	 */
 	public readonly fromLineNumber: number;
 	/**
+	 * The count of deleted lines.
+	 */
+	public readonly count: number;
+
+	/**
 	 * At what line the deletion stopped (inclusive).
 	 */
-	public readonly toLineNumber: number;
+	public get toLineNumber(): number {
+		return this.fromLineNumber + this.count - 1;
+	}
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
+	constructor(fromLineNumber: number, count: number) {
 		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
+		this.count = count;
 	}
 }
 
@@ -363,25 +370,27 @@ export class ModelRawLinesInserted {
 	/**
 	 * Before what line did the insertion begin
 	 */
-	public readonly oldFromLineNumber: number;
+	public readonly fromLineNumber: number;
 	/**
-	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
-	 */
-	public readonly oldToLineNumber: number;
-	/**
-	 * The new from line number of the inserted lines.
+	 * The new from line number of the inserted lines (after the change was applied).
 	 */
 	public readonly newFromLineNumber: number;
 	/**
-	 * The new to line number of the inserted lines.
+	 * The count of inserted lines.
 	 */
-	public readonly newToLineNumber: number;
+	public readonly count: number;
 
-	constructor(oldFromLineNumber: number, oldToLineNumber: number, newFromLineNumber: number, newToLineNumber: number) {
-		this.oldFromLineNumber = oldFromLineNumber;
-		this.oldToLineNumber = oldToLineNumber;
+	/**
+	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
+	 */
+	public get toLineNumber(): number {
+		return this.fromLineNumber + this.count - 1;
+	}
+
+	constructor(oldFromLineNumber: number, newFromLineNumber: number, count: number) {
+		this.fromLineNumber = oldFromLineNumber;
 		this.newFromLineNumber = newFromLineNumber;
-		this.newToLineNumber = newToLineNumber;
+		this.count = count;
 	}
 }
 

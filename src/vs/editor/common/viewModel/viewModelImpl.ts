@@ -323,8 +323,8 @@ export class ViewModel extends Disposable implements IViewModel {
 			for (const change of changes) {
 				switch (change.changeType) {
 					case textModelEvents.RawContentChangedType.LinesInserted: {
-						for (let lineNumber = change.newFromLineNumber; lineNumber <= change.newToLineNumber; lineNumber++) {
-							lineBreaksComputer.addRequest(lineNumber, null);
+						for (let i = 0; i < change.count; i++) {
+							lineBreaksComputer.addRequest(change.newFromLineNumber + i, null);
 						}
 						break;
 					}
@@ -357,8 +357,8 @@ export class ViewModel extends Disposable implements IViewModel {
 						break;
 					}
 					case textModelEvents.RawContentChangedType.LinesInserted: {
-						const insertedLineBreaks = lineBreakQueue.takeCount(change.newToLineNumber - change.newFromLineNumber + 1);
-						const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.oldFromLineNumber, change.oldToLineNumber, insertedLineBreaks);
+						const insertedLineBreaks = lineBreakQueue.takeCount(change.count);
+						const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 						if (linesInsertedEvent !== null) {
 							eventsCollector.emitViewEvent(linesInsertedEvent);
 							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
@@ -369,7 +369,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					case textModelEvents.RawContentChangedType.LineChanged: {
 						const changedLineBreakData = lineBreakQueue.dequeue()!;
 						const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
-							this._lines.onModelLineChanged(versionId, change.oldLineNumber, changedLineBreakData);
+							this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
 						hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
 						if (linesChangedEvent) {
 							eventsCollector.emitViewEvent(linesChangedEvent);
