@@ -83,32 +83,7 @@
 	position: relative;
 }
 
-.erdos-ai-image-attach-button,
-.erdos-ai-plots-attach-button {
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	border: 1px solid var(--vscode-button-border);
-	border-radius: 4px;
-	padding: 6px 8px;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 32px;
-	height: 32px;
-	transition: background-color 0.2s ease, border-color 0.2s ease;
-}
 
-.erdos-ai-image-attach-button:hover,
-.erdos-ai-plots-attach-button:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-
-.erdos-ai-image-attach-button:disabled,
-.erdos-ai-plots-attach-button:disabled {
-	opacity: 0.4;
-	cursor: not-allowed;
-}
 
 /* Plots Menu */
 .plots-attachment-menu {
@@ -181,7 +156,14 @@
 }
 
 .erdos-ai-input-toolbars .image-attachment-buttons {
-	margin-left: 8px;
+	margin-left: 0; /* Remove extra margin to match fallback button position */
+}
+
+/* Image attachment wrapper positioning */
+.image-attachment-wrapper {
+	position: relative;
+	display: flex;
+	align-items: center;
 }
 
 /* Drag and drop visual feedback */
@@ -321,13 +303,6 @@
 .remove-image-button:hover {
 	background-color: var(--vscode-button-secondaryHoverBackground);
 	color: var(--vscode-errorForeground);
-}
-
-/* Image attachment wrapper for error popup */
-.image-attachment-wrapper {
-	position: relative;
-	display: flex;
-	align-items: center;
 }
 
 /* Error popup above image attachment */

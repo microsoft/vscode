@@ -73,6 +73,11 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 	 */
 	private _erdosAiRef = React.createRef<ErdosAiRef>();
 
+	/**
+	 * The current conversation title (overrides the static view title)
+	 */
+	private _conversationTitle: string | undefined;
+
 	//#endregion Private Properties
 
 	//#region IReactComponentContainer
@@ -184,6 +189,7 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 		// Listen for conversation changes to update the view title
 		this._register(this.erdosAiService.onConversationLoaded((conversation) => {
 			const title = conversation.info?.name || 'New conversation';
+			this._conversationTitle = title;
 			this.updateTitle(title);
 		}));
 
@@ -273,10 +279,25 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 	}
 
 	/**
+	 * Override title getter to return conversation title when available
+	 */
+	override get title(): string {
+		return this._conversationTitle || super.title;
+	}
+
+	/**
 	 * Override calculateTitle to show just the conversation name without "ERDOS AI:" prefix
 	 */
 	protected override calculateTitle(title: string): string {
 		return title;
+	}
+
+	/**
+	 * Override singleViewPaneContainerTitle to return conversation title,
+	 * which bypasses the title merging logic in ViewPaneContainer.getTitle()
+	 */
+	override get singleViewPaneContainerTitle(): string | undefined {
+		return this._conversationTitle;
 	}
 
 	/**

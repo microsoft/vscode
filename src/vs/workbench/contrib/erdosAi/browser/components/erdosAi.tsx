@@ -25,8 +25,6 @@ import '../widgets/erdosAiWidgets.css';
 import './contextBar.css';
 import './imageAttachment.css';
 import '../erdosAiView.css';
-
-import { PlotsIcon } from './plotsIcon.js';
 import { ImageAttachmentToolbar } from './imageAttachmentToolbar.js';
 
 // import { IAutoAcceptService, AutoAcceptCheckResult } from '../services/autoAcceptService.js';
@@ -1940,11 +1938,11 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 							<div className="image-attachment-wrapper">
 								{props.fileDialogService ? (
 									(() => {
-										// Use exact same logic as handleSendMessage for conversation
+										// Check if we have a conversation
 										if (!currentConversation) {
 											return (
 												<button 
-													className="erdos-ai-image-attach-btn"
+													className="image-attachment-button"
 													onClick={async () => {
 														try {
 															// Create conversation first, exactly like handleSendMessage does
@@ -1956,7 +1954,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 													}}
 													title="Create conversation to attach images"
 												>
-													<PlotsIcon width={16} height={16} />
+													<span className="codicon codicon-graph"></span>
 												</button>
 											);
 										}
@@ -1967,11 +1965,11 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 											console.error('Image service should be available when conversation exists');
 											return (
 												<button 
-													className="erdos-ai-image-attach-btn disabled"
+													className="image-attachment-button"
 													disabled
 													title="Image service unavailable"
 												>
-													<PlotsIcon width={16} height={16} />
+													<span className="codicon codicon-graph"></span>
 												</button>
 											);
 										}
@@ -1992,14 +1990,13 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 								) : (
 									// Show disabled if no file dialog service
 									<button 
-										className="erdos-ai-image-attach-btn disabled"
+										className="image-attachment-button"
 										disabled
 										title="File dialog service not available"
 									>
-										<PlotsIcon width={16} height={16} />
+										<span className="codicon codicon-graph"></span>
 									</button>
 								)}
-
 							</div>
 							{inputValue.trim() ? (
 								<button

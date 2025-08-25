@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import React, { useState, useRef, useEffect } from 'react';
-import { PlotsIcon } from './plotsIcon.js';
+
 import { IAttachedImage, IImageAttachmentService } from '../attachments/imageAttachmentService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IErdosPlotsService } from '../../../../services/erdosPlots/common/erdosPlots.js';
@@ -39,7 +39,7 @@ const AttachedImageDisplay: React.FC<AttachedImageDisplayProps> = ({ image, onRe
 	};
 
 	const getIcon = () => {
-		return <PlotsIcon width={14} height={14} stroke="#555" strokeWidth={1.5} />;
+		return <span className="codicon codicon-graph"></span>;
 	};
 
 	return (
@@ -245,23 +245,23 @@ export const ImageAttachmentToolbar: React.FC<ImageAttachmentToolbarProps> = ({
 			{/* Attachment buttons */}
 			<div className="image-attachment-buttons">
 				<button
-					className="erdos-ai-image-attach-button"
+					className="image-attachment-button"
 					onClick={handleImageAttach}
 					title="Attach image file"
 					disabled={attachedImages.length >= 3}
 				>
-					<PlotsIcon width={16} height={16} />
+					<span className="codicon codicon-graph"></span>
 				</button>
 
 				{erdosPlotsService && (
 					<button
 						ref={plotsButtonRef}
-						className="erdos-ai-plots-attach-button"
+						className="image-attachment-button"
 						onClick={handlePlotsClick}
 						title="Attach plot from plots pane"
 						disabled={attachedImages.length >= 3}
 					>
-						<PlotsIcon width={16} height={16} />
+						<span className="codicon codicon-graph"></span>
 					</button>
 				)}
 
@@ -279,7 +279,7 @@ export const ImageAttachmentToolbar: React.FC<ImageAttachmentToolbarProps> = ({
 										className="plots-menu-item"
 										onClick={() => handlePlotSelect(plot.id)}
 									>
-										<PlotsIcon width={14} height={14} />
+										<span className="codicon codicon-graph"></span>
 										<span>Plot {plot.id}</span>
 									</button>
 								))}

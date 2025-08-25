@@ -974,35 +974,7 @@
 	color: var(--vscode-textPreformat-foreground);
 }
 
-/* Image attachment button in input area - remove gray box styling */
-.erdos-ai-image-attach-btn {
-	background: none;
-	border: none;
-	cursor: pointer;
-	color: var(--vscode-icon-foreground);
-	padding: 4px;
-	border-radius: 2px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 28px;
-	height: 28px;
-	transition: background-color 0.2s ease;
-}
 
-.erdos-ai-image-attach-btn:hover:not(:disabled) {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.erdos-ai-image-attach-btn:disabled {
-	opacity: 0.4;
-	cursor: not-allowed;
-}
-
-.erdos-ai-image-attach-btn.disabled {
-	opacity: 0.4;
-	cursor: not-allowed;
-}
 
 /* Thinking content styling using em with specific class */
 em.erdos-ai-thinking {

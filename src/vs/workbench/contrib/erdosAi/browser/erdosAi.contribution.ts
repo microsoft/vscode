@@ -177,7 +177,7 @@ const erdosAiViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>
 		},
 		order: 7,
 	}
-}, ViewContainerLocation.Sidebar, { isDefault: false, doNotRegisterOpenCommand: false });
+}, ViewContainerLocation.Sidebar, { isDefault: true, doNotRegisterOpenCommand: false });
 
 // Register the Erdos AI view in the sidebar container
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews(
