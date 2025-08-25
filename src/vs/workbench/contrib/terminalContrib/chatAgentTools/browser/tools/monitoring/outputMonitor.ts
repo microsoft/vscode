@@ -88,8 +88,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		let extended = false;
 
 		while (!token.isCancellationRequested) {
-
-
 			switch (this._state) {
 				case OutputMonitorState.PollingForIdle: {
 					this._state = await this._waitForIdle(this._execution, extended, token);
@@ -99,6 +97,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
 					if (shouldContinuePolling) {
 						extended = true;
+						this._state = OutputMonitorState.PollingForIdle;
 						continue;
 					} else {
 						break;
