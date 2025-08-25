@@ -86,14 +86,11 @@ export class IssueFormService implements IIssueFormService {
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
 			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
 
-			// custom issue reporter wrapper
-			const div = document.createElement('div');
-			div.classList.add('monaco-workbench');
-
-			// removes preset monaco-workbench
-			auxiliaryWindow.container.remove();
-			auxiliaryWindow.window.document.body.appendChild(div);
-			safeSetInnerHtml(div, BaseHtml(), {
+			// Reuse the provided auxiliary window container to preserve its inline layout styles
+			// (specifically height:100%). Only ensure it has the proper workbench class for theming.
+			const container = auxiliaryWindow.container;
+			container.classList.add('monaco-workbench');
+			safeSetInnerHtml(container, BaseHtml(), {
 				// Also allow input elements
 				allowedTags: {
 					augment: [
