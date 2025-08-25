@@ -10,17 +10,18 @@ import { Application } from '../../../automation';
  * Explorer and File Management Tools
  */
 export function applyExplorerTools(server: McpServer, app: Application) {
-	server.tool(
-		'vscode_automation_explorer_open',
-		'Open the file explorer viewlet',
-		async () => {
-			await app.workbench.explorer.openExplorerView();
-			return {
-				content: [{
-					type: 'text' as const,
-					text: 'Opened file explorer'
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this out
+	// server.tool(
+	// 	'vscode_automation_explorer_open',
+	// 	'Open the file explorer viewlet',
+	// 	async () => {
+	// 		await app.workbench.explorer.openExplorerView();
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: 'Opened file explorer'
+	// 			}]
+	// 		};
+	// 	}
+	// );
 }

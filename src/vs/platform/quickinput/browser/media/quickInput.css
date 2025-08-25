@@ -54,6 +54,17 @@
 	justify-content: flex-end;
 }
 
+/* add spacing between title action bar buttons */
+.quick-input-left-action-bar > .actions-container > .action-item,
+.quick-input-right-action-bar > .actions-container > .action-item {
+	margin-right: 4px;
+}
+
+.quick-input-left-action-bar > .actions-container > .action-item:last-child,
+.quick-input-right-action-bar > .actions-container > .action-item:last-child {
+	margin-right: 0;
+}
+
 .quick-input-titlebar .monaco-action-bar .action-label.codicon {
 	background-position: center;
 	background-repeat: no-repeat;

@@ -11,6 +11,8 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { ILanguagePackItem, ILanguagePackService } from '../../../../platform/languagePacks/common/languagePacks.js';
 import { ILocaleService } from '../../../services/localization/common/locale.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export class ConfigureDisplayLanguageAction extends Action2 {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -40,6 +42,26 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		const qp = disposables.add(quickInputService.createQuickPick<ILanguagePackItem>({ useSeparators: true }));
 		qp.matchOnDescription = true;
 		qp.placeholder = localize('chooseLocale', "Select Display Language");
+		qp.title = localize('configureDisplayLanguageTitle', "Configure Display Language");
+
+		// Add test buttons to demonstrate spacing fix
+		qp.buttons = [
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.gear),
+				tooltip: localize('openSettings', "Open Settings"),
+				alwaysVisible: true
+			},
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.question),
+				tooltip: localize('showHelp', "Show Help"),
+				alwaysVisible: true
+			},
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.refresh),
+				tooltip: localize('refresh', "Refresh"),
+				alwaysVisible: true
+			}
+		];
 
 		if (installedLanguages?.length) {
 			const items: Array<ILanguagePackItem | IQuickPickSeparator> = [{ type: 'separator', label: localize('installed', "Installed") }];

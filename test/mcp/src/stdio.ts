@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { getServer } from './playwright';
+import { getServer } from './multiplex';
 
 const transport: StdioServerTransport = new StdioServerTransport();
 (async () => {
