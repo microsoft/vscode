@@ -20243,6 +20243,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The configuration target
+	 */
+	export enum McpPackageType {
+		/**
+		 * Node Package
+		 */
+		Node = 'node',
+	}
+
+	/**
 	 * McpStdioServerDefinition represents an MCP server available by running
 	 * a local process and operating on its stdin and stdout streams. The process
 	 * will be spawned as a child process of the extension host and by default
@@ -20294,21 +20304,26 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * McpNodeServerDefinition represents an MCP server available by running
-	 * a local Node.js process. The process will be spawned as a child process
-	 * of the extension host and by default will not run in a shell environment.
+	 * McpPackageServerDefinition represents an MCP server available by running
+	 * a local process with the provided package and operating on its stdin and stdout streams.
+	 * The process will be spawned as a child process of the extension host and by default
+	 * will not run in a shell environment.
 	 */
-	export class McpNodeServerDefinition {
+	export class McpPackageServerDefinition {
 		/**
 		 * The human-readable name of the server.
 		 */
 		readonly label: string;
 
 		/**
-		 * Name of the node package that needs to be started.
-		 * This should be the name of the package as specified in package.json.
+		 * Name of the package that needs to be started.
 		 */
 		readonly packageName: string;
+
+		/**
+		 * The type of the mcp package
+		 */
+		readonly packageType: McpPackageType;
 
 		/**
 		 * The working directory used to start the server.
@@ -20335,12 +20350,13 @@ declare module 'vscode' {
 
 		/**
 		 * @param label The human-readable name of the server.
-		 * @param packageName 
+		 * @param packageName The name of the package that needs to be started.
+		 * @param packageType The type of the mcp package
 		 * @param args Additional command-line arguments passed to the server.
 		 * @param env Optional additional environment information for the server.
 		 * @param version Optional version identification for the server.
 		 */
-		constructor(label: string, packageName: string, args?: string[], env?: Record<string, string | number | null>, version?: string);
+		constructor(label: string, packageName: string, packageType: McpPackageType, args?: string[], env?: Record<string, string | number | null>, version?: string);
 	}
 
 	/**
@@ -20382,7 +20398,7 @@ declare module 'vscode' {
 	 * Definitions that describe different types of Model Context Protocol servers,
 	 * which can be returned from the {@link McpServerDefinitionProvider}.
 	 */
-	export type McpServerDefinition = McpStdioServerDefinition | McpNodeServerDefinition | McpHttpServerDefinition;
+	export type McpServerDefinition = McpStdioServerDefinition | McpPackageServerDefinition | McpHttpServerDefinition;
 
 	/**
 	 * A type that can provide Model Context Protocol server definitions. This
