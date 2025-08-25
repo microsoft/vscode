@@ -13,6 +13,7 @@ import * as errors from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { deepClone, equals } from '../../../../base/common/objects.js';
+import * as resources from '../../../../base/common/resources.js';
 import severity from '../../../../base/common/severity.js';
 import { URI, URI as uri } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -518,6 +519,29 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
+				// Check for concurrent sessions before running preLaunchTask to avoid running the task if user cancels
+				let userConfirmedConcurrentSession = false;
+				if (options?.startedByUser && resolvedConfig.suppressMultipleSessionWarning !== true) {
+					// Check if there's already a session with the same name
+					const configName = resolvedConfig.name;
+					const existingSessions = this.model.getSessions();
+					const includeRoot = this.contextService.getWorkspace().folders.length > 1;
+					const sessionLabel = includeRoot && launch?.workspace 
+						? `${configName} (${resources.basenameOrAuthority(launch.workspace.uri)})` 
+						: configName;
+					
+					if (existingSessions.some(s => s.getLabel() === sessionLabel)) {
+						// There is already a session with the same name, prompt user before running preLaunchTask
+						const result = await this.dialogService.confirm({ 
+							message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", sessionLabel) 
+						});
+						if (!result.confirmed) {
+							return false;
+						}
+						userConfirmedConcurrentSession = true;
+					}
+				}
+
 				const workspace = launch?.workspace || this.contextService.getWorkspace();
 				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask);
 				if (taskResult === TaskRunResult.Failure) {
@@ -565,7 +589,7 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const result = await this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
+				const result = await this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options, userConfirmedConcurrentSession);
 				if (result && guess && activeEditor && activeEditor.resource) {
 					// Remeber user choice of environment per active editor to make starting debugging smoother #124770
 					this.chosenEnvironments[activeEditor.resource.toString()] = { type: guess.debugger.type, dynamicLabel: guess.withConfig?.label };
@@ -596,10 +620,10 @@ export class DebugService implements IDebugService {
 	/**
 	 * instantiates the new session, initializes the session, registers session listeners and reports telemetry
 	 */
-	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig; unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
+	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig; unresolved: IConfig | undefined }, options?: IDebugSessionOptions, userConfirmedConcurrentSession = false): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
-		if (options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel()) && configuration.resolved.suppressMultipleSessionWarning !== true) {
+		if (!userConfirmedConcurrentSession && options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel()) && configuration.resolved.suppressMultipleSessionWarning !== true) {
 			// There is already a session with the same name, prompt user #127721
 			const result = await this.dialogService.confirm({ message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", session.getLabel()) });
 			if (!result.confirmed) {
