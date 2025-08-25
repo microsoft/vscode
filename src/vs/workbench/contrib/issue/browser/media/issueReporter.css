@@ -81,6 +81,7 @@
 .issue-reporter-body .monaco-text-button {
 	display: block;
 	width: auto;
+	align-self: flex-end;
 	padding: 4px 10px;
 	font-size: 13px;
 }
