@@ -2540,7 +2540,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-todo-list-widget .todo-list-container {
-	padding-left: 10px;
 	margin-top: 2px;
 	max-height: calc(6.5 * 21px);
 	/* 6.5 items to show half-line affordance */
@@ -2587,7 +2586,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 8px;
 	scroll-snap-align: start;
-	min-height: 21px
+	min-height: 21px;
+	cursor: pointer;
+}
+
+.chat-todo-list-widget .todo-item:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	background-color: var(--vscode-list-focusBackground);
+}
+
+.chat-todo-list-widget .todo-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
 }
 
 .chat-todo-list-widget .todo-status-icon {
