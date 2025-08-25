@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { safeSetInnerHtml } from '../../../../base/browser/domSanitize.js';
+import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
+import { getMenuWidgetCSS, unthemedMenuStyles } from '../../../../base/browser/ui/menu/menu.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
@@ -85,6 +87,10 @@ export class IssueFormService implements IIssueFormService {
 			await auxiliaryWindow.whenStylesHaveLoaded;
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
 			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
+
+			// Pre-load menu styles to avoid race condition issues
+			const menuStyleSheet = createStyleSheet(auxiliaryWindow.window.document.head);
+			menuStyleSheet.textContent = getMenuWidgetCSS(unthemedMenuStyles, false);
 
 			// Reuse the provided auxiliary window container to preserve its inline layout styles (specifically height:100%)
 			// see: https://github.com/microsoft/vscode/blob/main/src/vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.ts#L525-L527
