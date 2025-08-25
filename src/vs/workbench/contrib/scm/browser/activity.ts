@@ -24,7 +24,6 @@ import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } 
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Command } from '../../../../editor/common/languages.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 
 const ActiveRepositoryContextKeys = {
 	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
@@ -45,7 +44,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		@IActivityService private readonly activityService: IActivityService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILogService private readonly logService: ILogService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -111,15 +109,10 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		}));
 
 		this._register(autorunWithStore((reader, store) => {
-			this.logService.trace('[SCMActiveRepositoryController][updateStatusBarAutorun] start');
 			const repository = this.scmViewService.activeRepository.read(reader);
 			const commands = repository?.provider.statusBarCommands.read(reader);
 
-			this.logService.trace('[SCMActiveRepositoryController][updateStatusBarAutorun] commands: ', commands);
-			this.logService.trace('[SCMActiveRepositoryController][updateStatusBarAutorun] repository: ', repository?.provider.rootUri?.toString());
-
 			this._updateStatusBar(repository, commands ?? [], store);
-			this.logService.trace('[SCMActiveRepositoryController][updateStatusBarAutorun] end');
 		}));
 
 		this._register(autorun(reader => {
@@ -145,7 +138,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 	private _updateStatusBar(repository: ISCMRepository | undefined, commands: readonly Command[], store: DisposableStore): void {
 		if (!repository) {
-			this.logService.trace('[SCMActiveRepositoryController][_updateStatusBar] no active repository');
 			return;
 		}
 
