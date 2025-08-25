@@ -2606,10 +2606,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
 	color: var(--vscode-descriptionForeground);
+	padding-top: 6px;
 }
 
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
+
+	.chat-used-context {
+		margin: 0px;
+	}
+
+	.chat-thinking-item {
+		padding: 2px 0px;
+	}
 
 	.chat-thinking-text {
 		font-size: 12px;
