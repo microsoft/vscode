@@ -146,6 +146,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					originalLineCount: number;
 					currentLineCount: number;
 					originalDeletedLineCount: number;
+					currentDeletedLineCount: number;
 				}, {
 					owner: 'hediet';
 					comment: 'Reports the accepted and retained character count for an inline completion/edit.';
@@ -168,6 +169,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					originalLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original line count before any edits.' };
 					currentLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current line count after edits.' };
 					originalDeletedLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original deleted line count before any edits.' };
+					currentDeletedLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current deleted line count after edits.' };
 				}>('editTelemetry.reportEditArc', {
 					sourceKeyCleaned: data.toKey(Number.MAX_SAFE_INTEGER, {
 						$extensionId: false,
@@ -196,6 +198,7 @@ export class ChatArcTelemetrySender extends Disposable {
 					originalLineCount: res.originalLineCount,
 					currentLineCount: res.currentLineCount,
 					originalDeletedLineCount: res.originalDeletedLineCount,
+					currentDeletedLineCount: res.currentDeletedLineCount,
 
 					...forwardToChannelIf(isCopilotLikeExtension(data.props.$extensionId)),
 				});
