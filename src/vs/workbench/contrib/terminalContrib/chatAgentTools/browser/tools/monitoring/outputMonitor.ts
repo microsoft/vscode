@@ -21,12 +21,13 @@ import { getTextResponseFromStream } from './utils.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
+import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	readonly outputMonitorTelemetryCounters: IOutputMonitorTelemetryCounters;
 
-	readonly onDidFinishCommand: Event<void>;
+	readonly onDidFinishCommand: Event<IPollingResult & { pollDurationMs: number } | undefined>;
 }
 
 export interface IOutputMonitorTelemetryCounters {
@@ -51,8 +52,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	};
 	get outputMonitorTelemetryCounters(): Readonly<IOutputMonitorTelemetryCounters> { return this._outputMonitorTelemetryCounters; }
 
-	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
-	readonly onDidFinishCommand = this._onDidFinishCommand.event;
+	private readonly _onDidFinishCommand = this._register(new Emitter<IPollingResult & { pollDurationMs: number } | undefined>());
+	readonly onDidFinishCommand: Event<IPollingResult & { pollDurationMs: number } | undefined> = this._onDidFinishCommand.event;
 
 	constructor(
 		private readonly _execution: IExecution,
@@ -81,17 +82,28 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const pollStartTime = Date.now();
 		let extended = false;
 
+		this._state = OutputMonitorState.PollingForIdle;
+		let modelOutputEvalResponse;
+		let resources;
+
 		// Hold a single pending "continue?" prompt across timeout passes
 		let continuePollingDecisionP: Promise<boolean> | undefined;
 		let continuePollingPart: ChatElicitationRequestPart | undefined;
 
 		while (!token.isCancellationRequested) {
-			const polled = await this._pollOnce(this._execution, extended, token, this._pollFn);
 
-			this._state = polled.state;
+			this._state = await this._waitForIdle(this._execution, extended, token);
 
 			switch (this._state) {
+				case OutputMonitorState.PollingForIdle: {
+					this._state = await this._waitForIdle(this._execution, extended, token);
+					break;
+				}
 				case OutputMonitorState.Timeout: {
+					if (extended) {
+						throw new BugIndicatingError('Cannot timeout when extended is true');
+					}
+					extended = true;
 					// Create the prompt once; keep it open while we keep polling.
 					if (!continuePollingDecisionP) {
 						const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
@@ -103,7 +115,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					extended = true;
 
 					// Start another polling pass and race it against the user's decision
-					const nextPollP = this._pollOnce(this._execution, /*extendedPolling*/ true, token, this._pollFn)
+					const nextPollP = this._waitForIdle(this._execution, extended, token)
 						.catch((): IPollingResult => ({
 							state: OutputMonitorState.Cancelled,
 							output: this._execution.getOutput(),
@@ -121,7 +133,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 						// User explicitly declined to keep waiting, so finish with the timed-out result
 						if (race.v === false) {
-							this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+							this._state = OutputMonitorState.Cancelled;
 							break;
 						}
 
@@ -132,14 +144,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					} else {
 						// A background poll completed while waiting for a decision
 						const r = race.r;
-						this._state = r.state;
 
-						if (r.state === OutputMonitorState.Idle || r.state === OutputMonitorState.Cancelled) {
+						if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled) {
 							try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
 							continuePollingPart = undefined;
 							continuePollingDecisionP = undefined;
 
-							this._pollingResult = { ...r, pollDurationMs: Date.now() - pollStartTime };
 							break;
 						}
 
@@ -148,7 +158,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					}
 				}
 				case OutputMonitorState.Cancelled:
-					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 					break;
 				case OutputMonitorState.Idle: {
 					const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
@@ -159,15 +168,26 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						if (confirmed) {
 							const changed = await this._waitForNextDataOrActivityChange();
 							if (!changed) {
-								this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 								break;
 							} else {
+								// Wait for a single data event to ensure we don't re-evaluate the same idle event
+								await Event.toPromise(this._execution.instance.onData);
+								this._state = OutputMonitorState.PollingForIdle;
 								continue;
 							}
+						} else {
+							// User declined, cancel
+							break;
 						}
 					}
 
-					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+					// Let custom poller override if provided
+					const custom = await this._pollFn?.(this._execution, token, this._taskService);
+					if (custom) {
+						resources = custom.resources;
+					}
+
+					modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
 					break;
 				}
 			}
@@ -176,17 +196,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 		}
 
-		if (!this._pollingResult && token.isCancellationRequested) {
-			this._state = OutputMonitorState.Cancelled;
-			this._pollingResult = {
-				state: this._state,
-				output: this._execution.getOutput(),
-				modelOutputEvalResponse: 'Cancelled',
-				pollDurationMs: Date.now() - pollStartTime,
-			};
-		}
+		this._state = OutputMonitorState.Cancelled;
+		this._pollingResult = {
+			state: this._state,
+			output: this._execution.getOutput(),
+			modelOutputEvalResponse: token.isCancellationRequested ? 'Cancelled' : modelOutputEvalResponse,
+			pollDurationMs: Date.now() - pollStartTime,
+			resources
+		};
 
-		this._onDidFinishCommand.fire();
+		this._onDidFinishCommand.fire(this._pollingResult);
 	}
 
 
@@ -195,13 +214,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 *  - terminal becomes inactive/idle, or
 	 *  - timeout window elapses.
 	 */
-	private async _pollOnce(
+	private async _waitForIdle(
 		execution: IExecution,
 		extendedPolling: boolean,
 		token: CancellationToken,
-		pollFn?: (execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>
-	): Promise<IPollingResult> {
-		this._state = OutputMonitorState.Polling;
+	): Promise<OutputMonitorState> {
+		this._state = OutputMonitorState.PollingForIdle;
 
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
@@ -233,8 +251,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			// Became inactive or no new data for a while → idle
 			if (noNewData || isActive === false) {
-				this._state = OutputMonitorState.Idle;
-				break;
+				return OutputMonitorState.Idle;
 			}
 
 			// Still active but with a no-new-data, so reset counters and keep going
@@ -245,19 +262,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		if (token.isCancellationRequested) {
-			this._state = OutputMonitorState.Cancelled;
-		} else if (this._state === OutputMonitorState.Polling) {
-			this._state = OutputMonitorState.Timeout;
+			return OutputMonitorState.Cancelled;
 		}
 
-		// Let custom poller override if provided
-		const custom = await pollFn?.(execution, token, this._taskService);
-		if (custom) {
-			return custom;
-		}
-
-		const modelOutputEvalResponse = await this._assessOutputForErrors(buffer, token);
-		return { output: buffer, state: this._state, modelOutputEvalResponse };
+		return OutputMonitorState.Timeout;
 	}
 
 	/**
@@ -311,7 +319,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { promise: Promise.resolve(false) };
 	}
 
-	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string> {
+	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 		if (!models.length) {
 			return 'No models available';
@@ -320,7 +328,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const response = await this._languageModelsService.sendChatRequest(
 			models[0],
 			new ExtensionIdentifier('core'),
-			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors or if the command ran successfully: ${buffer}.` }] }],
+			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors. If there are errors, return them. Otherwise, return undefined: ${buffer}.` }] }],
 			{},
 			token
 		);
@@ -409,7 +417,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const prompt = confirmationPrompt.prompt;
 		const options = confirmationPrompt.options.map(opt => opt);
-		const promptText = `Given the following confirmation prompt and options from a terminal output, which option should be selected to proceed safely and correctly?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
+		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 		], {}, token);

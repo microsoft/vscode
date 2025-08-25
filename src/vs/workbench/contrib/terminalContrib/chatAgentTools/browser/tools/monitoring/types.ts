@@ -30,7 +30,7 @@ export interface IPollingResult {
 export enum OutputMonitorState {
 	Initial = 'Initial',
 	Idle = 'Idle',
-	Polling = 'Polling',
+	PollingForIdle = 'PollingForIdle',
 	Prompting = 'Prompting',
 	Timeout = 'Timeout',
 	Active = 'Active',
