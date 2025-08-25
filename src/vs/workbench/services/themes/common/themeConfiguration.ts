@@ -301,7 +301,7 @@ export class ThemeConfiguration {
 		return this.configurationService.getValue<IColorCustomizations>(ThemeSettings.COLOR_CUSTOMIZATIONS) || {};
 	}
 
-	public get tokenColorCustomizations(): ITokenColorCustomizations {
+	public get tokenColorCustomizations(): ITokenColorCustomizations {//
 		return this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
 	}
 

@@ -43,6 +43,7 @@ export class Colorizer {
 		const text = domNode.firstChild ? domNode.firstChild.nodeValue : '';
 		domNode.className += ' ' + theme;
 		const render = (str: string) => {
+			console.log('str : ', str);
 			const trustedhtml = ttPolicy?.createHTML(str) ?? str;
 			domNode.innerHTML = trustedhtml as string;
 		};
@@ -180,6 +181,7 @@ function _fakeColorize(lines: string[], tabSize: number, languageIdCodec: ILangu
 }
 
 function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport, languageIdCodec: ILanguageIdCodec): string {
+	console.log('_actualColorize');
 	let html: string[] = [];
 	let state = tokenizationSupport.getInitialState();
 

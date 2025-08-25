@@ -340,10 +340,14 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		}
 		this._currentTheme = { name: colorTheme.label, settings: colorTheme.tokenColors };
 		this._currentTokenColorMap = colorTheme.tokenColorMap;
-
+		console.log('TextMateTokenizationFeatureImpl._updateTheme');
+		console.log('this._currentTheme: ', this._currentTheme);
+		console.log('this._currentTokenColorMap: ', this._currentTokenColorMap);
 		this._grammarFactory?.setTheme(this._currentTheme, this._currentTokenColorMap);
 		const colorMap = toColorMap(this._currentTokenColorMap);
 		const cssRules = generateTokensCSSForColorMap(colorMap);
+		console.log('colorMap', colorMap);
+		console.log('cssRules', cssRules);
 		this._styleElement.textContent = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);
 
