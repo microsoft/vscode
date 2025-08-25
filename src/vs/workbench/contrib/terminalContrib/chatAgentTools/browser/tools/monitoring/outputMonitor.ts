@@ -22,6 +22,7 @@ import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
+import { ILinkLocation } from '../../taskHelpers.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -160,34 +161,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				case OutputMonitorState.Cancelled:
 					break;
 				case OutputMonitorState.Idle: {
-					const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
-					const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
-
-					if (selectedOption) {
-						const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
-						if (confirmed) {
-							const changed = await this._waitForNextDataOrActivityChange();
-							if (!changed) {
-								break;
-							} else {
-								// Wait for a single data event to ensure we don't re-evaluate the same idle event
-								await Event.toPromise(this._execution.instance.onData);
-								this._state = OutputMonitorState.PollingForIdle;
-								continue;
-							}
-						} else {
-							// User declined, cancel
-							break;
-						}
+					const idleResult = await this._handleIdleState(token);
+					if (idleResult.continuePolling) {
+						continue;
+					} else {
+						resources = idleResult.resources;
+						modelOutputEvalResponse = idleResult.modelOutputEvalResponse;
 					}
-
-					// Let custom poller override if provided
-					const custom = await this._pollFn?.(this._execution, token, this._taskService);
-					if (custom) {
-						resources = custom.resources;
-					}
-
-					modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
 					break;
 				}
 			}
@@ -208,6 +188,35 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		this._onDidFinishCommand.fire();
 	}
 
+
+	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; continuePolling: boolean }> {
+		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
+		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
+
+		if (selectedOption) {
+			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
+			if (confirmed) {
+				const changed = await this._waitForNextDataOrActivityChange();
+				if (!changed) {
+					return { continuePolling: false };
+				} else {
+					// Wait for a single data event to ensure we don't re-evaluate the same idle event
+					await Event.toPromise(this._execution.instance.onData);
+					// Continue polling
+					return { continuePolling: true };
+				}
+			} else {
+				// User declined
+				return { continuePolling: false };
+			}
+		}
+
+		// Let custom poller override if provided
+		const custom = await this._pollFn?.(this._execution, token, this._taskService);
+		const resources = custom?.resources;
+		const modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
+		return { resources, modelOutputEvalResponse, continuePolling: false };
+	}
 
 	/**
 	 * Single bounded polling pass that returns when:
