@@ -86,8 +86,8 @@ export class IssueFormService implements IIssueFormService {
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
 			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
 
-			// Reuse the provided auxiliary window container to preserve its inline layout styles
-			// (specifically height:100%). Only ensure it has the proper workbench class for theming.
+			// Reuse the provided auxiliary window container to preserve its inline layout styles (specifically height:100%)
+			// see: https://github.com/microsoft/vscode/blob/main/src/vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.ts#L525-L527
 			const container = auxiliaryWindow.container;
 			container.classList.add('monaco-workbench');
 			safeSetInnerHtml(container, BaseHtml(), {
