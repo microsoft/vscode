@@ -15,7 +15,7 @@ import { ILanguageService } from '../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../common/languages/nullTokenize.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { IModelContentChange, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent, ModelRawLineChanged } from '../../../common/textModelEvents.js';
+import { InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../../../common/textModelEvents.js';
 import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IViewModel } from '../../../common/viewModel.js';
@@ -127,7 +127,6 @@ suite('Editor Model - Model', () => {
 		const e = withEventCapturing(() => {
 			thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
 		});
-
 		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
 			[
 				new ModelRawLineChanged(1, 1)
@@ -140,22 +139,19 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text with one newline eventing', () => {
-		let e: IModelContentChange[] | null = null;
-		const disposable = thisModel.onDidChangeContent((_e) => {
-			e = _e.changes;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
 		});
-		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
-		if (!e) {
-			assert.fail('should be defined');
-		}
-		assert.deepStrictEqual(e[0], {
-			range: new Range(1, 3, 1, 3),
-			rangeLength: 0,
-			text: " new line\nNo longer",
-			rangeOffset: 2,
-			forceMoveMarkers: true
-		});
-		disposable.dispose();
+		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 1),
+				new ModelRawLinesInserted(2, 2, 1),
+			],
+			2,
+			false,
+			false,
+			null
+		));
 	});
 
 
@@ -209,87 +205,71 @@ suite('Editor Model - Model', () => {
 	// --------- delete text eventing
 
 	test('model delete empty text does not trigger eventing', () => {
-		const disposable = thisModel.onDidChangeContent((e) => {
-			assert.ok(false, 'was not expecting event');
+		withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
-		disposable.dispose();
 	});
 
 	test('model delete text from one line eventing', () => {
-		let e: IModelContentChange[] | null = null;
-		const disposable = thisModel.onDidChangeContent((_e) => {
-			e = _e.changes;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-		if (!e) {
-			assert.fail('should be defined');
-		}
-		assert.deepStrictEqual(e[0], {
-			range: new Range(1, 1, 1, 2),
-			rangeLength: 1,
-			text: "",
-			rangeOffset: 0,
-			forceMoveMarkers: false
-		});
-		disposable.dispose();
+		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 1),
+			],
+			2,
+			false,
+			false,
+			null
+		));
 	});
 
 	test('model delete all text from a line eventing', () => {
-		let e: IModelContentChange[] | null = null;
-		const disposable = thisModel.onDidChangeContent((_e) => {
-			e = _e.changes;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
-		if (!e) {
-			assert.fail('should be defined');
-		}
-		assert.deepStrictEqual(e[0], {
-			range: new Range(1, 1, 1, 14),
-			rangeLength: 13,
-			text: "",
-			rangeOffset: 0,
-			forceMoveMarkers: false
-		});
-		disposable.dispose();
+		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 1),
+			],
+			2,
+			false,
+			false,
+			null
+		));
 	});
 
 	test('model delete text from two lines eventing', () => {
-		let e: IModelContentChange[] | null = null;
-		const disposable = thisModel.onDidChangeContent((_e) => {
-			e = _e.changes;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
-		if (!e) {
-			assert.fail('should be defined');
-		}
-		assert.deepStrictEqual(e[0], {
-			range: new Range(1, 4, 2, 6),
-			rangeLength: 16,
-			text: "",
-			rangeOffset: 3,
-			forceMoveMarkers: false
-		});
-		disposable.dispose();
+		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 1),
+				new ModelRawLinesDeleted(2, 1),
+			],
+			2,
+			false,
+			false,
+			null
+		));
 	});
 
 	test('model delete text from many lines eventing', () => {
-		let e: IModelContentChange[] | null = null;
-		const disposable = thisModel.onDidChangeContent((_e) => {
-			e = _e.changes;
+		const e = withEventCapturing(() => {
+			thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
 		});
-		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
-		if (!e) {
-			assert.fail('should be defined');
-		}
-		assert.deepStrictEqual(e[0], {
-			range: new Range(1, 4, 3, 5),
-			rangeLength: 32,
-			text: "",
-			rangeOffset: 3,
-			forceMoveMarkers: false
-		});
-		disposable.dispose();
+		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 1),
+				new ModelRawLinesDeleted(2, 2),
+			],
+			2,
+			false,
+			false,
+			null
+		));
 	});
 
 	// --------- getValueInRange
@@ -324,21 +304,18 @@ suite('Editor Model - Model', () => {
 
 	// --------- setValue
 	test('setValue eventing', () => {
-		let e: IModelContentChange[] | null = null;
-		const disposable = thisModel.onDidChangeContent((_e) => {
-			e = _e.changes;
+		const e = withEventCapturing(() => {
+			thisModel.setValue('new value');
 		});
-		thisModel.setValue('new value');
-		if (!e) {
-			assert.fail('should be defined');
-		}
-		assert.deepStrictEqual(e[0], {
-			range: new Range(1, 1, 5, 2),
-			rangeLength: 48,
-			text: "new value",
-			rangeOffset: 0
-		});
-		disposable.dispose();
+		assert.deepStrictEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawFlush()
+			],
+			2,
+			false,
+			false,
+			null
+		));
 	});
 
 	test('issue #46342: Maintain edit operation order in applyEdits', () => {
