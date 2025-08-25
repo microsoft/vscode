@@ -104,7 +104,7 @@ suite('ChatSelectedTools', () => {
 
 			assert.strictEqual(selectedTools.entriesMap.get().size, 4); // 1 toolset, 3 tools
 
-			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);
+			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, false]]);
 			selectedTools.set(toSet, false);
 
 			const userSelectedTools = selectedTools.userSelectedTools.get();

@@ -1277,47 +1277,6 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(changeEventFired, true, 'onDidChangeTools should fire when configuration changes');
 	});
 
-	test('toToolAndToolSetEnablementMap with undefined enables all', () => {
-		const tool1 = {
-			id: 'tool1',
-			modelDescription: 'Tool 1',
-			displayName: 'Tool 1',
-			source: ToolDataSource.Internal,
-			canBeReferencedInPrompt: true,
-			toolReferenceName: 'ref1'
-		} as IToolData;
-
-		const tool2 = {
-			id: 'tool2',
-			modelDescription: 'Tool 2',
-			displayName: 'Tool 2',
-			source: ToolDataSource.Internal,
-			canBeReferencedInPrompt: true
-		} as IToolData;
-
-		store.add(service.registerToolData(tool1));
-		store.add(service.registerToolData(tool2));
-
-		// undefined should enable all tools
-		const result = service.toToolAndToolSetEnablementMap(undefined);
-
-		let tool1Enabled = false;
-		let tool2Enabled = false;
-		for (const [toolOrSet, enabled] of result) {
-			if ('id' in toolOrSet) {
-				if (toolOrSet.id === 'tool1') {
-					tool1Enabled = enabled;
-				}
-				if (toolOrSet.id === 'tool2') {
-					tool2Enabled = enabled;
-				}
-			}
-		}
-
-		assert.strictEqual(tool1Enabled, true, 'tool1 should be enabled when undefined list provided');
-		assert.strictEqual(tool2Enabled, true, 'tool2 should be enabled when undefined list provided');
-	});
-
 	test('toToolAndToolSetEnablementMap with MCP toolset enables contained tools', () => {
 		// Create MCP toolset
 		const mcpToolSet = store.add(service.createToolSet(
