@@ -300,13 +300,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	}
 
 	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] {
-		const continueLabel = localize('continue', "Continue");
-		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
+		const allowLabel = localize('allow', "Allow");
+		const allowKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+		const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
 		return [
 			{
-				label: continueLabel,
-				tooltip: continueTooltip,
+				label: allowLabel,
+				tooltip: allowTooltip,
 				data: true,
 				moreActions,
 			},
