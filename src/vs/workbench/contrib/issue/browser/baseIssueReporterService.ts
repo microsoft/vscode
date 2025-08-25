@@ -142,13 +142,13 @@ export class BaseIssueReporterService extends Disposable {
 
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
+			// Create button based on GitHub access token availability
+			this.recreateGithubButton();
+
 			const issueRepoName = document.createElement('a');
 			issueReporterElement.appendChild(issueRepoName);
 			issueRepoName.id = 'show-repo-name';
 			issueRepoName.classList.add('hidden');
-
-			// Create button based on GitHub access token availability
-			this.recreateGithubButton();
 		}
 
 		const issueTitle = data.issueTitle;
@@ -548,6 +548,9 @@ export class BaseIssueReporterService extends Disposable {
 			this.onGithubButton.dispose();
 		}
 
+		// Find the repo name element to insert the button before it
+		const issueRepoName = this.getElementById('show-repo-name');
+
 		// Create button based on GitHub access token availability
 		if (this.data.githubAccessToken) {
 			this.onGithubButton = this._register(new ButtonWithDropdown(issueReporterElement, {
@@ -569,6 +572,11 @@ export class BaseIssueReporterService extends Disposable {
 			this._register(this.onGithubButton.onDidClick(() => {
 				this.previewAction.run();
 			}));
+		}
+
+		// Ensure button appears before repo name by moving it if necessary
+		if (issueRepoName && this.onGithubButton.element.nextSibling !== issueRepoName) {
+			issueReporterElement.insertBefore(this.onGithubButton.element, issueRepoName);
 		}
 
 		// Update the button state after recreation
@@ -611,7 +619,7 @@ export class BaseIssueReporterService extends Disposable {
 				width: 'auto'
 			});
 			show(issueRepoName);
-		} else {
+		} else if (issueRepoName) {
 			// clear styles
 			issueRepoName.removeAttribute('style');
 			hide(issueRepoName);

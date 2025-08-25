@@ -82,12 +82,14 @@
 	display: block;
 	width: auto;
 	align-self: flex-end;
+	margin-bottom: 1em;
 	padding: 4px 10px;
 	font-size: 13px;
 }
 
 .issue-reporter-body .monaco-button-dropdown {
 	align-self: flex-end;
+	margin-bottom: 1em;
 }
 
 .issue-reporter-body .monaco-button-dropdown .monaco-button.monaco-dropdown-button {
