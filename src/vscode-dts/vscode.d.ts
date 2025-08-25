@@ -20243,7 +20243,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The configuration target
+	 * The MCP package type
 	 */
 	export enum McpPackageType {
 		/**
