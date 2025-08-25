@@ -1454,6 +1454,31 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const resources = this.collectResources(arg, resourceStates);
+
+		if (!resources) {
+			return;
+		}
+
+		for (const resource of resources) {
+			await resource.openChange();
+		}
+	}
+
+	@command('git.compareWithWorkspace')
+	async compareWithWorkspace(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const resources = this.collectResources(arg, resourceStates);
+
+		if (!resources) {
+			return;
+		}
+
+		for (const resource of resources) {
+			await resource.compareWithWorkspace();
+		}
+	}
+
+	private collectResources(arg?: Resource | Uri, resourceStates: SourceControlResourceState[] = []): Resource[] | undefined {
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -1474,15 +1499,9 @@ export class CommandCenter {
 				resources = [...resourceStates as Resource[], resource];
 			}
 		}
-
-		if (!resources) {
-			return;
-		}
-
-		for (const resource of resources) {
-			await resource.openChange();
-		}
+		return resources;
 	}
+
 
 	@command('git.rename', { repository: true })
 	async rename(repository: Repository, fromUri: Uri | undefined): Promise<void> {
