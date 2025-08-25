@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { filepaths } from '../../helpers/filepaths';
-import { keyValue } from '../../helpers/keyvalue';
+/* eslint-disable local/code-no-unexternalized-strings */
+
+import { filepaths } from '../helpers/filepaths';
+import { keyValue } from '../helpers/keyvalue';
 
 const filterMessages = (out: string): string => {
 	return out.startsWith("warning:") || out.startsWith("error:")
@@ -35,6 +37,7 @@ const postProcessRemoteBranches: Fig.Generator["postProcess"] = (out) => {
 					name: elm.replace("*", "").trim(),
 					description: "Current branch",
 					priority: 100,
+					// allow-any-unicode-next-line
 					icon: "⭐️",
 				};
 			} else if (parts[0] === "+") {
@@ -62,6 +65,7 @@ const listRepoMapFunction = (repo: RepoDataType) => ({
 	name: repo.nameWithOwner,
 	description: repo.description ?? undefined,
 	//be able to see if the repo is private at a glance
+	// allow-any-unicode-next-line
 	icon: repo.isPrivate ? "🔒" : "👀",
 });
 
@@ -74,7 +78,9 @@ const ghGenerators: Record<string, Fig.Generator> = {
 			const last = tokens.pop();
 
 			//gatekeeper
-			if (!last) return [];
+			if (!last) {
+				return [];
+			}
 
 			/**
 			 * this turns this input:
@@ -86,13 +92,17 @@ const ghGenerators: Record<string, Fig.Generator> = {
 			const userRepoSplit = last.split("/");
 
 			// make sure it has some length.
-			if (userRepoSplit.length === 0) return [];
+			if (userRepoSplit.length === 0) {
+				return [];
+			}
 
 			//get first element of arr
 			const userOrOrg = userRepoSplit.shift();
 
 			// make sure it has some existence.
-			if (!userOrOrg) return [];
+			if (!userOrOrg) {
+				return [];
+			}
 
 			//run `gh repo list` cmd
 			const { stdout, status } = await execute({
@@ -109,7 +119,9 @@ const ghGenerators: Record<string, Fig.Generator> = {
 			});
 
 			// make sure it has some existence.
-			if (status !== 0) return [];
+			if (status !== 0) {
+				return [];
+			}
 
 			//parse the JSON string output of the command
 			const repoArr: RepoDataType[] = JSON.parse(stdout);
@@ -177,6 +189,7 @@ const ghGenerators: Record<string, Fig.Generator> = {
 					name: number.toString(),
 					displayName: title,
 					description: `#${number} | ${headRefName}`,
+					// allow-any-unicode-next-line
 					icon: state === "OPEN" ? "✅" : "☑️",
 				};
 			});
@@ -325,27 +338,124 @@ const completionSpec: Fig.Spec = {
 					],
 				},
 			],
+		}, {
+			name: "api",
+			description: "Make an authenticated GitHub API request",
+			args: {
+				name: "<endpoint> [flags]a",
+			},
+			options: [
+				{
+					name: "--cache",
+					description: 'Cache the response, e.g. "3600s", "60m", "1h"',
+					args: { name: "duration" },
+				},
+				{
+					name: ["-F", "--field"],
+					description: "Add a typed parameter in key=value format",
+					args: { name: "key:value" },
+				},
+				{
+					name: "--hostname",
+					description:
+						'The GitHub hostname for the request (default "github.com")',
+					args: {
+						name: "string",
+					},
+				},
+				{
+					name: ["-i", "--include"],
+					description:
+						"Include HTTP response status line and headers in the output",
+				},
+				{
+					name: "--input",
+					description:
+						'The file to use as body for the HTTP request (use "-" to read from standard input)',
+					args: { name: "file" },
+				},
+				{
+					name: ["-q", "--jq"],
+					description:
+						"Query to select values from the response using jq syntax",
+					args: { name: "string" },
+				},
+				{
+					name: ["-X", "--method"],
+					description: "The HTTP method for the request",
+					args: { name: "string", description: '(default "GET")' },
+				},
+				{
+					name: "--paginate",
+					description:
+						"Make additional HTTP requests to fetch all pages of results",
+				},
+				{
+					name: ["-p", "--preview"],
+					description:
+						'GitHub API preview names to request (without the "-preview" suffix)',
+					args: { name: "names" },
+				},
+				{
+					name: ["-f", "--raw-field"],
+					description: "Add a string parameter in key=value format",
+					args: { name: "key=value" },
+				},
+				{
+					name: "--silent",
+					description: "Do not print the response body",
+				},
+				{
+					name: "--slurp",
+					description:
+						'Use with "--paginate" to return an array of all pages of either JSON arrays or objects',
+				},
+				{
+					name: ["-t", "--template"],
+					description:
+						'Format JSON output using a Go template; see "gh help formatting"',
+					args: { name: "string" },
+				},
+				{
+					name: "--verbose",
+					description: "Include full HTTP request and response in the output",
+				},
+			],
 		},
-		{ name: "api", description: "Make an authenticated GitHub API request" },
 		{
 			name: "auth",
-			description: "Login, logout, and refresh your authentication",
+			description: "Authenticate gh and git with GitHub",
 
 			subcommands: [
 				{
 					name: "login",
-					description: "Authenticate with a GitHub host",
+					description: "Gh auth login [flags]",
 					options: [
+						{
+							name: ["-p", "--git-protocol"],
+							description:
+								"The protocol to use for git operations on this host: {ssh|https}",
+							args: { name: "string" },
+						},
 						{
 							name: ["-h", "--hostname"],
 							description:
 								"The hostname of the GitHub instance to authenticate with",
-							args: { name: "hostname" },
+							args: { name: "string" },
+						},
+						{
+							name: "--insecure-storage",
+							description:
+								"Save authentication credentials in plain text instead of credential store",
 						},
 						{
 							name: ["-s", "--scopes"],
-							description: "Additional authentication scopes for gh to have",
-							args: { name: "scopes" },
+							description: "Additional authentication scopes to request",
+							args: { name: "strings" },
+						},
+						{
+							name: "--skip-ssh-key",
+							description: "Skip generate/upload SSH key prompt",
 						},
 						{
 							name: ["-w", "--web"],
@@ -354,48 +464,70 @@ const completionSpec: Fig.Spec = {
 						{
 							name: "--with-token",
 							description: "Read token from standard input",
-							args: { name: "token" },
 						},
 					],
 				},
 				{
 					name: "logout",
-					description: "Log out of a GitHub host",
+					description: "Gh auth logout [flags]",
 					options: [
 						{
 							name: ["-h", "--hostname"],
-							description:
-								"The hostname of the GitHub instance to authenticate with",
-							args: { name: "hostname" },
+							description: "The hostname of the GitHub instance to log out of",
+							args: { name: "string" },
+						},
+						{
+							name: ["-u", "--user"],
+							description: "The account to log out of",
+							args: { name: "string" },
 						},
 					],
 				},
 				{
 					name: "refresh",
-					description: "Refresh stored authentication credentials",
+					description: "Gh auth refresh [flags]",
 					options: [
 						{
 							name: ["-h", "--hostname"],
+							description: "The GitHub host to use for authentication",
+							args: { name: "string" },
+						},
+						{
+							name: "--insecure-storage",
 							description:
-								"The hostname of the GitHub instance to authenticate with",
-							args: { name: "hostname" },
+								"Save authentication credentials in plain text instead of credential store",
+						},
+						{
+							name: ["-r", "--remove-scopes"],
+							description: "Authentication scopes to remove from gh",
+							args: { name: "strings" },
+						},
+						{
+							name: "--reset-scopes",
+							description:
+								"Reset authentication scopes to the default minimum set of scopes",
 						},
 						{
 							name: ["-s", "--scopes"],
 							description: "Additional authentication scopes for gh to have",
-							args: { name: "scopes" },
+							args: { name: "strings" },
 						},
 					],
 				},
 				{
 					name: "setup-git",
-					description: "Configure git to use GitHub CLI as a credential helper",
+					description: "Gh auth setup-git [flags]",
 					options: [
 						{
-							name: ["-h", "--hostname"],
+							name: ["-f", "--force"],
 							description:
-								"The hostname of the GitHub instance to authenticate with",
-							args: { name: "hostname" },
+								"Force setup even if the host is not known. Must be used in conjunction with --hostname",
+							args: { name: "--hostname" },
+						},
+						{
+							name: ["-h", "--hostname"],
+							description: "The hostname to configure git for",
+							args: { name: "string" },
 						},
 					],
 				},
@@ -404,15 +536,51 @@ const completionSpec: Fig.Spec = {
 					description: "View authentication status",
 					options: [
 						{
-							name: ["-h", "--hostname"],
-							description:
-								"The hostname of the GitHub instance to authenticate with",
-							args: { name: "hostname" },
+							name: ["-a", "--active"],
+							description: "Display the active account only",
 						},
 						{
-							name: "--with-token",
-							description: "Read token from standard input",
-							args: { name: "token" },
+							name: ["-h", "--hostname"],
+							description: "Check only a specific hostname's auth status",
+							args: { name: "string" },
+						},
+						{
+							name: ["-t", "--show-token"],
+							description: "Display the auth token",
+						},
+					],
+				},
+				{
+					name: "switch",
+					description: "Switch the active account for a GitHub host",
+					options: [
+						{
+							name: ["-h", "--hostname"],
+							description:
+								"The hostname of the GitHub instance to switch account for",
+							args: { name: "string" },
+						},
+						{
+							name: ["-u", "--user"],
+							description: "The account to switch to",
+							args: { name: "string" },
+						},
+					],
+				},
+				{
+					name: "token",
+					description: "Gh auth token [flags]",
+					options: [
+						{
+							name: ["-h", "--hostname"],
+							description:
+								"The hostname of the GitHub instance authenticated with",
+							args: { name: "string" },
+						},
+						{
+							name: ["-u", "--user"],
+							description: "The account to output the token for",
+							args: { name: "string" },
 						},
 					],
 				},
