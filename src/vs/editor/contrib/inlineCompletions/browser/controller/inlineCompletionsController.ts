@@ -170,7 +170,7 @@ export class InlineCompletionsController extends Disposable {
 			for (const ctrl of InlineCompletionsController._instances) {
 				if (ctrl === this) {
 					continue;
-				} if (nextEditUri && isEqual(nextEditUri, ctrl.editor.getModel()?.uri)) {
+				} else if (nextEditUri && isEqual(nextEditUri, ctrl.editor.getModel()?.uri)) {
 					// The next edit in other edito is related to this controller, trigger it.
 					ctrl.model.get()?.trigger();
 				} else {
