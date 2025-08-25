@@ -23,13 +23,10 @@ import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 
 export interface IOutputMonitor extends Disposable {
-	readonly isIdle: boolean;
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	readonly outputMonitorTelemetryCounters: IOutputMonitorTelemetryCounters;
 
 	readonly onDidFinishCommand: Event<void>;
-	readonly onDidIdle: Event<void>;
-	readonly onDidTimeout: Event<void>;
 }
 
 export interface IOutputMonitorTelemetryCounters {
@@ -39,9 +36,6 @@ export interface IOutputMonitorTelemetryCounters {
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
-	private _isIdle = false;
-	get isIdle(): boolean { return this._isIdle; }
-
 	private _state: OutputMonitorState = OutputMonitorState.Initial;
 	get state(): OutputMonitorState { return this._state; }
 
@@ -59,10 +53,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
-	private readonly _onDidIdle = this._register(new Emitter<void>());
-	readonly onDidIdle = this._onDidIdle.event;
-	private readonly _onDidTimeout = this._register(new Emitter<void>());
-	readonly onDidTimeout = this._onDidTimeout.event;
 
 	constructor(
 		private readonly _execution: IExecution,
@@ -100,7 +90,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		while (!token.isCancellationRequested) {
 			const polled = await this._pollOnce(this._execution, extended, token, this._pollFn);
 
-			this._isIdle = polled.state === OutputMonitorState.Idle;
 			this._state = polled.state;
 
 
@@ -109,8 +98,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			switch (this._state) {
 				case OutputMonitorState.Timeout: {
-					this._onDidTimeout.fire();
-
 					// Create the prompt once; keep it open while we keep polling.
 					if (!continuePollingDecisionP) {
 						const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
@@ -151,7 +138,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					} else {
 						// A background poll completed while waiting for a decision
 						const r = race.r;
-						this._isIdle = r.state === OutputMonitorState.Idle;
 						this._state = r.state;
 
 						if (r.state === OutputMonitorState.Idle || r.state === OutputMonitorState.Cancelled) {
@@ -160,7 +146,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							continuePollingDecisionP = undefined;
 
 							this._pollingResult = { ...r, pollDurationMs: Date.now() - pollStartTime };
-							if (r.state === OutputMonitorState.Idle) { this._onDidIdle.fire(); }
 							break;
 						}
 
@@ -172,8 +157,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 					break;
 				case OutputMonitorState.Idle: {
-					this._onDidIdle.fire();
-
 					const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 					const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 
