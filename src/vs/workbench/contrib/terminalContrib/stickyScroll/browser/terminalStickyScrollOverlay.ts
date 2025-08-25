@@ -19,9 +19,11 @@ import { IMenu, IMenuService, MenuId } from '../../../../../platform/actions/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ICommandDetectionCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ITerminalConfigurationService, ITerminalInstance, IXtermColorProvider, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { openContextMenu } from '../../../terminal/browser/terminalContextMenu.js';
@@ -32,7 +34,8 @@ import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollCon
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from './terminalStickyScrollColorRegistry.js';
 import { XtermAddonImporter } from '../../../terminal/browser/xterm/xtermAddonImporter.js';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationSuccess } from '../../../terminal/browser/terminalIcons.js';
-import { updateLayout, DecorationSelector } from '../../../terminal/browser/xterm/decorationStyles.js';
+import { updateLayout, DecorationSelector, getTerminalDecorationHoverContent } from '../../../terminal/browser/xterm/decorationStyles.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -78,6 +81,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService menuService: IMenuService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
@@ -96,6 +100,10 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.MaxLineCount)) {
 				this._rawMaxLineCount = configurationService.getValue(TerminalStickyScrollSettingId.MaxLineCount);
+			}
+			if (!e || e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				// Refresh to update decoration visibility when settings change
+				this._refresh();
 			}
 		}));
 
@@ -540,6 +548,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
+		// Check if decorations are enabled in settings
+		const showDecorations = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		const shouldShowGutterDecorations = (showDecorations === 'both' || showDecorations === 'gutter');
+		if (!shouldShowGutterDecorations) {
+			return;
+		}
+
 		// Clear previous decoration
 		if (this._currentDecoration) {
 			this._currentDecoration.dispose();
@@ -575,6 +590,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// Configure the element styling
 			updateLayout(this._configurationService, element);
 			this._updateDecorationClasses(element, command);
+			
+			// Add hover support
+			this._addDecorationHover(element, command);
 		});
 	}
 
@@ -604,6 +622,18 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationSuccess));
 			}
 		}
+	}
+
+	private _addDecorationHover(element: HTMLElement, command: ITerminalCommand | ICurrentPartialCommand): void {
+		// Only add hover for completed commands with status information
+		const isPartialCommand = !('getOutput' in command);
+		if (isPartialCommand && command.exitCode === undefined) {
+			return;
+		}
+
+		this._hoverService.setupDelayedHover(element, () => ({
+			content: new MarkdownString(getTerminalDecorationHoverContent(command as ITerminalCommand))
+		}));
 	}
 }
 
