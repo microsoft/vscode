@@ -26,6 +26,8 @@ export enum TerminalCompletionItemKind {
 	Tag = 12,
 	Stash = 13,
 	Remote = 14,
+	PullRequest = 15,
+	PullRequestDone = 16,
 
 	// Core-only kinds
 	InlineSuggestion = 100,

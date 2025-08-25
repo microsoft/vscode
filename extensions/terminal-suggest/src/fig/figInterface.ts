@@ -242,7 +242,7 @@ export async function collectCompletionItemResult(
 							terminalContext.cursorPosition,
 							prefix,
 							{ label },
-							undefined,
+							item.displayName,
 							typeof item === 'string' ? item : item.description,
 							convertIconToKind(item.icon) ?? kind
 						));
@@ -377,6 +377,8 @@ function convertIconToKind(icon: string | undefined): vscode.TerminalCompletionI
 		case 'vscode://icon?type=12': return vscode.TerminalCompletionItemKind.Tag;
 		case 'vscode://icon?type=13': return vscode.TerminalCompletionItemKind.Stash;
 		case 'vscode://icon?type=14': return vscode.TerminalCompletionItemKind.Remote;
+		case 'vscode://icon?type=15': return vscode.TerminalCompletionItemKind.PullRequest;
+		case 'vscode://icon?type=16': return vscode.TerminalCompletionItemKind.PullRequestDone;
 		default: return undefined;
 	}
 }
