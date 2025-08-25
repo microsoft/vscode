@@ -21,6 +21,9 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRp
 		set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 			return value;
 		},
+		getRaw<T, R extends T>(identifier: ProxyIdentifier<T>): R {
+			return thing;
+		},
 		dispose: undefined!,
 		assertRegistered: undefined!,
 		drain: undefined!,
@@ -115,6 +118,10 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 		this._locals[identifier.sid] = value;
 		return value;
+	}
+
+	public getRaw<T, R extends T>(identifier: ProxyIdentifier<T>): R {
+		return this._locals[identifier.sid];
 	}
 
 	protected _remoteCall(proxyId: string, path: string, args: any[]): Promise<any> {

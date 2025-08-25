@@ -13,6 +13,8 @@ import { ICurrentProcess, IDisposableRegistry } from '../types';
 import { InMemoryCache } from '../utils/cacheUtils';
 import { SystemVariables } from './systemVariables';
 import { EnvironmentVariables, IEnvironmentVariablesProvider, IEnvironmentVariablesService } from './types';
+import { IFileSystem } from '../platform/types';
+import { IExtensionContext } from '../types';
 
 const CACHE_DURATION = 60 * 60 * 1000;
 @injectable()
@@ -33,6 +35,8 @@ export class EnvironmentVariablesProvider implements IEnvironmentVariablesProvid
         @inject(IPlatformService) private platformService: IPlatformService,
         @inject(IWorkspaceService) private workspaceService: IWorkspaceService,
         @inject(ICurrentProcess) private process: ICurrentProcess,
+        @inject(IExtensionContext) private context: IExtensionContext,
+        @inject(IFileSystem) private fs: IFileSystem,
         private cacheDuration: number = CACHE_DURATION,
     ) {
         disposableRegistry.push(this);
@@ -117,7 +121,15 @@ export class EnvironmentVariablesProvider implements IEnvironmentVariablesProvid
         if (this.process.env.PYTHONPATH) {
             this.envVarsService.appendPythonPath(mergedVars!, this.process.env.PYTHONPATH);
         }
-        return mergedVars;
+        
+        const pythonCacheDir = path.join(this.context.globalStorageUri.fsPath, 'pycache');
+        this.fs.createDirectory(pythonCacheDir).catch((ex) => {
+            traceError('Failed to create Python cache directory', ex);
+        });
+        const result: EnvironmentVariables = {};
+        Object.assign(result, mergedVars);
+        result.PYTHONPYCACHEPREFIX = pythonCacheDir;
+        return result;
     }
 
     public async getCustomEnvironmentVariables(resource?: Uri): Promise<EnvironmentVariables | undefined> {

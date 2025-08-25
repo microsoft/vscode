@@ -8224,6 +8224,25 @@ declare namespace monaco.languages {
 		provideSelectionRanges(model: editor.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 	}
 
+	export interface StatementRangeProvider {
+		/**
+		 * Provide the statement that contains the given position.
+		 */
+		provideStatementRange(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<IStatementRange>;
+	}
+
+	export interface IStatementRange {
+		range: IRange;
+		code: string;
+	}
+
+	export interface HelpTopicProvider {
+		/**
+		 * Provide a help topic relevant to the current cursor position.
+		 */
+		provideHelpTopic(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<string>;
+	}
+
 	export interface FoldingContext {
 	}
 

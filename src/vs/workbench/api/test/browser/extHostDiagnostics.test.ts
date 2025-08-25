@@ -424,6 +424,9 @@ suite('ExtHostDiagnostics', () => {
 			set(): any {
 				return null;
 			}
+			getRaw(): any {
+				return null;
+			}
 			dispose() { }
 			assertRegistered(): void {
 
@@ -509,6 +512,9 @@ suite('ExtHostDiagnostics', () => {
 				set(): any {
 					return null;
 				}
+				getRaw(): any {
+					return null;
+				}
 				dispose() { }
 				assertRegistered(): void {
 
@@ -553,6 +559,9 @@ suite('ExtHostDiagnostics', () => {
 				return new DiagnosticsShape();
 			}
 			set(): any {
+				return null;
+			}
+			getRaw(): any {
 				return null;
 			}
 			dispose() { }

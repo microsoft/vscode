@@ -3,6 +3,7 @@
 
 import { Event, Disposable, WorkspaceFolder } from 'vscode';
 import { EnvironmentTools } from '../../api/types';
+import { CreateEnvironmentOptionsInternal } from './types';
 
 export type CreateEnvironmentUserActions = 'Back' | 'Cancel';
 export type EnvironmentProviderId = string;
@@ -128,12 +129,14 @@ export interface CreateEnvironmentProvider {
      * user wants. This API is expected to show a QuickPick or QuickInput to get the user input and return
      * the path to the Python executable in the environment.
      *
-     * @param {CreateEnvironmentOptions} [options] Options used to create a Python environment.
+     * @param {CreateEnvironmentOptions & CreateEnvironmentOptionsInternal} [options] Options used to create a Python environment.
      *
      * @returns a promise that resolves to the path to the
      * Python executable in the environment. Or any action taken by the user, such as back or cancel.
      */
-    createEnvironment(options?: CreateEnvironmentOptions): Promise<CreateEnvironmentResult | undefined>;
+    createEnvironment(
+        options?: CreateEnvironmentOptions & CreateEnvironmentOptionsInternal,
+    ): Promise<CreateEnvironmentResult | undefined>;
 
     /**
      * Unique ID for the creation provider, typically <ExtensionId>:<environment-type | guid>

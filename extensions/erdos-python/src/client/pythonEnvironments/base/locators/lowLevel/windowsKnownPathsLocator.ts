@@ -21,6 +21,7 @@ import { inExperiment, pathExists } from '../../../common/externalDependencies';
 import { DiscoveryUsingWorkers } from '../../../../common/experiments/groups';
 import { iterPythonExecutablesInDir, looksLikeBasicGlobalPython } from '../../../common/commonUtils';
 import { StopWatch } from '../../../../common/utils/stopWatch';
+import { getUvDirs } from '../../../common/environmentManagers/uv';
 
 /**
  * A locator for Windows locators found under the $PATH env var.
@@ -74,6 +75,15 @@ export class WindowsPathEnvVarLocator implements ILocator<BasicEnvInfo>, IDispos
             for await (const env of it) {
                 yield env;
             }
+            
+            const uvDirs = await getUvDirs();
+            for (const uvDir of uvDirs) {
+                const envs = getDirFilesLocator(uvDir, PythonEnvKind.Uv, [PythonEnvSource.PathEnvVar], true);
+                for await (const env of envs.iterEnvs(query)) {
+                    yield env;
+                }
+            }
+            
             traceInfo(`Finished searching windows known paths locator: ${stopWatch.elapsedTime} milliseconds`);
         }
         return iterator(this.locators.iterEnvs(query));

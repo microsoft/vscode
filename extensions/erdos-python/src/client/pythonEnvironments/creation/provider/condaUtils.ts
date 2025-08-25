@@ -20,6 +20,8 @@ import { deleteCondaEnvironment } from './condaDeleteUtils';
 
 const RECOMMENDED_CONDA_PYTHON = '3.11';
 
+const SUPPORTED_CONDA_PYTHON_VERSIONS = [RECOMMENDED_CONDA_PYTHON, '3.12', '3.10', '3.9'];
+
 export async function getCondaBaseEnv(): Promise<string | undefined> {
     const conda = await Conda.getConda();
 
@@ -47,7 +49,7 @@ export async function getCondaBaseEnv(): Promise<string | undefined> {
 }
 
 export async function pickPythonVersion(token?: CancellationToken): Promise<string | undefined> {
-    const items: QuickPickItem[] = ['3.11', '3.12', '3.10', '3.9', '3.8'].map((v) => ({
+    const items: QuickPickItem[] = SUPPORTED_CONDA_PYTHON_VERSIONS.map((v) => ({
         label: v === RECOMMENDED_CONDA_PYTHON ? `${Octicons.Star} Python` : 'Python',
         description: v,
     }));
@@ -66,6 +68,13 @@ export async function pickPythonVersion(token?: CancellationToken): Promise<stri
     }
 
     return undefined;
+}
+
+export function getCondaPythonVersions(): { preferred: string; versions: string[] } {
+    return {
+        preferred: RECOMMENDED_CONDA_PYTHON,
+        versions: SUPPORTED_CONDA_PYTHON_VERSIONS,
+    };
 }
 
 export function getPathEnvVariableForConda(condaBasePythonPath: string): string {

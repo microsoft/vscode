@@ -3,7 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "0.0.1",
-  "publisher": "positron",
+  "publisher": "erdos",
   "engines": {
     "vscode": "^1.65.0"
   },
@@ -31,8 +31,8 @@
               "type": "string"
             },
             "default": {
-              "SF_PARTNER": "posit_positron",
-              "SPARK_CONNECT_USER_AGENT": "posit-positron"
+              "SF_PARTNER": "lotas_erdos",
+              "SPARK_CONNECT_USER_AGENT": "lotas-erdos"
             },
             "description": "%environment.configuration.variables.set.description%",
             "order": 2
@@ -74,6 +74,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/posit-dev/positron"
+    "url": "https://github.com/willnickols/vscode"
   }
 }

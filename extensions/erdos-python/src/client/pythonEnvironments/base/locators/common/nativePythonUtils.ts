@@ -14,6 +14,8 @@ export enum NativePythonEnvironmentKind {
     PyenvVirtualEnv = 'PyenvVirtualEnv',
     Pipenv = 'Pipenv',
     Poetry = 'Poetry',
+    Uv = 'Uv',
+    Custom = 'Custom',
     MacPythonOrg = 'MacPythonOrg',
     MacCommandLineTools = 'MacCommandLineTools',
     LinuxGlobal = 'LinuxGlobal',
@@ -43,6 +45,7 @@ const mapping = new Map<NativePythonEnvironmentKind, PythonEnvKind>([
     [NativePythonEnvironmentKind.MacCommandLineTools, PythonEnvKind.System],
     [NativePythonEnvironmentKind.MacPythonOrg, PythonEnvKind.System],
     [NativePythonEnvironmentKind.MacXCode, PythonEnvKind.System],
+    [NativePythonEnvironmentKind.Custom, PythonEnvKind.Custom],
 ]);
 
 export function categoryToKind(category?: NativePythonEnvironmentKind, logger?: LogOutputChannel): PythonEnvKind {

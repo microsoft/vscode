@@ -56,7 +56,8 @@ export class TerminalCodeExecutionProvider implements ICodeExecutionService {
             const selection = await showWarningMessage(Diagnostics.invalidSmartSendMessage, Repl.disableSmartSend);
             traceInfo(`Selected file contains invalid Python or Deprecated Python 2 code`);
             if (selection === Repl.disableSmartSend) {
-                this.configurationService.updateSetting('REPL.enableREPLSmartSend', false, resource);
+                // This setting is hidden in favor of the Erdos console.
+                // this.configurationService.updateSetting('REPL.enableREPLSmartSend', false, resource);
             }
         } else {
             await this.getTerminalService(resource).executeCommand(code, true);

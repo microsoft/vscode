@@ -70,6 +70,7 @@ export namespace Common {
     export const alwaysIgnore = l10n.t('Always Ignore');
     export const ignore = l10n.t('Ignore');
     export const selectPythonInterpreter = l10n.t('Select Python Interpreter');
+    export const selectNewSession = l10n.t('Select a new session');
     export const openLaunch = l10n.t('Open launch.json');
     export const useCommandPrompt = l10n.t('Use Command Prompt');
     export const download = l10n.t('Download');
@@ -252,6 +253,7 @@ export namespace InterpreterQuickPickList {
     export const create = {
         label: l10n.t('Create Virtual Environment...'),
     };
+    export const unsupportedVersionTooltip = l10n.t('This version of Python is not supported');
 }
 
 export namespace OutputChannelNames {
@@ -454,6 +456,8 @@ export namespace CreateEnv {
 
     export const providersQuickPickPlaceholder = l10n.t('Select an environment type');
 
+    export const pathDoesntExist = l10n.t('The entered path does not exist: ');
+
     export namespace Venv {
         export const creating = l10n.t('Creating venv...');
         export const creatingMicrovenv = l10n.t('Creating microvenv...');
@@ -503,6 +507,12 @@ export namespace CreateEnv {
         );
         export const deletingEnvironmentProgress = l10n.t('Deleting existing ".conda" environment...');
         export const errorDeletingEnvironment = l10n.t('Error while deleting existing ".conda" environment.');
+    }
+
+    export namespace Uv {
+        export const providerDescription = l10n.t(
+            'Use uv to find a Python version locally (or install it if needed) for the new environment',
+        );
     }
 
     export namespace Trigger {

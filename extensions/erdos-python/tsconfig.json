@@ -15,9 +15,11 @@
             "ES2019",
             "ES2020"
         ],
+        "types": ["reflect-metadata", "node"],
         "sourceMap": true,
         "rootDir": "src",
         "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
         "allowSyntheticDefaultImports": true,
         "strict": true,
         "noImplicitAny": true,
@@ -28,11 +30,6 @@
         "resolveJsonModule": true,
         "removeComments": true
     },
-    "include": [
-        "src/**/*",
-        "../../src/vscode-dts/vscode.d.ts",
-        "../../src/vscode-dts/erdos.d.ts"
-    ],
     "exclude": [
         "node_modules",
         ".vscode-test",
@@ -46,5 +43,17 @@
         "out",
         "tmp",
         "pythonExtensionApi"
+    ],
+    "include": [
+        "src/*",
+        "src/client/**/*",
+        "src/test/**/*",
+        "typings/*.d.ts",
+        "typings/vscode-proposed/*.d.ts",
+        "types/*.d.ts",
+        "types/src/vscode-dts/*.d.ts",
+        "../../src/vscode-dts/vscode.proposed.erdosResolveSymlinks.d.ts",
+        "../../src/erdos-dts/erdos.d.ts",
+        "../../src/erdos-dts/ui-comm.d.ts"
     ]
 }

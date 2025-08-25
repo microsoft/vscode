@@ -48,6 +48,8 @@ suite('Multiroot Environment Variables Provider', () => {
             instance(platform),
             instance(workspace),
             instance(currentProcess),
+            {} as any, // IExtensionContext mock
+            {} as any, // IFileSystem mock
         );
 
         sinon.stub(EnvFileTelemetry, 'sendFileCreationTelemetry').returns();
@@ -312,6 +314,8 @@ suite('Multiroot Environment Variables Provider', () => {
                 instance(platform),
                 instance(workspace),
                 instance(currentProcess),
+                {} as any, // IExtensionContext mock
+                {} as any, // IFileSystem mock
                 100,
             );
             const vars = await provider.getEnvironmentVariables(workspaceUri);

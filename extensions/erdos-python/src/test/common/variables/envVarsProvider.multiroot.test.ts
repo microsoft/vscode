@@ -87,6 +87,8 @@ suite('Multiroot Environment Variables Provider', () => {
             new PlatformService(),
             workspaceService,
             mockProcess,
+            {} as any, // IExtensionContext mock
+            {} as any, // IFileSystem mock
         );
     }
 

@@ -68,7 +68,8 @@
     // Open merge editor for resolving conflicts.
     "git.mergeEditor": true,
     "python.testing.pytestArgs": [
-        "python_files/tests"
+        "python_files/tests",
+        "python_files/erdos/erdos/tests"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,

@@ -45,6 +45,7 @@ import { buildProposedApi } from './proposedApi';
 import { GLOBAL_PERSISTENT_KEYS } from './common/persistentState';
 import { registerTools } from './chat';
 import { IRecommendedEnvironmentService } from './interpreter/configuration/types';
+import { activateErdos } from './erdos/extension';
 
 durations.codeLoadingTime = stopWatch.elapsedTime;
 
@@ -83,6 +84,10 @@ export async function activate(context: IExtensionContext): Promise<PythonExtens
     sendStartupTelemetry(ready, durations, stopWatch, serviceContainer, isFirstSession)
         // Run in the background.
         .ignoreErrors();
+
+    activateErdos(serviceContainer)
+        .ignoreErrors();
+
     return api;
 }
 
@@ -129,7 +134,7 @@ async function activateUnsafe(
 
     // Then we finish activating.
     const componentsActivated = await activateComponents(ext, components, activationStopWatch);
-    activateFeatures(ext, components);
+    await activateFeatures(ext, components);
 
     const nonBlocking = componentsActivated.map((r) => r.fullyReady);
     const activationPromise = (async () => {

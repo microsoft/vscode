@@ -83,9 +83,8 @@ export class InterpreterDisplay implements IInterpreterDisplay, IExtensionSingle
             };
             this.disposableRegistry.push(this.languageStatus);
         } else {
-            const [alignment, priority] = [StatusBarAlignment.Right, STATUS_BAR_ITEM_PRIORITY];
+            const [alignment, priority] = [StatusBarAlignment.Left, STATUS_BAR_ITEM_PRIORITY];
             this.statusBar = application.createStatusBarItem(alignment, priority, 'python.selectedInterpreterDisplay');
-            this.statusBar.command = Commands.Set_Interpreter;
             this.disposableRegistry.push(this.statusBar);
             this.statusBar.name = Interpreters.selectedPythonInterpreter;
         }
@@ -133,7 +132,7 @@ export class InterpreterDisplay implements IInterpreterDisplay, IExtensionSingle
         if (this.statusBar) {
             if (interpreter) {
                 this.statusBar.color = '';
-                this.statusBar.tooltip = this.pathUtils.getDisplayName(interpreter.path, workspaceFolder?.fsPath);
+                this.statusBar.tooltip = l10n.t('Active Interpreter');
                 if (this.currentlySelectedInterpreterPath !== interpreter.path) {
                     traceLog(
                         l10n.t(
@@ -143,8 +142,7 @@ export class InterpreterDisplay implements IInterpreterDisplay, IExtensionSingle
                     );
                     this.currentlySelectedInterpreterPath = interpreter.path;
                 }
-                let text = interpreter.detailedDisplayName;
-                text = text?.startsWith('Python') ? text?.substring('Python'.length)?.trim() : text;
+                let text = this.pathUtils.getDisplayName(interpreter.path, workspaceFolder?.fsPath);
                 this.statusBar.text = text ?? '';
                 this.statusBar.backgroundColor = undefined;
                 this.currentlySelectedInterpreterDisplay = interpreter.detailedDisplayName;

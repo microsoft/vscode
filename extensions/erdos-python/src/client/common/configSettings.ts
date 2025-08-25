@@ -21,7 +21,14 @@ import { sendSettingTelemetry } from '../telemetry/envFileTelemetry';
 import { ITestingSettings } from '../testing/configuration/types';
 import { IWorkspaceService } from './application/types';
 import { WorkspaceService } from './application/workspace';
-import { DEFAULT_INTERPRETER_SETTING, isTestExecution, PYREFLY_EXTENSION_ID } from './constants';
+import { 
+    DEFAULT_INTERPRETER_SETTING, 
+    isTestExecution, 
+    PYREFLY_EXTENSION_ID,
+    INTERPRETERS_EXCLUDE_SETTING_KEY,
+    INTERPRETERS_INCLUDE_SETTING_KEY,
+    AUTORELOAD_SETTING_KEY,
+} from './constants';
 import {
     IAutoCompleteSettings,
     IDefaultLanguageServer,
@@ -117,15 +124,19 @@ export class PythonSettings implements IPythonSettings {
 
     public experiments!: IExperiments;
 
-    public languageServer: LanguageServerType = LanguageServerType.Node;
+    public languageServer: LanguageServerType = LanguageServerType.None;
 
     public languageServerIsDefault = true;
 
     public languageServerDebug = false;
 
-    public languageServerLogLevel = 'info';
+    public languageServerLogLevel = 'error';
 
     public quietMode = false;
+
+    public interpretersInclude: string[] = [];
+
+    public interpretersExclude: string[] = [];
 
     public enableAutoReload = false;
 
@@ -305,6 +316,12 @@ export class PythonSettings implements IPythonSettings {
             this.languageServerIsDefault = false;
         }
 
+        // --- Start Erdos ---
+        // Disable the extension's built-in language server management, we manage it ourselves
+        this.languageServer = LanguageServerType.None;
+        this.languageServerIsDefault = false;
+        // --- End Erdos ---
+
         const autoCompleteSettings = systemVariables.resolveAny(
             pythonSettings.get<IAutoCompleteSettings>('autoComplete'),
         )!;
@@ -327,7 +344,11 @@ export class PythonSettings implements IPythonSettings {
         this.languageServerDebug = pythonSettings.get<boolean>('languageServerDebug') === true;
         this.languageServerLogLevel = systemVariables.resolveAny(pythonSettings.get<string>('languageServerLogLevel')) || 'info';
         this.quietMode = pythonSettings.get<boolean>('quietMode') === true;
-        this.enableAutoReload = pythonSettings.get<boolean>('enableAutoReload') === true;
+
+        this.interpretersInclude = pythonSettings.get<string[]>(INTERPRETERS_INCLUDE_SETTING_KEY) ?? [];
+        this.interpretersExclude = pythonSettings.get<string[]>(INTERPRETERS_EXCLUDE_SETTING_KEY) ?? [];
+
+        this.enableAutoReload = pythonSettings.get<boolean>(AUTORELOAD_SETTING_KEY) === true;
 
         const testSettings = systemVariables.resolveAny(pythonSettings.get<ITestingSettings>('testing'))!;
         if (this.testing) {

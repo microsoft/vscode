@@ -90,6 +90,7 @@ import './services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import './services/process/electron-browser/processService.js';
+import './services/ephemeralState/electron-browser/ephemeralStateService.js';
 
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';

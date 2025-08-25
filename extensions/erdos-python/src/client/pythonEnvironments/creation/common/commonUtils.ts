@@ -18,6 +18,16 @@ export async function showErrorMessageWithLogs(message: string): Promise<void> {
     }
 }
 
+// Same as above but opens the Erdos session picker instead
+export async function showErdosErrorMessageWithLogs(message: string): Promise<void> {
+    const result = await showErrorMessage(message, Common.openOutputPanel, Common.selectNewSession);
+    if (result === Common.openOutputPanel) {
+        await executeCommand(Commands.ViewOutput);
+    } else if (result === Common.selectNewSession) {
+        await executeCommand('workbench.action.language.runtime.openActivePicker');
+    }
+}
+
 export function getVenvPath(workspaceFolder: WorkspaceFolder): string {
     return path.join(workspaceFolder.uri.fsPath, '.venv');
 }

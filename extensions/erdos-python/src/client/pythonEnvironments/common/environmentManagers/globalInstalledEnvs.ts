@@ -6,6 +6,7 @@ import { getOSType, OSType } from '../../../common/utils/platform';
 import { isParentPath } from '../externalDependencies';
 import { commonPosixBinPaths } from '../posixUtils';
 import { isPyenvShimDir } from './pyenv';
+import { ADDITIONAL_POSIX_BIN_PATHS } from '../posixUtils';
 
 /**
  * Checks if the given interpreter belongs to known globally installed types. If an global
@@ -23,7 +24,7 @@ export async function isGloballyInstalledEnv(executablePath: string): Promise<bo
     //         return true;
     //     }
     // }
-    return isFoundInPathEnvVar(executablePath);
+    return (await isFoundInPathEnvVar(executablePath)) || isAdditionalGlobalBinPath(executablePath);
 }
 
 async function isFoundInPathEnvVar(executablePath: string): Promise<boolean> {
@@ -37,6 +38,19 @@ async function isFoundInPathEnvVar(executablePath: string): Promise<boolean> {
     // the binaries specified in .python-version file in the cwd. We should not be reporting
     // those binaries as environments.
     searchPathEntries = searchPathEntries.filter((dirname) => !isPyenvShimDir(dirname));
+    for (const searchPath of searchPathEntries) {
+        if (isParentPath(executablePath, searchPath)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+export function isAdditionalGlobalBinPath(executablePath: string): boolean {
+    if (getOSType() === OSType.Windows) {
+        return false;
+    }
+    const searchPathEntries = ADDITIONAL_POSIX_BIN_PATHS;
     for (const searchPath of searchPathEntries) {
         if (isParentPath(executablePath, searchPath)) {
             return true;

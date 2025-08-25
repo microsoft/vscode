@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
+/* eslint-disable import/no-duplicates */
 
 'use strict';
 
@@ -20,6 +21,7 @@ import { Commands, Octicons, ThemeIcons } from '../../../../common/constants';
 import { isParentPath } from '../../../../common/platform/fs-paths';
 import { IPlatformService } from '../../../../common/platform/types';
 import { IConfigurationService, IPathUtils, Resource } from '../../../../common/types';
+// eslint-disable-next-line import/no-duplicates
 import { Common, InterpreterQuickPickList } from '../../../../common/utils/localize';
 import { noop } from '../../../../common/utils/misc';
 import {
@@ -46,6 +48,14 @@ import {
     ISpecialQuickPickItem,
 } from '../../types';
 import { BaseInterpreterSelectorCommand } from './base';
+// eslint-disable-next-line import/order
+import * as fs from 'fs-extra';
+import { CreateEnv } from '../../../../common/utils/localize';
+import { IPythonRuntimeManager } from '../../../../erdos/manager';
+import { showErrorMessage } from '../../../../common/vscodeApis/windowApis';
+import { traceError } from '../../../../logging';
+import { shouldIncludeInterpreter } from '../../../../erdos/interpreterSettings';
+import { isVersionSupported } from '../../environmentTypeComparer';
 import { untildify } from '../../../../common/helpers';
 import { useEnvExtension } from '../../../../envExt/api.internal';
 import { setInterpreterLegacy } from '../../../../envExt/api.legacy';
@@ -78,6 +88,8 @@ export namespace EnvGroups {
     export const Poetry = 'Poetry';
     export const Hatch = 'Hatch';
     export const Pixi = 'Pixi';
+    export const Uv = 'Uv';
+    export const Unsupported = 'Unsupported';
     export const VirtualEnvWrapper = 'VirtualEnvWrapper';
     export const ActiveState = 'ActiveState';
     export const Recommended = Common.recommended;
@@ -126,6 +138,7 @@ export class SetInterpreterCommand extends BaseInterpreterSelectorCommand implem
         @inject(IInterpreterSelector) private readonly interpreterSelector: IInterpreterSelector,
         @inject(IWorkspaceService) workspaceService: IWorkspaceService,
         @inject(IInterpreterService) private readonly interpreterService: IInterpreterService,
+        @inject(IPythonRuntimeManager) private readonly pythonRuntimeManager: IPythonRuntimeManager,
     ) {
         super(
             pythonPathUpdaterService,
@@ -193,9 +206,6 @@ export class SetInterpreterCommand extends BaseInterpreterSelectorCommand implem
             customButtonSetups: buttons,
             initialize: (quickPick) => {
                 // Note discovery is no longer guranteed to be auto-triggered on extension load, so trigger it when
-                // user interacts with the interpreter picker but only once per session. Users can rely on the
-                // refresh button if they want to trigger it more than once. However if no envs were found previously,
-                // always trigger a refresh.
                 if (this.interpreterService.getInterpreters().length === 0) {
                     this.refreshCallback(quickPick, { showBackButton: params?.showBackButton });
                 } else {
@@ -265,7 +275,7 @@ export class SetInterpreterCommand extends BaseInterpreterSelectorCommand implem
         if (defaultInterpreterPathSuggestion) {
             suggestions.push(defaultInterpreterPathSuggestion);
         }
-        const interpreterSuggestions = this.getSuggestions(resource, filter, params);
+        const interpreterSuggestions = this.getSuggestions(resource, filterWrapper(filter), params);
         this.finalizeItems(interpreterSuggestions, resource, params);
         suggestions.push(...interpreterSuggestions);
         return suggestions;
@@ -309,7 +319,9 @@ export class SetInterpreterCommand extends BaseInterpreterSelectorCommand implem
         if (activeInterpreterItem) {
             return activeInterpreterItem;
         }
-        const firstInterpreterSuggestion = suggestions.find((s) => isInterpreterQuickPickItem(s));
+        const firstInterpreterSuggestion = suggestions.find(
+            (s) => isInterpreterQuickPickItem(s) && isVersionSupported(s.interpreter.version),
+        );
         if (firstInterpreterSuggestion) {
             return firstInterpreterSuggestion;
         }
@@ -381,7 +393,7 @@ export class SetInterpreterCommand extends BaseInterpreterSelectorCommand implem
         const updatedItems = [...items.values()];
         const areItemsGrouped = items.find((item) => isSeparatorItem(item));
         const env = event.old ?? event.new;
-        if (filter && event.new && !filter(event.new)) {
+        if (filterWrapper(filter) && event.new && !filterWrapper(filter)(event.new)) {
             event.new = undefined; // Remove envs we're not looking for from the list.
         }
         let envIndex = -1;
@@ -442,6 +454,12 @@ export class SetInterpreterCommand extends BaseInterpreterSelectorCommand implem
                         if (!items[i].label.includes(Octicons.Warning)) {
                             items[i].label = `${Octicons.Warning} ${items[i].label}`;
                             items[i].tooltip = InterpreterQuickPickList.condaEnvWithoutPythonTooltip;
+                        }
+                    }
+                    if (isInterpreterQuickPickItem(item) && !isVersionSupported(item.interpreter.version)) {
+                        if (!items[i].label.includes(Octicons.Warning)) {
+                            items[i].label = `${Octicons.Warning} ${items[i].label}`;
+                            items[i].tooltip = InterpreterQuickPickList.unsupportedVersionTooltip;
                         }
                     }
                 });
@@ -542,7 +560,10 @@ export class SetInterpreterCommand extends BaseInterpreterSelectorCommand implem
         if (typeof selection === 'string') {
             // User entered text in the filter box to enter path to python, store it
             sendTelemetryEvent(EventName.SELECT_INTERPRETER_ENTER_CHOICE, undefined, { choice: 'enter' });
-            state.path = selection;
+            state.path = untildify(selection);
+            if (!fs.existsSync(state.path)) {
+                showErrorMessage(`${CreateEnv.pathDoesntExist} ${state.path}`);
+            }
             this.sendInterpreterEntryTelemetry(selection, state.workspace);
         } else if (selection && selection.label === InterpreterQuickPickList.browsePath.label) {
             sendTelemetryEvent(EventName.SELECT_INTERPRETER_ENTER_CHOICE, undefined, { choice: 'browse' });
@@ -605,6 +626,10 @@ export class SetInterpreterCommand extends BaseInterpreterSelectorCommand implem
             // an empty string, in which case we should update.
             // Having the value `undefined` means user cancelled the quickpick, so we update nothing in that case.
             await this.pythonPathUpdaterService.updatePythonPath(interpreterState.path, configTarget, 'ui', wkspace);
+            this.pythonRuntimeManager
+                .selectLanguageRuntimeFromPath(interpreterState.path)
+                .catch((error: any) => traceError(`Failed to select language runtime from path: ${error}`));
+            this.commandManager.executeCommand(Commands.Focus_Erdos_Console);
             if (useEnvExtension()) {
                 await setInterpreterLegacy(interpreterState.path, wkspace);
             }
@@ -696,10 +721,15 @@ function addSeparatorIfApplicable(
 }
 
 function getGroup(item: IInterpreterQuickPickItem, workspacePath?: string) {
+    if (!isVersionSupported(item.interpreter.version)) {
+        return EnvGroups.Unsupported;
+    }
     if (workspacePath && isParentPath(item.path, workspacePath)) {
         return EnvGroups.Workspace;
     }
     switch (item.interpreter.envType) {
+        case EnvironmentType.Custom:
+            return EnvGroups.Global;
         case EnvironmentType.Global:
         case EnvironmentType.System:
         case EnvironmentType.Unknown:
@@ -708,6 +738,10 @@ function getGroup(item: IInterpreterQuickPickItem, workspacePath?: string) {
         default:
             return EnvGroups[item.interpreter.envType];
     }
+}
+
+function filterWrapper(filter: ((i: PythonEnvironment) => boolean) | undefined) {
+    return (i: PythonEnvironment) => (filter ? filter(i) : true) && shouldIncludeInterpreter(i.path);
 }
 
 export type SelectEnvironmentResult = {

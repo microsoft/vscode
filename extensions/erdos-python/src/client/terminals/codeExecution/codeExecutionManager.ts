@@ -5,7 +5,8 @@
 
 import { inject, injectable } from 'inversify';
 import { Disposable, EventEmitter, Terminal, Uri } from 'vscode';
-import * as path from 'path';
+import * as vscode from 'vscode';
+import * as erdos from 'erdos';
 import { ICommandManager, IDocumentManager } from '../../common/application/types';
 import { Commands } from '../../common/constants';
 import '../../common/extensions';
@@ -121,6 +122,39 @@ export class CodeExecutionManager implements ICodeExecutionManager {
                 },
             ),
         );
+        this.disposableRegistry.push(
+            this.commandManager.registerCommand(Commands.Exec_In_Console as any, async () => {
+                const editor = vscode.window.activeTextEditor;
+                if (!editor) {
+                    return;
+                }
+
+                const filePath = editor.document.uri.fsPath;
+                if (!filePath) {
+                    vscode.window.showWarningMessage('Cannot source unsaved file.');
+                    return;
+                }
+
+                await vscode.commands.executeCommand('workbench.action.files.save');
+
+                try {
+                    const fsStat = await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
+
+                    if (fsStat) {
+                        const command = `%run ${JSON.stringify(filePath)}`;
+                        erdos.runtime.executeCode('python', command, false, true);
+                    }
+                } catch (e) {
+                }
+            }),
+        );
+        this.disposableRegistry.push(
+            this.commandManager.registerCommand(Commands.Exec_Selection_In_Console as any, async () => {
+                await vscode.commands.executeCommand('workbench.action.erdosConsole.executeCode', {
+                    allowIncomplete: true,
+                });
+            }),
+        );
     }
 
     private async executeUsingExtension(file: Resource, dedicated: boolean): Promise<void> {
@@ -131,13 +165,7 @@ export class CodeExecutionManager implements ICodeExecutionManager {
             return;
         }
 
-        // Check on setting terminal.executeInFileDir
-        const pythonSettings = this.configSettings.getSettings(file);
-        let cwd = pythonSettings.terminal.executeInFileDir ? path.dirname(fileToExecute.fsPath) : undefined;
 
-        // Check on setting terminal.launchArgs
-        const launchArgs = pythonSettings.terminal.launchArgs;
-        const totalArgs = [...launchArgs, fileToExecute.fsPath.fileToCommandArgumentForPythonExt()];
 
         const fileAfterSave = await codeExecutionHelper.saveFileIfDirty(fileToExecute);
         if (fileAfterSave) {
@@ -147,9 +175,19 @@ export class CodeExecutionManager implements ICodeExecutionManager {
         const show = this.shouldTerminalFocusOnStart(fileToExecute);
         let terminal: Terminal | undefined;
         if (dedicated) {
-            terminal = await runInDedicatedTerminal(fileToExecute, totalArgs, cwd, show);
+            terminal = await runInDedicatedTerminal(
+                fileToExecute,
+                [fileToExecute.fsPath.fileToCommandArgumentForPythonExt()],
+                undefined,
+                show,
+            );
         } else {
-            terminal = await runInTerminal(fileToExecute, totalArgs, cwd, show);
+            terminal = await runInTerminal(
+                fileToExecute,
+                [fileToExecute.fsPath.fileToCommandArgumentForPythonExt()],
+                undefined,
+                show,
+            );
         }
 
         if (terminal) {

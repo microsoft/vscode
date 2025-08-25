@@ -6,7 +6,15 @@ import { inject, injectable } from 'inversify';
 import { DiagnosticSeverity, l10n } from 'vscode';
 import '../../../common/extensions';
 import * as path from 'path';
-import { IConfigurationService, IDisposableRegistry, IInterpreterPathService, Resource } from '../../../common/types';
+import {
+    IConfigurationService,
+    IDisposableRegistry,
+    IInstaller,
+    IInterpreterPathService,
+    Product,
+    ProductInstallStatus,
+    Resource,
+} from '../../../common/types';
 import { IInterpreterService } from '../../../interpreter/contracts';
 import { IServiceContainer } from '../../../ioc/types';
 import { BaseDiagnostic, BaseDiagnosticsService } from '../base';
@@ -21,7 +29,7 @@ import {
     IDiagnosticMessageOnCloseHandler,
 } from '../types';
 import { Common } from '../../../common/utils/localize';
-import { Commands } from '../../../common/constants';
+import { Commands, IPYKERNEL_VERSION } from '../../../common/constants';
 import { ICommandManager, IWorkspaceService } from '../../../common/application/types';
 import { sendTelemetryEvent } from '../../../telemetry';
 import { EventName } from '../../../telemetry/constants';
@@ -30,7 +38,7 @@ import { cache } from '../../../common/utils/decorators';
 import { noop } from '../../../common/utils/misc';
 import { getEnvironmentVariable, getOSType, OSType } from '../../../common/utils/platform';
 import { IFileSystem } from '../../../common/platform/types';
-import { traceError } from '../../../logging';
+import { traceError, traceVerbose } from '../../../logging';
 import { getExecutable } from '../../../common/process/internal/python';
 import { getSearchPathEnvVarNames } from '../../../common/utils/exec';
 import { IProcessServiceFactory } from '../../../common/process/types';
@@ -155,7 +163,29 @@ export class InvalidPythonInterpreterService extends BaseDiagnosticsService
         }
 
         const currentInterpreter = await interpreterService.getActiveInterpreter(resource);
+
         if (!currentInterpreter) {
+            const installer = this.serviceContainer.get<IInstaller>(IInstaller);
+
+            const hasCompatibleKernel = await installer.isProductVersionCompatible(
+                Product.ipykernel,
+                IPYKERNEL_VERSION,
+                currentInterpreter,
+            );
+
+            if (hasCompatibleKernel === ProductInstallStatus.NotInstalled) {
+                traceVerbose('ipykernel package not found, installing...');
+
+                const installPromise = installer.install(Product.ipykernel, currentInterpreter).then(() => {});
+                return [
+                    new InstallIpykernelPrompt(
+                        DiagnosticCodes.InvalidPythonInterpreterDiagnostic,
+                        resource,
+                        installPromise,
+                    ),
+                ];
+            }
+
             return [
                 new InvalidPythonInterpreterDiagnostic(
                     DiagnosticCodes.InvalidPythonInterpreterDiagnostic,
@@ -316,4 +346,25 @@ function getOnCloseHandler(diagnostic: IDiagnostic): IDiagnosticMessageOnCloseHa
         };
     }
     return undefined;
+}
+
+export class InstallIpykernelPrompt extends BaseDiagnostic {
+    constructor(
+        code: DiagnosticCodes,
+        resource: Resource,
+        private readonly installPromise: Promise<void>,
+    ) {
+        super(
+            code,
+            l10n.t('Failed to load Python session. The Python package "ipykernel" is required to create and execute code cells.'),
+            DiagnosticSeverity.Error,
+            DiagnosticScope.WorkspaceFolder,
+            resource,
+        );
+    }
+
+    public async invoke(): Promise<boolean> {
+        await this.installPromise;
+        return true;
+    }
 }

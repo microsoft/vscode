@@ -10,18 +10,173 @@
   "categories": [
     "Other"
   ],
-  "main": "./out/extension.js",
   "activationEvents": [
     "onStartupFinished"
   ],
-  "contributes": {},
+  "main": "./out/extension.js",
   "scripts": {
+    "build:kernel-bridge": "cd src/kernel-bridge && npm run build",
+    "compile": "npm run build:kernel-bridge && gulp compile-extension:erdos-supervisor",
+    "lint": "eslint src --ext ts",
+    "pretest": "npm run compile && npm run lint",
+    "postinstall": "ts-node scripts/post-install.ts",
+    "test": "node ./out/test/runTest.js",
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "npm run build:kernel-bridge && gulp watch-extension:erdos-supervisor"
+  },
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Kernel Supervisor",
+      "properties": {
+        "kernelSupervisor.showTerminal": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.showTerminal.description%"
+        },
+        "kernelSupervisor.connectionTimeout": {
+          "type": "integer",
+          "default": 30,
+          "description": "%configuration.connectionTimeout.description%"
+        },
+        "kernelSupervisor.logLevel": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
+          "enumDescriptions": [
+            "%configuration.logLevel.error.description%",
+            "%configuration.logLevel.warn.description%",
+            "%configuration.logLevel.info.description%",
+            "%configuration.logLevel.debug.description%",
+            "%configuration.logLevel.trace.description%"
+          ],
+          "default": "debug",
+          "description": "%configuration.logLevel.description%"
+        },
+        "kernelSupervisor.shutdownTimeout": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "immediately",
+            "when idle",
+            "4",
+            "8",
+            "12",
+            "24",
+            "168",
+            "indefinitely"
+          ],
+          "enumDescriptions": [
+            "%configuration.shutdownTimeout.immediately.description%",
+            "%configuration.shutdownTimeout.whenIdle.description%",
+            "%configuration.shutdownTimeout.4.description%",
+            "%configuration.shutdownTimeout.8.description%",
+            "%configuration.shutdownTimeout.12.description%",
+            "%configuration.shutdownTimeout.24.description%",
+            "%configuration.shutdownTimeout.168.description%",
+            "%configuration.shutdownTimeout.indefinitely.description%"
+          ],
+          "default": "immediately",
+          "markdownDescription": "%configuration.shutdownTimeout.description%"
+        },
+        "kernelSupervisor.attachOnStartup": {
+          "scope": "window",
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.attachOnStartup.description%"
+        },
+        "kernelSupervisor.runInShell": {
+          "scope": "window",
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.runInShell.description%"
+        },
+        "kernelSupervisor.sleepOnStartup": {
+          "scope": "window",
+          "type": "number",
+          "description": "%configuration.sleepOnStartup.description%"
+        },
+        "kernelSupervisor.maxBufferSizeMB": {
+          "scope": "window",
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 2000,
+          "description": "%configuration.maxBufferSizeMB.description%"
+        },
+        "kernelSupervisor.transport": {
+          "scope": "machine",
+          "type": "string",
+          "description": "%configuration.transport.description%",
+          "enum": [
+            "ipc",
+            "tcp"
+          ],
+          "enumDescriptions": [
+            "%configuration.transport.ipc.description%",
+            "%configuration.transport.tcp.description%"
+          ],
+          "enumItemLabels": [
+            "%configuration.transport.ipc.label%",
+            "%configuration.transport.tcp.label%"
+          ],
+          "default": "ipc"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "erdos.supervisor.showKernelSupervisorLog",
+        "category": "%command.erdos.supervisor.category%",
+        "title": "%command.showKernelSupervisorLog.title%",
+        "shortTitle": "%command.showKernelSupervisorLog.title%"
+      },
+      {
+        "command": "erdos.supervisor.reconnectSession",
+        "category": "%command.erdos.supervisor.category%",
+        "title": "%command.reconnectSession.title%",
+        "shortTitle": "%command.reconnectSession.title%",
+        "enablement": "isDevelopment"
+      },
+      {
+        "command": "erdos.supervisor.restartSupervisor",
+        "category": "%command.erdos.supervisor.category%",
+        "title": "%command.restartSupervisor.title%",
+        "shortTitle": "%command.restartSupervisor.title%"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/willnickols/vscode"
   },
   "devDependencies": {
-    "@types/vscode": "^1.95.0",
-    "typescript": "^4.9.4"
+    "@types/decompress": "^4.2.7",
+    "@types/request": "^2.48.12",
+    "@types/mocha": "^9.1.0",
+    "@types/tail": "^2.2.3",
+    "@types/ws": "^8.5.12",
+    "mocha": "^9.2.1",
+    "ts-node": "^10.9.1",
+    "decompress": "^4.2.1"
+  },
+  "extensionDependencies": [
+    "erdos.erdos-environment"
+  ],
+  "dependencies": {
+    "request": "^2.88.2",
+    "tail": "^2.2.6",
+    "ws": "^8.18.0"
+  },
+  "overrides": {
+	"request": {
+		"form-data": "^4.0.0"
+	}
   }
 }

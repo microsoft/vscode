@@ -13,6 +13,7 @@ export function getKindDisplayName(kind: PythonEnvKind): string {
         // Note that Unknown is excluded here.
         [PythonEnvKind.System, 'system'],
         [PythonEnvKind.MicrosoftStore, 'Microsoft Store'],
+        [PythonEnvKind.Uv, 'uv'],
         [PythonEnvKind.Pyenv, 'pyenv'],
         [PythonEnvKind.Poetry, 'Poetry'],
         [PythonEnvKind.Hatch, 'Hatch'],
@@ -64,6 +65,7 @@ export function getPrioritizedEnvKinds(): PythonEnvKind[] {
         PythonEnvKind.Pixi, // Placed here since Pixi environments are essentially Conda envs
         PythonEnvKind.Conda,
         PythonEnvKind.MicrosoftStore,
+        PythonEnvKind.Uv,
         PythonEnvKind.Pipenv,
         PythonEnvKind.Poetry,
         PythonEnvKind.Hatch,

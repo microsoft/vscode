@@ -45,6 +45,7 @@ import { getNativePythonFinder } from './base/locators/common/nativePythonFinder
 import { createNativeEnvironmentsApi } from './nativeAPI';
 import { useEnvExtension } from '../envExt/api.internal';
 import { createEnvExtApi } from '../envExt/envExtApi';
+import { UserSpecifiedEnvironmentLocator } from './base/locators/lowLevel/userSpecifiedEnvLocator';
 
 const PYTHON_ENV_INFO_CACHE_KEY = 'PYTHON_ENV_INFO_CACHEv2';
 
@@ -179,6 +180,7 @@ function createNonWorkspaceLocators(ext: ExtensionState): ILocator<BasicEnvInfo>
         new ActiveStateLocator(),
         new GlobalVirtualEnvironmentLocator(),
         new CustomVirtualEnvironmentLocator(),
+        new UserSpecifiedEnvironmentLocator(),
     );
 
     if (getOSType() === OSType.Windows) {
@@ -270,4 +272,12 @@ async function createCollectionCache(ext: ExtensionState): Promise<IEnvsCollecti
         store: async (e) => putIntoStorage(storage, e),
     });
     return cache;
+}
+
+export async function activateAndRefreshEnvs(api: IDiscoveryAPI): Promise<ActivationResult> {
+    api.triggerRefresh().ignoreErrors();
+
+    return {
+        fullyReady: Promise.resolve(),
+    };
 }

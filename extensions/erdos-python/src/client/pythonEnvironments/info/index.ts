@@ -21,6 +21,8 @@ export enum EnvironmentType {
     Poetry = 'Poetry',
     Hatch = 'Hatch',
     Pixi = 'Pixi',
+    Uv = 'Uv',
+    Custom = 'Custom',
     VirtualEnvWrapper = 'VirtualEnvWrapper',
     ActiveState = 'ActiveState',
     Global = 'Global',
@@ -29,7 +31,12 @@ export enum EnvironmentType {
 /**
  * These envs are only created for a specific workspace, which we're able to detect.
  */
-export const workspaceVirtualEnvTypes = [EnvironmentType.Poetry, EnvironmentType.Pipenv, EnvironmentType.Pixi];
+export const workspaceVirtualEnvTypes = [
+    EnvironmentType.Poetry,
+    EnvironmentType.Pipenv,
+    EnvironmentType.Pixi,
+    EnvironmentType.Uv,
+];
 
 export const virtualEnvTypes = [
     ...workspaceVirtualEnvTypes,
@@ -50,6 +57,7 @@ export enum ModuleInstallerType {
     Poetry = 'Poetry',
     Pipenv = 'Pipenv',
     Pixi = 'Pixi',
+    Uv = 'Uv',
 }
 
 /**
@@ -128,6 +136,9 @@ export function getEnvironmentTypeName(environmentType: EnvironmentType): string
         }
         case EnvironmentType.Pixi: {
             return 'pixi';
+        }
+        case EnvironmentType.Uv: {
+            return 'uv';
         }
         case EnvironmentType.VirtualEnvWrapper: {
             return 'virtualenvwrapper';

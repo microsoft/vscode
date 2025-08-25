@@ -296,6 +296,7 @@ suite('ExtHostWorkspace', function () {
 		const protocol: IMainContext = {
 			getProxy: () => { return undefined!; },
 			set: () => { return undefined!; },
+			getRaw: () => { return undefined!; },
 			dispose: () => { },
 			assertRegistered: () => { },
 			drain: () => { return undefined!; },

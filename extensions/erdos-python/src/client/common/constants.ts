@@ -48,12 +48,25 @@ export namespace Commands {
     export const Exec_In_Terminal = 'python.execInTerminal';
     export const Exec_In_Terminal_Icon = 'python.execInTerminal-icon';
     export const Exec_In_Separate_Terminal = 'python.execInDedicatedTerminal';
+    export const Exec_In_Console = 'python.execInConsole';
+    export const Exec_Selection_In_Console = 'python.execSelectionInConsole';
     export const Exec_In_REPL = 'python.execInREPL';
     export const Exec_Selection_In_Django_Shell = 'python.execSelectionInDjangoShell';
     export const Exec_In_REPL_Enter = 'python.execInREPLEnter';
     export const Exec_In_IW_Enter = 'python.execInInteractiveWindowEnter';
     export const Exec_Selection_In_Terminal = 'python.execSelectionInTerminal';
+    export const Focus_Erdos_Console = 'workbench.panel.positronConsole.focus';
     export const GetSelectedInterpreterPath = 'python.interpreterPath';
+    export const Create_Environment_And_Register = 'python.createEnvironmentAndRegister';
+    export const Get_Create_Environment_Providers = 'python.getCreateEnvironmentProviders';
+    export const Is_Conda_Installed = 'python.isCondaInstalled';
+    export const Get_Conda_Python_Versions = 'python.getCondaPythonVersions';
+    export const Is_Uv_Installed = 'python.isUvInstalled';
+    export const Get_Uv_Python_Versions = 'python.getUvPythonVersions';
+    export const Is_Global_Python = 'python.isGlobalPython';
+    export const Show_Interpreter_Debug_Info = 'python.interpreters.debugInfo';
+    export const Create_Pyproject_Toml = 'python.createPyprojectToml';
+    export const InstallPackages = 'python.installPackages';
     export const InstallJupyter = 'python.installJupyter';
     export const InstallPython = 'python.installPython';
     export const InstallPythonOnLinux = 'python.installPythonOnLinux';
@@ -68,7 +81,6 @@ export namespace Commands {
     export const Tests_CopilotSetup = 'python.copilotSetupTests';
     export const TriggerEnvironmentSelection = 'python.triggerEnvSelection';
     export const ViewOutput = 'python.viewOutput';
-    export const Show_Interpreter_Debug_Info = 'python.interpreters.debugInfo';
 }
 
 // Look at https://microsoft.github.io/vscode-codicons/dist/codicon.html for other Octicon icon ids

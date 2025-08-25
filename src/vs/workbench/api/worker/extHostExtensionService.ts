@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createApiFactoryAndRegisterActors } from '../common/extHost.api.impl.js';
+import { createErdosApiFactoryAndRegisterActors } from '../common/erdos/extHost.erdos.api.impl.js';
 import { ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator.js';
 import { AbstractExtHostExtensionService } from '../common/extHostExtensionService.js';
 import { URI } from '../../../base/common/uri.js';
@@ -45,7 +46,8 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
-		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, { mine: this._myRegistry, all: this._globalRegistry });
+		const erdosApiFactory = this._instaService.invokeFunction(createErdosApiFactoryAndRegisterActors);
+		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, erdosApiFactory, { mine: this._myRegistry, all: this._globalRegistry });
 		await this._fakeModules.install();
 		performance.mark('code/extHost/didInitAPI');
 

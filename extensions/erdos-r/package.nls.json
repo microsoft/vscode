@@ -68,6 +68,6 @@
 	"r.configuration.defaultRepositories.description": "The default repositories to use for R package installation, if no repository is otherwise specified in R startup scripts (restart Erdos to apply).\n\nThe default repositories will be set as the `repos` option in R.",
 	"r.configuration.defaultRepositories.auto.description": "Automatically choose a default repository, or use a repos.conf file if it exists.",
 	"r.configuration.defaultRepositories.rstudio.description": "Use the RStudio CRAN mirror (cran.rstudio.com)",
-	"r.configuration.defaultRepositories.posit-ppm.description": "Use the Posit public package manager (packagemanager.posit.co)",
+	"r.configuration.defaultRepositories.lotas-ppm.description": "Use the Lotas public package manager (packagemanager.lotas.co)",
 	"r.configuration.defaultRepositories.none.description": "Do not set a default repository or change the value of the 'repos' option"
 }

@@ -28,6 +28,10 @@ const ext = require('./lib/extensions');
 // 	ignore: ['**/out/**', '**/node_modules/**']
 // });
 const compilations = [
+	'extensions/erdos-environment/tsconfig.json',
+	'extensions/erdos-python/tsconfig.json',
+	'extensions/erdos-supervisor/tsconfig.json',
+	'extensions/erdos-r/tsconfig.json',
 	'extensions/configuration-editing/tsconfig.json',
 	'extensions/css-language-features/client/tsconfig.json',
 	'extensions/css-language-features/server/tsconfig.json',
@@ -66,7 +70,6 @@ const compilations = [
 	'extensions/vscode-colorize-tests/tsconfig.json',
 	'extensions/vscode-colorize-perf-tests/tsconfig.json',
 	'extensions/vscode-test-resolver/tsconfig.json',
-
 	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
 	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
 ];
@@ -140,7 +143,10 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		// --- Start Erdos ---
+		// Add '!**/*.tsx'.
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts', '!**/*.tsx']));
+		// --- End Erdos ---
 		const input = es.merge(nonts, pipeline.tsProjectSrc());
 
 		return input
@@ -150,7 +156,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		// Add '!**/*.tsx'.
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts', '!**/*.tsx']));
 		const input = es.merge(nonts, pipeline.tsProjectSrc());
 
 		return input
@@ -160,9 +167,27 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		// --- Start Erdos ---
+		// Add '!**/*.tsx'.
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts', '!**/*.tsx']));
+
+		// The Python extension's integration tests create and delete directories in a way that
+		// crashes the watcher. For the erdos-python task, ignore these known directories.
+		// (Note that these need to be ignored at `watcher` -- `gulp.src` is not enough.)
+		let ignored;
+		if (relativeDirname === 'erdos-python') {
+			ignored = [
+				path.join(srcBase, 'test/1/**'),
+				path.join(srcBase, 'test/should-not-exist/**'),
+				path.join(srcBase, 'testMultiRootWkspc/**'),
+				path.join(srcBase, 'testTestingRootWkspc/**'),
+			];
+		} else {
+			ignored = [];
+		}
+		// --- End Erdos ---
 		const input = es.merge(nonts, pipeline.tsProjectSrc());
-		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
+		const watchInput = watcher(src, { ...srcOpts, ...{ ignored, readDelay: 200 } });
 
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
@@ -171,7 +196,10 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const compileBuildTask = task.define(`compile-build-extension-${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(true, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		// --- Start Erdos ---
+		// Add '!**/*.tsx'.
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts', '!**/*.tsx']));
+		// --- End Erdos ---
 		const input = es.merge(nonts, pipeline.tsProjectSrc());
 
 		return input

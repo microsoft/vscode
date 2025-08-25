@@ -77,6 +77,9 @@ export class JediLanguageServerAnalysisOptions extends LanguageServerAnalysisOpt
                     },
                 },
             },
+            jediSettings: {
+                autoImportModules: ['fastai', 'fastcore'],
+            },
             workspace: {
                 extraPaths: distinctExtraPaths,
                 environmentPath: this.interpreter?.path,
@@ -85,9 +88,9 @@ export class JediLanguageServerAnalysisOptions extends LanguageServerAnalysisOpt
                     maxSymbols: 0,
                 },
             },
-            semantic_tokens: {
-                enable: true,
-            },
+            // semantic_tokens: {
+            //     enable: true,
+            // },
         };
     }
 }

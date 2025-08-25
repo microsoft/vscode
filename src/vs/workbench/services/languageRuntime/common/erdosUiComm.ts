@@ -37,10 +37,51 @@ export interface CallMethodParams {
 	params: Array<Param>;
 }
 
+export interface EditorContext {
+	document: TextDocument;
+
+	contents: Array<string>;
+
+	selection: Selection;
+
+	selections: Array<Selection>;
+
+}
+
+export interface TextDocument {
+	path: string;
+
+	eol: string;
+
+	is_closed: boolean;
+
+	is_dirty: boolean;
+
+	is_untitled: boolean;
+
+	language_id: string;
+
+	line_count: number;
+
+	version: number;
+
+}
+
 export interface Position {
 	character: number;
 
 	line: number;
+
+}
+
+export interface Selection {
+	active: Position;
+
+	start: Position;
+
+	end: Position;
+
+	text: string;
 
 }
 
@@ -73,14 +114,24 @@ export interface ShowMessageParams {
 	message: string;
 }
 
-export interface ExecuteCodeParams {
-	language_id: string;
+export interface ShowQuestionParams {
+	title: string;
 
-	code: string;
+	message: string;
 
-	focus: boolean;
+	ok_button_title: string;
 
-	allow_incomplete: boolean;
+	cancel_button_title: string;
+}
+
+export interface ShowDialogParams {
+	title: string;
+
+	message: string;
+}
+
+export interface AskForPasswordParams {
+	prompt: string;
 }
 
 export interface PromptStateParams {
@@ -93,6 +144,28 @@ export interface WorkingDirectoryParams {
 	directory: string;
 }
 
+export interface DebugSleepParams {
+	ms: number;
+}
+
+export interface ExecuteCommandParams {
+	command: string;
+}
+
+export interface EvaluateWhenClauseParams {
+	when_clause: string;
+}
+
+export interface ExecuteCodeParams {
+	language_id: string;
+
+	code: string;
+
+	focus: boolean;
+
+	allow_incomplete: boolean;
+}
+
 export interface OpenWorkspaceParams {
 	path: string;
 
@@ -101,6 +174,16 @@ export interface OpenWorkspaceParams {
 
 export interface SetEditorSelectionsParams {
 	selections: Array<Range>;
+}
+
+export interface ModifyEditorSelectionsParams {
+	selections: Array<Range>;
+
+	values: Array<string>;
+}
+
+export interface ShowUrlParams {
+	url: string;
 }
 
 export interface ShowHtmlFileParams {
@@ -115,10 +198,6 @@ export interface ShowHtmlFileParams {
 
 export interface OpenWithSystemParams {
 	path: string;
-}
-
-export interface ShowUrlParams {
-	url: string;
 }
 
 export interface BusyEvent {
@@ -167,6 +246,11 @@ export interface SetEditorSelectionsEvent {
 
 }
 
+export interface ShowUrlEvent {
+	url: string;
+
+}
+
 export interface ShowHtmlFileEvent {
 	path: string;
 
@@ -186,15 +270,48 @@ export interface OpenWithSystemEvent {
 export interface ClearWebviewPreloadsEvent {
 }
 
-export interface ShowUrlEvent {
-	url: string;
-
-}
-
 export interface NewDocumentRequest {
 	contents: string;
 
 	language_id: string;
+
+}
+
+export interface ShowQuestionRequest {
+	title: string;
+
+	message: string;
+
+	ok_button_title: string;
+
+	cancel_button_title: string;
+
+}
+
+export interface ShowDialogRequest {
+	title: string;
+
+	message: string;
+
+}
+
+export interface AskForPasswordRequest {
+	prompt: string;
+
+}
+
+export interface DebugSleepRequest {
+	ms: number;
+
+}
+
+export interface ExecuteCommandRequest {
+	command: string;
+
+}
+
+export interface EvaluateWhenClauseRequest {
+	when_clause: string;
 
 }
 
@@ -209,6 +326,19 @@ export interface ExecuteCodeRequest {
 
 }
 
+export interface WorkspaceFolderRequest {
+}
+
+export interface ModifyEditorSelectionsRequest {
+	selections: Array<Range>;
+
+	values: Array<string>;
+
+}
+
+export interface LastActiveEditorContextRequest {
+}
+
 export enum UiFrontendEvent {
 	Busy = 'busy',
 	ClearConsole = 'clear_console',
@@ -218,15 +348,24 @@ export enum UiFrontendEvent {
 	WorkingDirectory = 'working_directory',
 	OpenWorkspace = 'open_workspace',
 	SetEditorSelections = 'set_editor_selections',
+	ShowUrl = 'show_url',
 	ShowHtmlFile = 'show_html_file',
 	OpenWithSystem = 'open_with_system',
-	ClearWebviewPreloads = 'clear_webview_preloads',
-	ShowUrl = 'show_url'
+	ClearWebviewPreloads = 'clear_webview_preloads'
 }
 
 export enum UiFrontendRequest {
 	NewDocument = 'new_document',
-	ExecuteCode = 'execute_code'
+	ShowQuestion = 'show_question',
+	ShowDialog = 'show_dialog',
+	AskForPassword = 'ask_for_password',
+	DebugSleep = 'debug_sleep',
+	ExecuteCommand = 'execute_command',
+	EvaluateWhenClause = 'evaluate_when_clause',
+	ExecuteCode = 'execute_code',
+	WorkspaceFolder = 'workspace_folder',
+	ModifyEditorSelections = 'modify_editor_selections',
+	LastActiveEditorContext = 'last_active_editor_context'
 }
 
 export enum UiBackendRequest {
@@ -249,10 +388,10 @@ export class ErdosUiComm extends ErdosBaseComm {
 		this.onDidWorkingDirectory = super.createEventEmitter('working_directory', ['directory']);
 		this.onDidOpenWorkspace = super.createEventEmitter('open_workspace', ['path', 'new_window']);
 		this.onDidSetEditorSelections = super.createEventEmitter('set_editor_selections', ['selections']);
+		this.onDidShowUrl = super.createEventEmitter('show_url', ['url']);
 		this.onDidShowHtmlFile = super.createEventEmitter('show_html_file', ['path', 'title', 'is_plot', 'height']);
 		this.onDidOpenWithSystem = super.createEventEmitter('open_with_system', ['path']);
 		this.onDidClearWebviewPreloads = super.createEventEmitter('clear_webview_preloads', []);
-		this.onDidShowUrl = super.createEventEmitter('show_url', ['url']);
 	}
 
 	didChangePlotsRenderSettings(settings: PlotRenderSettings): Promise<null> {
@@ -276,9 +415,9 @@ export class ErdosUiComm extends ErdosBaseComm {
 	onDidWorkingDirectory: Event<WorkingDirectoryEvent>;
 	onDidOpenWorkspace: Event<OpenWorkspaceEvent>;
 	onDidSetEditorSelections: Event<SetEditorSelectionsEvent>;
+	onDidShowUrl: Event<ShowUrlEvent>;
 	onDidShowHtmlFile: Event<ShowHtmlFileEvent>;
 	onDidOpenWithSystem: Event<OpenWithSystemEvent>;
 	onDidClearWebviewPreloads: Event<ClearWebviewPreloadsEvent>;
-	onDidShowUrl: Event<ShowUrlEvent>;
 }
 

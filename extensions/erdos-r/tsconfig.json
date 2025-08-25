@@ -18,7 +18,7 @@
 	},
 	"include": [
 		"src/**/*",
-		"../../src/vscode-dts/erdos.d.ts",
+		"../../src/erdos-dts/erdos.d.ts",
 		"../../src/vscode-dts/vscode.d.ts"
 	]
 }

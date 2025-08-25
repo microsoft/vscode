@@ -10,11 +10,13 @@ import { PipEnvInstaller } from './pipEnvInstaller';
 import { PipInstaller } from './pipInstaller';
 import { PixiInstaller } from './pixiInstaller';
 import { PoetryInstaller } from './poetryInstaller';
+import { UVInstaller } from './uvInstaller';
 import { DataScienceProductPathService, TestFrameworkProductPathService } from './productPath';
 import { ProductService } from './productService';
 import { IInstallationChannelManager, IModuleInstaller, IProductPathService, IProductService } from './types';
 
 export function registerTypes(serviceManager: IServiceManager) {
+    serviceManager.addSingleton<IModuleInstaller>(IModuleInstaller, UVInstaller);
     serviceManager.addSingleton<IModuleInstaller>(IModuleInstaller, PixiInstaller);
     serviceManager.addSingleton<IModuleInstaller>(IModuleInstaller, CondaInstaller);
     serviceManager.addSingleton<IModuleInstaller>(IModuleInstaller, PipInstaller);

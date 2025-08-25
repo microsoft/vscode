@@ -1,0 +1,860 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "KernelBridge API",
+    "description": "KernelBridge is a Jupyter kernel gateway and supervisor",
+    "version": "1.0.0",
+    "contact": {
+      "email": "founders@lotas.ai"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/status": {
+      "get": {
+        "summary": "Get server status and information",
+        "operationId": "serverStatus",
+        "responses": {
+          "200": {
+            "description": "Server status information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/client_heartbeat": {
+      "post": {
+        "summary": "Notify the server that a client is connected",
+        "operationId": "clientHeartbeat",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientHeartbeat"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Heartbeat acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/server_configuration": {
+      "get": {
+        "summary": "Get the server configuration",
+        "operationId": "getServerConfiguration",
+        "responses": {
+          "200": {
+            "description": "Server configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerConfiguration"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Change the server configuration",
+        "operationId": "setServerConfiguration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerConfiguration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Configuration updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shutdown": {
+      "post": {
+        "summary": "Shut down all sessions and the server itself",
+        "operationId": "shutdownServer",
+        "responses": {
+          "200": {
+            "description": "Server shutdown initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions": {
+      "get": {
+        "summary": "List active sessions",
+        "operationId": "listSessions",
+        "responses": {
+          "200": {
+            "description": "List of sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Create a new session",
+        "operationId": "newSession",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewSession"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewSession200Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}": {
+      "get": {
+        "summary": "Get session details",
+        "operationId": "getSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveSession"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete session",
+        "operationId": "deleteSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/start": {
+      "post": {
+        "summary": "Start a session",
+        "operationId": "startSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/restart": {
+      "post": {
+        "summary": "Restart a session",
+        "operationId": "restartSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestartSession"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session restarted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/interrupt": {
+      "post": {
+        "summary": "Interrupt session",
+        "operationId": "interruptSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session interrupted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/kill": {
+      "post": {
+        "summary": "Force quit session",
+        "operationId": "killSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session killed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/adopt": {
+      "put": {
+        "summary": "Adopt an existing session",
+        "operationId": "adoptSession",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionInfo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session adopted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/channels": {
+      "get": {
+        "summary": "Upgrade to a WebSocket or domain socket for channel communication",
+        "operationId": "channelsUpgrade",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "WebSocket URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{session_id}/connection_info": {
+      "get": {
+        "summary": "Get Jupyter connection information for the session",
+        "operationId": "connectionInfo",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Connection information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ServerStatus": {
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "type": "number"
+          },
+          "active": {
+            "type": "number"
+          },
+          "busy": {
+            "type": "boolean"
+          },
+          "idle_seconds": {
+            "type": "number",
+            "description": "The number of seconds all sessions have been idle, or 0 if any session is busy"
+          },
+          "busy_seconds": {
+            "type": "number",
+            "description": "The number of seconds any session has been busy, or 0 if all sessions are idle"
+          },
+          "version": {
+            "type": "string",
+            "description": "The version of the server"
+          },
+          "process_id": {
+            "type": "number",
+            "description": "The server's operating system process identifier"
+          }
+        },
+        "required": ["sessions", "active", "busy", "idle_seconds", "busy_seconds", "version", "process_id"]
+      },
+      "ClientHeartbeat": {
+        "type": "object",
+        "properties": {
+          "process_id": {
+            "type": "number",
+            "description": "The process ID of the client sending the heartbeat"
+          }
+        }
+      },
+      "ServerConfiguration": {
+        "type": "object",
+        "properties": {
+          "idle_shutdown_hours": {
+            "type": "number",
+            "description": "The number of hours the server will wait before shutting down idle sessions (-1 if idle shutdown is disabled)"
+          },
+          "log_level": {
+            "type": "string",
+            "enum": ["trace", "debug", "info", "warn", "error"],
+            "description": "The current log level"
+          }
+        }
+      },
+      "ActiveSession": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "A unique identifier for the session"
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The program and command-line parameters for the session"
+          },
+          "process_id": {
+            "type": "integer",
+            "description": "The underlying process ID of the session, if the session is running."
+          },
+          "username": {
+            "type": "string",
+            "description": "The username of the user who owns the session"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "A human-readable name for the session"
+          },
+          "language": {
+            "type": "string",
+            "description": "The interpreter language"
+          },
+          "interrupt_mode": {
+            "$ref": "#/components/schemas/InterruptMode"
+          },
+          "initial_env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The environment variables set when the session was started"
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "Whether the session is connected to a client"
+          },
+          "started": {
+            "type": "string",
+            "format": "date-time",
+            "description": "An ISO 8601 timestamp of when the session was started"
+          },
+          "working_directory": {
+            "type": "string",
+            "description": "The session's current working directory"
+          },
+          "input_prompt": {
+            "type": "string",
+            "description": "The text to use to prompt for input"
+          },
+          "continuation_prompt": {
+            "type": "string",
+            "description": "The text to use to prompt for input continuations"
+          },
+          "execution_queue": {
+            "$ref": "#/components/schemas/ExecutionQueue"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "idle_seconds": {
+            "type": "number",
+            "description": "The number of seconds the session has been idle, or 0 if the session is busy"
+          },
+          "busy_seconds": {
+            "type": "number",
+            "description": "The number of seconds the session has been busy, or 0 if the session is idle"
+          }
+        },
+        "required": ["session_id", "argv", "username", "display_name", "language", "interrupt_mode", "connected", "started", "working_directory", "input_prompt", "continuation_prompt", "execution_queue", "status", "idle_seconds", "busy_seconds"]
+      },
+      "SessionList": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveSession"
+            }
+          }
+        },
+        "required": ["total", "sessions"]
+      },
+      "NewSession": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "A unique identifier for the session"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "A human-readable name for the session"
+          },
+          "language": {
+            "type": "string",
+            "description": "The interpreter language"
+          },
+          "username": {
+            "type": "string",
+            "description": "The username of the user who owns the session"
+          },
+          "input_prompt": {
+            "type": "string",
+            "description": "The text to use to prompt for input"
+          },
+          "continuation_prompt": {
+            "type": "string",
+            "description": "The text to use to prompt for input continuations"
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The program and command-line parameters for the session"
+          },
+          "working_directory": {
+            "type": "string",
+            "description": "The working directory in which to start the session."
+          },
+          "env": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VarAction"
+            },
+            "description": "A list of environment variable actions to perform"
+          },
+          "connection_timeout": {
+            "type": "number",
+            "description": "The number of seconds to wait for a connection to the session's ZeroMQ sockets before timing out",
+            "default": 30
+          },
+          "interrupt_mode": {
+            "$ref": "#/components/schemas/InterruptMode"
+          },
+          "protocol_version": {
+            "type": "string",
+            "description": "The Jupyter protocol version supported by the underlying kernel",
+            "default": "5.3"
+          },
+          "run_in_shell": {
+            "type": "boolean",
+            "description": "Whether to run the session inside a login shell; only relevant on POSIX systems",
+            "default": false
+          }
+        },
+        "required": ["session_id", "display_name", "language", "username", "input_prompt", "continuation_prompt", "argv", "working_directory", "env", "interrupt_mode"]
+      },
+      "NewSession200Response": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "A unique identifier for the session"
+          }
+        },
+        "required": ["session_id"]
+      },
+      "RestartSession": {
+        "type": "object",
+        "properties": {
+          "working_directory": {
+            "type": "string",
+            "description": "The desired working directory for the session after restart, if different from the session's working directory at startup"
+          },
+          "env": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VarAction"
+            },
+            "description": "A list of environment variable actions to perform"
+          }
+        }
+      },
+      "ConnectionInfo": {
+        "type": "object",
+        "description": "Connection information for an existing session",
+        "properties": {
+          "control_port": {
+            "type": "integer",
+            "description": "The port for control messages"
+          },
+          "shell_port": {
+            "type": "integer",
+            "description": "The port for shell messages"
+          },
+          "stdin_port": {
+            "type": "integer",
+            "description": "The port for stdin messages"
+          },
+          "hb_port": {
+            "type": "integer",
+            "description": "The port for heartbeat messages"
+          },
+          "iopub_port": {
+            "type": "integer",
+            "description": "The port for IOPub messages"
+          },
+          "signature_scheme": {
+            "type": "string",
+            "description": "The signature scheme for messages"
+          },
+          "key": {
+            "type": "string",
+            "description": "The key for messages"
+          },
+          "transport": {
+            "type": "string",
+            "description": "The transport protocol"
+          },
+          "ip": {
+            "type": "string",
+            "description": "The IP address for the connection"
+          }
+        },
+        "required": ["control_port", "shell_port", "stdin_port", "hb_port", "iopub_port", "signature_scheme", "key", "transport", "ip"]
+      },
+      "InterruptMode": {
+        "type": "string",
+        "enum": ["signal", "message"],
+        "description": "The mechansim for interrupting the session"
+      },
+      "ExecutionQueue": {
+        "type": "object",
+        "description": "The execution queue for a session",
+        "properties": {
+          "active": {
+            "type": "object",
+            "description": "The execution request currently being evaluated, if any"
+          },
+          "length": {
+            "type": "number",
+            "description": "The number of items in the pending queue"
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The queue of pending execution requests"
+          }
+        },
+        "required": ["length", "pending"]
+      },
+      "Status": {
+        "type": "string",
+        "enum": ["uninitialized", "starting", "ready", "idle", "busy", "offline", "exited"],
+        "description": "The status of the session"
+      },
+      "VarAction": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/VarActionType"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the variable to act on"
+          },
+          "value": {
+            "type": "string",
+            "description": "The value to replace, append, or prepend"
+          }
+        },
+        "required": ["action", "name", "value"]
+      },
+      "VarActionType": {
+        "type": "string",
+        "enum": ["replace", "append", "prepend"],
+        "description": "The type of action to perform on the environment variable"
+      },
+      "ModelError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "string"
+          }
+        },
+        "required": ["code", "message"]
+      },
+      "StartupError": {
+        "type": "object",
+        "properties": {
+          "exit_code": {
+            "type": "number",
+            "description": "The exit code of the process, if it exited"
+          },
+          "output": {
+            "type": "string",
+            "description": "The output of the process (combined stdout and stderr) emitted during startup, if any"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ModelError"
+          }
+        },
+        "required": ["error"]
+      },
+      "AdoptedSession": {
+        "type": "object",
+        "description": "The session to adopt",
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/NewSession"
+          },
+          "connection_info": {
+            "$ref": "#/components/schemas/ConnectionInfo"
+          }
+        },
+        "required": ["session", "connection_info"]
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "A unique identifier for the session"
+          },
+          "username": {
+            "type": "string",
+            "description": "The username of the user who owns the session"
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The program and command-line parameters for the session"
+          },
+          "working_directory": {
+            "type": "string",
+            "description": "The working directory in which to start the session."
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Environment variables to set for the session"
+          },
+          "interrupt_mode": {
+            "$ref": "#/components/schemas/InterruptMode"
+          }
+        },
+        "required": ["session_id", "username", "argv", "working_directory", "env"]
+      }
+    }
+  }
+}

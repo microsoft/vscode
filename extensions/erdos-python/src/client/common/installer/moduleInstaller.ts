@@ -3,14 +3,14 @@
 
 import { injectable } from 'inversify';
 import * as path from 'path';
-import { CancellationToken, l10n, ProgressLocation, ProgressOptions } from 'vscode';
+import { CancellationToken, CancellationTokenSource, l10n, ProgressLocation, ProgressOptions } from 'vscode';
 import { IInterpreterService } from '../../interpreter/contracts';
 import { IServiceContainer } from '../../ioc/types';
 import { traceError, traceLog } from '../../logging';
 import { EnvironmentType, ModuleInstallerType, virtualEnvTypes } from '../../pythonEnvironments/info';
 import { sendTelemetryEvent } from '../../telemetry';
 import { EventName } from '../../telemetry/constants';
-import { IApplicationShell } from '../application/types';
+import { IApplicationShell, IWorkspaceService } from '../application/types';
 import { wrapCancellationTokens } from '../cancellation';
 import { IFileSystem } from '../platform/types';
 import * as internalPython from '../process/internal/python';
@@ -31,7 +31,14 @@ export abstract class ModuleInstaller implements IModuleInstaller {
 
     public abstract get type(): ModuleInstallerType;
 
+    private _waitForCompletion?: boolean;
+    
     constructor(protected serviceContainer: IServiceContainer) {}
+
+    private installModulesInTerminal(): boolean | undefined {
+        const workspaceService = this.serviceContainer.get<IWorkspaceService>(IWorkspaceService);
+        return workspaceService.getConfiguration('python').get<boolean>('installModulesInTerminal');
+    }
 
     public async installModule(
         productOrModuleName: Product | string,
@@ -40,7 +47,8 @@ export abstract class ModuleInstaller implements IModuleInstaller {
         flags?: ModuleInstallFlags,
         options?: InstallOptions,
     ): Promise<void> {
-        const shouldExecuteInTerminal = !options?.installAsProcess;
+        const shouldExecuteInTerminal = this.installModulesInTerminal() || !options?.installAsProcess;
+        this._waitForCompletion = options?.waitForCompletion;
         const name =
             typeof productOrModuleName === 'string'
                 ? productOrModuleName
@@ -216,6 +224,12 @@ export abstract class ModuleInstaller implements IModuleInstaller {
                 .get<ITerminalServiceFactory>(ITerminalServiceFactory)
                 .getTerminalService(options);
 
+            if (this.installModulesInTerminal() || this._waitForCompletion) {
+                const cancelToken = token ?? new CancellationTokenSource().token;
+                this._waitForCompletion = undefined;
+                await terminalService.sendCommand(command, args, token ?? cancelToken);
+                return;
+            }
             terminalService.sendCommand(command, args, token);
         } else {
             const processServiceFactory = this.serviceContainer.get<IProcessServiceFactory>(IProcessServiceFactory);

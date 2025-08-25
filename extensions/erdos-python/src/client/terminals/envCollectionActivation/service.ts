@@ -6,8 +6,7 @@ import { inject, injectable } from 'inversify';
 import {
     MarkdownString,
     WorkspaceFolder,
-    GlobalEnvironmentVariableCollection,
-    EnvironmentVariableScope,
+    EnvironmentVariableCollection,
     EnvironmentVariableMutatorOptions,
     ProgressLocation,
 } from 'vscode';
@@ -185,7 +184,7 @@ export class TerminalEnvVarCollectionService implements IExtensionActivationServ
     private async _applyCollectionImpl(resource: Resource, shell = this.applicationEnvironment.shell): Promise<void> {
         const workspaceFolder = this.getWorkspaceFolder(resource);
         const settings = this.configurationService.getSettings(resource);
-        const envVarCollection = this.getEnvironmentVariableCollection({ workspaceFolder });
+        const envVarCollection = this.getEnvironmentVariableCollection();
         if (useEnvExtension()) {
             envVarCollection.clear();
             traceVerbose('Do not activate terminal env vars as env extension is being used');
@@ -204,7 +203,7 @@ export class TerminalEnvVarCollectionService implements IExtensionActivationServ
             shell,
         );
         const env = activatedEnv ? normCaseKeys(activatedEnv) : undefined;
-        traceVerbose(`Activated environment variables for ${resource?.fsPath}`, env);
+        traceVerbose(`Activated environment variables for ${resource?.fsPath}`);
         if (!env) {
             const shellType = identifyShellFromShellPath(shell);
             const defaultShell = defaultShells[this.platform.osType];
@@ -387,14 +386,14 @@ export class TerminalEnvVarCollectionService implements IExtensionActivationServ
     private async handleMicroVenv(resource: Resource) {
         try {
             const settings = this.configurationService.getSettings(resource);
-            const workspaceFolder = this.getWorkspaceFolder(resource);
+
             if (useEnvExtension()) {
-                this.getEnvironmentVariableCollection({ workspaceFolder }).clear();
+                this.getEnvironmentVariableCollection().clear();
                 traceVerbose('Do not activate microvenv as env extension is being used');
                 return;
             }
             if (!settings.terminal.activateEnvironment) {
-                this.getEnvironmentVariableCollection({ workspaceFolder }).clear();
+                this.getEnvironmentVariableCollection().clear();
                 traceVerbose(
                     'Do not activate microvenv as activating environments in terminal is disabled for',
                     resource?.fsPath,
@@ -405,7 +404,7 @@ export class TerminalEnvVarCollectionService implements IExtensionActivationServ
             if (interpreter?.envType === EnvironmentType.Venv) {
                 const activatePath = path.join(path.dirname(interpreter.path), 'activate');
                 if (!(await pathExists(activatePath))) {
-                    const envVarCollection = this.getEnvironmentVariableCollection({ workspaceFolder });
+                    const envVarCollection = this.getEnvironmentVariableCollection();
                     const pathVarName = getSearchPathEnvVarNames()[0];
                     envVarCollection.replace(
                         'PATH',
@@ -414,7 +413,7 @@ export class TerminalEnvVarCollectionService implements IExtensionActivationServ
                     );
                     return;
                 }
-                this.getEnvironmentVariableCollection({ workspaceFolder }).clear();
+                this.getEnvironmentVariableCollection().clear();
             }
         } catch (ex) {
             traceWarn(`Microvenv failed as it is using proposed API which is constantly changing`, ex);
@@ -436,9 +435,9 @@ export class TerminalEnvVarCollectionService implements IExtensionActivationServ
               };
     }
 
-    private getEnvironmentVariableCollection(scope: EnvironmentVariableScope = {}) {
-        const envVarCollection = this.context.environmentVariableCollection as GlobalEnvironmentVariableCollection;
-        return envVarCollection.getScoped(scope);
+    private getEnvironmentVariableCollection() {
+        const envVarCollection = this.context.environmentVariableCollection as EnvironmentVariableCollection;
+        return envVarCollection;
     }
 
     private getWorkspaceFolder(resource: Resource): WorkspaceFolder | undefined {

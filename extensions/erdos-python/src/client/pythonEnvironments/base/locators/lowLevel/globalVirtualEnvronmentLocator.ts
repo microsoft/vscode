@@ -17,6 +17,7 @@ import {
     isVirtualenvEnvironment,
     isVirtualenvwrapperEnvironment,
 } from '../../../common/environmentManagers/simplevirtualenvs';
+import { isUvEnvironment } from '../../../common/environmentManagers/uv';
 import '../../../../common/extensions';
 import { asyncFilter } from '../../../../common/utils/arrayUtils';
 import { traceError, traceInfo, traceVerbose } from '../../../../logging';
@@ -79,6 +80,10 @@ async function getSearchLocation(env: BasicEnvInfo): Promise<Uri | undefined> {
  * @param interpreterPath: Absolute path to the interpreter paths.
  */
 async function getVirtualEnvKind(interpreterPath: string): Promise<PythonEnvKind> {
+    if (await isUvEnvironment(interpreterPath)) {
+        return PythonEnvKind.Uv;
+    }
+
     if (await isPipenvEnvironment(interpreterPath)) {
         return PythonEnvKind.Pipenv;
     }

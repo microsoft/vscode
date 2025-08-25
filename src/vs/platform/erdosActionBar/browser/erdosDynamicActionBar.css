@@ -3,7 +3,7 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.text-measurer {
+.exemplar {
 	top: -10000px;
 	left: -10000px;
 	font-size: 12px;
@@ -18,20 +18,40 @@
 	height: var(--vscode-erdosActionBar-height);
 }
 
-.erdos-dynamic-action-bar-actions {
+.erdos-dynamic-action-bar .container {
+	width: 100%;
 	display: flex;
+	overflow: hidden;
 	align-items: center;
-	flex: 1;
+	justify-content: space-between;
 }
 
-.erdos-dynamic-action-bar-overflow {
-	width: var(--vscode-erdosActionBar-iconSize);
-    height: var(--vscode-erdosActionBar-iconSize);
+.erdos-dynamic-action-bar .left-actions {
 	display: flex;
-	cursor: pointer;
 	align-items: center;
-	justify-content: center;
-	color: var(--vscode-foreground);
+	flex: 0 0 auto;
+}
+
+.erdos-dynamic-action-bar .right-actions {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+}
+
+.erdos-dynamic-action-bar:not(.transparent-background) {
+	background-color: var(--vscode-erdosActionBar-background);
+}
+
+.erdos-dynamic-action-bar.transparent-background {
+	background-color: transparent;
+}
+
+.erdos-dynamic-action-bar.border-top {
+	border-top: 1px solid var(--vscode-erdosActionBar-border);
+}
+
+.erdos-dynamic-action-bar.border-bottom {
+	border-bottom: 1px solid var(--vscode-erdosActionBar-border);
 }
 
 

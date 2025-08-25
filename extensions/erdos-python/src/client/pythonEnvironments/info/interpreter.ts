@@ -44,6 +44,7 @@ function extractInterpreterInfo(python: string, raw: InterpreterInfoJson): Inter
         version: new SemVer(rawVersion),
         sysVersion: raw.sysVersion,
         sysPrefix: raw.sysPrefix,
+        implementation: raw.implementation,
     };
 }
 

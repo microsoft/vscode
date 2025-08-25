@@ -11,7 +11,7 @@ import { comparePythonVersionSpecificity } from '../../base/info/env';
 import { parseBasicVersion, parseRelease, parseVersion } from '../../base/info/pythonVersion';
 import { isParentPath, pathExists, readFile } from '../externalDependencies';
 
-function getPyvenvConfigPathsFrom(interpreterPath: string): string[] {
+export function getPyvenvConfigPathsFrom(interpreterPath: string): string[] {
     const pyvenvConfigFile = 'pyvenv.cfg';
 
     // Check if the pyvenv.cfg file is in the parent directory relative to the interpreter.

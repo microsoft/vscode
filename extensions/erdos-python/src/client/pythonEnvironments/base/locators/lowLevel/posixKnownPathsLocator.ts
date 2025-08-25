@@ -12,6 +12,11 @@ import { isMacDefaultPythonPath } from '../../../common/environmentManagers/macD
 import { traceError, traceInfo, traceVerbose } from '../../../../logging';
 import { StopWatch } from '../../../../common/utils/stopWatch';
 
+import path from 'path';
+import { ADDITIONAL_POSIX_BIN_PATHS } from '../../../common/posixUtils';
+import { findInterpretersInDir } from '../../../common/commonUtils';
+import { getUvDirs } from '../../../common/environmentManagers/uv';
+
 export class PosixKnownPathsLocator extends Locator<BasicEnvInfo> {
     public readonly providerId = 'posixKnownPaths';
 
@@ -34,7 +39,15 @@ export class PosixKnownPathsLocator extends Locator<BasicEnvInfo> {
                 // the binaries specified in .python-version file in the cwd. We should not be reporting
                 // those binaries as environments.
                 const knownDirs = (await commonPosixBinPaths()).filter((dirname) => !isPyenvShimDir(dirname));
+                
+                const additionalDirs = await getAdditionalPosixBinDirs();
+                knownDirs.push(...additionalDirs);
+                
                 let pythonBinaries = await getPythonBinFromPosixPaths(knownDirs);
+                
+                traceVerbose(
+                    `[PosixKnownPathsLocator] Python binaries found in posix paths: ${pythonBinaries.join(', ')}`,
+                );
                 traceVerbose(`Found ${pythonBinaries.length} python binaries in posix paths`);
 
                 // Filter out MacOS system installs of Python 2 if necessary.
@@ -58,4 +71,21 @@ export class PosixKnownPathsLocator extends Locator<BasicEnvInfo> {
         };
         return iterator(this.kind);
     }
+}
+
+
+async function getAdditionalPosixBinDirs(searchDepth = 2): Promise<string[]> {
+    const additionalDirs = [];
+    const searchPaths = new Set(ADDITIONAL_POSIX_BIN_PATHS);
+    const uvDirs = await getUvDirs();
+    uvDirs.forEach((dir) => searchPaths.add(dir));
+
+    for (const location of searchPaths) {
+        const executables = findInterpretersInDir(location, searchDepth);
+        for await (const entry of executables) {
+            const { filename } = entry;
+            additionalDirs.push(path.dirname(filename));
+        }
+    }
+    return Array.from(new Set(additionalDirs));
 }

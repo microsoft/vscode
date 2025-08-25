@@ -906,6 +906,26 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}));
 	}
 
+	// --- statement range
+
+	$registerStatementRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, this._languageFeaturesService.statementRangeProvider.register(selector, {
+			provideStatementRange: (model, position, token) => {
+				return this._proxy.$provideStatementRange(handle, model.uri, position, token);
+			}
+		}));
+	}
+
+	// --- help topic
+
+	$registerHelpTopicProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, this._languageFeaturesService.helpTopicProvider.register(selector, {
+			provideHelpTopic: (model, position, token) => {
+				return this._proxy.$provideHelpTopic(handle, model.uri, position, token);
+			}
+		}));
+	}
+
 	// --- call hierarchy
 
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {

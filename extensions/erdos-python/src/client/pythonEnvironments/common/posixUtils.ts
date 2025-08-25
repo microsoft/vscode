@@ -71,6 +71,10 @@ export async function commonPosixBinPaths(): Promise<string[]> {
     return paths.filter((_, index) => exists[index]);
 }
 
+export const ADDITIONAL_POSIX_BIN_PATHS = [
+    '/opt/python',
+];
+
 /**
  * Finds python interpreter binaries or symlinks in a given directory.
  * @param searchDir : Directory to search in

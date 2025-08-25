@@ -15,6 +15,7 @@ import { sendTelemetryEvent } from '../../telemetry';
 import { EventName } from '../../telemetry/constants';
 import { IPythonPathUpdaterServiceManager } from '../configuration/types';
 import { IActivatedEnvironmentLaunch, IInterpreterService } from '../contracts';
+import { getUserDefaultInterpreter } from '../../erdos/interpreterSettings';
 
 @injectable()
 export class ActivatedEnvironmentLaunch implements IActivatedEnvironmentLaunch {
@@ -98,6 +99,9 @@ export class ActivatedEnvironmentLaunch implements IActivatedEnvironmentLaunch {
         }
         this.wasSelected = true;
         this.inMemorySelection = prefix;
+        if (getUserDefaultInterpreter().globalValue && !this.workspaceService.workspaceFolders) {
+            return undefined;
+        }
         traceLog(
             `VS Code was launched from an activated environment: '${path.basename(
                 prefix,

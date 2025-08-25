@@ -68,24 +68,6 @@ if ($env:VSCODE_ENV_APPEND) {
 	$env:VSCODE_ENV_APPEND = $null
 }
 
-# Register Python shell activate hooks
-# Prevent multiple activation with guard
-if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
-	$env:VSCODE_PYTHON_AUTOACTIVATE_GUARD = '1'
-	if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
-		$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
-		Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
-
-		try {
-			Invoke-Expression $activateScript
-		}
-		catch {
-			$activationError = $_
-			Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
-		}
-	}
-}
-
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
@@ -106,7 +88,7 @@ function Global:Prompt() {
 	$Result = ""
 	# Skip finishing the command if the first command has not yet started or an execution has not
 	# yet begun
-	if ($Global:__VSCodeState.LastHistoryId -ne -1 -and ($Global:__VSCodeState.HasPSReadLine -eq $false -or $Global:__VSCodeState.IsInExecution -eq $true)) {
+	if ($Global:__VSCodeState.LastHistoryId -ne -1 -and $Global:__VSCodeState.IsInExecution -eq $true) {
 		$Global:__VSCodeState.IsInExecution = $false
 		if ($LastHistoryEntry.Id -eq $Global:__VSCodeState.LastHistoryId) {
 			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
@@ -171,9 +153,7 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
-$Global:__VSCodeState.HasPSReadLine = $false
 if (Get-Module -Name PSReadLine) {
-	$Global:__VSCodeState.HasPSReadLine = $true
 	[Console]::Write("$([char]0x1b)]633;P;HasRichCommandDetection=True`a")
 
 	$Global:__VSCodeState.OriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
@@ -239,4 +219,91 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+
+	if ($env:VSCODE_SUGGEST -eq '1' -and $PSVersionTable.PSVersion -ge "7.0") {
+		Remove-Item Env:VSCODE_SUGGEST
+
+		Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
+			Send-Completions
+		}
+	}
+}
+
+function Send-Completions {
+	$commandLine = ""
+	$cursorIndex = 0
+	$prefixCursorDelta = 0
+	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
+	$completionPrefix = $commandLine
+
+	$result = "$([char]0x1b)]633;Completions"
+
+	if ($completionPrefix.Contains(' ')) {
+
+		$lastWhitespaceIndex = $completionPrefix.LastIndexOf(' ')
+		$lastWord = $completionPrefix.Substring($lastWhitespaceIndex + 1)
+		if ($lastWord -match '^-') {
+			$newCursorIndex = $lastWhitespaceIndex + 2
+			$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+			$prefixCursorDelta = $cursorIndex - $newCursorIndex
+			$cursorIndex = $newCursorIndex
+		}
+		elseif ($lastWord -notmatch '[/\\$]') {
+			if ($lastWhitespaceIndex -ne -1 -and $lastWhitespaceIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastWhitespaceIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
+		elseif ($lastWord -match '[/\\]') {
+			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
+			if ($lastSlashIndex -ne -1 -and $lastSlashIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastSlashIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
+
+		$completions = $null
+		$completionMatches = $null
+		try
+		{
+			$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+			$completionMatches = $completions.CompletionMatches | Where-Object { $_.ResultType -ne [System.Management.Automation.CompletionResultType]::ProviderContainer -and $_.ResultType -ne [System.Management.Automation.CompletionResultType]::ProviderItem }
+		}
+		catch
+		{
+		}
+		if ($null -eq $completions -or $null -eq $completionMatches) {
+			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
+		} else {
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
+			$json = [System.Collections.ArrayList]@($completionMatches)
+			$mappedCommands = Compress-Completions($json)
+			$result += $mappedCommands | ConvertTo-Json -Compress
+		}
+	}
+
+	$result += "`a"
+
+	Write-Host -NoNewLine $result
+}
+
+function Compress-Completions($completions) {
+	$completions | ForEach-Object {
+		if ($_.CustomIcon) {
+			,@($_.CompletionText, $_.ResultType, $_.ToolTip, $_.CustomIcon)
+		}
+		elseif ($_.CompletionText -eq $_.ToolTip) {
+			,@($_.CompletionText, $_.ResultType)
+		} else {
+			,@($_.CompletionText, $_.ResultType, $_.ToolTip)
+		}
+	}
+}
+
+if (Get-Module -Name PSReadLine) {
+	Set-MappedKeyHandlers
 }

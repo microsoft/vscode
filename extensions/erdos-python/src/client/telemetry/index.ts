@@ -1108,6 +1108,7 @@ export interface IEventNamePropertyMapping {
          * Number of environments of a specific type
          */
         pyenvEnvs?: number;
+        uvEnvs?: number;
         /**
          * Number of environments of a specific type
          */

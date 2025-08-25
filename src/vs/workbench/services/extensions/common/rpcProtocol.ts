@@ -270,6 +270,14 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		return value;
 	}
 
+	public getRaw<T, R extends T>(identifier: ProxyIdentifier<T>): R {
+		if (!this._locals[identifier.nid]) {
+			throw new Error(`Missing actor ${identifier.sid}.` +
+				' The VS Code API must be created before the Erdos API.');
+		}
+		return this._locals[identifier.nid];
+	}
+
 	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
 		for (let i = 0, len = identifiers.length; i < len; i++) {
 			const identifier = identifiers[i];

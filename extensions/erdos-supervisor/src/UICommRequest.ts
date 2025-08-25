@@ -2,13 +2,12 @@
  *  Copyright (C) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { JupyterMessageType } from './JupyterMessageType.js';
+import { PromiseHandles } from './async';
 
-export interface JupyterMessageHeader {
-	msg_id: string;
-	session: string;
-	username: string;
-	date: string;
-	msg_type: JupyterMessageType;
-	version: string;
+export class UICommRequest {
+	constructor(
+		public readonly method: string,
+		public readonly args: Array<any>,
+		public readonly promise: PromiseHandles<any>) {
+	}
 }

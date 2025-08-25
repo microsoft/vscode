@@ -95,6 +95,15 @@ import './mainThreadChatOutputRenderer.js';
 // import './mainThreadChatSessions.js';
 // import './mainThreadDataChannels.js';
 
+// --- erdos mainThread participants
+import './erdos/mainThreadLanguageRuntime.js';
+import './erdos/mainThreadConsole.js';
+import './erdos/mainThreadConsoleService.js';
+import './erdos/mainThreadContextKeyService.js';
+import './erdos/mainThreadEnvironment.js';
+import './erdos/mainThreadModalDialogs.js';
+import './erdos/mainThreadPlotsService.js';
+
 export class ExtensionPoints implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.extensionPoints';

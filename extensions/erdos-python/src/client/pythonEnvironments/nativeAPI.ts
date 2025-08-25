@@ -3,6 +3,7 @@
 
 import * as path from 'path';
 import { Disposable, Event, EventEmitter, Uri, WorkspaceFoldersChangeEvent } from 'vscode';
+// eslint-disable-next-line import/no-duplicates
 import { PythonEnvInfo, PythonEnvKind, PythonEnvType, PythonVersion } from './base/info';
 import {
     GetRefreshEnvironmentsOptions,
@@ -14,6 +15,7 @@ import {
 } from './base/locator';
 import { PythonEnvCollectionChangedEvent } from './base/watcher';
 import {
+    getAdditionalEnvDirs,
     isNativeEnvInfo,
     NativeEnvInfo,
     NativeEnvManagerInfo,
@@ -23,7 +25,7 @@ import { createDeferred, Deferred } from '../common/utils/async';
 import { Architecture, getPathEnvVariable, getUserHomeDir } from '../common/utils/platform';
 import { parseVersion } from './base/info/pythonVersion';
 import { cache } from '../common/utils/decorators';
-import { traceError, traceInfo, traceLog, traceWarn } from '../logging';
+import { traceError, traceInfo, traceLog, traceVerbose, traceWarn } from '../logging';
 import { StopWatch } from '../common/utils/stopWatch';
 import { FileChangeType } from '../common/platform/fileSystemWatcher';
 import { categoryToKind, NativePythonEnvironmentKind } from './base/locators/common/nativePythonUtils';
@@ -35,6 +37,14 @@ import {
     PythonWorkspaceEnvEvent,
 } from './base/locators/common/pythonWatcher';
 import { getWorkspaceFolders, onDidChangeWorkspaceFolders } from '../common/vscodeApis/workspaceApis';
+
+import { getUvDirs, isUvEnvironment } from './common/environmentManagers/uv';
+import { isCustomEnvironment } from '../erdos/interpreterSettings';
+import { isAdditionalGlobalBinPath } from './common/environmentManagers/globalInstalledEnvs';
+// eslint-disable-next-line import/no-duplicates
+import { PythonEnvSource } from './base/info';
+import { getShortestString } from '../common/stringUtils';
+import { arePathsSame, isParentPath, resolveSymbolicLink } from './common/externalDependencies';
 
 function makeExecutablePath(prefix?: string): string {
     if (!prefix) {
@@ -94,6 +104,8 @@ function kindToShortString(kind: PythonEnvKind): string | undefined {
             return 'hatch';
         case PythonEnvKind.Pixi:
             return 'pixi';
+        case PythonEnvKind.Uv:
+            return 'uv';
         case PythonEnvKind.System:
         case PythonEnvKind.Unknown:
         case PythonEnvKind.OtherGlobal:
@@ -132,6 +144,7 @@ function validEnv(nativeEnv: NativeEnvInfo): boolean {
 
 function getEnvType(kind: PythonEnvKind): PythonEnvType | undefined {
     switch (kind) {
+        case PythonEnvKind.Uv:
         case PythonEnvKind.Poetry:
         case PythonEnvKind.Pyenv:
         case PythonEnvKind.VirtualEnv:
@@ -172,9 +185,20 @@ function foundOnPath(fsPath: string): boolean {
     return paths.some((p) => normalized.includes(p));
 }
 
-function getName(nativeEnv: NativeEnvInfo, kind: PythonEnvKind, condaEnvDirs: string[]): string {
+async function getName(nativeEnv: NativeEnvInfo, kind: PythonEnvKind, condaEnvDirs: string[]): Promise<string> {
     if (nativeEnv.name) {
         return nativeEnv.name;
+    }
+
+    if (nativeEnv.prefix && kind === PythonEnvKind.Uv) {
+        const uvDirs = await getUvDirs();
+        for (const uvDir of uvDirs) {
+            if (isParentPath(nativeEnv.prefix, uvDir)) {
+                return '';
+            }
+        }
+
+        return path.basename(path.dirname(nativeEnv.prefix));
     }
 
     const envType = getEnvType(kind);
@@ -202,14 +226,14 @@ function getName(nativeEnv: NativeEnvInfo, kind: PythonEnvKind, condaEnvDirs: st
     return '';
 }
 
-function toPythonEnvInfo(nativeEnv: NativeEnvInfo, condaEnvDirs: string[]): PythonEnvInfo | undefined {
+async function toPythonEnvInfo(nativeEnv: NativeEnvInfo, condaEnvDirs: string[]): Promise<PythonEnvInfo | undefined> {
     if (!validEnv(nativeEnv)) {
         return undefined;
     }
     const kind = categoryToKind(nativeEnv.kind);
     const arch = toArch(nativeEnv.arch);
     const version: PythonVersion = parseVersion(nativeEnv.version ?? '');
-    const name = getName(nativeEnv, kind, condaEnvDirs);
+    const name = await getName(nativeEnv, kind, condaEnvDirs);
     const displayName = nativeEnv.version
         ? getDisplayName(version, kind, arch, name)
         : nativeEnv.displayName ?? 'Python';
@@ -236,7 +260,7 @@ function toPythonEnvInfo(nativeEnv: NativeEnvInfo, condaEnvDirs: string[]): Pyth
         distro: {
             org: '',
         },
-        source: [],
+        source: nativeEnv.source ?? [],
         detailedDisplayName: displayName,
         display: displayName,
         type: getEnvType(kind),
@@ -271,6 +295,26 @@ function hasChanged(old: PythonEnvInfo, newEnv: PythonEnvInfo): boolean {
 
     return false;
 }
+
+enum ExistingEnvAction {
+    KeepExistingEnv,
+    AddNewEnv,
+    ReplaceExistingEnv,
+}
+
+type ExistingEnvResult =
+    | {
+          reason: ExistingEnvAction.KeepExistingEnv;
+          existingEnv: PythonEnvInfo;
+      }
+    | {
+          reason: ExistingEnvAction.AddNewEnv;
+          existingEnv: undefined;
+      }
+    | {
+          reason: ExistingEnvAction.ReplaceExistingEnv;
+          existingEnv: PythonEnvInfo;
+      };
 
 class NativePythonEnvironments implements IDiscoveryAPI, Disposable {
     private _onProgress: EventEmitter<ProgressNotificationEvent>;
@@ -328,7 +372,7 @@ class NativePythonEnvironments implements IDiscoveryAPI, Disposable {
                 const before = this._envs.map((env) => env.executable.filename);
                 const after: string[] = [];
                 for await (const native of this.finder.refresh()) {
-                    const exe = this.processNative(native);
+                    const exe = await this.processNative(native);
                     if (exe) {
                         after.push(exe);
                     }
@@ -349,16 +393,16 @@ class NativePythonEnvironments implements IDiscoveryAPI, Disposable {
         return this._refreshPromise?.promise;
     }
 
-    private processNative(native: NativeEnvInfo | NativeEnvManagerInfo): string | undefined {
+    private async processNative(native: NativeEnvInfo | NativeEnvManagerInfo): Promise<string | undefined> {
         if (isNativeEnvInfo(native)) {
-            return this.processEnv(native);
+            return await this.processEnv(native);
         }
         this.processEnvManager(native);
 
         return undefined;
     }
 
-    private processEnv(native: NativeEnvInfo): string | undefined {
+    private async processEnv(native: NativeEnvInfo): Promise<string | undefined> {
         if (!validEnv(native)) {
             return undefined;
         }
@@ -369,22 +413,22 @@ class NativePythonEnvironments implements IDiscoveryAPI, Disposable {
             if (categoryToKind(native.kind) === PythonEnvKind.Conda && !native.executable) {
                 // This is a conda env without python, no point trying to resolve this.
                 // There is nothing to resolve
-                return this.addEnv(native)?.executable.filename;
+                return (await this.addEnv(native))?.executable.filename;
             }
             if (native.executable && (!version || version.major < 0 || version.minor < 0 || version.micro < 0)) {
                 // We have a path, but no version info, try to resolve the environment.
-                this.finder
+                await this.finder
                     .resolve(native.executable)
-                    .then((env) => {
+                    .then(async (env) => {
                         if (env) {
-                            this.addEnv(env);
+                            await this.addEnv(env);
                         }
                     })
                     .ignoreErrors();
                 return native.executable;
             }
             if (native.executable && version && version.major >= 0 && version.minor >= 0 && version.micro >= 0) {
-                return this.addEnv(native)?.executable.filename;
+                return (await this.addEnv(native))?.executable.filename;
             }
             traceError(`Failed to process environment: ${JSON.stringify(native)}`);
         } catch (err) {
@@ -441,10 +485,37 @@ class NativePythonEnvironments implements IDiscoveryAPI, Disposable {
         return this._envs;
     }
 
-    private addEnv(native: NativeEnvInfo, searchLocation?: Uri): PythonEnvInfo | undefined {
-        const info = toPythonEnvInfo(native, this._condaEnvDirs);
+    private async addEnv(native: NativeEnvInfo, searchLocation?: Uri): Promise<PythonEnvInfo | undefined> {
+        const info = await toPythonEnvInfo(native, this._condaEnvDirs);
         if (info) {
-            const old = this._envs.find((item) => item.executable.filename === info.executable.filename);
+            if (info.executable.filename && (await isUvEnvironment(info.executable.filename))) {
+                traceInfo(`Found uv environment: ${info.executable.filename}`);
+                info.kind = PythonEnvKind.Uv;
+            }
+            let old = this._envs.find((item) => item.executable.filename === info.executable.filename);
+            if (!old) {
+                const { reason, existingEnv } = await checkForExistingEnv(this._envs, info);
+                switch (reason) {
+                    case ExistingEnvAction.KeepExistingEnv:
+                        traceVerbose(
+                            `[addEnv] Not adding ${info.executable.filename} because it's equivalent to ${existingEnv.executable.filename}`,
+                        );
+                        return undefined;
+                    case ExistingEnvAction.AddNewEnv:
+                        break;
+                    case ExistingEnvAction.ReplaceExistingEnv:
+                        traceVerbose(
+                            `[addEnv] Replacing ${existingEnv.executable.filename} with ${info.executable.filename}`,
+                        );
+                        old = existingEnv;
+                        break;
+                    default:
+                        traceError(
+                            `[addEnv] Unknown action for existing env: ${reason} for ${info.executable.filename}`,
+                        );
+                        break;
+                }
+            }
             if (old) {
                 this._envs = this._envs.filter((item) => item.executable.filename !== info.executable.filename);
                 this._envs.push(info);
@@ -479,10 +550,21 @@ class NativePythonEnvironments implements IDiscoveryAPI, Disposable {
         try {
             const native = await this.finder.resolve(envPath);
             if (native) {
+                if (native.executable && (await isUvEnvironment(native.executable))) {
+                    traceInfo(`Found uv environment: ${native.executable}`);
+                    native.kind = NativePythonEnvironmentKind.Uv;
+                }
+                if (!native.kind && native.executable && (await isCustomEnvironment(native.executable))) {
+                    native.kind = NativePythonEnvironmentKind.Custom;
+                    native.source = [PythonEnvSource.UserSettings];
+                }
+                if (!native.kind && native.executable && isAdditionalGlobalBinPath(native.executable)) {
+                    native.kind = NativePythonEnvironmentKind.GlobalPaths;
+                }
                 if (native.kind === NativePythonEnvironmentKind.Conda && this._condaEnvDirs.length === 0) {
                     this._condaEnvDirs = (await getCondaEnvDirs()) ?? [];
                 }
-                return this.addEnv(native);
+                return await this.addEnv(native);
             }
             return undefined;
         } catch {
@@ -518,7 +600,7 @@ class NativePythonEnvironments implements IDiscoveryAPI, Disposable {
                     .filter((env) => env.kind === PythonEnvKind.Conda)
                     .map((env) => env.executable.filename);
                 for await (const native of this.finder.refresh(NativePythonEnvironmentKind.Conda)) {
-                    this.processNative(native);
+                    await this.processNative(native);
                 }
                 const after = this._envs
                     .filter((env) => env.kind === PythonEnvKind.Conda)
@@ -533,7 +615,7 @@ class NativePythonEnvironments implements IDiscoveryAPI, Disposable {
         if (e.type === FileChangeType.Created || e.type === FileChangeType.Changed) {
             const native = await this.finder.resolve(e.executable);
             if (native) {
-                this.addEnv(native, e.workspaceFolder.uri);
+                await this.addEnv(native, e.workspaceFolder.uri);
             }
         } else {
             this.removeEnv(e.executable);
@@ -545,4 +627,82 @@ export function createNativeEnvironmentsApi(finder: NativePythonFinder): IDiscov
     const native = new NativePythonEnvironments(finder);
     native.triggerRefresh().ignoreErrors();
     return native;
+}
+
+/**
+ * Checks for an equivalent environment if the new environment to be added is one of
+ * the additional environment directories.
+ *
+ * The Native Python Finder may return multiple equivalent python executables when
+ * searching in the additional env directories. For example, if the user has
+ * `/opt/python/3.10.4/bin/python`, `/opt/python/3.10.4/bin/python3` and
+ * `/opt/python/3.10.4/bin/python3.10` in their additional env directories, the
+ * Native Python Finder will return all of these. However, these executables are
+ * equivalent, and we only want to display one of them in the list of environments.
+ *
+ * In this example, `ls -al /opt/python/3.10.4/bin/python*` will show:
+ * /opt/python/3.10.4/bin/python -> /opt/python/3.10.4/bin/python3
+ * /opt/python/3.10.4/bin/python3 -> python3.10
+ * /opt/python/3.10.4/bin/python3.10
+ *
+ * i.e., both `/opt/python/3.10.4/bin/python` and `/opt/python/3.10.4/bin/python3` are
+ * symlinked to `/opt/python/3.10.4/bin/python3.10`, so they are all equivalent. In this
+ * case, we only want to add one of them to the list of environments -- in particular,
+ * the one with the shortest path: `/opt/python/3.10.4/bin/python`.
+ *
+ * @param envs The current list of environments
+ * @param newEnv The new environment to be added
+ * @return The result of the check -- how to proceed with the new environment and if found,
+ *         the equivalent existing environment.
+ */
+async function checkForExistingEnv(envs: PythonEnvInfo[], newEnv: PythonEnvInfo): Promise<ExistingEnvResult> {
+    const additionalEnvDirs = await getAdditionalEnvDirs();
+    const isAdditionalEnv = additionalEnvDirs.find((dir) => isParentPath(newEnv.executable.filename, dir));
+
+    // If the new env is not in an additional environment directory, then we don't
+    // need to check for existing equivalent envs. Proceed to add the new env.
+    if (!isAdditionalEnv) {
+        return { reason: ExistingEnvAction.AddNewEnv, existingEnv: undefined };
+    }
+
+    // Look for an existing environment in the same additional environment directory
+    // as the new env.
+    const resolvedEnv = await resolveSymbolicLink(newEnv.executable.filename);
+    let existingEnv: PythonEnvInfo | undefined;
+    const resolvedItems = await Promise.all(envs.map((item) => resolveSymbolicLink(item.executable.filename)));
+    for (let i = 0; i < envs.length; i++) {
+        if (arePathsSame(resolvedEnv, resolvedItems[i])) {
+            existingEnv = envs[i];
+            break;
+        }
+    }
+    if (!existingEnv) {
+        return { reason: ExistingEnvAction.AddNewEnv, existingEnv: undefined };
+    }
+
+    // We have found an existing environment that is equivalent to the new environment,
+    // so we now compare the two path lengths to see if we should add the new
+    // environment or not.
+    const shortestEnv = getShortestString([newEnv.executable.filename, existingEnv.executable.filename]);
+    if (!shortestEnv) {
+        // This shouldn't happen
+        return { reason: ExistingEnvAction.AddNewEnv, existingEnv: undefined };
+    }
+
+    // If the new env being added doesn't have a shorter path than the existing env,
+    // keep the existing env and don't add the new env.
+    // Example:
+    // - newEnv: `/opt/bin/python/3.10.4/bin/python3`
+    // - existingEnv: `/opt/bin/python/3.10.4/bin/python`
+    // Result: don't add the new env.
+    if (newEnv.executable.filename !== shortestEnv) {
+        return { reason: ExistingEnvAction.KeepExistingEnv, existingEnv };
+    }
+
+    // If the new environment to be added has the shorter path, replace the existing env.
+    // Example:
+    // - newEnv: `/opt/bin/python/3.10.4/bin/python`
+    // - existingEnv: `/opt/bin/python/3.10.4/bin/python3.10`
+    // Result: replace the existing env with the new env.
+    return { reason: ExistingEnvAction.ReplaceExistingEnv, existingEnv };
 }

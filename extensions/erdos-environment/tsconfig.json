@@ -23,6 +23,7 @@
 	},
 	"include": [
 		"src/**/*",
+		"../../src/erdos-dts/erdos.d.ts",
 		"../../src/vscode-dts/vscode.d.ts",
 	]
 }

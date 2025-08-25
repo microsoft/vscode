@@ -39,6 +39,7 @@ export async function getSelectedTextToExecute(textEditor: TextEditor): Promise<
  * @returns boolean - True if sendToNativeREPL setting is enabled, False otherwise.
  */
 export function getSendToNativeREPLSetting(): boolean {
+    return false;
     const uri = getActiveResource();
     const configuration = getConfiguration('python', uri);
     return configuration.get<boolean>('REPL.sendToNativeREPL', false);

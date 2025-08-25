@@ -90,6 +90,9 @@ import { RequireJupyterPrompt } from '../jupyter/requireJupyterPrompt';
 import { isWindows } from './utils/platform';
 import { PixiActivationCommandProvider } from './terminal/environmentActivationProviders/pixiActivationProvider';
 
+import { InstallPackagesCommandHandler } from './application/commands/installPackages';
+import { registerErdosTypes } from '../erdos/serviceRegistry';
+
 export function registerTypes(serviceManager: IServiceManager): void {
     serviceManager.addSingletonInstance<boolean>(IsWindows, isWindows());
 
@@ -116,6 +119,10 @@ export function registerTypes(serviceManager: IServiceManager): void {
     serviceManager.addSingleton<IExtensionSingleActivationService>(
         IExtensionSingleActivationService,
         CreatePythonFileCommandHandler,
+    );
+    serviceManager.addSingleton<IExtensionSingleActivationService>(
+        IExtensionSingleActivationService,
+        InstallPackagesCommandHandler,
     );
     serviceManager.addSingleton<ICommandManager>(ICommandManager, CommandManager);
     serviceManager.addSingleton<IContextKeyManager>(IContextKeyManager, ContextKeyManager);
@@ -188,4 +195,5 @@ export function registerTypes(serviceManager: IServiceManager): void {
         IExtensionSingleActivationService,
         ReportIssueCommandHandler,
     );
+    registerErdosTypes(serviceManager);
 }

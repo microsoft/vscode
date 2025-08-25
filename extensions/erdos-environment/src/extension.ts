@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 Posit Software, PBC. All rights reserved.
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-// Erdos API import removed - not needed for environment variables
+import * as erdos from 'erdos';
 import { getPandocPath } from './pandoc.js';
 
 /**

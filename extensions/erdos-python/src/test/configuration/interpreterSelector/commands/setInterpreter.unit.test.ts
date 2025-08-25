@@ -101,6 +101,7 @@ suite('Set Interpreter Command', () => {
             interpreterSelector.object,
             workspace.object,
             instance(interpreterService),
+            {} as any, // IPythonRuntimeManager mock
         );
     });
 
@@ -217,6 +218,7 @@ suite('Set Interpreter Command', () => {
                 interpreterSelector.object,
                 workspace.object,
                 instance(interpreterService),
+                {} as any, // IPythonRuntimeManager mock
             );
         });
         teardown(() => {
@@ -701,6 +703,7 @@ suite('Set Interpreter Command', () => {
                 interpreterSelector.object,
                 workspace.object,
                 instance(interpreterService),
+                {} as any, // IPythonRuntimeManager mock
             );
 
             // Test info
@@ -1488,6 +1491,7 @@ suite('Set Interpreter Command', () => {
                 interpreterSelector.object,
                 workspace.object,
                 instance(interpreterService),
+                {} as any, // IPythonRuntimeManager mock
             );
             type InputStepType = () => Promise<InputStep<unknown> | void>;
             let inputStep!: InputStepType;

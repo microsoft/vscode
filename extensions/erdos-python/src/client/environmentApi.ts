@@ -399,6 +399,8 @@ function convertKind(kind: PythonEnvKind): EnvironmentTools | undefined {
             return 'Conda';
         case PythonEnvKind.Pyenv:
             return 'Pyenv';
+        case PythonEnvKind.Uv:
+            return 'Uv';
         default:
             return undefined;
     }

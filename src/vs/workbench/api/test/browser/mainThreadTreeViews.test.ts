@@ -78,6 +78,7 @@ suite('MainThreadHostTreeView', function () {
 				getProxy(): any {
 					return extHostTreeViewsShape;
 				}
+				getRaw(): any { return null; }
 				drain(): any { return null; }
 			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService()));
 		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: false, hasHandleDrop: false, manuallyManageCheckboxes: false });

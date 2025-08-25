@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { LanguageRuntimeSessionMode } from 'vs/workbench/services/languageRuntime/common/languageRuntimeService';
+import * as erdos from 'erdos';
 import { JupyterKernelSpec } from './erdos-supervisor';
 import { getArkKernelPath } from './kernel';
 import { EXTENSION_ROOT_DIR } from './constants';
@@ -13,7 +13,7 @@ import { EXTENSION_ROOT_DIR } from './constants';
 export function createJupyterKernelSpec(
 	rHomePath: string,
 	runtimeName: string,
-	sessionMode: LanguageRuntimeSessionMode): JupyterKernelSpec {
+	sessionMode: erdos.LanguageRuntimeSessionMode): JupyterKernelSpec {
 
 	const kernelPath = getArkKernelPath();
 	if (!kernelPath) {

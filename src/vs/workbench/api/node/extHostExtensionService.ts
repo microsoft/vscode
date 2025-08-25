@@ -6,6 +6,7 @@
 import * as performance from '../../../base/common/performance.js';
 import type * as vscode from 'vscode';
 import { createApiFactoryAndRegisterActors } from '../common/extHost.api.impl.js';
+import { createErdosApiFactoryAndRegisterActors } from '../common/erdos/extHost.erdos.api.impl.js';
 import { INodeModuleFactory, RequireInterceptor } from '../common/extHostRequireInterceptor.js';
 import { ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator.js';
 import { connectProxyResolver } from './proxyResolver.js';
@@ -203,6 +204,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// initialize API and register actors
 		const extensionApiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
+		const erdosApiFactory = this._instaService.invokeFunction(createErdosApiFactoryAndRegisterActors);
 
 		// Register Download command
 		this._instaService.createInstance(ExtHostDownloadService);
@@ -217,11 +219,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		this._instaService.createInstance(ExtHostDiskFileSystemProvider);
 
 		// Module loading tricks
-		await this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry })
+		await this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, erdosApiFactory, { mine: this._myRegistry, all: this._globalRegistry })
 			.install();
 
 		// ESM loading tricks
-		await this._store.add(this._instaService.createInstance(NodeModuleESMInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry }))
+		await this._store.add(this._instaService.createInstance(NodeModuleESMInterceptor, extensionApiFactory, erdosApiFactory, { mine: this._myRegistry, all: this._globalRegistry }))
 			.install();
 
 		performance.mark('code/extHost/didInitAPI');

@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ExtensionPaths, IExtHostExtensionService } from './extHostExtensionService.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
-
+import { IExtensionErdosApiFactory } from './erdos/extHost.erdos.api.impl.js';
 
 interface LoadFunction {
 	(request: string): any;
@@ -39,6 +39,7 @@ export abstract class RequireInterceptor {
 
 	constructor(
 		private _apiFactory: IExtensionApiFactory,
+		private _erdosApiFactory: IExtensionErdosApiFactory,
 		private _extensionRegistry: IExtensionRegistries,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IExtHostConfiguration private readonly _extHostConfiguration: IExtHostConfiguration,
@@ -60,6 +61,7 @@ export abstract class RequireInterceptor {
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
 		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
+		this.register(new ErdosNodeModuleFactory(this._erdosApiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
 		this.register(this._instaService.createInstance(NodeModuleAliasingModuleFactory));
 		if (this._initData.remote.isRemote) {
 			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));
@@ -276,3 +278,57 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 }
 
 //#endregion
+
+// --- Start Erdos ---
+
+//#region --- erdos-module
+
+// Loads the Erdos node module for an extension. Note that this is largely a copy of the
+// VSCodeNodeModuleFactory above; the only difference is that it loads the Erdos module
+// instead of the VSCode module.
+//
+// We use a copy instead of making VSCodeNodeModuleFactory generic to reduce the odds of
+// merge conflicts with upstream VSCode.
+
+class ErdosNodeModuleFactory implements INodeModuleFactory {
+	public readonly nodeModuleName = 'erdos';
+
+	private readonly _extApiImpl = new ExtensionIdentifierMap<any>();
+	private _defaultApiImpl?: any;
+
+	constructor(
+		private readonly _apiFactory: IExtensionErdosApiFactory,
+		private readonly _extensionPaths: ExtensionPaths,
+		private readonly _extensionRegistry: IExtensionRegistries,
+		private readonly _configProvider: ExtHostConfigProvider,
+		private readonly _logService: ILogService,
+	) {
+	}
+
+	public load(_request: string, parent: URI): any {
+
+		// get extension id from filename and api for extension
+		const ext = this._extensionPaths.findSubstr(parent);
+		if (ext) {
+			let apiImpl = this._extApiImpl.get(ext.identifier);
+			if (!apiImpl) {
+				apiImpl = this._apiFactory(ext, this._extensionRegistry, this._configProvider);
+				this._extApiImpl.set(ext.identifier, apiImpl);
+			}
+			return apiImpl;
+		}
+
+		// fall back to a default implementation
+		if (!this._defaultApiImpl) {
+			let extensionPathsPretty = '';
+			this._extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
+			this._logService.warn(`Could not identify extension for 'erdos' require call from ${parent}. These are the extension path mappings: \n${extensionPathsPretty}`);
+			this._defaultApiImpl = this._apiFactory(nullExtensionDescription, this._extensionRegistry, this._configProvider);
+		}
+		return this._defaultApiImpl;
+	}
+}
+
+//#endregion
+
+// --- End Erdos ---

@@ -1882,6 +1882,25 @@ export interface SelectionRangeProvider {
 	provideSelectionRanges(model: model.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
 }
 
+export interface StatementRangeProvider {
+	/**
+	 * Provide the statement that contains the given position.
+	 */
+	provideStatementRange(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IStatementRange>;
+}
+
+export interface IStatementRange {
+	range: IRange;
+	code: string;
+}
+
+export interface HelpTopicProvider {
+	/**
+	 * Provide a help topic relevant to the current cursor position.
+	 */
+	provideHelpTopic(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<string>;
+}
+
 export interface FoldingContext {
 }
 /**

@@ -72,6 +72,8 @@ abstract class BaseInstaller implements IBaseInstaller {
         resource?: InterpreterUri,
         cancel?: CancellationToken,
         flags?: ModuleInstallFlags,
+        options?: InstallOptions,
+        message?: string,
     ): Promise<InstallerResponse> {
         // If this method gets called twice, while previous promise has not been resolved, then return that same promise.
         // E.g. previous promise is not resolved as a message has been displayed to the user, so no point displaying
@@ -82,7 +84,7 @@ abstract class BaseInstaller implements IBaseInstaller {
         if (BaseInstaller.PromptPromises.has(key)) {
             return BaseInstaller.PromptPromises.get(key)!;
         }
-        const promise = this.promptToInstallImplementation(product, resource, cancel, flags);
+        const promise = this.promptToInstallImplementation(product, resource, cancel, flags, options, message);
         BaseInstaller.PromptPromises.set(key, promise);
         promise.then(() => BaseInstaller.PromptPromises.delete(key)).ignoreErrors();
         promise.catch(() => BaseInstaller.PromptPromises.delete(key)).ignoreErrors();
@@ -208,6 +210,8 @@ abstract class BaseInstaller implements IBaseInstaller {
         resource?: InterpreterUri,
         cancel?: CancellationToken,
         flags?: ModuleInstallFlags,
+        options?: InstallOptions,
+        message?: string,
     ): Promise<InstallerResponse>;
 
     protected getExecutableNameFromSettings(product: Product, resource?: Uri): string {
@@ -229,6 +233,8 @@ export class TestFrameworkInstaller extends BaseInstaller {
         resource?: Uri,
         cancel?: CancellationToken,
         _flags?: ModuleInstallFlags,
+        _options?: InstallOptions,
+        _message?: string,
     ): Promise<InstallerResponse> {
         const productName = ProductNames.get(product)!;
 
@@ -253,6 +259,7 @@ export class DataScienceInstaller extends BaseInstaller {
         interpreterUri?: InterpreterUri,
         cancel?: CancellationToken,
         flags?: ModuleInstallFlags,
+        options?: InstallOptions,
     ): Promise<InstallerResponse> {
         // Precondition
         if (isResource(interpreterUri)) {
@@ -275,10 +282,12 @@ export class DataScienceInstaller extends BaseInstaller {
 
         // If this is a non-conda environment & pip isn't installed, we need to install pip.
         // The prompt would have been disabled prior to this point, so we can assume that.
+        const uvIsAvailable = channels.some((channel) => channel.type === ModuleInstallerType.Uv);
         if (
             flags &&
             flags & ModuleInstallFlags.installPipIfRequired &&
             interpreter.envType !== EnvironmentType.Conda &&
+            !uvIsAvailable &&
             !channels.some((channel) => channel.type === ModuleInstallerType.Pip)
         ) {
             const installers = this.serviceContainer.getAll<IModuleInstaller>(IModuleInstaller);
@@ -286,7 +295,7 @@ export class DataScienceInstaller extends BaseInstaller {
             if (pipInstaller) {
                 traceInfo(`Installing pip as its not available to install ${moduleName}.`);
                 await pipInstaller
-                    .installModule(Product.pip, interpreter, cancel)
+                    .installModule(Product.pip, interpreter, cancel, undefined, { installAsProcess: true })
                     .catch((ex) =>
                         traceError(
                             `Error in installing the module '${moduleName} as Pip could not be installed', ${ex}`,
@@ -326,6 +335,8 @@ export class DataScienceInstaller extends BaseInstaller {
         let requiredInstaller = ModuleInstallerType.Unknown;
         if (interpreter.envType === EnvironmentType.Conda && isAvailableThroughConda) {
             requiredInstaller = ModuleInstallerType.Conda;
+        } else if (uvIsAvailable) {
+            requiredInstaller = ModuleInstallerType.Uv;
         } else if (interpreter.envType === EnvironmentType.Conda && !isAvailableThroughConda) {
             // This case is temporary and can be removed when https://github.com/microsoft/vscode-jupyter/issues/5034 is unblocked
             traceInfo(
@@ -366,7 +377,7 @@ export class DataScienceInstaller extends BaseInstaller {
         }
 
         await installerModule
-            .installModule(product, interpreter, cancel, flags)
+            .installModule(product, interpreter, cancel, flags, options)
             .catch((ex) => traceError(`Error in installing the module '${moduleName}', ${ex}`));
 
         return this.isInstalled(product, interpreter).then((isInstalled) => {
@@ -391,15 +402,43 @@ export class DataScienceInstaller extends BaseInstaller {
         resource?: InterpreterUri,
         cancel?: CancellationToken,
         _flags?: ModuleInstallFlags,
+        options?: InstallOptions,
+        message?: string,
     ): Promise<InstallerResponse> {
         const productName = ProductNames.get(product)!;
-        const item = await this.appShell.showErrorMessage(
-            l10n.t('Data Science library {0} is not installed. Install?', productName),
-            Common.bannerLabelYes,
-            Common.bannerLabelNo,
-        );
-        if (item === Common.bannerLabelYes) {
-            return this.install(product, resource, cancel);
+
+        let hasPip = true;
+        if (_flags && _flags & ModuleInstallFlags.installPipIfRequired) {
+            const installer = this.serviceContainer.get<IInstaller>(IInstaller);
+            hasPip = await installer.isInstalled(Product.pip, resource);
+        }
+
+        let install;
+        if (hasPip) {
+            install = await this.appShell.showErrorMessage(
+                l10n.t('Install Python package "{0}"?', productName),
+                message ??
+                    l10n.t(
+                        'To enable Python support, Erdos needs to install the package "{0}" for the active interpreter.',
+                        productName,
+                    ),
+                Common.bannerLabelYes,
+                Common.bannerLabelNo,
+            );
+        } else {
+            install = await this.appShell.showErrorMessage(
+                l10n.t('Install Python packages "{0}" and "{1}"?', ProductNames.get(Product.pip)!, productName),
+                message ??
+                    l10n.t(
+                        'To enable Python support, Erdos needs to install the package "{0}" for the active interpreter.',
+                        productName,
+                    ),
+                Common.bannerLabelYes,
+                Common.bannerLabelNo,
+            );
+        }
+        if (install === Common.bannerLabelYes) {
+            return this.install(product, resource, cancel, _flags, options);
         }
         return InstallerResponse.Ignore;
     }
@@ -458,6 +497,8 @@ export class PythonInstaller implements IBaseInstaller {
         _resource?: InterpreterUri,
         _cancel?: CancellationToken,
         _flags?: ModuleInstallFlags,
+        _options?: InstallOptions,
+        _message?: string,
     ): Promise<InstallerResponse> {
         // This package is installed directly without any prompt.
         return InstallerResponse.Ignore;
@@ -493,6 +534,8 @@ export class ProductInstaller implements IInstaller {
         resource?: InterpreterUri,
         cancel?: CancellationToken,
         flags?: ModuleInstallFlags,
+        options?: InstallOptions,
+        message?: string,
     ): Promise<InstallerResponse> {
         const currentInterpreter = isResource(resource)
             ? await this.interpreterService.getActiveInterpreter(resource)
@@ -500,7 +543,7 @@ export class ProductInstaller implements IInstaller {
         if (!currentInterpreter) {
             return InstallerResponse.Ignore;
         }
-        return this.createInstaller(product).promptToInstall(product, resource, cancel, flags);
+        return this.createInstaller(product).promptToInstall(product, resource, cancel, flags, options, message);
     }
 
     public async isProductVersionCompatible(

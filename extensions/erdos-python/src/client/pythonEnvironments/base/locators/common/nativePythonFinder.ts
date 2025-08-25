@@ -23,9 +23,15 @@ import { StopWatch } from '../../../../common/utils/stopWatch';
 import { untildify } from '../../../../common/helpers';
 import { traceError } from '../../../../logging';
 
+import { getCustomEnvDirs } from '../../../../erdos/interpreterSettings';
+import { traceVerbose } from '../../../../logging';
+import { ADDITIONAL_POSIX_BIN_PATHS } from '../../../common/posixUtils';
+import { PythonEnvSource } from '../../info/index';
+import { getUvDirs } from '../../../common/environmentManagers/uv';
+
 const PYTHON_ENV_TOOLS_PATH = isWindows()
-    ? path.join(EXTENSION_ROOT_DIR, 'python-env-tools', 'bin', 'pet.exe')
-    : path.join(EXTENSION_ROOT_DIR, 'python-env-tools', 'bin', 'pet');
+    ? path.join(EXTENSION_ROOT_DIR, 'python-env-tools', 'pet.exe')
+    : path.join(EXTENSION_ROOT_DIR, 'python-env-tools', 'pet');
 
 export interface NativeEnvInfo {
     displayName?: string;
@@ -41,6 +47,7 @@ export interface NativeEnvInfo {
     project?: string;
     arch?: 'x64' | 'x86';
     symlinks?: string[];
+    source?: PythonEnvSource[];
 }
 
 export interface NativeEnvManagerInfo {
@@ -375,7 +382,7 @@ class NativePythonFinderImpl extends DisposableBase implements NativePythonFinde
         const options: ConfigurationOptions = {
             workspaceDirectories: getWorkspaceFolderPaths(),
             // We do not want to mix this with `search_paths`
-            environmentDirectories: getCustomVirtualEnvDirs(),
+            environmentDirectories: await getEnvironmentDirs(),
             condaExecutable: getPythonSettingAndUntildify<string>(CONDAPATH_SETTING_KEY),
             poetryExecutable: getPythonSettingAndUntildify<string>('poetryPath'),
             cacheDirectory: this.cacheDirectory?.fsPath,
@@ -467,6 +474,35 @@ export function getNativePythonFinder(context?: IExtensionContext): NativePython
         }
     }
     return _finder;
+}
+
+async function getEnvironmentDirs(): Promise<string[]> {
+    const venvDirs = getCustomVirtualEnvDirs();
+    const additionalDirs = await getAdditionalEnvDirs();
+    const uniqueEnvDirs = new Set([...venvDirs, ...additionalDirs]);
+    return Array.from(uniqueEnvDirs);
+}
+
+export async function getAdditionalEnvDirs(): Promise<string[]> {
+    const additionalDirs: string[] = [];
+
+    if (!isWindows()) {
+        additionalDirs.push(...ADDITIONAL_POSIX_BIN_PATHS);
+    }
+
+    const uvDirs = await getUvDirs();
+    additionalDirs.push(...uvDirs);
+
+    const customEnvDirs = getCustomEnvDirs();
+    additionalDirs.push(...customEnvDirs);
+
+    const uniqueDirs = Array.from(new Set(additionalDirs));
+    traceVerbose(
+        `[getAdditionalEnvDirs] Found ${
+            uniqueDirs.length
+        } additional directories to search for Python environments: ${uniqueDirs.map((dir) => `"${dir}"`).join(', ')}`,
+    );
+    return uniqueDirs;
 }
 
 export function getCacheDirectory(context: IExtensionContext): Uri {

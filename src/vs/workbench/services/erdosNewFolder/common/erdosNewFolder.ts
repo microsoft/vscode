@@ -1,8 +1,3 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 Lotas Inc. All rights reserved.
- *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import { Event } from '../../../../base/common/event.js';
 import { Barrier } from '../../../../base/common/async.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -86,22 +81,6 @@ export interface IErdosNewFolderService {
 	readonly newFolderRuntimeMetadata: ILanguageRuntimeMetadata | undefined;
 
 	storeNewFolderConfig(newFolderConfig: NewFolderConfiguration): void;
-
-	// Phase 4 Extensions: Additional project creation methods
-	/**
-	 * Creates a new project folder with the specified configuration.
-	 * This is a simpler alternative to the full new folder workflow.
-	 * @param name The name of the project
-	 * @param location The location where to create the project
-	 * @param template Optional project template to use
-	 */
-	createNewProject(name: string, location: string, template?: string): Promise<void>;
-
-	/**
-	 * Gets available project templates for simple project creation.
-	 * This complements the existing FolderTemplate enum with additional options.
-	 */
-	getAvailableTemplates(): Promise<string[]>;
 }
 
 export type CreateEnvironmentResult = {

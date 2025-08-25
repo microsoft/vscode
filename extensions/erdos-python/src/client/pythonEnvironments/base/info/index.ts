@@ -13,6 +13,7 @@ export enum PythonEnvKind {
     // "global"
     System = 'global-system',
     MicrosoftStore = 'global-microsoft-store',
+    Uv = 'uv',
     Pyenv = 'global-pyenv',
     Poetry = 'poetry',
     Hatch = 'hatch',
@@ -53,6 +54,7 @@ export const virtualEnvKinds = [
     PythonEnvKind.VirtualEnvWrapper,
     PythonEnvKind.Conda,
     PythonEnvKind.VirtualEnv,
+    PythonEnvKind.Uv,
 ];
 
 export const globallyInstalledEnvKinds = [
@@ -95,6 +97,10 @@ export enum PythonEnvSource {
      * Environment was found in windows registry
      */
     WindowsRegistry = 'windows registry',
+    /**
+     * Environment was found via user settings
+     */
+    UserSettings = 'user settings',
     // If source turns out to be useful we will expand this enum to contain more details sources.
 }
 

@@ -903,14 +903,14 @@
     "xdg-portable": "^10.6.0"
   },
   "extensionDependencies": [
-    "lotas.erdos-supervisor"
+    "erdos.erdos-supervisor"
   ],
   "peerDependencies": {
     "@vscode/windows-registry": "^1.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/lotas-inc/erdos"
+    "url": "https://github.com/willnickols/vscode"
   },
   "erdos": {
     "binaryDependencies": {

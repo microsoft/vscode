@@ -55,8 +55,10 @@ import { registerReplCommands, registerReplExecuteOnEnter, registerStartNativeRe
 import { registerTriggerForTerminalREPL } from './terminals/codeExecution/terminalReplWatcher';
 import { registerPythonStartup } from './terminals/pythonStartup';
 import { registerPixiFeatures } from './pythonEnvironments/common/environmentManagers/pixi';
-import { registerCustomTerminalLinkProvider } from './terminals/pythonStartupLinkProvider';
+// This hyperlinks the terminal to the native REPL, which we don't use.
+// import { registerCustomTerminalLinkProvider } from './terminals/pythonStartupLinkProvider';
 import { registerEnvExtFeatures } from './envExt/api.internal';
+import { IPythonRuntimeManager } from './erdos/manager';
 
 export async function activateComponents(
     // `ext` is passed to any extra activation funcs.
@@ -87,12 +89,12 @@ export async function activateComponents(
     }
     const promises: Promise<ActivationResult>[] = [
         // More component activations will go here
-        pythonEnvironments.activate(components.pythonEnvs, ext),
+        pythonEnvironments.activateAndRefreshEnvs(components.pythonEnvs),
     ];
     return Promise.all([legacyActivationResult, ...promises]);
 }
 
-export function activateFeatures(ext: ExtensionState, _components: Components): void {
+export async function activateFeatures(ext: ExtensionState, _components: Components): Promise<void> {
     const interpreterQuickPick: IInterpreterQuickPick = ext.legacyIOC.serviceContainer.get<IInterpreterQuickPick>(
         IInterpreterQuickPick,
     );
@@ -102,15 +104,21 @@ export function activateFeatures(ext: ExtensionState, _components: Components): 
     const interpreterService: IInterpreterService = ext.legacyIOC.serviceContainer.get<IInterpreterService>(
         IInterpreterService,
     );
+
+    const pythonRuntimeManager: IPythonRuntimeManager = ext.legacyIOC.serviceContainer.get<IPythonRuntimeManager>(
+        IPythonRuntimeManager,
+    );
+
     registerEnvExtFeatures(ext.disposables, interpreterPathService);
     const pathUtils = ext.legacyIOC.serviceContainer.get<IPathUtils>(IPathUtils);
     registerPixiFeatures(ext.disposables);
-    registerAllCreateEnvironmentFeatures(
+    await registerAllCreateEnvironmentFeatures(
         ext.disposables,
         interpreterQuickPick,
         ext.legacyIOC.serviceContainer.get<IPythonPathUpdaterServiceManager>(IPythonPathUpdaterServiceManager),
         interpreterService,
         pathUtils,
+        pythonRuntimeManager,
     );
     const executionHelper = ext.legacyIOC.serviceContainer.get<ICodeExecutionHelper>(ICodeExecutionHelper);
     const commandManager = ext.legacyIOC.serviceContainer.get<ICommandManager>(ICommandManager);
@@ -118,7 +126,8 @@ export function activateFeatures(ext: ExtensionState, _components: Components): 
     registerStartNativeReplCommand(ext.disposables, interpreterService);
     registerReplCommands(ext.disposables, interpreterService, executionHelper, commandManager);
     registerReplExecuteOnEnter(ext.disposables, interpreterService, commandManager);
-    registerCustomTerminalLinkProvider(ext.disposables);
+    // This hyperlinks the terminal to the native REPL, which we don't use.
+    // registerCustomTerminalLinkProvider(ext.disposables);
 }
 
 /// //////////////////////////

@@ -59,6 +59,9 @@ function getKind(pythonEnv: PythonEnvironment): PythonEnvKind {
     if (pythonEnv.envId.managerId.toLowerCase().endsWith('hatch')) {
         return PythonEnvKind.Hatch;
     }
+    if (pythonEnv.envId.managerId.toLowerCase().endsWith('uv')) {
+        return PythonEnvKind.Uv;
+    }
     if (pythonEnv.envId.managerId.toLowerCase().endsWith('activestate')) {
         return PythonEnvKind.ActiveState;
     }
@@ -100,6 +103,7 @@ function getLocation(pythonEnv: PythonEnvironment): string {
 
 function getEnvType(kind: PythonEnvKind): PythonEnvType | undefined {
     switch (kind) {
+        case PythonEnvKind.Uv:
         case PythonEnvKind.Poetry:
         case PythonEnvKind.Pyenv:
         case PythonEnvKind.VirtualEnv:

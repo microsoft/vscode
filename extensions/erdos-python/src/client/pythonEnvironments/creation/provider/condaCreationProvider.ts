@@ -5,7 +5,7 @@ import { CancellationToken, CancellationTokenSource, ProgressLocation, Workspace
 import * as path from 'path';
 import { Commands, PVSC_EXTENSION_ID } from '../../../common/constants';
 import { traceError, traceInfo, traceLog } from '../../../logging';
-import { CreateEnvironmentProgress } from '../types';
+import { CreateEnvironmentOptionsInternal, CreateEnvironmentProgress } from '../types';
 import { pickWorkspaceFolder } from '../common/workspaceSelection';
 import { execObservable } from '../../../common/process/rawProcessApis';
 import { createDeferred } from '../../../common/utils/async';
@@ -100,6 +100,7 @@ async function createCondaEnv(
         cwd: workspace.uri.fsPath,
         env: {
             PATH: pathEnv,
+            PW_TEST: process.env.PW_TEST,
         },
     });
 
@@ -147,7 +148,9 @@ function getExecutableCommand(condaBaseEnvPath: string): string {
     return path.join(condaBaseEnvPath, 'bin', 'python');
 }
 
-async function createEnvironment(options?: CreateEnvironmentOptions): Promise<CreateEnvironmentResult | undefined> {
+async function createEnvironment(
+    options?: CreateEnvironmentOptions & CreateEnvironmentOptionsInternal,
+): Promise<CreateEnvironmentResult | undefined> {
     const conda = await getCondaBaseEnv();
     if (!conda) {
         return undefined;
@@ -203,7 +206,9 @@ async function createEnvironment(options?: CreateEnvironmentOptions): Promise<Cr
     const versionStep = new MultiStepNode(
         workspaceStep,
         async (context) => {
-            if (
+            if (existingCondaAction === ExistingCondaAction.Create && options?.condaPythonVersion) {
+                version = options.condaPythonVersion;
+            } else if (
                 existingCondaAction === ExistingCondaAction.Recreate ||
                 existingCondaAction === ExistingCondaAction.Create
             ) {

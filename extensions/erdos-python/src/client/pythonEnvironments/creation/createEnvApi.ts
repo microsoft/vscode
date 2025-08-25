@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+/* eslint-disable import/no-duplicates */
+
 import { ConfigurationTarget, Disposable, QuickInputButtons } from 'vscode';
 import { Commands } from '../../common/constants';
 import { IDisposableRegistry, IPathUtils } from '../../common/types';
@@ -23,6 +25,19 @@ import { EventName } from '../../telemetry/constants';
 import { CreateEnvironmentOptionsInternal } from './types';
 import { useEnvExtension } from '../../envExt/api.internal';
 import { PythonEnvironment } from '../../envExt/types';
+import { getCondaPythonVersions } from './provider/condaUtils';
+import { IPythonRuntimeManager } from '../../erdos/manager';
+import { Conda } from '../common/environmentManagers/conda';
+import { getUvPythonVersions } from './provider/uvUtils';
+import { isUvInstalled } from '../common/environmentManagers/uv';
+import { UvCreationProvider } from './provider/uvCreationProvider';
+import {
+    createEnvironmentAndRegister,
+    getCreateEnvironmentProviders,
+    isEnvProviderEnabled,
+    isGlobalPython,
+} from '../../erdos/createEnvApi';
+import { traceLog } from '../../logging';
 
 class CreateEnvironmentProviders {
     private _createEnvProviders: CreateEnvironmentProvider[] = [];
@@ -31,9 +46,18 @@ class CreateEnvironmentProviders {
         this._createEnvProviders = [];
     }
 
-    public add(provider: CreateEnvironmentProvider) {
+    public add(provider: CreateEnvironmentProvider, toTopOfList: boolean) {
+        if (!isEnvProviderEnabled(provider.id)) {
+            traceLog(`${provider.name} environment provider ${provider.id} is not enabled...skipping registration`);
+            return;
+        }
+
         if (this._createEnvProviders.filter((p) => p.id === provider.id).length > 0) {
             throw new Error(`Create Environment provider with id ${provider.id} already registered`);
+        }
+        if (toTopOfList) {
+            this._createEnvProviders.unshift(provider);
+            return;
         }
         this._createEnvProviders.push(provider);
     }
@@ -49,8 +73,11 @@ class CreateEnvironmentProviders {
 
 const _createEnvironmentProviders: CreateEnvironmentProviders = new CreateEnvironmentProviders();
 
-export function registerCreateEnvironmentProvider(provider: CreateEnvironmentProvider): Disposable {
-    _createEnvironmentProviders.add(provider);
+export function registerCreateEnvironmentProvider(
+    provider: CreateEnvironmentProvider,
+    toTopOfList: boolean = false,
+): Disposable {
+    _createEnvironmentProviders.add(provider, toTopOfList);
     return new Disposable(() => {
         _createEnvironmentProviders.remove(provider);
     });
@@ -58,12 +85,13 @@ export function registerCreateEnvironmentProvider(provider: CreateEnvironmentPro
 
 export const { onCreateEnvironmentStarted, onCreateEnvironmentExited, isCreatingEnvironment } = getCreationEvents();
 
-export function registerCreateEnvironmentFeatures(
+export async function registerCreateEnvironmentFeatures(
     disposables: IDisposableRegistry,
     interpreterQuickPick: IInterpreterQuickPick,
     pythonPathUpdater: IPythonPathUpdaterServiceManager,
     pathUtils: IPathUtils,
-): void {
+    pythonRuntimeManager: IPythonRuntimeManager,
+): Promise<void> {
     disposables.push(
         registerCommand(
             Commands.Create_Environment,
@@ -104,7 +132,11 @@ export function registerCreateEnvironmentFeatures(
                     }
                 } else {
                     const providers = _createEnvironmentProviders.getAll();
-                    return handleCreateEnvironmentCommand(providers, options);
+                    const env = await handleCreateEnvironmentCommand(providers, options);
+                    if (env?.path) {
+                        await pythonRuntimeManager.selectLanguageRuntimeFromPath(env.path, true);
+                    }
+                    return env;
                 }
                 return undefined;
             },
@@ -116,8 +148,31 @@ export function registerCreateEnvironmentFeatures(
                 await executeCommand(Commands.Create_Environment);
             },
         ),
+        registerCommand(Commands.Get_Create_Environment_Providers, () => {
+            const providers = _createEnvironmentProviders.getAll();
+            return getCreateEnvironmentProviders(providers);
+        }),
+        registerCommand(
+            Commands.Create_Environment_And_Register,
+            (options: CreateEnvironmentOptions & CreateEnvironmentOptionsInternal) => {
+                const providers = _createEnvironmentProviders.getAll();
+                return createEnvironmentAndRegister(providers, pythonRuntimeManager, options);
+            },
+        ),
+        registerCommand(
+            Commands.Is_Conda_Installed,
+            async (): Promise<boolean> => {
+                const conda = await Conda.getConda();
+                return conda !== undefined;
+            },
+        ),
+        registerCommand(Commands.Get_Conda_Python_Versions, () => getCondaPythonVersions()),
+        registerCommand(Commands.Is_Uv_Installed, async () => await isUvInstalled()),
+        registerCommand(Commands.Get_Uv_Python_Versions, () => getUvPythonVersions()),
+        registerCommand(Commands.Is_Global_Python, (interpreterPath: string) => isGlobalPython(interpreterPath)),
         registerCreateEnvironmentProvider(new VenvCreationProvider(interpreterQuickPick)),
         registerCreateEnvironmentProvider(condaCreationProvider()),
+        registerCreateEnvironmentProvider(new UvCreationProvider(), await isUvInstalled()),
         onCreateEnvironmentExited(async (e: EnvironmentDidCreateEvent) => {
             if (e.path && e.options?.selectEnvironment) {
                 await pythonPathUpdater.updatePythonPath(

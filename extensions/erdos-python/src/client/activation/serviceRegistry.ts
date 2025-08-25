@@ -3,7 +3,7 @@
 
 import { IServiceManager } from '../ioc/types';
 import { ExtensionActivationManager } from './activationManager';
-import { ExtensionSurveyPrompt } from './extensionSurvey';
+// remove extension survey prompt
 import { LanguageServerOutputChannel } from './common/outputChannel';
 import {
     IExtensionActivationManager,
@@ -23,10 +23,6 @@ export function registerTypes(serviceManager: IServiceManager): void {
     serviceManager.addSingleton<ILanguageServerOutputChannel>(
         ILanguageServerOutputChannel,
         LanguageServerOutputChannel,
-    );
-    serviceManager.addSingleton<IExtensionSingleActivationService>(
-        IExtensionSingleActivationService,
-        ExtensionSurveyPrompt,
     );
     serviceManager.addSingleton<IExtensionSingleActivationService>(
         IExtensionSingleActivationService,

@@ -532,7 +532,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	document.body.appendChild(style);
 
 	return {
-		renderOutputItem: async (outputInfo: OutputItem, element: HTMLElement) => {
+		renderOutputItem: async (outputInfo: OutputItem, element: HTMLElement, _signal?: AbortSignal) => {
 			element.classList.add('remove-padding');
 			switch (outputInfo.mime) {
 				case 'text/html':

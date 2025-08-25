@@ -27,6 +27,8 @@ export interface IExtensionDescriptionDelta {
 
 export interface IExtensionHostInitData {
 	version: string;
+	erdosVersion: string;
+	erdosBuildNumber: number;
 	quality: string | undefined;
 	commit?: string;
 	date?: string;

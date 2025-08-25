@@ -1870,6 +1870,50 @@ class SelectionRangeAdapter {
 	}
 }
 
+class StatementRangeAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: any
+	) { }
+
+	async provideStatementRange(resource: URI, pos: IPosition, token: CancellationToken): Promise<any | undefined> {
+		const document = this._documents.getDocument(resource);
+		const position = typeConvert.Position.to(pos);
+
+		const providerRange = await this._provider.provideStatementRange(document, position, token);
+
+		if (!providerRange || !Range.isRange(providerRange?.range)) {
+			return undefined;
+		}
+
+		const range = typeConvert.Range.from(providerRange.range);
+		const statementRange: any = { range: range, code: providerRange.code };
+		return statementRange;
+	}
+}
+
+class HelpTopicAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: any
+	) { }
+
+	async provideHelpTopic(resource: URI, pos: IPosition, token: CancellationToken): Promise<string> {
+		const document = this._documents.getDocument(resource);
+		const position = typeConvert.Position.to(pos);
+
+		const topic = await this._provider.provideHelpTopic(document, position, token);
+
+		if (typeof topic === 'string') {
+			return topic;
+		}
+
+		return '';
+	}
+}
+
 class CallHierarchyAdapter {
 
 	private readonly _idPool = new IdGenerator('');
@@ -2088,6 +2132,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
+	| StatementRangeAdapter | HelpTopicAdapter
 	| DocumentDropEditAdapter | NewSymbolNamesAdapter;
 
 class AdapterData {
@@ -2734,6 +2779,26 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<languages.SelectionRange[][]> {
 		return this._withAdapter(handle, SelectionRangeAdapter, adapter => adapter.provideSelectionRanges(URI.revive(resource), positions, token), [], token);
+	}
+
+	registerStatementRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: any): vscode.Disposable {
+		const handle = this._addNewAdapter(new StatementRangeAdapter(this._documents, provider), extension);
+		this._proxy.$registerStatementRangeProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
+	$provideStatementRange(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<any | undefined> {
+		return this._withAdapter(handle, StatementRangeAdapter, adapter => adapter.provideStatementRange(URI.revive(resource), position, token), undefined, token);
+	}
+
+	registerHelpTopicProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: any): vscode.Disposable {
+		const handle = this._addNewAdapter(new HelpTopicAdapter(this._documents, provider), extension);
+		this._proxy.$registerHelpTopicProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
+	$provideHelpTopic(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<string | undefined> {
+		return this._withAdapter(handle, HelpTopicAdapter, adapter => adapter.provideHelpTopic(URI.revive(resource), position, token), undefined, token);
 	}
 
 	// --- call hierarchy

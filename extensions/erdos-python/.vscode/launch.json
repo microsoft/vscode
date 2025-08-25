@@ -3,6 +3,23 @@
     "version": "0.1.0",
     "configurations": [
         {
+            "name": "Erdos: Remote Attach",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "subProcess": false,
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "."
+                }
+            ],
+            "justMyCode": false
+        },
+        {
             "name": "Extension",
             "type": "extensionHost",
             "request": "launch",

@@ -219,7 +219,9 @@ export class VenvCreationProvider implements CreateEnvironmentProvider {
             existingEnvStep,
             async (context?: MultiStepAction) => {
                 if (workspace) {
-                    if (
+                    if (existingVenvAction === ExistingVenvAction.Create && options?.interpreterPath) {
+                        interpreter = options.interpreterPath;
+                    } else if (
                         existingVenvAction === ExistingVenvAction.Recreate ||
                         existingVenvAction === ExistingVenvAction.Create
                     ) {
@@ -235,6 +237,7 @@ export class VenvCreationProvider implements CreateEnvironmentProvider {
                                                   EnvironmentType.MicrosoftStore,
                                                   EnvironmentType.Global,
                                                   EnvironmentType.Pyenv,
+                                                  EnvironmentType.Custom,
                                               ].includes(i.envType) && i.type === undefined, // only global intepreters
                                           {
                                               skipRecommended: true,

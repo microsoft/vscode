@@ -11,6 +11,9 @@ import * as os from 'os';
 import * as readline from 'readline';
 import { performance } from 'perf_hooks';
 import minimist from 'minimist';
+import * as fs from 'fs';
+import { spawn } from 'child_process';
+import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
 import { devInjectNodeModuleLookupPath, removeGlobalNodeJsModuleLookupPaths } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
@@ -149,6 +152,8 @@ if (shouldSpawnCli) {
 			_remoteExtensionHostAgentServer.dispose();
 		}
 	});
+
+	await startKernelSupervisor();
 }
 
 function sanitizeStringArg(val: any): string | undefined {
@@ -282,4 +287,71 @@ function prompt(question: string): Promise<boolean> {
 			}
 		});
 	});
+}
+
+async function startKernelSupervisor() {
+	const userDataPath = getUserDataPath(parsedArgs, product.nameShort || 'vscode');
+	const connectionFile = path.join(userDataPath, `erdos-supervisor-${process.pid}.json`);
+	const logFile = path.join(userDataPath, `erdos-supervisor-${process.pid}.log`);
+
+	if (fs.existsSync(connectionFile)) {
+		fs.unlinkSync(connectionFile);
+	}
+	if (fs.existsSync(logFile)) {
+		fs.unlinkSync(logFile);
+	}
+
+	const userDataDir = path.dirname(connectionFile);
+	if (!fs.existsSync(userDataDir)) {
+		try {
+			fs.mkdirSync(userDataDir, { recursive: true });
+		} catch (err) {
+			console.error(`Failed to create user data directory for supervisor files: ${userDataDir}`, err);
+		}
+	}
+
+	process.env['ERDOS_SUPERVISOR_CONNECTION_FILE'] = connectionFile;
+
+	const supervisorPaths = [
+		path.join(__dirname, '..',
+			'extensions', 'erdos-supervisor', 'src', 'kernel-bridge', 'dist', 'index.js'),
+		path.join(__dirname, '..',
+			'extensions', 'erdos-supervisor', 'resources', 'kallichore', 'kcserver'),
+	];
+
+	const supervisorPath = supervisorPaths.find((p) => fs.existsSync(p));
+	if (!supervisorPath) {
+		process.stderr.write('The Erdos Kernel Supervisor was not found and will not be started.\n');
+		return;
+	}
+
+	const isKernelBridge = supervisorPath.endsWith('index.js');
+	
+	if (isKernelBridge) {
+		process.stdout.write(`\nStarting Erdos Kernel Bridge (${supervisorPath})...\n`);
+		
+		const supervisorProcess = spawn('node', [supervisorPath, 
+			'--connection-file', connectionFile, 
+			'--log-file', logFile
+		], {
+			env: { ...process.env, PORT: '8080' }
+		});
+		
+		supervisorProcess.stdout.on('data', (data) => {
+			process.stdout.write(data);
+		});
+		supervisorProcess.stderr.on('data', (data) => {
+			process.stderr.write(data);
+		});
+	} else {
+		process.stdout.write(`\nStarting Erdos Kernel Supervisor (${supervisorPath})...\n`);
+		const supervisorProcess = spawn(supervisorPath, [
+			'--connection-file', connectionFile, '--log-file', logFile,]);
+		supervisorProcess.stdout.on('data', (data) => {
+			process.stdout.write(data);
+		});
+		supervisorProcess.stderr.on('data', (data) => {
+			process.stderr.write(data);
+		});
+	}
 }

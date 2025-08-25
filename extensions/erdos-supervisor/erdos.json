@@ -1,0 +1,8 @@
+{
+	"binaries": [
+		{
+			"from": "resources/supervisor-wrapper.*",
+			"to": "resources"
+		}
+	]
+}

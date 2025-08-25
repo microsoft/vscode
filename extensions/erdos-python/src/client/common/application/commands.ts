@@ -41,6 +41,8 @@ interface ICommandNameWithoutArgumentTypeMapping {
     [Commands.CreateNewFile]: [];
     [Commands.ReportIssue]: [];
     [LSCommands.RestartLS]: [];
+    [Commands.Show_Interpreter_Debug_Info]: [];
+    ['workbench.action.language.runtime.selectSession']: [];
 }
 
 export type AllCommands = keyof ICommandNameArgumentTypeMapping;
@@ -97,6 +99,10 @@ export interface ICommandNameArgumentTypeMapping extends ICommandNameWithoutArgu
     [Commands.Exec_In_Terminal]: [undefined, Uri];
     [Commands.Exec_In_Terminal_Icon]: [undefined, Uri];
     [Commands.Debug_In_Terminal]: [Uri];
+    [Commands.Exec_In_Console]: [];
+    [Commands.Focus_Erdos_Console]: [];
+    [Commands.Create_Pyproject_Toml]: [string | undefined];
+    [Commands.InstallPackages]: [string[]];
     [Commands.Tests_Configure]: [undefined, undefined | CommandSource, undefined | Uri];
     [Commands.Tests_CopilotSetup]: [undefined | Uri];
     ['workbench.view.testing.focus']: [];

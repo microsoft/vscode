@@ -2,6 +2,5 @@
     "files.exclude": {
         "**/__pycache__/**": true,
         "**/**/*.pyc": true
-    },
-    "python.formatting.provider": "black"
+    }
 }

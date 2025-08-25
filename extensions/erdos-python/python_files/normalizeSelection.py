@@ -214,6 +214,10 @@ def traverse_file(whole_file_content, start_line, end_line, was_highlighted):  #
         return {
             "normalized_smart_result": smart_code,
             "which_line_next": which_line_next,
+            "start_line": should_run_top_blocks[0].lineno,
+            "start_character": should_run_top_blocks[0].col_offset,
+            "end_line": should_run_top_blocks[-1].end_lineno,
+            "end_character": should_run_top_blocks[-1].end_col_offset,
         }
 
     # For each of the nodes in the parsed file content,
@@ -241,11 +245,22 @@ def traverse_file(whole_file_content, start_line, end_line, was_highlighted):  #
             smart_code += str(ast.get_source_segment(whole_file_content, top_node))
             smart_code += "\n"
 
+    if not should_run_top_blocks:
+        for top_node in ast.iter_child_nodes(parsed_file_content):
+            if top_node.lineno > start_line:
+                should_run_top_blocks.append(top_node)
+                smart_code += f"{ast.get_source_segment(whole_file_content, top_node)}\n"
+                break
+
     normalized_smart_result = normalize_lines(smart_code)
     which_line_next = get_next_block_lineno(should_run_top_blocks)
     return {
         "normalized_smart_result": normalized_smart_result,
         "which_line_next": which_line_next,
+        "start_line": should_run_top_blocks[0].lineno,
+        "start_character": should_run_top_blocks[0].col_offset,
+        "end_line": should_run_top_blocks[-1].end_lineno,
+        "end_character": should_run_top_blocks[-1].end_col_offset,
     }
 
 
@@ -298,6 +313,10 @@ if __name__ == "__main__":
                 {
                     "normalized": normalized,
                     "nextBlockLineno": result["which_line_next"],
+                    "startLine": result["start_line"],
+                    "endLine": result["end_line"],
+                    "startCharacter": result["start_character"],
+                    "endCharacter": result["end_character"],
                     "attach_bracket_paste": attach_bracket_paste,
                 }
             )

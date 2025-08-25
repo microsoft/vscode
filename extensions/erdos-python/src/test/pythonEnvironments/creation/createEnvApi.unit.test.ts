@@ -51,6 +51,7 @@ suite('Create Environment APIs', () => {
             interpreterQuickPick.object,
             interpreterPathService.object,
             pathUtils.object,
+            {} as any, // IPythonRuntimeManager mock
         );
     });
     teardown(() => {

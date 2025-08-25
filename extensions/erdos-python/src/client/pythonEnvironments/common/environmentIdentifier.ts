@@ -17,6 +17,8 @@ import {
 import { isMicrosoftStoreEnvironment } from './environmentManagers/microsoftStoreEnv';
 import { isActiveStateEnvironment } from './environmentManagers/activestate';
 import { isPixiEnvironment } from './environmentManagers/pixi';
+import { isUvEnvironment } from './environmentManagers/uv';
+import { isCustomEnvironment } from '../../erdos/interpreterSettings';
 
 const notImplemented = () => Promise.resolve(false);
 
@@ -37,6 +39,8 @@ function getIdentifiers(): Map<PythonEnvKind, (path: string) => Promise<boolean>
     identifier.set(PythonEnvKind.VirtualEnvWrapper, isVirtualEnvWrapperEnvironment);
     identifier.set(PythonEnvKind.VirtualEnv, isVirtualEnvEnvironment);
     identifier.set(PythonEnvKind.ActiveState, isActiveStateEnvironment);
+    identifier.set(PythonEnvKind.Uv, isUvEnvironment);
+    identifier.set(PythonEnvKind.Custom, isCustomEnvironment);
     identifier.set(PythonEnvKind.Unknown, defaultTrue);
     identifier.set(PythonEnvKind.OtherGlobal, isGloballyInstalledEnv);
     return identifier;

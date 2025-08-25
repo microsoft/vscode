@@ -8,7 +8,7 @@ import { PromiseHandles, timeout } from './util';
 import { RStatementRangeProvider } from './statement-range';
 import { LOGGER } from './extension';
 import { RErrorHandler } from './error-handler';
-import { ILanguageRuntimeMetadata, ILangaugeRuntimeDynState } from '../../../src/vs/workbench/services/languageRuntime/common/languageRuntimeService.js';
+import * as erdos from 'erdos';
 
 import {
 	LanguageClient,
@@ -45,8 +45,8 @@ export class ArkLsp implements vscode.Disposable {
 
 	public constructor(
 		private readonly _version: string,
-		private readonly _metadata: ILanguageRuntimeMetadata,
-		private readonly _dynState: ILangaugeRuntimeDynState,
+		private readonly _metadata: erdos.RuntimeSessionMetadata,
+		private readonly _dynState: erdos.LanguageRuntimeDynState,
 	) { }
 
 	private setState(state: LspState) {

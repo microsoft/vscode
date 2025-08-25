@@ -45,6 +45,7 @@ suite('MainThreadDiagnostics', function () {
 						$acceptMarkersChange() { }
 					};
 				}
+				getRaw(identifier: any): any { return null; }
 				drain(): any { return null; }
 			},
 			markerService,
@@ -89,6 +90,7 @@ suite('MainThreadDiagnostics', function () {
 							}
 						};
 					}
+					getRaw(identifier: any): any { return null; }
 					drain(): any { return null; }
 				},
 				markerService,
@@ -155,6 +157,7 @@ suite('MainThreadDiagnostics', function () {
 							}
 						};
 					}
+					getRaw(identifier: any): any { return null; }
 					drain(): any { return null; }
 				},
 				markerService,

@@ -120,6 +120,9 @@ export class PipInstaller extends ModuleInstaller {
         if (flags & ModuleInstallFlags.reInstall) {
             args.push('--force-reinstall');
         }
+        if (flags & ModuleInstallFlags.breakSystemPackages) {
+            args.push('--break-system-packages');
+        }
         return {
             args: [...args, moduleName],
             moduleName: 'pip',

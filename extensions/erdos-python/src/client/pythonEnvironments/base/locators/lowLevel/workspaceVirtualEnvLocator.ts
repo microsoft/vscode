@@ -7,6 +7,7 @@ import { findInterpretersInDir, looksLikeBasicVirtualPython } from '../../../com
 import { pathExists } from '../../../common/externalDependencies';
 import { isPipenvEnvironment } from '../../../common/environmentManagers/pipenv';
 import { isVenvEnvironment, isVirtualenvEnvironment } from '../../../common/environmentManagers/simplevirtualenvs';
+import { isUvEnvironment } from '../../../common/environmentManagers/uv';
 import { PythonEnvKind } from '../../info';
 import { BasicEnvInfo, IPythonEnvsIterator } from '../../locator';
 import { FSWatcherKind, FSWatchingLocator } from './fsWatchingLocator';
@@ -33,6 +34,10 @@ function getWorkspaceVirtualEnvDirs(root: string): Promise<string[]> {
  * @param interpreterPath: Absolute path to the interpreter paths.
  */
 async function getVirtualEnvKind(interpreterPath: string): Promise<PythonEnvKind> {
+    if (await isUvEnvironment(interpreterPath)) {
+        return PythonEnvKind.Uv;
+    }
+
     if (await isPipenvEnvironment(interpreterPath)) {
         return PythonEnvKind.Pipenv;
     }

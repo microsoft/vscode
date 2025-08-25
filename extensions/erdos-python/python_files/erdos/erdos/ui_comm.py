@@ -35,32 +35,117 @@ class GetStateResult(BaseModel):
 
 
 
+class EditorContext(BaseModel):
+    """
+    Editor metadata
+    """
+
+    document: TextDocument = Field(
+        description="Document metadata",
+    )
+
+    contents: List[StrictStr] = Field(
+        description="Document contents",
+    )
+
+    selection: Selection = Field(
+        description="The primary selection, i.e. selections[0]",
+    )
+
+    selections: List[Selection] = Field(
+        description="The selections in this text editor.",
+    )
+
+
+
+class TextDocument(BaseModel):
+    """
+    Document metadata
+    """
+
+    path: StrictStr = Field(
+        description="URI of the resource viewed in the editor",
+    )
+
+    eol: StrictStr = Field(
+        description="End of line sequence",
+    )
+
+    is_closed: StrictBool = Field(
+        description="Whether the document has been closed",
+    )
+
+    is_dirty: StrictBool = Field(
+        description="Whether the document has been modified",
+    )
+
+    is_untitled: StrictBool = Field(
+        description="Whether the document is untitled",
+    )
+
+    language_id: StrictStr = Field(
+        description="Language identifier",
+    )
+
+    line_count: StrictInt = Field(
+        description="Number of lines in the document",
+    )
+
+    version: StrictInt = Field(
+        description="Version number of the document",
+    )
+
+
+
 class Position(BaseModel):
     """
-    Line and character position
+    A line and character position, such as the position of the cursor.
     """
 
     character: StrictInt = Field(
-        description="Zero-based character offset",
+        description="The zero-based character value, as a Unicode code point offset.",
     )
 
     line: StrictInt = Field(
-        description="Zero-based line number",
+        description="The zero-based line value.",
+    )
+
+
+
+class Selection(BaseModel):
+    """
+    Selection metadata
+    """
+
+    active: Position = Field(
+        description="Position of the cursor.",
+    )
+
+    start: Position = Field(
+        description="Start position of the selection",
+    )
+
+    end: Position = Field(
+        description="End position of the selection",
+    )
+
+    text: StrictStr = Field(
+        description="Text of the selection",
     )
 
 
 
 class Range(BaseModel):
     """
-    Text selection range
+    Selection range
     """
 
     start: Position = Field(
-        description="Range start position",
+        description="Start position of the selection",
     )
 
     end: Position = Field(
-        description="Range end position",
+        description="End position of the selection",
     )
 
 
@@ -163,197 +248,286 @@ class UiFrontendEvent(str, enum.Enum):
     An enumeration of all the possible events that can be sent to the frontend ui comm.
     """
 
-    # Runtime busy state changed
+    # Change in backend's busy/idle status
     Busy = "busy"
 
-    # Clear console output
+    # Clear the console
     ClearConsole = "clear_console"
 
-    # Open file in editor
+    # Open an editor
     OpenEditor = "open_editor"
 
-    # Display user message
+    # Show a message
     ShowMessage = "show_message"
 
-    # Runtime prompt state changed
+    # New state of the primary and secondary prompts
     PromptState = "prompt_state"
 
-    # Working directory changed
+    # Change the displayed working directory
     WorkingDirectory = "working_directory"
 
-    # Open workspace request
+    # Open a workspace
     OpenWorkspace = "open_workspace"
 
-    # Set editor cursor selections
+    # Set the selections in the editor
     SetEditorSelections = "set_editor_selections"
 
-    # Display HTML file
+    # Show a URL in Erdos's Viewer pane
+    ShowUrl = "show_url"
+
+    # Show an HTML file in Erdos
     ShowHtmlFile = "show_html_file"
 
-    # Open with system application
+    # Open a file or folder with the system default application
     OpenWithSystem = "open_with_system"
 
-    # Clear webview cache
+    # Webview preloads should be flushed
     ClearWebviewPreloads = "clear_webview_preloads"
-
-    # Display URL in viewer
-    ShowUrl = "show_url"
 
 class BusyParams(BaseModel):
     """
-    Runtime busy state changed
+    Change in backend's busy/idle status
     """
 
     busy: StrictBool = Field(
-        description="Computation engine busy status",
+        description="Whether the backend is busy",
     )
 
 class OpenEditorParams(BaseModel):
     """
-    Open file in editor
+    Open an editor
     """
 
     file: StrictStr = Field(
-        description="File path to open",
+        description="The path of the file to open",
     )
 
     line: StrictInt = Field(
-        description="Target line number",
+        description="The line number to jump to",
     )
 
     column: StrictInt = Field(
-        description="Target column position",
+        description="The column number to jump to",
     )
 
 class NewDocumentParams(BaseModel):
     """
-    Create new document
+    Create a new document with text contents
     """
 
     contents: StrictStr = Field(
-        description="Initial document text",
+        description="Document contents",
     )
 
     language_id: StrictStr = Field(
-        description="Document language mode",
+        description="Language identifier",
     )
 
 class ShowMessageParams(BaseModel):
     """
-    Display user message
+    Show a message
     """
 
     message: StrictStr = Field(
-        description="Message text to display",
+        description="The message to show to the user.",
     )
 
-class ExecuteCodeParams(BaseModel):
+class ShowQuestionParams(BaseModel):
     """
-    Execute code snippet
+    Show a question
     """
 
-    language_id: StrictStr = Field(
-        description="Code language identifier",
+    title: StrictStr = Field(
+        description="The title of the dialog",
     )
 
-    code: StrictStr = Field(
-        description="Code text to execute",
+    message: StrictStr = Field(
+        description="The message to display in the dialog",
     )
 
-    focus: StrictBool = Field(
-        description="Focus console on execution",
+    ok_button_title: StrictStr = Field(
+        description="The title of the OK button",
     )
 
-    allow_incomplete: StrictBool = Field(
-        description="Allow incomplete code blocks",
+    cancel_button_title: StrictStr = Field(
+        description="The title of the Cancel button",
+    )
+
+class ShowDialogParams(BaseModel):
+    """
+    Show a dialog
+    """
+
+    title: StrictStr = Field(
+        description="The title of the dialog",
+    )
+
+    message: StrictStr = Field(
+        description="The message to display in the dialog",
+    )
+
+class AskForPasswordParams(BaseModel):
+    """
+    Ask the user for a password
+    """
+
+    prompt: StrictStr = Field(
+        description="The prompt, such as 'Please enter your password'",
     )
 
 class PromptStateParams(BaseModel):
     """
-    Runtime prompt state changed
+    New state of the primary and secondary prompts
     """
 
     input_prompt: StrictStr = Field(
-        description="Primary input prompt",
+        description="Prompt for primary input.",
     )
 
     continuation_prompt: StrictStr = Field(
-        description="Continuation prompt for incomplete input",
+        description="Prompt for incomplete input.",
     )
 
 class WorkingDirectoryParams(BaseModel):
     """
-    Working directory changed
+    Change the displayed working directory
     """
 
     directory: StrictStr = Field(
-        description="New working directory path",
+        description="The new working directory",
+    )
+
+class DebugSleepParams(BaseModel):
+    """
+    Sleep for n seconds
+    """
+
+    ms: Union[StrictInt, StrictFloat] = Field(
+        description="Duration in milliseconds",
+    )
+
+class ExecuteCommandParams(BaseModel):
+    """
+    Execute a Erdos command
+    """
+
+    command: StrictStr = Field(
+        description="The command to execute",
+    )
+
+class EvaluateWhenClauseParams(BaseModel):
+    """
+    Get a logical for a `when` clause (a set of context keys)
+    """
+
+    when_clause: StrictStr = Field(
+        description="The values for context keys, as a `when` clause",
+    )
+
+class ExecuteCodeParams(BaseModel):
+    """
+    Execute code in a Erdos runtime
+    """
+
+    language_id: StrictStr = Field(
+        description="The language ID of the code to execute",
+    )
+
+    code: StrictStr = Field(
+        description="The code to execute",
+    )
+
+    focus: StrictBool = Field(
+        description="Whether to focus the runtime's console",
+    )
+
+    allow_incomplete: StrictBool = Field(
+        description="Whether to bypass runtime code completeness checks",
     )
 
 class OpenWorkspaceParams(BaseModel):
     """
-    Open workspace request
+    Open a workspace
     """
 
     path: StrictStr = Field(
-        description="Workspace path to open",
+        description="The path for the workspace to be opened",
     )
 
     new_window: StrictBool = Field(
-        description="Open in new window",
+        description="Should the workspace be opened in a new window?",
     )
 
 class SetEditorSelectionsParams(BaseModel):
     """
-    Set editor cursor selections
+    Set the selections in the editor
     """
 
     selections: List[Range] = Field(
-        description="Selection ranges to set",
+        description="The selections (really, ranges) to set in the document",
     )
 
-class ShowHtmlFileParams(BaseModel):
+class ModifyEditorSelectionsParams(BaseModel):
     """
-    Display HTML file
-    """
-
-    path: StrictStr = Field(
-        description="HTML file path",
-    )
-
-    title: StrictStr = Field(
-        description="Display title",
-    )
-
-    is_plot: StrictBool = Field(
-        description="Whether file contains plot",
-    )
-
-    height: StrictInt = Field(
-        description="Viewer height in pixels",
-    )
-
-class OpenWithSystemParams(BaseModel):
-    """
-    Open with system application
+    Modify selections in the editor with a text edit
     """
 
-    path: StrictStr = Field(
-        description="File path to open",
+    selections: List[Range] = Field(
+        description="The selections (really, ranges) to set in the document",
+    )
+
+    values: List[StrictStr] = Field(
+        description="The text values to insert at the selections",
     )
 
 class ShowUrlParams(BaseModel):
     """
-    Display URL in viewer
+    Show a URL in Erdos's Viewer pane
     """
 
     url: StrictStr = Field(
-        description="URL to display",
+        description="The URL to display",
+    )
+
+class ShowHtmlFileParams(BaseModel):
+    """
+    Show an HTML file in Erdos
+    """
+
+    path: StrictStr = Field(
+        description="The fully qualified filesystem path to the HTML file to display",
+    )
+
+    title: StrictStr = Field(
+        description="A title to be displayed in the viewer. May be empty, and can be superseded by the title in the HTML file.",
+    )
+
+    is_plot: StrictBool = Field(
+        description="Whether the HTML file is a plot-like object",
+    )
+
+    height: StrictInt = Field(
+        description="The desired height of the HTML viewer, in pixels. The special value 0 indicates that no particular height is desired, and -1 indicates that the viewer should be as tall as possible.",
+    )
+
+class OpenWithSystemParams(BaseModel):
+    """
+    Open a file or folder with the system default application
+    """
+
+    path: StrictStr = Field(
+        description="The file path to open with the system default application",
     )
 
 GetStateResult.update_forward_refs()
 
+EditorContext.update_forward_refs()
+
+TextDocument.update_forward_refs()
+
 Position.update_forward_refs()
+
+Selection.update_forward_refs()
 
 Range.update_forward_refs()
 
@@ -375,19 +549,33 @@ NewDocumentParams.update_forward_refs()
 
 ShowMessageParams.update_forward_refs()
 
-ExecuteCodeParams.update_forward_refs()
+ShowQuestionParams.update_forward_refs()
+
+ShowDialogParams.update_forward_refs()
+
+AskForPasswordParams.update_forward_refs()
 
 PromptStateParams.update_forward_refs()
 
 WorkingDirectoryParams.update_forward_refs()
 
+DebugSleepParams.update_forward_refs()
+
+ExecuteCommandParams.update_forward_refs()
+
+EvaluateWhenClauseParams.update_forward_refs()
+
+ExecuteCodeParams.update_forward_refs()
+
 OpenWorkspaceParams.update_forward_refs()
 
 SetEditorSelectionsParams.update_forward_refs()
 
+ModifyEditorSelectionsParams.update_forward_refs()
+
+ShowUrlParams.update_forward_refs()
+
 ShowHtmlFileParams.update_forward_refs()
 
 OpenWithSystemParams.update_forward_refs()
-
-ShowUrlParams.update_forward_refs()
 

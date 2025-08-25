@@ -44,3 +44,7 @@ export function replaceAll(source: string, substr: string, newSubstr: string): s
 
     return source.replace(new RegExp(escapeRegExp(substr), 'g'), newSubstr);
 }
+
+export function getShortestString(strings: string[]): string {
+    return strings.reduce((a, b) => (a.length <= b.length ? a : b));
+}

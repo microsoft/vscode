@@ -507,6 +507,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, eventHandle: number | undefined): void;
 	$emitFoldingRangeEvent(eventHandle: number, event?: any): void;
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerStatementRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerHelpTopicProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], metadata?: IDocumentDropEditProviderMetadata): void;
@@ -2404,6 +2406,8 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Promise<languages.IColorPresentation[] | undefined>;
 	$provideFoldingRanges(handle: number, resource: UriComponents, context: languages.FoldingContext, token: CancellationToken): Promise<languages.FoldingRange[] | undefined>;
 	$provideSelectionRanges(handle: number, resource: UriComponents, positions: IPosition[], token: CancellationToken): Promise<languages.SelectionRange[][]>;
+	$provideStatementRange(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<any | undefined>;
+	$provideHelpTopic(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<string | undefined>;
 	$prepareCallHierarchy(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ICallHierarchyItemDto[] | undefined>;
 	$provideCallHierarchyIncomingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IIncomingCallDto[] | undefined>;
 	$provideCallHierarchyOutgoingCalls(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<IOutgoingCallDto[] | undefined>;

@@ -2,10 +2,12 @@
  *  Copyright (C) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-export enum JupyterChannel {
-	Shell = 'shell',
-	Control = 'control',
-	Stdin = 'stdin',
-	IOPub = 'iopub',
-	Heartbeat = 'heartbeat'
+export enum SocketMessageKind {
+	Jupyter = 'jupyter',
+
+	Kernel = 'kernel',
+}
+
+export interface SocketMessage {
+	kind: SocketMessageKind;
 }

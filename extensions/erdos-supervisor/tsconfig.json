@@ -3,16 +3,26 @@
 		"module": "commonjs",
 		"target": "ES2020",
 		"outDir": "out",
-		"lib": [
-			"ES2020",
-			"DOM"
-		],
+		"lib": ["ES2020"],
 		"sourceMap": true,
 		"rootDir": "src",
 		"strict": true,
-		"skipLibCheck": true
+		"typeRoots": ["./node_modules/@types"],
+		"paths": {
+			"*": ["./node_modules/*"],
+		},
+		"useUnknownInCatchVariables": false,
+		"noImplicitAny": false,
+		"esModuleInterop": true,
+
+		/* Additional Checks */
+		// "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
+		// "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
+		// "noUnusedParameters": true,	/* Report errors on unused parameters. */
 	},
-	"exclude": [
-		"node_modules"
-	]
+	"include": [
+		"src/**/*",
+		"../../src/erdos-dts/erdos.d.ts",
+		"../../src/vscode-dts/vscode.d.ts",
+	],
 }

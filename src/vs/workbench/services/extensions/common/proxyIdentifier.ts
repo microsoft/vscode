@@ -18,6 +18,11 @@ export interface IRPCProtocol {
 	set<T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R;
 
 	/**
+	 * Get the raw instance of a registered actor.
+	 */
+	getRaw<T, R extends T>(identifier: ProxyIdentifier<T>): R;
+
+	/**
 	 * Assert these identifiers are already registered via `.set`.
 	 */
 	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;

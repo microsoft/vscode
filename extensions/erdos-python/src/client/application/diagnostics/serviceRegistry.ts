@@ -23,6 +23,7 @@ import {
     InvalidMacPythonInterpreterService,
     InvalidMacPythonInterpreterServiceId,
 } from './checks/macPythonInterpreter';
+import { UnsupportedPythonVersionService, UnsupportedPythonVersionServiceId } from './checks/unsupportedPythonVersion';
 import {
     PowerShellActivationHackDiagnosticsService,
     PowerShellActivationHackDiagnosticsServiceId,
@@ -90,6 +91,11 @@ export function registerTypes(serviceManager: IServiceManager): void {
         IDiagnosticsService,
         JediPython27NotSupportedDiagnosticService,
         JediPython27NotSupportedDiagnosticServiceId,
+    );
+    serviceManager.addSingleton<IDiagnosticsService>(
+        IDiagnosticsService,
+        UnsupportedPythonVersionService,
+        UnsupportedPythonVersionServiceId,
     );
 
     serviceManager.addSingleton<IDiagnosticsService>(

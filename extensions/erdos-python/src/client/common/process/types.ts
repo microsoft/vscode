@@ -19,7 +19,7 @@ export type ObservableExecutionResult<T extends string | Buffer> = {
 };
 
 export type SpawnOptions = ChildProcessSpawnOptions & {
-    encoding?: string;
+    encoding?: string | undefined;
     token?: CancellationToken;
     mergeStdOutErr?: boolean;
     throwOnStdErr?: boolean;
@@ -29,7 +29,11 @@ export type SpawnOptions = ChildProcessSpawnOptions & {
     useWorker?: boolean;
 };
 
-export type ShellOptions = ExecOptions & { throwOnStdErr?: boolean; useWorker?: boolean };
+export type ShellOptions = Omit<ExecOptions, 'encoding'> & { 
+    encoding?: string | undefined;
+    throwOnStdErr?: boolean; 
+    useWorker?: boolean; 
+};
 
 export type ExecutionResult<T extends string | Buffer> = {
     stdout: T;

@@ -6,7 +6,6 @@ import { inject, injectable } from 'inversify';
 import { l10n, Position, Range, TextEditor, Uri } from 'vscode';
 
 import {
-    IActiveResourceService,
     IApplicationShell,
     ICommandManager,
     IDocumentManager,
@@ -37,7 +36,7 @@ export class CodeExecutionHelper implements ICodeExecutionHelper {
 
     private readonly commandManager: ICommandManager;
 
-    private activeResourceService: IActiveResourceService;
+
 
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error TS6133: 'configSettings' is declared but its value is never read.
@@ -50,12 +49,12 @@ export class CodeExecutionHelper implements ICodeExecutionHelper {
         this.interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
         this.configSettings = serviceContainer.get<IConfigurationService>(IConfigurationService);
         this.commandManager = serviceContainer.get<ICommandManager>(ICommandManager);
-        this.activeResourceService = this.serviceContainer.get<IActiveResourceService>(IActiveResourceService);
+
     }
 
     public async normalizeLines(
         code: string,
-        _replType: ReplType,
+        replType: ReplType,
         wholeFileContent?: string,
         resource?: Uri,
     ): Promise<string> {
@@ -98,14 +97,7 @@ export class CodeExecutionHelper implements ICodeExecutionHelper {
             const startLineVal = activeEditor?.selection?.start.line ?? 0;
             const endLineVal = activeEditor?.selection?.end.line ?? 0;
             const emptyHighlightVal = activeEditor?.selection?.isEmpty ?? true;
-            let smartSendSettingsEnabledVal = true;
-            let shellIntegrationEnabled = false;
-            const configuration = this.serviceContainer.get<IConfigurationService>(IConfigurationService);
-            if (configuration) {
-                const pythonSettings = configuration.getSettings(this.activeResourceService.getActiveResource());
-                smartSendSettingsEnabledVal = pythonSettings.REPL.enableREPLSmartSend;
-                shellIntegrationEnabled = pythonSettings.terminal.shellIntegration.enabled;
-            }
+            const smartSendSettingsEnabledVal = true;
 
             const input = JSON.stringify({
                 code,
@@ -127,8 +119,8 @@ export class CodeExecutionHelper implements ICodeExecutionHelper {
                 await this.moveToNextBlock(lineOffset, activeEditor);
             }
 
-            // For new _pyrepl for Python3.13+ && !shellIntegration, we need to send code via bracketed paste mode.
-            if (object.attach_bracket_paste && !shellIntegrationEnabled && _replType === ReplType.terminal) {
+            // For new _pyrepl for Python3.13 and above, we need to send code via bracketed paste mode.
+            if (object.attach_bracket_paste && replType === ReplType.terminal) {
                 let trimmedNormalized = object.normalized.replace(/\n$/, '');
                 if (trimmedNormalized.endsWith(':\n')) {
                     // In case where statement is unfinished via :, truncate so auto-indentation lands nicely.

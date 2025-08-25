@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as fsapi from '../../common/platform/fs-paths';
@@ -184,6 +185,29 @@ export async function* getSubDirs(
     });
 
     yield* iterable(chain(generators));
+}
+
+export function checkParentDirs(
+    root: string,
+    fileName: string,
+    options?: { resolveSymlinks?: boolean; maxDepth?: number },
+): string | undefined {
+    let depth = 0;
+    while (pathExistsSync(root) && (options?.maxDepth === undefined || depth < options.maxDepth)) {
+        const filePath = path.join(root, fileName);
+        if (options?.resolveSymlinks && pathExistsSync(filePath) && fs.lstatSync(filePath).isSymbolicLink()) {
+            return fs.readlinkSync(filePath);
+        }
+        if (pathExistsSync(filePath)) {
+            return filePath;
+        }
+        if (root === path.dirname(root)) {
+            break;
+        }
+        root = path.dirname(root);
+        depth += 1;
+    }
+    return undefined;
 }
 
 /**

@@ -17,6 +17,7 @@ export type InterpreterInformation = {
     arch: Architecture;
     executable: PythonExecutableInfo;
     version: PythonVersion;
+    implementation?: string;
 };
 
 /**
@@ -58,6 +59,7 @@ function extractInterpreterInfo(python: string, raw: InterpreterInfoJson): Inter
             ...parseVersion(rawVersion),
             sysVersion: raw.sysVersion,
         },
+        implementation: raw.implementation,
     };
 }
 

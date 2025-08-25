@@ -181,6 +181,8 @@ export interface IPythonSettings {
     readonly languageServerDebug: boolean;
     readonly languageServerLogLevel: string;
     readonly quietMode: boolean;
+    readonly interpretersInclude: string[];
+    readonly interpretersExclude: string[];
     readonly enableAutoReload: boolean;
     readonly defaultInterpreterPath: string;
     readonly REPL: IREPLSettings;

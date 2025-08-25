@@ -7,12 +7,12 @@
 	"methods": [
 		{
 			"name": "busy",
-			"summary": "Runtime busy state changed",
-			"description": "Signals computation engine state changes",
+			"summary": "Change in backend's busy/idle status",
+			"description": "This represents the busy state of the underlying computation engine, not the busy state of the kernel. The kernel is busy when it is processing a request, but the runtime is busy only when a computation is running.",
 			"params": [
 				{
 					"name": "busy",
-					"description": "Computation engine busy status",
+					"description": "Whether the backend is busy",
 					"schema": {
 						"type": "boolean"
 					}
@@ -21,32 +21,32 @@
 		},
 		{
 			"name": "clear_console",
-			"summary": "Clear console output",
-			"description": "Clears all console content",
+			"summary": "Clear the console",
+			"description": "Use this to clear the console.",
 			"params": []
 		},
 		{
 			"name": "open_editor",
-			"summary": "Open file in editor",
-			"description": "Opens file at specified location",
+			"summary": "Open an editor",
+			"description": "This event is used to open an editor with a given file and selection.",
 			"params": [
 				{
 					"name": "file",
-					"description": "File path to open",
+					"description": "The path of the file to open",
 					"schema": {
 						"type": "string"
 					}
 				},
 				{
 					"name": "line",
-					"description": "Target line number",
+					"description": "The line number to jump to",
 					"schema": {
 						"type": "integer"
 					}
 				},
 				{
 					"name": "column",
-					"description": "Target column position",
+					"description": "The column number to jump to",
 					"schema": {
 						"type": "integer"
 					}
@@ -55,19 +55,19 @@
 		},
 		{
 			"name": "new_document",
-			"summary": "Create new document",
-			"description": "Creates document with specified content",
+			"summary": "Create a new document with text contents",
+			"description": "Use this to create a new document with the given language ID and text contents",
 			"params": [
 				{
 					"name": "contents",
-					"description": "Initial document text",
+					"description": "Document contents",
 					"schema": {
 						"type": "string"
 					}
 				},
 				{
 					"name": "language_id",
-					"description": "Document language mode",
+					"description": "Language identifier",
 					"schema": {
 						"type": "string"
 					}
@@ -77,12 +77,12 @@
 		},
 		{
 			"name": "show_message",
-			"summary": "Display user message",
-			"description": "Shows notification to user",
+			"summary": "Show a message",
+			"description": "Use this for messages that require immediate attention from the user",
 			"params": [
 				{
 					"name": "message",
-					"description": "Message text to display",
+					"description": "The message to show to the user.",
 					"schema": {
 						"type": "string"
 					}
@@ -90,56 +90,104 @@
 			]
 		},
 		{
-			"name": "execute_code",
-			"summary": "Execute code snippet",
-			"description": "Runs code in active runtime",
+			"name": "show_question",
+			"summary": "Show a question",
+			"description": "Use this for a modal dialog that the user can accept or cancel",
 			"params": [
 				{
-					"name": "language_id",
-					"description": "Code language identifier",
+					"name": "title",
+					"description": "The title of the dialog",
 					"schema": {
 						"type": "string"
 					}
 				},
 				{
-					"name": "code",
-					"description": "Code text to execute",
+					"name": "message",
+					"description": "The message to display in the dialog",
 					"schema": {
 						"type": "string"
 					}
 				},
 				{
-					"name": "focus",
-					"description": "Focus console on execution",
+					"name": "ok_button_title",
+					"description": "The title of the OK button",
 					"schema": {
-						"type": "boolean"
+						"type": "string"
 					}
 				},
 				{
-					"name": "allow_incomplete",
-					"description": "Allow incomplete code blocks",
+					"name": "cancel_button_title",
+					"description": "The title of the Cancel button",
 					"schema": {
-						"type": "boolean"
+						"type": "string"
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"type": "boolean",
+					"description": "Whether the user accepted or rejected the dialog."
+				}
+			}
+		},
+		{
+			"name": "show_dialog",
+			"summary": "Show a dialog",
+			"description": "Use this for a modal dialog that the user can only accept",
+			"params": [
+				{
+					"name": "title",
+					"description": "The title of the dialog",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "message",
+					"description": "The message to display in the dialog",
+					"schema": {
+						"type": "string"
 					}
 				}
 			],
 			"result": {}
 		},
 		{
+			"name": "ask_for_password",
+			"summary": "Ask the user for a password",
+			"description": "Use this for an input box where the user can input a password",
+			"params": [
+				{
+					"name": "prompt",
+					"description": "The prompt, such as 'Please enter your password'",
+					"schema": {
+						"type": "string"
+					}
+				}
+			],
+			"result": {
+				"required": false,
+				"schema": {
+					"type": "string",
+					"description": "The input from the user"
+				}
+			}
+		},
+		{
 			"name": "prompt_state",
-			"summary": "Runtime prompt state changed",
-			"description": "Signals changes to command prompts",
+			"summary": "New state of the primary and secondary prompts",
+			"description": "Languages like R allow users to change the way their prompts look. This event signals a change in the prompt configuration.",
 			"params": [
 				{
 					"name": "input_prompt",
-					"description": "Primary input prompt",
+					"description": "Prompt for primary input.",
 					"schema": {
 						"type": "string"
 					}
 				},
 				{
 					"name": "continuation_prompt",
-					"description": "Continuation prompt for incomplete input",
+					"description": "Prompt for incomplete input.",
 					"schema": {
 						"type": "string"
 					}
@@ -148,12 +196,12 @@
 		},
 		{
 			"name": "working_directory",
-			"summary": "Working directory changed",
-			"description": "Signals working directory updates",
+			"summary": "Change the displayed working directory",
+			"description": "This event signals a change in the working direcotry of the interpreter",
 			"params": [
 				{
 					"name": "directory",
-					"description": "New working directory path",
+					"description": "The new working directory",
 					"schema": {
 						"type": "string"
 					}
@@ -161,20 +209,106 @@
 			]
 		},
 		{
+			"name": "debug_sleep",
+			"summary": "Sleep for n seconds",
+			"description": "Useful for testing in the backend a long running frontend method",
+			"params": [
+				{
+					"name": "ms",
+					"description": "Duration in milliseconds",
+					"schema": {
+						"type": "number"
+					}
+				}
+			],
+			"result": {}
+		},
+		{
+			"name": "execute_command",
+			"summary": "Execute a Erdos command",
+			"description": "Use this to execute a Erdos command from the backend (like from a runtime), and wait for the command to finish",
+			"params": [
+				{
+					"name": "command",
+					"description": "The command to execute",
+					"schema": {
+						"type": "string"
+					}
+				}
+			],
+			"result": {}
+		},
+		{
+			"name": "evaluate_when_clause",
+			"summary": "Get a logical for a `when` clause (a set of context keys)",
+			"description": "Use this to evaluate a `when` clause of context keys in the frontend",
+			"params": [
+				{
+					"name": "when_clause",
+					"description": "The values for context keys, as a `when` clause",
+					"schema": {
+						"type": "string"
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"type": "boolean",
+					"description": "Whether the `when` clause evaluates as true or false"
+				}
+			}
+		},
+		{
+			"name": "execute_code",
+			"summary": "Execute code in a Erdos runtime",
+			"description": "Use this to execute code in a Erdos runtime",
+			"params": [
+				{
+					"name": "language_id",
+					"description": "The language ID of the code to execute",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "code",
+					"description": "The code to execute",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "focus",
+					"description": "Whether to focus the runtime's console",
+					"schema": {
+						"type": "boolean"
+					}
+				},
+				{
+					"name": "allow_incomplete",
+					"description": "Whether to bypass runtime code completeness checks",
+					"schema": {
+						"type": "boolean"
+					}
+				}
+			],
+			"result": {}
+		},
+		{
 			"name": "open_workspace",
-			"summary": "Open workspace request",
-			"description": "Opens workspace at specified path",
+			"summary": "Open a workspace",
+			"description": "Use this to open a workspace in Erdos",
 			"params": [
 				{
 					"name": "path",
-					"description": "Workspace path to open",
+					"description": "The path for the workspace to be opened",
 					"schema": {
 						"type": "string"
 					}
 				},
 				{
 					"name": "new_window",
-					"description": "Open in new window",
+					"description": "Should the workspace be opened in a new window?",
 					"schema": {
 						"type": "boolean"
 					}
@@ -182,13 +316,27 @@
 			]
 		},
 		{
+			"name": "workspace_folder",
+			"summary": "Path to the workspace folder",
+			"description": "Returns the path to the workspace folder, or first folder if there are multiple.",
+			"params": [],
+			"result": {
+				"required": false,
+				"schema": {
+					"name": "workspace_folder",
+					"type": "string",
+					"description": "The path to the workspace folder"
+				}
+			}
+		},
+		{
 			"name": "set_editor_selections",
-			"summary": "Set editor cursor selections",
-			"description": "Updates editor selection ranges",
+			"summary": "Set the selections in the editor",
+			"description": "Use this to set the selection ranges/cursor in the editor",
 			"params": [
 				{
 					"name": "selections",
-					"description": "Selection ranges to set",
+					"description": "The selections (really, ranges) to set in the document",
 					"schema": {
 						"type": "array",
 						"items": {
@@ -199,34 +347,120 @@
 			]
 		},
 		{
+			"name": "modify_editor_selections",
+			"summary": "Modify selections in the editor with a text edit",
+			"description": "Use this to edit a set of selection ranges/cursor in the editor",
+			"params": [
+				{
+					"name": "selections",
+					"description": "The selections (really, ranges) to set in the document",
+					"schema": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/range"
+						}
+					}
+				},
+				{
+					"name": "values",
+					"description": "The text values to insert at the selections",
+					"schema": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
+			],
+			"result": {}
+		},
+		{
+			"name": "last_active_editor_context",
+			"summary": "Context metadata for the last editor",
+			"description": "Returns metadata such as file path for the last editor selected by the user. The result may be undefined if there are no active editors.",
+			"params": [],
+			"result": {
+				"required": false,
+				"schema": {
+					"name": "editor_context",
+					"type": "object",
+					"description": "Editor metadata",
+					"properties": {
+						"document": {
+							"description": "Document metadata",
+							"$ref": "#/components/schemas/text_document"
+						},
+						"contents": {
+							"description": "Document contents",
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"selection": {
+							"description": "The primary selection, i.e. selections[0]",
+							"$ref": "#/components/schemas/selection"
+						},
+						"selections": {
+							"description": "The selections in this text editor.",
+							"type": "array",
+							"items": {
+								"$ref": "#/components/schemas/selection"
+							}
+						}
+					},
+					"required": [
+						"document",
+						"contents",
+						"selection",
+						"selections"
+					]
+				}
+			}
+		},
+		{
+			"name": "show_url",
+			"summary": "Show a URL in Erdos's Viewer pane",
+			"description": "Causes the URL to be displayed inside the Viewer pane, and makes the Viewer pane visible.",
+			"params": [
+				{
+					"name": "url",
+					"description": "The URL to display",
+					"schema": {
+						"type": "string"
+					}
+				}
+			]
+		},
+		{
 			"name": "show_html_file",
-			"summary": "Display HTML file",
-			"description": "Shows HTML file in viewer",
+			"summary": "Show an HTML file in Erdos",
+			"description": "Causes the HTML file to be shown in Erdos.",
 			"params": [
 				{
 					"name": "path",
-					"description": "HTML file path",
+					"description": "The fully qualified filesystem path to the HTML file to display",
 					"schema": {
 						"type": "string"
 					}
 				},
 				{
 					"name": "title",
-					"description": "Display title",
+					"description": "A title to be displayed in the viewer. May be empty, and can be superseded by the title in the HTML file.",
 					"schema": {
 						"type": "string"
 					}
 				},
 				{
 					"name": "is_plot",
-					"description": "Whether file contains plot",
+					"description": "Whether the HTML file is a plot-like object",
 					"schema": {
 						"type": "boolean"
 					}
 				},
 				{
 					"name": "height",
-					"description": "Viewer height in pixels",
+					"description": "The desired height of the HTML viewer, in pixels. The special value 0 indicates that no particular height is desired, and -1 indicates that the viewer should be as tall as possible.",
 					"schema": {
 						"type": "integer"
 					}
@@ -235,12 +469,12 @@
 		},
 		{
 			"name": "open_with_system",
-			"summary": "Open with system application",
-			"description": "Opens file with default system app",
+			"summary": "Open a file or folder with the system default application",
+			"description": "Open a file or folder with the system default application",
 			"params": [
 				{
 					"name": "path",
-					"description": "File path to open",
+					"description": "The file path to open with the system default application",
 					"schema": {
 						"type": "string"
 					}
@@ -249,38 +483,72 @@
 		},
 		{
 			"name": "clear_webview_preloads",
-			"summary": "Clear webview cache",
-			"description": "Clears cached webview preloads",
+			"summary": "Webview preloads should be flushed",
+			"description": "This event is used to signal that the stored messages the front-end replays when constructing multi-output plots should be reset. This happens for things like a holoviews extension being changed.",
 			"params": []
-		},
-		{
-			"name": "show_url",
-			"summary": "Display URL in viewer",
-			"description": "Opens URL in integrated viewer",
-			"params": [
-				{
-					"name": "url",
-					"description": "URL to display",
-					"schema": {
-						"type": "string"
-					}
-				}
-			]
 		}
 	],
 	"components": {
 		"schemas": {
+			"text_document": {
+				"type": "object",
+				"description": "Document metadata",
+				"properties": {
+					"path": {
+						"type": "string",
+						"description": "URI of the resource viewed in the editor"
+					},
+					"eol": {
+						"type": "string",
+						"description": "End of line sequence"
+					},
+					"is_closed": {
+						"type": "boolean",
+						"description": "Whether the document has been closed"
+					},
+					"is_dirty": {
+						"type": "boolean",
+						"description": "Whether the document has been modified"
+					},
+					"is_untitled": {
+						"type": "boolean",
+						"description": "Whether the document is untitled"
+					},
+					"language_id": {
+						"type": "string",
+						"description": "Language identifier"
+					},
+					"line_count": {
+						"type": "integer",
+						"description": "Number of lines in the document"
+					},
+					"version": {
+						"type": "integer",
+						"description": "Version number of the document"
+					}
+				},
+				"required": [
+					"path",
+					"eol",
+					"is_closed",
+					"is_dirty",
+					"is_untitled",
+					"language_id",
+					"line_count",
+					"version"
+				]
+			},
 			"position": {
 				"type": "object",
-				"description": "Line and character position",
+				"description": "A line and character position, such as the position of the cursor.",
 				"properties": {
 					"character": {
 						"type": "integer",
-						"description": "Zero-based character offset"
+						"description": "The zero-based character value, as a Unicode code point offset."
 					},
 					"line": {
 						"type": "integer",
-						"description": "Zero-based line number"
+						"description": "The zero-based line value."
 					}
 				},
 				"required": [
@@ -288,16 +556,44 @@
 					"line"
 				]
 			},
-			"range": {
+			"selection": {
 				"type": "object",
-				"description": "Text selection range",
+				"description": "Selection metadata",
 				"properties": {
+					"active": {
+						"description": "Position of the cursor.",
+						"$ref": "#/components/schemas/position"
+					},
 					"start": {
-						"description": "Range start position",
+						"description": "Start position of the selection",
 						"$ref": "#/components/schemas/position"
 					},
 					"end": {
-						"description": "Range end position",
+						"description": "End position of the selection",
+						"$ref": "#/components/schemas/position"
+					},
+					"text": {
+						"description": "Text of the selection",
+						"type": "string"
+					}
+				},
+				"required": [
+					"active",
+					"start",
+					"end",
+					"text"
+				]
+			},
+			"range": {
+				"type": "object",
+				"description": "Selection range",
+				"properties": {
+					"start": {
+						"description": "Start position of the selection",
+						"$ref": "#/components/schemas/position"
+					},
+					"end": {
+						"description": "End position of the selection",
 						"$ref": "#/components/schemas/position"
 					}
 				},

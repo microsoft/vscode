@@ -8,6 +8,7 @@ export enum DiagnosticCodes {
     InvalidDebuggerTypeDiagnostic = 'InvalidDebuggerTypeDiagnostic',
     NoPythonInterpretersDiagnostic = 'NoPythonInterpretersDiagnostic',
     MacInterpreterSelected = 'MacInterpreterSelected',
+    UnsupportedPythonVersion = 'UnsupportedPythonVersion',
     InvalidPythonPathInDebuggerSettingsDiagnostic = 'InvalidPythonPathInDebuggerSettingsDiagnostic',
     InvalidPythonPathInDebuggerLaunchDiagnostic = 'InvalidPythonPathInDebuggerLaunchDiagnostic',
     EnvironmentActivationInPowerShellWithBatchFilesNotSupportedDiagnostic = 'EnvironmentActivationInPowerShellWithBatchFilesNotSupportedDiagnostic',

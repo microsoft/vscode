@@ -1,6 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+/* eslint-disable import/no-duplicates */
+
+import * as path from 'path';
 import { injectable, inject } from 'inversify';
 import { Resource } from '../../common/types';
 import { Architecture } from '../../common/utils/platform';
@@ -16,7 +19,8 @@ import {
 import { PythonVersion } from '../../pythonEnvironments/info/pythonVersion';
 import { IInterpreterHelper } from '../contracts';
 import { IInterpreterComparer } from './types';
-import { getActivePyenvForDirectory } from '../../pythonEnvironments/common/environmentManagers/pyenv';
+import { getActivePyenvForDirectory, getPyenvDir } from '../../pythonEnvironments/common/environmentManagers/pyenv';
+import { readFileSync, pathExistsSync, checkParentDirs } from '../../pythonEnvironments/common/externalDependencies';
 import { arePathsSame } from '../../common/platform/fs-paths';
 
 export enum EnvLocationHeuristic {
@@ -56,6 +60,12 @@ export class EnvironmentTypeComparer implements IInterpreterComparer {
             return 1;
         }
         if (isProblematicCondaEnvironment(b)) {
+            return -1;
+        }
+        if (!isVersionSupported(a.version)) {
+            return 1;
+        }
+        if (!isVersionSupported(b.version)) {
             return -1;
         }
         // Check environment location.
@@ -122,8 +132,15 @@ export class EnvironmentTypeComparer implements IInterpreterComparer {
         // or fallback on a globally-installed interpreter, and we don't want want to suggest a global environment
         // because we would have to add a way to match environments to a workspace.
         const workspaceUri = this.interpreterHelper.getActiveWorkspaceUri(resource);
+        const pyenvVersion = interpreters.some((i) => i.envType === EnvironmentType.Pyenv)
+            ? getPyenvVersion(workspaceUri?.folderUri.fsPath)
+            : undefined;
+
         const filteredInterpreters = interpreters.filter((i) => {
             if (isProblematicCondaEnvironment(i)) {
+                return false;
+            }
+            if (!isVersionSupported(i.version)) {
                 return false;
             }
             if (
@@ -143,6 +160,12 @@ export class EnvironmentTypeComparer implements IInterpreterComparer {
             }
             if (i.version?.major === 2) {
                 return false;
+            }
+            if (i.version?.raw === pyenvVersion && i.envType === EnvironmentType.Pyenv) {
+                return true;
+            }
+            if (pyenvVersion && i.envType === EnvironmentType.Pyenv) {
+                return isVirtualEnvName(pyenvVersion) && i.envName === pyenvVersion;
             }
             return true;
         });
@@ -267,13 +290,13 @@ export function getEnvLocationHeuristic(environment: PythonEnvironment, workspac
  */
 function compareEnvironmentType(a: PythonEnvironment, b: PythonEnvironment): number {
     if (!a.type && !b.type) {
-        // Unless one of them is pyenv interpreter, return 0 if two global interpreters are being compared.
         if (a.envType === EnvironmentType.Pyenv && b.envType !== EnvironmentType.Pyenv) {
             return -1;
         }
         if (a.envType !== EnvironmentType.Pyenv && b.envType === EnvironmentType.Pyenv) {
             return 1;
         }
+
         return 0;
     }
     const envTypeByPriority = getPrioritizedEnvironmentType();
@@ -283,6 +306,7 @@ function compareEnvironmentType(a: PythonEnvironment, b: PythonEnvironment): num
 function getPrioritizedEnvironmentType(): EnvironmentType[] {
     return [
         // Prioritize non-Conda environments.
+        EnvironmentType.Uv,
         EnvironmentType.Poetry,
         EnvironmentType.Pipenv,
         EnvironmentType.VirtualEnvWrapper,
@@ -295,8 +319,36 @@ function getPrioritizedEnvironmentType(): EnvironmentType[] {
         EnvironmentType.MicrosoftStore,
         EnvironmentType.Global,
         EnvironmentType.System,
+        EnvironmentType.Custom,
         EnvironmentType.Unknown,
     ];
+}
+
+function isVirtualEnvName(versionName: string): boolean {
+    const pattern = /[0-9]+\.[0-9]+\.[0-9]/;
+    return !versionName.match(pattern);
+}
+
+export function getPyenvVersion(workspacePath: string | undefined): string | undefined {
+    const localPyenvVersion = workspacePath ? path.join(workspacePath, '.python-version') : '';
+    if (pathExistsSync(localPyenvVersion)) {
+        return readFileSync(localPyenvVersion).trim();
+    }
+    if (workspacePath) {
+        const parentPyenvVersion = checkParentDirs(workspacePath, '.python-version', {
+            resolveSymlinks: true,
+            maxDepth: 10,
+        });
+        if (parentPyenvVersion) {
+            return readFileSync(parentPyenvVersion).trim();
+        }
+    }
+
+    const globalPyenvVersion = path.join(getPyenvDir(), 'version');
+    if (pathExistsSync(globalPyenvVersion)) {
+        return readFileSync(globalPyenvVersion).trim();
+    }
+    return undefined;
 }
 
 export function isVersionSupported(version: PythonVersion | undefined): boolean {

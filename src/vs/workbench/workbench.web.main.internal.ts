@@ -70,6 +70,7 @@ import './services/configurationResolver/browser/configurationResolverService.js
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import './services/browserElements/browser/webBrowserElementsService.js';
+import './services/ephemeralState/browser/ephemeralStateService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';

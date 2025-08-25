@@ -157,6 +157,17 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			: this.createExtHostOutputChannel(name, <Promise<ExtHostOutputChannel>>extHostOutputChannel, channelDisposables);
 	}
 
+	createRawLogOutputChannel(name: string, extension: IExtensionDescription): vscode.OutputChannel {
+		const channel = this.createOutputChannel(name, { log: true }, extension);
+
+		const channelUnchecked = channel as any
+		if (channelUnchecked.setRawLogger) {
+			channelUnchecked.setRawLogger();
+		}
+
+		return channel;
+	}
+
 	private async doCreateOutputChannel(name: string, languageId: string | undefined, extension: IExtensionDescription, channelDisposables: DisposableStore): Promise<ExtHostOutputChannel> {
 		if (!this.outputDirectoryPromise) {
 			this.outputDirectoryPromise = this.extHostFileSystem.value.createDirectory(this.outputsLocation).then(() => this.outputsLocation);
