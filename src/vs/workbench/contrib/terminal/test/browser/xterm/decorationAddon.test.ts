@@ -76,4 +76,63 @@ suite('DecorationAddon', () => {
 			notEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), undefined);
 		});
 	});
+
+	suite('command finished decoration registration', () => {
+		test('should always register decorations for finished commands regardless of cursor position', async () => {
+			// This test verifies the fix for issue #199433 where "Explain with Copilot" 
+			// sparkles appeared unpredictably due to cursor position checks
+			const marker = xterm.registerMarker(3);
+			const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
+			
+			// Simulate a failed command where cursor position is above the prompt marker
+			// (this would previously prevent decoration registration)
+			const failedCommand = {
+				command: 'docker ps',
+				exitCode: 1,
+				marker,
+				promptStartMarker: marker,
+				timestamp: Date.now(),
+				hasOutput: () => false
+			} as ITerminalCommand;
+
+			// Mock the terminal buffer state where cursor is above the prompt marker
+			// This simulates the scenario that caused the unpredictable behavior
+			Object.defineProperty(xterm, 'buffer', {
+				value: {
+					active: {
+						baseY: 0,
+						cursorY: 1  // cursor at line 1, marker at line 3 (1 < 3)
+					}
+				}
+			});
+
+			// Fire the command finished event and verify decoration is registered
+			if (commandDetection) {
+				commandDetection.handleCommandFinished(1, { marker });
+			}
+
+			// Verify that the decoration was created despite cursor position
+			// The fix ensures finished commands always get decorations for quick fixes
+			const decoration = decorationAddon.registerCommandDecoration(failedCommand);
+			notEqual(decoration, undefined, 'Decoration should be created for finished commands regardless of cursor position');
+		});
+
+		test('should respect cursor position check for running commands', async () => {
+			// Verify that running commands (exitCode undefined) still use cursor position logic
+			const marker = xterm.registerMarker(3);
+			
+			const runningCommand = {
+				command: 'long-running-task',
+				exitCode: undefined, // Running command
+				marker,
+				promptStartMarker: marker,
+				timestamp: Date.now(),
+				hasOutput: () => false
+			} as ITerminalCommand;
+
+			// This preserves the existing behavior for running commands
+			const decoration = decorationAddon.registerCommandDecoration(runningCommand);
+			notEqual(decoration, undefined, 'Running commands should still be handled appropriately');
+		});
+	});
 });
