@@ -95,9 +95,6 @@ export const upstreamSpecs = [
 	'nano',
 	'vim',
 
-	// SCM
-	'gh',
-
 	// Shells
 	'ssh',
 

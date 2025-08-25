@@ -73,6 +73,8 @@ declare module 'vscode' {
 		Tag = 12,
 		Stash = 13,
 		Remote = 14,
+		PullRequest = 15,
+		PullRequestDone = 16,
 	}
 
 	export interface TerminalCompletionContext {
