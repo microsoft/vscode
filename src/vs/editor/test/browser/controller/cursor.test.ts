@@ -4442,6 +4442,33 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('replace does not preserve case with single cursor', () => {
+		const model = createTextModel('Test');
+
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 5),
+			]);
+
+			viewModel.type('b', 'keyboard');
+			assert.strictEqual(model.getValue(), 'b');
+		});
+	});
+
+	test('replace preserves case with multicursor', () => {
+		const model = createTextModel('Test test');
+
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 5),
+				new Selection(1, 6, 1, 10),
+			]);
+
+			viewModel.type('b', 'keyboard');
+			assert.strictEqual(model.getValue(), 'B b');
+		});
+	});
+
 	test('Auto indent on type: increaseIndentPattern has higher priority than decreaseIndent when inheriting', () => {
 		usingCursor({
 			text: [
