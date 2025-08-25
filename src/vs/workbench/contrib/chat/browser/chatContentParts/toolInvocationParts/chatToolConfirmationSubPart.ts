@@ -80,11 +80,10 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 
 		const enum ConfirmationOutcome {
 			Allow,
-			Disallow,
+			Skip,
 			AllowWorkspace,
 			AllowGlobally,
 			AllowSession,
-			CustomAction,
 		}
 
 		const buttons: IChatConfirmationButton<ConfirmationOutcome>[] = [
@@ -99,8 +98,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				],
 			},
 			{
-				label: localize('cancel', "Cancel"),
-				data: ConfirmationOutcome.Disallow,
+				label: localize('skip', "Skip"),
+				data: ConfirmationOutcome.Skip,
 				isSecondary: true,
 				tooltip: cancelTooltip
 			}];
@@ -327,8 +326,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				case ConfirmationOutcome.Allow:
 					toolInvocation.confirmed.complete({ type: ToolConfirmKind.UserAction });
 					break;
-				case ConfirmationOutcome.Disallow:
-					toolInvocation.confirmed.complete({ type: ToolConfirmKind.Denied });
+				case ConfirmationOutcome.Skip:
+					toolInvocation.confirmed.complete({ type: ToolConfirmKind.Skipped });
 					break;
 			}
 
