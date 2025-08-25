@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { matchesScheme, Schemas } from '../../../../../../base/common/network.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
@@ -37,6 +39,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		codeBlockStartIndex: number,
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
 		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super(toolInvocation);
@@ -65,6 +68,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		};
 		this.markdownPart = this._register(instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {
 			actionHandler: (content) => {
+				if (matchesScheme(content, Schemas.https)) {
+					openerService.open(content);
+					return;
+				}
 				const [type, scopeRaw] = content.split('_');
 				switch (type) {
 					case 'settings': {
