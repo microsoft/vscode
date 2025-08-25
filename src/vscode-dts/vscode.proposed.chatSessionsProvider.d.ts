@@ -94,6 +94,20 @@ declare module 'vscode' {
 		 * The tooltip text when you hover over this item.
 		 */
 		tooltip?: string | MarkdownString;
+
+		/**
+		 * The times at which session started and ended,
+		 */
+		timing?: {
+			/**
+			 * Session start time.
+			 */
+			startTime: number;
+			/**
+			 * Session end time.
+			 */
+			endTime?: number;
+		};
 	}
 
 	export interface ChatSession {
