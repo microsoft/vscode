@@ -99,100 +99,97 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			this._isIdle = polled.state === OutputMonitorState.Idle;
 			this._state = polled.state;
 
-			if (this._state === OutputMonitorState.Idle) {
-				this._onDidIdle.fire();
-			} else if (this._state === OutputMonitorState.Timeout) {
-				this._onDidTimeout.fire();
-			}
 
-			// ----- Timeout handling: prompt + background polling race -----
-			if (this._state === OutputMonitorState.Timeout) {
-				// Create the prompt once; keep it open while we keep polling.
-				if (!continuePollingDecisionP) {
-					const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
-					continuePollingDecisionP = p;
-					continuePollingPart = part;
-				}
+			// Keep track of the last observed length to detect changes after auto-replies
+			lastObservedLength = this._execution.getOutput().length;
 
-				// Always use extended polling while a timeout prompt is visible
-				extended = true;
+			switch (this._state) {
+				case OutputMonitorState.Timeout: {
+					this._onDidTimeout.fire();
 
-				// Start another polling pass and race it against the user's decision
-				const nextPollP = this._pollOnce(this._execution, /*extendedPolling*/ true, token, this._pollFn)
-					.catch((): IPollingResult => ({
-						state: OutputMonitorState.Cancelled,
-						output: this._execution.getOutput(),
-						modelOutputEvalResponse: 'Cancelled'
-					}));
-
-				const race = await Promise.race([
-					continuePollingDecisionP.then(v => ({ kind: 'decision' as const, v })),
-					nextPollP.then(r => ({ kind: 'poll' as const, r }))
-				]);
-
-				if (race.kind === 'decision') {
-					try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
-					continuePollingPart = undefined;
-
-					// User explicitly declined to keep waiting, so finish with the timed-out result
-					if (race.v === false) {
-						this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
-						break;
+					// Create the prompt once; keep it open while we keep polling.
+					if (!continuePollingDecisionP) {
+						const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
+						continuePollingDecisionP = p;
+						continuePollingPart = part;
 					}
 
-					// User accepted; keep polling (the loop iterates again).
-					// Clear the decision so we don't race on a resolved promise.
-					continuePollingDecisionP = undefined;
-					continue;
-				} else {
-					// A background poll completed while waiting for a decision
-					const r = race.r;
-					this._isIdle = r.state === OutputMonitorState.Idle;
-					this._state = r.state;
+					// Always use extended polling while a timeout prompt is visible
+					extended = true;
 
-					if (r.state === OutputMonitorState.Idle || r.state === OutputMonitorState.Cancelled) {
+					// Start another polling pass and race it against the user's decision
+					const nextPollP = this._pollOnce(this._execution, /*extendedPolling*/ true, token, this._pollFn)
+						.catch((): IPollingResult => ({
+							state: OutputMonitorState.Cancelled,
+							output: this._execution.getOutput(),
+							modelOutputEvalResponse: 'Cancelled'
+						}));
+
+					const race = await Promise.race([
+						continuePollingDecisionP.then(v => ({ kind: 'decision' as const, v })),
+						nextPollP.then(r => ({ kind: 'poll' as const, r }))
+					]);
+
+					if (race.kind === 'decision') {
 						try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
 						continuePollingPart = undefined;
-						continuePollingDecisionP = undefined;
 
-						this._pollingResult = { ...r, pollDurationMs: Date.now() - pollStartTime };
-						if (r.state === OutputMonitorState.Idle) { this._onDidIdle.fire(); }
-						break;
-					}
-
-					// Still timing out; loop and race again with the same prompt.
-					continue;
-				}
-			}
-			// ----- end Timeout handling -----
-
-			// Cancelled path
-			if (this._state === OutputMonitorState.Cancelled) {
-				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
-				break;
-			}
-
-			// Idle path: try auto-reply; otherwise finish
-			if (this._state === OutputMonitorState.Idle) {
-				const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
-				const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
-
-				if (selectedOption) {
-					const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
-					if (confirmed) {
-						autoReplyCount++;
-						const changed = await this._waitForNextDataOrActivityChange(this._execution, lastObservedLength, token);
-						lastObservedLength = this._execution.getOutput().length;
-						if (!changed) {
+						// User explicitly declined to keep waiting, so finish with the timed-out result
+						if (race.v === false) {
 							this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
 							break;
 						}
+
+						// User accepted; keep polling (the loop iterates again).
+						// Clear the decision so we don't race on a resolved promise.
+						continuePollingDecisionP = undefined;
+						continue;
+					} else {
+						// A background poll completed while waiting for a decision
+						const r = race.r;
+						this._isIdle = r.state === OutputMonitorState.Idle;
+						this._state = r.state;
+
+						if (r.state === OutputMonitorState.Idle || r.state === OutputMonitorState.Cancelled) {
+							try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
+							continuePollingPart = undefined;
+							continuePollingDecisionP = undefined;
+
+							this._pollingResult = { ...r, pollDurationMs: Date.now() - pollStartTime };
+							if (r.state === OutputMonitorState.Idle) { this._onDidIdle.fire(); }
+							break;
+						}
+
+						// Still timing out; loop and race again with the same prompt.
 						continue;
 					}
 				}
+				case OutputMonitorState.Cancelled:
+					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+					break;
+				case OutputMonitorState.Idle: {
+					this._onDidIdle.fire();
 
-				this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
-				break;
+					const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
+					const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
+
+					if (selectedOption) {
+						const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
+						if (confirmed) {
+							autoReplyCount++;
+							const changed = await this._waitForNextDataOrActivityChange(this._execution, lastObservedLength, token);
+							lastObservedLength = this._execution.getOutput().length;
+							if (!changed) {
+								this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+								break;
+							}
+							continue;
+						}
+					}
+
+					this._pollingResult = { ...polled, pollDurationMs: Date.now() - pollStartTime };
+					break;
+				}
 			}
 		}
 
