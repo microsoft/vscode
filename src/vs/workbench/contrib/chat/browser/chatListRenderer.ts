@@ -709,6 +709,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
+		if (element.isCanceled && this._currentlyPinnedPart) {
+			this._finishedThinking = true;
+			this._currentlyPinnedPart.stopTimerAndFinalize();
+			this._currentlyPinnedPart = undefined;
+		}
+
 		const content: IChatRendererContent[] = [];
 		const isFiltered = !!element.errorDetails?.responseIsFiltered;
 		if (!isFiltered) {
